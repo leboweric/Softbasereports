@@ -46,9 +46,19 @@ app.register_blueprint(explorer_bp)
 app.register_blueprint(debug_bp)
 
 # Database configuration
-database_dir = os.path.join(os.path.dirname(__file__), 'database')
-os.makedirs(database_dir, exist_ok=True)
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(database_dir, 'app.db')}"
+# Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    # Fix for Railway PostgreSQL URL (postgres:// -> postgresql://)
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    # Fall back to SQLite for local development
+    database_dir = os.path.join(os.path.dirname(__file__), 'database')
+    os.makedirs(database_dir, exist_ok=True)
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(database_dir, 'app.db')}"
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
