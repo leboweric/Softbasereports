@@ -16,6 +16,7 @@ from src.routes.organization import organization_bp
 from src.routes.database import database_bp
 from src.routes.database_explorer import explorer_bp
 from src.routes.debug import debug_bp
+from src.routes.test_connections import test_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -58,6 +59,7 @@ app.register_blueprint(organization_bp, url_prefix='/api/organization')
 app.register_blueprint(database_bp)
 app.register_blueprint(explorer_bp)
 app.register_blueprint(debug_bp)
+app.register_blueprint(test_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite

@@ -48,13 +48,27 @@ class AzureSQLService:
         
         try:
             if self.driver == 'pymssql':
+                # Try with port explicitly specified
+                server_with_port = self.server
+                if ',1433' not in server_with_port:
+                    server_with_port = f"{self.server},1433"
+                
+                # Try username@server format if not already in that format
+                username = self.username
+                if '@' not in username and '.database.windows.net' in self.server:
+                    server_name = self.server.split('.')[0]
+                    username = f"{self.username}@{server_name}"
+                    logger.info(f"Trying Azure SQL username format: {username}")
+                
                 conn = pymssql.connect(
-                    server=self.server,
-                    user=self.username,
+                    server=server_with_port,
+                    user=username,
                     password=self.password,
                     database=self.database,
                     tds_version='7.0',
-                    as_dict=True
+                    as_dict=True,
+                    login_timeout=30,
+                    timeout=30
                 )
                 logger.info("Successfully connected to Azure SQL using pymssql")
                 return conn
