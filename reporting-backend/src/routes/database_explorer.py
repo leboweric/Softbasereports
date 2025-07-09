@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.azure_sql_service import AzureSQLService
 from ..services.simple_sql_service import SimpleSQLService
+from ..services.softbase_mock_service import SoftbaseMockService
 from ..models.user import User
 import logging
 
@@ -20,10 +21,14 @@ def explore_database():
         if not user or not user.is_admin:
             return jsonify({'error': 'Admin access required'}), 403
         
-        db = AzureSQLService()
-        
-        # Get all tables
-        tables = db.get_tables()
+        # Try Azure SQL first, fall back to mock if blocked
+        try:
+            db = AzureSQLService()
+            tables = db.get_tables()
+        except Exception as e:
+            logger.warning(f"Azure SQL blocked, using mock service: {str(e)}")
+            db = SoftbaseMockService()
+            tables = db.get_tables()
         
         # Categorize tables
         categories = {
@@ -124,12 +129,27 @@ def get_schema_summary():
             error_msg = str(e)
             
             # Check if it's a firewall issue
-            if "Azure SQL firewall blocks Railway IP" in error_msg:
+            if "Azure SQL firewall blocks Railway IP" in error_msg or "40615" in error_msg:
+                # Use Softbase mock service for development
+                mock_service = SoftbaseMockService()
+                tables = mock_service.get_tables()
+                
+                # Categorize tables
+                summary = {
+                    'customers': [t for t in tables if 'customer' in t.lower()],
+                    'inventory': [t for t in tables if any(x in t.lower() for x in ['equipment', 'inventory', 'model'])],
+                    'sales': [t for t in tables if any(x in t.lower() for x in ['sales', 'order', 'invoice', 'quote'])],
+                    'service': [t for t in tables if any(x in t.lower() for x in ['service', 'work', 'technician'])],
+                    'parts': [t for t in tables if 'part' in t.lower()],
+                    'financial': [t for t in tables if any(x in t.lower() for x in ['ledger', 'account', 'payment'])]
+                }
+                
                 return jsonify({
-                    'status': 'firewall_blocked',
-                    'error': error_msg,
-                    'message': 'Please add Railway IP to Azure SQL firewall',
-                    'categories': {}
+                    'total_tables': len(tables),
+                    'categories': summary,
+                    'status': 'mock_data',
+                    'message': 'Using Softbase Evolution mock data (Azure SQL firewall blocking connection)',
+                    'firewall_error': error_msg
                 }), 200
             
             # Fall back to simple service
