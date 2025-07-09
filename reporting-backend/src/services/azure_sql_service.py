@@ -1,8 +1,21 @@
-import pymssql
 import pandas as pd
 from typing import List, Dict, Any, Optional
 from ..config.database_config import DatabaseConfig
 import logging
+
+try:
+    import pymssql
+    HAS_PYMSSQL = True
+except ImportError:
+    HAS_PYMSSQL = False
+    logging.warning("pymssql not available")
+
+try:
+    import pyodbc
+    HAS_PYODBC = True
+except ImportError:
+    HAS_PYODBC = False
+    logging.warning("pyodbc not available")
 
 logger = logging.getLogger(__name__)
 
