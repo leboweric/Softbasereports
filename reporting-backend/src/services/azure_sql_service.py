@@ -4,13 +4,6 @@ from ..config.database_config import DatabaseConfig
 import logging
 
 try:
-    import pymssql
-    HAS_PYMSSQL = True
-except ImportError:
-    HAS_PYMSSQL = False
-    logging.warning("pymssql not available")
-
-try:
     import pyodbc
     HAS_PYODBC = True
 except ImportError:
@@ -30,21 +23,26 @@ class AzureSQLService:
     
     def get_connection(self):
         """Create and return a connection to Azure SQL Database"""
-        if not HAS_PYMSSQL:
-            raise ImportError("pymssql is not available")
+        if not HAS_PYODBC:
+            raise ImportError("pyodbc is not available")
             
         logger.info(f"Attempting to connect to Azure SQL: {self.server}/{self.database}")
         logger.info(f"Using username: {self.username}")
         
         try:
-            conn = pymssql.connect(
-                server=self.server,
-                user=self.username,
-                password=self.password,
-                database=self.database,
-                tds_version='7.0',
-                as_dict=True
+            # Connection string for Azure SQL
+            conn_str = (
+                f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+                f"SERVER={self.server};"
+                f"DATABASE={self.database};"
+                f"UID={self.username};"
+                f"PWD={self.password};"
+                f"Encrypt=yes;"
+                f"TrustServerCertificate=no;"
+                f"Connection Timeout=30;"
             )
+            
+            conn = pyodbc.connect(conn_str)
             logger.info("Successfully connected to Azure SQL")
             return conn
         except Exception as e:
@@ -62,11 +60,19 @@ class AzureSQLService:
             cursor = conn.cursor()
             
             if params:
-                cursor.execute(query, params)
+                # Convert dict params to positional params for pyodbc
+                cursor.execute(query, list(params.values()))
             else:
                 cursor.execute(query)
             
-            results = cursor.fetchall()
+            # Get column names
+            columns = [column[0] for column in cursor.description] if cursor.description else []
+            
+            # Fetch all results and convert to list of dicts
+            results = []
+            for row in cursor.fetchall():
+                results.append(dict(zip(columns, row)))
+            
             return results
             
         except Exception as e:
@@ -107,7 +113,7 @@ class AzureSQLService:
             CHARACTER_MAXIMUM_LENGTH,
             IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = %s
+        WHERE TABLE_NAME = ?
         ORDER BY ORDINAL_POSITION
         """
         return self.execute_query(query, {'table_name': table_name})

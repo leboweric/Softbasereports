@@ -24,25 +24,13 @@ def check_environment():
     # Check if SQL modules are available
     modules_status = {}
     
-    # Check pymssql
-    try:
-        import pymssql
-        modules_status['pymssql'] = {
-            'available': True,
-            'version': pymssql.__version__ if hasattr(pymssql, '__version__') else 'unknown'
-        }
-    except ImportError as e:
-        modules_status['pymssql'] = {
-            'available': False,
-            'error': str(e)
-        }
-    
-    # Check pyodbc
+    # Check pyodbc (primary driver)
     try:
         import pyodbc
         modules_status['pyodbc'] = {
             'available': True,
-            'version': pyodbc.version
+            'version': pyodbc.version,
+            'drivers': pyodbc.drivers()
         }
     except ImportError as e:
         modules_status['pyodbc'] = {
@@ -50,26 +38,26 @@ def check_environment():
             'error': str(e)
         }
     
+    
     # Test actual database connection
     connection_test = {'status': 'not_tested', 'error': None}
     
-    if modules_status['pymssql']['available']:
+    if modules_status['pyodbc']['available']:
         try:
-            import pymssql
-            conn = pymssql.connect(
-                server=os.environ.get('AZURE_SQL_SERVER', ''),
-                user=os.environ.get('AZURE_SQL_USERNAME', ''),
-                password=os.environ.get('AZURE_SQL_PASSWORD', ''),
-                database=os.environ.get('AZURE_SQL_DATABASE', '')
-            )
-            cursor = conn.cursor()
-            cursor.execute("SELECT @@VERSION")
-            row = cursor.fetchone()
-            connection_test = {
-                'status': 'connected',
-                'sql_version': row[0] if row else 'unknown'
-            }
-            conn.close()
+            from ..services.azure_sql_service import AzureSQLService
+            db = AzureSQLService()
+            if db.test_connection():
+                # Try to get version info
+                version_info = db.execute_query("SELECT @@VERSION AS version")
+                connection_test = {
+                    'status': 'connected',
+                    'sql_version': version_info[0]['version'] if version_info else 'unknown'
+                }
+            else:
+                connection_test = {
+                    'status': 'failed',
+                    'error': 'Connection test failed'
+                }
         except Exception as e:
             connection_test = {
                 'status': 'failed',
