@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 import os
 import sys
 import importlib.util
@@ -125,4 +125,23 @@ def test_query():
                 'module': e.__module__ if hasattr(e, '__module__') else 'unknown',
                 'args': str(e.args) if hasattr(e, 'args') else 'none'
             }
+        }), 500
+
+@debug_bp.route('/api/debug/jwt-test', methods=['GET'])
+@jwt_required()
+def test_jwt():
+    """Test JWT token decoding"""
+    try:
+        identity = get_jwt_identity()
+        claims = get_jwt()
+        
+        return jsonify({
+            'identity': identity,
+            'identity_type': type(identity).__name__,
+            'claims': claims
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'error_type': type(e).__name__
         }), 500
