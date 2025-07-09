@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-import traceback
+import re
 
 simple_test_bp = Blueprint('simple_test', __name__)
 
