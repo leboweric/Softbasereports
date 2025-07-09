@@ -18,6 +18,7 @@ import {
   Clock,
   MessageSquare
 } from 'lucide-react'
+import { apiUrl } from '@/lib/api'
 
 const AIQuery = () => {
   const [query, setQuery] = useState('')
@@ -35,7 +36,7 @@ const AIQuery = () => {
   const fetchSuggestions = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/ai/suggestions', {
+      const response = await fetch(apiUrl('/api/ai/suggestions'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -53,7 +54,7 @@ const AIQuery = () => {
   const fetchHistory = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/ai/query-history', {
+      const response = await fetch(apiUrl('/api/ai/query-history'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -74,7 +75,7 @@ const AIQuery = () => {
     setLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/ai/query', {
+      const response = await fetch(apiUrl('/api/ai/query'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -105,7 +106,7 @@ const AIQuery = () => {
 
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/ai/validate-query', {
+      const response = await fetch(apiUrl('/api/ai/validate-query'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

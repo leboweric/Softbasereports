@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard'
 import AIQuery from './components/AIQuery'
 import ReportCreator from './components/ReportCreator'
 import Reports from './components/Reports'
+import { apiUrl } from '@/lib/api'
 import './App.css'
 
 function App() {
@@ -25,7 +26,7 @@ function App() {
 
   const validateToken = async (token) => {
     try {
-      const response = await fetch('/api/auth/me', {
+      const response = await fetch(apiUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

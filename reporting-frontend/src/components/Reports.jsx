@@ -16,6 +16,7 @@ import {
   BarChart3,
   Calendar
 } from 'lucide-react'
+import { apiUrl } from '@/lib/api'
 
 const Reports = () => {
   const [reportData, setReportData] = useState([])
@@ -36,7 +37,7 @@ const Reports = () => {
   const fetchTemplates = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/reports/templates', {
+      const response = await fetch(apiUrl('/api/reports/templates'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -55,7 +56,7 @@ const Reports = () => {
     setLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/reports/data', {
+      const response = await fetch(apiUrl('/api/reports/data'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -91,7 +92,7 @@ const Reports = () => {
   const handleExport = async (format) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`/api/reports/export/${format}`, {
+      const response = await fetch(apiUrl(`/api/reports/export/${format}`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

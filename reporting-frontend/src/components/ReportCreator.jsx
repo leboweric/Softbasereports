@@ -17,6 +17,7 @@ import {
   FileText,
   Database
 } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 const ReportCreator = () => {
   const [description, setDescription] = useState('');
@@ -46,7 +47,7 @@ const ReportCreator = () => {
   const fetchExamples = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/custom-reports/examples', {
+      const response = await fetch(apiUrl('/api/custom-reports/examples'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -63,7 +64,7 @@ const ReportCreator = () => {
   const fetchTemplates = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/custom-reports/templates', {
+      const response = await fetch(apiUrl('/api/custom-reports/templates'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -80,7 +81,7 @@ const ReportCreator = () => {
   const fetchSuggestions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/custom-reports/suggestions', {
+      const response = await fetch(apiUrl('/api/custom-reports/suggestions'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -100,7 +101,7 @@ const ReportCreator = () => {
   const validateDescription = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/custom-reports/validate', {
+      const response = await fetch(apiUrl('/api/custom-reports/validate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,7 +124,7 @@ const ReportCreator = () => {
     setIsCreating(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/custom-reports/create', {
+      const response = await fetch(apiUrl('/api/custom-reports/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -155,7 +156,7 @@ const ReportCreator = () => {
     setIsCreating(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/custom-reports/templates/${templateId}/run`, {
+      const response = await fetch(apiUrl(`/api/custom-reports/templates/${templateId}/run`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

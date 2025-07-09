@@ -24,6 +24,7 @@ import {
   FileText,
   Download
 } from 'lucide-react'
+import { apiUrl } from '@/lib/api'
 
 const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
@@ -36,7 +37,7 @@ const Dashboard = ({ user }) => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/reports/dashboard/summary', {
+      const response = await fetch(apiUrl('/api/reports/dashboard/summary'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
