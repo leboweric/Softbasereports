@@ -19,6 +19,7 @@ from src.routes.debug import debug_bp
 from src.routes.test_connections import test_bp
 from src.routes.softbase_data import softbase_bp
 from src.routes.connection_diagnostics import diagnostics_bp
+from src.routes.simple_test import simple_test_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -64,6 +65,7 @@ app.register_blueprint(debug_bp)
 app.register_blueprint(test_bp)
 app.register_blueprint(softbase_bp)
 app.register_blueprint(diagnostics_bp)
+app.register_blueprint(simple_test_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
