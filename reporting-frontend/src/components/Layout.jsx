@@ -9,7 +9,8 @@ import {
   LogOut, 
   Menu,
   X,
-  Sparkles
+  Sparkles,
+  Database
 } from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
@@ -20,6 +21,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
     { name: 'AI Query', icon: Sparkles, id: 'ai-query' },
     { name: 'Report Creator', icon: FileText, id: 'report-creator' },
     { name: 'Reports', icon: FileText, id: 'reports' },
+    { name: 'Database Explorer', icon: Database, id: 'database-explorer' },
     { name: 'Users', icon: Users, id: 'users' },
     { name: 'Settings', icon: Settings, id: 'settings' },
   ]

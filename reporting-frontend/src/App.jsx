@@ -5,6 +5,7 @@ import Dashboard from './components/Dashboard'
 import AIQuery from './components/AIQuery'
 import ReportCreator from './components/ReportCreator'
 import Reports from './components/Reports'
+import DatabaseExplorer from './components/DatabaseExplorer'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
@@ -73,6 +74,8 @@ function App() {
         return <ReportCreator user={user} organization={organization} />
       case 'reports':
         return <Reports user={user} organization={organization} />
+      case 'database-explorer':
+        return <DatabaseExplorer user={user} organization={organization} />
       case 'users':
         return <div className="p-8 text-center text-gray-500">Users management coming soon...</div>
       case 'settings':
