@@ -1,0 +1,128 @@
+from flask import Blueprint, jsonify
+from flask_jwt_extended import jwt_required
+import os
+import sys
+import importlib.util
+
+debug_bp = Blueprint('debug', __name__)
+
+@debug_bp.route('/api/debug/environment', methods=['GET'])
+@jwt_required()
+def check_environment():
+    """Debug endpoint to check environment and modules"""
+    
+    # Check environment variables
+    env_vars = {
+        'AZURE_SQL_SERVER': os.environ.get('AZURE_SQL_SERVER', 'NOT SET'),
+        'AZURE_SQL_DATABASE': os.environ.get('AZURE_SQL_DATABASE', 'NOT SET'),
+        'AZURE_SQL_USERNAME': os.environ.get('AZURE_SQL_USERNAME', 'NOT SET'),
+        'AZURE_SQL_PASSWORD': 'SET' if os.environ.get('AZURE_SQL_PASSWORD') else 'NOT SET',
+        'PORT': os.environ.get('PORT', 'NOT SET'),
+        'PYTHON_VERSION': sys.version
+    }
+    
+    # Check if SQL modules are available
+    modules_status = {}
+    
+    # Check pymssql
+    try:
+        import pymssql
+        modules_status['pymssql'] = {
+            'available': True,
+            'version': pymssql.__version__ if hasattr(pymssql, '__version__') else 'unknown'
+        }
+    except ImportError as e:
+        modules_status['pymssql'] = {
+            'available': False,
+            'error': str(e)
+        }
+    
+    # Check pyodbc
+    try:
+        import pyodbc
+        modules_status['pyodbc'] = {
+            'available': True,
+            'version': pyodbc.version
+        }
+    except ImportError as e:
+        modules_status['pyodbc'] = {
+            'available': False,
+            'error': str(e)
+        }
+    
+    # Test actual database connection
+    connection_test = {'status': 'not_tested', 'error': None}
+    
+    if modules_status['pymssql']['available']:
+        try:
+            import pymssql
+            conn = pymssql.connect(
+                server=os.environ.get('AZURE_SQL_SERVER', ''),
+                user=os.environ.get('AZURE_SQL_USERNAME', ''),
+                password=os.environ.get('AZURE_SQL_PASSWORD', ''),
+                database=os.environ.get('AZURE_SQL_DATABASE', '')
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT @@VERSION")
+            row = cursor.fetchone()
+            connection_test = {
+                'status': 'connected',
+                'sql_version': row[0] if row else 'unknown'
+            }
+            conn.close()
+        except Exception as e:
+            connection_test = {
+                'status': 'failed',
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
+    
+    return jsonify({
+        'environment': env_vars,
+        'modules': modules_status,
+        'connection_test': connection_test,
+        'system_info': {
+            'platform': sys.platform,
+            'python_path': sys.path[:5]  # First 5 paths
+        }
+    }), 200
+
+@debug_bp.route('/api/debug/test-query', methods=['GET'])
+@jwt_required()
+def test_query():
+    """Test a simple query against the database"""
+    try:
+        from ..services.azure_sql_service import AzureSQLService
+        
+        db = AzureSQLService()
+        
+        # Test basic connection
+        if not db.test_connection():
+            return jsonify({
+                'success': False,
+                'error': 'Connection test failed'
+            }), 500
+        
+        # Get tables
+        tables = db.get_tables()
+        
+        # Try a simple query
+        test_results = db.execute_query("SELECT TOP 5 name FROM sys.tables")
+        
+        return jsonify({
+            'success': True,
+            'tables_count': len(tables),
+            'first_5_tables': tables[:5] if tables else [],
+            'sys_tables': test_results
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'error_details': {
+                'module': e.__module__ if hasattr(e, '__module__') else 'unknown',
+                'args': str(e.args) if hasattr(e, 'args') else 'none'
+            }
+        }), 500

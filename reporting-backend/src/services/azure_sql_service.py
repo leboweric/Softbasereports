@@ -30,6 +30,12 @@ class AzureSQLService:
     
     def get_connection(self):
         """Create and return a connection to Azure SQL Database"""
+        if not HAS_PYMSSQL:
+            raise ImportError("pymssql is not available")
+            
+        logger.info(f"Attempting to connect to Azure SQL: {self.server}/{self.database}")
+        logger.info(f"Using username: {self.username}")
+        
         try:
             conn = pymssql.connect(
                 server=self.server,
@@ -39,9 +45,12 @@ class AzureSQLService:
                 tds_version='7.0',
                 as_dict=True
             )
+            logger.info("Successfully connected to Azure SQL")
             return conn
         except Exception as e:
             logger.error(f"Failed to connect to Azure SQL: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Server: {self.server}, Database: {self.database}, User: {self.username}")
             raise
     
     def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
