@@ -121,6 +121,17 @@ def get_schema_summary():
             }), 200
         except Exception as e:
             logger.error(f"Azure SQL connection failed: {str(e)}")
+            error_msg = str(e)
+            
+            # Check if it's a firewall issue
+            if "Azure SQL firewall blocks Railway IP" in error_msg:
+                return jsonify({
+                    'status': 'firewall_blocked',
+                    'error': error_msg,
+                    'message': 'Please add Railway IP to Azure SQL firewall',
+                    'categories': {}
+                }), 200
+            
             # Fall back to simple service
         try:
             simple_service = SimpleSQLService()
