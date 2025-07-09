@@ -1,0 +1,1 @@
+web: cd reporting-backend && python src/main.py
