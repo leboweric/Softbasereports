@@ -35,7 +35,9 @@ app.register_blueprint(organization_bp, url_prefix='/api/organization')
 app.register_blueprint(database_bp)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"
+database_dir = os.path.join(os.path.dirname(__file__), 'database')
+os.makedirs(database_dir, exist_ok=True)
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(database_dir, 'app.db')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
