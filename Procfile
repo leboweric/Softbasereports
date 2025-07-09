@@ -1,1 +1,1 @@
-web: cd reporting-backend && python src/main.py
+web: cd reporting-backend && gunicorn --bind 0.0.0.0:$PORT src.main:app
