@@ -1,42 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
-import jwt
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
-from functools import wraps
 from src.models.user import db, User, Organization
 
 auth_bp = Blueprint('auth', __name__)
 
-# JWT Secret - in production, use environment variable
-JWT_SECRET = 'your-secret-key-change-in-production'
-
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get('Authorization')
-        
-        if not token:
-            return jsonify({'message': 'Token is missing'}), 401
-        
-        try:
-            # Remove 'Bearer ' prefix if present
-            if token.startswith('Bearer '):
-                token = token[7:]
-            
-            data = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
-            current_user = User.query.get(data['user_id'])
-            
-            if not current_user or not current_user.is_active:
-                return jsonify({'message': 'Invalid token'}), 401
-                
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token has expired'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Invalid token'}), 401
-        
-        return f(current_user, *args, **kwargs)
-    
-    return decorated
 
 @auth_bp.route('/register', methods=['POST'])
 @cross_origin()
@@ -105,16 +74,18 @@ def login():
         user.last_login = datetime.utcnow()
         db.session.commit()
         
-        # Generate JWT token
-        token = jwt.encode({
-            'user_id': user.id,
-            'organization_id': user.organization_id,
-            'role': user.role,
-            'exp': datetime.utcnow() + timedelta(hours=24)
-        }, JWT_SECRET, algorithm='HS256')
+        # Generate JWT token using Flask-JWT-Extended
+        access_token = create_access_token(
+            identity=user.id,
+            expires_delta=timedelta(hours=24),
+            additional_claims={
+                'organization_id': user.organization_id,
+                'role': user.role
+            }
+        )
         
         return jsonify({
-            'token': token,
+            'token': access_token,
             'user': user.to_dict(),
             'organization': user.organization.to_dict()
         }), 200
@@ -124,8 +95,14 @@ def login():
 
 @auth_bp.route('/me', methods=['GET'])
 @cross_origin()
-@token_required
-def get_current_user(current_user):
+@jwt_required()
+def get_current_user():
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    if not current_user or not current_user.is_active:
+        return jsonify({'message': 'User not found'}), 404
+    
     return jsonify({
         'user': current_user.to_dict(),
         'organization': current_user.organization.to_dict()
@@ -133,15 +110,23 @@ def get_current_user(current_user):
 
 @auth_bp.route('/refresh', methods=['POST'])
 @cross_origin()
-@token_required
-def refresh_token(current_user):
-    # Generate new token
-    token = jwt.encode({
-        'user_id': current_user.id,
-        'organization_id': current_user.organization_id,
-        'role': current_user.role,
-        'exp': datetime.utcnow() + timedelta(hours=24)
-    }, JWT_SECRET, algorithm='HS256')
+@jwt_required()
+def refresh_token():
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
     
-    return jsonify({'token': token}), 200
+    if not current_user or not current_user.is_active:
+        return jsonify({'message': 'User not found'}), 404
+    
+    # Generate new token using Flask-JWT-Extended
+    access_token = create_access_token(
+        identity=current_user.id,
+        expires_delta=timedelta(hours=24),
+        additional_claims={
+            'organization_id': current_user.organization_id,
+            'role': current_user.role
+        }
+    )
+    
+    return jsonify({'token': access_token}), 200
 
