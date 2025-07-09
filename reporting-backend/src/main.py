@@ -13,6 +13,7 @@ from src.routes.ai_query import ai_query_bp
 from src.routes.custom_reports import custom_reports_bp
 from src.routes.organization import organization_bp
 from src.routes.database import database_bp
+from src.routes.database_explorer import explorer_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -33,6 +34,7 @@ app.register_blueprint(ai_query_bp, url_prefix='/api/ai')
 app.register_blueprint(custom_reports_bp, url_prefix='/api/custom-reports')
 app.register_blueprint(organization_bp, url_prefix='/api/organization')
 app.register_blueprint(database_bp)
+app.register_blueprint(explorer_bp)
 
 # Database configuration
 database_dir = os.path.join(os.path.dirname(__file__), 'database')

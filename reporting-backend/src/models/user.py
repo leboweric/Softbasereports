@@ -47,6 +47,10 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+    
+    @property
+    def is_admin(self):
+        return self.role == 'admin'
 
     def to_dict(self):
         return {
