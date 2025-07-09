@@ -2,9 +2,10 @@ import os
 import sys
 # DON'T CHANGE THIS !!!
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
+from datetime import datetime
 from src.models.user import db
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
@@ -21,7 +22,13 @@ app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', os.environ.get('
 app.config['JWT_TOKEN_LOCATION'] = ['headers']
 
 # Enable CORS for all routes
-CORS(app)
+CORS(app, origins=[
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "https://softbasereports.netlify.app",
+    "https://*.netlify.app"
+], supports_credentials=True)
 
 # Initialize JWT
 jwt = JWTManager(app)
@@ -45,6 +52,15 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'message': 'Softbase Reports API is running',
+        'timestamp': datetime.utcnow().isoformat()
+    }), 200
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
