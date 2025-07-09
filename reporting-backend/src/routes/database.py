@@ -3,10 +3,21 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.softbase_service import SoftbaseService
 from ..models.user import User
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
 database_bp = Blueprint('database', __name__)
+
+@database_bp.route('/api/database/test', methods=['GET'])
+@jwt_required()
+def test_endpoint():
+    """Simple test endpoint"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'Database routes are working',
+        'azure_configured': bool(os.environ.get('AZURE_SQL_PASSWORD'))
+    }), 200
 
 @database_bp.route('/api/database/test-connection', methods=['GET'])
 @jwt_required()
