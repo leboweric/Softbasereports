@@ -19,7 +19,7 @@ def explore_database():
     """Comprehensive database exploration endpoint"""
     try:
         current_user_id = get_jwt_identity()
-        user = User.query.get(current_user_id)
+        user = User.query.get(int(current_user_id))
         
         if not user or not user.is_admin:
             return jsonify({'error': 'Admin access required'}), 403
@@ -99,7 +99,7 @@ def get_schema_summary():
     """Get a simplified schema summary for the frontend"""
     try:
         current_user_id = get_jwt_identity()
-        user = User.query.get(current_user_id)
+        user = User.query.get(int(current_user_id))
         
         if not user:
             return jsonify({'error': 'User not found'}), 404

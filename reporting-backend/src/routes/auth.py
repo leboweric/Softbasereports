@@ -76,9 +76,10 @@ def login():
         
         # Generate JWT token using Flask-JWT-Extended
         access_token = create_access_token(
-            identity=user.id,
+            identity=str(user.id),  # Flask-JWT-Extended requires string identity
             expires_delta=timedelta(hours=24),
             additional_claims={
+                'user_id': user.id,
                 'organization_id': user.organization_id,
                 'role': user.role
             }
@@ -98,7 +99,7 @@ def login():
 @jwt_required()
 def get_current_user():
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    current_user = User.query.get(int(current_user_id))
     
     if not current_user or not current_user.is_active:
         return jsonify({'message': 'User not found'}), 404
@@ -113,16 +114,17 @@ def get_current_user():
 @jwt_required()
 def refresh_token():
     current_user_id = get_jwt_identity()
-    current_user = User.query.get(current_user_id)
+    current_user = User.query.get(int(current_user_id))
     
     if not current_user or not current_user.is_active:
         return jsonify({'message': 'User not found'}), 404
     
     # Generate new token using Flask-JWT-Extended
     access_token = create_access_token(
-        identity=current_user.id,
+        identity=str(current_user.id),  # Flask-JWT-Extended requires string identity
         expires_delta=timedelta(hours=24),
         additional_claims={
+            'user_id': current_user.id,
             'organization_id': current_user.organization_id,
             'role': current_user.role
         }
