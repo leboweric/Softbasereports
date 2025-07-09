@@ -12,6 +12,7 @@ from src.routes.reports import reports_bp
 from src.routes.ai_query import ai_query_bp
 from src.routes.custom_reports import custom_reports_bp
 from src.routes.organization import organization_bp
+from src.routes.database import database_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
@@ -31,6 +32,7 @@ app.register_blueprint(reports_bp, url_prefix='/api/reports')
 app.register_blueprint(ai_query_bp, url_prefix='/api/ai')
 app.register_blueprint(custom_reports_bp, url_prefix='/api/custom-reports')
 app.register_blueprint(organization_bp, url_prefix='/api/organization')
+app.register_blueprint(database_bp)
 
 # Database configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'database', 'app.db')}"

@@ -2,42 +2,82 @@ import requests
 import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
+from .azure_sql_service import AzureSQLService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class SoftbaseService:
-    """Service to interact with Softbase Evolution API"""
+    """Service to interact with Softbase Evolution database via Azure SQL"""
     
     def __init__(self, organization):
         self.organization = organization
-        self.api_key = organization.softbase_api_key
-        self.endpoint = organization.softbase_endpoint or "https://api.softbase.com"  # Default endpoint
-        self.headers = {
-            'Authorization': f'Bearer {self.api_key}' if self.api_key else '',
-            'Content-Type': 'application/json'
-        }
-    
-    def _make_request(self, endpoint: str, method: str = 'GET', params: Dict = None, data: Dict = None) -> Dict:
-        """Make HTTP request to Softbase API"""
-        try:
-            url = f"{self.endpoint.rstrip('/')}/{endpoint.lstrip('/')}"
-            
-            if method.upper() == 'GET':
-                response = requests.get(url, headers=self.headers, params=params, timeout=30)
-            elif method.upper() == 'POST':
-                response = requests.post(url, headers=self.headers, json=data, timeout=30)
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-            
-            response.raise_for_status()
-            return response.json()
-            
-        except requests.exceptions.RequestException as e:
-            # For now, return mock data if API is not available
-            return self._get_mock_data(endpoint, params or data or {})
-    
-    def _get_mock_data(self, endpoint: str, params: Dict) -> Dict:
-        """Return mock data for development/testing when API is not available"""
+        self.db_service = AzureSQLService()
         
-        if 'sales' in endpoint.lower():
+    def get_data(self, query_type: str, filters: Dict, date_range: Dict, organization_id: int) -> Dict:
+        """Get data based on query type and filters from Azure SQL database"""
+        
+        try:
+            # First, let's explore what tables are available
+            if query_type == 'tables':
+                tables = self.db_service.get_tables()
+                return {
+                    'data': [{'table_name': t} for t in tables],
+                    'total_count': len(tables)
+                }
+            
+            # Map query types to potential table names (we'll need to adjust based on actual tables)
+            # These are common patterns - actual table names may differ
+            query_map = {
+                'sales': """
+                    SELECT TOP 100 * FROM Sales 
+                    WHERE 1=1
+                """,
+                'inventory': """
+                    SELECT TOP 100 * FROM Inventory 
+                    WHERE 1=1
+                """,
+                'customers': """
+                    SELECT TOP 100 * FROM Customers 
+                    WHERE 1=1
+                """,
+                'service': """
+                    SELECT TOP 100 * FROM ServiceRecords 
+                    WHERE 1=1
+                """,
+                'parts': """
+                    SELECT TOP 100 * FROM Parts 
+                    WHERE 1=1
+                """
+            }
+            
+            # Start with base query
+            base_query = query_map.get(query_type, "SELECT TOP 10 TABLE_NAME FROM INFORMATION_SCHEMA.TABLES")
+            
+            # Add date filters if provided
+            if date_range.get('start_date') and 'WHERE' in base_query:
+                base_query += f" AND Date >= '{date_range['start_date']}'"
+            if date_range.get('end_date') and 'WHERE' in base_query:
+                base_query += f" AND Date <= '{date_range['end_date']}'"
+            
+            # Execute query
+            results = self.db_service.execute_query(base_query)
+            
+            return {
+                'data': results,
+                'total_count': len(results),
+                'query_used': base_query  # For debugging
+            }
+            
+        except Exception as e:
+            logger.error(f"Database query failed: {str(e)}")
+            # Fall back to mock data if real query fails
+            return self._get_mock_data(query_type, filters)
+    
+    def _get_mock_data(self, query_type: str, filters: Dict) -> Dict:
+        """Return mock data for development/testing when database is not available"""
+        
+        if query_type == 'sales':
             return {
                 'data': [
                     {
@@ -59,27 +99,12 @@ class SoftbaseService:
                         'unit_price': 35000.00,
                         'total_amount': 35000.00,
                         'salesperson': 'Jane Doe'
-                    },
-                    {
-                        'id': 3,
-                        'date': '2024-01-17',
-                        'customer_name': 'Manufacturing Co',
-                        'product': 'Crown RC5500',
-                        'quantity': 3,
-                        'unit_price': 28000.00,
-                        'total_amount': 84000.00,
-                        'salesperson': 'Mike Johnson'
                     }
                 ],
-                'total_count': 3,
-                'summary': {
-                    'total_amount': 169000.00,
-                    'total_quantity': 6,
-                    'average_sale': 56333.33
-                }
+                'total_count': 2
             }
         
-        elif 'inventory' in endpoint.lower():
+        elif query_type == 'inventory':
             return {
                 'data': [
                     {
@@ -90,21 +115,12 @@ class SoftbaseService:
                         'location': 'Warehouse A',
                         'cost': 22000.00,
                         'retail_price': 25000.00
-                    },
-                    {
-                        'id': 2,
-                        'model': 'Hyster H50FT',
-                        'serial_number': 'HY789012',
-                        'status': 'Sold',
-                        'location': 'Lot B',
-                        'cost': 30000.00,
-                        'retail_price': 35000.00
                     }
                 ],
-                'total_count': 2
+                'total_count': 1
             }
         
-        elif 'customers' in endpoint.lower():
+        elif query_type == 'customers':
             return {
                 'data': [
                     {
@@ -115,117 +131,131 @@ class SoftbaseService:
                         'phone': '555-0123',
                         'total_purchases': 125000.00,
                         'last_purchase_date': '2024-01-15'
-                    },
-                    {
-                        'id': 2,
-                        'name': 'XYZ Logistics',
-                        'contact_person': 'Sarah Davis',
-                        'email': 'sarah@xyzlogistics.com',
-                        'phone': '555-0456',
-                        'total_purchases': 85000.00,
-                        'last_purchase_date': '2024-01-16'
                     }
                 ],
-                'total_count': 2
+                'total_count': 1
             }
         
         else:
             return {'data': [], 'total_count': 0}
     
-    def get_data(self, query_type: str, filters: Dict, date_range: Dict, organization_id: int) -> Dict:
-        """Get data based on query type and filters"""
-        
-        # Build query parameters
-        params = {
-            'organization_id': organization_id,
-            **filters
-        }
-        
-        # Add date range if provided
-        if date_range.get('start_date'):
-            params['start_date'] = date_range['start_date']
-        if date_range.get('end_date'):
-            params['end_date'] = date_range['end_date']
-        
-        # Map query types to API endpoints
-        endpoint_map = {
-            'sales': 'api/sales',
-            'inventory': 'api/inventory',
-            'customers': 'api/customers',
-            'service': 'api/service-records',
-            'financial': 'api/financial-summary'
-        }
-        
-        endpoint = endpoint_map.get(query_type, 'api/sales')
-        return self._make_request(endpoint, params=params)
+    def get_available_tables(self) -> List[str]:
+        """Get list of all available tables in the database"""
+        try:
+            return self.db_service.get_tables()
+        except Exception as e:
+            logger.error(f"Failed to get tables: {str(e)}")
+            return []
+    
+    def get_table_info(self, table_name: str) -> List[Dict[str, str]]:
+        """Get column information for a specific table"""
+        try:
+            return self.db_service.get_table_columns(table_name)
+        except Exception as e:
+            logger.error(f"Failed to get table info: {str(e)}")
+            return []
+    
+    def execute_custom_query(self, query: str) -> Dict:
+        """Execute a custom SQL query (with safety checks)"""
+        try:
+            # Basic safety check - only allow SELECT queries
+            if not query.strip().upper().startswith('SELECT'):
+                raise ValueError("Only SELECT queries are allowed")
+            
+            results = self.db_service.execute_query(query)
+            return {
+                'data': results,
+                'total_count': len(results),
+                'success': True
+            }
+        except Exception as e:
+            logger.error(f"Custom query failed: {str(e)}")
+            return {
+                'data': [],
+                'total_count': 0,
+                'success': False,
+                'error': str(e)
+            }
     
     def get_summary_metric(self, metric_type: str, organization_id: int) -> Any:
         """Get summary metrics for dashboard"""
         
-        if metric_type == 'total_sales':
-            # Get total sales for current month
-            start_date = datetime.now().replace(day=1).strftime('%Y-%m-%d')
-            end_date = datetime.now().strftime('%Y-%m-%d')
+        try:
+            if metric_type == 'total_sales':
+                # Try to get real sales data from database
+                query = """
+                    SELECT SUM(TotalAmount) as total 
+                    FROM Sales 
+                    WHERE Date >= DATEADD(month, DATEDIFF(month, 0, GETDATE()), 0)
+                """
+                result = self.db_service.execute_query(query)
+                if result and result[0].get('total'):
+                    return float(result[0]['total'])
             
-            result = self.get_data('sales', {}, {'start_date': start_date, 'end_date': end_date}, organization_id)
-            return result.get('summary', {}).get('total_amount', 0)
-        
-        elif metric_type == 'monthly_sales':
-            # Get sales for last 12 months
-            monthly_data = []
-            for i in range(12):
-                month_start = (datetime.now().replace(day=1) - timedelta(days=i*30)).replace(day=1)
-                month_end = month_start.replace(day=28) + timedelta(days=4)
-                month_end = month_end - timedelta(days=month_end.day)
-                
-                result = self.get_data('sales', {}, {
-                    'start_date': month_start.strftime('%Y-%m-%d'),
-                    'end_date': month_end.strftime('%Y-%m-%d')
-                }, organization_id)
-                
-                monthly_data.append({
-                    'month': month_start.strftime('%Y-%m'),
-                    'amount': result.get('summary', {}).get('total_amount', 0)
-                })
+            elif metric_type == 'inventory_count':
+                query = "SELECT COUNT(*) as count FROM Inventory WHERE Status = 'Available'"
+                result = self.db_service.execute_query(query)
+                if result and result[0].get('count'):
+                    return int(result[0]['count'])
             
-            return monthly_data[::-1]  # Reverse to get chronological order
+            elif metric_type == 'active_customers':
+                query = """
+                    SELECT COUNT(DISTINCT CustomerID) as count 
+                    FROM Sales 
+                    WHERE Date >= DATEADD(day, -90, GETDATE())
+                """
+                result = self.db_service.execute_query(query)
+                if result and result[0].get('count'):
+                    return int(result[0]['count'])
+            
+        except Exception as e:
+            logger.error(f"Failed to get metric {metric_type}: {str(e)}")
         
-        elif metric_type == 'inventory_count':
-            result = self.get_data('inventory', {'status': 'Available'}, {}, organization_id)
-            return result.get('total_count', 0)
-        
-        elif metric_type == 'active_customers':
-            # Get customers with purchases in last 90 days
-            start_date = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
-            result = self.get_data('customers', {'active_since': start_date}, {}, organization_id)
-            return result.get('total_count', 0)
-        
-        else:
-            return 0
+        # Return mock data if real query fails
+        mock_values = {
+            'total_sales': 125000,
+            'inventory_count': 45,
+            'active_customers': 23
+        }
+        return mock_values.get(metric_type, 0)
     
     def get_recent_activity(self, organization_id: int) -> List[Dict]:
         """Get recent activity for dashboard"""
-        
-        # Get recent sales
-        recent_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        sales_result = self.get_data('sales', {}, {'start_date': recent_date}, organization_id)
-        
-        activities = []
-        for sale in sales_result.get('data', [])[:5]:  # Last 5 sales
-            activities.append({
-                'type': 'sale',
-                'description': f"Sale to {sale.get('customer_name', 'Unknown')} - {sale.get('product', 'Unknown')}",
-                'amount': sale.get('total_amount', 0),
-                'date': sale.get('date', '')
-            })
-        
-        return activities
+        try:
+            query = """
+                SELECT TOP 5 
+                    'sale' as type,
+                    'Sale to ' + CustomerName + ' - ' + ProductName as description,
+                    TotalAmount as amount,
+                    Date as date
+                FROM Sales
+                ORDER BY Date DESC
+            """
+            results = self.db_service.execute_query(query)
+            return results
+        except Exception as e:
+            logger.error(f"Failed to get recent activity: {str(e)}")
+            # Return mock data if query fails
+            return [
+                {
+                    'type': 'sale',
+                    'description': 'Sale to ABC Warehouse - Toyota Forklift',
+                    'amount': 25000,
+                    'date': datetime.now().strftime('%Y-%m-%d')
+                }
+            ]
     
     def test_connection(self) -> Dict:
-        """Test connection to Softbase API"""
+        """Test connection to Azure SQL Database"""
         try:
-            result = self._make_request('api/health')
-            return {'status': 'connected', 'message': 'API connection successful'}
+            if self.db_service.test_connection():
+                tables = self.db_service.get_tables()
+                return {
+                    'status': 'connected', 
+                    'message': f'Connected to Azure SQL. Found {len(tables)} tables.',
+                    'tables': tables[:10]  # Show first 10 tables
+                }
+            else:
+                return {'status': 'error', 'message': 'Failed to connect to Azure SQL'}
         except Exception as e:
             return {'status': 'error', 'message': f'Connection failed: {str(e)}'}
-
