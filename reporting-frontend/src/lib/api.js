@@ -7,6 +7,13 @@ export const apiUrl = (path) => {
   if (import.meta.env.DEV) {
     return path;
   }
+  
+  // If no API_URL is set, log an error
+  if (!API_URL) {
+    console.error('VITE_API_URL is not set! API calls will fail.');
+    console.log('Current env:', import.meta.env);
+  }
+  
   return `${API_URL}${path}`;
 };
 
