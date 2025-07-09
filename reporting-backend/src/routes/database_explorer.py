@@ -131,6 +131,8 @@ def get_schema_summary():
             simple_service = SimpleSQLService()
             schema = simple_service.get_mock_schema()
             return jsonify(schema), 200
+        except Exception as e:
+            logger.error(f"Simple service failed: {str(e)}")
         
     except Exception as e:
         logger.error(f"Schema summary failed: {str(e)}")
