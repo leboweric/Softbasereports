@@ -23,13 +23,12 @@ app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', os.environ.get('
 app.config['JWT_TOKEN_LOCATION'] = ['headers']
 
 # Enable CORS for all routes
-CORS(app, origins=[
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "https://softbasereports.netlify.app",
-    "https://*.netlify.app"
-], supports_credentials=True)
+CORS(app, 
+    origins="*",  # Allow all origins temporarily for debugging
+    allow_headers=["Content-Type", "Authorization"],
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    supports_credentials=True
+)
 
 # Initialize JWT
 jwt = JWTManager(app)
