@@ -42,120 +42,122 @@ def customer_activity_report():
         
         # 1. Customer Information
         if customer_no:
-            customer_query = f"""
+            customer_query = """
             SELECT TOP 1
-                CustomerNo,
+                ID as CustomerNo,
                 Name,
-                Address,
+                Address1 as Address,
                 City,
                 State,
-                Zip,
+                ZipCode as Zip,
                 Phone,
                 SalesmanNo,
                 CreditLimit,
-                Balance,
+                CreditBalance as Balance,
                 LastSaleDate,
                 LastPaymentDate,
-                YTDSales,
-                YTDPayments
+                YTD as YTDSales,
+                YTD as YTDPayments
             FROM ben002.Customer
-            WHERE CustomerNo = '{customer_no}'
+            WHERE ID = ?
             """
+            customers = db.execute_query(customer_query, (customer_no,))
+            report_data['customers'] = customers
+            customer_query = None  # Clear to avoid double execution
         else:
             # Get top customers by YTD sales
             customer_query = """
             SELECT TOP 20
-                CustomerNo,
+                ID as CustomerNo,
                 Name,
                 City,
                 State,
-                Balance,
-                YTDSales,
-                YTDPayments,
+                CreditBalance as Balance,
+                YTD as YTDSales,
+                YTD as YTDPayments,
                 LastSaleDate
             FROM ben002.Customer
-            WHERE YTDSales > 0
-            ORDER BY YTDSales DESC
+            WHERE YTD > 0
+            ORDER BY YTD DESC
             """
-        
-        customers = db.execute_query(customer_query)
-        report_data['customers'] = customers
+            customers = db.execute_query(customer_query)
+            report_data['customers'] = customers
         
         # 2. Recent Invoices
         if customer_no:
-            invoice_query = f"""
+            invoice_query = """
             SELECT TOP 20
                 InvoiceNo,
                 InvoiceDate,
-                CustomerNo,
-                CustomerName,
-                TotalAmount,
-                TotalTax,
-                Status,
+                Customer as CustomerNo,
+                BillToName as CustomerName,
+                GrandTotal as TotalAmount,
+                SalesTax as TotalTax,
+                InvoiceStatus as Status,
                 InvoiceType,
-                DepartmentNo
+                Department as DepartmentNo
             FROM ben002.InvoiceReg
-            WHERE CustomerNo = '{customer_no}'
-            AND InvoiceDate >= '{start_date}'
+            WHERE Customer = ?
+            AND InvoiceDate >= ?
             ORDER BY InvoiceDate DESC
             """
-            invoices = db.execute_query(invoice_query)
+            invoices = db.execute_query(invoice_query, (customer_no, start_date))
             report_data['invoices'] = invoices
         
         # 3. Equipment owned by customer
         if customer_no:
-            equipment_query = f"""
+            equipment_query = """
             SELECT 
                 StockNo,
                 SerialNo,
                 Make,
                 Model,
                 ModelYear,
-                Status,
-                PurchaseDate,
-                SellingPrice,
+                RentalStatus as Status,
+                AcquiredDate as PurchaseDate,
+                SaleAmount as SellingPrice,
                 Hours
             FROM ben002.Equipment
-            WHERE CustomerNo = '{customer_no}'
-            AND Status IN ('Sold', 'Rented')
-            ORDER BY PurchaseDate DESC
+            WHERE Customer = ?
+            AND RentalStatus IN ('Sold', 'Rented')
+            ORDER BY AcquiredDate DESC
             """
-            equipment = db.execute_query(equipment_query)
+            equipment = db.execute_query(equipment_query, (customer_no,))
             report_data['equipment'] = equipment
         
         # 4. Service history
         if customer_no:
-            service_query = f"""
+            service_query = """
             SELECT TOP 20
-                ClaimNo,
-                DateOpened,
-                DateClosed,
+                ServiceClaimNo as ClaimNo,
+                OpenDate as DateOpened,
+                CloseDate as DateClosed,
                 StockNo,
                 SerialNo,
                 TotalLabor,
                 TotalParts,
                 Status
             FROM ben002.ServiceClaim
-            WHERE CustomerNo = '{customer_no}'
-            AND DateOpened >= '{start_date}'
-            ORDER BY DateOpened DESC
+            WHERE Customer = ?
+            AND OpenDate >= ?
+            ORDER BY OpenDate DESC
             """
-            service = db.execute_query(service_query)
+            service = db.execute_query(service_query, (customer_no, start_date))
             report_data['service_history'] = service
         
         # 5. Summary statistics
         if customer_no:
-            summary_query = f"""
+            summary_query = """
             SELECT 
                 COUNT(DISTINCT InvoiceNo) as total_invoices,
-                SUM(TotalAmount) as total_sales,
-                AVG(TotalAmount) as avg_invoice_amount,
-                COUNT(DISTINCT StockNo) as equipment_count
+                SUM(GrandTotal) as total_sales,
+                AVG(GrandTotal) as avg_invoice_amount,
+                COUNT(DISTINCT InvoiceNo) as equipment_count
             FROM ben002.InvoiceReg
-            WHERE CustomerNo = '{customer_no}'
-            AND InvoiceDate >= '{start_date}'
+            WHERE Customer = ?
+            AND InvoiceDate >= ?
             """
-            summary = db.execute_query(summary_query)
+            summary = db.execute_query(summary_query, (customer_no, start_date))
             report_data['summary'] = summary[0] if summary else {}
         
         return jsonify({

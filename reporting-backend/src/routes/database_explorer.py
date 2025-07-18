@@ -121,17 +121,17 @@ def get_full_schema():
                 columns = db.get_table_columns(table)
                 
                 # Get primary keys
-                pk_query = f"""
+                pk_query = """
                 SELECT COLUMN_NAME
                 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-                WHERE TABLE_NAME = '{table}' 
+                WHERE TABLE_NAME = ? 
                 AND CONSTRAINT_NAME LIKE 'PK_%'
                 """
-                pk_result = db.execute_query(pk_query)
+                pk_result = db.execute_query(pk_query, (table,))
                 primary_keys = [row['COLUMN_NAME'] for row in pk_result] if pk_result else []
                 
                 # Get foreign keys
-                fk_query = f"""
+                fk_query = """
                 SELECT 
                     fk.name AS FK_NAME,
                     OBJECT_NAME(fk.parent_object_id) AS FK_TABLE,
@@ -140,9 +140,9 @@ def get_full_schema():
                     COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS REFERENCED_COLUMN
                 FROM sys.foreign_keys AS fk
                 INNER JOIN sys.foreign_key_columns AS fkc ON fk.object_id = fkc.constraint_object_id
-                WHERE OBJECT_NAME(fk.parent_object_id) = '{table}'
+                WHERE OBJECT_NAME(fk.parent_object_id) = ?
                 """
-                fk_result = db.execute_query(fk_query)
+                fk_result = db.execute_query(fk_query, (table,))
                 
                 # Get row count
                 count_query = f"SELECT COUNT(*) as count FROM [{table}]"

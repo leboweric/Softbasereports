@@ -164,13 +164,13 @@ def public_schema_analysis():
                 if table_list:
                     sample_table = table_list[0]
                     try:
-                        cursor.execute(f"""
+                        cursor.execute("""
                             SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
                             FROM INFORMATION_SCHEMA.COLUMNS
-                            WHERE TABLE_NAME = '{sample_table}'
+                            WHERE TABLE_NAME = ?
                             AND TABLE_SCHEMA = 'ben002'
                             ORDER BY ORDINAL_POSITION
-                        """)
+                        """, (sample_table,))
                         columns = []
                         for row in cursor.fetchall():
                             col_info = {
