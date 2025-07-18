@@ -84,19 +84,17 @@ def generate_sql_from_analysis(analysis):
         
         date_filter = get_date_filter(time_period)
         
+        # Use a simpler query that groups by Customer ID from InvoiceReg
         return f"""
         SELECT TOP {limit}
-            c.ID as CustomerID,
-            c.Name as CustomerName,
-            c.City,
-            c.State,
+            i.Customer as CustomerID,
+            MAX(i.BillToName) as CustomerName,
             COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
             SUM(i.GrandTotal) as TotalRevenue,
             MAX(i.InvoiceDate) as LastPurchaseDate
-        FROM ben002.Customer c
-        INNER JOIN ben002.InvoiceReg i ON c.ID = i.Customer
+        FROM ben002.InvoiceReg i
         WHERE {date_filter}
-        GROUP BY c.ID, c.Name, c.City, c.State
+        GROUP BY i.Customer
         ORDER BY TotalRevenue DESC
         """
     
@@ -359,15 +357,44 @@ def test_sql():
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Test simple query
-        test_query = "SELECT TOP 5 ID, Name FROM ben002.Customer ORDER BY ID"
-        results = db.execute_query(test_query)
+        # Test 1: Check if Customer table has data
+        test1 = "SELECT TOP 5 ID, Name FROM ben002.Customer ORDER BY ID"
+        results1 = db.execute_query(test1)
+        
+        # Test 2: Check if InvoiceReg has data
+        test2 = "SELECT TOP 5 InvoiceNo, Customer, GrandTotal FROM ben002.InvoiceReg ORDER BY InvoiceDate DESC"
+        results2 = db.execute_query(test2)
+        
+        # Test 3: Try simple join
+        test3 = """
+        SELECT TOP 5
+            c.ID,
+            c.Name,
+            i.InvoiceNo,
+            i.Customer as InvoiceCustomerID,
+            i.GrandTotal
+        FROM ben002.Customer c
+        INNER JOIN ben002.InvoiceReg i ON c.ID = i.Customer
+        """
+        results3 = db.execute_query(test3)
+        
+        # Test 4: Check data types
+        test4 = """
+        SELECT TOP 1
+            c.ID as CustomerID,
+            SQL_VARIANT_PROPERTY(c.ID, 'BaseType') as CustomerIDType,
+            i.Customer as InvoiceCustomer,
+            SQL_VARIANT_PROPERTY(i.Customer, 'BaseType') as InvoiceCustomerType
+        FROM ben002.Customer c, ben002.InvoiceReg i
+        """
+        results4 = db.execute_query(test4)
         
         return jsonify({
             'success': True,
-            'query': test_query,
-            'results': results,
-            'count': len(results) if results else 0
+            'customers': {'query': test1, 'results': results1, 'count': len(results1) if results1 else 0},
+            'invoices': {'query': test2, 'results': results2, 'count': len(results2) if results2 else 0},
+            'join_test': {'query': test3, 'results': results3, 'count': len(results3) if results3 else 0},
+            'data_types': {'query': test4, 'results': results4}
         })
     except Exception as e:
         return jsonify({
