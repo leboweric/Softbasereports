@@ -120,6 +120,8 @@ def check_service_claims():
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
+        results = {}
+        
         # Get ServiceClaim columns
         columns_query = """
         SELECT COLUMN_NAME, DATA_TYPE
@@ -129,26 +131,59 @@ def check_service_claims():
         ORDER BY ORDINAL_POSITION
         """
         
-        columns = db.execute_query(columns_query)
+        results['columns'] = db.execute_query(columns_query)
         
-        # Get sample completed but not invoiced claims
+        # Get sample completed claims
         sample_query = """
-        SELECT TOP 10 *
+        SELECT TOP 10 
+            ServiceClaimNo,
+            CloseDate,
+            TotalLabor,
+            TotalParts,
+            InvoiceNo,
+            Customer,
+            CustomerNo
         FROM ben002.ServiceClaim
         WHERE CloseDate IS NOT NULL
         ORDER BY CloseDate DESC
         """
         
-        samples = db.execute_query(sample_query)
+        results['closed_claims'] = db.execute_query(sample_query)
+        
+        # Check different invoice scenarios
+        test_queries = {
+            'closed_no_invoice': """
+                SELECT COUNT(*) as count, SUM(TotalLabor + TotalParts) as total
+                FROM ben002.ServiceClaim
+                WHERE CloseDate IS NOT NULL
+                AND (InvoiceNo IS NULL OR InvoiceNo = 0 OR InvoiceNo = '')
+            """,
+            'closed_with_invoice': """
+                SELECT COUNT(*) as count, SUM(TotalLabor + TotalParts) as total
+                FROM ben002.ServiceClaim
+                WHERE CloseDate IS NOT NULL
+                AND InvoiceNo IS NOT NULL AND InvoiceNo != 0 AND InvoiceNo != ''
+            """,
+            'all_closed': """
+                SELECT COUNT(*) as count, SUM(TotalLabor + TotalParts) as total
+                FROM ben002.ServiceClaim
+                WHERE CloseDate IS NOT NULL
+            """
+        }
+        
+        for key, query in test_queries.items():
+            try:
+                results[key] = db.execute_query(query)
+            except Exception as e:
+                results[key + '_error'] = str(e)
         
         # Check for invoice-related columns
-        invoice_columns = [col for col in columns if 'invoice' in col['COLUMN_NAME'].lower() or 'bill' in col['COLUMN_NAME'].lower()]
+        invoice_columns = [col for col in results.get('columns', []) if 'invoice' in col['COLUMN_NAME'].lower() or 'bill' in col['COLUMN_NAME'].lower()]
+        results['invoice_related_columns'] = invoice_columns
         
         return jsonify({
             'success': True,
-            'columns': columns,
-            'invoice_related_columns': invoice_columns,
-            'sample_closed_claims': samples
+            'results': results
         })
         
     except Exception as e:
