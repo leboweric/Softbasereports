@@ -850,6 +850,84 @@ def find_quotes_data():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/analyze-woquest-data', methods=['GET'])
+def analyze_woquote_data():
+    """Analyze WOQuote table for monthly quote values - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get WOQuote columns to find date fields
+        cols = db.execute_query("""
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'WOQuote' 
+            AND TABLE_SCHEMA = 'ben002'
+            ORDER BY ORDINAL_POSITION
+        """)
+        results['woquote_columns'] = cols
+        
+        # Get date columns
+        date_cols = [c for c in cols if 'date' in c['COLUMN_NAME'].lower() or 'time' in c['COLUMN_NAME'].lower()]
+        results['date_columns'] = date_cols
+        
+        # Get sample records with amounts
+        sample_query = """
+        SELECT TOP 10 
+            wq.*,
+            w.OpenDate as WO_OpenDate,
+            w.ShopQuoteDate as WO_QuoteDate
+        FROM ben002.WOQuote wq
+        LEFT JOIN ben002.WO w ON wq.WONo = w.WONo
+        WHERE wq.Amount > 0
+        ORDER BY wq.Id DESC
+        """
+        results['sample_quotes'] = db.execute_query(sample_query)
+        
+        # Get monthly quote totals using CreationTime
+        monthly_query = """
+        SELECT 
+            YEAR(CreationTime) as year,
+            MONTH(CreationTime) as month,
+            COUNT(*) as quote_count,
+            SUM(Amount) as total_quoted
+        FROM ben002.WOQuote
+        WHERE CreationTime >= '2024-03-01'
+        AND Amount > 0
+        GROUP BY YEAR(CreationTime), MONTH(CreationTime)
+        ORDER BY year, month
+        """
+        results['monthly_by_creation'] = db.execute_query(monthly_query)
+        
+        # Also try using WO.ShopQuoteDate
+        wo_monthly_query = """
+        SELECT 
+            YEAR(w.ShopQuoteDate) as year,
+            MONTH(w.ShopQuoteDate) as month,
+            COUNT(DISTINCT w.WONo) as quote_count,
+            SUM(wq.Amount) as total_quoted
+        FROM ben002.WO w
+        INNER JOIN ben002.WOQuote wq ON w.WONo = wq.WONo
+        WHERE w.ShopQuoteDate >= '2024-03-01'
+        AND wq.Amount > 0
+        GROUP BY YEAR(w.ShopQuoteDate), MONTH(w.ShopQuoteDate)
+        ORDER BY year, month
+        """
+        results['monthly_by_shopquotedate'] = db.execute_query(wo_monthly_query)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
