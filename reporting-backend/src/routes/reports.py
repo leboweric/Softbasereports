@@ -1281,6 +1281,105 @@ def analyze_wo_types():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/debug-wo-types', methods=['GET'])
+def debug_wo_types():
+    """Debug work order types and categorization - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get ALL columns from WO table
+        all_columns_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'WO' 
+        AND TABLE_SCHEMA = 'ben002'
+        ORDER BY ORDINAL_POSITION
+        """
+        results['all_columns'] = db.execute_query(all_columns_query)
+        
+        # Get sample of open work orders to see actual data
+        sample_query = """
+        SELECT TOP 10 *
+        FROM ben002.WO
+        WHERE CompletedDate IS NULL
+        AND ClosedDate IS NULL
+        ORDER BY WONo DESC
+        """
+        
+        samples = db.execute_query(sample_query)
+        if samples:
+            # Extract fields that might contain type/category info
+            results['potential_type_fields'] = []
+            for sample in samples[:3]:  # Just first 3 for brevity
+                type_fields = {}
+                type_fields['WONo'] = sample.get('WONo')
+                
+                # Check all fields that might contain type info
+                for key, value in sample.items():
+                    if value and any(term in key.lower() for term in ['type', 'category', 'class', 'dept', 'service', 'status', 'quote']):
+                        type_fields[key] = value
+                
+                results['potential_type_fields'].append(type_fields)
+        
+        # Try to group by different potential type columns
+        type_columns_to_analyze = ['QuoteType', 'Type', 'WOType', 'ServiceType', 'Category', 'Department', 'Status']
+        
+        for col in type_columns_to_analyze:
+            try:
+                # Check if column exists and get value distribution
+                distribution_query = f"""
+                SELECT 
+                    {col} as type_value,
+                    COUNT(*) as count,
+                    SUM(CASE WHEN CompletedDate IS NULL AND ClosedDate IS NULL THEN 1 ELSE 0 END) as open_count
+                FROM ben002.WO
+                WHERE {col} IS NOT NULL
+                GROUP BY {col}
+                ORDER BY COUNT(*) DESC
+                """
+                
+                distribution = db.execute_query(distribution_query)
+                if distribution and len(distribution) > 0:
+                    results[f'distribution_by_{col}'] = distribution[:10]  # Top 10 values
+            except:
+                continue
+        
+        # Get summary of open work orders
+        summary_query = """
+        SELECT 
+            COUNT(*) as total_open,
+            COUNT(CASE WHEN QuoteType IS NOT NULL THEN 1 END) as has_quotetype,
+            COUNT(CASE WHEN QuoteType LIKE '%Quote%' THEN 1 END) as is_quote,
+            SUM(labor_total + parts_total + misc_total) as total_value
+        FROM (
+            SELECT 
+                w.WONo,
+                w.QuoteType,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM ben002.WO w
+            WHERE w.CompletedDate IS NULL
+            AND w.ClosedDate IS NULL
+        ) as open_wo
+        """
+        
+        results['open_wo_summary'] = db.execute_query(summary_query)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
