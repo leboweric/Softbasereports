@@ -19,7 +19,7 @@ class OpenAIConfig:
     
     CUSTOMER (ben002.Customer):
     - ID (primary key), Name, Address1, City, State, ZipCode, Phone, 
-    - CreditLimit, CreditBalance, YTD (year-to-date sales), LastSaleDate, LastPaymentDate
+    - CreditLimit, Balance, YTD (year-to-date sales), LastSaleDate, LastPaymentDate
     
     EQUIPMENT (ben002.Equipment):
     - StockNo, SerialNo, Make, Model, ModelYear, RentalStatus (In Stock, Sold, Rented),

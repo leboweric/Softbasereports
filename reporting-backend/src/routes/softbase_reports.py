@@ -53,7 +53,7 @@ def customer_activity_report():
                 Phone,
                 SalesmanNo,
                 CreditLimit,
-                CreditBalance as Balance,
+                Balance,
                 LastSaleDate,
                 LastPaymentDate,
                 YTD as YTDSales,
@@ -72,7 +72,7 @@ def customer_activity_report():
                 Name,
                 City,
                 State,
-                CreditBalance as Balance,
+                Balance,
                 YTD as YTDSales,
                 YTD as YTDPayments,
                 LastSaleDate

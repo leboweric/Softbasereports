@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 ai_query_bp = Blueprint('ai_query', __name__)
 
 # Version indicator for deployment verification
-DEPLOYMENT_VERSION = "v4-specific-queries"
+DEPLOYMENT_VERSION = "v5-error-handling"
 
 def parse_time_period(intent):
     """Parse time period from intent"""
@@ -185,7 +185,7 @@ def generate_sql_from_analysis(analysis):
                 Name,
                 City,
                 State,
-                CreditBalance,
+                Balance,
                 YTD as YTDSales
             FROM ben002.Customer
             ORDER BY YTD DESC
@@ -198,10 +198,10 @@ def generate_sql_from_analysis(analysis):
                 City,
                 State,
                 CreditLimit,
-                CreditBalance
+                Balance
             FROM ben002.Customer
-            WHERE CreditBalance > 0
-            ORDER BY CreditBalance DESC
+            WHERE Balance > 0
+            ORDER BY Balance DESC
             """
     
     # Handle equipment/inventory/forklift queries
@@ -349,8 +349,33 @@ def get_version():
     """Get deployment version for debugging"""
     return jsonify({
         'version': DEPLOYMENT_VERSION,
-        'api_key_configured': bool(os.getenv('OPENAI_API_KEY') and os.getenv('OPENAI_API_KEY') != 'your-openai-api-key-here')
+        'api_key_configured': bool(os.getenv('OPENAI_API_KEY') and os.getenv('OPENAI_API_KEY') != 'your-openai-api-key-here'),
+        'timestamp': datetime.now().isoformat()
     })
+
+@ai_query_bp.route('/test-sql', methods=['GET'])
+def test_sql():
+    """Test SQL execution directly"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Test simple query
+        test_query = "SELECT TOP 5 ID, Name FROM ben002.Customer ORDER BY ID"
+        results = db.execute_query(test_query)
+        
+        return jsonify({
+            'success': True,
+            'query': test_query,
+            'results': results,
+            'count': len(results) if results else 0
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
 
 @ai_query_bp.route('/query', methods=['POST'])
 @jwt_required()
@@ -419,26 +444,52 @@ def natural_language_query():
             # Execute the SQL query
             from src.services.azure_sql_service import AzureSQLService
             db = AzureSQLService()
+            
+            logger.info("Executing SQL query...")
             results = db.execute_query(sql_query)
+            
+            # Log results
+            if results:
+                logger.info(f"Query returned {len(results)} results")
+                if len(results) > 0:
+                    logger.info(f"First result columns: {list(results[0].keys())}")
+            else:
+                logger.warning("Query returned no results")
+                results = []
             
             # Format explanation
             explanation = query_analysis.get('explanation', f"Query understood: {query_analysis.get('intent', 'Unknown intent')}")
             
         except Exception as e:
-            logger.error(f"Error generating/executing SQL: {str(e)}")
+            logger.error(f"Error generating/executing SQL: {str(e)}", exc_info=True)
             sql_query = f"Error: {str(e)}"
             results = []
             explanation = f"Failed to execute query: {str(e)}"
+            
+            # Return error details in response
+            return jsonify({
+                'success': False,
+                'query': query_text,
+                'error': str(e),
+                'sql_query': sql_query,
+                'parsed_params': query_analysis,
+                'version': DEPLOYMENT_VERSION
+            }), 400
         
         return jsonify({
             'success': True,
             'query': query_text,
             'parsed_params': query_analysis,
             'sql_query': sql_query,
-            'results': results,
+            'results': results if results else [],
             'explanation': explanation,
-            'result_count': len(results),
-            'version': DEPLOYMENT_VERSION
+            'result_count': len(results) if results else 0,
+            'version': DEPLOYMENT_VERSION,
+            'debug_info': {
+                'intent': query_analysis.get('intent', ''),
+                'query_type': query_analysis.get('query_type', ''),
+                'tables': query_analysis.get('tables', [])
+            }
         })
         
     except Exception as e:
