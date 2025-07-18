@@ -133,53 +133,60 @@ def check_service_claims():
         
         results['columns'] = db.execute_query(columns_query)
         
-        # Get sample completed claims
-        sample_query = """
-        SELECT TOP 10 
-            ServiceClaimNo,
-            CloseDate,
-            TotalLabor,
-            TotalParts,
-            InvoiceNo,
-            Customer,
-            CustomerNo
+        # First get a sample record to see actual columns
+        sample_all = """
+        SELECT TOP 5 *
         FROM ben002.ServiceClaim
-        WHERE CloseDate IS NOT NULL
-        ORDER BY CloseDate DESC
         """
         
-        results['closed_claims'] = db.execute_query(sample_query)
+        try:
+            results['sample_records'] = db.execute_query(sample_all)
+        except Exception as e:
+            results['sample_error'] = str(e)
         
-        # Check different invoice scenarios
-        test_queries = {
-            'closed_no_invoice': """
-                SELECT COUNT(*) as count, SUM(TotalLabor + TotalParts) as total
-                FROM ben002.ServiceClaim
-                WHERE CloseDate IS NOT NULL
-                AND (InvoiceNo IS NULL OR InvoiceNo = 0 OR InvoiceNo = '')
-            """,
-            'closed_with_invoice': """
-                SELECT COUNT(*) as count, SUM(TotalLabor + TotalParts) as total
-                FROM ben002.ServiceClaim
-                WHERE CloseDate IS NOT NULL
-                AND InvoiceNo IS NOT NULL AND InvoiceNo != 0 AND InvoiceNo != ''
-            """,
-            'all_closed': """
-                SELECT COUNT(*) as count, SUM(TotalLabor + TotalParts) as total
-                FROM ben002.ServiceClaim
-                WHERE CloseDate IS NOT NULL
-            """
-        }
+        # Get total count
+        try:
+            count_result = db.execute_query("SELECT COUNT(*) as count FROM ben002.ServiceClaim")
+            results['total_count'] = count_result[0]['count'] if count_result else 0
+        except Exception as e:
+            results['count_error'] = str(e)
         
-        for key, query in test_queries.items():
-            try:
-                results[key] = db.execute_query(query)
-            except Exception as e:
-                results[key + '_error'] = str(e)
+        # Check for date-related columns (might indicate completion)
+        date_columns = [col for col in results.get('columns', []) if 'date' in col['COLUMN_NAME'].lower() or 'time' in col['COLUMN_NAME'].lower()]
+        results['date_columns'] = date_columns
+        
+        # Check for status-related columns
+        status_columns = [col for col in results.get('columns', []) if 'status' in col['COLUMN_NAME'].lower() or 'complete' in col['COLUMN_NAME'].lower() or 'closed' in col['COLUMN_NAME'].lower()]
+        results['status_columns'] = status_columns
         
         # Check for invoice-related columns
         invoice_columns = [col for col in results.get('columns', []) if 'invoice' in col['COLUMN_NAME'].lower() or 'bill' in col['COLUMN_NAME'].lower()]
         results['invoice_related_columns'] = invoice_columns
+        
+        # Check for amount/cost columns
+        amount_columns = [col for col in results.get('columns', []) if any(term in col['COLUMN_NAME'].lower() for term in ['total', 'amount', 'cost', 'price', 'labor', 'parts'])]
+        results['amount_columns'] = amount_columns
+        
+        # Try to get a work order with costs
+        try:
+            cost_query = """
+            SELECT TOP 5 *
+            FROM ben002.ServiceClaim
+            WHERE (TotalLabor > 0 OR TotalParts > 0)
+            """
+            results['records_with_costs'] = db.execute_query(cost_query)
+        except:
+            # If TotalLabor/TotalParts don't exist, try other approaches
+            try:
+                # Just get any 5 records
+                any_query = """
+                SELECT TOP 5 ServiceClaimID, *
+                FROM ben002.ServiceClaim
+                ORDER BY ServiceClaimID DESC
+                """
+                results['recent_records'] = db.execute_query(any_query)
+            except Exception as e:
+                results['recent_records_error'] = str(e)
         
         return jsonify({
             'success': True,
