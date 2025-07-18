@@ -56,6 +56,7 @@ const Dashboard = ({ user }) => {
     shop: true,
     equipment: true
   })
+  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(true)
 
   useEffect(() => {
     fetchDashboardData()
@@ -116,6 +117,17 @@ const Dashboard = ({ user }) => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount)
+  }
+
+  const getFilteredWOData = () => {
+    if (!dashboardData?.monthly_work_orders_by_type) return []
+    
+    if (includeCurrentMonth) {
+      return dashboardData.monthly_work_orders_by_type
+    } else {
+      // Exclude the last month (current month)
+      return dashboardData.monthly_work_orders_by_type.slice(0, -1)
+    }
   }
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
@@ -402,6 +414,20 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-4 mb-4">
+              <div className="flex items-center space-x-2 pr-4 border-r">
+                <Checkbox 
+                  id="current-month-filter"
+                  checked={includeCurrentMonth}
+                  onCheckedChange={setIncludeCurrentMonth}
+                />
+                <label 
+                  htmlFor="current-month-filter" 
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Include Current Month
+                </label>
+              </div>
+              
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="service-filter"
@@ -506,7 +532,7 @@ const Dashboard = ({ user }) => {
             </div>
             
             <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={dashboardData?.monthly_work_orders_by_type || []}>
+              <LineChart data={getFilteredWOData()}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
