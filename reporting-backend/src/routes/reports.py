@@ -114,31 +114,34 @@ def validate_sales():
             'error_type': type(e).__name__
         }), 500
 
-@reports_bp.route('/ytd-sales', methods=['GET'])
+@reports_bp.route('/current-month-sales', methods=['GET'])
 @jwt_required()
-def get_ytd_sales():
-    """Simple endpoint that just returns YTD total sales"""
+def get_current_month_sales():
+    """Simple endpoint that returns current month sales"""
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Get Fiscal YTD sales (Nov 1, 2024 - Oct 31, 2025)
-        fiscal_year_start = '2024-11-01'
+        # Get current month's sales
+        current_date = datetime.now()
+        month_start = current_date.replace(day=1).strftime('%Y-%m-%d')
         
         query = f"""
-        SELECT COALESCE(SUM(GrandTotal), 0) as ytd_sales
+        SELECT COALESCE(SUM(GrandTotal), 0) as month_sales
         FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '{fiscal_year_start}'
+        WHERE InvoiceDate >= '{month_start}'
+        AND MONTH(InvoiceDate) = {current_date.month}
+        AND YEAR(InvoiceDate) = {current_date.year}
         """
         
         result = db.execute_query(query)
         # Convert to int to remove decimals
-        ytd_sales = int(float(result[0]['ytd_sales'])) if result else 0
+        month_sales = int(float(result[0]['month_sales'])) if result else 0
         
         return jsonify({
             'success': True,
-            'ytd_sales': ytd_sales,
-            'period': 'Fiscal YTD 2025',
+            'month_sales': month_sales,
+            'period': current_date.strftime('%B %Y'),
             'as_of': datetime.now().isoformat()
         })
         
@@ -146,7 +149,7 @@ def get_ytd_sales():
         return jsonify({
             'success': False,
             'error': str(e),
-            'ytd_sales': 0
+            'month_sales': 0
         }), 500
 
 @reports_bp.route('/dashboard/summary', methods=['GET'])
@@ -157,13 +160,16 @@ def get_dashboard_summary():
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Get Fiscal YTD sales (Nov 1, 2024 through today)
-        fiscal_year_start = '2024-11-01'
+        # Get current month's sales
+        current_date = datetime.now()
+        month_start = current_date.replace(day=1).strftime('%Y-%m-%d')
         
         sales_query = f"""
         SELECT COALESCE(SUM(GrandTotal), 0) as total_sales
         FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '{fiscal_year_start}'
+        WHERE InvoiceDate >= '{month_start}'
+        AND MONTH(InvoiceDate) = {current_date.month}
+        AND YEAR(InvoiceDate) = {current_date.year}
         """
         
         sales_result = db.execute_query(sales_query)
@@ -180,7 +186,7 @@ def get_dashboard_summary():
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': [],
-            'period': 'Fiscal YTD 2025',
+            'period': current_date.strftime('%B %Y'),
             'last_updated': datetime.now().isoformat()
         })
         
