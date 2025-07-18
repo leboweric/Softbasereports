@@ -554,7 +554,7 @@ def get_inventory_details():
             SerialNo,
             Location,
             Cost,
-            Hours,
+            LastHourMeter,
             RentalStatus,
             CASE 
                 WHEN WebRentalFlag = 1 THEN 'Yes' 
@@ -578,7 +578,7 @@ def get_inventory_details():
                 'serialNo': row.get('SerialNo', ''),
                 'location': row.get('Location', ''),
                 'cost': float(row.get('Cost', 0)),
-                'hours': float(row.get('Hours', 0)),
+                'hours': float(row.get('LastHourMeter', 0)),
                 'webAvailable': row.get('WebAvailable', 'No')
             })
         
