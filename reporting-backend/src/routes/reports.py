@@ -537,6 +537,85 @@ def test_uninvoiced_wo():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/calculate-uninvoiced-value', methods=['GET'])
+def calculate_uninvoiced_value():
+    """Calculate actual uninvoiced work order values - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get uninvoiced work orders with their labor and parts totals
+        query = """
+        SELECT 
+            w.WONo,
+            w.CompletedDate,
+            COALESCE((SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborTotal,
+            COALESCE((SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsTotal,
+            COALESCE((SELECT SUM(Misc) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscTotal
+        FROM ben002.WO w
+        WHERE w.CompletedDate IS NOT NULL
+        AND w.InvoiceDate IS NULL
+        """
+        
+        try:
+            wo_details = db.execute_query(query)
+            
+            # Calculate totals
+            total_value = 0
+            total_count = len(wo_details)
+            
+            for wo in wo_details:
+                wo_total = float(wo['LaborTotal']) + float(wo['PartsTotal']) + float(wo['MiscTotal'])
+                total_value += wo_total
+            
+            results['summary'] = {
+                'count': total_count,
+                'total_value': total_value,
+                'average_value': total_value / total_count if total_count > 0 else 0
+            }
+            
+            # Get top 10 by value
+            wo_details_sorted = sorted(wo_details, key=lambda x: float(x['LaborTotal']) + float(x['PartsTotal']) + float(x['MiscTotal']), reverse=True)[:10]
+            results['top_10_uninvoiced'] = wo_details_sorted
+            
+        except Exception as e:
+            results['calculation_error'] = str(e)
+            
+        # Also test a simplified query for the dashboard
+        try:
+            dashboard_query = """
+            SELECT 
+                COUNT(*) as count,
+                SUM(labor_total + parts_total + misc_total) as total_value
+            FROM (
+                SELECT 
+                    w.WONo,
+                    COALESCE((SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                    COALESCE((SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                    COALESCE((SELECT SUM(Misc) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                FROM ben002.WO w
+                WHERE w.CompletedDate IS NOT NULL
+                AND w.InvoiceDate IS NULL
+            ) as uninvoiced
+            """
+            dashboard_result = db.execute_query(dashboard_query)
+            results['dashboard_query_result'] = dashboard_result
+        except Exception as e:
+            results['dashboard_query_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
@@ -887,25 +966,29 @@ def get_dashboard_summary():
             if uninvoiced_count == 0:
                 try:
                     # Query WO table for completed but not invoiced work orders
+                    # Using subqueries to get labor, parts, and misc totals
                     wo_query = """
                     SELECT 
                         COUNT(*) as count,
-                        COALESCE(SUM(
-                            ISNULL(w.TotalLabor, 0) + 
-                            ISNULL(w.TotalParts, 0) + 
-                            ISNULL(w.TotalMisc, 0)
-                        ), 0) as total_value
-                    FROM ben002.WO w
-                    WHERE w.CompletedDate IS NOT NULL
-                    AND w.InvoiceDate IS NULL
-                    AND w.TotalLabor + w.TotalParts + w.TotalMisc > 0
+                        COALESCE(SUM(labor_total + parts_total + misc_total), 0) as total_value
+                    FROM (
+                        SELECT 
+                            w.WONo,
+                            COALESCE((SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                            COALESCE((SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                            COALESCE((SELECT SUM(Misc) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                        FROM ben002.WO w
+                        WHERE w.CompletedDate IS NOT NULL
+                        AND w.InvoiceDate IS NULL
+                    ) as uninvoiced
                     """
                     wo_result = db.execute_query(wo_query)
                     if wo_result:
                         uninvoiced_value = float(wo_result[0]['total_value'])
                         uninvoiced_count = int(wo_result[0]['count'])
                 except Exception as e:
-                    # If the above fails, try a simpler query
+                    logger.error(f"Complex WO query failed: {str(e)}")
+                    # If the complex query fails, at least get the count
                     try:
                         simple_query = """
                         SELECT COUNT(*) as count
@@ -916,7 +999,7 @@ def get_dashboard_summary():
                         simple_result = db.execute_query(simple_query)
                         if simple_result:
                             uninvoiced_count = int(simple_result[0]['count'])
-                            # Set a placeholder value if we can't get actual amounts
+                            # Set a reasonable placeholder value
                             if uninvoiced_count > 0:
                                 uninvoiced_value = uninvoiced_count * 500  # Placeholder average
                     except:
