@@ -10,6 +10,17 @@ from src.models.user import User
 logger = logging.getLogger(__name__)
 ai_query_bp = Blueprint('ai_query', __name__)
 
+# Version indicator for deployment verification
+DEPLOYMENT_VERSION = "v2-jwt-fix"
+
+@ai_query_bp.route('/version', methods=['GET'])
+def get_version():
+    """Get deployment version for debugging"""
+    return jsonify({
+        'version': DEPLOYMENT_VERSION,
+        'api_key_configured': bool(os.getenv('OPENAI_API_KEY') and os.getenv('OPENAI_API_KEY') != 'your-openai-api-key-here')
+    })
+
 @ai_query_bp.route('/query', methods=['POST'])
 @jwt_required()
 def natural_language_query():
@@ -82,7 +93,8 @@ def natural_language_query():
             'sql_query': sql_query,
             'results': results,
             'explanation': explanation,
-            'result_count': len(results)
+            'result_count': len(results),
+            'version': DEPLOYMENT_VERSION
         })
         
     except Exception as e:
