@@ -1,0 +1,9 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "reporting-backend/Dockerfile"
+
+[deploy]
+startCommand = "cd reporting-backend && gunicorn --bind 0.0.0.0:$PORT --workers 4 --timeout 120 src.main:app"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "ALWAYS"
