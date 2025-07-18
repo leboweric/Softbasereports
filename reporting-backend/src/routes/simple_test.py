@@ -519,3 +519,63 @@ def quick_report_test():
         result["error"] = str(e)
     
     return jsonify(result), 200
+
+
+@simple_test_bp.route("/api/test/inspect-columns", methods=["GET"])
+def inspect_columns():
+    """Inspect actual column names in key views"""
+    
+    result = {
+        "inspection": "Column Names in Key Views",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        from ..services.azure_sql_service import AzureSQLService
+        
+        db = AzureSQLService()
+        
+        # Views to inspect
+        views = ["Customer", "Equipment", "InvoiceReg"]
+        
+        for view_name in views:
+            try:
+                # Get first row to see column names
+                query = f"SELECT TOP 1 * FROM ben002.{view_name}"
+                results = db.execute_query(query)
+                
+                if results:
+                    # Get column names from the result
+                    columns = list(results[0].keys())
+                    result[view_name] = {
+                        "column_count": len(columns),
+                        "columns": sorted(columns)[:20]  # First 20 columns alphabetically
+                    }
+                    
+                    # Look for specific columns we need
+                    important_cols = {
+                        "Customer": ["Name", "CustomerNo", "YTD", "Sales", "Balance"],
+                        "Equipment": ["Status", "StockNo", "SerialNo", "Make", "Model"],
+                        "InvoiceReg": ["InvoiceNo", "CustomerName", "Customer", "TotalAmount", "Total"]
+                    }
+                    
+                    if view_name in important_cols:
+                        found_cols = {}
+                        for search_term in important_cols[view_name]:
+                            matching = [col for col in columns if search_term.lower() in col.lower()]
+                            if matching:
+                                found_cols[search_term] = matching
+                        result[view_name]["relevant_columns"] = found_cols
+                else:
+                    result[view_name] = {"error": "No data returned"}
+                    
+            except Exception as e:
+                result[view_name] = {"error": str(e)}
+        
+        result["status"] = "SUCCESS"
+        
+    except Exception as e:
+        result["status"] = "FAILED"
+        result["error"] = str(e)
+    
+    return jsonify(result), 200
