@@ -616,6 +616,71 @@ def calculate_uninvoiced_value():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/check-wo-columns', methods=['GET'])
+def check_wo_columns():
+    """Check WOLabor and WOParts column structure - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get WOLabor columns
+        labor_cols = db.execute_query("""
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'WOLabor' 
+            AND TABLE_SCHEMA = 'ben002'
+            AND (COLUMN_NAME LIKE '%Labor%' OR COLUMN_NAME LIKE '%Ext%' OR COLUMN_NAME LIKE '%Total%' OR COLUMN_NAME LIKE '%Amount%')
+            ORDER BY ORDINAL_POSITION
+        """)
+        results['wolabor_columns'] = labor_cols
+        
+        # Get WOParts columns
+        parts_cols = db.execute_query("""
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'WOParts' 
+            AND TABLE_SCHEMA = 'ben002'
+            AND (COLUMN_NAME LIKE '%Price%' OR COLUMN_NAME LIKE '%Ext%' OR COLUMN_NAME LIKE '%Total%' OR COLUMN_NAME LIKE '%Amount%')
+            ORDER BY ORDINAL_POSITION
+        """)
+        results['woparts_columns'] = parts_cols
+        
+        # Get WOMisc columns
+        misc_cols = db.execute_query("""
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'WOMisc' 
+            AND TABLE_SCHEMA = 'ben002'
+            ORDER BY ORDINAL_POSITION
+        """)
+        results['womisc_columns'] = misc_cols
+        
+        # Get sample data
+        try:
+            labor_sample = db.execute_query("SELECT TOP 1 * FROM ben002.WOLabor WHERE WONo > 0")
+            results['labor_sample'] = labor_sample
+        except Exception as e:
+            results['labor_sample_error'] = str(e)
+            
+        try:
+            parts_sample = db.execute_query("SELECT TOP 1 * FROM ben002.WOParts WHERE WONo > 0")
+            results['parts_sample'] = parts_sample
+        except Exception as e:
+            results['parts_sample_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
