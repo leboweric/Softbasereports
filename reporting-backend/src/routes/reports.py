@@ -2010,7 +2010,7 @@ def get_dashboard_summary():
                     continue
             
             if successful_type_column:
-                # Query for work order types breakdown
+                # Query for work order types breakdown, excluding quotes
                 wo_types_query = f"""
                 SELECT 
                     COALESCE({successful_type_column}, 'Unspecified') as type_name,
@@ -2026,6 +2026,10 @@ def get_dashboard_summary():
                     FROM ben002.WO w
                     WHERE w.CompletedDate IS NULL
                     AND w.ClosedDate IS NULL
+                    AND (
+                        UPPER(COALESCE(w.{successful_type_column}, '')) NOT LIKE '%QUOTE%' 
+                        AND UPPER(COALESCE(w.{successful_type_column}, '')) NOT LIKE '%ESTIMATE%'
+                    )
                 ) as open_wo
                 GROUP BY {successful_type_column}
                 ORDER BY total_value DESC
