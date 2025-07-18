@@ -127,24 +127,144 @@ def generate_sql_from_analysis(analysis):
             ORDER BY CreditBalance DESC
             """
     
-    # Handle equipment queries
-    elif 'equipment' in ' '.join(tables).lower() or 'inventory' in ' '.join(tables).lower():
-        return """
+    # Handle equipment/inventory/forklift queries
+    elif any(term in intent for term in ['equipment', 'inventory', 'forklift', 'stock', 'unit']) or \
+         'equipment' in ' '.join(tables).lower() or 'inventory' in ' '.join(tables).lower():
+        
+        # Check for specific brand mentions
+        brand_filter = ""
+        brands = ['linde', 'toyota', 'crown', 'yale', 'hyster', 'clark', 'caterpillar']
+        for brand in brands:
+            if brand in intent:
+                brand_filter = f" AND LOWER(Make) LIKE '%{brand}%'"
+                break
+        
+        # Check what type of query
+        if 'stock' in intent or 'in stock' in intent:
+            # Query for in-stock items
+            if brand_filter:
+                return f"""
+                SELECT 
+                    Make,
+                    Model,
+                    COUNT(*) as quantity_in_stock,
+                    COUNT(DISTINCT Model) as unique_models
+                FROM ben002.Equipment
+                WHERE RentalStatus = 'In Stock'{brand_filter}
+                GROUP BY Make, Model
+                ORDER BY quantity_in_stock DESC
+                """
+            else:
+                return """
+                SELECT 
+                    Make,
+                    COUNT(*) as quantity_in_stock,
+                    COUNT(DISTINCT Model) as unique_models
+                FROM ben002.Equipment
+                WHERE RentalStatus = 'In Stock'
+                GROUP BY Make
+                ORDER BY quantity_in_stock DESC
+                """
+        
+        elif 'how many' in intent or 'count' in intent or query_type == 'count':
+            # Count query
+            where_clause = "WHERE 1=1"
+            if 'stock' in intent:
+                where_clause += " AND RentalStatus = 'In Stock'"
+            where_clause += brand_filter
+            
+            return f"""
+            SELECT 
+                COUNT(*) as total_count,
+                COUNT(CASE WHEN RentalStatus = 'In Stock' THEN 1 END) as in_stock,
+                COUNT(CASE WHEN RentalStatus = 'Rented' THEN 1 END) as rented,
+                COUNT(CASE WHEN RentalStatus = 'Sold' THEN 1 END) as sold
+            FROM ben002.Equipment
+            {where_clause}
+            """
+        
+        else:
+            # General equipment listing
+            where_clause = "WHERE 1=1"
+            if brand_filter:
+                where_clause += brand_filter
+            
+            return f"""
+            SELECT TOP 100
+                StockNo,
+                SerialNo,
+                Make,
+                Model,
+                ModelYear,
+                RentalStatus,
+                Location,
+                Hours,
+                SaleAmount
+            FROM ben002.Equipment
+            {where_clause}
+            ORDER BY StockNo DESC
+            """
+    
+    # Handle service/repair queries
+    elif any(term in intent for term in ['service', 'repair', 'claim', 'maintenance']):
+        date_filter = ""
+        if 'last month' in intent:
+            today = datetime.now()
+            first_day_of_month = today.replace(day=1)
+            last_month_end = first_day_of_month - timedelta(days=1)
+            last_month_start = last_month_end.replace(day=1)
+            date_filter = f" AND OpenDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND OpenDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+        
+        return f"""
         SELECT 
-            RentalStatus,
-            COUNT(*) as count,
-            SUM(SaleAmount) as total_value
-        FROM ben002.Equipment
-        GROUP BY RentalStatus
-        ORDER BY count DESC
+            COUNT(*) as total_claims,
+            COUNT(CASE WHEN Status = 'Open' THEN 1 END) as open_claims,
+            COUNT(CASE WHEN Status = 'Closed' THEN 1 END) as closed_claims,
+            SUM(TotalLabor + TotalParts) as total_service_cost,
+            AVG(TotalLabor + TotalParts) as avg_service_cost
+        FROM ben002.ServiceClaim
+        WHERE 1=1{date_filter}
         """
     
-    # Default query
+    # Handle parts queries
+    elif any(term in intent for term in ['part', 'parts']):
+        if 'low stock' in intent or 'low inventory' in intent:
+            return """
+            SELECT TOP 20
+                PartNo,
+                Description,
+                QtyOnHand,
+                BinLocation,
+                Cost,
+                Price
+            FROM ben002.NationalParts
+            WHERE QtyOnHand < 10
+            ORDER BY QtyOnHand ASC
+            """
+        else:
+            return """
+            SELECT TOP 100
+                PartNo,
+                Description,
+                QtyOnHand,
+                BinLocation,
+                Supplier,
+                Cost,
+                Price
+            FROM ben002.NationalParts
+            WHERE QtyOnHand > 0
+            ORDER BY QtyOnHand DESC
+            """
+    
+    # Default query with more helpful message
     else:
-        return """
-        SELECT TOP 10 
-            'Please be more specific' as message,
-            'Try asking about customers, sales, equipment, or service' as suggestion
+        logger.warning(f"Could not generate SQL for intent: {intent}")
+        return f"""
+        SELECT 
+            'Could not understand query: {intent[:100]}' as message,
+            'Try asking about: customers, sales, equipment inventory, service claims, or parts' as suggestion,
+            '{query_type}' as detected_type,
+            '{', '.join(tables)}' as detected_tables
         """
 
 @ai_query_bp.route('/version', methods=['GET'])
