@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { 
   BarChart, 
   Bar, 
@@ -29,6 +44,9 @@ import { apiUrl } from '@/lib/api'
 const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [inventoryModalOpen, setInventoryModalOpen] = useState(false)
+  const [inventoryDetails, setInventoryDetails] = useState(null)
+  const [loadingInventory, setLoadingInventory] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
@@ -51,6 +69,34 @@ const Dashboard = ({ user }) => {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchInventoryDetails = async () => {
+    setLoadingInventory(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/inventory-details'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setInventoryDetails(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch inventory details:', error)
+    } finally {
+      setLoadingInventory(false)
+    }
+  }
+
+  const handleInventoryClick = () => {
+    setInventoryModalOpen(true)
+    if (!inventoryDetails) {
+      fetchInventoryDetails()
     }
   }
 
@@ -121,7 +167,10 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={handleInventoryClick}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Inventory</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
@@ -131,7 +180,7 @@ const Dashboard = ({ user }) => {
               {dashboardData?.inventory_count || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Units available
+              Units available • Click for details
             </p>
           </CardContent>
         </Card>
@@ -254,6 +303,63 @@ const Dashboard = ({ user }) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Inventory Details Modal */}
+      <Dialog open={inventoryModalOpen} onOpenChange={setInventoryModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Available Inventory Details</DialogTitle>
+            <DialogDescription>
+              Equipment currently available for rent
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingInventory ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
+          ) : inventoryDetails && inventoryDetails.equipment ? (
+            <div className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Unit #</TableHead>
+                    <TableHead>Make</TableHead>
+                    <TableHead>Model</TableHead>
+                    <TableHead>Year</TableHead>
+                    <TableHead>Serial #</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead className="text-right">Hours</TableHead>
+                    <TableHead className="text-right">Cost</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {inventoryDetails.equipment.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{item.unitNo}</TableCell>
+                      <TableCell>{item.make}</TableCell>
+                      <TableCell>{item.model}</TableCell>
+                      <TableCell>{item.year || '-'}</TableCell>
+                      <TableCell>{item.serialNo}</TableCell>
+                      <TableCell>{item.location || '-'}</TableCell>
+                      <TableCell className="text-right">{item.hours.toFixed(0)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(item.cost)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              
+              <div className="mt-4 text-sm text-muted-foreground">
+                Total: {inventoryDetails.total} units available
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No inventory data available
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

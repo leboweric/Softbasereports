@@ -466,6 +466,67 @@ def get_dashboard_summary():
             'last_updated': datetime.now().isoformat()
         })
 
+@reports_bp.route('/inventory-details', methods=['GET'])
+@jwt_required()
+def get_inventory_details():
+    """Get detailed list of available inventory"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Get all equipment that is Ready To Rent with details
+        query = """
+        SELECT 
+            UnitNo,
+            Make,
+            Model,
+            ModelYear,
+            SerialNo,
+            Location,
+            Cost,
+            Hours,
+            RentalStatus,
+            CASE 
+                WHEN WebRentalFlag = 1 THEN 'Yes' 
+                ELSE 'No' 
+            END as WebAvailable
+        FROM ben002.Equipment
+        WHERE RentalStatus = 'Ready To Rent'
+        ORDER BY Make, Model, UnitNo
+        """
+        
+        results = db.execute_query(query)
+        
+        # Format the results for better display
+        equipment_list = []
+        for row in results:
+            equipment_list.append({
+                'unitNo': row.get('UnitNo', ''),
+                'make': row.get('Make', ''),
+                'model': row.get('Model', ''),
+                'year': row.get('ModelYear', ''),
+                'serialNo': row.get('SerialNo', ''),
+                'location': row.get('Location', ''),
+                'cost': float(row.get('Cost', 0)),
+                'hours': float(row.get('Hours', 0)),
+                'webAvailable': row.get('WebAvailable', 'No')
+            })
+        
+        return jsonify({
+            'success': True,
+            'equipment': equipment_list,
+            'total': len(equipment_list)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching inventory details: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'equipment': [],
+            'total': 0
+        }), 500
+
 @reports_bp.route('/list', methods=['GET'])
 @TenantMiddleware.require_organization
 def get_reports():
