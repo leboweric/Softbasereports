@@ -1174,6 +1174,113 @@ def analyze_total_work_orders():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/analyze-wo-types', methods=['GET'])
+def analyze_wo_types():
+    """Analyze work order types breakdown - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # First, find type-related columns in WO table
+        wo_columns_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'WO' 
+        AND TABLE_SCHEMA = 'ben002'
+        AND (
+            COLUMN_NAME LIKE '%Type%' OR 
+            COLUMN_NAME LIKE '%Category%' OR 
+            COLUMN_NAME LIKE '%Class%' OR
+            COLUMN_NAME LIKE '%Department%' OR
+            COLUMN_NAME LIKE '%Service%'
+        )
+        ORDER BY ORDINAL_POSITION
+        """
+        results['wo_type_columns'] = db.execute_query(wo_columns_query)
+        
+        # Get sample WO records to see type data
+        sample_query = """
+        SELECT TOP 10 *
+        FROM ben002.WO
+        WHERE CompletedDate IS NULL
+        AND ClosedDate IS NULL
+        ORDER BY WONo DESC
+        """
+        
+        samples = db.execute_query(sample_query)
+        if samples:
+            # Extract potential type fields
+            results['sample_type_fields'] = []
+            for rec in samples[:3]:  # Just first 3 for brevity
+                type_data = {k: v for k, v in rec.items() 
+                            if any(term in k.lower() for term in ['type', 'category', 'class', 'dept', 'service', 'quote'])}
+                type_data['WONo'] = rec.get('WONo')
+                results['sample_type_fields'].append(type_data)
+        
+        # Try to find and group by different type columns
+        type_columns_to_try = ['WOType', 'Type', 'ServiceType', 'QuoteType', 'Category', 'Department']
+        
+        for col in type_columns_to_try:
+            try:
+                type_breakdown_query = f"""
+                SELECT 
+                    {col} as type_value,
+                    COUNT(*) as count,
+                    SUM(labor_total + parts_total + misc_total) as total_value
+                FROM (
+                    SELECT 
+                        w.WONo,
+                        w.{col},
+                        COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                        COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                        COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                    FROM ben002.WO w
+                    WHERE w.CompletedDate IS NULL
+                    AND w.ClosedDate IS NULL
+                ) as open_wo
+                GROUP BY {col}
+                ORDER BY total_value DESC
+                """
+                
+                breakdown = db.execute_query(type_breakdown_query)
+                if breakdown and len(breakdown) > 0:
+                    results[f'breakdown_by_{col}'] = breakdown
+                    results['successful_type_column'] = col
+                    break
+            except Exception as e:
+                continue
+        
+        # Also get overall open/in progress summary
+        summary_query = """
+        SELECT 
+            COUNT(*) as total_count,
+            SUM(labor_total + parts_total + misc_total) as total_value
+        FROM (
+            SELECT 
+                w.WONo,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM ben002.WO w
+            WHERE w.CompletedDate IS NULL
+            AND w.ClosedDate IS NULL
+        ) as open_wo
+        """
+        results['open_wo_summary'] = db.execute_query(summary_query)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
@@ -1809,12 +1916,76 @@ def get_dashboard_summary():
         except Exception as e:
             logger.error(f"Department margins calculation failed: {str(e)}")
         
+        # Get work order types breakdown for open/in-progress work orders
+        work_order_types = []
+        open_wo_total = 0
+        open_wo_count = 0
+        try:
+            # First check what type columns exist in WO table
+            type_columns = ['QuoteType', 'Type', 'WOType', 'ServiceType', 'Category']
+            successful_type_column = None
+            
+            for col in type_columns:
+                try:
+                    # Try to query using this column
+                    type_check_query = f"""
+                    SELECT TOP 1 {col}
+                    FROM ben002.WO
+                    WHERE {col} IS NOT NULL
+                    """
+                    check_result = db.execute_query(type_check_query)
+                    if check_result:
+                        successful_type_column = col
+                        break
+                except:
+                    continue
+            
+            if successful_type_column:
+                # Query for work order types breakdown
+                wo_types_query = f"""
+                SELECT 
+                    COALESCE({successful_type_column}, 'Unspecified') as type_name,
+                    COUNT(*) as count,
+                    SUM(labor_total + parts_total + misc_total) as total_value
+                FROM (
+                    SELECT 
+                        w.WONo,
+                        w.{successful_type_column},
+                        COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                        COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                        COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                    FROM ben002.WO w
+                    WHERE w.CompletedDate IS NULL
+                    AND w.ClosedDate IS NULL
+                ) as open_wo
+                GROUP BY {successful_type_column}
+                ORDER BY total_value DESC
+                """
+                
+                wo_types_result = db.execute_query(wo_types_query)
+                
+                if wo_types_result:
+                    for row in wo_types_result:
+                        work_order_types.append({
+                            'type': row['type_name'],
+                            'count': int(row['count']),
+                            'value': float(row['total_value'])
+                        })
+                        open_wo_total += float(row['total_value'])
+                        open_wo_count += int(row['count'])
+                        
+        except Exception as e:
+            logger.error(f"Work order types calculation failed: {str(e)}")
+        
         return jsonify({
             'total_sales': total_sales,
             'inventory_count': inventory_count,
             'active_customers': active_customers,
             'uninvoiced_work_orders': int(uninvoiced_value),  # Remove decimals
             'uninvoiced_count': uninvoiced_count,
+            'open_work_orders_value': int(open_wo_total),
+            'open_work_orders_count': open_wo_count,
+            'work_order_types': work_order_types,
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': monthly_sales,
@@ -1833,6 +2004,11 @@ def get_dashboard_summary():
             'total_sales': 0,
             'inventory_count': 0,
             'active_customers': 0,
+            'uninvoiced_work_orders': 0,
+            'uninvoiced_count': 0,
+            'open_work_orders_value': 0,
+            'open_work_orders_count': 0,
+            'work_order_types': [],
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': [],

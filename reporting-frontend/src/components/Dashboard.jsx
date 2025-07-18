@@ -240,20 +240,34 @@ const Dashboard = ({ user }) => {
 
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Monthly Gross Profit</CardTitle>
+            <CardTitle>Open Work Orders by Type</CardTitle>
             <CardDescription>
-              Sales minus Cost of Sales over the last 12 months
+              {formatCurrency(dashboardData?.open_work_orders_value || 0)} across {dashboardData?.open_work_orders_count || 0} orders
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_gross_profit || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="amount" fill="#10b981" />
-              </BarChart>
+              <PieChart>
+                <Pie
+                  data={dashboardData?.work_order_types || []}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ type, percent }) => `${type} ${(percent * 100).toFixed(0)}%`}
+                  outerRadius={120}
+                  fill="#8884d8"
+                  dataKey="value"
+                  nameKey="type"
+                >
+                  {(dashboardData?.work_order_types || []).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(value, name) => [formatCurrency(value), name]}
+                  contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                />
+              </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
