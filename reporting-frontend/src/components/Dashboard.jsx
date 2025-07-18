@@ -281,9 +281,58 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
 
-        <div className="col-span-3">
-          {/* Placeholder for future chart */}
-        </div>
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle>Department Gross Margins %</CardTitle>
+            <CardDescription>
+              Margin percentages by department over time
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={dashboardData?.department_margins || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis 
+                  domain={[0, 100]}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <Tooltip 
+                  formatter={(value) => `${value}%`}
+                  labelFormatter={(label) => `Month: ${label}`}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="parts_margin" 
+                  stroke="#ef4444" 
+                  name="Parts"
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="labor_margin" 
+                  stroke="#3b82f6" 
+                  name="Labor"
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="equipment_margin" 
+                  stroke="#10b981" 
+                  name="Equipment"
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="rental_margin" 
+                  stroke="#a855f7" 
+                  name="Rental"
+                  strokeWidth={2}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Top 10 Customers */}

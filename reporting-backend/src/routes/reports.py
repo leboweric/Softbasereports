@@ -1586,6 +1586,72 @@ def get_dashboard_summary():
         except Exception as e:
             logger.error(f"Top customers calculation failed: {str(e)}")
         
+        # Get department gross margin percentages by month
+        department_margins = []
+        try:
+            # Calculate margin percentage for each department
+            margin_query = f"""
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                -- Parts margin
+                SUM(PartsTaxable + PartsNonTax) as parts_revenue,
+                SUM(PartsCost) as parts_cost,
+                CASE 
+                    WHEN SUM(PartsTaxable + PartsNonTax) > 0 
+                    THEN ((SUM(PartsTaxable + PartsNonTax) - SUM(PartsCost)) / SUM(PartsTaxable + PartsNonTax)) * 100
+                    ELSE 0 
+                END as parts_margin_pct,
+                -- Labor margin
+                SUM(LaborTaxable + LaborNonTax) as labor_revenue,
+                SUM(LaborCost) as labor_cost,
+                CASE 
+                    WHEN SUM(LaborTaxable + LaborNonTax) > 0 
+                    THEN ((SUM(LaborTaxable + LaborNonTax) - SUM(LaborCost)) / SUM(LaborTaxable + LaborNonTax)) * 100
+                    ELSE 0 
+                END as labor_margin_pct,
+                -- Equipment margin
+                SUM(EquipmentTaxable + EquipmentNonTax) as equipment_revenue,
+                SUM(EquipmentCost) as equipment_cost,
+                CASE 
+                    WHEN SUM(EquipmentTaxable + EquipmentNonTax) > 0 
+                    THEN ((SUM(EquipmentTaxable + EquipmentNonTax) - SUM(EquipmentCost)) / SUM(EquipmentTaxable + EquipmentNonTax)) * 100
+                    ELSE 0 
+                END as equipment_margin_pct,
+                -- Rental margin
+                SUM(RentalTaxable + RentalNonTax) as rental_revenue,
+                SUM(RentalCost) as rental_cost,
+                CASE 
+                    WHEN SUM(RentalTaxable + RentalNonTax) > 0 
+                    THEN ((SUM(RentalTaxable + RentalNonTax) - SUM(RentalCost)) / SUM(RentalTaxable + RentalNonTax)) * 100
+                    ELSE 0 
+                END as rental_margin_pct
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{twelve_months_ago}'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            margin_results = db.execute_query(margin_query)
+            
+            if margin_results:
+                for row in margin_results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    department_margins.append({
+                        'month': month_date.strftime("%b"),
+                        'parts_margin': round(float(row['parts_margin_pct']), 1),
+                        'labor_margin': round(float(row['labor_margin_pct']), 1),
+                        'equipment_margin': round(float(row['equipment_margin_pct']), 1),
+                        'rental_margin': round(float(row['rental_margin_pct']), 1),
+                        'parts_revenue': float(row['parts_revenue']),
+                        'labor_revenue': float(row['labor_revenue']),
+                        'equipment_revenue': float(row['equipment_revenue']),
+                        'rental_revenue': float(row['rental_revenue'])
+                    })
+                    
+        except Exception as e:
+            logger.error(f"Department margins calculation failed: {str(e)}")
+        
         return jsonify({
             'total_sales': total_sales,
             'inventory_count': inventory_count,
@@ -1598,6 +1664,7 @@ def get_dashboard_summary():
             'monthly_gross_profit': monthly_gross_profit,
             'monthly_quotes': monthly_quotes,
             'top_customers': top_customers,
+            'department_margins': department_margins,
             'period': current_date.strftime('%B %Y'),
             'last_updated': datetime.now().isoformat()
         })
@@ -1615,6 +1682,7 @@ def get_dashboard_summary():
             'monthly_gross_profit': [],
             'monthly_quotes': [],
             'top_customers': [],
+            'department_margins': [],
             'period': 'This Month',
             'error': str(e),
             'last_updated': datetime.now().isoformat()
