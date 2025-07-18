@@ -270,6 +270,80 @@ def find_work_orders():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/check-work-order-data', methods=['GET'])
+def check_work_order_data():
+    """Check for work order data in various tables - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Check if ServiceClaim has any data
+        try:
+            sc_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.ServiceClaim")
+            results['service_claim_count'] = sc_count[0]['count'] if sc_count else 0
+        except Exception as e:
+            results['service_claim_error'] = str(e)
+        
+        # Check for WOHeader (Work Order Header) table
+        try:
+            wo_tables = db.execute_query("""
+                SELECT TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = 'ben002' 
+                AND TABLE_NAME LIKE '%WO%'
+                ORDER BY TABLE_NAME
+            """)
+            results['wo_tables'] = [t['TABLE_NAME'] for t in wo_tables]
+            
+            # Check WOHeader if it exists
+            if any('WOHeader' in t['TABLE_NAME'] for t in wo_tables):
+                wo_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.WOHeader")
+                results['wo_header_count'] = wo_count[0]['count'] if wo_count else 0
+                
+                # Get sample work order
+                wo_sample = db.execute_query("""
+                    SELECT TOP 3 * 
+                    FROM ben002.WOHeader 
+                    ORDER BY WONumber DESC
+                """)
+                results['wo_header_sample'] = wo_sample
+        except Exception as e:
+            results['wo_tables_error'] = str(e)
+        
+        # Check for JobHeader table (another common name for work orders)
+        try:
+            job_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.JobHeader")
+            results['job_header_count'] = job_count[0]['count'] if job_count else 0
+        except:
+            pass
+        
+        # Look for tables with "Labor" and "Parts" in their names
+        try:
+            labor_parts_tables = db.execute_query("""
+                SELECT DISTINCT TABLE_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = 'ben002' 
+                AND (COLUMN_NAME LIKE '%Labor%' OR COLUMN_NAME LIKE '%Parts%')
+                AND TABLE_NAME NOT LIKE '%Claim%'
+                ORDER BY TABLE_NAME
+            """)
+            results['tables_with_labor_parts'] = [t['TABLE_NAME'] for t in labor_parts_tables]
+        except Exception as e:
+            results['labor_parts_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
