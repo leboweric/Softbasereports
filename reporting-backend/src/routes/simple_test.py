@@ -274,9 +274,17 @@ def db_diagnostics():
             try:
                 cursor.execute(query)
                 tables = cursor.fetchall()
+                # Convert any bytes to strings
+                sample_tables = []
+                for table in tables[:5]:
+                    if isinstance(table, tuple):
+                        sample_tables.append([str(col) if isinstance(col, bytes) else col for col in table])
+                    else:
+                        sample_tables.append(str(table) if isinstance(table, bytes) else table)
+                
                 table_results[query_name] = {
                     "count": len(tables),
-                    "sample": tables[:5] if tables else []
+                    "sample": sample_tables
                 }
             except Exception as e:
                 table_results[query_name] = {"error": str(e)}
@@ -303,9 +311,9 @@ def db_diagnostics():
         """)
         metadata = cursor.fetchone()
         result["server_info"] = {
-            "version": metadata[0],
-            "edition": metadata[1],
-            "engine": metadata[2]
+            "version": str(metadata[0]) if metadata[0] else None,
+            "edition": str(metadata[1]) if metadata[1] else None,
+            "engine": int(metadata[2]) if metadata[2] else None
         }
         
         result["status"] = "SUCCESS"
