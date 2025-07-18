@@ -27,7 +27,7 @@ class OpenAIConfig:
     
     INVOICES (ben002.InvoiceReg):
     - InvoiceNo, InvoiceDate, Customer (foreign key), BillToName, 
-    - GrandTotal, SalesTax, InvoiceStatus, InvoiceType, Department
+    - GrandTotal, SalesTax, InvoiceStatus, InvoiceType
     
     SERVICE CLAIMS (ben002.ServiceClaim):
     - ServiceClaimNo, OpenDate, CloseDate, Customer (foreign key), StockNo, SerialNo,

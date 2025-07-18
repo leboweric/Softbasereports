@@ -169,8 +169,7 @@ def generate_sql_from_analysis(analysis):
                 InvoiceDate,
                 Customer,
                 BillToName,
-                GrandTotal,
-                Department
+                GrandTotal
             FROM ben002.InvoiceReg
             WHERE {date_filter}
             ORDER BY InvoiceDate DESC
