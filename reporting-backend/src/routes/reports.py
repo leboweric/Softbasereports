@@ -18,6 +18,61 @@ def get_softbase_service():
         return SoftbaseService(g.current_organization)
     return None
 
+@reports_bp.route('/check-inventory', methods=['GET'])
+def check_inventory():
+    """Check inventory status values - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Check what RentalStatus values exist
+        status_query = """
+        SELECT 
+            RentalStatus,
+            COUNT(*) as count
+        FROM ben002.Equipment
+        GROUP BY RentalStatus
+        ORDER BY count DESC
+        """
+        
+        status_results = db.execute_query(status_query)
+        
+        # Get total equipment count
+        total_query = """
+        SELECT COUNT(*) as total_equipment
+        FROM ben002.Equipment
+        """
+        
+        total_result = db.execute_query(total_query)
+        
+        # Get sample equipment records
+        sample_query = """
+        SELECT TOP 10
+            StockNo,
+            SerialNo,
+            Make,
+            Model,
+            RentalStatus,
+            Location
+        FROM ben002.Equipment
+        ORDER BY StockNo DESC
+        """
+        
+        samples = db.execute_query(sample_query)
+        
+        return jsonify({
+            'success': True,
+            'rental_status_breakdown': status_results,
+            'total_equipment': total_result[0]['total_equipment'] if total_result else 0,
+            'sample_equipment': samples
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/validate-sales', methods=['GET'])
 def validate_sales():
     """Validate actual sales from Nov 1, 2024 through today - NO AUTH REQUIRED for testing"""
@@ -176,13 +231,30 @@ def get_dashboard_summary():
         # Convert to int to remove decimals
         total_sales = int(float(sales_result[0]['total_sales'])) if sales_result else 0
         
-        # Return simplified data - just sales for now
-        # Set other values to 0 to avoid more column errors
+        # Get inventory count - equipment that is available/in stock
+        inventory_query = """
+        SELECT COUNT(*) as inventory_count
+        FROM ben002.Equipment
+        WHERE RentalStatus IN ('In Stock', 'Available')
+        """
+        
+        inventory_result = db.execute_query(inventory_query)
+        inventory_count = int(inventory_result[0]['inventory_count']) if inventory_result else 0
+        
+        # Get active customers (customers with balance > 0 or recent activity)
+        customers_query = """
+        SELECT COUNT(DISTINCT ID) as active_customers
+        FROM ben002.Customer
+        WHERE Balance > 0 OR YTD > 0
+        """
+        
+        customers_result = db.execute_query(customers_query)
+        active_customers = int(customers_result[0]['active_customers']) if customers_result else 0
         
         return jsonify({
             'total_sales': total_sales,
-            'inventory_count': 0,
-            'active_customers': 0,
+            'inventory_count': inventory_count,
+            'active_customers': active_customers,
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': [],
