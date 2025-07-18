@@ -216,7 +216,7 @@ const Dashboard = ({ user }) => {
         </Card>
       </div>
 
-      {/* Charts */}
+      {/* Charts - First Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
@@ -259,26 +259,32 @@ const Dashboard = ({ user }) => {
         </Card>
       </div>
 
-      {/* Monthly Quotes Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Monthly Quotes</CardTitle>
-          <CardDescription>
-            Total dollar value quoted each month since March
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pl-2">
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={dashboardData?.monthly_quotes || []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatCurrency(value)} />
-              <Bar dataKey="amount" fill="#f59e0b" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {/* Charts - Second Row */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4">
+          <CardHeader>
+            <CardTitle>Monthly Quotes</CardTitle>
+            <CardDescription>
+              Total dollar value quoted each month since March
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={dashboardData?.monthly_quotes || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Bar dataKey="amount" fill="#f59e0b" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <div className="col-span-3">
+          {/* Placeholder for future chart */}
+        </div>
+      </div>
 
       {/* Top 10 Customers */}
       <div className="grid gap-4 md:grid-cols-2">
