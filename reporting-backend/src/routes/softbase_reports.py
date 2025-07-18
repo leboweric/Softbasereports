@@ -136,7 +136,7 @@ def customer_activity_report():
                 SerialNo,
                 TotalLabor,
                 TotalParts,
-                Status
+                CASE WHEN CloseDate IS NULL THEN 'Open' ELSE 'Closed' END as Status
             FROM ben002.ServiceClaim
             WHERE Customer = ?
             AND OpenDate >= ?

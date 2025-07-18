@@ -294,8 +294,8 @@ def generate_sql_from_analysis(analysis):
         return f"""
         SELECT 
             COUNT(*) as total_claims,
-            COUNT(CASE WHEN Status = 'Open' THEN 1 END) as open_claims,
-            COUNT(CASE WHEN Status = 'Closed' THEN 1 END) as closed_claims,
+            COUNT(CASE WHEN CloseDate IS NULL THEN 1 END) as open_claims,
+            COUNT(CASE WHEN CloseDate IS NOT NULL THEN 1 END) as closed_claims,
             SUM(TotalLabor + TotalParts) as total_service_cost,
             AVG(TotalLabor + TotalParts) as avg_service_cost
         FROM ben002.ServiceClaim

@@ -63,15 +63,25 @@ def get_dashboard_summary():
         customers_result = db.execute_query(customers_query)
         active_customers = customers_result[0]['active_customers'] if customers_result else 0
         
-        # Get open service tickets
+        # Get service tickets (all active claims)
         service_query = """
         SELECT COUNT(*) as open_tickets
         FROM ben002.ServiceClaim
-        WHERE Status = 'Open'
+        WHERE CloseDate IS NULL
         """
         
-        service_result = db.execute_query(service_query)
-        service_tickets = service_result[0]['open_tickets'] if service_result else 0
+        try:
+            service_result = db.execute_query(service_query)
+            service_tickets = service_result[0]['open_tickets'] if service_result else 0
+        except Exception as e:
+            logger.warning(f"Failed to get service tickets: {str(e)}")
+            # Fallback to counting all service claims
+            try:
+                fallback_query = "SELECT COUNT(*) as open_tickets FROM ben002.ServiceClaim"
+                service_result = db.execute_query(fallback_query)
+                service_tickets = service_result[0]['open_tickets'] if service_result else 0
+            except:
+                service_tickets = 0
         
         # Get parts on order (low stock)
         parts_query = """

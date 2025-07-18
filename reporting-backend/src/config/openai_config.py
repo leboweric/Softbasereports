@@ -31,7 +31,7 @@ class OpenAIConfig:
     
     SERVICE CLAIMS (ben002.ServiceClaim):
     - ServiceClaimNo, OpenDate, CloseDate, Customer (foreign key), StockNo, SerialNo,
-    - TotalLabor, TotalParts, Status, Technician
+    - TotalLabor, TotalParts, Technician (Note: Use CloseDate IS NULL to find open claims)
     
     PARTS (ben002.NationalParts):
     - PartNo, Description, Supplier, Cost, Price, QtyOnHand, BinLocation
