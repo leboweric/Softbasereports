@@ -56,62 +56,6 @@ def simple_azure_test():
     
     return jsonify(result), 200
 
-@simple_test_bp.route('/api/test/schema-analysis', methods=['GET'])
-def public_schema_analysis():
-    """Public endpoint for temporary schema analysis - no auth required"""
-    
-    result = {
-        'analysis': 'Database Schema Analysis',
-        'timestamp': datetime.now().isoformat()
-    }
-    
-    try:
-        import pymssql
-        from ..services.azure_sql_service import AzureSQLService
-        
-        # Use Azure SQL Service
-        db = AzureSQLService()
-        
-        # Get all tables
-        tables = db.get_tables()
-        result['total_tables'] = len(tables)
-        result['tables'] = tables[:20]  # First 20 tables
-        
-        # Categorize tables
-        categories = {
-            'customers': [t for t in tables if any(x in t.lower() for x in ['customer', 'client'])],
-            'inventory': [t for t in tables if any(x in t.lower() for x in ['inventory', 'equipment', 'forklift'])],
-            'sales': [t for t in tables if any(x in t.lower() for x in ['sale', 'order', 'invoice'])],
-            'service': [t for t in tables if any(x in t.lower() for x in ['service', 'repair', 'maintenance'])],
-            'parts': [t for t in tables if any(x in t.lower() for x in ['part', 'component'])]
-        }
-        
-        result['categories'] = {k: v[:5] for k, v in categories.items() if v}  # Top 5 per category
-        
-        # Get sample table structure
-        sample_tables = {}
-        for category, table_list in categories.items():
-            if table_list:
-                sample_table = table_list[0]
-                try:
-                    columns = db.get_table_columns(sample_table)
-                    sample_tables[sample_table] = {
-                        'category': category,
-                        'column_count': len(columns),
-                        'columns': columns[:10]  # First 10 columns
-                    }
-                except Exception as e:
-                    sample_tables[sample_table] = {'error': str(e)}
-        
-        result['sample_structures'] = sample_tables
-        result['status'] = 'SUCCESS'
-        
-    except Exception as e:
-        result['status'] = 'FAILED'
-        result['error'] = str(e)
-    
-    return jsonify(result), 200
-
 @simple_test_bp.route('/api/test/azure-connection', methods=['GET'])
 def public_azure_test():
     """Public endpoint to test Azure SQL connection - no auth required"""
