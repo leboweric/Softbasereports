@@ -94,6 +94,117 @@ def explore_database():
         logger.error(f"Database exploration failed: {str(e)}")
         return jsonify({'error': 'Database exploration failed', 'message': str(e)}), 500
 
+@explorer_bp.route('/api/database/full-schema', methods=['GET'])
+@jwt_required()
+def get_full_schema():
+    """Get complete database schema with all tables, columns, and relationships"""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.query.get(int(current_user_id))
+        
+        if not user or not user.is_admin:
+            return jsonify({'error': 'Admin access required'}), 403
+        
+        # Use Azure SQL Service
+        db = AzureSQLService()
+        
+        # Get all tables
+        tables = db.get_tables()
+        
+        # Get detailed schema for each table
+        schema = {}
+        relationships = []
+        
+        for table in tables:
+            try:
+                # Get columns
+                columns = db.get_table_columns(table)
+                
+                # Get primary keys
+                pk_query = f"""
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                WHERE TABLE_NAME = '{table}' 
+                AND CONSTRAINT_NAME LIKE 'PK_%'
+                """
+                pk_result = db.execute_query(pk_query)
+                primary_keys = [row['COLUMN_NAME'] for row in pk_result] if pk_result else []
+                
+                # Get foreign keys
+                fk_query = f"""
+                SELECT 
+                    fk.name AS FK_NAME,
+                    OBJECT_NAME(fk.parent_object_id) AS FK_TABLE,
+                    COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS FK_COLUMN,
+                    OBJECT_NAME(fk.referenced_object_id) AS REFERENCED_TABLE,
+                    COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS REFERENCED_COLUMN
+                FROM sys.foreign_keys AS fk
+                INNER JOIN sys.foreign_key_columns AS fkc ON fk.object_id = fkc.constraint_object_id
+                WHERE OBJECT_NAME(fk.parent_object_id) = '{table}'
+                """
+                fk_result = db.execute_query(fk_query)
+                
+                # Get row count
+                count_query = f"SELECT COUNT(*) as count FROM [{table}]"
+                count_result = db.execute_query(count_query)
+                row_count = count_result[0]['count'] if count_result else 0
+                
+                schema[table] = {
+                    'columns': columns,
+                    'primary_keys': primary_keys,
+                    'foreign_keys': fk_result if fk_result else [],
+                    'row_count': row_count
+                }
+                
+                # Build relationships
+                if fk_result:
+                    for fk in fk_result:
+                        relationships.append({
+                            'from_table': table,
+                            'from_column': fk['FK_COLUMN'],
+                            'to_table': fk['REFERENCED_TABLE'],
+                            'to_column': fk['REFERENCED_COLUMN'],
+                            'constraint_name': fk['FK_NAME']
+                        })
+                        
+            except Exception as e:
+                logger.error(f"Error getting schema for table {table}: {str(e)}")
+                schema[table] = {'error': str(e)}
+        
+        # Identify key entities for reporting
+        key_entities = {
+            'customers': [],
+            'products': [],
+            'orders': [],
+            'inventory': [],
+            'service': []
+        }
+        
+        for table in tables:
+            table_lower = table.lower()
+            if any(term in table_lower for term in ['customer', 'client', 'contact']):
+                key_entities['customers'].append(table)
+            elif any(term in table_lower for term in ['product', 'item', 'part']):
+                key_entities['products'].append(table)
+            elif any(term in table_lower for term in ['order', 'sale', 'invoice']):
+                key_entities['orders'].append(table)
+            elif any(term in table_lower for term in ['inventory', 'stock', 'equipment']):
+                key_entities['inventory'].append(table)
+            elif any(term in table_lower for term in ['service', 'repair', 'maintenance']):
+                key_entities['service'].append(table)
+        
+        return jsonify({
+            'database': db.database,
+            'total_tables': len(tables),
+            'schema': schema,
+            'relationships': relationships,
+            'key_entities': key_entities
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Full schema retrieval failed: {str(e)}")
+        return jsonify({'error': 'Schema retrieval failed', 'message': str(e)}), 500
+
 @explorer_bp.route('/api/database/schema-summary', methods=['GET'])
 @jwt_required()
 def get_schema_summary():
