@@ -456,3 +456,66 @@ def permissions_check():
         }
     
     return jsonify(result), 200
+
+
+@simple_test_bp.route("/api/test/quick-report", methods=["GET"])
+def quick_report_test():
+    """Quick test of Softbase reporting capabilities"""
+    
+    result = {
+        "test": "Quick Report Test",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        import pymssql
+        from ..services.azure_sql_service import AzureSQLService
+        
+        db = AzureSQLService()
+        
+        # Test basic queries
+        queries = {
+            "total_customers": """
+                SELECT COUNT(*) as count 
+                FROM ben002.Customer
+            """,
+            "active_equipment": """
+                SELECT COUNT(*) as count, Status
+                FROM ben002.Equipment
+                WHERE Status IN ('In Stock', 'Sold', 'Rented')
+                GROUP BY Status
+            """,
+            "recent_invoices": """
+                SELECT TOP 5
+                    InvoiceNo,
+                    InvoiceDate,
+                    CustomerName,
+                    TotalAmount
+                FROM ben002.InvoiceReg
+                ORDER BY InvoiceDate DESC
+            """,
+            "top_customers_ytd": """
+                SELECT TOP 5
+                    CustomerNo,
+                    Name,
+                    YTDSales
+                FROM ben002.Customer
+                WHERE YTDSales > 0
+                ORDER BY YTDSales DESC
+            """
+        }
+        
+        for query_name, query in queries.items():
+            try:
+                results = db.execute_query(query)
+                result[query_name] = results
+            except Exception as e:
+                result[query_name] = {"error": str(e)}
+        
+        result["status"] = "SUCCESS"
+        
+    except Exception as e:
+        result["status"] = "FAILED"
+        result["error"] = str(e)
+    
+    return jsonify(result), 200
