@@ -119,9 +119,17 @@ class OpenAIConfig:
         3. Generate a structured query plan that can be executed against the database
         4. Provide a clear explanation of what data will be retrieved
         
+        IMPORTANT distinctions:
+        - "sales" or "revenue" = total invoice amounts (GrandTotal from InvoiceReg)
+        - "net income" or "profit" = revenue minus costs (requires cost data - not available)
+        - "gross margin" = revenue minus cost of goods sold (requires COGS - not available)
+        - "collections" or "payments" = actual cash received (requires payment data)
+        
+        If user asks for net income, profit, or margin data, indicate in the intent that cost data is needed.
+        
         Always respond in JSON format with:
         {{
-            "intent": "brief description of what user wants",
+            "intent": "brief description of what user wants (be specific about sales vs profit vs income)",
             "tables": ["list", "of", "relevant", "tables"],
             "filters": {{"field": "condition", "date_range": "parsed_dates"}},
             "query_type": "aggregation|list|count|analysis",

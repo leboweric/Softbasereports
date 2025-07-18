@@ -25,8 +25,27 @@ def generate_sql_from_analysis(analysis):
     # Log the analysis for debugging
     logger.info(f"Query analysis: type={query_type}, tables={tables}, intent={intent}")
     
-    # Handle time-based sales queries
-    if ('sales' in intent or 'revenue' in intent or 'invoice' in ' '.join(tables).lower()):
+    # Handle net income/profit queries first (these need special handling)
+    if 'net income' in intent or 'profit' in intent or 'net profit' in intent:
+        # For net income, we need to return a message that we need cost data
+        return """
+        SELECT 
+            'Net Income Calculation Not Available' as status,
+            'Net income requires cost of goods sold and expense data which is not available in the current view' as message,
+            'Try asking for total sales, revenue, or gross sales instead' as suggestion
+        """
+    
+    # Handle gross margin queries
+    elif 'gross margin' in intent or 'margin' in intent:
+        return """
+        SELECT 
+            'Gross Margin Calculation Not Available' as status,
+            'Gross margin requires cost data which is not available in the current view' as message,
+            'Try asking for total sales or revenue instead' as suggestion
+        """
+    
+    # Handle time-based sales/revenue queries
+    elif ('sales' in intent or 'revenue' in intent or 'income' in intent or 'invoice' in ' '.join(tables).lower()):
         # Determine time period
         today = datetime.now()
         
