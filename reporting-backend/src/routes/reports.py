@@ -61,17 +61,18 @@ def get_dashboard_summary():
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Get YTD sales
-        year_start = datetime.now().replace(month=1, day=1).strftime('%Y-%m-%d')
+        # Get Fiscal YTD sales (Nov 1, 2024 - Oct 31, 2025)
+        fiscal_year_start = '2024-11-01'
         
         sales_query = f"""
         SELECT COALESCE(SUM(GrandTotal), 0) as total_sales
         FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '{year_start}'
+        WHERE InvoiceDate >= '{fiscal_year_start}'
         """
         
         sales_result = db.execute_query(sales_query)
-        total_sales = float(sales_result[0]['total_sales']) if sales_result else 0.0
+        # Convert to int to remove decimals
+        total_sales = int(float(sales_result[0]['total_sales'])) if sales_result else 0
         
         # Return simplified data - just sales for now
         # Set other values to 0 to avoid more column errors

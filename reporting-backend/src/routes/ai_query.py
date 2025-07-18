@@ -403,6 +403,130 @@ def test_sql():
             'error_type': type(e).__name__
         }), 500
 
+@ai_query_bp.route('/inspect-invoice-columns', methods=['GET'])
+def inspect_invoice_columns():
+    """Inspect InvoiceReg table columns to find the correct customer ID column"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Test 1: Get all columns from InvoiceReg table with their data types
+        test1 = """
+        SELECT 
+            COLUMN_NAME,
+            DATA_TYPE,
+            CHARACTER_MAXIMUM_LENGTH,
+            IS_NULLABLE,
+            COLUMN_DEFAULT
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002' 
+        AND TABLE_NAME = 'InvoiceReg'
+        ORDER BY ORDINAL_POSITION
+        """
+        columns_info = db.execute_query(test1)
+        
+        # Test 2: Look for columns that might contain customer IDs
+        customer_related_columns = []
+        for col in columns_info:
+            col_name = col.get('COLUMN_NAME', '').lower()
+            if any(term in col_name for term in ['customer', 'cust', 'client', 'buyer', 'billto', 'shipto']):
+                customer_related_columns.append(col.get('COLUMN_NAME'))
+        
+        # Test 3: Get sample data from potential customer ID columns
+        sample_data = {}
+        if customer_related_columns:
+            for col_name in customer_related_columns[:10]:  # Limit to first 10 to avoid too many queries
+                try:
+                    # Get distinct values and counts
+                    query = f"""
+                    SELECT TOP 10
+                        [{col_name}] as value,
+                        COUNT(*) as count
+                    FROM ben002.InvoiceReg
+                    WHERE [{col_name}] IS NOT NULL
+                    GROUP BY [{col_name}]
+                    ORDER BY COUNT(*) DESC
+                    """
+                    results = db.execute_query(query)
+                    sample_data[col_name] = {
+                        'sample_values': results,
+                        'query': query
+                    }
+                except Exception as e:
+                    sample_data[col_name] = {
+                        'error': str(e),
+                        'query': query
+                    }
+        
+        # Test 4: Check if any of these columns can join with Customer.ID
+        join_tests = {}
+        for col_name in customer_related_columns[:5]:  # Test first 5 columns
+            try:
+                # Skip if it's the boolean Customer column we already know about
+                if col_name.lower() == 'customer':
+                    # Check if it's actually a bit/boolean type
+                    col_info = next((c for c in columns_info if c['COLUMN_NAME'] == col_name), None)
+                    if col_info and col_info.get('DATA_TYPE') == 'bit':
+                        join_tests[col_name] = {
+                            'result': 'Skipped - Customer column is bit (boolean) type',
+                            'success': False
+                        }
+                        continue
+                
+                query = f"""
+                SELECT TOP 5
+                    c.ID as CustomerID,
+                    c.Name as CustomerName,
+                    i.InvoiceNo,
+                    i.[{col_name}] as InvoiceCustomerValue,
+                    i.GrandTotal
+                FROM ben002.Customer c
+                INNER JOIN ben002.InvoiceReg i ON c.ID = i.[{col_name}]
+                """
+                results = db.execute_query(query)
+                join_tests[col_name] = {
+                    'success': True,
+                    'row_count': len(results) if results else 0,
+                    'sample_results': results[:2] if results else [],
+                    'query': query
+                }
+            except Exception as e:
+                join_tests[col_name] = {
+                    'success': False,
+                    'error': str(e),
+                    'query': query
+                }
+        
+        # Test 5: Get a sample of InvoiceReg data to visually inspect
+        test5 = """
+        SELECT TOP 5 *
+        FROM ben002.InvoiceReg
+        ORDER BY InvoiceDate DESC
+        """
+        sample_invoice_data = db.execute_query(test5)
+        
+        return jsonify({
+            'success': True,
+            'all_columns': columns_info,
+            'customer_related_columns': customer_related_columns,
+            'column_sample_data': sample_data,
+            'join_test_results': join_tests,
+            'sample_invoice_records': sample_invoice_data,
+            'recommendations': [
+                "Look for columns with integer/varchar data types that match Customer.ID format",
+                "Check join_test_results to see which columns successfully join with Customer table",
+                "Review sample_invoice_records to identify the pattern of customer identifiers"
+            ]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error inspecting invoice columns: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
+
 @ai_query_bp.route('/query', methods=['POST'])
 @jwt_required()
 def natural_language_query():
