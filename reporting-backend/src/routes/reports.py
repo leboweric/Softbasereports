@@ -43,15 +43,25 @@ def get_dashboard_summary():
         sales_result = db.execute_query(sales_query)
         total_sales = float(sales_result[0]['total_sales']) if sales_result else 0.0
         
-        # Get active rentals count
-        rentals_query = """
-        SELECT COUNT(*) as active_rentals
+        # Get inventory count (in stock equipment)
+        inventory_query = """
+        SELECT COUNT(*) as inventory_count
         FROM ben002.Equipment
-        WHERE RentalStatus = 'Rented'
+        WHERE RentalStatus = 'In Stock'
         """
         
-        rentals_result = db.execute_query(rentals_query)
-        active_rentals = rentals_result[0]['active_rentals'] if rentals_result else 0
+        inventory_result = db.execute_query(inventory_query)
+        inventory_count = inventory_result[0]['inventory_count'] if inventory_result else 0
+        
+        # Get active customers (customers with recent activity)
+        customers_query = f"""
+        SELECT COUNT(DISTINCT Customer) as active_customers
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'
+        """
+        
+        customers_result = db.execute_query(customers_query)
+        active_customers = customers_result[0]['active_customers'] if customers_result else 0
         
         # Get open service tickets
         service_query = """
@@ -75,9 +85,11 @@ def get_dashboard_summary():
         
         return jsonify({
             'total_sales': total_sales,
-            'active_rentals': active_rentals,
+            'inventory_count': inventory_count,
+            'active_customers': active_customers,
             'parts_orders': parts_orders,
             'service_tickets': service_tickets,
+            'monthly_sales': [],  # TODO: Implement monthly sales data
             'period': 'This Month',
             'last_updated': datetime.now().isoformat()
         })
@@ -87,9 +99,11 @@ def get_dashboard_summary():
         # Return zeros instead of error to keep dashboard functional
         return jsonify({
             'total_sales': 0,
-            'active_rentals': 0,
+            'inventory_count': 0,
+            'active_customers': 0,
             'parts_orders': 0,
             'service_tickets': 0,
+            'monthly_sales': [],
             'period': 'This Month',
             'error': str(e),
             'last_updated': datetime.now().isoformat()
