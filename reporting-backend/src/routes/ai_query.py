@@ -23,29 +23,32 @@ def natural_language_query():
         organization_id = current_user.get('organization_id')
         
         # Initialize OpenAI service
-        openai_api_key = os.getenv('OPENAI_API_KEY')
-        if not openai_api_key:
-            return jsonify({'error': 'OpenAI API key not configured'}), 500
+        try:
+            openai_service = OpenAIQueryService()
+        except Exception as e:
+            return jsonify({'error': f'Failed to initialize OpenAI service: {str(e)}'}), 500
         
-        openai_service = OpenAIQueryService(openai_api_key)
+        # Process the natural language query
+        result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
         
-        # Parse the natural language query
-        query_params = openai_service.parse_natural_language_query(query_text, organization_id)
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to process query')
+            }), 400
         
-        # Generate SQL query
-        sql_query = openai_service.generate_sql_query(query_params)
+        query_analysis = result['query_analysis']
         
-        # Execute query through Softbase service
-        softbase_service = SoftbaseService(organization_id)
-        results = softbase_service.execute_custom_query(sql_query)
-        
-        # Generate explanation
-        explanation = openai_service.explain_query_results(query_text, results, query_params)
+        # For now, return the analysis without executing SQL
+        # TODO: Implement SQL generation and execution based on query_analysis
+        sql_query = 'SQL generation not yet implemented'
+        results = []
+        explanation = f"Query understood: {query_analysis.get('intent', 'Unknown intent')}"
         
         return jsonify({
             'success': True,
             'query': query_text,
-            'parsed_params': query_params,
+            'parsed_params': query_analysis,
             'sql_query': sql_query,
             'results': results,
             'explanation': explanation,
@@ -166,25 +169,30 @@ def validate_query():
         organization_id = current_user.get('organization_id')
         
         # Initialize OpenAI service
-        openai_api_key = os.getenv('OPENAI_API_KEY')
-        if not openai_api_key:
-            return jsonify({'error': 'OpenAI API key not configured'}), 500
+        try:
+            openai_service = OpenAIQueryService()
+        except Exception as e:
+            return jsonify({'error': f'Failed to initialize OpenAI service: {str(e)}'}), 500
         
-        openai_service = OpenAIQueryService(openai_api_key)
+        # Process the natural language query
+        result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
         
-        # Parse the natural language query
-        query_params = openai_service.parse_natural_language_query(query_text, organization_id)
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to validate query')
+            }), 400
         
-        # Generate SQL query
-        sql_query = openai_service.generate_sql_query(query_params)
+        query_analysis = result['query_analysis']
+        sql_query = 'SQL generation not yet implemented'
         
         return jsonify({
             'success': True,
             'query': query_text,
-            'parsed_params': query_params,
+            'parsed_params': query_analysis,
             'sql_query': sql_query,
-            'estimated_fields': query_params.get('fields', []),
-            'query_type': query_params.get('query_type', 'unknown')
+            'estimated_fields': query_analysis.get('fields', []),
+            'query_type': query_analysis.get('query_type', 'unknown')
         })
         
     except Exception as e:

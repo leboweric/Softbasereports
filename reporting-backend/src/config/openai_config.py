@@ -13,82 +13,81 @@ class OpenAIConfig:
     MAX_QUERY_LENGTH = 500
     QUERY_TIMEOUT = 30  # seconds
     
-    # Forklift Dealership Schema Information
+    # Softbase Dealership Schema Information
     SCHEMA_CONTEXT = """
-    You are an AI assistant for a forklift dealership management system. The database contains the following main entities:
+    You are an AI assistant for a Softbase dealership management system. The database uses the ben002 schema and contains the following main entities:
     
-    CUSTOMERS:
-    - customer_id, company_name, contact_person, phone, email, address, credit_limit, account_status
+    CUSTOMER (ben002.Customer):
+    - ID (primary key), Name, Address1, City, State, ZipCode, Phone, 
+    - CreditLimit, CreditBalance, YTD (year-to-date sales), LastSaleDate, LastPaymentDate
     
-    INVENTORY:
-    - item_id, item_type (forklift, part, accessory, battery), brand, model, serial_number, 
-    - condition (new, used, refurbished), location, cost, selling_price, quantity_available
+    EQUIPMENT (ben002.Equipment):
+    - StockNo, SerialNo, Make, Model, ModelYear, RentalStatus (In Stock, Sold, Rented),
+    - Customer (foreign key), AcquiredDate, SaleAmount, Hours, Location
     
-    SALES:
-    - sale_id, customer_id, item_id, sale_date, quantity, unit_price, total_amount, 
-    - salesperson, payment_terms, delivery_date, warranty_info
+    INVOICES (ben002.InvoiceReg):
+    - InvoiceNo, InvoiceDate, Customer (foreign key), BillToName, 
+    - GrandTotal, SalesTax, InvoiceStatus, InvoiceType, Department
     
-    RENTALS:
-    - rental_id, customer_id, equipment_id, start_date, end_date, daily_rate, 
-    - total_amount, deposit, status (active, completed, overdue)
+    SERVICE CLAIMS (ben002.ServiceClaim):
+    - ServiceClaimNo, OpenDate, CloseDate, Customer (foreign key), StockNo, SerialNo,
+    - TotalLabor, TotalParts, Status, Technician
     
-    PARTS_ORDERS:
-    - order_id, customer_id, part_id, order_date, quantity_ordered, quantity_filled,
-    - unit_price, total_amount, supplier, expected_delivery, status
+    PARTS (ben002.NationalParts):
+    - PartNo, Description, Supplier, Cost, Price, QtyOnHand, BinLocation
     
-    SERVICE_TICKETS:
-    - ticket_id, customer_id, equipment_id, service_date, service_type, technician,
-    - labor_hours, parts_used, labor_cost, parts_cost, total_cost, status
+    AR DETAIL (ben002.ARDetail):
+    - Customer, InvoiceNo, Balance, DueDate, DaysPastDue
     
-    EMPLOYEES:
-    - employee_id, name, role (salesperson, technician, manager), hire_date, territory
+    WORK ORDERS:
+    - Work order management for service and repairs
     
-    Common brands: Linde, Toyota, Crown, Yale, Hyster, Clark, Caterpillar
+    Common equipment brands in the system
     """
     
     # Query suggestion templates
     QUERY_SUGGESTIONS = {
         "sales": [
             "What were our total sales last month?",
-            "Which salesperson had the highest sales this quarter?",
-            "Show me sales by brand for the last 6 months",
-            "What's our average sale amount this year?",
-            "Which customers bought the most equipment last year?"
+            "Show me top customers by YTD sales",
+            "List all invoices over $10,000 this quarter",
+            "What's our average invoice amount this year?",
+            "Which departments have the highest sales?"
         ],
         "inventory": [
-            "How many Linde forklifts do we have in stock?",
-            "What parts are running low on inventory?",
-            "Show me all used equipment available for sale",
-            "Which location has the most inventory?",
-            "What's the total value of our current inventory?"
-        ],
-        "rentals": [
-            "Which equipment is currently on rental?",
-            "What's our rental utilization rate this month?",
-            "Show me overdue rental returns",
-            "Which customers rent the most equipment?",
-            "What's our average rental duration?"
+            "How many units are currently in stock?",
+            "Show equipment by rental status",
+            "List all available equipment for sale",
+            "Which models have we sold the most?",
+            "What's the total value of our inventory?"
         ],
         "service": [
-            "How many service tickets were completed last week?",
-            "Which technician has the highest productivity?",
-            "What are the most common service issues?",
-            "Show me warranty claims for this month",
-            "What's our average service response time?"
+            "How many open service claims do we have?",
+            "Show service claims by technician",
+            "What's the average repair cost?",
+            "List equipment with frequent service issues",
+            "Show service revenue by month"
         ],
         "parts": [
-            "Which Linde parts were we not able to fill last week?",
-            "What's our parts fill rate this month?",
-            "Show me the most ordered parts",
-            "Which suppliers have the longest delivery times?",
-            "What parts orders are overdue?"
+            "Which parts are low in stock?",
+            "Show parts usage for the last month",
+            "List most frequently ordered parts",
+            "What's our parts inventory value?",
+            "Show parts by supplier"
         ],
         "customers": [
-            "Who are our top 10 customers by revenue?",
-            "Which customers haven't placed orders recently?",
-            "Show me customers with overdue payments",
-            "What's our customer retention rate?",
-            "Which customers need credit limit reviews?"
+            "Who are our top 10 customers by credit limit?",
+            "Show customers with overdue balances",
+            "Which customers haven't purchased recently?",
+            "List customers by state",
+            "Show customer payment history"
+        ],
+        "financial": [
+            "What's our AR aging summary?",
+            "Show collections for this month",
+            "List invoices past 60 days due",
+            "What's our total outstanding AR?",
+            "Show revenue by department"
         ]
     }
     
@@ -112,7 +111,7 @@ class OpenAIConfig:
         return f"""
         {cls.SCHEMA_CONTEXT}
         
-        Your role is to help users query this forklift dealership database using natural language.
+        Your role is to help users query this Softbase dealership database using natural language.
         
         When a user asks a question:
         1. Analyze the intent and identify relevant tables/fields
