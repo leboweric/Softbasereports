@@ -1,9 +1,12 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import os
+import logging
+import traceback
 from src.services.openai_service import OpenAIQueryService
 from src.services.softbase_service import SoftbaseService
 
+logger = logging.getLogger(__name__)
 ai_query_bp = Blueprint('ai_query', __name__)
 
 @ai_query_bp.route('/query', methods=['POST'])
@@ -24,12 +27,26 @@ def natural_language_query():
         
         # Initialize OpenAI service
         try:
+            logger.info(f"Initializing OpenAI service for query: {query_text[:50]}...")
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            if not openai_api_key or openai_api_key == 'your-openai-api-key-here':
+                logger.error("OpenAI API key not properly configured")
+                return jsonify({'error': 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.'}), 500
+            
             openai_service = OpenAIQueryService()
+            logger.info("OpenAI service initialized successfully")
         except Exception as e:
+            logger.error(f"Failed to initialize OpenAI service: {str(e)}", exc_info=True)
             return jsonify({'error': f'Failed to initialize OpenAI service: {str(e)}'}), 500
         
         # Process the natural language query
-        result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
+        try:
+            logger.info("Processing natural language query...")
+            result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
+            logger.info(f"Query processing result: {result.get('success', False)}")
+        except Exception as e:
+            logger.error(f"Error during query processing: {str(e)}", exc_info=True)
+            return jsonify({'error': f'Error processing query: {str(e)}'}), 500
         
         if not result['success']:
             return jsonify({
@@ -56,6 +73,7 @@ def natural_language_query():
         })
         
     except Exception as e:
+        logger.error(f"Unexpected error in endpoint: {str(e)}", exc_info=True)
         return jsonify({'error': f'Query processing failed: {str(e)}'}), 500
 
 @ai_query_bp.route('/suggestions', methods=['GET'])
@@ -170,12 +188,26 @@ def validate_query():
         
         # Initialize OpenAI service
         try:
+            logger.info(f"Initializing OpenAI service for query: {query_text[:50]}...")
+            openai_api_key = os.getenv('OPENAI_API_KEY')
+            if not openai_api_key or openai_api_key == 'your-openai-api-key-here':
+                logger.error("OpenAI API key not properly configured")
+                return jsonify({'error': 'OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.'}), 500
+            
             openai_service = OpenAIQueryService()
+            logger.info("OpenAI service initialized successfully")
         except Exception as e:
+            logger.error(f"Failed to initialize OpenAI service: {str(e)}", exc_info=True)
             return jsonify({'error': f'Failed to initialize OpenAI service: {str(e)}'}), 500
         
         # Process the natural language query
-        result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
+        try:
+            logger.info("Processing natural language query...")
+            result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
+            logger.info(f"Query processing result: {result.get('success', False)}")
+        except Exception as e:
+            logger.error(f"Error during query processing: {str(e)}", exc_info=True)
+            return jsonify({'error': f'Error processing query: {str(e)}'}), 500
         
         if not result['success']:
             return jsonify({

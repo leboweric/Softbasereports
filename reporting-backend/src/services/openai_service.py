@@ -1,13 +1,22 @@
 import openai
 import json
 import re
+import logging
 from datetime import datetime, timedelta
 from src.config.openai_config import OpenAIConfig
 
+logger = logging.getLogger(__name__)
+
 class OpenAIQueryService:
     def __init__(self):
-        self.client = openai.OpenAI(api_key=OpenAIConfig.OPENAI_API_KEY)
-        self.config = OpenAIConfig()
+        try:
+            logger.info(f"Initializing OpenAI client with API key: {OpenAIConfig.OPENAI_API_KEY[:10]}...")
+            self.client = openai.OpenAI(api_key=OpenAIConfig.OPENAI_API_KEY)
+            self.config = OpenAIConfig()
+            logger.info("OpenAI client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI client: {str(e)}")
+            raise
     
     def process_natural_language_query(self, query, user_context=None):
         """
