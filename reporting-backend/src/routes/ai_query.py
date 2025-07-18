@@ -6,12 +6,127 @@ import traceback
 from src.services.openai_service import OpenAIQueryService
 from src.services.softbase_service import SoftbaseService
 from src.models.user import User
+from datetime import datetime, timedelta
+import calendar
 
 logger = logging.getLogger(__name__)
 ai_query_bp = Blueprint('ai_query', __name__)
 
 # Version indicator for deployment verification
-DEPLOYMENT_VERSION = "v2-jwt-fix"
+DEPLOYMENT_VERSION = "v3-sql-generation"
+
+def generate_sql_from_analysis(analysis):
+    """Generate SQL query from AI analysis"""
+    query_type = analysis.get('query_type', 'list')
+    tables = analysis.get('tables', [])
+    filters = analysis.get('filters', {})
+    intent = analysis.get('intent', '').lower()
+    
+    # Log the analysis for debugging
+    logger.info(f"Query analysis: type={query_type}, tables={tables}, intent={intent}")
+    
+    # Handle time-based sales queries
+    if ('sales' in intent or 'revenue' in intent or 'invoice' in ' '.join(tables).lower()):
+        # Determine time period
+        today = datetime.now()
+        
+        if 'last month' in intent:
+            first_day_of_month = today.replace(day=1)
+            last_month_end = first_day_of_month - timedelta(days=1)
+            last_month_start = last_month_end.replace(day=1)
+            date_filter = f"InvoiceDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND InvoiceDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+            period_desc = "last month"
+        elif 'this month' in intent:
+            first_day_of_month = today.replace(day=1)
+            date_filter = f"InvoiceDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
+            period_desc = "this month"
+        elif 'last week' in intent:
+            last_week = today - timedelta(days=7)
+            date_filter = f"InvoiceDate >= '{last_week.strftime('%Y-%m-%d')}'"
+            period_desc = "last week"
+        elif 'today' in intent:
+            date_filter = f"InvoiceDate >= '{today.strftime('%Y-%m-%d')}'"
+            period_desc = "today"
+        else:
+            # Default to last 30 days
+            thirty_days_ago = today - timedelta(days=30)
+            date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
+            period_desc = "last 30 days"
+        
+        if 'total' in intent or query_type == 'aggregation':
+            return f"""
+            SELECT 
+                '{period_desc}' as period,
+                COUNT(DISTINCT InvoiceNo) as invoice_count,
+                COUNT(DISTINCT Customer) as unique_customers,
+                SUM(GrandTotal) as total_sales,
+                AVG(GrandTotal) as average_sale,
+                MIN(InvoiceDate) as period_start,
+                MAX(InvoiceDate) as period_end
+            FROM ben002.InvoiceReg
+            WHERE {date_filter}
+            """
+        else:
+            return f"""
+            SELECT TOP 100
+                InvoiceNo,
+                InvoiceDate,
+                Customer,
+                BillToName,
+                GrandTotal,
+                Department
+            FROM ben002.InvoiceReg
+            WHERE {date_filter}
+            ORDER BY InvoiceDate DESC
+            """
+    
+    # Handle customer queries
+    elif 'customer' in ' '.join(tables).lower():
+        if query_type == 'aggregation':
+            return """
+            SELECT TOP 20
+                ID as CustomerNo,
+                Name,
+                City,
+                State,
+                CreditBalance,
+                YTD as YTDSales
+            FROM ben002.Customer
+            ORDER BY YTD DESC
+            """
+        else:
+            return """
+            SELECT TOP 100
+                ID as CustomerNo,
+                Name,
+                City,
+                State,
+                CreditLimit,
+                CreditBalance
+            FROM ben002.Customer
+            WHERE CreditBalance > 0
+            ORDER BY CreditBalance DESC
+            """
+    
+    # Handle equipment queries
+    elif 'equipment' in ' '.join(tables).lower() or 'inventory' in ' '.join(tables).lower():
+        return """
+        SELECT 
+            RentalStatus,
+            COUNT(*) as count,
+            SUM(SaleAmount) as total_value
+        FROM ben002.Equipment
+        GROUP BY RentalStatus
+        ORDER BY count DESC
+        """
+    
+    # Default query
+    else:
+        return """
+        SELECT TOP 10 
+            'Please be more specific' as message,
+            'Try asking about customers, sales, equipment, or service' as suggestion
+        """
 
 @ai_query_bp.route('/version', methods=['GET'])
 def get_version():
@@ -80,11 +195,24 @@ def natural_language_query():
         
         query_analysis = result['query_analysis']
         
-        # For now, return the analysis without executing SQL
-        # TODO: Implement SQL generation and execution based on query_analysis
-        sql_query = 'SQL generation not yet implemented'
-        results = []
-        explanation = f"Query understood: {query_analysis.get('intent', 'Unknown intent')}"
+        # Generate SQL based on the query analysis
+        try:
+            sql_query = generate_sql_from_analysis(query_analysis)
+            logger.info(f"Generated SQL: {sql_query}")
+            
+            # Execute the SQL query
+            from src.services.azure_sql_service import AzureSQLService
+            db = AzureSQLService()
+            results = db.execute_query(sql_query)
+            
+            # Format explanation
+            explanation = query_analysis.get('explanation', f"Query understood: {query_analysis.get('intent', 'Unknown intent')}")
+            
+        except Exception as e:
+            logger.error(f"Error generating/executing SQL: {str(e)}")
+            sql_query = f"Error: {str(e)}"
+            results = []
+            explanation = f"Failed to execute query: {str(e)}"
         
         return jsonify({
             'success': True,
