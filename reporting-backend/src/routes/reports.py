@@ -1946,7 +1946,7 @@ def get_dashboard_summary():
                         months_data[month_key] = {
                             'month': month_key,
                             'service_value': 0,
-                            'repair_value': 0,
+                            'rental_value': 0,
                             'parts_value': 0,
                             'pm_value': 0,
                             'shop_value': 0,
@@ -1957,7 +1957,7 @@ def get_dashboard_summary():
                     if row['Type'] == 'S':
                         months_data[month_key]['service_value'] = float(row['total_value'] or 0)
                     elif row['Type'] == 'R':
-                        months_data[month_key]['repair_value'] = float(row['total_value'] or 0)
+                        months_data[month_key]['rental_value'] = float(row['total_value'] or 0)
                     elif row['Type'] == 'P':
                         months_data[month_key]['parts_value'] = float(row['total_value'] or 0)
                     elif row['Type'] == 'PM':
@@ -1980,7 +1980,7 @@ def get_dashboard_summary():
                     monthly_work_orders_by_type.append({
                         'month': date.strftime("%b"),
                         'service_value': 0,
-                        'repair_value': 0,
+                        'rental_value': 0,
                         'parts_value': 0,
                         'pm_value': 0,
                         'shop_value': 0,
@@ -2118,7 +2118,7 @@ def get_dashboard_summary():
                 SELECT 
                     CASE 
                         WHEN {successful_type_column} = 'S' THEN 'Service'
-                        WHEN {successful_type_column} = 'R' THEN 'Repair'
+                        WHEN {successful_type_column} = 'R' THEN 'Rental'
                         WHEN {successful_type_column} = 'P' THEN 'Parts'
                         WHEN {successful_type_column} = 'PM' THEN 'Preventive Maintenance'
                         WHEN {successful_type_column} = 'SH' THEN 'Shop'

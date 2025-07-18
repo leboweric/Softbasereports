@@ -50,7 +50,7 @@ const Dashboard = ({ user }) => {
   const [loadingInventory, setLoadingInventory] = useState(false)
   const [visibleWOTypes, setVisibleWOTypes] = useState({
     service: true,
-    repair: true,
+    rental: true,
     parts: true,
     pm: true,
     shop: true,
@@ -421,18 +421,18 @@ const Dashboard = ({ user }) => {
               
               <div className="flex items-center space-x-2">
                 <Checkbox 
-                  id="repair-filter"
-                  checked={visibleWOTypes.repair}
+                  id="rental-filter"
+                  checked={visibleWOTypes.rental}
                   onCheckedChange={(checked) => 
-                    setVisibleWOTypes(prev => ({ ...prev, repair: checked }))
+                    setVisibleWOTypes(prev => ({ ...prev, rental: checked }))
                   }
                 />
                 <label 
-                  htmlFor="repair-filter" 
+                  htmlFor="rental-filter" 
                   className="text-sm font-medium cursor-pointer flex items-center gap-2"
                 >
                   <span className="w-3 h-3 bg-red-500 rounded-full"></span>
-                  Repair
+                  Rental
                 </label>
               </div>
               
@@ -523,12 +523,12 @@ const Dashboard = ({ user }) => {
                     strokeWidth={2}
                   />
                 )}
-                {visibleWOTypes.repair && (
+                {visibleWOTypes.rental && (
                   <Line 
                     type="monotone" 
-                    dataKey="repair_value" 
+                    dataKey="rental_value" 
                     stroke="#ef4444" 
-                    name="Repair"
+                    name="Rental"
                     strokeWidth={2}
                   />
                 )}
