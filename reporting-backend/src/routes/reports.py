@@ -1809,68 +1809,79 @@ def get_dashboard_summary():
         # Get monthly work orders opened since March
         monthly_work_orders = []
         try:
-            # Query WO table for monthly work order totals based on OpenDate
-            wo_monthly_query = """
+            # First try to determine which date field to use
+            date_field = 'OpenDate'  # Default
+            
+            # Check if OpenDate exists and has data
+            try:
+                date_check = db.execute_query("""
+                    SELECT TOP 1 OpenDate 
+                    FROM ben002.WO 
+                    WHERE OpenDate IS NOT NULL 
+                    AND OpenDate >= '2024-01-01'
+                """)
+                if not date_check:
+                    # Try CreatedDate instead
+                    date_check = db.execute_query("""
+                        SELECT TOP 1 CreatedDate 
+                        FROM ben002.WO 
+                        WHERE CreatedDate IS NOT NULL 
+                        AND CreatedDate >= '2024-01-01'
+                    """)
+                    if date_check:
+                        date_field = 'CreatedDate'
+            except:
+                date_field = 'CreatedDate'  # Fallback
+            
+            # Query WO table for monthly work order totals
+            wo_monthly_query = f"""
             SELECT 
-                YEAR(w.OpenDate) as year,
-                MONTH(w.OpenDate) as month,
+                YEAR(w.{date_field}) as year,
+                MONTH(w.{date_field}) as month,
                 COUNT(DISTINCT w.WONo) as wo_count,
                 SUM(labor_total + parts_total + misc_total) as total_value
             FROM (
                 SELECT 
                     w.WONo,
-                    w.OpenDate,
+                    w.{date_field},
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
                 FROM ben002.WO w
-                WHERE w.OpenDate >= '2025-03-01'
+                WHERE w.{date_field} >= '2024-03-01'  -- Changed to 2024 to get more data
+                AND w.{date_field} IS NOT NULL
             ) as wo_with_values
-            GROUP BY YEAR(OpenDate), MONTH(OpenDate)
-            ORDER BY YEAR(OpenDate), MONTH(OpenDate)
+            WHERE {date_field} IS NOT NULL
+            GROUP BY YEAR({date_field}), MONTH({date_field})
+            ORDER BY YEAR({date_field}) DESC, MONTH({date_field}) DESC
             """
             
             wo_results = db.execute_query(wo_monthly_query)
             
             if wo_results:
-                for row in wo_results:
+                # Take only the last 5 months and reverse to show chronologically
+                recent_results = wo_results[:5]
+                recent_results.reverse()
+                
+                for row in recent_results:
                     month_date = datetime(row['year'], row['month'], 1)
                     monthly_work_orders.append({
                         'month': month_date.strftime("%b"),
-                        'amount': float(row['total_value']),
-                        'count': int(row['wo_count'])
+                        'amount': float(row['total_value'] or 0),
+                        'count': int(row['wo_count'] or 0)
                     })
             
-            # Pad with zeros for months without work orders
-            if len(monthly_work_orders) < 5:  # March to July is 5 months
-                # Get all months from March to current
-                start_date = datetime(2025, 3, 1)
+            # If we have no data, provide empty months
+            if not monthly_work_orders:
+                # Provide last 5 months with zero values
                 current_date = datetime.now()
-                
-                all_months = []
-                date = start_date
-                while date <= current_date:
-                    all_months.append(date.strftime("%b"))
-                    # Move to next month
-                    if date.month == 12:
-                        date = date.replace(year=date.year + 1, month=1)
-                    else:
-                        date = date.replace(month=date.month + 1)
-                
-                # Create dict of existing data
-                existing_wo = {item['month']: item for item in monthly_work_orders}
-                
-                # Rebuild with all months
-                monthly_work_orders = []
-                for month in all_months:
-                    if month in existing_wo:
-                        monthly_work_orders.append(existing_wo[month])
-                    else:
-                        monthly_work_orders.append({
-                            'month': month,
-                            'amount': 0,
-                            'count': 0
-                        })
+                for i in range(4, -1, -1):
+                    month_date = current_date - timedelta(days=i*30)
+                    monthly_work_orders.append({
+                        'month': month_date.strftime("%b"),
+                        'amount': 0,
+                        'count': 0
+                    })
                     
         except Exception as e:
             logger.error(f"Monthly work orders calculation failed: {str(e)}")
