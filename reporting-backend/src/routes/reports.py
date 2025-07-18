@@ -18,6 +18,83 @@ def get_softbase_service():
         return SoftbaseService(g.current_organization)
     return None
 
+@reports_bp.route('/validate-sales', methods=['GET'])
+def validate_sales():
+    """Validate actual sales from Nov 1, 2024 through today - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Get the exact sales from Nov 1, 2024 through today
+        query = """
+        SELECT 
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales,
+            MIN(InvoiceDate) as first_invoice,
+            MAX(InvoiceDate) as last_invoice
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2024-11-01'
+        """
+        
+        result = db.execute_query(query)
+        
+        # Also get a breakdown by month to see the pattern
+        monthly_query = """
+        SELECT 
+            YEAR(InvoiceDate) as year,
+            MONTH(InvoiceDate) as month,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as monthly_total
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2024-11-01'
+        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        ORDER BY year, month
+        """
+        
+        monthly_results = db.execute_query(monthly_query)
+        
+        # Get sample invoices to verify data
+        sample_query = """
+        SELECT TOP 10
+            InvoiceNo,
+            InvoiceDate,
+            Customer,
+            BillToName,
+            GrandTotal
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2024-11-01'
+        ORDER BY InvoiceDate DESC
+        """
+        
+        samples = db.execute_query(sample_query)
+        
+        total_sales = float(result[0]['total_sales']) if result and result[0]['total_sales'] else 0
+        
+        return jsonify({
+            'success': True,
+            'summary': {
+                'total_sales': total_sales,
+                'total_sales_formatted': f"${total_sales:,.2f}",
+                'invoice_count': result[0]['invoice_count'] if result else 0,
+                'date_range': {
+                    'start': '2024-11-01',
+                    'end': datetime.now().strftime('%Y-%m-%d'),
+                    'first_invoice': str(result[0]['first_invoice']) if result else None,
+                    'last_invoice': str(result[0]['last_invoice']) if result else None
+                }
+            },
+            'monthly_breakdown': monthly_results,
+            'sample_invoices': samples,
+            'query_executed': query
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
+
 @reports_bp.route('/ytd-sales', methods=['GET'])
 @jwt_required()
 def get_ytd_sales():
@@ -61,16 +138,13 @@ def get_dashboard_summary():
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Based on user feedback, they're expecting $11,998,467.41
-        # Current query returns $5,949,742, so let's try previous fiscal year
-        # Testing: Fiscal Year 2024 (Nov 1, 2023 - Oct 31, 2024)
-        fiscal_year_start = '2023-11-01'
-        fiscal_year_end = '2024-10-31'
+        # Get Fiscal YTD sales (Nov 1, 2024 through today)
+        fiscal_year_start = '2024-11-01'
         
         sales_query = f"""
         SELECT COALESCE(SUM(GrandTotal), 0) as total_sales
         FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '{fiscal_year_start}' AND InvoiceDate <= '{fiscal_year_end}'
+        WHERE InvoiceDate >= '{fiscal_year_start}'
         """
         
         sales_result = db.execute_query(sales_query)
@@ -87,7 +161,7 @@ def get_dashboard_summary():
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': [],
-            'period': 'Fiscal Year 2024',
+            'period': 'Fiscal YTD 2025',
             'last_updated': datetime.now().isoformat()
         })
         
