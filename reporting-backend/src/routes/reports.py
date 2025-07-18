@@ -2100,30 +2100,23 @@ def get_dashboard_summary():
         open_wo_total = 0
         open_wo_count = 0
         try:
-            # First check what type columns exist in WO table
-            type_columns = ['QuoteType', 'Type', 'WOType', 'ServiceType', 'Category']
-            successful_type_column = None
-            
-            for col in type_columns:
-                try:
-                    # Try to query using this column
-                    type_check_query = f"""
-                    SELECT TOP 1 {col}
-                    FROM ben002.WO
-                    WHERE {col} IS NOT NULL
-                    """
-                    check_result = db.execute_query(type_check_query)
-                    if check_result:
-                        successful_type_column = col
-                        break
-                except:
-                    continue
+            # Use the Type field for categorization (not QuoteType)
+            successful_type_column = 'Type'
             
             if successful_type_column:
-                # Query for work order types breakdown, excluding quotes
+                # Query for work order types breakdown
                 wo_types_query = f"""
                 SELECT 
-                    COALESCE({successful_type_column}, 'Unspecified') as type_name,
+                    CASE 
+                        WHEN {successful_type_column} = 'S' THEN 'Service'
+                        WHEN {successful_type_column} = 'R' THEN 'Repair'
+                        WHEN {successful_type_column} = 'P' THEN 'Parts'
+                        WHEN {successful_type_column} = 'PM' THEN 'Preventive Maintenance'
+                        WHEN {successful_type_column} = 'SH' THEN 'Shop'
+                        WHEN {successful_type_column} = 'E' THEN 'Equipment'
+                        WHEN {successful_type_column} IS NULL THEN 'Unspecified'
+                        ELSE {successful_type_column}
+                    END as type_name,
                     COUNT(*) as count,
                     SUM(labor_total + parts_total + misc_total) as total_value
                 FROM (
