@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,14 @@ const Dashboard = ({ user }) => {
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false)
   const [inventoryDetails, setInventoryDetails] = useState(null)
   const [loadingInventory, setLoadingInventory] = useState(false)
+  const [visibleWOTypes, setVisibleWOTypes] = useState({
+    service: true,
+    repair: true,
+    parts: true,
+    pm: true,
+    shop: true,
+    equipment: true
+  })
 
   useEffect(() => {
     fetchDashboardData()
@@ -391,7 +400,111 @@ const Dashboard = ({ user }) => {
               Dollar value of work orders opened by type since March
             </CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent>
+            <div className="flex flex-wrap gap-4 mb-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="service-filter"
+                  checked={visibleWOTypes.service}
+                  onCheckedChange={(checked) => 
+                    setVisibleWOTypes(prev => ({ ...prev, service: checked }))
+                  }
+                />
+                <label 
+                  htmlFor="service-filter" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+                  Service
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="repair-filter"
+                  checked={visibleWOTypes.repair}
+                  onCheckedChange={(checked) => 
+                    setVisibleWOTypes(prev => ({ ...prev, repair: checked }))
+                  }
+                />
+                <label 
+                  htmlFor="repair-filter" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <span className="w-3 h-3 bg-red-500 rounded-full"></span>
+                  Repair
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="parts-filter"
+                  checked={visibleWOTypes.parts}
+                  onCheckedChange={(checked) => 
+                    setVisibleWOTypes(prev => ({ ...prev, parts: checked }))
+                  }
+                />
+                <label 
+                  htmlFor="parts-filter" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                  Parts
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="pm-filter"
+                  checked={visibleWOTypes.pm}
+                  onCheckedChange={(checked) => 
+                    setVisibleWOTypes(prev => ({ ...prev, pm: checked }))
+                  }
+                />
+                <label 
+                  htmlFor="pm-filter" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <span className="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                  Preventive Maint.
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="shop-filter"
+                  checked={visibleWOTypes.shop}
+                  onCheckedChange={(checked) => 
+                    setVisibleWOTypes(prev => ({ ...prev, shop: checked }))
+                  }
+                />
+                <label 
+                  htmlFor="shop-filter" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
+                  Shop
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="equipment-filter"
+                  checked={visibleWOTypes.equipment}
+                  onCheckedChange={(checked) => 
+                    setVisibleWOTypes(prev => ({ ...prev, equipment: checked }))
+                  }
+                />
+                <label 
+                  htmlFor="equipment-filter" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <span className="w-3 h-3 bg-pink-500 rounded-full"></span>
+                  Equipment
+                </label>
+              </div>
+            </div>
+            
             <ResponsiveContainer width="100%" height={350}>
               <LineChart data={dashboardData?.monthly_work_orders_by_type || []}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -401,48 +514,60 @@ const Dashboard = ({ user }) => {
                   formatter={(value) => formatCurrency(value)}
                   labelFormatter={(label) => `Month: ${label}`}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="service_value" 
-                  stroke="#3b82f6" 
-                  name="Service"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="repair_value" 
-                  stroke="#ef4444" 
-                  name="Repair"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="parts_value" 
-                  stroke="#10b981" 
-                  name="Parts"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="pm_value" 
-                  stroke="#f59e0b" 
-                  name="Preventive Maint."
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="shop_value" 
-                  stroke="#8b5cf6" 
-                  name="Shop"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="equipment_value" 
-                  stroke="#ec4899" 
-                  name="Equipment"
-                  strokeWidth={2}
-                />
+                {visibleWOTypes.service && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="service_value" 
+                    stroke="#3b82f6" 
+                    name="Service"
+                    strokeWidth={2}
+                  />
+                )}
+                {visibleWOTypes.repair && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="repair_value" 
+                    stroke="#ef4444" 
+                    name="Repair"
+                    strokeWidth={2}
+                  />
+                )}
+                {visibleWOTypes.parts && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="parts_value" 
+                    stroke="#10b981" 
+                    name="Parts"
+                    strokeWidth={2}
+                  />
+                )}
+                {visibleWOTypes.pm && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="pm_value" 
+                    stroke="#f59e0b" 
+                    name="Preventive Maint."
+                    strokeWidth={2}
+                  />
+                )}
+                {visibleWOTypes.shop && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="shop_value" 
+                    stroke="#8b5cf6" 
+                    name="Shop"
+                    strokeWidth={2}
+                  />
+                )}
+                {visibleWOTypes.equipment && (
+                  <Line 
+                    type="monotone" 
+                    dataKey="equipment_value" 
+                    stroke="#ec4899" 
+                    name="Equipment"
+                    strokeWidth={2}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
