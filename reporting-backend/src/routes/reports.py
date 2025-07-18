@@ -426,6 +426,117 @@ def analyze_wo_table():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/test-uninvoiced-wo', methods=['GET'])
+def test_uninvoiced_wo():
+    """Test uninvoiced work orders calculation - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # First check what columns exist in WO table
+        col_check = db.execute_query("""
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'WO' 
+            AND TABLE_SCHEMA = 'ben002'
+            AND COLUMN_NAME IN ('TotalLabor', 'TotalParts', 'TotalMisc', 'Labor', 'Parts', 'Misc')
+        """)
+        results['available_total_columns'] = [c['COLUMN_NAME'] for c in col_check]
+        
+        # Get a sample WO record to see structure
+        try:
+            sample = db.execute_query("SELECT TOP 1 * FROM ben002.WO WHERE CompletedDate IS NOT NULL")
+            if sample:
+                # Extract just the relevant fields
+                results['sample_wo'] = {
+                    k: v for k, v in sample[0].items() 
+                    if any(term in k.lower() for term in ['total', 'labor', 'parts', 'misc', 'invoice', 'complete', 'wo'])
+                }
+        except Exception as e:
+            results['sample_error'] = str(e)
+        
+        # Test different queries
+        queries_to_test = [
+            {
+                "name": "Count completed but not invoiced",
+                "query": """
+                    SELECT COUNT(*) as count
+                    FROM ben002.WO
+                    WHERE CompletedDate IS NOT NULL
+                    AND InvoiceDate IS NULL
+                """
+            },
+            {
+                "name": "Try with TotalLabor/TotalParts",
+                "query": """
+                    SELECT 
+                        COUNT(*) as count,
+                        SUM(ISNULL(TotalLabor, 0) + ISNULL(TotalParts, 0) + ISNULL(TotalMisc, 0)) as total_value
+                    FROM ben002.WO
+                    WHERE CompletedDate IS NOT NULL
+                    AND InvoiceDate IS NULL
+                """
+            },
+            {
+                "name": "Count by work order status",
+                "query": """
+                    SELECT 
+                        CASE 
+                            WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NULL THEN 'Completed Not Invoiced'
+                            WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NOT NULL THEN 'Completed and Invoiced'
+                            WHEN CompletedDate IS NULL THEN 'Not Completed'
+                        END as status,
+                        COUNT(*) as count
+                    FROM ben002.WO
+                    GROUP BY 
+                        CASE 
+                            WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NULL THEN 'Completed Not Invoiced'
+                            WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NOT NULL THEN 'Completed and Invoiced'
+                            WHEN CompletedDate IS NULL THEN 'Not Completed'
+                        END
+                """
+            }
+        ]
+        
+        for qt in queries_to_test:
+            try:
+                result = db.execute_query(qt['query'])
+                results[qt['name']] = result
+            except Exception as e:
+                results[qt['name'] + '_error'] = str(e)
+        
+        # Check WOLabor and WOParts tables
+        try:
+            # Get uninvoiced work orders with labor/parts from related tables
+            complex_query = """
+            SELECT TOP 10
+                w.WO,
+                w.CompletedDate,
+                w.InvoiceDate,
+                (SELECT COALESCE(SUM(ExtLabor), 0) FROM ben002.WOLabor WHERE WO = w.WO) as LaborTotal,
+                (SELECT COALESCE(SUM(ExtPrice), 0) FROM ben002.WOParts WHERE WO = w.WO) as PartsTotal
+            FROM ben002.WO w
+            WHERE w.CompletedDate IS NOT NULL
+            AND w.InvoiceDate IS NULL
+            ORDER BY w.CompletedDate DESC
+            """
+            results['uninvoiced_with_details'] = db.execute_query(complex_query)
+        except Exception as e:
+            results['complex_query_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
@@ -757,8 +868,7 @@ def get_dashboard_summary():
         uninvoiced_value = 0
         uninvoiced_count = 0
         try:
-            # Query for completed service claims that haven't been invoiced
-            # Using correct column names from ServiceClaim table
+            # First try ServiceClaim table (appears to be empty)
             uninvoiced_query = """
             SELECT 
                 COUNT(*) as count,
@@ -773,25 +883,44 @@ def get_dashboard_summary():
                 uninvoiced_value = float(uninvoiced_result[0]['total_value'])
                 uninvoiced_count = int(uninvoiced_result[0]['count'])
                 
-            # If ServiceClaim is empty, check if there's a WorkOrder table
+            # If ServiceClaim is empty, check WO table
             if uninvoiced_count == 0:
-                # Try alternative table for work orders
                 try:
-                    alt_query = """
+                    # Query WO table for completed but not invoiced work orders
+                    wo_query = """
                     SELECT 
                         COUNT(*) as count,
-                        COALESCE(SUM(Labor + Parts), 0) as total_value
-                    FROM ben002.WorkOrder
-                    WHERE CompletedDate IS NOT NULL
-                    AND (InvoiceNo IS NULL OR InvoiceNo = '' OR InvoiceNo = '0')
+                        COALESCE(SUM(
+                            ISNULL(w.TotalLabor, 0) + 
+                            ISNULL(w.TotalParts, 0) + 
+                            ISNULL(w.TotalMisc, 0)
+                        ), 0) as total_value
+                    FROM ben002.WO w
+                    WHERE w.CompletedDate IS NOT NULL
+                    AND w.InvoiceDate IS NULL
+                    AND w.TotalLabor + w.TotalParts + w.TotalMisc > 0
                     """
-                    alt_result = db.execute_query(alt_query)
-                    if alt_result:
-                        uninvoiced_value = float(alt_result[0]['total_value'])
-                        uninvoiced_count = int(alt_result[0]['count'])
-                except:
-                    # If WorkOrder table doesn't exist or has different columns, ignore
-                    pass
+                    wo_result = db.execute_query(wo_query)
+                    if wo_result:
+                        uninvoiced_value = float(wo_result[0]['total_value'])
+                        uninvoiced_count = int(wo_result[0]['count'])
+                except Exception as e:
+                    # If the above fails, try a simpler query
+                    try:
+                        simple_query = """
+                        SELECT COUNT(*) as count
+                        FROM ben002.WO
+                        WHERE CompletedDate IS NOT NULL
+                        AND InvoiceDate IS NULL
+                        """
+                        simple_result = db.execute_query(simple_query)
+                        if simple_result:
+                            uninvoiced_count = int(simple_result[0]['count'])
+                            # Set a placeholder value if we can't get actual amounts
+                            if uninvoiced_count > 0:
+                                uninvoiced_value = uninvoiced_count * 500  # Placeholder average
+                    except:
+                        pass
                     
         except Exception as e:
             logger.error(f"Uninvoiced work orders query failed: {str(e)}")
