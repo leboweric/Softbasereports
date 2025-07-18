@@ -1086,6 +1086,94 @@ def find_duplicate_customers():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/analyze-total-work-orders', methods=['GET'])
+def analyze_total_work_orders():
+    """Analyze all work orders value - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get breakdown of all work orders
+        breakdown_query = """
+        SELECT 
+            CASE 
+                WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NOT NULL THEN 'Completed and Invoiced'
+                WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NULL THEN 'Completed Not Invoiced'
+                WHEN CompletedDate IS NULL AND ClosedDate IS NOT NULL THEN 'Closed Not Completed'
+                WHEN CompletedDate IS NULL AND ClosedDate IS NULL THEN 'Open/In Progress'
+                ELSE 'Other'
+            END as status,
+            COUNT(*) as count
+        FROM ben002.WO
+        GROUP BY 
+            CASE 
+                WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NOT NULL THEN 'Completed and Invoiced'
+                WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NULL THEN 'Completed Not Invoiced'
+                WHEN CompletedDate IS NULL AND ClosedDate IS NOT NULL THEN 'Closed Not Completed'
+                WHEN CompletedDate IS NULL AND ClosedDate IS NULL THEN 'Open/In Progress'
+                ELSE 'Other'
+            END
+        """
+        results['wo_breakdown'] = db.execute_query(breakdown_query)
+        
+        # Get total value of ALL work orders (complete and incomplete)
+        all_wo_value_query = """
+        SELECT 
+            COUNT(DISTINCT w.WONo) as total_count,
+            SUM(labor_total + parts_total + misc_total) as total_value,
+            SUM(CASE WHEN w.CompletedDate IS NOT NULL THEN labor_total + parts_total + misc_total ELSE 0 END) as completed_value,
+            SUM(CASE WHEN w.CompletedDate IS NULL THEN labor_total + parts_total + misc_total ELSE 0 END) as incomplete_value
+        FROM (
+            SELECT 
+                w.WONo,
+                w.CompletedDate,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM ben002.WO w
+        ) as wo_values
+        """
+        
+        try:
+            results['all_wo_values'] = db.execute_query(all_wo_value_query)
+        except Exception as e:
+            results['value_error'] = str(e)
+        
+        # Get just open/incomplete work orders value
+        open_wo_query = """
+        SELECT 
+            COUNT(*) as count,
+            SUM(labor_total + parts_total + misc_total) as total_value
+        FROM (
+            SELECT 
+                w.WONo,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM ben002.WO w
+            WHERE w.CompletedDate IS NULL
+            AND w.ClosedDate IS NULL
+        ) as open_wo
+        """
+        
+        try:
+            results['open_wo_value'] = db.execute_query(open_wo_query)
+        except Exception as e:
+            results['open_error'] = str(e)
+            
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
