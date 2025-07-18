@@ -26,22 +26,23 @@ def get_ytd_sales():
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Get YTD sales - from Jan 1 to today
-        year_start = datetime.now().replace(month=1, day=1).strftime('%Y-%m-%d')
+        # Get Fiscal YTD sales (Nov 1, 2024 - Oct 31, 2025)
+        fiscal_year_start = '2024-11-01'
         
         query = f"""
         SELECT COALESCE(SUM(GrandTotal), 0) as ytd_sales
         FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '{year_start}'
+        WHERE InvoiceDate >= '{fiscal_year_start}'
         """
         
         result = db.execute_query(query)
-        ytd_sales = float(result[0]['ytd_sales']) if result else 0.0
+        # Convert to int to remove decimals
+        ytd_sales = int(float(result[0]['ytd_sales'])) if result else 0
         
         return jsonify({
             'success': True,
             'ytd_sales': ytd_sales,
-            'period': f'YTD {datetime.now().year}',
+            'period': 'Fiscal YTD 2025',
             'as_of': datetime.now().isoformat()
         })
         
@@ -82,7 +83,7 @@ def get_dashboard_summary():
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': [],
-            'period': f'YTD {datetime.now().year}',
+            'period': 'Fiscal YTD 2025',
             'last_updated': datetime.now().isoformat()
         })
         
