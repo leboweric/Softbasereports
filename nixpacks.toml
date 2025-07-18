@@ -1,8 +1,8 @@
 [phases.setup]
-nixPkgs = ["python311", "gcc", "unixodbc"]
+nixPkgs = ["python311", "gcc", "freetds"]
 
 [phases.install]
 cmds = ["cd reporting-backend && pip install -r requirements.txt"]
 
 [start]
-cmd = "cd reporting-backend && gunicorn --bind 0.0.0.0:$PORT src.main:app"
+cmd = "cd reporting-backend && gunicorn --bind 0.0.0.0:$PORT --workers 4 --timeout 120 src.main:app"
