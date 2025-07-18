@@ -113,56 +113,81 @@ def debug_dashboard():
             'error_type': type(e).__name__
         }), 500
 
-@reports_bp.route('/check-inventory', methods=['GET'])
-def check_inventory():
-    """Check inventory status values - NO AUTH REQUIRED for testing"""
+@reports_bp.route('/check-tables', methods=['GET'])
+def check_tables():
+    """Check table columns - NO AUTH REQUIRED for testing"""
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Check what RentalStatus values exist
-        status_query = """
-        SELECT 
-            RentalStatus,
-            COUNT(*) as count
-        FROM ben002.Equipment
-        GROUP BY RentalStatus
-        ORDER BY count DESC
-        """
+        results = {}
         
-        status_results = db.execute_query(status_query)
-        
-        # Get total equipment count
-        total_query = """
-        SELECT COUNT(*) as total_equipment
-        FROM ben002.Equipment
-        """
-        
-        total_result = db.execute_query(total_query)
-        
-        # First check what columns exist in Equipment table
-        columns_query = """
-        SELECT COLUMN_NAME
+        # Check Equipment table columns
+        equipment_columns_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'Equipment' 
         AND TABLE_SCHEMA = 'ben002'
+        ORDER BY ORDINAL_POSITION
         """
         
-        columns = db.execute_query(columns_query)
+        results['equipment_columns'] = db.execute_query(equipment_columns_query)
         
-        # Get sample equipment records with basic columns
-        sample_query = """
-        SELECT TOP 10 *
-        FROM ben002.Equipment
+        # Check Customer table columns
+        customer_columns_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'Customer' 
+        AND TABLE_SCHEMA = 'ben002'
+        ORDER BY ORDINAL_POSITION
         """
         
-        samples = db.execute_query(sample_query)
+        results['customer_columns'] = db.execute_query(customer_columns_query)
+        
+        # Get sample Equipment record to see actual data
+        try:
+            equipment_sample = """
+            SELECT TOP 1 *
+            FROM ben002.Equipment
+            """
+            results['equipment_sample'] = db.execute_query(equipment_sample)
+        except Exception as e:
+            results['equipment_sample_error'] = str(e)
+        
+        # Get sample Customer record to see actual data
+        try:
+            customer_sample = """
+            SELECT TOP 1 *
+            FROM ben002.Customer
+            """
+            results['customer_sample'] = db.execute_query(customer_sample)
+        except Exception as e:
+            results['customer_sample_error'] = str(e)
+        
+        # Try to count equipment with different status columns
+        try:
+            # Try Status column
+            status_count = """
+            SELECT Status, COUNT(*) as count
+            FROM ben002.Equipment
+            GROUP BY Status
+            """
+            results['equipment_status_values'] = db.execute_query(status_count)
+        except:
+            try:
+                # Try RentalStatus column
+                rental_status_count = """
+                SELECT RentalStatus, COUNT(*) as count
+                FROM ben002.Equipment
+                GROUP BY RentalStatus
+                """
+                results['equipment_rentalstatus_values'] = db.execute_query(rental_status_count)
+            except Exception as e:
+                results['status_error'] = str(e)
         
         return jsonify({
             'success': True,
-            'rental_status_breakdown': status_results,
-            'total_equipment': total_result[0]['total_equipment'] if total_result else 0,
-            'sample_equipment': samples
+            'results': results
         })
         
     except Exception as e:
