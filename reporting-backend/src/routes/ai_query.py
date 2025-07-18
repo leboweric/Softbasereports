@@ -13,7 +13,52 @@ logger = logging.getLogger(__name__)
 ai_query_bp = Blueprint('ai_query', __name__)
 
 # Version indicator for deployment verification
-DEPLOYMENT_VERSION = "v3-sql-generation"
+DEPLOYMENT_VERSION = "v4-specific-queries"
+
+def parse_time_period(intent):
+    """Parse time period from intent"""
+    if 'last month' in intent:
+        return 'last_month'
+    elif 'this month' in intent:
+        return 'this_month'
+    elif 'last week' in intent:
+        return 'last_week'
+    elif 'today' in intent:
+        return 'today'
+    elif 'this year' in intent or 'year' in intent:
+        return 'this_year'
+    elif 'last year' in intent:
+        return 'last_year'
+    else:
+        return 'last_30_days'
+
+def get_date_filter(period, date_column='InvoiceDate'):
+    """Get SQL date filter for period"""
+    today = datetime.now()
+    
+    if period == 'last_month':
+        first_day_of_month = today.replace(day=1)
+        last_month_end = first_day_of_month - timedelta(days=1)
+        last_month_start = last_month_end.replace(day=1)
+        return f"{date_column} >= '{last_month_start.strftime('%Y-%m-%d')}' AND {date_column} < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+    elif period == 'this_month':
+        first_day_of_month = today.replace(day=1)
+        return f"{date_column} >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
+    elif period == 'last_week':
+        last_week = today - timedelta(days=7)
+        return f"{date_column} >= '{last_week.strftime('%Y-%m-%d')}'"
+    elif period == 'today':
+        return f"{date_column} >= '{today.strftime('%Y-%m-%d')}'"
+    elif period == 'this_year':
+        year_start = today.replace(month=1, day=1)
+        return f"{date_column} >= '{year_start.strftime('%Y-%m-%d')}'"
+    elif period == 'last_year':
+        last_year_start = today.replace(year=today.year-1, month=1, day=1)
+        this_year_start = today.replace(month=1, day=1)
+        return f"{date_column} >= '{last_year_start.strftime('%Y-%m-%d')}' AND {date_column} < '{this_year_start.strftime('%Y-%m-%d')}'"
+    else:
+        thirty_days_ago = today - timedelta(days=30)
+        return f"{date_column} >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
 
 def generate_sql_from_analysis(analysis):
     """Generate SQL query from AI analysis"""
@@ -24,6 +69,36 @@ def generate_sql_from_analysis(analysis):
     
     # Log the analysis for debugging
     logger.info(f"Query analysis: type={query_type}, tables={tables}, intent={intent}")
+    
+    # Parse time period from intent
+    time_period = parse_time_period(intent)
+    
+    # IMPORTANT: Check for specific query patterns FIRST before generic ones
+    
+    # Handle top customers queries
+    if ('top' in intent and 'customer' in intent) or ('best' in intent and 'customer' in intent):
+        # Extract number if specified
+        import re
+        num_match = re.search(r'top\s+(\d+)', intent)
+        limit = int(num_match.group(1)) if num_match else 10
+        
+        date_filter = get_date_filter(time_period)
+        
+        return f"""
+        SELECT TOP {limit}
+            c.ID as CustomerID,
+            c.Name as CustomerName,
+            c.City,
+            c.State,
+            COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
+            SUM(i.GrandTotal) as TotalRevenue,
+            MAX(i.InvoiceDate) as LastPurchaseDate
+        FROM ben002.Customer c
+        INNER JOIN ben002.InvoiceReg i ON c.ID = i.Customer
+        WHERE {date_filter}
+        GROUP BY c.ID, c.Name, c.City, c.State
+        ORDER BY TotalRevenue DESC
+        """
     
     # Handle net income/profit queries first (these need special handling)
     if 'net income' in intent or 'profit' in intent or 'net profit' in intent:
@@ -44,8 +119,10 @@ def generate_sql_from_analysis(analysis):
             'Try asking for total sales or revenue instead' as suggestion
         """
     
-    # Handle time-based sales/revenue queries
-    elif ('sales' in intent or 'revenue' in intent or 'income' in intent or 'invoice' in ' '.join(tables).lower()):
+    # Handle time-based sales/revenue queries (but only if not handled by specific patterns above)
+    elif ('total sales' in intent or 'total revenue' in intent or 
+          ('sales' in intent and not 'customer' in intent) or 
+          ('revenue' in intent and not 'customer' in intent)):
         # Determine time period
         today = datetime.now()
         
