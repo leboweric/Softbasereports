@@ -386,35 +386,64 @@ const Dashboard = ({ user }) => {
         
         <Card>
           <CardHeader>
-            <CardTitle>Work Orders Opened by Month</CardTitle>
+            <CardTitle>Work Orders Trends by Type</CardTitle>
             <CardDescription>
-              Dollar value of work orders opened since March
+              Dollar value of work orders opened by type since March
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_work_orders || []}>
+              <LineChart data={dashboardData?.monthly_work_orders_by_type || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip 
                   formatter={(value) => formatCurrency(value)}
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-white p-2 border rounded shadow">
-                          <p className="font-semibold">{label}</p>
-                          <p>{formatCurrency(data.amount)}</p>
-                          <p className="text-sm text-gray-600">{data.count} work orders</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
+                  labelFormatter={(label) => `Month: ${label}`}
                 />
-                <Bar dataKey="amount" fill="#8b5cf6" />
-              </BarChart>
+                <Line 
+                  type="monotone" 
+                  dataKey="service_value" 
+                  stroke="#3b82f6" 
+                  name="Service"
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="repair_value" 
+                  stroke="#ef4444" 
+                  name="Repair"
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="parts_value" 
+                  stroke="#10b981" 
+                  name="Parts"
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="pm_value" 
+                  stroke="#f59e0b" 
+                  name="Preventive Maint."
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="shop_value" 
+                  stroke="#8b5cf6" 
+                  name="Shop"
+                  strokeWidth={2}
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="equipment_value" 
+                  stroke="#ec4899" 
+                  name="Equipment"
+                  strokeWidth={2}
+                />
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

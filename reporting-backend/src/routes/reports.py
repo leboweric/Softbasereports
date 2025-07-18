@@ -1905,85 +1905,94 @@ def get_dashboard_summary():
         except Exception as e:
             logger.error(f"Monthly quotes calculation failed: {str(e)}")
         
-        # Get monthly work orders opened since March
-        monthly_work_orders = []
+        # Get monthly work orders by type since March
+        monthly_work_orders_by_type = []
         try:
-            # First try to determine which date field to use
-            date_field = 'OpenDate'  # Default
-            
-            # Check if OpenDate exists and has data
-            try:
-                date_check = db.execute_query("""
-                    SELECT TOP 1 OpenDate 
-                    FROM ben002.WO 
-                    WHERE OpenDate IS NOT NULL 
-                    AND OpenDate >= '2024-01-01'
-                """)
-                if not date_check:
-                    # Try CreatedDate instead
-                    date_check = db.execute_query("""
-                        SELECT TOP 1 CreatedDate 
-                        FROM ben002.WO 
-                        WHERE CreatedDate IS NOT NULL 
-                        AND CreatedDate >= '2024-01-01'
-                    """)
-                    if date_check:
-                        date_field = 'CreatedDate'
-            except:
-                date_field = 'CreatedDate'  # Fallback
-            
-            # Query WO table for monthly work order totals
-            wo_monthly_query = f"""
+            # Use OpenDate to track when work orders are opened
+            wo_type_trends_query = """
             SELECT 
-                YEAR(w.{date_field}) as year,
-                MONTH(w.{date_field}) as month,
-                COUNT(DISTINCT w.WONo) as wo_count,
+                YEAR(OpenDate) as year,
+                MONTH(OpenDate) as month,
+                Type,
+                COUNT(*) as count,
                 SUM(labor_total + parts_total + misc_total) as total_value
             FROM (
                 SELECT 
                     w.WONo,
-                    w.{date_field},
+                    w.OpenDate,
+                    w.Type,
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
                 FROM ben002.WO w
-                WHERE w.{date_field} >= '2024-03-01'  -- Changed to 2024 to get more data
-                AND w.{date_field} IS NOT NULL
+                WHERE w.OpenDate >= '2024-03-01'
+                AND w.OpenDate IS NOT NULL
             ) as wo_with_values
-            WHERE {date_field} IS NOT NULL
-            GROUP BY YEAR({date_field}), MONTH({date_field})
-            ORDER BY YEAR({date_field}) DESC, MONTH({date_field}) DESC
+            GROUP BY YEAR(OpenDate), MONTH(OpenDate), Type
+            ORDER BY YEAR(OpenDate), MONTH(OpenDate)
             """
             
-            wo_results = db.execute_query(wo_monthly_query)
+            wo_results = db.execute_query(wo_type_trends_query)
             
             if wo_results:
-                # Take only the last 5 months and reverse to show chronologically
-                recent_results = wo_results[:5]
-                recent_results.reverse()
+                # Organize data by month
+                months_data = {}
                 
-                for row in recent_results:
+                for row in wo_results:
                     month_date = datetime(row['year'], row['month'], 1)
-                    monthly_work_orders.append({
-                        'month': month_date.strftime("%b"),
-                        'amount': float(row['total_value'] or 0),
-                        'count': int(row['wo_count'] or 0)
-                    })
+                    month_key = month_date.strftime("%b")
+                    
+                    if month_key not in months_data:
+                        months_data[month_key] = {
+                            'month': month_key,
+                            'service_value': 0,
+                            'repair_value': 0,
+                            'parts_value': 0,
+                            'pm_value': 0,
+                            'shop_value': 0,
+                            'equipment_value': 0
+                        }
+                    
+                    # Map type codes to value fields
+                    if row['Type'] == 'S':
+                        months_data[month_key]['service_value'] = float(row['total_value'] or 0)
+                    elif row['Type'] == 'R':
+                        months_data[month_key]['repair_value'] = float(row['total_value'] or 0)
+                    elif row['Type'] == 'P':
+                        months_data[month_key]['parts_value'] = float(row['total_value'] or 0)
+                    elif row['Type'] == 'PM':
+                        months_data[month_key]['pm_value'] = float(row['total_value'] or 0)
+                    elif row['Type'] == 'SH':
+                        months_data[month_key]['shop_value'] = float(row['total_value'] or 0)
+                    elif row['Type'] == 'E':
+                        months_data[month_key]['equipment_value'] = float(row['total_value'] or 0)
+                
+                # Convert to list
+                monthly_work_orders_by_type = list(months_data.values())
             
-            # If we have no data, provide empty months
-            if not monthly_work_orders:
-                # Provide last 5 months with zero values
+            # If no data, provide empty months from March to current
+            if not monthly_work_orders_by_type:
+                start_date = datetime(2024, 3, 1)
                 current_date = datetime.now()
-                for i in range(4, -1, -1):
-                    month_date = current_date - timedelta(days=i*30)
-                    monthly_work_orders.append({
-                        'month': month_date.strftime("%b"),
-                        'amount': 0,
-                        'count': 0
+                
+                date = start_date
+                while date <= current_date:
+                    monthly_work_orders_by_type.append({
+                        'month': date.strftime("%b"),
+                        'service_value': 0,
+                        'repair_value': 0,
+                        'parts_value': 0,
+                        'pm_value': 0,
+                        'shop_value': 0,
+                        'equipment_value': 0
                     })
+                    if date.month == 12:
+                        date = date.replace(year=date.year + 1, month=1)
+                    else:
+                        date = date.replace(month=date.month + 1)
                     
         except Exception as e:
-            logger.error(f"Monthly work orders calculation failed: {str(e)}")
+            logger.error(f"Monthly work orders by type calculation failed: {str(e)}")
         
         # Get Top 10 customers by YTD sales
         top_customers = []
@@ -2194,7 +2203,7 @@ def get_dashboard_summary():
             'monthly_sales': monthly_sales,
             'monthly_gross_profit': monthly_gross_profit,
             'monthly_quotes': monthly_quotes,
-            'monthly_work_orders': monthly_work_orders,
+            'monthly_work_orders_by_type': monthly_work_orders_by_type,
             'top_customers': top_customers,
             'department_margins': department_margins,
             'period': current_date.strftime('%B %Y'),
@@ -2218,7 +2227,7 @@ def get_dashboard_summary():
             'monthly_sales': [],
             'monthly_gross_profit': [],
             'monthly_quotes': [],
-            'monthly_work_orders': [],
+            'monthly_work_orders_by_type': [],
             'top_customers': [],
             'department_margins': [],
             'period': 'This Month',
