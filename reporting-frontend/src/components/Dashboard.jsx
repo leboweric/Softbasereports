@@ -384,8 +384,40 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
         
-        {/* Placeholder for future card */}
-        <div />
+        <Card>
+          <CardHeader>
+            <CardTitle>Work Orders Opened by Month</CardTitle>
+            <CardDescription>
+              Dollar value of work orders opened since March
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={dashboardData?.monthly_work_orders || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip 
+                  formatter={(value) => formatCurrency(value)}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-white p-2 border rounded shadow">
+                          <p className="font-semibold">{label}</p>
+                          <p>{formatCurrency(data.amount)}</p>
+                          <p className="text-sm text-gray-600">{data.count} work orders</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="amount" fill="#8b5cf6" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick Actions */}

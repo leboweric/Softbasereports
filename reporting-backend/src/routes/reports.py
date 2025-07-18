@@ -1806,6 +1806,75 @@ def get_dashboard_summary():
         except Exception as e:
             logger.error(f"Monthly quotes calculation failed: {str(e)}")
         
+        # Get monthly work orders opened since March
+        monthly_work_orders = []
+        try:
+            # Query WO table for monthly work order totals based on OpenDate
+            wo_monthly_query = """
+            SELECT 
+                YEAR(w.OpenDate) as year,
+                MONTH(w.OpenDate) as month,
+                COUNT(DISTINCT w.WONo) as wo_count,
+                SUM(labor_total + parts_total + misc_total) as total_value
+            FROM (
+                SELECT 
+                    w.WONo,
+                    w.OpenDate,
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                FROM ben002.WO w
+                WHERE w.OpenDate >= '2025-03-01'
+            ) as wo_with_values
+            GROUP BY YEAR(OpenDate), MONTH(OpenDate)
+            ORDER BY YEAR(OpenDate), MONTH(OpenDate)
+            """
+            
+            wo_results = db.execute_query(wo_monthly_query)
+            
+            if wo_results:
+                for row in wo_results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_work_orders.append({
+                        'month': month_date.strftime("%b"),
+                        'amount': float(row['total_value']),
+                        'count': int(row['wo_count'])
+                    })
+            
+            # Pad with zeros for months without work orders
+            if len(monthly_work_orders) < 5:  # March to July is 5 months
+                # Get all months from March to current
+                start_date = datetime(2025, 3, 1)
+                current_date = datetime.now()
+                
+                all_months = []
+                date = start_date
+                while date <= current_date:
+                    all_months.append(date.strftime("%b"))
+                    # Move to next month
+                    if date.month == 12:
+                        date = date.replace(year=date.year + 1, month=1)
+                    else:
+                        date = date.replace(month=date.month + 1)
+                
+                # Create dict of existing data
+                existing_wo = {item['month']: item for item in monthly_work_orders}
+                
+                # Rebuild with all months
+                monthly_work_orders = []
+                for month in all_months:
+                    if month in existing_wo:
+                        monthly_work_orders.append(existing_wo[month])
+                    else:
+                        monthly_work_orders.append({
+                            'month': month,
+                            'amount': 0,
+                            'count': 0
+                        })
+                    
+        except Exception as e:
+            logger.error(f"Monthly work orders calculation failed: {str(e)}")
+        
         # Get Top 10 customers by YTD sales
         top_customers = []
         try:
@@ -1991,6 +2060,7 @@ def get_dashboard_summary():
             'monthly_sales': monthly_sales,
             'monthly_gross_profit': monthly_gross_profit,
             'monthly_quotes': monthly_quotes,
+            'monthly_work_orders': monthly_work_orders,
             'top_customers': top_customers,
             'department_margins': department_margins,
             'period': current_date.strftime('%B %Y'),
@@ -2014,6 +2084,7 @@ def get_dashboard_summary():
             'monthly_sales': [],
             'monthly_gross_profit': [],
             'monthly_quotes': [],
+            'monthly_work_orders': [],
             'top_customers': [],
             'department_margins': [],
             'period': 'This Month',
