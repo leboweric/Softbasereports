@@ -117,48 +117,94 @@ def public_schema_analysis():
     }
     
     try:
+        # Direct connection test first
         import pymssql
-        from ..services.azure_sql_service import AzureSQLService
         
-        # Use Azure SQL Service
-        db = AzureSQLService()
+        result['pymssql_version'] = getattr(pymssql, '__version__', 'unknown')
         
-        # Get all tables
-        tables = db.get_tables()
-        result['total_tables'] = len(tables)
-        result['tables'] = tables[:20]  # First 20 tables
-        
-        # Categorize tables
-        categories = {
-            'customers': [t for t in tables if any(x in t.lower() for x in ['customer', 'client'])],
-            'inventory': [t for t in tables if any(x in t.lower() for x in ['inventory', 'equipment', 'forklift'])],
-            'sales': [t for t in tables if any(x in t.lower() for x in ['sale', 'order', 'invoice'])],
-            'service': [t for t in tables if any(x in t.lower() for x in ['service', 'repair', 'maintenance'])],
-            'parts': [t for t in tables if any(x in t.lower() for x in ['part', 'component'])]
-        }
-        
-        result['categories'] = {k: v[:5] for k, v in categories.items() if v}  # Top 5 per category
-        
-        # Get sample table structure
-        sample_tables = {}
-        for category, table_list in categories.items():
-            if table_list:
-                sample_table = table_list[0]
-                try:
-                    columns = db.get_table_columns(sample_table)
-                    sample_tables[sample_table] = {
-                        'category': category,
-                        'column_count': len(columns),
-                        'columns': columns[:10]  # First 10 columns
-                    }
-                except Exception as e:
-                    sample_tables[sample_table] = {'error': str(e)}
-        
-        result['sample_structures'] = sample_tables
-        result['status'] = 'SUCCESS'
+        # Try direct connection
+        try:
+            conn = pymssql.connect(
+                server='evo1-sql-replica.database.windows.net',
+                user='ben002user',
+                password='g6O8CE5mT83mDYOW',
+                database='evo',
+                timeout=30
+            )
+            
+            cursor = conn.cursor()
+            
+            # Get tables
+            cursor.execute("""
+                SELECT TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_TYPE = 'BASE TABLE'
+                ORDER BY TABLE_NAME
+            """)
+            tables = [row[0] for row in cursor.fetchall()]
+            
+            result['total_tables'] = len(tables)
+            result['tables'] = tables[:20]  # First 20 tables
+            
+            # Categorize tables
+            categories = {
+                'customers': [t for t in tables if any(x in t.lower() for x in ['customer', 'client'])],
+                'inventory': [t for t in tables if any(x in t.lower() for x in ['inventory', 'equipment', 'forklift'])],
+                'sales': [t for t in tables if any(x in t.lower() for x in ['sale', 'order', 'invoice'])],
+                'service': [t for t in tables if any(x in t.lower() for x in ['service', 'repair', 'maintenance'])],
+                'parts': [t for t in tables if any(x in t.lower() for x in ['part', 'component'])]
+            }
+            
+            result['categories'] = {k: v[:5] for k, v in categories.items() if v}  # Top 5 per category
+            
+            # Get sample table structure
+            sample_tables = {}
+            for category, table_list in categories.items():
+                if table_list:
+                    sample_table = table_list[0]
+                    try:
+                        cursor.execute(f"""
+                            SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
+                            FROM INFORMATION_SCHEMA.COLUMNS
+                            WHERE TABLE_NAME = '{sample_table}'
+                            ORDER BY ORDINAL_POSITION
+                        """)
+                        columns = []
+                        for row in cursor.fetchall():
+                            col_info = {
+                                'name': row[0],
+                                'type': row[1],
+                                'nullable': row[3] == 'YES'
+                            }
+                            if row[2]:
+                                col_info['max_length'] = row[2]
+                            columns.append(col_info)
+                        
+                        sample_tables[sample_table] = {
+                            'category': category,
+                            'column_count': len(columns),
+                            'columns': columns[:10]  # First 10 columns
+                        }
+                    except Exception as e:
+                        sample_tables[sample_table] = {'error': str(e)}
+            
+            result['sample_structures'] = sample_tables
+            result['status'] = 'SUCCESS'
+            
+            cursor.close()
+            conn.close()
+            
+        except Exception as conn_error:
+            result['connection_error'] = {
+                'type': type(conn_error).__name__,
+                'message': str(conn_error),
+                'args': getattr(conn_error, 'args', [])
+            }
+            result['status'] = 'FAILED'
         
     except Exception as e:
         result['status'] = 'FAILED'
         result['error'] = str(e)
+        result['error_type'] = type(e).__name__
     
     return jsonify(result), 200
