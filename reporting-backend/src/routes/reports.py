@@ -1088,7 +1088,8 @@ def get_dashboard_summary():
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as sales,
-                SUM(TotalCost) as cost_of_sales
+                SUM(ISNULL(LaborCost, 0) + ISNULL(PartsCost, 0) + ISNULL(MiscCost, 0) + 
+                    ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as cost_of_sales
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '{twelve_months_ago}'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
