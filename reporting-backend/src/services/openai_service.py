@@ -47,17 +47,29 @@ class OpenAIQueryService:
             response = self.client.chat.completions.create(
                 model=self.config.OPENAI_MODEL,
                 messages=[
-                    {"role": "system", "content": system_prompt},
+                    {"role": "system", "content": system_prompt + "\n\nIMPORTANT: You must respond with valid JSON only, no additional text."},
                     {"role": "user", "content": user_prompt}
                 ],
                 max_tokens=self.config.OPENAI_MAX_TOKENS,
-                temperature=self.config.OPENAI_TEMPERATURE,
-                response_format={"type": "json_object"}
+                temperature=self.config.OPENAI_TEMPERATURE
             )
             
             # Parse the response
             ai_response = response.choices[0].message.content
-            parsed_response = json.loads(ai_response)
+            
+            # Try to extract JSON from the response
+            try:
+                # First try direct parsing
+                parsed_response = json.loads(ai_response)
+            except json.JSONDecodeError:
+                # If that fails, try to find JSON in the response
+                import re
+                json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+                if json_match:
+                    parsed_response = json.loads(json_match.group())
+                else:
+                    logger.error(f"Could not parse JSON from response: {ai_response[:200]}")
+                    raise ValueError("Invalid JSON response from OpenAI")
             
             # Enhance the response with additional processing
             enhanced_response = self._enhance_query_response(parsed_response, query)

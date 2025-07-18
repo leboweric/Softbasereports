@@ -5,7 +5,7 @@ class OpenAIConfig:
     
     # OpenAI API Configuration
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', 'your-openai-api-key-here')
-    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4')
+    OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-3.5-turbo')  # More cost-effective and supports JSON
     OPENAI_MAX_TOKENS = int(os.getenv('OPENAI_MAX_TOKENS', '2000'))
     OPENAI_TEMPERATURE = float(os.getenv('OPENAI_TEMPERATURE', '0.3'))
     
