@@ -1925,7 +1925,7 @@ def get_dashboard_summary():
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
                 FROM ben002.WO w
-                WHERE w.OpenDate >= '2024-03-01'
+                WHERE w.OpenDate >= '2025-03-01'
                 AND w.OpenDate IS NOT NULL
             ) as wo_with_values
             GROUP BY YEAR(OpenDate), MONTH(OpenDate), Type
@@ -1972,7 +1972,7 @@ def get_dashboard_summary():
             
             # If no data, provide empty months from March to current
             if not monthly_work_orders_by_type:
-                start_date = datetime(2024, 3, 1)
+                start_date = datetime(2025, 3, 1)
                 current_date = datetime.now()
                 
                 date = start_date
