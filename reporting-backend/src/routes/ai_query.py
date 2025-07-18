@@ -350,6 +350,93 @@ def get_version():
         'timestamp': datetime.now().isoformat()
     })
 
+@ai_query_bp.route('/test-date-ranges', methods=['GET'])
+def test_date_ranges():
+    """Test different date ranges to find the correct total"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Test 1: Current fiscal year (Nov 1, 2024 - Oct 31, 2025)
+        query1 = """
+        SELECT 
+            '2024-11-01 to present' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2024-11-01'
+        """
+        results['current_fiscal'] = db.execute_query(query1)
+        
+        # Test 2: Previous fiscal year (Nov 1, 2023 - Oct 31, 2024)  
+        query2 = """
+        SELECT 
+            '2023-11-01 to 2024-10-31' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2023-11-01' AND InvoiceDate <= '2024-10-31'
+        """
+        results['previous_fiscal'] = db.execute_query(query2)
+        
+        # Test 3: Both fiscal years combined
+        query3 = """
+        SELECT 
+            '2023-11-01 to present' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2023-11-01'
+        """
+        results['both_fiscal_years'] = db.execute_query(query3)
+        
+        # Test 4: Calendar year 2024
+        query4 = """
+        SELECT 
+            '2024-01-01 to 2024-12-31' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2024-01-01' AND InvoiceDate <= '2024-12-31'
+        """
+        results['calendar_2024'] = db.execute_query(query4)
+        
+        # Test 5: All time total
+        query5 = """
+        SELECT 
+            'All time' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales,
+            MIN(InvoiceDate) as first_invoice,
+            MAX(InvoiceDate) as last_invoice
+        FROM ben002.InvoiceReg
+        """
+        results['all_time'] = db.execute_query(query5)
+        
+        # Test 6: Last 12 months
+        query6 = """
+        SELECT 
+            'Last 12 months' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+        """
+        results['last_12_months'] = db.execute_query(query6)
+        
+        return jsonify({
+            'success': True,
+            'target_amount': 11998467.41,
+            'date_range_tests': results
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @ai_query_bp.route('/test-sql', methods=['GET'])
 def test_sql():
     """Test SQL execution directly"""
