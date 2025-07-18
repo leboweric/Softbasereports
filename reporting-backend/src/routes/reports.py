@@ -752,6 +752,104 @@ def check_invoice_cost_columns():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/find-quotes-data', methods=['GET'])
+def find_quotes_data():
+    """Find tables and columns related to quotes - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Find tables with Quote in the name
+        quote_tables = db.execute_query("""
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'ben002'
+            AND (
+                TABLE_NAME LIKE '%Quote%' OR 
+                TABLE_NAME LIKE '%Quot%' OR
+                TABLE_NAME LIKE '%Estimate%' OR
+                TABLE_NAME LIKE '%Proposal%'
+            )
+            ORDER BY TABLE_NAME
+        """)
+        results['quote_tables'] = [t['TABLE_NAME'] for t in quote_tables]
+        
+        # Check each quote table for data
+        for table in quote_tables[:5]:  # Limit to first 5
+            table_name = table['TABLE_NAME']
+            try:
+                # Get count
+                count_query = f"SELECT COUNT(*) as count FROM ben002.{table_name}"
+                count_result = db.execute_query(count_query)
+                
+                # Get columns
+                cols_query = f"""
+                SELECT COLUMN_NAME, DATA_TYPE 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = '{table_name}' 
+                AND TABLE_SCHEMA = 'ben002'
+                AND (
+                    COLUMN_NAME LIKE '%Date%' OR 
+                    COLUMN_NAME LIKE '%Amount%' OR 
+                    COLUMN_NAME LIKE '%Total%' OR
+                    COLUMN_NAME LIKE '%Price%' OR
+                    COLUMN_NAME LIKE '%Value%'
+                )
+                """
+                cols = db.execute_query(cols_query)
+                
+                if count_result[0]['count'] > 0:
+                    # Get a sample record
+                    sample_query = f"SELECT TOP 1 * FROM ben002.{table_name}"
+                    sample = db.execute_query(sample_query)
+                    
+                    results[table_name] = {
+                        'count': count_result[0]['count'],
+                        'relevant_columns': cols,
+                        'sample_record': sample[0] if sample else None
+                    }
+            except Exception as e:
+                results[table_name + '_error'] = str(e)
+        
+        # Also check WO table for quote-related columns
+        try:
+            wo_quote_cols = db.execute_query("""
+                SELECT COLUMN_NAME, DATA_TYPE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = 'WO' 
+                AND TABLE_SCHEMA = 'ben002'
+                AND (
+                    COLUMN_NAME LIKE '%Quote%' OR 
+                    COLUMN_NAME LIKE '%Estimate%'
+                )
+                ORDER BY ORDINAL_POSITION
+            """)
+            results['wo_quote_columns'] = wo_quote_cols
+            
+            # Check if there are WOs with quote dates
+            wo_quote_check = db.execute_query("""
+                SELECT COUNT(*) as count
+                FROM ben002.WO
+                WHERE ShopQuoteDate IS NOT NULL
+            """)
+            results['wo_with_quotes'] = wo_quote_check[0]['count'] if wo_quote_check else 0
+            
+        except Exception as e:
+            results['wo_quote_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
