@@ -25,8 +25,11 @@ def validate_sales():
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
-        # Get the exact sales from Nov 1, 2024 through today
-        query = """
+        # Test multiple date ranges to find the $11,998,467.41
+        results = {}
+        
+        # Test 1: Nov 1, 2024 forward (current query)
+        query1 = """
         SELECT 
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales,
@@ -35,10 +38,51 @@ def validate_sales():
         FROM ben002.InvoiceReg
         WHERE InvoiceDate >= '2024-11-01'
         """
+        result1 = db.execute_query(query1)
+        results['nov_2024_forward'] = {
+            'total': float(result1[0]['total_sales']) if result1[0]['total_sales'] else 0,
+            'count': result1[0]['invoice_count'],
+            'first': str(result1[0]['first_invoice']),
+            'last': str(result1[0]['last_invoice'])
+        }
         
-        result = db.execute_query(query)
+        # Test 2: Include Nov/Dec 2024 dates
+        query2 = """
+        SELECT 
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales
+        FROM ben002.InvoiceReg
+        WHERE (InvoiceDate >= '2024-11-01' AND InvoiceDate <= '2024-12-31')
+        """
+        result2 = db.execute_query(query2)
+        results['nov_dec_2024'] = {
+            'total': float(result2[0]['total_sales']) if result2[0]['total_sales'] else 0,
+            'count': result2[0]['invoice_count']
+        }
         
-        # Also get a breakdown by month to see the pattern
+        # Test 3: Check if we need to add two periods together
+        # Nov-Dec 2024 PLUS Mar-Jul 2025
+        total_combined = results['nov_dec_2024']['total'] + results['nov_2024_forward']['total']
+        results['combined_total'] = {
+            'total': total_combined,
+            'formula': 'Nov-Dec 2024 + Mar-Jul 2025'
+        }
+        
+        # Test 4: Full fiscal year Nov 2024 - Oct 2025
+        query4 = """
+        SELECT 
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_sales
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2024-11-01' AND InvoiceDate <= '2025-10-31'
+        """
+        result4 = db.execute_query(query4)
+        results['full_fiscal_2025'] = {
+            'total': float(result4[0]['total_sales']) if result4[0]['total_sales'] else 0,
+            'count': result4[0]['invoice_count']
+        }
+        
+        # Get monthly breakdown for better understanding
         monthly_query = """
         SELECT 
             YEAR(InvoiceDate) as year,
@@ -46,46 +90,21 @@ def validate_sales():
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as monthly_total
         FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '2024-11-01'
+        WHERE InvoiceDate >= '2024-11-01' OR InvoiceDate >= '2025-01-01'
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         ORDER BY year, month
         """
-        
         monthly_results = db.execute_query(monthly_query)
-        
-        # Get sample invoices to verify data
-        sample_query = """
-        SELECT TOP 10
-            InvoiceNo,
-            InvoiceDate,
-            Customer,
-            BillToName,
-            GrandTotal
-        FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '2024-11-01'
-        ORDER BY InvoiceDate DESC
-        """
-        
-        samples = db.execute_query(sample_query)
-        
-        total_sales = float(result[0]['total_sales']) if result and result[0]['total_sales'] else 0
         
         return jsonify({
             'success': True,
-            'summary': {
-                'total_sales': total_sales,
-                'total_sales_formatted': f"${total_sales:,.2f}",
-                'invoice_count': result[0]['invoice_count'] if result else 0,
-                'date_range': {
-                    'start': '2024-11-01',
-                    'end': datetime.now().strftime('%Y-%m-%d'),
-                    'first_invoice': str(result[0]['first_invoice']) if result else None,
-                    'last_invoice': str(result[0]['last_invoice']) if result else None
-                }
-            },
+            'target_amount': 11998467.41,
+            'test_results': results,
             'monthly_breakdown': monthly_results,
-            'sample_invoices': samples,
-            'query_executed': query
+            'analysis': {
+                'current_dashboard_shows': results['nov_2024_forward']['total'],
+                'difference_from_target': 11998467.41 - results['nov_2024_forward']['total']
+            }
         })
         
     except Exception as e:
