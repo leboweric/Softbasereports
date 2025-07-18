@@ -1397,6 +1397,62 @@ def get_dashboard_summary():
             logger.error(f"Uninvoiced work orders query failed: {str(e)}")
             uninvoiced_count = 0
         
+        # Get monthly quotes value since March
+        monthly_quotes = []
+        try:
+            # Query WOQuote table for monthly quote totals
+            quotes_query = """
+            SELECT 
+                YEAR(CreationTime) as year,
+                MONTH(CreationTime) as month,
+                SUM(Amount) as amount
+            FROM ben002.WOQuote
+            WHERE CreationTime >= '2025-03-01'
+            AND Amount > 0
+            GROUP BY YEAR(CreationTime), MONTH(CreationTime)
+            ORDER BY YEAR(CreationTime), MONTH(CreationTime)
+            """
+            
+            quote_results = db.execute_query(quotes_query)
+            
+            if quote_results:
+                for row in quote_results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_quotes.append({
+                        'month': month_date.strftime("%b"),
+                        'amount': float(row['amount'])
+                    })
+            
+            # Pad with zeros for months without quotes
+            if len(monthly_quotes) < 5:  # March to July is 5 months
+                # Get all months from March to current
+                start_date = datetime(2025, 3, 1)
+                current_date = datetime.now()
+                
+                all_months = []
+                date = start_date
+                while date <= current_date:
+                    all_months.append(date.strftime("%b"))
+                    # Move to next month
+                    if date.month == 12:
+                        date = date.replace(year=date.year + 1, month=1)
+                    else:
+                        date = date.replace(month=date.month + 1)
+                
+                # Create dict of existing data
+                existing_quotes = {item['month']: item['amount'] for item in monthly_quotes}
+                
+                # Rebuild with all months
+                monthly_quotes = []
+                for month in all_months:
+                    monthly_quotes.append({
+                        'month': month,
+                        'amount': existing_quotes.get(month, 0)
+                    })
+                    
+        except Exception as e:
+            logger.error(f"Monthly quotes calculation failed: {str(e)}")
+        
         return jsonify({
             'total_sales': total_sales,
             'inventory_count': inventory_count,
@@ -1407,6 +1463,7 @@ def get_dashboard_summary():
             'service_tickets': 0,
             'monthly_sales': monthly_sales,
             'monthly_gross_profit': monthly_gross_profit,
+            'monthly_quotes': monthly_quotes,
             'period': current_date.strftime('%B %Y'),
             'last_updated': datetime.now().isoformat()
         })
@@ -1422,6 +1479,7 @@ def get_dashboard_summary():
             'service_tickets': 0,
             'monthly_sales': [],
             'monthly_gross_profit': [],
+            'monthly_quotes': [],
             'period': 'This Month',
             'error': str(e),
             'last_updated': datetime.now().isoformat()
