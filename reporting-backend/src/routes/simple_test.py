@@ -644,3 +644,93 @@ def find_sales_columns():
         result["error"] = str(e)
     
     return jsonify(result), 200
+
+
+@simple_test_bp.route("/api/test/customer-structure", methods=["GET"])
+def customer_structure():
+    """Get full Customer view structure with sample data"""
+    
+    result = {
+        "analysis": "Customer View Structure",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        from ..services.azure_sql_service import AzureSQLService
+        
+        db = AzureSQLService()
+        
+        # Get all columns with data types
+        column_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                CHARACTER_MAXIMUM_LENGTH
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'Customer'
+            AND TABLE_SCHEMA = 'ben002'
+            ORDER BY ORDINAL_POSITION
+        """
+        
+        columns = db.execute_query(column_query)
+        
+        # Group columns by likely purpose
+        financial_cols = []
+        date_cols = []
+        id_cols = []
+        
+        for col in columns:
+            col_name = col["COLUMN_NAME"]
+            if any(term in col_name.lower() for term in ["balance", "credit", "limit", "amount", "total", "ytd", "payment"]):
+                financial_cols.append(col_name)
+            elif any(term in col_name.lower() for term in ["date", "time", "added", "last"]):
+                date_cols.append(col_name)
+            elif any(term in col_name.lower() for term in ["no", "id", "code"]):
+                id_cols.append(col_name)
+        
+        result["column_groups"] = {
+            "financial": financial_cols,
+            "dates": date_cols,
+            "identifiers": id_cols
+        }
+        
+        # Get sample customer data - use dynamic column selection
+        if financial_cols:
+            fin_cols_str = ", ".join(financial_cols[:10])  # First 10 financial columns
+            sample_query = f"""
+                SELECT TOP 1
+                    {fin_cols_str}
+                FROM ben002.Customer
+                WHERE Name IS NOT NULL
+            """
+            
+            try:
+                sample = db.execute_query(sample_query)
+                result["sample_financial_data"] = sample[0] if sample else {}
+            except Exception as e:
+                result["sample_error"] = str(e)
+        
+        # Get primary key info
+        try:
+            # Try common customer ID column names
+            test_cols = ["CustomerNo", "Customer", "CustNo", "CustID", "ID"]
+            for col in test_cols:
+                try:
+                    test_query = f"SELECT TOP 1 {col}, Name FROM ben002.Customer"
+                    test_result = db.execute_query(test_query)
+                    if test_result:
+                        result["primary_key_column"] = col
+                        result["sample_customer"] = test_result[0]
+                        break
+                except:
+                    continue
+        except Exception as e:
+            result["pk_error"] = str(e)
+        
+        result["status"] = "SUCCESS"
+        
+    except Exception as e:
+        result["status"] = "FAILED"
+        result["error"] = str(e)
+    
+    return jsonify(result), 200
