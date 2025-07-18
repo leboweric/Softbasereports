@@ -92,10 +92,22 @@ class ReportCreator:
         """
         
         try:
-            response = self.openai_service._make_openai_request(prompt)
+            # Make OpenAI request directly using the client
+            response = self.openai_service.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a report configuration assistant. Generate JSON configurations for business reports."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=1000,
+                temperature=0.7
+            )
+            
+            # Get the response content
+            response_text = response.choices[0].message.content
             
             # Extract JSON from response
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
                 config = json.loads(json_match.group())
                 return config
