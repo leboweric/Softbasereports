@@ -551,9 +551,9 @@ def calculate_uninvoiced_value():
         SELECT 
             w.WONo,
             w.CompletedDate,
-            COALESCE((SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborTotal,
-            COALESCE((SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsTotal,
-            COALESCE((SELECT SUM(Misc) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscTotal
+            COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborTotal,
+            COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsTotal,
+            COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscTotal
         FROM ben002.WO w
         WHERE w.CompletedDate IS NOT NULL
         AND w.InvoiceDate IS NULL
@@ -592,9 +592,9 @@ def calculate_uninvoiced_value():
             FROM (
                 SELECT 
                     w.WONo,
-                    COALESCE((SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                    COALESCE((SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                    COALESCE((SELECT SUM(Misc) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
                 FROM ben002.WO w
                 WHERE w.CompletedDate IS NOT NULL
                 AND w.InvoiceDate IS NULL
@@ -1039,9 +1039,9 @@ def get_dashboard_summary():
                     FROM (
                         SELECT 
                             w.WONo,
-                            COALESCE((SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                            COALESCE((SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                            COALESCE((SELECT SUM(Misc) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                            COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                            COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                            COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
                         FROM ben002.WO w
                         WHERE w.CompletedDate IS NOT NULL
                         AND w.InvoiceDate IS NULL
