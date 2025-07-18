@@ -113,6 +113,50 @@ def debug_dashboard():
             'error_type': type(e).__name__
         }), 500
 
+@reports_bp.route('/check-service-claims', methods=['GET'])
+def check_service_claims():
+    """Check ServiceClaim table structure - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Get ServiceClaim columns
+        columns_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'ServiceClaim' 
+        AND TABLE_SCHEMA = 'ben002'
+        ORDER BY ORDINAL_POSITION
+        """
+        
+        columns = db.execute_query(columns_query)
+        
+        # Get sample completed but not invoiced claims
+        sample_query = """
+        SELECT TOP 10 *
+        FROM ben002.ServiceClaim
+        WHERE CloseDate IS NOT NULL
+        ORDER BY CloseDate DESC
+        """
+        
+        samples = db.execute_query(sample_query)
+        
+        # Check for invoice-related columns
+        invoice_columns = [col for col in columns if 'invoice' in col['COLUMN_NAME'].lower() or 'bill' in col['COLUMN_NAME'].lower()]
+        
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'invoice_related_columns': invoice_columns,
+            'sample_closed_claims': samples
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
@@ -440,10 +484,36 @@ def get_dashboard_summary():
         except Exception as e:
             logger.error(f"Monthly sales calculation failed: {str(e)}")
         
+        # Get uninvoiced work orders value
+        uninvoiced_value = 0
+        try:
+            # Query for completed service claims that haven't been invoiced
+            # Assuming InvoiceNo or similar field indicates if it's been invoiced
+            uninvoiced_query = """
+            SELECT 
+                COUNT(*) as count,
+                COALESCE(SUM(TotalLabor + TotalParts), 0) as total_value
+            FROM ben002.ServiceClaim
+            WHERE CloseDate IS NOT NULL
+            AND (InvoiceNo IS NULL OR InvoiceNo = 0 OR InvoiceNo = '')
+            """
+            
+            uninvoiced_result = db.execute_query(uninvoiced_query)
+            if uninvoiced_result:
+                uninvoiced_value = float(uninvoiced_result[0]['total_value'])
+                uninvoiced_count = int(uninvoiced_result[0]['count'])
+            else:
+                uninvoiced_count = 0
+        except Exception as e:
+            logger.error(f"Uninvoiced work orders query failed: {str(e)}")
+            uninvoiced_count = 0
+        
         return jsonify({
             'total_sales': total_sales,
             'inventory_count': inventory_count,
             'active_customers': active_customers,
+            'uninvoiced_work_orders': int(uninvoiced_value),  # Remove decimals
+            'uninvoiced_count': uninvoiced_count,
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': monthly_sales,
