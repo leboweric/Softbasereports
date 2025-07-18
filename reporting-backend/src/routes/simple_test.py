@@ -134,11 +134,12 @@ def public_schema_analysis():
             
             cursor = conn.cursor()
             
-            # Get tables
+            # Get tables from ben002 schema
             cursor.execute("""
                 SELECT TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_TYPE = 'BASE TABLE'
+                AND TABLE_SCHEMA = 'ben002'
                 ORDER BY TABLE_NAME
             """)
             tables = [row[0] for row in cursor.fetchall()]
@@ -167,6 +168,7 @@ def public_schema_analysis():
                             SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
                             FROM INFORMATION_SCHEMA.COLUMNS
                             WHERE TABLE_NAME = '{sample_table}'
+                            AND TABLE_SCHEMA = 'ben002'
                             ORDER BY ORDINAL_POSITION
                         """)
                         columns = []
@@ -253,6 +255,7 @@ def db_diagnostics():
                 SELECT TABLE_SCHEMA, TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_TYPE = 'BASE TABLE'
+                AND TABLE_SCHEMA = 'ben002'
             """,
             "sys_tables": """
                 SELECT 
@@ -261,11 +264,16 @@ def db_diagnostics():
                 FROM sys.tables t
                 INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
                 WHERE t.type = 'U'
+                AND s.name = 'ben002'
             """,
-            "sysobjects": """
-                SELECT name 
-                FROM sysobjects 
-                WHERE xtype = 'U'
+            "all_tables": """
+                SELECT 
+                    s.name AS schema_name,
+                    t.name AS table_name
+                FROM sys.tables t
+                INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                WHERE t.type = 'U'
+                AND s.name IN ('ben002', 'dbo')
             """
         }
         
