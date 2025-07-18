@@ -1024,6 +1024,68 @@ def analyze_department_margins():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/find-duplicate-customers', methods=['GET'])
+def find_duplicate_customers():
+    """Find potential duplicate customer names - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get all customer names with their sales
+        all_customers = db.execute_query("""
+            SELECT 
+                BillToName,
+                COUNT(DISTINCT InvoiceNo) as invoice_count,
+                SUM(GrandTotal) as total_sales
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2024-11-01'
+            AND BillToName IS NOT NULL
+            AND BillToName != ''
+            GROUP BY BillToName
+            ORDER BY SUM(GrandTotal) DESC
+        """)
+        
+        # Look for potential duplicates
+        potential_duplicates = []
+        customer_names = [c['BillToName'] for c in all_customers]
+        
+        for i, name1 in enumerate(customer_names):
+            for j, name2 in enumerate(customer_names[i+1:], i+1):
+                # Check if one is substring of another
+                if name1.lower() in name2.lower() or name2.lower() in name1.lower():
+                    # Skip if they're exactly the same (shouldn't happen due to GROUP BY)
+                    if name1.lower() != name2.lower():
+                        cust1 = all_customers[i]
+                        cust2 = all_customers[j]
+                        potential_duplicates.append({
+                            'name1': name1,
+                            'sales1': float(cust1['total_sales']),
+                            'invoices1': cust1['invoice_count'],
+                            'name2': name2,
+                            'sales2': float(cust2['total_sales']),
+                            'invoices2': cust2['invoice_count'],
+                            'combined_sales': float(cust1['total_sales']) + float(cust2['total_sales'])
+                        })
+        
+        # Sort by combined sales
+        potential_duplicates.sort(key=lambda x: x['combined_sales'], reverse=True)
+        
+        results['potential_duplicates'] = potential_duplicates[:20]  # Top 20
+        results['total_customers'] = len(customer_names)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
@@ -1561,14 +1623,21 @@ def get_dashboard_summary():
             
             top_customers_query = f"""
             SELECT TOP 10
-                BillToName as customer_name,
+                CASE 
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    ELSE BillToName
+                END as customer_name,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '{fiscal_year_start.strftime('%Y-%m-%d')}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
-            GROUP BY BillToName
+            GROUP BY 
+                CASE 
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    ELSE BillToName
+                END
             ORDER BY SUM(GrandTotal) DESC
             """
             
