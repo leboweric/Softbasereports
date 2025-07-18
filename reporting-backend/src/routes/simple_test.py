@@ -473,35 +473,37 @@ def quick_report_test():
         
         db = AzureSQLService()
         
-        # Test basic queries
+        # Test basic queries with correct column names
         queries = {
             "total_customers": """
                 SELECT COUNT(*) as count 
                 FROM ben002.Customer
             """,
-            "active_equipment": """
-                SELECT COUNT(*) as count, Status
+            "equipment_by_rental_status": """
+                SELECT COUNT(*) as count, RentalStatus
                 FROM ben002.Equipment
-                WHERE Status IN ('In Stock', 'Sold', 'Rented')
-                GROUP BY Status
+                WHERE RentalStatus IS NOT NULL
+                GROUP BY RentalStatus
             """,
             "recent_invoices": """
                 SELECT TOP 5
                     InvoiceNo,
                     InvoiceDate,
-                    CustomerName,
-                    TotalAmount
+                    Customer,
+                    BillToName,
+                    GrandTotal
                 FROM ben002.InvoiceReg
                 ORDER BY InvoiceDate DESC
             """,
-            "top_customers_ytd": """
+            "top_customers_by_limit": """
                 SELECT TOP 5
-                    CustomerNo,
+                    Customer as CustomerNo,
                     Name,
-                    YTDSales
+                    CreditLimit,
+                    CreditBalance
                 FROM ben002.Customer
-                WHERE YTDSales > 0
-                ORDER BY YTDSales DESC
+                WHERE CreditLimit > 0
+                ORDER BY CreditLimit DESC
             """
         }
         
@@ -571,6 +573,69 @@ def inspect_columns():
                     
             except Exception as e:
                 result[view_name] = {"error": str(e)}
+        
+        result["status"] = "SUCCESS"
+        
+    except Exception as e:
+        result["status"] = "FAILED"
+        result["error"] = str(e)
+    
+    return jsonify(result), 200
+
+
+@simple_test_bp.route("/api/test/find-sales-columns", methods=["GET"])
+def find_sales_columns():
+    """Find sales-related columns in Customer view"""
+    
+    result = {
+        "search": "Sales columns in Customer view",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        from ..services.azure_sql_service import AzureSQLService
+        
+        db = AzureSQLService()
+        
+        # Get column info
+        query = """
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'Customer'
+            AND TABLE_SCHEMA = 'ben002'
+            AND (
+                COLUMN_NAME LIKE '%YTD%'
+                OR COLUMN_NAME LIKE '%Sales%'
+                OR COLUMN_NAME LIKE '%Revenue%'
+                OR COLUMN_NAME LIKE '%Total%'
+                OR COLUMN_NAME LIKE '%Balance%'
+                OR COLUMN_NAME LIKE '%LastSale%'
+            )
+            ORDER BY COLUMN_NAME
+        """
+        
+        columns = db.execute_query(query)
+        result["sales_columns"] = [col["COLUMN_NAME"] for col in columns]
+        
+        # Test a sample query with likely columns
+        sample_query = """
+            SELECT TOP 1
+                Customer,
+                Name,
+                CreditLimit,
+                CreditBalance,
+                LastSale,
+                LastSaleDate,
+                LastPaymentDate
+            FROM ben002.Customer
+            WHERE Customer IS NOT NULL
+        """
+        
+        try:
+            sample = db.execute_query(sample_query)
+            result["sample_data"] = sample[0] if sample else {}
+        except Exception as e:
+            result["sample_error"] = str(e)
         
         result["status"] = "SUCCESS"
         
