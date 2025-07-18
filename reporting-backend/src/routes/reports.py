@@ -1453,6 +1453,43 @@ def get_dashboard_summary():
         except Exception as e:
             logger.error(f"Monthly quotes calculation failed: {str(e)}")
         
+        # Get Top 10 customers by YTD sales
+        top_customers = []
+        try:
+            # Get fiscal year start (November 1st of previous year)
+            today = datetime.now()
+            if today.month >= 11:
+                fiscal_year_start = datetime(today.year, 11, 1)
+            else:
+                fiscal_year_start = datetime(today.year - 1, 11, 1)
+            
+            top_customers_query = f"""
+            SELECT TOP 10
+                BillToName as customer_name,
+                COUNT(DISTINCT InvoiceNo) as invoice_count,
+                SUM(GrandTotal) as total_sales
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{fiscal_year_start.strftime('%Y-%m-%d')}'
+            AND BillToName IS NOT NULL
+            AND BillToName != ''
+            GROUP BY BillToName
+            ORDER BY SUM(GrandTotal) DESC
+            """
+            
+            customers_result = db.execute_query(top_customers_query)
+            
+            if customers_result:
+                for i, customer in enumerate(customers_result):
+                    top_customers.append({
+                        'rank': i + 1,
+                        'name': customer['customer_name'],
+                        'sales': float(customer['total_sales']),
+                        'invoice_count': int(customer['invoice_count'])
+                    })
+                    
+        except Exception as e:
+            logger.error(f"Top customers calculation failed: {str(e)}")
+        
         return jsonify({
             'total_sales': total_sales,
             'inventory_count': inventory_count,
@@ -1464,6 +1501,7 @@ def get_dashboard_summary():
             'monthly_sales': monthly_sales,
             'monthly_gross_profit': monthly_gross_profit,
             'monthly_quotes': monthly_quotes,
+            'top_customers': top_customers,
             'period': current_date.strftime('%B %Y'),
             'last_updated': datetime.now().isoformat()
         })
@@ -1480,6 +1518,7 @@ def get_dashboard_summary():
             'monthly_sales': [],
             'monthly_gross_profit': [],
             'monthly_quotes': [],
+            'top_customers': [],
             'period': 'This Month',
             'error': str(e),
             'last_updated': datetime.now().isoformat()

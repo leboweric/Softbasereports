@@ -280,6 +280,45 @@ const Dashboard = ({ user }) => {
         </CardContent>
       </Card>
 
+      {/* Top 10 Customers */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top 10 Customers</CardTitle>
+            <CardDescription>
+              By fiscal year-to-date sales
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {dashboardData?.top_customers?.map((customer) => (
+                <div key={customer.rank} className="flex items-center">
+                  <div className="w-8 text-sm font-medium text-muted-foreground">
+                    {customer.rank}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {customer.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {customer.invoice_count} invoices
+                    </p>
+                  </div>
+                  <div className="text-sm font-medium text-gray-900">
+                    {formatCurrency(customer.sales)}
+                  </div>
+                </div>
+              )) || (
+                <p className="text-sm text-gray-500">No customer data available</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* Placeholder for future card */}
+        <div />
+      </div>
+
       {/* Quick Actions */}
       <Card>
         <CardHeader>
