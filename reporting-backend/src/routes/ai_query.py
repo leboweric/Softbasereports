@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 import os
 import logging
 import traceback
 from src.services.openai_service import OpenAIQueryService
 from src.services.softbase_service import SoftbaseService
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 ai_query_bp = Blueprint('ai_query', __name__)
@@ -16,14 +17,26 @@ def natural_language_query():
     Process natural language queries and return structured results
     """
     try:
-        current_user = get_jwt_identity()
+        # Get user identity and claims
+        current_user_id = get_jwt_identity()  # This is the user ID as a string
+        jwt_claims = get_jwt()  # This contains additional claims
+        
         data = request.get_json()
         
         if not data or 'query' not in data:
             return jsonify({'error': 'Query text is required'}), 400
         
         query_text = data['query']
-        organization_id = current_user.get('organization_id')
+        
+        # Get organization_id from JWT claims or from database
+        organization_id = jwt_claims.get('organization_id')
+        if not organization_id:
+            # Fallback: get from database
+            user = User.query.get(current_user_id)
+            if user:
+                organization_id = user.organization_id
+            else:
+                return jsonify({'error': 'User not found'}), 404
         
         # Initialize OpenAI service
         try:
@@ -177,14 +190,26 @@ def validate_query():
     Validate and preview what a natural language query would return
     """
     try:
-        current_user = get_jwt_identity()
+        # Get user identity and claims
+        current_user_id = get_jwt_identity()  # This is the user ID as a string
+        jwt_claims = get_jwt()  # This contains additional claims
+        
         data = request.get_json()
         
         if not data or 'query' not in data:
             return jsonify({'error': 'Query text is required'}), 400
         
         query_text = data['query']
-        organization_id = current_user.get('organization_id')
+        
+        # Get organization_id from JWT claims or from database
+        organization_id = jwt_claims.get('organization_id')
+        if not organization_id:
+            # Fallback: get from database
+            user = User.query.get(current_user_id)
+            if user:
+                organization_id = user.organization_id
+            else:
+                return jsonify({'error': 'User not found'}), 404
         
         # Initialize OpenAI service
         try:
