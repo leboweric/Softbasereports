@@ -371,11 +371,14 @@ def get_dashboard_summary():
             logger.error(f"Inventory query failed: {str(e)}")
             inventory_count = 0
         
-        # Get active customers - count non-inactive customers
-        customers_query = """
-        SELECT COUNT(DISTINCT Id) as active_customers
-        FROM ben002.Customer
-        WHERE Inactive = 0
+        # Get active customers - unique customers (by name) with invoices in the past 30 days
+        thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        customers_query = f"""
+        SELECT COUNT(DISTINCT BillToName) as active_customers
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '{thirty_days_ago}'
+        AND BillToName IS NOT NULL
+        AND BillToName != ''
         """
         
         try:

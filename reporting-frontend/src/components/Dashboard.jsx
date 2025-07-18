@@ -146,7 +146,7 @@ const Dashboard = ({ user }) => {
               {dashboardData?.active_customers || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              +2 new this month
+              Last 30 days
             </p>
           </CardContent>
         </Card>
