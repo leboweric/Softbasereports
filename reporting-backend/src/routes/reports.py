@@ -357,12 +357,11 @@ def get_dashboard_summary():
             logger.error(f"Sales query failed: {str(e)}")
             total_sales = 0
         
-        # Get inventory count - count all equipment (since most RentalStatus are null)
-        # We'll count equipment that isn't attached to something else
+        # Get inventory count - only count equipment that is "Ready To Rent"
         inventory_query = """
         SELECT COUNT(*) as inventory_count
         FROM ben002.Equipment
-        WHERE AttachedTo IS NULL OR AttachedTo = ''
+        WHERE RentalStatus = 'Ready To Rent'
         """
         
         try:
@@ -370,13 +369,7 @@ def get_dashboard_summary():
             inventory_count = int(inventory_result[0]['inventory_count']) if inventory_result else 0
         except Exception as e:
             logger.error(f"Inventory query failed: {str(e)}")
-            # Try simpler query
-            try:
-                simple_query = "SELECT COUNT(*) as inventory_count FROM ben002.Equipment"
-                simple_result = db.execute_query(simple_query)
-                inventory_count = int(simple_result[0]['inventory_count']) if simple_result else 0
-            except:
-                inventory_count = 0
+            inventory_count = 0
         
         # Get active customers - count non-inactive customers
         customers_query = """
