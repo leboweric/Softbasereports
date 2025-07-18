@@ -2037,10 +2037,6 @@ def get_dashboard_summary():
                     FROM ben002.WO w
                     WHERE w.CompletedDate IS NULL
                     AND w.ClosedDate IS NULL
-                    AND (
-                        UPPER(COALESCE(w.{successful_type_column}, '')) NOT LIKE '%QUOTE%' 
-                        AND UPPER(COALESCE(w.{successful_type_column}, '')) NOT LIKE '%ESTIMATE%'
-                    )
                 ) as open_wo
                 GROUP BY {successful_type_column}
                 ORDER BY total_value DESC
@@ -2057,6 +2053,37 @@ def get_dashboard_summary():
                         })
                         open_wo_total += float(row['total_value'])
                         open_wo_count += int(row['count'])
+            else:
+                # If no type column found or no results, get total of all open work orders
+                try:
+                    total_query = """
+                    SELECT 
+                        COUNT(*) as count,
+                        SUM(labor_total + parts_total + misc_total) as total_value
+                    FROM (
+                        SELECT 
+                            w.WONo,
+                            COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                            COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                            COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                        FROM ben002.WO w
+                        WHERE w.CompletedDate IS NULL
+                        AND w.ClosedDate IS NULL
+                    ) as open_wo
+                    """
+                    
+                    total_result = db.execute_query(total_query)
+                    if total_result and total_result[0]['total_value'] > 0:
+                        # Show all as "Work Orders" if we can't break down by type
+                        work_order_types = [{
+                            'type': 'Work Orders',
+                            'count': int(total_result[0]['count']),
+                            'value': float(total_result[0]['total_value'])
+                        }]
+                        open_wo_total = float(total_result[0]['total_value'])
+                        open_wo_count = int(total_result[0]['count'])
+                except:
+                    pass
                         
         except Exception as e:
             logger.error(f"Work order types calculation failed: {str(e)}")

@@ -242,7 +242,7 @@ const Dashboard = ({ user }) => {
           <CardHeader>
             <CardTitle>Open Work Orders by Type</CardTitle>
             <CardDescription>
-              {formatCurrency(dashboardData?.open_work_orders_value || 0)} across {dashboardData?.open_work_orders_count || 0} orders
+              {formatCurrency(dashboardData?.open_work_orders_value || 0)} in open/incomplete orders ({dashboardData?.open_work_orders_count || 0} total)
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
