@@ -134,11 +134,11 @@ def public_schema_analysis():
             
             cursor = conn.cursor()
             
-            # Get tables from ben002 schema
+            # Get views from ben002 schema (Softbase uses views for data access)
             cursor.execute("""
                 SELECT TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_TYPE = 'BASE TABLE'
+                WHERE TABLE_TYPE = 'VIEW'
                 AND TABLE_SCHEMA = 'ben002'
                 ORDER BY TABLE_NAME
             """)
@@ -251,29 +251,29 @@ def db_diagnostics():
         
         # 3. Try different ways to get tables
         queries = {
-            "information_schema": """
+            "views_info_schema": """
                 SELECT TABLE_SCHEMA, TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_TYPE = 'BASE TABLE'
+                WHERE TABLE_TYPE = 'VIEW'
                 AND TABLE_SCHEMA = 'ben002'
             """,
-            "sys_tables": """
+            "views_sys": """
                 SELECT 
                     s.name AS schema_name,
-                    t.name AS table_name
-                FROM sys.tables t
-                INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-                WHERE t.type = 'U'
-                AND s.name = 'ben002'
+                    v.name AS view_name
+                FROM sys.views v
+                INNER JOIN sys.schemas s ON v.schema_id = s.schema_id
+                WHERE s.name = 'ben002'
             """,
-            "all_tables": """
+            "all_objects": """
                 SELECT 
                     s.name AS schema_name,
-                    t.name AS table_name
-                FROM sys.tables t
-                INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
-                WHERE t.type = 'U'
-                AND s.name IN ('ben002', 'dbo')
+                    o.name AS object_name,
+                    o.type_desc
+                FROM sys.objects o
+                INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+                WHERE s.name = 'ben002'
+                AND o.type IN ('U', 'V')
             """
         }
         

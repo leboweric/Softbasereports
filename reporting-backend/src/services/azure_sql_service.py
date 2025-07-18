@@ -150,11 +150,12 @@ class AzureSQLService:
             raise
     
     def get_tables(self) -> List[str]:
-        """Get list of all tables in the database"""
+        """Get list of all views in the ben002 schema (Softbase uses views for data access)"""
         query = """
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_TYPE = 'BASE TABLE' 
+        WHERE TABLE_TYPE = 'VIEW' 
+        AND TABLE_SCHEMA = 'ben002'
         ORDER BY TABLE_NAME
         """
         results = self.execute_query(query)
@@ -171,6 +172,7 @@ class AzureSQLService:
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = %s
+            AND TABLE_SCHEMA = 'ben002'
             ORDER BY ORDINAL_POSITION
             """
         else:  # pyodbc
@@ -182,6 +184,7 @@ class AzureSQLService:
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = ?
+            AND TABLE_SCHEMA = 'ben002'
             ORDER BY ORDINAL_POSITION
             """
         return self.execute_query(query, {'table_name': table_name})
