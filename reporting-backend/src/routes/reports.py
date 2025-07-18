@@ -928,6 +928,102 @@ def analyze_woquote_data():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/analyze-department-margins', methods=['GET'])
+def analyze_department_margins():
+    """Analyze department sales and margins - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Check what department/category fields exist in InvoiceReg
+        dept_cols = db.execute_query("""
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'InvoiceReg' 
+            AND TABLE_SCHEMA = 'ben002'
+            AND (
+                COLUMN_NAME LIKE '%Dept%' OR 
+                COLUMN_NAME LIKE '%Department%' OR 
+                COLUMN_NAME LIKE '%Category%' OR
+                COLUMN_NAME LIKE '%Type%' OR
+                COLUMN_NAME LIKE '%Class%'
+            )
+            ORDER BY ORDINAL_POSITION
+        """)
+        results['department_columns'] = dept_cols
+        
+        # Get a sample invoice to see department data
+        sample = db.execute_query("""
+            SELECT TOP 5 *
+            FROM ben002.InvoiceReg
+            WHERE GrandTotal > 0
+            ORDER BY InvoiceDate DESC
+        """)
+        if sample:
+            # Extract department-related fields
+            results['sample_dept_fields'] = []
+            for rec in sample:
+                dept_data = {k: v for k, v in rec.items() 
+                            if any(term in k.lower() for term in ['dept', 'type', 'category', 'labor', 'parts', 'misc', 'equipment', 'rental'])}
+                results['sample_dept_fields'].append(dept_data)
+        
+        # Test query for parts margin by month
+        test_query = """
+        SELECT 
+            YEAR(InvoiceDate) as year,
+            MONTH(InvoiceDate) as month,
+            SUM(PartsRevenue) as parts_revenue,
+            SUM(PartsCost) as parts_cost,
+            CASE 
+                WHEN SUM(PartsRevenue) > 0 
+                THEN ((SUM(PartsRevenue) - SUM(PartsCost)) / SUM(PartsRevenue)) * 100
+                ELSE 0 
+            END as parts_margin_pct
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2025-01-01'
+        AND PartsRevenue > 0
+        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        ORDER BY year, month
+        """
+        
+        try:
+            results['parts_margin_test'] = db.execute_query(test_query)
+        except Exception as e:
+            results['parts_margin_error'] = str(e)
+            
+            # Try alternative column names
+            alt_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                COUNT(*) as invoice_count,
+                SUM(TotalExclusive) as total_revenue,
+                SUM(PartsCost) as parts_cost,
+                AVG(CASE WHEN TotalExclusive > 0 THEN ((TotalExclusive - PartsCost) / TotalExclusive) * 100 ELSE 0 END) as avg_margin_pct
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2025-01-01'
+            AND PartsCost > 0
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY year, month
+            """
+            try:
+                results['alternative_margin_calc'] = db.execute_query(alt_query)
+            except Exception as e2:
+                results['alt_margin_error'] = str(e2)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
