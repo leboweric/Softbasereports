@@ -344,6 +344,88 @@ def check_work_order_data():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/analyze-wo-table', methods=['GET'])
+def analyze_wo_table():
+    """Analyze WO table structure for uninvoiced work orders - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get WO table columns
+        wo_columns = db.execute_query("""
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'WO' 
+            AND TABLE_SCHEMA = 'ben002'
+            ORDER BY ORDINAL_POSITION
+        """)
+        results['wo_columns'] = wo_columns
+        
+        # Get sample WO records
+        try:
+            wo_sample = db.execute_query("""
+                SELECT TOP 3 *
+                FROM ben002.WO
+                ORDER BY WONumber DESC
+            """)
+            results['wo_sample'] = wo_sample
+        except Exception as e:
+            results['wo_sample_error'] = str(e)
+        
+        # Count total work orders
+        try:
+            wo_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.WO")
+            results['wo_total_count'] = wo_count[0]['count'] if wo_count else 0
+        except Exception as e:
+            results['wo_count_error'] = str(e)
+        
+        # Find invoice-related columns
+        invoice_cols = [col for col in wo_columns if 'invoice' in col['COLUMN_NAME'].lower() or 'inv' in col['COLUMN_NAME'].lower()]
+        results['invoice_columns'] = invoice_cols
+        
+        # Find status/complete columns
+        status_cols = [col for col in wo_columns if any(term in col['COLUMN_NAME'].lower() for term in ['status', 'complete', 'closed', 'finish'])]
+        results['status_columns'] = status_cols
+        
+        # Find date columns
+        date_cols = [col for col in wo_columns if 'date' in col['COLUMN_NAME'].lower()]
+        results['date_columns'] = date_cols
+        
+        # Try to get labor and parts totals
+        try:
+            # Check if we can join with WOLabor and WOParts
+            labor_parts_query = """
+            SELECT TOP 5
+                w.WONumber,
+                COALESCE(
+                    (SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONumber = w.WONumber), 
+                    0
+                ) as TotalLabor,
+                COALESCE(
+                    (SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONumber = w.WONumber), 
+                    0
+                ) as TotalParts
+            FROM ben002.WO w
+            ORDER BY w.WONumber DESC
+            """
+            labor_parts_sample = db.execute_query(labor_parts_query)
+            results['wo_with_costs'] = labor_parts_sample
+        except Exception as e:
+            results['labor_parts_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
