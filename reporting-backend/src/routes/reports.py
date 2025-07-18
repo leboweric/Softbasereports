@@ -388,13 +388,65 @@ def get_dashboard_summary():
             # If that fails, just count all customers
             active_customers = 0
         
+        # Get monthly sales for the last 12 months
+        monthly_sales = []
+        try:
+            # Get sales grouped by month for the last 12 months
+            twelve_months_ago = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+            
+            monthly_query = f"""
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal) as amount
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{twelve_months_ago}'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            results = db.execute_query(monthly_query)
+            
+            # Convert to the format expected by the chart
+            if results:
+                for row in results:
+                    # Create month name
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_sales.append({
+                        'month': month_date.strftime("%b"),
+                        'amount': float(row['amount'])
+                    })
+            
+            # If we have less than 12 months of data, pad with zeros for missing months
+            if len(monthly_sales) < 12:
+                # Fill in any missing months with zero sales
+                today = datetime.now()
+                all_months = []
+                for i in range(11, -1, -1):
+                    month_date = today - timedelta(days=i*30)
+                    all_months.append(month_date.strftime("%b"))
+                
+                # Create a dict of existing data
+                existing_data = {item['month']: item['amount'] for item in monthly_sales}
+                
+                # Rebuild with all months
+                monthly_sales = []
+                for month in all_months:
+                    monthly_sales.append({
+                        'month': month,
+                        'amount': existing_data.get(month, 0)
+                    })
+                    
+        except Exception as e:
+            logger.error(f"Monthly sales calculation failed: {str(e)}")
+        
         return jsonify({
             'total_sales': total_sales,
             'inventory_count': inventory_count,
             'active_customers': active_customers,
             'parts_orders': 0,
             'service_tickets': 0,
-            'monthly_sales': [],
+            'monthly_sales': monthly_sales,
             'period': current_date.strftime('%B %Y'),
             'last_updated': datetime.now().isoformat()
         })
