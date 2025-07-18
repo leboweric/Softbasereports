@@ -199,6 +199,77 @@ def check_service_claims():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/find-work-orders', methods=['GET'])
+def find_work_orders():
+    """Find tables that might contain work order data - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get all tables that might contain work order data
+        tables_query = """
+        SELECT TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = 'ben002'
+        AND TABLE_TYPE = 'VIEW'
+        AND (
+            TABLE_NAME LIKE '%Work%' OR 
+            TABLE_NAME LIKE '%Service%' OR 
+            TABLE_NAME LIKE '%Job%' OR
+            TABLE_NAME LIKE '%Repair%' OR
+            TABLE_NAME LIKE '%Order%'
+        )
+        ORDER BY TABLE_NAME
+        """
+        
+        work_tables = db.execute_query(tables_query)
+        results['potential_tables'] = [t['TABLE_NAME'] for t in work_tables]
+        
+        # Check each table for relevant data
+        for table in work_tables[:10]:  # Limit to first 10 to avoid timeout
+            table_name = table['TABLE_NAME']
+            try:
+                # Get count
+                count_query = f"SELECT COUNT(*) as count FROM ben002.{table_name}"
+                count_result = db.execute_query(count_query)
+                
+                # Get columns
+                cols_query = f"""
+                SELECT COLUMN_NAME, DATA_TYPE 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = '{table_name}' 
+                AND TABLE_SCHEMA = 'ben002'
+                AND (
+                    COLUMN_NAME LIKE '%Invoice%' OR 
+                    COLUMN_NAME LIKE '%Total%' OR 
+                    COLUMN_NAME LIKE '%Labor%' OR
+                    COLUMN_NAME LIKE '%Parts%' OR
+                    COLUMN_NAME LIKE '%Date%'
+                )
+                """
+                cols = db.execute_query(cols_query)
+                
+                if count_result[0]['count'] > 0:
+                    results[table_name] = {
+                        'count': count_result[0]['count'],
+                        'relevant_columns': cols
+                    }
+            except Exception as e:
+                results[table_name + '_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
@@ -528,24 +599,44 @@ def get_dashboard_summary():
         
         # Get uninvoiced work orders value
         uninvoiced_value = 0
+        uninvoiced_count = 0
         try:
             # Query for completed service claims that haven't been invoiced
-            # Assuming InvoiceNo or similar field indicates if it's been invoiced
+            # Using correct column names from ServiceClaim table
             uninvoiced_query = """
             SELECT 
                 COUNT(*) as count,
-                COALESCE(SUM(TotalLabor + TotalParts), 0) as total_value
+                COALESCE(SUM(DealerTotal), 0) as total_value
             FROM ben002.ServiceClaim
-            WHERE CloseDate IS NOT NULL
-            AND (InvoiceNo IS NULL OR InvoiceNo = 0 OR InvoiceNo = '')
+            WHERE ProcessedDate IS NOT NULL
+            AND (CustomerInvoiceNo IS NULL OR CustomerInvoiceNo = '' OR CustomerInvoiceNo = '0')
             """
             
             uninvoiced_result = db.execute_query(uninvoiced_query)
             if uninvoiced_result:
                 uninvoiced_value = float(uninvoiced_result[0]['total_value'])
                 uninvoiced_count = int(uninvoiced_result[0]['count'])
-            else:
-                uninvoiced_count = 0
+                
+            # If ServiceClaim is empty, check if there's a WorkOrder table
+            if uninvoiced_count == 0:
+                # Try alternative table for work orders
+                try:
+                    alt_query = """
+                    SELECT 
+                        COUNT(*) as count,
+                        COALESCE(SUM(Labor + Parts), 0) as total_value
+                    FROM ben002.WorkOrder
+                    WHERE CompletedDate IS NOT NULL
+                    AND (InvoiceNo IS NULL OR InvoiceNo = '' OR InvoiceNo = '0')
+                    """
+                    alt_result = db.execute_query(alt_query)
+                    if alt_result:
+                        uninvoiced_value = float(alt_result[0]['total_value'])
+                        uninvoiced_count = int(alt_result[0]['count'])
+                except:
+                    # If WorkOrder table doesn't exist or has different columns, ignore
+                    pass
+                    
         except Exception as e:
             logger.error(f"Uninvoiced work orders query failed: {str(e)}")
             uninvoiced_count = 0
