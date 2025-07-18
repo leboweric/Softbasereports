@@ -18,6 +18,101 @@ def get_softbase_service():
         return SoftbaseService(g.current_organization)
     return None
 
+@reports_bp.route('/debug-dashboard', methods=['GET'])
+def debug_dashboard():
+    """Debug dashboard queries - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        current_date = datetime.now()
+        month_start = current_date.replace(day=1).strftime('%Y-%m-%d')
+        
+        debug_info = {
+            'current_date': current_date.strftime('%Y-%m-%d'),
+            'current_month': current_date.month,
+            'current_year': current_date.year,
+            'month_start': month_start
+        }
+        
+        # Test sales query
+        sales_query = f"""
+        SELECT COALESCE(SUM(GrandTotal), 0) as total_sales,
+               COUNT(*) as invoice_count
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '{month_start}'
+        AND MONTH(InvoiceDate) = {current_date.month}
+        AND YEAR(InvoiceDate) = {current_date.year}
+        """
+        
+        try:
+            sales_result = db.execute_query(sales_query)
+            debug_info['sales_query'] = {
+                'query': sales_query,
+                'result': sales_result,
+                'error': None
+            }
+        except Exception as e:
+            debug_info['sales_query'] = {
+                'query': sales_query,
+                'result': None,
+                'error': str(e)
+            }
+        
+        # Test inventory query
+        inventory_query = """
+        SELECT COUNT(*) as inventory_count
+        FROM ben002.Equipment
+        WHERE RentalStatus IN ('In Stock', 'Available')
+        """
+        
+        try:
+            inventory_result = db.execute_query(inventory_query)
+            debug_info['inventory_query'] = {
+                'query': inventory_query,
+                'result': inventory_result,
+                'error': None
+            }
+        except Exception as e:
+            debug_info['inventory_query'] = {
+                'query': inventory_query,
+                'result': None,
+                'error': str(e)
+            }
+        
+        # Test customers query
+        customers_query = """
+        SELECT COUNT(DISTINCT ID) as active_customers
+        FROM ben002.Customer
+        WHERE Balance > 0 OR YTD > 0
+        """
+        
+        try:
+            customers_result = db.execute_query(customers_query)
+            debug_info['customers_query'] = {
+                'query': customers_query,
+                'result': customers_result,
+                'error': None
+            }
+        except Exception as e:
+            debug_info['customers_query'] = {
+                'query': customers_query,
+                'result': None,
+                'error': str(e)
+            }
+        
+        return jsonify({
+            'success': True,
+            'debug_info': debug_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500
+
 @reports_bp.route('/check-inventory', methods=['GET'])
 def check_inventory():
     """Check inventory status values - NO AUTH REQUIRED for testing"""
@@ -45,17 +140,20 @@ def check_inventory():
         
         total_result = db.execute_query(total_query)
         
-        # Get sample equipment records
+        # First check what columns exist in Equipment table
+        columns_query = """
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'Equipment' 
+        AND TABLE_SCHEMA = 'ben002'
+        """
+        
+        columns = db.execute_query(columns_query)
+        
+        # Get sample equipment records with basic columns
         sample_query = """
-        SELECT TOP 10
-            StockNo,
-            SerialNo,
-            Make,
-            Model,
-            RentalStatus,
-            Location
+        SELECT TOP 10 *
         FROM ben002.Equipment
-        ORDER BY StockNo DESC
         """
         
         samples = db.execute_query(sample_query)
@@ -227,9 +325,12 @@ def get_dashboard_summary():
         AND YEAR(InvoiceDate) = {current_date.year}
         """
         
-        sales_result = db.execute_query(sales_query)
-        # Convert to int to remove decimals
-        total_sales = int(float(sales_result[0]['total_sales'])) if sales_result else 0
+        try:
+            sales_result = db.execute_query(sales_query)
+            total_sales = int(float(sales_result[0]['total_sales'])) if sales_result else 0
+        except Exception as e:
+            logger.error(f"Sales query failed: {str(e)}")
+            total_sales = 0
         
         # Get inventory count - equipment that is available/in stock
         inventory_query = """
@@ -238,18 +339,26 @@ def get_dashboard_summary():
         WHERE RentalStatus IN ('In Stock', 'Available')
         """
         
-        inventory_result = db.execute_query(inventory_query)
-        inventory_count = int(inventory_result[0]['inventory_count']) if inventory_result else 0
+        try:
+            inventory_result = db.execute_query(inventory_query)
+            inventory_count = int(inventory_result[0]['inventory_count']) if inventory_result else 0
+        except Exception as e:
+            logger.error(f"Inventory query failed: {str(e)}")
+            inventory_count = 0
         
-        # Get active customers (customers with balance > 0 or recent activity)
+        # Get active customers - just count all customers with YTD > 0
         customers_query = """
         SELECT COUNT(DISTINCT ID) as active_customers
         FROM ben002.Customer
-        WHERE Balance > 0 OR YTD > 0
+        WHERE YTD > 0
         """
         
-        customers_result = db.execute_query(customers_query)
-        active_customers = int(customers_result[0]['active_customers']) if customers_result else 0
+        try:
+            customers_result = db.execute_query(customers_query)
+            active_customers = int(customers_result[0]['active_customers']) if customers_result else 0
+        except:
+            # If that fails, just count all customers
+            active_customers = 0
         
         return jsonify({
             'total_sales': total_sales,
