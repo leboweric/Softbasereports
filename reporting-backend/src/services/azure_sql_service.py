@@ -108,13 +108,35 @@ class AzureSQLService:
             
             if self.driver == 'pymssql':
                 # pymssql with as_dict=True returns dicts directly
-                results = cursor.fetchall()
+                raw_results = cursor.fetchall()
+                # Convert any bytes to strings
+                results = []
+                for row in raw_results:
+                    clean_row = {}
+                    for key, value in row.items():
+                        if isinstance(value, bytes):
+                            try:
+                                clean_row[key] = value.decode('utf-8')
+                            except:
+                                clean_row[key] = str(value)
+                        else:
+                            clean_row[key] = value
+                    results.append(clean_row)
             else:  # pyodbc
                 # Get column names and convert to dicts
                 columns = [column[0] for column in cursor.description] if cursor.description else []
                 results = []
                 for row in cursor.fetchall():
-                    results.append(dict(zip(columns, row)))
+                    clean_row = {}
+                    for i, value in enumerate(row):
+                        if isinstance(value, bytes):
+                            try:
+                                clean_row[columns[i]] = value.decode('utf-8')
+                            except:
+                                clean_row[columns[i]] = str(value)
+                        else:
+                            clean_row[columns[i]] = value
+                    results.append(clean_row)
             
             return results
             
