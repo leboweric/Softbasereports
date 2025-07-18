@@ -681,6 +681,77 @@ def check_wo_columns():
             'error': str(e)
         }), 500
 
+@reports_bp.route('/check-invoice-cost-columns', methods=['GET'])
+def check_invoice_cost_columns():
+    """Check InvoiceReg for cost columns - NO AUTH REQUIRED for testing"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Get columns that might contain cost information
+        cost_cols = db.execute_query("""
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = 'InvoiceReg' 
+            AND TABLE_SCHEMA = 'ben002'
+            AND (
+                COLUMN_NAME LIKE '%Cost%' OR 
+                COLUMN_NAME LIKE '%COGS%' OR 
+                COLUMN_NAME LIKE '%COG%' OR
+                COLUMN_NAME LIKE '%Margin%' OR
+                COLUMN_NAME LIKE '%Profit%'
+            )
+            ORDER BY ORDINAL_POSITION
+        """)
+        results['cost_related_columns'] = cost_cols
+        
+        # Get a sample invoice to see what columns have data
+        try:
+            sample = db.execute_query("""
+                SELECT TOP 1 * 
+                FROM ben002.InvoiceReg 
+                WHERE GrandTotal > 0
+                ORDER BY InvoiceDate DESC
+            """)
+            if sample:
+                # Extract cost-related fields
+                results['sample_cost_fields'] = {
+                    k: v for k, v in sample[0].items() 
+                    if any(term in k.lower() for term in ['cost', 'cog', 'margin', 'profit', 'total'])
+                }
+        except Exception as e:
+            results['sample_error'] = str(e)
+        
+        # Check if we need to join with invoice line items
+        try:
+            # Check for invoice detail/line item tables
+            detail_tables = db.execute_query("""
+                SELECT TABLE_NAME
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = 'ben002'
+                AND (
+                    TABLE_NAME LIKE '%InvoiceDet%' OR 
+                    TABLE_NAME LIKE '%InvoiceLine%' OR
+                    TABLE_NAME LIKE '%InvoiceItem%'
+                )
+            """)
+            results['invoice_detail_tables'] = [t['TABLE_NAME'] for t in detail_tables]
+        except Exception as e:
+            results['detail_tables_error'] = str(e)
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @reports_bp.route('/check-tables', methods=['GET'])
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
@@ -1008,6 +1079,81 @@ def get_dashboard_summary():
         except Exception as e:
             logger.error(f"Monthly sales calculation failed: {str(e)}")
         
+        # Get monthly gross profit (Sales - Cost of Sales) for the last 12 months
+        monthly_gross_profit = []
+        try:
+            # Query to get sales and cost of sales by month
+            gross_profit_query = f"""
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal) as sales,
+                SUM(TotalCost) as cost_of_sales
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{twelve_months_ago}'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            gp_results = db.execute_query(gross_profit_query)
+            
+            if gp_results:
+                for row in gp_results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    gross_profit = float(row['sales'] or 0) - float(row['cost_of_sales'] or 0)
+                    monthly_gross_profit.append({
+                        'month': month_date.strftime("%b"),
+                        'amount': gross_profit
+                    })
+            
+            # Pad with zeros for missing months
+            if len(monthly_gross_profit) < 12:
+                today = datetime.now()
+                all_months = []
+                for i in range(11, -1, -1):
+                    month_date = today - timedelta(days=i*30)
+                    all_months.append(month_date.strftime("%b"))
+                
+                existing_gp_data = {item['month']: item['amount'] for item in monthly_gross_profit}
+                
+                monthly_gross_profit = []
+                for month in all_months:
+                    monthly_gross_profit.append({
+                        'month': month,
+                        'amount': existing_gp_data.get(month, 0)
+                    })
+                    
+        except Exception as e:
+            logger.error(f"Monthly gross profit calculation failed: {str(e)}")
+            # If TotalCost doesn't exist, try alternative calculation
+            try:
+                # Alternative: Calculate based on invoice details or line items
+                alt_gp_query = f"""
+                SELECT 
+                    YEAR(i.InvoiceDate) as year,
+                    MONTH(i.InvoiceDate) as month,
+                    SUM(i.GrandTotal) as sales,
+                    SUM(i.TotalExclusive * 0.7) as estimated_cost
+                FROM ben002.InvoiceReg i
+                WHERE i.InvoiceDate >= '{twelve_months_ago}'
+                GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+                ORDER BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+                """
+                
+                alt_results = db.execute_query(alt_gp_query)
+                
+                if alt_results:
+                    monthly_gross_profit = []
+                    for row in alt_results:
+                        month_date = datetime(row['year'], row['month'], 1)
+                        gross_profit = float(row['sales'] or 0) - float(row['estimated_cost'] or 0)
+                        monthly_gross_profit.append({
+                            'month': month_date.strftime("%b"),
+                            'amount': gross_profit
+                        })
+            except:
+                logger.error("Alternative gross profit calculation also failed")
+        
         # Get uninvoiced work orders value
         uninvoiced_value = 0
         uninvoiced_count = 0
@@ -1083,6 +1229,7 @@ def get_dashboard_summary():
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': monthly_sales,
+            'monthly_gross_profit': monthly_gross_profit,
             'period': current_date.strftime('%B %Y'),
             'last_updated': datetime.now().isoformat()
         })
@@ -1097,6 +1244,7 @@ def get_dashboard_summary():
             'parts_orders': 0,
             'service_tickets': 0,
             'monthly_sales': [],
+            'monthly_gross_profit': [],
             'period': 'This Month',
             'error': str(e),
             'last_updated': datetime.now().isoformat()

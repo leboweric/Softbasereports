@@ -240,38 +240,21 @@ const Dashboard = ({ user }) => {
 
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+            <CardTitle>Monthly Gross Profit</CardTitle>
             <CardDescription>
-              Latest transactions and updates
+              Sales minus Cost of Sales over the last 12 months
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {dashboardData?.recent_activity?.map((activity, index) => (
-                <div key={index} className="flex items-center space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
-                      <FileText className="h-4 w-4 text-blue-600" />
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {activity.description}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {activity.date}
-                    </p>
-                  </div>
-                  <div className="flex-shrink-0">
-                    <Badge variant="secondary">
-                      {formatCurrency(activity.amount)}
-                    </Badge>
-                  </div>
-                </div>
-              )) || (
-                <p className="text-sm text-gray-500">No recent activity</p>
-              )}
-            </div>
+          <CardContent className="pl-2">
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={dashboardData?.monthly_gross_profit || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Bar dataKey="amount" fill="#10b981" />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
