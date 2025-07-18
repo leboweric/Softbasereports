@@ -208,3 +208,116 @@ def public_schema_analysis():
         result['error_type'] = type(e).__name__
     
     return jsonify(result), 200
+
+@simple_test_bp.route("/api/test/db-diagnostics", methods=["GET"])
+def db_diagnostics():
+    """Comprehensive database diagnostics"""
+    
+    result = {
+        "diagnostics": "Azure SQL Database Check",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        import pymssql
+        
+        conn = pymssql.connect(
+            server="evo1-sql-replica.database.windows.net",
+            user="ben002user",
+            password="g6O8CE5mT83mDYOW",
+            database="evo",
+            timeout=30
+        )
+        
+        cursor = conn.cursor()
+        
+        # 1. Check current database
+        cursor.execute("SELECT DB_NAME()")
+        result["current_database"] = cursor.fetchone()[0]
+        
+        # 2. Check user permissions
+        cursor.execute("""
+            SELECT 
+                p.permission_name,
+                p.state_desc
+            FROM sys.database_permissions p
+            WHERE p.grantee_principal_id = USER_ID()
+            AND p.state_desc = 'GRANT'
+        """)
+        permissions = cursor.fetchall()
+        result["permissions"] = [{"permission": row[0], "state": row[1]} for row in permissions]
+        
+        # 3. Try different ways to get tables
+        queries = {
+            "information_schema": """
+                SELECT TABLE_SCHEMA, TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_TYPE = 'BASE TABLE'
+            """,
+            "sys_tables": """
+                SELECT 
+                    s.name AS schema_name,
+                    t.name AS table_name
+                FROM sys.tables t
+                INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                WHERE t.type = 'U'
+            """,
+            "sysobjects": """
+                SELECT name 
+                FROM sysobjects 
+                WHERE xtype = 'U'
+            """
+        }
+        
+        table_results = {}
+        for query_name, query in queries.items():
+            try:
+                cursor.execute(query)
+                tables = cursor.fetchall()
+                table_results[query_name] = {
+                    "count": len(tables),
+                    "sample": tables[:5] if tables else []
+                }
+            except Exception as e:
+                table_results[query_name] = {"error": str(e)}
+        
+        result["table_queries"] = table_results
+        
+        # 4. Check schemas
+        cursor.execute("""
+            SELECT 
+                schema_name,
+                schema_owner
+            FROM INFORMATION_SCHEMA.SCHEMATA
+            ORDER BY schema_name
+        """)
+        schemas = cursor.fetchall()
+        result["schemas"] = [{"name": row[0], "owner": row[1]} for row in schemas]
+        
+        # 5. Get database metadata
+        cursor.execute("""
+            SELECT 
+                SERVERPROPERTY('ProductVersion') AS version,
+                SERVERPROPERTY('Edition') AS edition,
+                SERVERPROPERTY('EngineEdition') AS engine
+        """)
+        metadata = cursor.fetchone()
+        result["server_info"] = {
+            "version": metadata[0],
+            "edition": metadata[1],
+            "engine": metadata[2]
+        }
+        
+        result["status"] = "SUCCESS"
+        cursor.close()
+        conn.close()
+        
+    except Exception as e:
+        result["status"] = "FAILED"
+        result["error"] = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "args": getattr(e, "args", [])
+        }
+    
+    return jsonify(result), 200
