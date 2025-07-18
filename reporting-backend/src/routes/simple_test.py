@@ -337,3 +337,122 @@ def db_diagnostics():
         }
     
     return jsonify(result), 200
+
+
+@simple_test_bp.route("/api/test/permissions-check", methods=["GET"])
+def permissions_check():
+    """Check user permissions and accessible objects"""
+    
+    result = {
+        "permissions_check": "User Access Analysis",
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    try:
+        import pymssql
+        
+        conn = pymssql.connect(
+            server="evo1-sql-replica.database.windows.net",
+            user="ben002user",
+            password="g6O8CE5mT83mDYOW",
+            database="evo",
+            timeout=30
+        )
+        
+        cursor = conn.cursor()
+        
+        # 1. Current user info
+        cursor.execute("SELECT USER_NAME(), SCHEMA_NAME()")
+        user_info = cursor.fetchone()
+        result["current_user"] = user_info[0] if user_info else None
+        result["default_schema"] = user_info[1] if user_info and len(user_info) > 1 else None
+        
+        # 2. Check what schemas user can access
+        cursor.execute("""
+            SELECT DISTINCT s.name as schema_name
+            FROM sys.schemas s
+            WHERE s.principal_id = USER_ID()
+            OR EXISTS (
+                SELECT 1 FROM sys.database_permissions p
+                WHERE p.grantee_principal_id = USER_ID()
+                AND p.permission_name = 'SELECT'
+                AND p.state_desc = 'GRANT'
+                AND p.major_id = s.schema_id
+            )
+            OR s.name = 'ben002'
+            ORDER BY s.name
+        """)
+        accessible_schemas = [row[0] for row in cursor.fetchall()]
+        result["accessible_schemas"] = accessible_schemas
+        
+        # 3. Try to query tables with explicit schema prefix
+        test_queries = {
+            "direct_query": "SELECT name FROM ben002.sysobjects WHERE xtype = 'U'",
+            "prefixed_tables": """
+                SELECT 
+                    TABLE_SCHEMA,
+                    TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_CATALOG = 'evo'
+                AND TABLE_SCHEMA = 'ben002'
+            """,
+            "all_user_tables": """
+                SELECT 
+                    s.name AS schema_name,
+                    o.name AS table_name
+                FROM sys.objects o
+                JOIN sys.schemas s ON o.schema_id = s.schema_id
+                WHERE o.type = 'U'
+                AND HAS_PERMS_BY_NAME(s.name + '.' + o.name, 'OBJECT', 'SELECT') = 1
+            """,
+            "test_access": """
+                SELECT TOP 5
+                    s.name AS schema_name,
+                    o.name AS object_name,
+                    o.type_desc
+                FROM sys.objects o
+                JOIN sys.schemas s ON o.schema_id = s.schema_id
+                WHERE s.name = 'ben002'
+            """
+        }
+        
+        query_results = {}
+        for query_name, query in test_queries.items():
+            try:
+                cursor.execute(query)
+                rows = cursor.fetchall()
+                query_results[query_name] = {
+                    "success": True,
+                    "count": len(rows),
+                    "sample": rows[:5] if rows else []
+                }
+            except Exception as e:
+                query_results[query_name] = {
+                    "success": False,
+                    "error": str(e)
+                }
+        
+        result["query_tests"] = query_results
+        
+        # 4. Check if we need to use different table names or views
+        cursor.execute("""
+            SELECT TOP 10 name, type_desc 
+            FROM sys.objects 
+            WHERE schema_id = SCHEMA_ID('ben002')
+            ORDER BY name
+        """)
+        ben002_objects = cursor.fetchall()
+        result["ben002_objects"] = [{"name": row[0], "type": row[1]} for row in ben002_objects]
+        
+        result["status"] = "SUCCESS"
+        cursor.close()
+        conn.close()
+        
+    except Exception as e:
+        result["status"] = "FAILED"
+        result["error"] = {
+            "type": type(e).__name__,
+            "message": str(e)
+        }
+    
+    return jsonify(result), 200
