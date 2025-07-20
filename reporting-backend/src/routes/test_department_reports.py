@@ -21,7 +21,7 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get current date info for month calculations
-            today = datetime.now()
+            today = datetime.datetime.now()
             current_month_start = today.replace(day=1)
             last_month_end = current_month_start - datetime.timedelta(days=1)
             last_month_start = last_month_end.replace(day=1)
