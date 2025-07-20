@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 reports_bp = Blueprint('reports', __name__)
 report_generator = ReportGenerator()
 
+# Import and register department routes
+from .department_reports import register_department_routes
+register_department_routes(reports_bp)
+
 def get_softbase_service():
     """Get Softbase service instance for current organization"""
     if hasattr(g, 'current_organization'):
