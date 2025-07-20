@@ -13,6 +13,42 @@ def get_db():
 def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
     
+    @reports_bp.route('/departments/invoice-columns', methods=['GET'])
+    @jwt_required()
+    def get_invoice_columns():
+        """Get InvoiceReg table columns to find the right linkage"""
+        try:
+            db = get_db()
+            
+            # Get all columns from InvoiceReg
+            query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'InvoiceReg'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            result = db.execute_query(query)
+            
+            # Also get a sample row to see actual data
+            sample_query = """
+            SELECT TOP 1 * FROM ben002.InvoiceReg
+            """
+            
+            sample_result = db.execute_query(sample_query)
+            
+            return jsonify({
+                'columns': result,
+                'sample': sample_result[0] if sample_result else {},
+                'column_names': [col['COLUMN_NAME'] for col in result] if result else []
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/service', methods=['GET'])
     @jwt_required()
     def get_service_department_report():
@@ -63,19 +99,18 @@ def register_department_routes(reports_bp):
             
             trend_result = db.execute_query(trend_query)
             
-            # Query for monthly revenue from Service invoices
-            # Join with WO table to filter by Type = 'S'
+            # Query for monthly revenue from invoices
+            # TODO: Need to find correct column to link InvoiceReg to WO table
+            # For now showing all invoices - check /api/reports/departments/invoice-columns
             revenue_query = """
             SELECT 
-                YEAR(i.InvoiceDate) as year,
-                MONTH(i.InvoiceDate) as month,
-                SUM(i.GrandTotal) as revenue
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.WONumber = w.WONumber
-            WHERE w.Type = 'S'
-            AND i.InvoiceDate >= DATEADD(month, -6, GETDATE())
-            GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
-            ORDER BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
             
             revenue_result = db.execute_query(revenue_query)
