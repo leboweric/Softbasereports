@@ -216,18 +216,19 @@ def register_department_routes(reports_bp):
             
             trend_result = db.execute_query(trend_query)
             
-            # Query for monthly revenue from invoices
-            # TODO: Need to find correct column to link InvoiceReg to WO table
-            # For now showing all invoices - check /api/reports/departments/invoice-columns
+            # Query for monthly revenue from Service invoices
+            # Join with WO table using ControlNo = UnitNo
             revenue_query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(i.InvoiceDate) as year,
+                MONTH(i.InvoiceDate) as month,
+                SUM(i.GrandTotal) as revenue
+            FROM ben002.InvoiceReg i
+            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            WHERE w.Type = 'S'
+            AND i.InvoiceDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+            ORDER BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
             """
             
             revenue_result = db.execute_query(revenue_query)
