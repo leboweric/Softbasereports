@@ -1,7 +1,7 @@
 # Simplified department report endpoints for testing
 from flask import jsonify
 from flask_jwt_extended import jwt_required
-from datetime import datetime
+import datetime
 from src.services.azure_sql_service import AzureSQLService
 
 
@@ -20,12 +20,26 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Test with a simple query first - count OPEN service work orders
-            test_query = """
+            # Get current date info for month calculations
+            today = datetime.now()
+            current_month_start = today.replace(day=1)
+            last_month_end = current_month_start - datetime.timedelta(days=1)
+            last_month_start = last_month_end.replace(day=1)
+            
+            # Count open and recently closed work orders
+            test_query = f"""
             SELECT 
                 COUNT(*) as total_service,
                 SUM(CASE WHEN ClosedDate IS NULL THEN 1 ELSE 0 END) as open_service,
-                SUM(CASE WHEN ClosedDate IS NOT NULL THEN 1 ELSE 0 END) as closed_service
+                SUM(CASE 
+                    WHEN ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}' 
+                    THEN 1 ELSE 0 
+                END) as closed_this_month,
+                SUM(CASE 
+                    WHEN ClosedDate >= '{last_month_start.strftime('%Y-%m-%d')}' 
+                    AND ClosedDate < '{current_month_start.strftime('%Y-%m-%d')}'
+                    THEN 1 ELSE 0 
+                END) as closed_last_month
             FROM ben002.WO 
             WHERE Type = 'S'
             """
@@ -37,11 +51,17 @@ def register_department_routes(reports_bp):
                 row = test_result[0]
                 open_count = row.get('open_service', 0) or 0
                 total_count = row.get('total_service', 0) or 0
-                closed_count = row.get('closed_service', 0) or 0
+                closed_this_month = row.get('closed_this_month', 0) or 0
+                closed_last_month = row.get('closed_last_month', 0) or 0
             else:
                 open_count = 0
                 total_count = 0
-                closed_count = 0
+                closed_this_month = 0
+                closed_last_month = 0
+                
+            # Get month names for labels
+            current_month_name = today.strftime('%B')  # e.g., "July"
+            last_month_name = last_month_end.strftime('%B')  # e.g., "June"
                 
             return jsonify({
                 'summary': {
@@ -54,7 +74,8 @@ def register_department_routes(reports_bp):
                 },
                 'workOrdersByStatus': [
                     {'name': 'Open', 'status': 'Open', 'count': open_count, 'color': '#f59e0b'},
-                    {'name': 'Closed', 'status': 'Closed', 'count': closed_count, 'color': '#10b981'}
+                    {'name': f'Closed {current_month_name}', 'status': 'Closed This Month', 'count': closed_this_month, 'color': '#10b981'},
+                    {'name': f'Closed {last_month_name}', 'status': 'Closed Last Month', 'count': closed_last_month, 'color': '#3b82f6'}
                 ],
                 'recentWorkOrders': [],
                 'monthlyTrend': [],
@@ -62,7 +83,10 @@ def register_department_routes(reports_bp):
                 'debug': {
                     'total_service_orders': total_count,
                     'open_service_orders': open_count,
-                    'closed_service_orders': closed_count
+                    'closed_this_month': closed_this_month,
+                    'closed_last_month': closed_last_month,
+                    'current_month': current_month_name,
+                    'last_month': last_month_name
                 }
             })
             
