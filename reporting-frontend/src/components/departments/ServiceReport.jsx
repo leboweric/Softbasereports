@@ -36,7 +36,7 @@ import {
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
-const ServiceReport = ({ user }) => {
+const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -95,7 +95,7 @@ const ServiceReport = ({ user }) => {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => window.location.hash = 'invoice-explorer'}
+          onClick={() => onNavigate && onNavigate('invoice-explorer')}
         >
           Explore Invoice Columns
         </Button>

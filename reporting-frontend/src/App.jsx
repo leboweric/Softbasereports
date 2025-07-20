@@ -82,7 +82,7 @@ function App() {
       case 'database-explorer':
         return <DatabaseExplorer user={user} organization={organization} />
       case 'service':
-        return <ServiceReport user={user} organization={organization} />
+        return <ServiceReport user={user} organization={organization} onNavigate={handleNavigate} />
       case 'parts':
         return <PartsReport user={user} organization={organization} />
       case 'rental':
