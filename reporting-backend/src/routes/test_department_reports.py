@@ -46,6 +46,45 @@ def register_department_routes(reports_bp):
             
             test_result = db.execute_query(test_query)
             
+            # Query for monthly trend - completed work orders and revenue
+            trend_query = """
+            SELECT 
+                YEAR(ClosedDate) as year,
+                MONTH(ClosedDate) as month,
+                DATENAME(month, ClosedDate) as month_name,
+                COUNT(*) as completed
+            FROM ben002.WO
+            WHERE Type = 'S' 
+            AND ClosedDate IS NOT NULL
+            AND ClosedDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(ClosedDate), MONTH(ClosedDate), DATENAME(month, ClosedDate)
+            ORDER BY YEAR(ClosedDate), MONTH(ClosedDate)
+            """
+            
+            trend_result = db.execute_query(trend_query)
+            
+            # Query for monthly revenue from invoices
+            revenue_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE Department = 'Service'
+            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            revenue_result = db.execute_query(revenue_query)
+            
+            # Create a revenue lookup dictionary
+            revenue_by_month = {}
+            if revenue_result:
+                for row in revenue_result:
+                    key = f"{row.get('year', '')}-{row.get('month', '')}"
+                    revenue_by_month[key] = float(row.get('revenue', 0) or 0)
+            
             # Return minimal data structure for testing
             if test_result and len(test_result) > 0:
                 row = test_result[0]
@@ -78,7 +117,17 @@ def register_department_routes(reports_bp):
                     {'name': f'Closed {last_month_name}', 'status': 'Closed Last Month', 'count': closed_last_month, 'color': '#3b82f6'}
                 ],
                 'recentWorkOrders': [],
-                'monthlyTrend': [],
+                'monthlyTrend': [
+                    {
+                        'month': row.get('month_name', '')[:3],  # Abbreviate month name
+                        'completed': row.get('completed', 0),
+                        'revenue': revenue_by_month.get(
+                            f"{row.get('year', '')}-{row.get('month', '')}", 
+                            0
+                        )
+                    }
+                    for row in trend_result
+                ] if trend_result else [],
                 'technicianPerformance': [],
                 'debug': {
                     'total_service_orders': total_count,
