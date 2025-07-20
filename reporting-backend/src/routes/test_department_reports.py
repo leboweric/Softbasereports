@@ -53,8 +53,8 @@ def register_department_routes(reports_bp):
                     'customersServed': 0
                 },
                 'workOrdersByStatus': [
-                    {'status': 'Open', 'count': open_count, 'color': '#f59e0b'},
-                    {'status': 'Closed', 'count': closed_count, 'color': '#10b981'}
+                    {'name': 'Open', 'status': 'Open', 'count': open_count, 'color': '#f59e0b'},
+                    {'name': 'Closed', 'status': 'Closed', 'count': closed_count, 'color': '#10b981'}
                 ],
                 'recentWorkOrders': [],
                 'monthlyTrend': [],
