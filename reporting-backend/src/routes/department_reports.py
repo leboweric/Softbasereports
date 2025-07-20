@@ -24,7 +24,7 @@ def register_department_routes(reports_bp):
             month_start = today.replace(day=1)
             
             # 1. Summary metrics
-            summary_query = """
+            summary_query = f"""
             SELECT 
                 -- Open Work Orders
                 (SELECT COUNT(*) FROM ben002.WO 
@@ -43,25 +43,37 @@ def register_department_routes(reports_bp):
                 -- Monthly Revenue
                 (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
                  WHERE Department = 'Service' 
-                 AND InvoiceDate >= ? AND InvoiceDate < ?) as revenue,
+                 AND InvoiceDate >= '{month_start.strftime('%Y-%m-%d')}' 
+                 AND InvoiceDate < '{today.strftime('%Y-%m-%d')}') as revenue,
                  
                 -- Customers Served
                 (SELECT COUNT(DISTINCT Customer) FROM ben002.WO 
                  WHERE Type = 'S' 
-                 AND OpenDate >= ? AND OpenDate < ?) as customersServed
+                 AND OpenDate >= '{month_start.strftime('%Y-%m-%d')}'
+                 AND OpenDate < '{today.strftime('%Y-%m-%d')}') as customersServed
             """
             
-            summary_result = db.execute_query(summary_query, 
-                (month_start, today, month_start, today))
+            summary_result = db.execute_query(summary_query)
             
-            summary = {
-                'openWorkOrders': summary_result[0][0] or 0,
-                'completedToday': summary_result[0][1] or 0,
-                'averageRepairTime': round(summary_result[0][2] or 0, 1),
-                'technicianEfficiency': 87,  # Placeholder - would need technician table
-                'revenue': float(summary_result[0][3] or 0),
-                'customersServed': summary_result[0][4] or 0
-            }
+            if summary_result and len(summary_result) > 0:
+                row = summary_result[0]
+                summary = {
+                    'openWorkOrders': row.get('openWorkOrders', 0) or 0,
+                    'completedToday': row.get('completedToday', 0) or 0,
+                    'averageRepairTime': round(row.get('averageRepairTime', 0) or 0, 1),
+                    'technicianEfficiency': 87,  # Placeholder - would need technician table
+                    'revenue': float(row.get('revenue', 0) or 0),
+                    'customersServed': row.get('customersServed', 0) or 0
+                }
+            else:
+                summary = {
+                    'openWorkOrders': 0,
+                    'completedToday': 0,
+                    'averageRepairTime': 0,
+                    'technicianEfficiency': 87,
+                    'revenue': 0,
+                    'customersServed': 0
+                }
             
             # 2. Work Orders by Status
             status_query = """
@@ -520,11 +532,12 @@ def register_department_routes(reports_bp):
             month_start = today.replace(day=1)
             
             # 1. Summary metrics
-            summary_query = """
+            summary_query = f"""
             SELECT 
                 -- Total Revenue YTD
                 (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
-                 WHERE InvoiceDate >= ? AND InvoiceDate < ?) as totalRevenue,
+                 WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}' 
+                 AND InvoiceDate < '{today.strftime('%Y-%m-%d')}') as totalRevenue,
                  
                 -- Total Expenses (placeholder - would need expense table)
                 0 as totalExpenses,
@@ -539,11 +552,11 @@ def register_department_routes(reports_bp):
                  
                 -- Monthly Cash Flow
                 (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
-                 WHERE InvoiceDate >= ? AND InvoiceDate < ?) as cashFlow
+                 WHERE InvoiceDate >= '{month_start.strftime('%Y-%m-%d')}'
+                 AND InvoiceDate < '{today.strftime('%Y-%m-%d')}') as cashFlow
             """
             
-            summary_result = db.execute_query(summary_query, 
-                (year_start, today, month_start, today))
+            summary_result = db.execute_query(summary_query)
             
             total_revenue = float(summary_result[0][0] or 0)
             total_expenses = total_revenue * 0.75  # Placeholder calculation
@@ -561,18 +574,18 @@ def register_department_routes(reports_bp):
             }
             
             # 2. Revenue by Department
-            dept_query = """
+            dept_query = f"""
             SELECT 
                 Department,
                 SUM(GrandTotal) as revenue
             FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= ?
+            WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
             AND Department IS NOT NULL
             GROUP BY Department
             ORDER BY revenue DESC
             """
             
-            dept_result = db.execute_query(dept_query, (year_start,))
+            dept_result = db.execute_query(dept_query)
             
             revenueByDepartment = []
             total_dept_revenue = sum(float(row[1] or 0) for row in dept_result)
