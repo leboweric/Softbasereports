@@ -49,6 +49,56 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/test-invoice-link', methods=['GET'])
+    @jwt_required()
+    def test_invoice_link():
+        """Test linking InvoiceReg to WO table via ControlNo"""
+        try:
+            db = get_db()
+            
+            # Test if ControlNo links to WONumber
+            test_query = """
+            SELECT TOP 10
+                i.InvoiceNo,
+                i.ControlNo,
+                i.InvoiceDate,
+                i.GrandTotal,
+                w.WONumber,
+                w.Type,
+                w.CustomerID,
+                w.ClosedDate
+            FROM ben002.InvoiceReg i
+            LEFT JOIN ben002.WO w ON i.ControlNo = w.WONumber
+            WHERE i.ControlNo IS NOT NULL
+            AND w.WONumber IS NOT NULL
+            ORDER BY i.InvoiceDate DESC
+            """
+            
+            result = db.execute_query(test_query)
+            
+            # Count how many invoices have matching work orders
+            count_query = """
+            SELECT 
+                COUNT(*) as total_invoices,
+                COUNT(i.ControlNo) as invoices_with_control,
+                COUNT(w.WONumber) as matched_to_wo,
+                COUNT(CASE WHEN w.Type = 'S' THEN 1 END) as service_invoices
+            FROM ben002.InvoiceReg i
+            LEFT JOIN ben002.WO w ON i.ControlNo = w.WONumber
+            WHERE i.InvoiceDate >= DATEADD(month, -1, GETDATE())
+            """
+            
+            count_result = db.execute_query(count_query)
+            
+            return jsonify({
+                'sample_matches': result,
+                'statistics': count_result[0] if count_result else {},
+                'success': len(result) > 0 if result else False
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/service', methods=['GET'])
     @jwt_required()
     def get_service_department_report():
