@@ -49,6 +49,72 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/test-service-revenue', methods=['GET'])
+    @jwt_required()
+    def test_service_revenue():
+        """Test the actual revenue query to see why it's returning 0"""
+        try:
+            db = get_db()
+            
+            # Test 1: Count total invoices in last 6 months
+            total_invoices_query = """
+            SELECT COUNT(*) as total, SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
+            """
+            total_result = db.execute_query(total_invoices_query)
+            
+            # Test 2: Count invoices that have ControlNo
+            with_control_query = """
+            SELECT COUNT(*) as count, SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
+            AND ControlNo IS NOT NULL
+            """
+            control_result = db.execute_query(with_control_query)
+            
+            # Test 3: Try the join to see how many match
+            join_test_query = """
+            SELECT COUNT(*) as matches, SUM(i.GrandTotal) as matched_revenue
+            FROM ben002.InvoiceReg i
+            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            WHERE i.InvoiceDate >= DATEADD(month, -6, GETDATE())
+            """
+            join_result = db.execute_query(join_test_query)
+            
+            # Test 4: Try the full service filter
+            service_test_query = """
+            SELECT COUNT(*) as service_matches, SUM(i.GrandTotal) as service_revenue
+            FROM ben002.InvoiceReg i
+            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            WHERE w.Type = 'S'
+            AND i.InvoiceDate >= DATEADD(month, -6, GETDATE())
+            """
+            service_result = db.execute_query(service_test_query)
+            
+            # Test 5: Sample of unmatched ControlNo values
+            unmatched_query = """
+            SELECT TOP 10 i.ControlNo, i.InvoiceNo, i.GrandTotal
+            FROM ben002.InvoiceReg i
+            WHERE i.InvoiceDate >= DATEADD(month, -6, GETDATE())
+            AND i.ControlNo IS NOT NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM ben002.WO w WHERE w.UnitNo = i.ControlNo
+            )
+            """
+            unmatched_result = db.execute_query(unmatched_query)
+            
+            return jsonify({
+                'total_invoices': total_result[0] if total_result else {},
+                'with_controlno': control_result[0] if control_result else {},
+                'join_matches': join_result[0] if join_result else {},
+                'service_matches': service_result[0] if service_result else {},
+                'unmatched_samples': unmatched_result
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/test-invoice-link-v2', methods=['GET'])
     @jwt_required()
     def test_invoice_link_v2():
@@ -216,19 +282,18 @@ def register_department_routes(reports_bp):
             
             trend_result = db.execute_query(trend_query)
             
-            # Query for monthly revenue from Service invoices
-            # Join with WO table using ControlNo = UnitNo
+            # Query for monthly revenue from invoices
+            # TODO: Need to properly link to WO table to filter Service only
+            # For now showing all invoices until we solve the join issue
             revenue_query = """
             SELECT 
-                YEAR(i.InvoiceDate) as year,
-                MONTH(i.InvoiceDate) as month,
-                SUM(i.GrandTotal) as revenue
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
-            WHERE w.Type = 'S'
-            AND i.InvoiceDate >= DATEADD(month, -6, GETDATE())
-            GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
-            ORDER BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
             
             revenue_result = db.execute_query(revenue_query)

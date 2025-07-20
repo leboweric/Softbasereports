@@ -12,6 +12,8 @@ const InvoiceExplorer = () => {
   const [testingLink, setTestingLink] = useState(false)
   const [linkTestV2, setLinkTestV2] = useState(null)
   const [testingLinkV2, setTestingLinkV2] = useState(false)
+  const [revenueTest, setRevenueTest] = useState(null)
+  const [testingRevenue, setTestingRevenue] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -85,6 +87,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const testServiceRevenue = async () => {
+    setTestingRevenue(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/test-service-revenue'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setRevenueTest(result)
+      } else {
+        setError(`Failed to test revenue: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setTestingRevenue(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -127,6 +152,13 @@ const InvoiceExplorer = () => {
               variant="secondary"
             >
               {testingLinkV2 ? 'Testing...' : 'Test Method 2 (Try Joins)'}
+            </Button>
+            <Button 
+              onClick={testServiceRevenue} 
+              disabled={testingRevenue}
+              variant="outline"
+            >
+              {testingRevenue ? 'Testing...' : 'Test Revenue Query'}
             </Button>
           </div>
           
@@ -236,6 +268,50 @@ const InvoiceExplorer = () => {
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {revenueTest && (
+            <div className="space-y-4 mt-4 border-t pt-4">
+              <h4 className="font-semibold">Revenue Query Test Results:</h4>
+              
+              <div className="bg-white p-4 rounded border">
+                <h5 className="font-medium mb-2">Invoice Statistics (Last 6 Months):</h5>
+                <ul className="space-y-1 text-sm">
+                  <li><span className="font-medium">Total Invoices:</span> {revenueTest.total_invoices?.total || 0}</li>
+                  <li><span className="font-medium">Total Revenue:</span> ${revenueTest.total_invoices?.total_revenue || 0}</li>
+                  <li><span className="font-medium">Invoices with ControlNo:</span> {revenueTest.with_controlno?.count || 0}</li>
+                  <li><span className="font-medium">Revenue with ControlNo:</span> ${revenueTest.with_controlno?.revenue || 0}</li>
+                  <li><span className="font-medium">Joined Matches:</span> {revenueTest.join_matches?.matches || 0}</li>
+                  <li><span className="font-medium">Matched Revenue:</span> ${revenueTest.join_matches?.matched_revenue || 0}</li>
+                  <li><span className="font-medium">Service Matches:</span> {revenueTest.service_matches?.service_matches || 0}</li>
+                  <li><span className="font-medium">Service Revenue:</span> ${revenueTest.service_matches?.service_revenue || 0}</li>
+                </ul>
+              </div>
+              
+              {revenueTest.unmatched_samples && revenueTest.unmatched_samples.length > 0 && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">Unmatched ControlNo Samples:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">ControlNo</th>
+                        <th className="text-left p-2">Invoice#</th>
+                        <th className="text-left p-2">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {revenueTest.unmatched_samples.map((item, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">{item.ControlNo}</td>
+                          <td className="p-2">{item.InvoiceNo}</td>
+                          <td className="p-2">${item.GrandTotal}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
