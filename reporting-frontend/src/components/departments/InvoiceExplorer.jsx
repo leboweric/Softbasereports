@@ -10,6 +10,8 @@ const InvoiceExplorer = () => {
   const [error, setError] = useState(null)
   const [linkTest, setLinkTest] = useState(null)
   const [testingLink, setTestingLink] = useState(false)
+  const [linkTestV2, setLinkTestV2] = useState(null)
+  const [testingLinkV2, setTestingLinkV2] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -60,6 +62,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const testInvoiceLinkV2 = async () => {
+    setTestingLinkV2(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/test-invoice-link-v2'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setLinkTestV2(result)
+      } else {
+        setError(`Failed to test link v2: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setTestingLinkV2(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -86,27 +111,39 @@ const InvoiceExplorer = () => {
       <Card className="bg-blue-50 border-blue-200">
         <CardHeader>
           <CardTitle>Test Invoice-Work Order Link</CardTitle>
-          <CardDescription>Test if ControlNo field links to WONumber</CardDescription>
+          <CardDescription>Test if ControlNo field links to work orders</CardDescription>
         </CardHeader>
         <CardContent>
-          <Button 
-            onClick={testInvoiceLink} 
-            disabled={testingLink}
-            className="mb-4"
-          >
-            {testingLink ? 'Testing...' : 'Test ControlNo → WONumber Link'}
-          </Button>
+          <div className="flex gap-2 mb-4">
+            <Button 
+              onClick={testInvoiceLink} 
+              disabled={testingLink}
+            >
+              {testingLink ? 'Testing...' : 'Test Method 1 (Explore Tables)'}
+            </Button>
+            <Button 
+              onClick={testInvoiceLinkV2} 
+              disabled={testingLinkV2}
+              variant="secondary"
+            >
+              {testingLinkV2 ? 'Testing...' : 'Test Method 2 (Try Joins)'}
+            </Button>
+          </div>
           
           {linkTest && (
             <div className="space-y-4">
               <div className="bg-white p-4 rounded border">
-                <h4 className="font-semibold mb-2">Statistics (Last Month):</h4>
-                <ul className="space-y-1 text-sm">
-                  <li>Total Invoices: {linkTest.statistics.total_invoices || 0}</li>
-                  <li>Invoices with ControlNo: {linkTest.statistics.invoices_with_control || 0}</li>
-                  <li>Successfully Matched to WO: {linkTest.statistics.matched_to_wo || 0}</li>
-                  <li>Service Invoices (Type='S'): {linkTest.statistics.service_invoices || 0}</li>
-                </ul>
+                <h4 className="font-semibold mb-2">Test Results:</h4>
+                {linkTest.statistics ? (
+                  <ul className="space-y-1 text-sm">
+                    <li>Total Invoices: {linkTest.statistics.total_invoices || 0}</li>
+                    <li>Invoices with ControlNo: {linkTest.statistics.invoices_with_control || 0}</li>
+                    <li>Successfully Matched to WO: {linkTest.statistics.matched_to_wo || 0}</li>
+                    <li>Service Invoices (Type='S'): {linkTest.statistics.service_invoices || 0}</li>
+                  </ul>
+                ) : (
+                  <p className="text-sm text-red-600">{linkTest.error || 'Exploring table structure...'}</p>
+                )}
               </div>
               
               {linkTest.wo_columns && (
@@ -155,6 +192,49 @@ const InvoiceExplorer = () => {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {linkTestV2 && (
+            <div className="space-y-4 mt-4 border-t pt-4">
+              <h4 className="font-semibold">Test Method 2 Results:</h4>
+              
+              {linkTestV2.control_samples && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">Sample ControlNo Values:</h5>
+                  <ul className="list-disc list-inside text-sm">
+                    {linkTestV2.control_samples.map((sample, idx) => (
+                      <li key={idx}>{sample.ControlNo}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {linkTestV2.test_results && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">Join Test Results:</h5>
+                  <ul className="space-y-1 text-sm">
+                    {Object.entries(linkTestV2.test_results).map(([key, value]) => (
+                      <li key={key}>
+                        <span className="font-medium">{key}:</span> {value}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {linkTestV2.wo_string_columns && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">WO Table String Columns:</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {linkTestV2.wo_string_columns.map((col, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-gray-200 rounded text-sm">
+                        {col.COLUMN_NAME}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}

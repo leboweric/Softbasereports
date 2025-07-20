@@ -49,6 +49,73 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/test-invoice-link-v2', methods=['GET'])
+    @jwt_required()
+    def test_invoice_link_v2():
+        """Test linking InvoiceReg to WO table - try different approaches"""
+        try:
+            db = get_db()
+            
+            # Try to find which column in WO table matches ControlNo format
+            # First, let's see what ControlNo values look like
+            control_sample_query = """
+            SELECT DISTINCT TOP 5 ControlNo
+            FROM ben002.InvoiceReg
+            WHERE ControlNo IS NOT NULL 
+            AND ControlNo != ''
+            """
+            
+            control_samples = db.execute_query(control_sample_query)
+            
+            # Now try different potential join columns
+            results = {}
+            
+            # Test 1: Try ControlNo = ControlNo
+            try:
+                test1 = """
+                SELECT COUNT(*) as matches
+                FROM ben002.InvoiceReg i
+                INNER JOIN ben002.WO w ON i.ControlNo = w.ControlNo
+                WHERE i.ControlNo IS NOT NULL
+                """
+                result1 = db.execute_query(test1)
+                results['ControlNo_to_ControlNo'] = result1[0]['matches'] if result1 else 0
+            except:
+                results['ControlNo_to_ControlNo'] = 'Column not found'
+            
+            # Test 2: Try ControlNo = Id (as string)
+            try:
+                test2 = """
+                SELECT COUNT(*) as matches
+                FROM ben002.InvoiceReg i
+                INNER JOIN ben002.WO w ON i.ControlNo = CAST(w.Id AS NVARCHAR)
+                WHERE i.ControlNo IS NOT NULL
+                """
+                result2 = db.execute_query(test2)
+                results['ControlNo_to_Id'] = result2[0]['matches'] if result2 else 0
+            except:
+                results['ControlNo_to_Id'] = 'Failed'
+            
+            # Test 3: List all string columns from WO that might contain work order numbers
+            string_columns_query = """
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'WO'
+            AND DATA_TYPE IN ('nvarchar', 'varchar', 'char')
+            """
+            
+            string_columns = db.execute_query(string_columns_query)
+            
+            return jsonify({
+                'control_samples': control_samples,
+                'test_results': results,
+                'wo_string_columns': string_columns
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/test-invoice-link', methods=['GET'])
     @jwt_required()
     def test_invoice_link():
@@ -56,13 +123,12 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # First, get column names from WO table
+            # First, get ALL column names from WO table
             wo_columns_query = """
-            SELECT COLUMN_NAME
+            SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = 'ben002' 
             AND TABLE_NAME = 'WO'
-            AND COLUMN_NAME LIKE '%WO%' OR COLUMN_NAME LIKE '%Number%' OR COLUMN_NAME = 'Id'
             ORDER BY ORDINAL_POSITION
             """
             
