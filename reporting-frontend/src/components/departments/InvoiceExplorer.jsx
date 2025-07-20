@@ -109,26 +109,48 @@ const InvoiceExplorer = () => {
                 </ul>
               </div>
               
-              {linkTest.sample_matches && linkTest.sample_matches.length > 0 && (
+              {linkTest.wo_columns && (
                 <div className="bg-white p-4 rounded border">
-                  <h4 className="font-semibold mb-2">Sample Matches:</h4>
+                  <h4 className="font-semibold mb-2">WO Table Columns (filtered):</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {linkTest.wo_columns.map((col, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-gray-200 rounded text-sm">
+                        {col.COLUMN_NAME}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {linkTest.wo_sample && (
+                <div className="bg-white p-4 rounded border">
+                  <h4 className="font-semibold mb-2">WO Table Sample (Type='S'):</h4>
+                  <pre className="text-xs overflow-x-auto">
+                    {JSON.stringify(linkTest.wo_sample, null, 2)}
+                  </pre>
+                </div>
+              )}
+              
+              {linkTest.invoice_samples && linkTest.invoice_samples.length > 0 && (
+                <div className="bg-white p-4 rounded border">
+                  <h4 className="font-semibold mb-2">Invoice ControlNo Samples:</h4>
                   <div className="overflow-x-auto">
                     <table className="text-sm w-full">
                       <thead>
                         <tr className="border-b">
                           <th className="text-left p-2">Invoice#</th>
                           <th className="text-left p-2">ControlNo</th>
-                          <th className="text-left p-2">WO Type</th>
+                          <th className="text-left p-2">Date</th>
                           <th className="text-left p-2">Amount</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {linkTest.sample_matches.slice(0, 5).map((match, idx) => (
+                        {linkTest.invoice_samples.slice(0, 5).map((inv, idx) => (
                           <tr key={idx} className="border-b">
-                            <td className="p-2">{match.InvoiceNo}</td>
-                            <td className="p-2">{match.ControlNo}</td>
-                            <td className="p-2">{match.Type}</td>
-                            <td className="p-2">${match.GrandTotal}</td>
+                            <td className="p-2">{inv.InvoiceNo}</td>
+                            <td className="p-2">{inv.ControlNo}</td>
+                            <td className="p-2">{new Date(inv.InvoiceDate).toLocaleDateString()}</td>
+                            <td className="p-2">${inv.GrandTotal}</td>
                           </tr>
                         ))}
                       </tbody>

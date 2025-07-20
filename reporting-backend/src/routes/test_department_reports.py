@@ -56,44 +56,45 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Test if ControlNo links to WONumber
+            # First, get column names from WO table
+            wo_columns_query = """
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'WO'
+            AND COLUMN_NAME LIKE '%WO%' OR COLUMN_NAME LIKE '%Number%' OR COLUMN_NAME = 'Id'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            wo_columns = db.execute_query(wo_columns_query)
+            
+            # Get sample from WO table to see structure
+            wo_sample_query = """
+            SELECT TOP 1 * FROM ben002.WO WHERE Type = 'S'
+            """
+            
+            wo_sample = db.execute_query(wo_sample_query)
+            
+            # Try to identify the primary key column
+            # Let's check if there's a ControlNo in WO table that matches
             test_query = """
             SELECT TOP 10
                 i.InvoiceNo,
                 i.ControlNo,
                 i.InvoiceDate,
-                i.GrandTotal,
-                w.WONumber,
-                w.Type,
-                w.CustomerID,
-                w.ClosedDate
+                i.GrandTotal
             FROM ben002.InvoiceReg i
-            LEFT JOIN ben002.WO w ON i.ControlNo = w.WONumber
             WHERE i.ControlNo IS NOT NULL
-            AND w.WONumber IS NOT NULL
             ORDER BY i.InvoiceDate DESC
             """
             
             result = db.execute_query(test_query)
             
-            # Count how many invoices have matching work orders
-            count_query = """
-            SELECT 
-                COUNT(*) as total_invoices,
-                COUNT(i.ControlNo) as invoices_with_control,
-                COUNT(w.WONumber) as matched_to_wo,
-                COUNT(CASE WHEN w.Type = 'S' THEN 1 END) as service_invoices
-            FROM ben002.InvoiceReg i
-            LEFT JOIN ben002.WO w ON i.ControlNo = w.WONumber
-            WHERE i.InvoiceDate >= DATEADD(month, -1, GETDATE())
-            """
-            
-            count_result = db.execute_query(count_query)
-            
             return jsonify({
-                'sample_matches': result,
-                'statistics': count_result[0] if count_result else {},
-                'success': len(result) > 0 if result else False
+                'wo_columns': wo_columns,
+                'wo_sample': wo_sample[0] if wo_sample else {},
+                'invoice_samples': result,
+                'error': 'Need to identify correct WO table primary key column'
             })
             
         except Exception as e:
