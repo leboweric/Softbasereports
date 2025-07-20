@@ -87,9 +87,18 @@ const ServiceReport = ({ user }) => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Service Department</h1>
-        <p className="text-muted-foreground">Monitor service operations and technician performance</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Service Department</h1>
+          <p className="text-muted-foreground">Monitor service operations and technician performance</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => window.location.hash = 'invoice-explorer'}
+        >
+          Explore Invoice Columns
+        </Button>
       </div>
 
       {/* Summary Cards */}

@@ -10,6 +10,7 @@ import ServiceReport from './components/departments/ServiceReport'
 import PartsReport from './components/departments/PartsReport'
 import RentalReport from './components/departments/RentalReport'
 import AccountingReport from './components/departments/AccountingReport'
+import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
@@ -88,6 +89,8 @@ function App() {
         return <RentalReport user={user} organization={organization} />
       case 'accounting':
         return <AccountingReport user={user} organization={organization} />
+      case 'invoice-explorer':
+        return <InvoiceExplorer user={user} organization={organization} />
       case 'users':
         return <div className="p-8 text-center text-gray-500">Users management coming soon...</div>
       case 'settings':
