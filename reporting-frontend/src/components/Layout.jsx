@@ -10,7 +10,11 @@ import {
   Menu,
   X,
   Sparkles,
-  Database
+  Database,
+  Wrench,
+  Package,
+  Truck,
+  Calculator
 } from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
@@ -18,6 +22,10 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
 
   const navigation = [
     { name: 'Dashboard', icon: BarChart3, id: 'dashboard' },
+    { name: 'Service', icon: Wrench, id: 'service' },
+    { name: 'Parts', icon: Package, id: 'parts' },
+    { name: 'Rental', icon: Truck, id: 'rental' },
+    { name: 'Accounting', icon: Calculator, id: 'accounting' },
     { name: 'AI Query', icon: Sparkles, id: 'ai-query' },
     { name: 'Report Creator', icon: FileText, id: 'report-creator' },
     { name: 'Reports', icon: FileText, id: 'reports' },

@@ -6,6 +6,10 @@ import AIQuery from './components/AIQuery'
 import ReportCreator from './components/ReportCreator'
 import Reports from './components/Reports'
 import DatabaseExplorer from './components/DatabaseExplorer'
+import ServiceReport from './components/departments/ServiceReport'
+import PartsReport from './components/departments/PartsReport'
+import RentalReport from './components/departments/RentalReport'
+import AccountingReport from './components/departments/AccountingReport'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
@@ -76,6 +80,14 @@ function App() {
         return <Reports user={user} organization={organization} />
       case 'database-explorer':
         return <DatabaseExplorer user={user} organization={organization} />
+      case 'service':
+        return <ServiceReport user={user} organization={organization} />
+      case 'parts':
+        return <PartsReport user={user} organization={organization} />
+      case 'rental':
+        return <RentalReport user={user} organization={organization} />
+      case 'accounting':
+        return <AccountingReport user={user} organization={organization} />
       case 'users':
         return <div className="p-8 text-center text-gray-500">Users management coming soon...</div>
       case 'settings':
