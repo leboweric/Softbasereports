@@ -64,14 +64,15 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from invoices
+            # Note: For now, we're getting ALL invoices since Department column doesn't exist
+            # TODO: Find a way to filter for service-only invoices
             revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as revenue
             FROM ben002.InvoiceReg
-            WHERE Department = 'Service'
-            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
