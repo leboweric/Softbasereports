@@ -56,6 +56,8 @@ const ServiceReport = ({ user }) => {
       if (response.ok) {
         const data = await response.json()
         setServiceData(data)
+      } else {
+        console.error('Failed to fetch service data:', response.status)
       }
     } catch (error) {
       console.error('Error fetching service data:', error)
@@ -72,46 +74,16 @@ const ServiceReport = ({ user }) => {
     )
   }
 
-  const mockData = {
-    summary: {
-      openWorkOrders: 45,
-      completedToday: 12,
-      averageRepairTime: 3.5,
-      technicianEfficiency: 87,
-      revenue: 125450,
-      customersServed: 234
-    },
-    workOrdersByStatus: [
-      { status: 'Open', count: 45, color: '#f59e0b' },
-      { status: 'In Progress', count: 23, color: '#3b82f6' },
-      { status: 'Completed', count: 189, color: '#10b981' },
-      { status: 'On Hold', count: 8, color: '#ef4444' }
-    ],
-    technicianPerformance: [
-      { name: 'John Smith', completed: 45, efficiency: 92 },
-      { name: 'Mike Johnson', completed: 38, efficiency: 88 },
-      { name: 'Sarah Williams', completed: 41, efficiency: 90 },
-      { name: 'Tom Davis', completed: 35, efficiency: 85 },
-      { name: 'Lisa Brown', completed: 30, efficiency: 82 }
-    ],
-    recentWorkOrders: [
-      { id: 'WO-2024-001', customer: 'ABC Construction', equipment: 'CAT 320D', status: 'In Progress', technician: 'John Smith', priority: 'High' },
-      { id: 'WO-2024-002', customer: 'XYZ Logistics', equipment: 'Komatsu PC200', status: 'Open', technician: 'Unassigned', priority: 'Medium' },
-      { id: 'WO-2024-003', customer: 'DEF Mining', equipment: 'Volvo L90', status: 'Completed', technician: 'Mike Johnson', priority: 'Low' },
-      { id: 'WO-2024-004', customer: 'GHI Contractors', equipment: 'JCB 3CX', status: 'In Progress', technician: 'Sarah Williams', priority: 'High' },
-      { id: 'WO-2024-005', customer: 'JKL Builders', equipment: 'Hitachi ZX200', status: 'On Hold', technician: 'Tom Davis', priority: 'Medium' }
-    ],
-    monthlyTrend: [
-      { month: 'Jan', completed: 156, revenue: 98000 },
-      { month: 'Feb', completed: 178, revenue: 112000 },
-      { month: 'Mar', completed: 165, revenue: 105000 },
-      { month: 'Apr', completed: 189, revenue: 125450 },
-      { month: 'May', completed: 195, revenue: 132000 },
-      { month: 'Jun', completed: 210, revenue: 145000 }
-    ]
+  if (!serviceData) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-gray-500">
+          <AlertCircle className="h-12 w-12 mx-auto mb-4" />
+          <p>Unable to load service data. Please try again later.</p>
+        </div>
+      </div>
+    )
   }
-
-  const data = serviceData || mockData
 
   return (
     <div className="p-6 space-y-6">
@@ -128,7 +100,7 @@ const ServiceReport = ({ user }) => {
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.summary.openWorkOrders}</div>
+            <div className="text-2xl font-bold">{serviceData.summary.openWorkOrders}</div>
             <p className="text-xs text-muted-foreground">Awaiting service</p>
           </CardContent>
         </Card>
@@ -139,7 +111,7 @@ const ServiceReport = ({ user }) => {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.summary.completedToday}</div>
+            <div className="text-2xl font-bold">{serviceData.summary.completedToday}</div>
             <p className="text-xs text-muted-foreground">Work orders</p>
           </CardContent>
         </Card>
@@ -150,7 +122,7 @@ const ServiceReport = ({ user }) => {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.summary.averageRepairTime}h</div>
+            <div className="text-2xl font-bold">{serviceData.summary.averageRepairTime}h</div>
             <p className="text-xs text-muted-foreground">Per work order</p>
           </CardContent>
         </Card>
@@ -161,7 +133,7 @@ const ServiceReport = ({ user }) => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.summary.technicianEfficiency}%</div>
+            <div className="text-2xl font-bold">{serviceData.summary.technicianEfficiency}%</div>
             <p className="text-xs text-muted-foreground">Technician average</p>
           </CardContent>
         </Card>
@@ -172,7 +144,7 @@ const ServiceReport = ({ user }) => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${data.summary.revenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">${serviceData.summary.revenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">Service income</p>
           </CardContent>
         </Card>
@@ -183,7 +155,7 @@ const ServiceReport = ({ user }) => {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.summary.customersServed}</div>
+            <div className="text-2xl font-bold">{serviceData.summary.customersServed}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
@@ -200,7 +172,7 @@ const ServiceReport = ({ user }) => {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={data.workOrdersByStatus}
+                  data={serviceData.workOrdersByStatus}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -209,7 +181,7 @@ const ServiceReport = ({ user }) => {
                   fill="#8884d8"
                   dataKey="count"
                 >
-                  {data.workOrdersByStatus.map((entry, index) => (
+                  {serviceData.workOrdersByStatus.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -227,7 +199,7 @@ const ServiceReport = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.monthlyTrend}>
+              <LineChart data={serviceData.monthlyTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" />
@@ -272,7 +244,7 @@ const ServiceReport = ({ user }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.technicianPerformance.map((tech) => (
+              {serviceData.technicianPerformance.map((tech) => (
                 <TableRow key={tech.name}>
                   <TableCell className="font-medium">{tech.name}</TableCell>
                   <TableCell className="text-right">{tech.completed}</TableCell>
@@ -311,7 +283,7 @@ const ServiceReport = ({ user }) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.recentWorkOrders.map((wo) => (
+              {serviceData.recentWorkOrders.map((wo) => (
                 <TableRow key={wo.id}>
                   <TableCell className="font-medium">{wo.id}</TableCell>
                   <TableCell>{wo.customer}</TableCell>
