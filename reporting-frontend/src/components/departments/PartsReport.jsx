@@ -47,7 +47,7 @@ const PartsReport = ({ user }) => {
   const fetchPartsData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`${apiUrl}/api/reports/departments/parts`, {
+      const response = await fetch(apiUrl('/api/reports/departments/parts'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

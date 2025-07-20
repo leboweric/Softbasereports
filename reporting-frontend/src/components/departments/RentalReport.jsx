@@ -47,7 +47,7 @@ const RentalReport = ({ user }) => {
   const fetchRentalData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`${apiUrl}/api/reports/departments/rental`, {
+      const response = await fetch(apiUrl('/api/reports/departments/rental'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

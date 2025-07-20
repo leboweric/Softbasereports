@@ -47,7 +47,7 @@ const ServiceReport = ({ user }) => {
   const fetchServiceData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`${apiUrl}/api/reports/departments/service`, {
+      const response = await fetch(apiUrl('/api/reports/departments/service'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

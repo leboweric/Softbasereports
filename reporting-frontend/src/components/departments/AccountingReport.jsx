@@ -49,7 +49,7 @@ const AccountingReport = ({ user }) => {
   const fetchAccountingData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`${apiUrl}/api/reports/departments/accounting`, {
+      const response = await fetch(apiUrl('/api/reports/departments/accounting'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
