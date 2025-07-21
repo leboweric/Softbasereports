@@ -460,6 +460,55 @@ const ServiceReport = ({ user, onNavigate }) => {
       </Card>
       </div>
 
+      {/* Monthly Sales Trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Monthly Sales Trend</CardTitle>
+          <CardDescription>Combined SHPCST and RDCST sales revenue over time</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={serviceData.salesTrend || []}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis 
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                label={{ value: 'Revenue ($)', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip 
+                formatter={(value) => [`$${value.toLocaleString()}`, '']}
+                labelFormatter={(label) => `Month: ${label}`}
+              />
+              <Line
+                type="monotone"
+                dataKey="shop_sales"
+                stroke="#3b82f6"
+                name="Shop Sales (SHPCST)"
+                strokeWidth={2}
+                dot={{ fill: '#3b82f6' }}
+              />
+              <Line
+                type="monotone"
+                dataKey="road_sales"
+                stroke="#ef4444"
+                name="Road Sales (RDCST)"
+                strokeWidth={2}
+                dot={{ fill: '#ef4444' }}
+              />
+              <Line
+                type="monotone"
+                dataKey="total_sales"
+                stroke="#10b981"
+                name="Total Sales"
+                strokeWidth={3}
+                strokeDasharray="5 5"
+                dot={{ fill: '#10b981' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
       {/* Technician Performance */}
       <Card>
         <CardHeader>

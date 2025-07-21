@@ -1760,6 +1760,26 @@ def register_department_routes(reports_bp):
             
             trend_result = db.execute_query(trend_query)
             
+            # Query for monthly sales trend for RDCST and SHPCST combined
+            # Starting from March 2025
+            sales_trend_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                DATENAME(month, InvoiceDate) as month_name,
+                SUM(CASE WHEN SaleCode = 'SHPCST' THEN GrandTotal ELSE 0 END) as shop_sales,
+                SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as road_sales,
+                SUM(GrandTotal) as total_sales
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('SHPCST', 'RDCST')
+            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < DATEADD(month, 1, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DATENAME(month, InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            sales_trend_result = db.execute_query(sales_trend_query)
+            
             # Query for monthly revenue from Service/Labor invoices
             # Updated to match OData exactly - excluding pure rental codes
             # Starting from March 2025
@@ -1873,6 +1893,15 @@ def register_department_routes(reports_bp):
                     }
                     for row in trend_result
                 ] if trend_result else [],
+                'salesTrend': [
+                    {
+                        'month': row.get('month_name', '')[:3],  # Abbreviate month name
+                        'shop_sales': float(row.get('shop_sales', 0) or 0),
+                        'road_sales': float(row.get('road_sales', 0) or 0),
+                        'total_sales': float(row.get('total_sales', 0) or 0)
+                    }
+                    for row in sales_trend_result
+                ] if sales_trend_result else [],
                 'technicianPerformance': [],
                 'debug': {
                     'total_open': total_open,
