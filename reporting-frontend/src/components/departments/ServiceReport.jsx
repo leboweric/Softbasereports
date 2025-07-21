@@ -250,18 +250,19 @@ const ServiceReport = ({ user, onNavigate }) => {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Work Orders by Status */}
-        <Card className="col-span-3">
+      {/* Work Orders by Status - Split into Shop and Road */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Shop Work Orders by Status */}
+        <Card>
           <CardHeader>
-            <CardTitle>Work Orders by Status</CardTitle>
-            <CardDescription>Current distribution of work orders</CardDescription>
+            <CardTitle>Shop Work Orders by Status (SHPCST)</CardTitle>
+            <CardDescription>Distribution of shop work orders</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={serviceData.workOrdersByStatus}
+                  data={serviceData.shopWorkOrdersByStatus || []}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -270,7 +271,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                   fill="#8884d8"
                   dataKey="count"
                 >
-                  {serviceData.workOrdersByStatus.map((entry, index) => (
+                  {(serviceData.shopWorkOrdersByStatus || []).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
@@ -280,8 +281,40 @@ const ServiceReport = ({ user, onNavigate }) => {
           </CardContent>
         </Card>
 
+        {/* Road Work Orders by Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Road Work Orders by Status (RDCST)</CardTitle>
+            <CardDescription>Distribution of road work orders</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={serviceData.roadWorkOrdersByStatus || []}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, count }) => `${name}: ${count}`}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="count"
+                >
+                  {(serviceData.roadWorkOrdersByStatus || []).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Service Trends - Side by Side */}
+      <div className="grid gap-4 md:grid-cols-2">
         {/* Shop Trend (SHPCST) */}
-        <Card className="col-span-4">
+        <Card>
           <CardHeader>
             <CardTitle>Shop Service Trend (SHPCST)</CardTitle>
             <CardDescription>Completed work orders and average days to close</CardDescription>
@@ -324,10 +357,9 @@ const ServiceReport = ({ user, onNavigate }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Road Service Trend */}
-      <Card>
+        {/* Road Service Trend */}
+        <Card>
         <CardHeader>
           <CardTitle>Road Service Trend (RDCST)</CardTitle>
           <CardDescription>Completed work orders and average days to close</CardDescription>
@@ -370,6 +402,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+      </div>
 
       {/* Technician Performance */}
       <Card>

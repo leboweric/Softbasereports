@@ -1663,11 +1663,12 @@ def register_department_routes(reports_bp):
             last_month_end = current_month_start - datetime.timedelta(days=1)
             last_month_start = last_month_end.replace(day=1)
             
-            # Count open and recently closed work orders for SHPCST and RDCST only
+            # Count open and recently closed work orders for SHPCST and RDCST separately
             test_query = f"""
             SELECT 
-                COUNT(*) as total_service,
-                SUM(CASE WHEN ClosedDate IS NULL THEN 1 ELSE 0 END) as open_service,
+                SaleCode,
+                COUNT(*) as total,
+                SUM(CASE WHEN ClosedDate IS NULL THEN 1 ELSE 0 END) as open,
                 SUM(CASE 
                     WHEN ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}' 
                     THEN 1 ELSE 0 
@@ -1679,6 +1680,7 @@ def register_department_routes(reports_bp):
                 END) as closed_last_month
             FROM ben002.WO 
             WHERE SaleCode IN ('SHPCST', 'RDCST')
+            GROUP BY SaleCode
             """
             
             test_result = db.execute_query(test_query)
@@ -1734,18 +1736,23 @@ def register_department_routes(reports_bp):
                     key = f"{row.get('year', '')}-{row.get('month', '')}"
                     revenue_by_month[key] = float(row.get('revenue', 0) or 0)
             
-            # Return minimal data structure for testing
-            if test_result and len(test_result) > 0:
-                row = test_result[0]
-                open_count = row.get('open_service', 0) or 0
-                total_count = row.get('total_service', 0) or 0
-                closed_this_month = row.get('closed_this_month', 0) or 0
-                closed_last_month = row.get('closed_last_month', 0) or 0
-            else:
-                open_count = 0
-                total_count = 0
-                closed_this_month = 0
-                closed_last_month = 0
+            # Process results by SaleCode
+            shop_data = {'open': 0, 'closed_this_month': 0, 'closed_last_month': 0}
+            road_data = {'open': 0, 'closed_this_month': 0, 'closed_last_month': 0}
+            total_open = 0
+            
+            if test_result:
+                for row in test_result:
+                    if row.get('SaleCode') == 'SHPCST':
+                        shop_data['open'] = row.get('open', 0) or 0
+                        shop_data['closed_this_month'] = row.get('closed_this_month', 0) or 0
+                        shop_data['closed_last_month'] = row.get('closed_last_month', 0) or 0
+                    elif row.get('SaleCode') == 'RDCST':
+                        road_data['open'] = row.get('open', 0) or 0
+                        road_data['closed_this_month'] = row.get('closed_this_month', 0) or 0
+                        road_data['closed_last_month'] = row.get('closed_last_month', 0) or 0
+                
+                total_open = shop_data['open'] + road_data['open']
                 
             # Calculate current month's Service/Labor revenue
             # Updated to match OData exactly - excluding pure rental codes
@@ -1771,17 +1778,22 @@ def register_department_routes(reports_bp):
                 
             return jsonify({
                 'summary': {
-                    'openWorkOrders': open_count,
+                    'openWorkOrders': total_open,
                     'completedToday': 0,
                     'averageRepairTime': 0,
                     'technicianEfficiency': 87,
                     'revenue': current_month_revenue,
                     'customersServed': 0
                 },
-                'workOrdersByStatus': [
-                    {'name': 'Open', 'status': 'Open', 'count': open_count, 'color': '#f59e0b'},
-                    {'name': f'Closed {current_month_name}', 'status': 'Closed This Month', 'count': closed_this_month, 'color': '#10b981'},
-                    {'name': f'Closed {last_month_name}', 'status': 'Closed Last Month', 'count': closed_last_month, 'color': '#3b82f6'}
+                'shopWorkOrdersByStatus': [
+                    {'name': 'Open', 'status': 'Open', 'count': shop_data['open'], 'color': '#f59e0b'},
+                    {'name': f'Closed {current_month_name}', 'status': 'Closed This Month', 'count': shop_data['closed_this_month'], 'color': '#10b981'},
+                    {'name': f'Closed {last_month_name}', 'status': 'Closed Last Month', 'count': shop_data['closed_last_month'], 'color': '#3b82f6'}
+                ],
+                'roadWorkOrdersByStatus': [
+                    {'name': 'Open', 'status': 'Open', 'count': road_data['open'], 'color': '#f59e0b'},
+                    {'name': f'Closed {current_month_name}', 'status': 'Closed This Month', 'count': road_data['closed_this_month'], 'color': '#10b981'},
+                    {'name': f'Closed {last_month_name}', 'status': 'Closed Last Month', 'count': road_data['closed_last_month'], 'color': '#3b82f6'}
                 ],
                 'recentWorkOrders': [],
                 'monthlyTrend': [
@@ -1796,10 +1808,9 @@ def register_department_routes(reports_bp):
                 ] if trend_result else [],
                 'technicianPerformance': [],
                 'debug': {
-                    'total_service_orders': total_count,
-                    'open_service_orders': open_count,
-                    'closed_this_month': closed_this_month,
-                    'closed_last_month': closed_last_month,
+                    'total_open': total_open,
+                    'shop_data': shop_data,
+                    'road_data': road_data,
                     'current_month': current_month_name,
                     'last_month': last_month_name
                 }
