@@ -1700,6 +1700,26 @@ def register_department_routes(reports_bp):
             
             avg_repair_result = db.execute_query(avg_repair_query)
             
+            # Calculate technician efficiency based on completed work orders
+            # Efficiency = (Completed WOs / Total WOs assigned) * 100
+            efficiency_query = f"""
+            SELECT 
+                COUNT(CASE WHEN ClosedDate IS NOT NULL 
+                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}' 
+                      THEN 1 END) * 100.0 / 
+                NULLIF(COUNT(*), 0) as efficiency_percent
+            FROM ben002.WO
+            WHERE SaleCode IN ('SHPCST', 'RDCST')
+            AND Technician IS NOT NULL
+            AND Technician != ''
+            AND (
+                (ClosedDate IS NOT NULL AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}')
+                OR ClosedDate IS NULL
+            )
+            """
+            
+            efficiency_result = db.execute_query(efficiency_query)
+            
             # Query for monthly trend - completed work orders by SHPCST and RDCST with avg close time
             # Starting from March 2025
             trend_query = """
@@ -1777,6 +1797,12 @@ def register_department_routes(reports_bp):
                         shop_data['avg_repair_days'] = avg_days
                     elif row.get('SaleCode') == 'RDCST':
                         road_data['avg_repair_days'] = avg_days
+            
+            # Process efficiency result
+            technician_efficiency = 0
+            if efficiency_result and len(efficiency_result) > 0:
+                efficiency_percent = efficiency_result[0].get('efficiency_percent', 0)
+                technician_efficiency = round(efficiency_percent or 0, 0)
                 
             # Calculate current month's Service/Labor revenue
             # Updated to match OData exactly - excluding pure rental codes
@@ -1806,7 +1832,7 @@ def register_department_routes(reports_bp):
                     'completedToday': 0,
                     'shopAvgRepairTime': shop_data['avg_repair_days'],
                     'roadAvgRepairTime': road_data['avg_repair_days'],
-                    'technicianEfficiency': 87,
+                    'technicianEfficiency': int(technician_efficiency),
                     'revenue': current_month_revenue,
                     'customersServed': 0
                 },
