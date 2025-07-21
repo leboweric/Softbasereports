@@ -751,20 +751,28 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/verify-service-salecodes', methods=['GET'])
     @jwt_required()
     def verify_service_salecodes():
-        """Verify RDCST and SHOPCST are the correct Service SaleCodes"""
+        """Verify all labor-related Service SaleCodes"""
         try:
             db = get_db()
             
-            # Monthly breakdown using RDCST and SHOPCST
+            # Define all labor-related SaleCodes
+            labor_salecodes = ['RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                              'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A']
+            
+            # Monthly breakdown using all labor SaleCodes
             monthly_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as road_revenue,
-                SUM(CASE WHEN SaleCode = 'SHOPCST' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(CASE WHEN SaleCode IN ('RDCST', 'FMROAD') THEN GrandTotal ELSE 0 END) as field_revenue,
+                SUM(CASE WHEN SaleCode = 'SHPCST' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(CASE WHEN SaleCode IN ('PM', 'PM-FM', 'RENTPM') THEN GrandTotal ELSE 0 END) as pm_revenue,
+                SUM(CASE WHEN SaleCode IN ('RENTR', 'NEWEQP-R') THEN GrandTotal ELSE 0 END) as rental_revenue,
+                SUM(CASE WHEN SaleCode IN ('EDCO', 'SERVP-A') THEN GrandTotal ELSE 0 END) as other_revenue,
                 SUM(GrandTotal) as total_revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-12-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -790,14 +798,18 @@ def register_department_routes(reports_bp):
                     row['difference'] = row['total_revenue'] - targets[month_key]
                     row['match_percent'] = round((row['total_revenue'] / targets[month_key]) * 100, 1)
             
-            # Get current month total
+            # Get current month total with breakdown
             current_query = """
             SELECT 
-                SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as road_revenue,
-                SUM(CASE WHEN SaleCode = 'SHOPCST' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(CASE WHEN SaleCode IN ('RDCST', 'FMROAD') THEN GrandTotal ELSE 0 END) as field_revenue,
+                SUM(CASE WHEN SaleCode = 'SHPCST' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(CASE WHEN SaleCode IN ('PM', 'PM-FM', 'RENTPM') THEN GrandTotal ELSE 0 END) as pm_revenue,
+                SUM(CASE WHEN SaleCode IN ('RENTR', 'NEWEQP-R') THEN GrandTotal ELSE 0 END) as rental_revenue,
+                SUM(CASE WHEN SaleCode IN ('EDCO', 'SERVP-A') THEN GrandTotal ELSE 0 END) as other_revenue,
                 SUM(GrandTotal) as total_revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
             AND MONTH(InvoiceDate) = MONTH(GETDATE())
             AND YEAR(InvoiceDate) = YEAR(GETDATE())
             """
@@ -808,7 +820,7 @@ def register_department_routes(reports_bp):
                 'monthly_breakdown': monthly_results,
                 'current_month': current_month[0] if current_month else {},
                 'targets': targets,
-                'salecodes_used': ['RDCST', 'SHOPCST']
+                'salecodes_used': labor_salecodes
             })
             
         except Exception as e:
@@ -1391,15 +1403,16 @@ def register_department_routes(reports_bp):
             
             trend_result = db.execute_query(trend_query)
             
-            # Query for monthly revenue from Service invoices
-            # Using RDCST (Road Customer) and SHOPCST (Shop Customer)
+            # Query for monthly revenue from Service/Labor invoices
+            # Including all labor-related SaleCodes
             revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
             AND InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1427,12 +1440,13 @@ def register_department_routes(reports_bp):
                 closed_this_month = 0
                 closed_last_month = 0
                 
-            # Calculate current month's Service revenue
-            # Using RDCST and SHOPCST for Service Customer revenue
+            # Calculate current month's Service/Labor revenue
+            # Including all labor-related SaleCodes
             current_month_revenue_query = f"""
             SELECT COALESCE(SUM(GrandTotal), 0) as revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
             AND MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             """

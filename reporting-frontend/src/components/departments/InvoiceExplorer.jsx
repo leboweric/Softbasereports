@@ -519,7 +519,7 @@ const InvoiceExplorer = () => {
                     console.log('Monthly Breakdown:', data.monthly_breakdown)
                     console.log('Current Month:', data.current_month)
                     
-                    let message = 'Service Revenue using RDCST + SHOPCST:\n\n'
+                    let message = 'Labor Sales Revenue (All Service SaleCodes):\n\n'
                     data.monthly_breakdown.forEach(month => {
                       const monthName = new Date(month.year, month.month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
                       message += `${monthName}: $${month.total_revenue?.toLocaleString()}`
@@ -529,9 +529,12 @@ const InvoiceExplorer = () => {
                       message += '\n'
                     })
                     
-                    message += `\nCurrent Month: $${data.current_month?.total_revenue?.toLocaleString() || 0}`
-                    message += `\n  Road: $${data.current_month?.road_revenue?.toLocaleString() || 0}`
-                    message += `\n  Shop: $${data.current_month?.shop_revenue?.toLocaleString() || 0}`
+                    message += `\nCurrent Month Total: $${data.current_month?.total_revenue?.toLocaleString() || 0}`
+                    message += `\n  Field (RDCST/FMROAD): $${data.current_month?.field_revenue?.toLocaleString() || 0}`
+                    message += `\n  Shop (SHPCST): $${data.current_month?.shop_revenue?.toLocaleString() || 0}`
+                    message += `\n  PM: $${data.current_month?.pm_revenue?.toLocaleString() || 0}`
+                    message += `\n  Rental: $${data.current_month?.rental_revenue?.toLocaleString() || 0}`
+                    message += `\n  Other: $${data.current_month?.other_revenue?.toLocaleString() || 0}`
                     
                     alert(message)
                   } else {
@@ -543,7 +546,7 @@ const InvoiceExplorer = () => {
               }}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              ✅ Verify RDCST + SHOPCST
+              ✅ Verify Labor Sales
             </Button>
             <Button 
               onClick={testInvoiceLink} 
