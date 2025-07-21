@@ -262,7 +262,8 @@ def register_department_routes(reports_bp):
             results['account_columns'] = db.execute_query(column_check)
             
             # Try different account column names
-            for col_name in ['Account', 'AccountNo', 'AccountNumber', 'AcctNo', 'GLAccount']:
+            # RecvAccount is confirmed to exist
+            for col_name in ['RecvAccount', 'Account', 'AccountNo', 'AccountNumber', 'AcctNo', 'GLAccount']:
                 try:
                     test_query = f"""
                     SELECT TOP 5
@@ -810,7 +811,8 @@ def register_department_routes(reports_bp):
             revenue_result = None
             
             # Try Account number approach first (most accurate)
-            for account_col in ['SaleAcct', 'GLAccount', 'Account', 'AccountNo']:
+            # RecvAccount is the correct column based on testing
+            for account_col in ['RecvAccount', 'SaleAcct', 'GLAccount', 'Account', 'AccountNo']:
                 try:
                     revenue_query = f"""
                     SELECT 
@@ -887,7 +889,8 @@ def register_department_routes(reports_bp):
             current_month_revenue = 0
             
             # Try Account approach first
-            for account_col in ['SaleAcct', 'GLAccount', 'Account', 'AccountNo']:
+            # RecvAccount is the correct column based on testing
+            for account_col in ['RecvAccount', 'SaleAcct', 'GLAccount', 'Account', 'AccountNo']:
                 try:
                     current_month_revenue_query = f"""
                     SELECT COALESCE(SUM(GrandTotal), 0) as revenue
