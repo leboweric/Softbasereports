@@ -1668,7 +1668,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 SaleCode,
                 COUNT(*) as total,
-                SUM(CASE WHEN ClosedDate IS NULL THEN 1 ELSE 0 END) as open,
+                SUM(CASE WHEN ClosedDate IS NULL THEN 1 ELSE 0 END) as open_count,
                 SUM(CASE 
                     WHEN ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}' 
                     THEN 1 ELSE 0 
@@ -1759,11 +1759,11 @@ def register_department_routes(reports_bp):
             if test_result:
                 for row in test_result:
                     if row.get('SaleCode') == 'SHPCST':
-                        shop_data['open'] = row.get('open', 0) or 0
+                        shop_data['open'] = row.get('open_count', 0) or 0
                         shop_data['closed_this_month'] = row.get('closed_this_month', 0) or 0
                         shop_data['closed_last_month'] = row.get('closed_last_month', 0) or 0
                     elif row.get('SaleCode') == 'RDCST':
-                        road_data['open'] = row.get('open', 0) or 0
+                        road_data['open'] = row.get('open_count', 0) or 0
                         road_data['closed_this_month'] = row.get('closed_this_month', 0) or 0
                         road_data['closed_last_month'] = row.get('closed_last_month', 0) or 0
                 
