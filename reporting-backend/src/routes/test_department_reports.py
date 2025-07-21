@@ -1971,3 +1971,226 @@ def register_department_routes(reports_bp):
                 'type': 'service_report_error',
                 'details': f"Query failed: {str(e)}"
             }), 500
+    
+    @reports_bp.route('/departments/accounting', methods=['GET'])
+    @jwt_required()
+    def get_accounting_department_report():
+        """Get Accounting Department report with real financial data"""
+        try:
+            db = get_db()
+            
+            # Get current date info
+            today = datetime.datetime.now()
+            year_start = datetime.datetime(today.year, 1, 1)
+            month_start = today.replace(day=1)
+            
+            # Get monthly financial data for the last 12 months
+            monthly_financial_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                DATENAME(month, InvoiceDate) as month_name,
+                -- Revenue
+                SUM(GrandTotal) as revenue,
+                -- Cost breakdown
+                SUM(ISNULL(LaborCost, 0)) as labor_cost,
+                SUM(ISNULL(PartsCost, 0)) as parts_cost,
+                SUM(ISNULL(MiscCost, 0)) as misc_cost,
+                SUM(ISNULL(EquipmentCost, 0)) as equipment_cost,
+                SUM(ISNULL(RentalCost, 0)) as rental_cost,
+                -- Total costs
+                SUM(ISNULL(LaborCost, 0) + ISNULL(PartsCost, 0) + ISNULL(MiscCost, 0) + 
+                    ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as total_cost,
+                -- Invoice count
+                COUNT(DISTINCT InvoiceNo) as invoice_count
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+            AND InvoiceDate < DATEADD(month, 1, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DATENAME(month, InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            monthly_result = db.execute_query(monthly_financial_query)
+            
+            monthlyFinancials = []
+            for row in monthly_result:
+                revenue = float(row.get('revenue', 0) or 0)
+                total_cost = float(row.get('total_cost', 0) or 0)
+                
+                # Calculate gross profit
+                gross_profit = revenue - total_cost
+                
+                # Estimate overhead/operating expenses (15% of revenue as placeholder)
+                overhead = revenue * 0.15
+                
+                # Total expenses = COGS + overhead
+                total_expenses = total_cost + overhead
+                
+                # Net profit
+                net_profit = revenue - total_expenses
+                
+                monthlyFinancials.append({
+                    'month': row.get('month_name', '')[:3],  # Abbreviate month
+                    'revenue': round(revenue, 2),
+                    'expenses': round(total_expenses, 2),
+                    'profit': round(net_profit, 2),
+                    'cogs': round(total_cost, 2),  # Cost of Goods Sold
+                    'overhead': round(overhead, 2),
+                    'margin': round((gross_profit / revenue * 100) if revenue > 0 else 0, 1)
+                })
+            
+            # Get YTD summary
+            ytd_summary_query = f"""
+            SELECT 
+                -- Total Revenue YTD
+                SUM(GrandTotal) as total_revenue,
+                -- Total Costs YTD
+                SUM(ISNULL(LaborCost, 0) + ISNULL(PartsCost, 0) + ISNULL(MiscCost, 0) + 
+                    ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as total_cogs,
+                -- Accounts Receivable (from Customer table)
+                (SELECT SUM(Balance) FROM ben002.Customer WHERE Balance > 0) as accounts_receivable,
+                -- Overdue Invoices
+                (SELECT COUNT(*) FROM ben002.InvoiceReg 
+                 WHERE InvoiceStatus = 'Open' 
+                 AND DATEDIFF(day, InvoiceDate, GETDATE()) > 30) as overdue_invoices,
+                -- Current Month Cash Flow
+                (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
+                 WHERE MONTH(InvoiceDate) = {today.month}
+                 AND YEAR(InvoiceDate) = {today.year}) as monthly_cash_flow
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
+            AND InvoiceDate < '{today.strftime('%Y-%m-%d')}'
+            """
+            
+            summary_result = db.execute_query(ytd_summary_query)
+            
+            if summary_result:
+                total_revenue = float(summary_result[0].get('total_revenue', 0) or 0)
+                total_cogs = float(summary_result[0].get('total_cogs', 0) or 0)
+                overhead_ytd = total_revenue * 0.15  # Estimate
+                total_expenses = total_cogs + overhead_ytd
+                net_profit = total_revenue - total_expenses
+                
+                summary = {
+                    'totalRevenue': round(total_revenue, 2),
+                    'totalExpenses': round(total_expenses, 2),
+                    'netProfit': round(net_profit, 2),
+                    'profitMargin': round((net_profit / total_revenue * 100) if total_revenue > 0 else 0, 1),
+                    'accountsReceivable': round(float(summary_result[0].get('accounts_receivable', 0) or 0), 2),
+                    'accountsPayable': 0,  # Would need vendor/payables table
+                    'cashFlow': round(float(summary_result[0].get('monthly_cash_flow', 0) or 0), 2),
+                    'overdueInvoices': summary_result[0].get('overdue_invoices', 0) or 0
+                }
+            else:
+                summary = {
+                    'totalRevenue': 0,
+                    'totalExpenses': 0,
+                    'netProfit': 0,
+                    'profitMargin': 0,
+                    'accountsReceivable': 0,
+                    'accountsPayable': 0,
+                    'cashFlow': 0,
+                    'overdueInvoices': 0
+                }
+            
+            # Revenue by Department
+            dept_revenue_query = f"""
+            SELECT 
+                CASE 
+                    WHEN SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                        'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
+                        'RENTR', 'RENT-DEL', 'MO-RENT') THEN 'Service'
+                    WHEN SaleCode IN ('PARTS', 'PARTSNT', 'FREIGHT', 'SHOPSP') THEN 'Parts'
+                    WHEN SaleCode IN ('RENT', 'DLVPKUP', 'DAMAGE', 'DAMAGE-', 'STRENT', 
+                        'HRENT', 'LIFTTRK', 'STRENT+') THEN 'Rental'
+                    WHEN SaleCode IN ('USEDEQ', 'RTLEQP', 'ALLIEDE', 'NEWEQP') THEN 'Equipment'
+                    ELSE 'Other'
+                END as department,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
+            GROUP BY 
+                CASE 
+                    WHEN SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                        'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
+                        'RENTR', 'RENT-DEL', 'MO-RENT') THEN 'Service'
+                    WHEN SaleCode IN ('PARTS', 'PARTSNT', 'FREIGHT', 'SHOPSP') THEN 'Parts'
+                    WHEN SaleCode IN ('RENT', 'DLVPKUP', 'DAMAGE', 'DAMAGE-', 'STRENT', 
+                        'HRENT', 'LIFTTRK', 'STRENT+') THEN 'Rental'
+                    WHEN SaleCode IN ('USEDEQ', 'RTLEQP', 'ALLIEDE', 'NEWEQP') THEN 'Equipment'
+                    ELSE 'Other'
+                END
+            ORDER BY revenue DESC
+            """
+            
+            dept_result = db.execute_query(dept_revenue_query)
+            
+            revenueByDepartment = []
+            total_dept_revenue = sum(float(row.get('revenue', 0) or 0) for row in dept_result) if dept_result else 0
+            
+            if dept_result:
+                for row in dept_result:
+                    revenue = float(row.get('revenue', 0) or 0)
+                    revenueByDepartment.append({
+                        'department': row.get('department', 'Unknown'),
+                        'revenue': round(revenue, 2),
+                        'percentage': round((revenue / total_dept_revenue * 100) if total_dept_revenue > 0 else 0, 1)
+                    })
+            
+            # Expense categories based on actual costs
+            expense_breakdown_query = f"""
+            SELECT 
+                SUM(ISNULL(LaborCost, 0)) as labor_cost,
+                SUM(ISNULL(PartsCost, 0)) as parts_cost,
+                SUM(ISNULL(MiscCost, 0)) as misc_cost,
+                SUM(ISNULL(EquipmentCost, 0)) as equipment_cost,
+                SUM(ISNULL(RentalCost, 0)) as rental_cost,
+                SUM(ISNULL(LaborCost, 0) + ISNULL(PartsCost, 0) + ISNULL(MiscCost, 0) + 
+                    ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as total_cost
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
+            """
+            
+            expense_result = db.execute_query(expense_breakdown_query)
+            
+            expenseCategories = []
+            if expense_result:
+                labor = float(expense_result[0].get('labor_cost', 0) or 0)
+                parts = float(expense_result[0].get('parts_cost', 0) or 0)
+                misc = float(expense_result[0].get('misc_cost', 0) or 0)
+                equipment = float(expense_result[0].get('equipment_cost', 0) or 0)
+                rental = float(expense_result[0].get('rental_cost', 0) or 0)
+                total = float(expense_result[0].get('total_cost', 0) or 0)
+                overhead = total_revenue * 0.15  # Estimate overhead
+                
+                total_with_overhead = total + overhead
+                
+                expenseCategories = [
+                    {'category': 'Labor', 'amount': round(labor, 2), 
+                     'percentage': round((labor / total_with_overhead * 100) if total_with_overhead > 0 else 0, 1)},
+                    {'category': 'Parts & Materials', 'amount': round(parts, 2), 
+                     'percentage': round((parts / total_with_overhead * 100) if total_with_overhead > 0 else 0, 1)},
+                    {'category': 'Equipment', 'amount': round(equipment, 2), 
+                     'percentage': round((equipment / total_with_overhead * 100) if total_with_overhead > 0 else 0, 1)},
+                    {'category': 'Overhead', 'amount': round(overhead, 2), 
+                     'percentage': round((overhead / total_with_overhead * 100) if total_with_overhead > 0 else 0, 1)},
+                    {'category': 'Other', 'amount': round(misc + rental, 2), 
+                     'percentage': round(((misc + rental) / total_with_overhead * 100) if total_with_overhead > 0 else 0, 1)}
+                ]
+            
+            return jsonify({
+                'summary': summary,
+                'revenueByDepartment': revenueByDepartment,
+                'expenseCategories': expenseCategories,
+                'monthlyFinancials': monthlyFinancials,
+                'cashFlowTrend': [],  # Would need payment data
+                'outstandingInvoices': [],  # Could add if needed
+                'pendingPayables': []  # Would need vendor data
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in accounting report: {str(e)}")
+            return jsonify({
+                'error': str(e),
+                'type': 'accounting_report_error'
+            }), 500
