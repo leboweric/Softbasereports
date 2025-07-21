@@ -1701,24 +1701,40 @@ def register_department_routes(reports_bp):
             avg_repair_result = db.execute_query(avg_repair_query)
             
             # Calculate technician efficiency based on completed work orders
-            # Efficiency = (Completed WOs / Total WOs assigned) * 100
+            # Efficiency = (Completed WOs this month / (Completed this month + Currently Open)) * 100
             efficiency_query = f"""
             SELECT 
-                COUNT(CASE WHEN ClosedDate IS NOT NULL 
+                CAST(COUNT(CASE WHEN ClosedDate IS NOT NULL 
                       AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}' 
-                      THEN 1 END) * 100.0 / 
-                NULLIF(COUNT(*), 0) as efficiency_percent
+                      AND ClosedDate < DATEADD(month, 1, '{current_month_start.strftime('%Y-%m-%d')}')
+                      THEN 1 END) AS FLOAT) * 100.0 / 
+                NULLIF(COUNT(CASE WHEN 
+                    (ClosedDate IS NOT NULL AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}')
+                    OR ClosedDate IS NULL 
+                    THEN 1 END), 0) as efficiency_percent
             FROM ben002.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND Technician IS NOT NULL
             AND Technician != ''
-            AND (
-                (ClosedDate IS NOT NULL AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}')
-                OR ClosedDate IS NULL
-            )
             """
             
             efficiency_result = db.execute_query(efficiency_query)
+            
+            # Debug query to see the actual counts
+            debug_efficiency_query = f"""
+            SELECT 
+                COUNT(CASE WHEN ClosedDate IS NOT NULL 
+                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}' 
+                      THEN 1 END) as completed_this_month,
+                COUNT(CASE WHEN ClosedDate IS NULL THEN 1 END) as currently_open,
+                COUNT(*) as total_with_technician
+            FROM ben002.WO
+            WHERE SaleCode IN ('SHPCST', 'RDCST')
+            AND Technician IS NOT NULL
+            AND Technician != ''
+            """
+            
+            debug_result = db.execute_query(debug_efficiency_query)
             
             # Query for monthly trend - completed work orders by SHPCST and RDCST with avg close time
             # Starting from March 2025
@@ -1863,7 +1879,9 @@ def register_department_routes(reports_bp):
                     'shop_data': shop_data,
                     'road_data': road_data,
                     'current_month': current_month_name,
-                    'last_month': last_month_name
+                    'last_month': last_month_name,
+                    'efficiency_debug': debug_result[0] if debug_result else None,
+                    'efficiency_raw': efficiency_result[0] if efficiency_result else None
                 }
             })
             
