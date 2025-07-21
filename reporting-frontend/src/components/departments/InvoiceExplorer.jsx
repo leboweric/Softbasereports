@@ -316,6 +316,33 @@ const InvoiceExplorer = () => {
         <CardContent>
           <div className="flex gap-2 mb-4 flex-wrap">
             <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/simple-service-test'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== JULY 2025 SERVICE REVENUE TEST ===')
+                    console.log('Target:', data.target)
+                    console.log('Summaries:', data.summaries)
+                    console.log('Details:', data.details)
+                    alert(`July 2025 Revenue Totals:\n\nDept 40+45: $${data.summaries.dept_40_45?.toLocaleString()}\nFMROAD+FMSHOP: $${data.summaries.salecode_fm?.toLocaleString()}\nRecvAccount 410004+410005: $${data.summaries.recv_410004_410005?.toLocaleString()}\n\nCheck console for full details`)
+                  } else {
+                    alert('Failed to run test')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              📊 Simple July Test
+            </Button>
+            <Button 
               onClick={debugRevenueNumber} 
               disabled={debuggingRevenue}
               className="bg-red-600 hover:bg-red-700 text-white"
