@@ -1690,18 +1690,17 @@ def register_department_routes(reports_bp):
             
             test_result = db.execute_query(test_query)
             
-            # Query for monthly trend - completed work orders with labor SaleCodes
+            # Query for monthly trend - completed work orders by SHPCST and RDCST
             # Starting from March 2025
             trend_query = """
             SELECT 
                 YEAR(ClosedDate) as year,
                 MONTH(ClosedDate) as month,
                 DATENAME(month, ClosedDate) as month_name,
-                COUNT(*) as completed
+                SUM(CASE WHEN SaleCode = 'SHPCST' THEN 1 ELSE 0 END) as shop_completed,
+                SUM(CASE WHEN SaleCode = 'RDCST' THEN 1 ELSE 0 END) as road_completed
             FROM ben002.WO
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
-                             'RENTR', 'RENT-DEL', 'MO-RENT')
+            WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND ClosedDate IS NOT NULL
             AND ClosedDate >= '2025-03-01'
             AND ClosedDate < DATEADD(month, 1, GETDATE())
@@ -1791,11 +1790,8 @@ def register_department_routes(reports_bp):
                 'monthlyTrend': [
                     {
                         'month': row.get('month_name', '')[:3],  # Abbreviate month name
-                        'completed': row.get('completed', 0),
-                        'revenue': revenue_by_month.get(
-                            f"{row.get('year', '')}-{row.get('month', '')}", 
-                            0
-                        )
+                        'shop_completed': row.get('shop_completed', 0),
+                        'road_completed': row.get('road_completed', 0)
                     }
                     for row in trend_result
                 ] if trend_result else [],

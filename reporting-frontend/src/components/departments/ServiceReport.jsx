@@ -284,7 +284,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Service Trend</CardTitle>
-            <CardDescription>Completed work orders and revenue over time</CardDescription>
+            <CardDescription>Completed work orders by Shop (SHPCST) and Road (RDCST)</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -292,40 +292,24 @@ const ServiceReport = ({ user, onNavigate }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis 
-                  yAxisId="left" 
                   label={{ value: 'Completed Work Orders', angle: -90, position: 'insideLeft' }}
                 />
-                <YAxis 
-                  yAxisId="right" 
-                  orientation="right"
-                  label={{ value: 'Revenue ($)', angle: 90, position: 'insideRight' }}
-                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                />
-                <Tooltip 
-                  formatter={(value, name) => {
-                    if (name === 'Revenue ($)') {
-                      return [`$${value.toLocaleString()}`, name]
-                    }
-                    return [value, name]
-                  }}
-                />
+                <Tooltip />
                 <Line
-                  yAxisId="left"
                   type="monotone"
-                  dataKey="completed"
+                  dataKey="shop_completed"
                   stroke="#3b82f6"
-                  name="Completed WOs"
+                  name="Shop (SHPCST)"
                   strokeWidth={2}
                   dot={{ fill: '#3b82f6' }}
                 />
                 <Line
-                  yAxisId="right"
                   type="monotone"
-                  dataKey="revenue"
-                  stroke="#10b981"
-                  name="Revenue ($)"
+                  dataKey="road_completed"
+                  stroke="#ef4444"
+                  name="Road (RDCST)"
                   strokeWidth={2}
-                  dot={{ fill: '#10b981' }}
+                  dot={{ fill: '#ef4444' }}
                 />
               </LineChart>
             </ResponsiveContainer>
