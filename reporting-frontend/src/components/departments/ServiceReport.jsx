@@ -29,7 +29,7 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
+  Tooltip as RechartsTooltip, 
   ResponsiveContainer,
   LineChart,
   Line,
@@ -276,7 +276,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <RechartsTooltip />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -305,7 +305,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip />
+                <RechartsTooltip />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -334,7 +334,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                   orientation="right"
                   label={{ value: 'Avg Days to Close', angle: 90, position: 'insideRight' }}
                 />
-                <Tooltip />
+                <RechartsTooltip />
                 <Line
                   yAxisId="left"
                   type="monotone"
@@ -379,7 +379,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                 orientation="right"
                 label={{ value: 'Avg Days to Close', angle: 90, position: 'insideRight' }}
               />
-              <Tooltip />
+              <RechartsTooltip />
               <Line
                 yAxisId="left"
                 type="monotone"
@@ -420,7 +420,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 label={{ value: 'Revenue ($)', angle: -90, position: 'insideLeft' }}
               />
-              <Tooltip 
+              <RechartsTooltip 
                 formatter={(value) => [`$${value.toLocaleString()}`, '']}
                 labelFormatter={(label) => `Month: ${label}`}
               />
