@@ -464,7 +464,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           <DialogHeader>
             <DialogTitle>Open Work Orders Detail</DialogTitle>
             <DialogDescription>
-              {openWODetails ? `${openWODetails.total_count} open work orders with labor service codes` : 'Loading...'}
+              {openWODetails ? `${openWODetails.total_count} open work orders (RDCST and SHPCST only)` : 'Loading...'}
             </DialogDescription>
           </DialogHeader>
           

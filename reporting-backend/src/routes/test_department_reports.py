@@ -919,11 +919,11 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/open-work-orders-detail', methods=['GET'])
     @jwt_required()
     def get_open_work_orders_detail():
-        """Get detailed list of open work orders with labor SaleCodes"""
+        """Get detailed list of open work orders for RDCST and SHPCST only"""
         try:
             db = get_db()
             
-            # Get all open work orders with labor SaleCodes
+            # Get all open work orders for RDCST and SHPCST only
             detail_query = """
             SELECT 
                 WONo,
@@ -943,9 +943,7 @@ def register_department_routes(reports_bp):
                 Comments
             FROM ben002.WO
             WHERE ClosedDate IS NULL
-            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
-                           'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
-                           'RENTR', 'RENT-DEL', 'MO-RENT')
+            AND SaleCode IN ('RDCST', 'SHPCST')
             ORDER BY OpenDate DESC
             """
             
@@ -958,9 +956,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as count
             FROM ben002.WO
             WHERE ClosedDate IS NULL
-            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
-                           'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
-                           'RENTR', 'RENT-DEL', 'MO-RENT')
+            AND SaleCode IN ('RDCST', 'SHPCST')
             GROUP BY SaleCode
             ORDER BY count DESC
             """
