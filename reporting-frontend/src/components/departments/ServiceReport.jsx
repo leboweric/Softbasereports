@@ -179,7 +179,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         <Card 
           className="cursor-pointer hover:shadow-lg transition-shadow"
           onClick={handleOpenWOClick}
@@ -207,12 +207,23 @@ const ServiceReport = ({ user, onNavigate }) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Repair Time</CardTitle>
+            <CardTitle className="text-sm font-medium">Shop Avg Repair Time</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{serviceData.summary.averageRepairTime}h</div>
-            <p className="text-xs text-muted-foreground">Per work order</p>
+            <div className="text-2xl font-bold">{serviceData.summary.shopAvgRepairTime || 0}h</div>
+            <p className="text-xs text-muted-foreground">SHPCST per work order</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Road Avg Repair Time</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{serviceData.summary.roadAvgRepairTime || 0}h</div>
+            <p className="text-xs text-muted-foreground">RDCST per work order</p>
           </CardContent>
         </Card>
 
