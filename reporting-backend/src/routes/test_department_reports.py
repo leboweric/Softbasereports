@@ -138,6 +138,21 @@ def register_department_routes(reports_bp):
             
             results['service_breakdown'] = db.execute_query(service_total_query)[0]
             
+            # Test 6: Try Department approach (40=Field, 45=Shop)
+            try:
+                dept_total_query = """
+                SELECT 
+                    SUM(CASE WHEN Dept = 40 THEN GrandTotal ELSE 0 END) as field_service_dept,
+                    SUM(CASE WHEN Dept = 45 THEN GrandTotal ELSE 0 END) as shop_service_dept,
+                    SUM(CASE WHEN Dept IN (40, 45) THEN GrandTotal ELSE 0 END) as total_service_dept
+                FROM ben002.InvoiceReg
+                WHERE MONTH(InvoiceDate) = 7
+                AND YEAR(InvoiceDate) = 2025
+                """
+                results['service_dept_breakdown'] = db.execute_query(dept_total_query)[0]
+            except Exception as e:
+                results['service_dept_breakdown'] = {'error': str(e)}
+            
             return jsonify(results)
             
         except Exception as e:
@@ -426,21 +441,41 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from Service invoices
-            # Filter by SaleCode to get Service revenue (Field + Shop)
-            # RDCST = Road/Field Service, SHPCST = Shop Service
+            # Option 1: If Dept column exists, use Department codes (40=Field, 45=Shop)
+            # Option 2: Otherwise fall back to SaleCode filter
+            # First, try with Department codes
             revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
+            WHERE Dept IN (40, 45)
             AND InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
             
-            revenue_result = db.execute_query(revenue_query)
+            # Try Department approach first
+            try:
+                revenue_result = db.execute_query(revenue_query)
+            except Exception as e:
+                # If Dept column doesn't exist, fall back to SaleCode
+                if "Invalid column name 'Dept'" in str(e):
+                    revenue_query = """
+                    SELECT 
+                        YEAR(InvoiceDate) as year,
+                        MONTH(InvoiceDate) as month,
+                        SUM(GrandTotal) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
+                    AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+                    GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                    ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                    """
+                    revenue_result = db.execute_query(revenue_query)
+                else:
+                    raise e
             
             # Create a revenue lookup dictionary
             revenue_by_month = {}
@@ -463,11 +498,11 @@ def register_department_routes(reports_bp):
                 closed_last_month = 0
                 
             # Calculate current month's Service revenue
-            # Using SaleCode filter for Service departments
+            # Try Department approach first, fall back to SaleCode if needed
             current_month_revenue_query = f"""
             SELECT COALESCE(SUM(GrandTotal), 0) as revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
+            WHERE Dept IN (40, 45)
             AND MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             """
@@ -475,8 +510,20 @@ def register_department_routes(reports_bp):
             try:
                 revenue_result = db.execute_query(current_month_revenue_query)
                 current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
-            except:
-                current_month_revenue = 0
+            except Exception as e:
+                if "Invalid column name 'Dept'" in str(e):
+                    # Fall back to SaleCode approach
+                    current_month_revenue_query = f"""
+                    SELECT COALESCE(SUM(GrandTotal), 0) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
+                    AND MONTH(InvoiceDate) = {today.month}
+                    AND YEAR(InvoiceDate) = {today.year}
+                    """
+                    revenue_result = db.execute_query(current_month_revenue_query)
+                    current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
+                else:
+                    current_month_revenue = 0
             
             # Get month names for labels
             current_month_name = today.strftime('%B')  # e.g., "July"

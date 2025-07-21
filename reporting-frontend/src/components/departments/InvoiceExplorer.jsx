@@ -523,6 +523,20 @@ const InvoiceExplorer = () => {
                   </ul>
                 </div>
               )}
+              
+              {verifyTest.service_dept_breakdown && !verifyTest.service_dept_breakdown.error && (
+                <div className="bg-blue-50 p-4 rounded border border-blue-200">
+                  <h5 className="font-medium mb-2">Service Revenue by Department Code:</h5>
+                  <ul className="space-y-1 text-sm">
+                    <li>Field Service (Dept 40): ${(verifyTest.service_dept_breakdown.field_service_dept || 0).toLocaleString()}</li>
+                    <li>Shop Service (Dept 45): ${(verifyTest.service_dept_breakdown.shop_service_dept || 0).toLocaleString()}</li>
+                    <li className="font-bold text-blue-600">
+                      Total Service: ${(verifyTest.service_dept_breakdown.total_service_dept || 0).toLocaleString()}
+                    </li>
+                    <li className="text-blue-600">Using Department codes is cleaner!</li>
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
