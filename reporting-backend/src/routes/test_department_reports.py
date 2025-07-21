@@ -240,6 +240,115 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/match-historical-revenue', methods=['GET'])
+    @jwt_required()
+    def match_historical_revenue():
+        """Try to match historical Service revenue numbers"""
+        try:
+            db = get_db()
+            
+            # Target values to match (from user's historical data)
+            targets = {
+                '2025-03': 102148,  # March
+                '2025-04': 128987,  # April 
+                '2025-05': 95081,   # May
+                '2025-06': 106463,  # June
+                '2025-07': 72891    # July (Field: 54191 + Shop: ~18700)
+            }
+            
+            results = {'targets': targets}
+            
+            # Test 1: Department 40 only (Field Service)
+            dept40_query = """
+            SELECT 
+                CONCAT(YEAR(InvoiceDate), '-', RIGHT('0' + CAST(MONTH(InvoiceDate) AS VARCHAR), 2)) as month,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE Dept = 40
+            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < '2025-08-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            try:
+                results['dept_40_only'] = db.execute_query(dept40_query)
+            except:
+                results['dept_40_only'] = []
+            
+            # Test 2: FMROAD only
+            fmroad_query = """
+            SELECT 
+                CONCAT(YEAR(InvoiceDate), '-', RIGHT('0' + CAST(MONTH(InvoiceDate) AS VARCHAR), 2)) as month,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode = 'FMROAD'
+            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < '2025-08-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            results['fmroad_only'] = db.execute_query(fmroad_query)
+            
+            # Test 3: Department 40 + 45
+            both_dept_query = """
+            SELECT 
+                CONCAT(YEAR(InvoiceDate), '-', RIGHT('0' + CAST(MONTH(InvoiceDate) AS VARCHAR), 2)) as month,
+                SUM(CASE WHEN Dept = 40 THEN GrandTotal ELSE 0 END) as field_revenue,
+                SUM(CASE WHEN Dept = 45 THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE Dept IN (40, 45)
+            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < '2025-08-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            try:
+                results['both_departments'] = db.execute_query(both_dept_query)
+            except:
+                results['both_departments'] = []
+            
+            # Test 4: FMROAD + FMSHOP
+            both_salecode_query = """
+            SELECT 
+                CONCAT(YEAR(InvoiceDate), '-', RIGHT('0' + CAST(MONTH(InvoiceDate) AS VARCHAR), 2)) as month,
+                SUM(CASE WHEN SaleCode = 'FMROAD' THEN GrandTotal ELSE 0 END) as field_revenue,
+                SUM(CASE WHEN SaleCode = 'FMSHOP' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('FMROAD', 'FMSHOP')
+            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < '2025-08-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            results['both_salecodes'] = db.execute_query(both_salecode_query)
+            
+            # Test 5: Check all SaleCodes with significant revenue
+            all_codes_query = """
+            SELECT 
+                SaleCode,
+                SUM(CASE WHEN MONTH(InvoiceDate) = 7 THEN GrandTotal ELSE 0 END) as july_revenue,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < '2025-08-01'
+            GROUP BY SaleCode
+            HAVING SUM(CASE WHEN MONTH(InvoiceDate) = 7 THEN GrandTotal ELSE 0 END) > 5000
+            ORDER BY july_revenue DESC
+            """
+            
+            results['significant_codes'] = db.execute_query(all_codes_query)
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/find-service-salecodes', methods=['GET'])
     @jwt_required()
     def find_service_salecodes():

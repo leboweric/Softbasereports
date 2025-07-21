@@ -22,6 +22,8 @@ const InvoiceExplorer = () => {
   const [testingCurrentMonth, setTestingCurrentMonth] = useState(false)
   const [salecodeSearch, setSalecodeSearch] = useState(null)
   const [searchingSalecodes, setSearchingSalecodes] = useState(false)
+  const [historicalMatch, setHistoricalMatch] = useState(null)
+  const [matchingHistorical, setMatchingHistorical] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -210,6 +212,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const matchHistoricalRevenue = async () => {
+    setMatchingHistorical(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/match-historical-revenue'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setHistoricalMatch(result)
+      } else {
+        setError(`Failed to match historical: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setMatchingHistorical(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -240,6 +265,13 @@ const InvoiceExplorer = () => {
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4 flex-wrap">
+            <Button 
+              onClick={matchHistoricalRevenue} 
+              disabled={matchingHistorical}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {matchingHistorical ? 'Matching...' : '📊 Match Historical Revenue'}
+            </Button>
             <Button 
               onClick={findServiceSalecodes} 
               disabled={searchingSalecodes}
@@ -289,6 +321,150 @@ const InvoiceExplorer = () => {
               {testingCurrentMonth ? 'Testing...' : 'Test Current Month'}
             </Button>
           </div>
+          
+          {historicalMatch && (
+            <div className="space-y-4 border-t pt-4">
+              <h4 className="font-semibold text-orange-600">Historical Revenue Matching Analysis:</h4>
+              
+              <div className="bg-orange-50 p-4 rounded border border-orange-200">
+                <h5 className="font-medium mb-2">Target Values (Your Historical Data):</h5>
+                <table className="text-sm w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Month</th>
+                      <th className="text-right p-2">Target Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(historicalMatch.targets || {}).map(([month, value]) => (
+                      <tr key={month} className="border-b">
+                        <td className="p-2">{month}</td>
+                        <td className="p-2 text-right">${value.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {historicalMatch.dept_40_only && historicalMatch.dept_40_only.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded border border-blue-200">
+                  <h5 className="font-medium mb-2">Department 40 Only (Field Service):</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Month</th>
+                        <th className="text-right p-2">Revenue</th>
+                        <th className="text-right p-2">Difference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historicalMatch.dept_40_only.map((row) => {
+                        const target = historicalMatch.targets[row.month];
+                        const diff = row.revenue - target;
+                        return (
+                          <tr key={row.month} className="border-b">
+                            <td className="p-2">{row.month}</td>
+                            <td className="p-2 text-right">${(row.revenue || 0).toLocaleString()}</td>
+                            <td className={`p-2 text-right ${Math.abs(diff) < 5000 ? 'text-green-600 font-bold' : 'text-red-600'}`}>
+                              {diff > 0 ? '+' : ''}{diff.toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {historicalMatch.fmroad_only && (
+                <div className="bg-green-50 p-4 rounded border border-green-200">
+                  <h5 className="font-medium mb-2">FMROAD Only:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Month</th>
+                        <th className="text-right p-2">Revenue</th>
+                        <th className="text-right p-2">Difference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historicalMatch.fmroad_only.map((row) => {
+                        const target = historicalMatch.targets[row.month];
+                        const diff = row.revenue - target;
+                        return (
+                          <tr key={row.month} className="border-b">
+                            <td className="p-2">{row.month}</td>
+                            <td className="p-2 text-right">${(row.revenue || 0).toLocaleString()}</td>
+                            <td className={`p-2 text-right ${Math.abs(diff) < 5000 ? 'text-green-600 font-bold' : 'text-red-600'}`}>
+                              {diff > 0 ? '+' : ''}{diff.toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {historicalMatch.both_departments && historicalMatch.both_departments.length > 0 && (
+                <div className="bg-purple-50 p-4 rounded border border-purple-200">
+                  <h5 className="font-medium mb-2">Departments 40 + 45 Combined:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Month</th>
+                        <th className="text-right p-2">Field (40)</th>
+                        <th className="text-right p-2">Shop (45)</th>
+                        <th className="text-right p-2">Total</th>
+                        <th className="text-right p-2">Difference</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historicalMatch.both_departments.map((row) => {
+                        const target = historicalMatch.targets[row.month];
+                        const diff = row.total_revenue - target;
+                        return (
+                          <tr key={row.month} className="border-b">
+                            <td className="p-2">{row.month}</td>
+                            <td className="p-2 text-right">${(row.field_revenue || 0).toLocaleString()}</td>
+                            <td className="p-2 text-right">${(row.shop_revenue || 0).toLocaleString()}</td>
+                            <td className="p-2 text-right">${(row.total_revenue || 0).toLocaleString()}</td>
+                            <td className={`p-2 text-right ${Math.abs(diff) < 5000 ? 'text-green-600 font-bold' : 'text-red-600'}`}>
+                              {diff > 0 ? '+' : ''}{diff.toLocaleString()}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {historicalMatch.significant_codes && (
+                <div className="bg-gray-50 p-4 rounded border border-gray-200">
+                  <h5 className="font-medium mb-2">Top SaleCodes in July (>$5K):</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">SaleCode</th>
+                        <th className="text-right p-2">July Revenue</th>
+                        <th className="text-right p-2">Total (Mar-Jul)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historicalMatch.significant_codes?.slice(0, 10).map((code, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2 font-mono">{code.SaleCode}</td>
+                          <td className="p-2 text-right">${(code.july_revenue || 0).toLocaleString()}</td>
+                          <td className="p-2 text-right">${(code.total_revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           
           {salecodeSearch && (
             <div className="space-y-4 border-t pt-4">
