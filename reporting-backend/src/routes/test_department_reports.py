@@ -49,6 +49,86 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/verify-service-revenue', methods=['GET'])
+    @jwt_required()
+    def verify_service_revenue():
+        """Verify Service revenue calculations against known values"""
+        try:
+            db = get_db()
+            
+            results = {}
+            
+            # Test 1: Get July Service revenue using the join
+            july_join_query = """
+            SELECT 
+                COUNT(DISTINCT i.InvoiceNo) as invoice_count,
+                COUNT(*) as row_count,
+                SUM(i.GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg i
+            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            WHERE w.Type = 'S'
+            AND MONTH(i.InvoiceDate) = 7
+            AND YEAR(i.InvoiceDate) = 2025
+            """
+            
+            results['july_with_join'] = db.execute_query(july_join_query)[0]
+            
+            # Test 2: Check for duplicates - why are we getting more rows?
+            duplicate_check = """
+            SELECT TOP 10
+                i.InvoiceNo,
+                i.ControlNo,
+                i.GrandTotal,
+                COUNT(*) as match_count
+            FROM ben002.InvoiceReg i
+            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            WHERE w.Type = 'S'
+            AND MONTH(i.InvoiceDate) = 7
+            AND YEAR(i.InvoiceDate) = 2025
+            GROUP BY i.InvoiceNo, i.ControlNo, i.GrandTotal
+            HAVING COUNT(*) > 1
+            """
+            
+            results['duplicates'] = db.execute_query(duplicate_check)
+            
+            # Test 3: Try using SaleDept instead - check if certain depts are Service
+            dept_breakdown = """
+            SELECT 
+                SaleDept,
+                SaleCode,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = 7
+            AND YEAR(InvoiceDate) = 2025
+            GROUP BY SaleDept, SaleCode
+            ORDER BY revenue DESC
+            """
+            
+            results['july_by_dept'] = db.execute_query(dept_breakdown)
+            
+            # Test 4: Look for SaleCode patterns that might indicate Service
+            service_codes = """
+            SELECT DISTINCT TOP 20
+                SaleCode,
+                COUNT(*) as count,
+                SUM(LaborCost + LaborTaxable + LaborNonTax) as labor_revenue,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = 7
+            AND YEAR(InvoiceDate) = 2025
+            AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
+            GROUP BY SaleCode
+            ORDER BY labor_revenue DESC
+            """
+            
+            results['service_likely_codes'] = db.execute_query(service_codes)
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/test-saledept', methods=['GET'])
     @jwt_required()
     def test_saledept():

@@ -16,6 +16,8 @@ const InvoiceExplorer = () => {
   const [testingRevenue, setTestingRevenue] = useState(false)
   const [deptTest, setDeptTest] = useState(null)
   const [testingDept, setTestingDept] = useState(false)
+  const [verifyTest, setVerifyTest] = useState(null)
+  const [testingVerify, setTestingVerify] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -135,6 +137,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const verifyServiceRevenue = async () => {
+    setTestingVerify(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/verify-service-revenue'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setVerifyTest(result)
+      } else {
+        setError(`Failed to verify revenue: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setTestingVerify(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -191,6 +216,13 @@ const InvoiceExplorer = () => {
               variant="secondary"
             >
               {testingDept ? 'Testing...' : 'Test SaleDept Values'}
+            </Button>
+            <Button 
+              onClick={verifyServiceRevenue} 
+              disabled={testingVerify}
+              variant="destructive"
+            >
+              {testingVerify ? 'Verifying...' : 'Verify July Revenue'}
             </Button>
           </div>
           
@@ -395,6 +427,85 @@ const InvoiceExplorer = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          {verifyTest && (
+            <div className="space-y-4 mt-4 border-t pt-4">
+              <h4 className="font-semibold text-red-600">July Revenue Verification:</h4>
+              
+              {verifyTest.july_with_join && (
+                <div className="bg-red-50 p-4 rounded border border-red-200">
+                  <h5 className="font-medium mb-2">Current Join Results (INCORRECT):</h5>
+                  <ul className="space-y-1 text-sm">
+                    <li>Invoice Count: {verifyTest.july_with_join.invoice_count}</li>
+                    <li>Row Count: {verifyTest.july_with_join.row_count}</li>
+                    <li>Total Revenue: ${(verifyTest.july_with_join.total_revenue || 0).toLocaleString()}</li>
+                    <li className="text-red-600 font-bold">
+                      Should be ~$73K (Field: $54K + Shop: $19K)
+                    </li>
+                  </ul>
+                </div>
+              )}
+              
+              {verifyTest.duplicates && verifyTest.duplicates.length > 0 && (
+                <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
+                  <h5 className="font-medium mb-2">Duplicate Invoices Found:</h5>
+                  <p className="text-sm text-yellow-700">Each invoice is matching multiple work orders!</p>
+                </div>
+              )}
+              
+              {verifyTest.july_by_dept && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">July Revenue by Department:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Dept</th>
+                        <th className="text-left p-2">Code</th>
+                        <th className="text-left p-2">Count</th>
+                        <th className="text-left p-2">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {verifyTest.july_by_dept.slice(0, 10).map((dept, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">{dept.SaleDept}</td>
+                          <td className="p-2">{dept.SaleCode}</td>
+                          <td className="p-2">{dept.invoice_count}</td>
+                          <td className="p-2">${(dept.revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {verifyTest.service_likely_codes && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">Codes with High Labor (likely Service):</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">SaleCode</th>
+                        <th className="text-left p-2">Count</th>
+                        <th className="text-left p-2">Labor Rev</th>
+                        <th className="text-left p-2">Total Rev</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {verifyTest.service_likely_codes.slice(0, 10).map((code, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">{code.SaleCode}</td>
+                          <td className="p-2">{code.count}</td>
+                          <td className="p-2">${(code.labor_revenue || 0).toLocaleString()}</td>
+                          <td className="p-2">${(code.total_revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
