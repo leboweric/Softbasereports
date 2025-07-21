@@ -113,6 +113,57 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/get-all-columns', methods=['GET'])
+    @jwt_required()
+    def get_all_columns():
+        """Get ALL column names from InvoiceReg and WO tables"""
+        try:
+            db = get_db()
+            
+            # Get InvoiceReg columns
+            invoice_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'InvoiceReg'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            invoice_columns = db.execute_query(invoice_query)
+            
+            # Get WO table columns
+            wo_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'WO'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            wo_columns = db.execute_query(wo_query)
+            
+            # Get sample data
+            invoice_sample = db.execute_query("SELECT TOP 1 * FROM ben002.InvoiceReg WHERE MONTH(InvoiceDate) = 7 AND YEAR(InvoiceDate) = 2025")
+            wo_sample = db.execute_query("SELECT TOP 1 * FROM ben002.WO WHERE Type = 'S'")
+            
+            return jsonify({
+                'invoice_columns': invoice_columns,
+                'wo_columns': wo_columns,
+                'invoice_sample': invoice_sample[0] if invoice_sample else {},
+                'wo_sample': wo_sample[0] if wo_sample else {},
+                'invoice_column_names': [col['COLUMN_NAME'] for col in invoice_columns] if invoice_columns else [],
+                'wo_column_names': [col['COLUMN_NAME'] for col in wo_columns] if wo_columns else []
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/invoice-columns', methods=['GET'])
     @jwt_required()
     def get_invoice_columns():
@@ -697,6 +748,297 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/verify-service-salecodes', methods=['GET'])
+    @jwt_required()
+    def verify_service_salecodes():
+        """Verify RDCST and SHOPCST are the correct Service SaleCodes"""
+        try:
+            db = get_db()
+            
+            # Monthly breakdown using RDCST and SHOPCST
+            monthly_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as road_revenue,
+                SUM(CASE WHEN SaleCode = 'SHOPCST' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < '2025-12-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY year, month
+            """
+            
+            monthly_results = db.execute_query(monthly_query)
+            
+            # Compare with historical targets
+            targets = {
+                '2025-03': 102148,
+                '2025-04': 128987,
+                '2025-05': 95081,
+                '2025-06': 106463,
+                '2025-07': 72891
+            }
+            
+            # Add comparison to results
+            for row in monthly_results:
+                month_key = f"{row['year']}-{str(row['month']).zfill(2)}"
+                if month_key in targets:
+                    row['target'] = targets[month_key]
+                    row['difference'] = row['total_revenue'] - targets[month_key]
+                    row['match_percent'] = round((row['total_revenue'] / targets[month_key]) * 100, 1)
+            
+            # Get current month total
+            current_query = """
+            SELECT 
+                SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as road_revenue,
+                SUM(CASE WHEN SaleCode = 'SHOPCST' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            AND MONTH(InvoiceDate) = MONTH(GETDATE())
+            AND YEAR(InvoiceDate) = YEAR(GETDATE())
+            """
+            
+            current_month = db.execute_query(current_query)
+            
+            return jsonify({
+                'monthly_breakdown': monthly_results,
+                'current_month': current_month[0] if current_month else {},
+                'targets': targets,
+                'salecodes_used': ['RDCST', 'SHOPCST']
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @reports_bp.route('/departments/analyze-labor-sales', methods=['GET'])
+    @jwt_required()
+    def analyze_labor_sales():
+        """Analyze Labor Sales data to match OData wolabor endpoint"""
+        try:
+            db = get_db()
+            
+            # 1. First, let's find labor-related columns in InvoiceReg
+            labor_columns_query = """
+            SELECT 
+                SUM(LaborCost) as total_labor_cost,
+                SUM(LaborTaxable) as total_labor_taxable,
+                SUM(LaborNonTax) as total_labor_nontax,
+                SUM(LaborCost + LaborTaxable + LaborNonTax) as total_labor_revenue,
+                COUNT(*) as invoice_count
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
+            """
+            
+            labor_totals = db.execute_query(labor_columns_query)
+            
+            # 2. Break down by SaleCode to see which codes have labor
+            labor_by_salecode = """
+            SELECT 
+                SaleCode,
+                COUNT(*) as invoice_count,
+                SUM(LaborCost) as labor_cost,
+                SUM(LaborTaxable) as labor_taxable,
+                SUM(LaborNonTax) as labor_nontax,
+                SUM(LaborCost + LaborTaxable + LaborNonTax) as total_labor,
+                SUM(GrandTotal) as grand_total
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
+            GROUP BY SaleCode
+            ORDER BY total_labor DESC
+            """
+            
+            labor_salecodes = db.execute_query(labor_by_salecode)
+            
+            # 3. Check if there's a WOLabor or similar table
+            tables_query = """
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'ben002'
+            AND (TABLE_NAME LIKE '%labor%' OR TABLE_NAME LIKE '%Labor%' OR TABLE_NAME = 'WOLabor')
+            ORDER BY TABLE_NAME
+            """
+            
+            labor_tables = db.execute_query(tables_query)
+            
+            # 4. Monthly trend of labor sales
+            monthly_labor = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(LaborCost + LaborTaxable + LaborNonTax) as labor_revenue,
+                COUNT(*) as invoice_count
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < '2025-08-01'
+            AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY year, month
+            """
+            
+            monthly_trend = db.execute_query(monthly_labor)
+            
+            # 5. Check Work Order table for labor information
+            wo_labor_query = """
+            SELECT TOP 10
+                Type,
+                LaborType,
+                LaborCost,
+                LaborPrice,
+                Hours
+            FROM ben002.WO
+            WHERE Type = 'S'
+            AND (LaborCost > 0 OR LaborPrice > 0)
+            ORDER BY DateOpened DESC
+            """
+            
+            try:
+                wo_labor_sample = db.execute_query(wo_labor_query)
+            except:
+                # Try different column names
+                wo_labor_query_alt = """
+                SELECT TOP 5 * 
+                FROM ben002.WO
+                WHERE Type = 'S'
+                """
+                try:
+                    wo_labor_sample = db.execute_query(wo_labor_query_alt)
+                except:
+                    wo_labor_sample = []
+            
+            return jsonify({
+                'labor_totals': labor_totals[0] if labor_totals else {},
+                'labor_by_salecode': labor_salecodes,
+                'labor_tables_found': labor_tables,
+                'monthly_labor_trend': monthly_trend,
+                'wo_labor_sample': wo_labor_sample,
+                'target_july': 72891
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    @reports_bp.route('/departments/analyze-service-revenue', methods=['GET'])
+    @jwt_required()
+    def analyze_service_revenue():
+        """Comprehensive Service revenue analysis"""
+        try:
+            db = get_db()
+            
+            # 1. Get all July invoices grouped by SaleCode with RecvAccount
+            salecode_query = """
+            SELECT 
+                SaleCode,
+                RecvAccount,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            GROUP BY SaleCode, RecvAccount
+            ORDER BY total_revenue DESC
+            """
+            
+            salecode_results = db.execute_query(salecode_query)
+            
+            # 2. Find all invoices with FMROAD or FMSHOP
+            service_codes_query = """
+            SELECT 
+                SaleCode,
+                RecvAccount,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            AND SaleCode IN ('FMROAD', 'FMSHOP')
+            GROUP BY SaleCode, RecvAccount
+            """
+            
+            service_codes_results = db.execute_query(service_codes_query)
+            
+            # 3. Check for account 410004 and 410005
+            account_query = """
+            SELECT 
+                RecvAccount,
+                SaleCode,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            AND RecvAccount IN ('410004', '410005')
+            GROUP BY RecvAccount, SaleCode
+            ORDER BY RecvAccount, total_revenue DESC
+            """
+            
+            account_results = db.execute_query(account_query)
+            
+            # 4. Find all SaleCodes that start with FM (service-related)
+            fm_query = """
+            SELECT 
+                SaleCode,
+                RecvAccount,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            AND SaleCode LIKE 'FM%'
+            GROUP BY SaleCode, RecvAccount
+            ORDER BY total_revenue DESC
+            """
+            
+            fm_results = db.execute_query(fm_query)
+            
+            # 5. Get grand total for July
+            total_query = """
+            SELECT 
+                SUM(GrandTotal) as total_july_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            """
+            
+            total_results = db.execute_query(total_query)
+            
+            # 6. Sample invoices for FMROAD and FMSHOP
+            sample_query = """
+            SELECT TOP 10
+                InvoiceNo,
+                CustomerName,
+                SaleCode,
+                RecvAccount,
+                GrandTotal,
+                InvoiceDate
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = 2025 
+            AND MONTH(InvoiceDate) = 7
+            AND SaleCode IN ('FMROAD', 'FMSHOP')
+            ORDER BY GrandTotal DESC
+            """
+            
+            sample_results = db.execute_query(sample_query)
+            
+            return jsonify({
+                'salecode_breakdown': salecode_results,
+                'service_codes': service_codes_results,
+                'account_breakdown': account_results,
+                'fm_salecodes': fm_results,
+                'total_july': total_results[0] if total_results else {},
+                'sample_invoices': sample_results
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/find-service-salecodes', methods=['GET'])
     @jwt_required()
     def find_service_salecodes():
@@ -1050,66 +1392,20 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from Service invoices
-            # Try multiple approaches in order of preference:
-            # 1. Account numbers (410004=Field, 410005=Shop) - most accurate
-            # 2. Department codes (40=Field, 45=Shop)
-            # 3. SaleCode (FMROAD=Field, FMSHOP=Shop)
+            # Using RDCST (Road Customer) and SHOPCST (Shop Customer)
+            revenue_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
             
-            revenue_result = None
-            
-            # Try Account number approach first (most accurate)
-            # RecvAccount is the correct column based on testing
-            for account_col in ['RecvAccount', 'SaleAcct', 'GLAccount', 'Account', 'AccountNo']:
-                try:
-                    revenue_query = f"""
-                    SELECT 
-                        YEAR(InvoiceDate) as year,
-                        MONTH(InvoiceDate) as month,
-                        SUM(GrandTotal) as revenue
-                    FROM ben002.InvoiceReg
-                    WHERE {account_col} IN ('410004', '410005')
-                    AND InvoiceDate >= DATEADD(month, -6, GETDATE())
-                    GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                    ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                    """
-                    revenue_result = db.execute_query(revenue_query)
-                    if revenue_result:
-                        break
-                except:
-                    continue
-            
-            # If Account approach didn't work, try Department
-            if not revenue_result:
-                try:
-                    revenue_query = """
-                    SELECT 
-                        YEAR(InvoiceDate) as year,
-                        MONTH(InvoiceDate) as month,
-                        SUM(GrandTotal) as revenue
-                    FROM ben002.InvoiceReg
-                    WHERE Dept IN (40, 45)
-                    AND InvoiceDate >= DATEADD(month, -6, GETDATE())
-                    GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                    ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                    """
-                    revenue_result = db.execute_query(revenue_query)
-                except:
-                    pass
-            
-            # Finally, fall back to SaleCode
-            if not revenue_result:
-                revenue_query = """
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    SUM(GrandTotal) as revenue
-                FROM ben002.InvoiceReg
-                WHERE SaleCode IN ('FMROAD', 'FMSHOP')
-                AND InvoiceDate >= DATEADD(month, -6, GETDATE())
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                """
-                revenue_result = db.execute_query(revenue_query)
+            revenue_result = db.execute_query(revenue_query)
             
             # Create a revenue lookup dictionary
             revenue_by_month = {}
@@ -1131,35 +1427,21 @@ def register_department_routes(reports_bp):
                 closed_this_month = 0
                 closed_last_month = 0
                 
-            # TEMPORARY: Let's just hardcode July 2025 to see what we get
-            # We'll fix the dynamic date later
-            current_month_revenue = 0
+            # Calculate current month's Service revenue
+            # Using RDCST and SHOPCST for Service Customer revenue
+            current_month_revenue_query = f"""
+            SELECT COALESCE(SUM(GrandTotal), 0) as revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHOPCST')
+            AND MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            """
             
-            # Test 1: Try SaleCode FMROAD + FMSHOP for July 2025
             try:
-                test_query = """
-                SELECT COALESCE(SUM(GrandTotal), 0) as revenue
-                FROM ben002.InvoiceReg
-                WHERE SaleCode IN ('FMROAD', 'FMSHOP')
-                AND MONTH(InvoiceDate) = 7
-                AND YEAR(InvoiceDate) = 2025
-                """
-                result = db.execute_query(test_query)
+                result = db.execute_query(current_month_revenue_query)
                 current_month_revenue = float(result[0]['revenue']) if result else 0
-            except Exception as e:
-                # If that fails, try a simpler query
-                try:
-                    fallback_query = f"""
-                    SELECT COALESCE(SUM(GrandTotal), 0) as revenue
-                    FROM ben002.InvoiceReg
-                    WHERE SaleCode = 'FMROAD'
-                    AND MONTH(InvoiceDate) = {today.month}
-                    AND YEAR(InvoiceDate) = {today.year}
-                    """
-                    result = db.execute_query(fallback_query)
-                    current_month_revenue = float(result[0]['revenue']) if result else 23511.68  # Default to the mystery number
-                except:
-                    current_month_revenue = 23511.68  # Default to the mystery number
+            except:
+                current_month_revenue = 0
             
             # Get month names for labels
             current_month_name = today.strftime('%B')  # e.g., "July"

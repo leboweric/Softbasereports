@@ -319,6 +319,35 @@ const InvoiceExplorer = () => {
               onClick={async () => {
                 try {
                   const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/get-all-columns'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== ALL TABLE COLUMNS ===')
+                    console.log('InvoiceReg columns:', data.invoice_column_names)
+                    console.log('WO columns:', data.wo_column_names)
+                    console.log('Invoice sample:', data.invoice_sample)
+                    console.log('WO sample:', data.wo_sample)
+                    
+                    alert(`InvoiceReg has ${data.invoice_column_names.length} columns\nWO table has ${data.wo_column_names.length} columns\n\nCheck console for full column lists and sample data`)
+                  } else {
+                    alert('Failed to get columns')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              🗂️ Get All Columns
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
                   const response = await fetch(apiUrl('/api/reports/departments/list-salecodes'), {
                     headers: {
                       'Authorization': `Bearer ${token}`,
@@ -403,6 +432,118 @@ const InvoiceExplorer = () => {
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               {searchingSalecodes ? 'Searching...' : '🔍 Find Service SaleCodes'}
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/analyze-service-revenue'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== COMPREHENSIVE SERVICE REVENUE ANALYSIS ===')
+                    console.log('1. All SaleCodes by Revenue:', data.salecode_breakdown)
+                    console.log('2. FMROAD & FMSHOP totals:', data.service_codes)
+                    console.log('3. Account 410004/410005 breakdown:', data.account_breakdown)
+                    console.log('4. All FM* SaleCodes:', data.fm_salecodes)
+                    console.log('5. Total July Revenue:', data.total_july)
+                    console.log('6. Sample Service Invoices:', data.sample_invoices)
+                    
+                    // Calculate totals
+                    const fmTotal = data.service_codes?.reduce((sum, item) => sum + (item.total_revenue || 0), 0) || 0
+                    const acctTotal = data.account_breakdown?.reduce((sum, item) => sum + (item.total_revenue || 0), 0) || 0
+                    const fmAllTotal = data.fm_salecodes?.reduce((sum, item) => sum + (item.total_revenue || 0), 0) || 0
+                    
+                    alert(`Service Revenue Analysis for July 2025:\n\nFMROAD + FMSHOP: $${fmTotal.toLocaleString()}\nAccounts 410004+410005: $${acctTotal.toLocaleString()}\nAll FM* codes: $${fmAllTotal.toLocaleString()}\n\nTotal July Revenue: $${data.total_july?.total_july_revenue?.toLocaleString() || 0}\nTarget: $72,891\n\nCheck console for detailed breakdown`)
+                  } else {
+                    alert('Failed to analyze revenue')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              📈 Analyze Service Revenue
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/analyze-labor-sales'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== LABOR SALES ANALYSIS (matching OData wolabor) ===')
+                    console.log('1. Labor Totals for July:', data.labor_totals)
+                    console.log('2. Labor by SaleCode:', data.labor_by_salecode)
+                    console.log('3. Labor-related tables found:', data.labor_tables_found)
+                    console.log('4. Monthly Labor Trend:', data.monthly_labor_trend)
+                    console.log('5. WO Labor Sample:', data.wo_labor_sample)
+                    
+                    const laborTotal = data.labor_totals?.total_labor_revenue || 0
+                    const monthlyData = data.monthly_labor_trend?.map(m => 
+                      `${m.month}/${m.year}: $${m.labor_revenue?.toLocaleString()}`
+                    ).join('\n') || 'No data'
+                    
+                    alert(`Labor Sales Analysis:\n\nJuly 2025 Labor Total: $${laborTotal.toLocaleString()}\nTarget: $72,891\n\nMonthly Trend:\n${monthlyData}\n\nTop Labor SaleCodes in console`)
+                  } else {
+                    alert('Failed to analyze labor sales')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+            >
+              ⚙️ Analyze Labor Sales
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/verify-service-salecodes'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== VERIFY RDCST + SHOPCST ===')
+                    console.log('Monthly Breakdown:', data.monthly_breakdown)
+                    console.log('Current Month:', data.current_month)
+                    
+                    let message = 'Service Revenue using RDCST + SHOPCST:\n\n'
+                    data.monthly_breakdown.forEach(month => {
+                      const monthName = new Date(month.year, month.month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                      message += `${monthName}: $${month.total_revenue?.toLocaleString()}`
+                      if (month.target) {
+                        message += ` (Target: $${month.target.toLocaleString()}, ${month.match_percent}%)`
+                      }
+                      message += '\n'
+                    })
+                    
+                    message += `\nCurrent Month: $${data.current_month?.total_revenue?.toLocaleString() || 0}`
+                    message += `\n  Road: $${data.current_month?.road_revenue?.toLocaleString() || 0}`
+                    message += `\n  Shop: $${data.current_month?.shop_revenue?.toLocaleString() || 0}`
+                    
+                    alert(message)
+                  } else {
+                    alert('Failed to verify salecodes')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              ✅ Verify RDCST + SHOPCST
             </Button>
             <Button 
               onClick={testInvoiceLink} 
