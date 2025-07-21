@@ -1667,8 +1667,7 @@ def register_department_routes(reports_bp):
             last_month_end = current_month_start - datetime.timedelta(days=1)
             last_month_start = last_month_end.replace(day=1)
             
-            # Count open and recently closed work orders with labor SaleCodes
-            # Updated to match OData exactly - including ALL codes from labor sales report
+            # Count open and recently closed work orders for SHPCST and RDCST only
             test_query = f"""
             SELECT 
                 COUNT(*) as total_service,
@@ -1683,9 +1682,7 @@ def register_department_routes(reports_bp):
                     THEN 1 ELSE 0 
                 END) as closed_last_month
             FROM ben002.WO 
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
-                             'RENTR', 'RENT-DEL', 'MO-RENT')
+            WHERE SaleCode IN ('SHPCST', 'RDCST')
             """
             
             test_result = db.execute_query(test_query)
