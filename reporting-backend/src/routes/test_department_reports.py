@@ -1458,6 +1458,7 @@ def register_department_routes(reports_bp):
             test_result = db.execute_query(test_query)
             
             # Query for monthly trend - completed work orders with labor SaleCodes
+            # Starting from March 2025
             trend_query = """
             SELECT 
                 YEAR(ClosedDate) as year,
@@ -1468,7 +1469,8 @@ def register_department_routes(reports_bp):
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
                              'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
             AND ClosedDate IS NOT NULL
-            AND ClosedDate >= DATEADD(month, -6, GETDATE())
+            AND ClosedDate >= '2025-03-01'
+            AND ClosedDate < DATEADD(month, 1, GETDATE())
             GROUP BY YEAR(ClosedDate), MONTH(ClosedDate), DATENAME(month, ClosedDate)
             ORDER BY YEAR(ClosedDate), MONTH(ClosedDate)
             """
@@ -1477,6 +1479,7 @@ def register_department_routes(reports_bp):
             
             # Query for monthly revenue from Service/Labor invoices
             # Including all labor-related SaleCodes
+            # Starting from March 2025
             revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
@@ -1485,7 +1488,8 @@ def register_department_routes(reports_bp):
             FROM ben002.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
                              'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
-            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate < DATEADD(month, 1, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """

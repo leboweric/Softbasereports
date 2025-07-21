@@ -211,9 +211,24 @@ const ServiceReport = ({ user, onNavigate }) => {
               <LineChart data={serviceData.monthlyTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip />
+                <YAxis 
+                  yAxisId="left" 
+                  label={{ value: 'Completed Work Orders', angle: -90, position: 'insideLeft' }}
+                />
+                <YAxis 
+                  yAxisId="right" 
+                  orientation="right"
+                  label={{ value: 'Revenue ($)', angle: 90, position: 'insideRight' }}
+                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                />
+                <Tooltip 
+                  formatter={(value, name) => {
+                    if (name === 'Revenue ($)') {
+                      return [`$${value.toLocaleString()}`, name]
+                    }
+                    return [value, name]
+                  }}
+                />
                 <Line
                   yAxisId="left"
                   type="monotone"
@@ -221,6 +236,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                   stroke="#3b82f6"
                   name="Completed WOs"
                   strokeWidth={2}
+                  dot={{ fill: '#3b82f6' }}
                 />
                 <Line
                   yAxisId="right"
@@ -229,6 +245,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                   stroke="#10b981"
                   name="Revenue ($)"
                   strokeWidth={2}
+                  dot={{ fill: '#10b981' }}
                 />
               </LineChart>
             </ResponsiveContainer>
