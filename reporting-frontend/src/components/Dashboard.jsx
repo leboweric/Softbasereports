@@ -46,6 +46,7 @@ import { apiUrl } from '@/lib/api'
 const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadTime, setLoadTime] = useState(null)
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false)
   const [inventoryDetails, setInventoryDetails] = useState(null)
   const [loadingInventory, setLoadingInventory] = useState(false)
@@ -64,17 +65,33 @@ const Dashboard = ({ user }) => {
   }, [])
 
   const fetchDashboardData = async () => {
+    const startTime = Date.now()
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/dashboard/summary'), {
+      // Try optimized endpoint first, fall back to regular if it fails
+      const response = await fetch(apiUrl('/api/reports/dashboard/summary-optimized'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
+      }).catch(() => {
+        // If optimized endpoint fails, fall back to regular endpoint
+        return fetch(apiUrl('/api/reports/dashboard/summary'), {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
       })
 
       if (response.ok) {
         const data = await response.json()
         setDashboardData(data)
+        // Calculate load time
+        const totalTime = (Date.now() - startTime) / 1000
+        setLoadTime(data.query_time || totalTime)
+        // Log query time if available
+        if (data.query_time) {
+          console.log(`Dashboard loaded in ${data.query_time} seconds (parallel queries)`)
+        }
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -190,6 +207,12 @@ const Dashboard = ({ user }) => {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          {loadTime && loadTime < 5 && (
+            <Badge variant="secondary" className="text-xs">
+              <TrendingUp className="mr-1 h-3 w-3" />
+              Loaded in {loadTime.toFixed(1)}s
+            </Badge>
+          )}
           <Button variant="outline" size="sm">
             <Download className="mr-2 h-4 w-4" />
             Export Report
