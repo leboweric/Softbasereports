@@ -762,8 +762,8 @@ def register_department_routes(reports_bp):
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND YEAR(InvoiceDate) = 2025
             AND MONTH(InvoiceDate) = 3
             GROUP BY SaleCode
@@ -776,8 +776,8 @@ def register_department_routes(reports_bp):
             total_query = """
             SELECT SUM(GrandTotal) as total_revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND YEAR(InvoiceDate) = 2025
             AND MONTH(InvoiceDate) = 3
             """
@@ -838,8 +838,8 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as count
             FROM ben002.WO
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND ClosedDate IS NOT NULL
             AND YEAR(ClosedDate) = 2025
             AND MONTH(ClosedDate) = 3
@@ -853,8 +853,8 @@ def register_department_routes(reports_bp):
             total_query = """
             SELECT COUNT(*) as total_count
             FROM ben002.WO
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND ClosedDate IS NOT NULL
             AND YEAR(ClosedDate) = 2025
             AND MONTH(ClosedDate) = 3
@@ -874,8 +874,8 @@ def register_department_routes(reports_bp):
                 ClosedDate,
                 Technician
             FROM ben002.WO
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND ClosedDate IS NOT NULL
             AND YEAR(ClosedDate) = 2025
             AND MONTH(ClosedDate) = 3
@@ -938,8 +938,8 @@ def register_department_routes(reports_bp):
                 Comments
             FROM ben002.WO
             WHERE ClosedDate IS NULL
-            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                           'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                           'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             ORDER BY OpenDate DESC
             """
             
@@ -952,8 +952,8 @@ def register_department_routes(reports_bp):
                 COUNT(*) as count
             FROM ben002.WO
             WHERE ClosedDate IS NULL
-            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                           'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                           'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             GROUP BY SaleCode
             ORDER BY count DESC
             """
@@ -1062,8 +1062,8 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN SaleCode IN ('EDCO', 'SERVP-A') THEN GrandTotal ELSE 0 END) as other_revenue,
                 SUM(GrandTotal) as total_revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-12-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1099,8 +1099,8 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN SaleCode IN ('EDCO', 'SERVP-A') THEN GrandTotal ELSE 0 END) as other_revenue,
                 SUM(GrandTotal) as total_revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND MONTH(InvoiceDate) = MONTH(GETDATE())
             AND YEAR(InvoiceDate) = YEAR(GETDATE())
             """
@@ -1658,6 +1658,7 @@ def register_department_routes(reports_bp):
             last_month_start = last_month_end.replace(day=1)
             
             # Count open and recently closed work orders with labor SaleCodes
+            # Updated to match OData exactly - excluding pure rental codes
             test_query = f"""
             SELECT 
                 COUNT(*) as total_service,
@@ -1672,8 +1673,8 @@ def register_department_routes(reports_bp):
                     THEN 1 ELSE 0 
                 END) as closed_last_month
             FROM ben002.WO 
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             """
             
             test_result = db.execute_query(test_query)
@@ -1687,8 +1688,8 @@ def register_department_routes(reports_bp):
                 DATENAME(month, ClosedDate) as month_name,
                 COUNT(*) as completed
             FROM ben002.WO
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND ClosedDate IS NOT NULL
             AND ClosedDate >= '2025-03-01'
             AND ClosedDate < DATEADD(month, 1, GETDATE())
@@ -1699,7 +1700,7 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from Service/Labor invoices
-            # Including all labor-related SaleCodes
+            # Updated to match OData exactly - excluding pure rental codes
             # Starting from March 2025
             revenue_query = """
             SELECT 
@@ -1707,8 +1708,8 @@ def register_department_routes(reports_bp):
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < DATEADD(month, 1, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1738,12 +1739,12 @@ def register_department_routes(reports_bp):
                 closed_last_month = 0
                 
             # Calculate current month's Service/Labor revenue
-            # Including all labor-related SaleCodes
+            # Updated to match OData exactly - excluding pure rental codes
             current_month_revenue_query = f"""
             SELECT COALESCE(SUM(GrandTotal), 0) as revenue
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
-                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP')
             AND MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             """
