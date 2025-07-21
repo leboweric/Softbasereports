@@ -1780,6 +1780,34 @@ def register_department_routes(reports_bp):
             
             sales_trend_result = db.execute_query(sales_trend_query)
             
+            # Query for technician performance - completed work orders and efficiency
+            technician_performance_query = f"""
+            SELECT TOP 10
+                Technician,
+                COUNT(*) as total_assigned,
+                COUNT(CASE WHEN ClosedDate IS NOT NULL 
+                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}'
+                      THEN 1 END) as completed_this_month,
+                CAST(COUNT(CASE WHEN ClosedDate IS NOT NULL 
+                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}'
+                      THEN 1 END) AS FLOAT) * 100.0 / 
+                NULLIF(COUNT(CASE WHEN 
+                    (ClosedDate IS NOT NULL AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}')
+                    OR ClosedDate IS NULL 
+                    THEN 1 END), 0) as efficiency
+            FROM ben002.WO
+            WHERE SaleCode IN ('SHPCST', 'RDCST')
+            AND Technician IS NOT NULL
+            AND Technician != ''
+            GROUP BY Technician
+            HAVING COUNT(CASE WHEN ClosedDate IS NOT NULL 
+                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}'
+                      THEN 1 END) > 0
+            ORDER BY completed_this_month DESC
+            """
+            
+            technician_result = db.execute_query(technician_performance_query)
+            
             # Query for monthly revenue from Service/Labor invoices
             # Updated to match OData exactly - excluding pure rental codes
             # Starting from March 2025
@@ -1902,7 +1930,14 @@ def register_department_routes(reports_bp):
                     }
                     for row in sales_trend_result
                 ] if sales_trend_result else [],
-                'technicianPerformance': [],
+                'technicianPerformance': [
+                    {
+                        'name': row.get('Technician', ''),
+                        'completed': row.get('completed_this_month', 0),
+                        'efficiency': round(row.get('efficiency', 0) or 0, 0)
+                    }
+                    for row in (technician_result or [])
+                ],
                 'debug': {
                     'total_open': total_open,
                     'shop_data': shop_data,

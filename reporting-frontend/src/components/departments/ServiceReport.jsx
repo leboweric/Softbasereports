@@ -457,7 +457,20 @@ const ServiceReport = ({ user, onNavigate }) => {
       {/* Technician Performance */}
       <Card>
         <CardHeader>
-          <CardTitle>Technician Performance</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Technician Performance
+            <Tooltip>
+              <TooltipTrigger>
+                <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="font-semibold mb-1">Performance Metrics:</p>
+                <p className="text-sm">• Completed WOs: Work orders completed this month</p>
+                <p className="text-sm">• Efficiency: (Completed this month) / (Completed + Open) × 100</p>
+                <p className="text-sm mt-1">Only shows technicians with completed work orders this month</p>
+              </TooltipContent>
+            </Tooltip>
+          </CardTitle>
           <CardDescription>Top performing technicians this month</CardDescription>
         </CardHeader>
         <CardContent>
