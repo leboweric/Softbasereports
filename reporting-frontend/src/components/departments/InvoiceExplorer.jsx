@@ -638,6 +638,50 @@ const InvoiceExplorer = () => {
               📊 Validate March WOs (594)
             </Button>
             <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/validate-march-revenue'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== MARCH 2025 REVENUE VALIDATION ===')
+                    console.log('Revenue by SaleCode:', data.revenue_by_salecode)
+                    console.log('Total with all codes:', data.march_total_with_all_codes)
+                    console.log('Service only:', data.march_service_only)
+                    console.log('Rental only:', data.march_rental_only)
+                    
+                    let message = `March 2025 Revenue Validation:\n\n`
+                    message += `Your OData Report: $${data.odata_reported.toLocaleString()}\n`
+                    message += `Our Total (all codes): $${data.march_total_with_all_codes?.toLocaleString()}\n`
+                    message += `Difference: $${data.difference?.toLocaleString()}\n\n`
+                    
+                    message += `Service Only (no rental): $${data.march_service_only?.toLocaleString()}\n`
+                    message += `Rental Only: $${data.march_rental_only?.toLocaleString()}\n\n`
+                    
+                    if (data.revenue_by_salecode && data.revenue_by_salecode.length > 0) {
+                      message += 'Revenue by SaleCode:\n'
+                      data.revenue_by_salecode.forEach(item => {
+                        message += `  ${item.SaleCode}: $${item.revenue?.toLocaleString()} (${item.invoice_count} invoices)\n`
+                      })
+                    }
+                    
+                    alert(message)
+                  } else {
+                    alert('Failed to validate revenue')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white"
+            >
+              💰 Validate March Revenue ($363k vs $253k)
+            </Button>
+            <Button 
               onClick={testInvoiceLink} 
               disabled={testingLink}
             >

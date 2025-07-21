@@ -748,6 +748,83 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/validate-march-revenue', methods=['GET'])
+    @jwt_required()
+    def validate_march_revenue():
+        """Validate March 2025 revenue breakdown by SaleCode"""
+        try:
+            db = get_db()
+            
+            # Get March revenue broken down by each SaleCode
+            revenue_breakdown_query = """
+            SELECT 
+                SaleCode,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            AND YEAR(InvoiceDate) = 2025
+            AND MONTH(InvoiceDate) = 3
+            GROUP BY SaleCode
+            ORDER BY revenue DESC
+            """
+            
+            revenue_breakdown = db.execute_query(revenue_breakdown_query)
+            
+            # Get total for March with our current filter
+            total_query = """
+            SELECT SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            AND YEAR(InvoiceDate) = 2025
+            AND MONTH(InvoiceDate) = 3
+            """
+            
+            total_result = db.execute_query(total_query)
+            
+            # Get service-only codes (excluding rental/equipment)
+            service_only_query = """
+            SELECT SUM(GrandTotal) as service_revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 'SERVP-A')
+            AND YEAR(InvoiceDate) = 2025
+            AND MONTH(InvoiceDate) = 3
+            """
+            
+            service_only = db.execute_query(service_only_query)
+            
+            # Get rental codes separately
+            rental_query = """
+            SELECT SUM(GrandTotal) as rental_revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RENTR', 'RENTPM', 'NEWEQP-R')
+            AND YEAR(InvoiceDate) = 2025
+            AND MONTH(InvoiceDate) = 3
+            """
+            
+            rental_result = db.execute_query(rental_query)
+            
+            # Calculate the difference
+            total_rev = total_result[0]['total_revenue'] if total_result else 0
+            service_rev = service_only[0]['service_revenue'] if service_only else 0
+            rental_rev = rental_result[0]['rental_revenue'] if rental_result else 0
+            
+            return jsonify({
+                'march_total_with_all_codes': total_rev,
+                'march_service_only': service_rev,
+                'march_rental_only': rental_rev,
+                'odata_reported': 253672,
+                'difference': total_rev - 253672,
+                'revenue_by_salecode': revenue_breakdown,
+                'salecodes_included': ['RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                                     'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A']
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/validate-march-workorders', methods=['GET'])
     @jwt_required()
     def validate_march_workorders():
