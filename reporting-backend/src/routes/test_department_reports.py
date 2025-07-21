@@ -1687,7 +1687,7 @@ def register_department_routes(reports_bp):
             
             test_result = db.execute_query(test_query)
             
-            # Query for monthly trend - completed work orders by SHPCST and RDCST
+            # Query for monthly trend - completed work orders by SHPCST and RDCST with avg close time
             # Starting from March 2025
             trend_query = """
             SELECT 
@@ -1695,7 +1695,11 @@ def register_department_routes(reports_bp):
                 MONTH(ClosedDate) as month,
                 DATENAME(month, ClosedDate) as month_name,
                 SUM(CASE WHEN SaleCode = 'SHPCST' THEN 1 ELSE 0 END) as shop_completed,
-                SUM(CASE WHEN SaleCode = 'RDCST' THEN 1 ELSE 0 END) as road_completed
+                SUM(CASE WHEN SaleCode = 'RDCST' THEN 1 ELSE 0 END) as road_completed,
+                AVG(CASE WHEN SaleCode = 'SHPCST' AND OpenDate IS NOT NULL 
+                    THEN DATEDIFF(day, OpenDate, ClosedDate) ELSE NULL END) as shop_avg_days,
+                AVG(CASE WHEN SaleCode = 'RDCST' AND OpenDate IS NOT NULL 
+                    THEN DATEDIFF(day, OpenDate, ClosedDate) ELSE NULL END) as road_avg_days
             FROM ben002.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND ClosedDate IS NOT NULL
@@ -1788,7 +1792,9 @@ def register_department_routes(reports_bp):
                     {
                         'month': row.get('month_name', '')[:3],  # Abbreviate month name
                         'shop_completed': row.get('shop_completed', 0),
-                        'road_completed': row.get('road_completed', 0)
+                        'road_completed': row.get('road_completed', 0),
+                        'shop_avg_days': round(row.get('shop_avg_days', 0) or 0, 1),
+                        'road_avg_days': round(row.get('road_avg_days', 0) or 0, 1)
                     }
                     for row in trend_result
                 ] if trend_result else [],

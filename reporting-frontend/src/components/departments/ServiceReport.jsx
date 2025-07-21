@@ -280,11 +280,11 @@ const ServiceReport = ({ user, onNavigate }) => {
           </CardContent>
         </Card>
 
-        {/* Monthly Trend */}
+        {/* Shop Trend (SHPCST) */}
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Service Trend</CardTitle>
-            <CardDescription>Completed work orders by Shop (SHPCST) and Road (RDCST)</CardDescription>
+            <CardTitle>Shop Service Trend (SHPCST)</CardTitle>
+            <CardDescription>Completed work orders and average days to close</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -292,30 +292,84 @@ const ServiceReport = ({ user, onNavigate }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis 
+                  yAxisId="left"
                   label={{ value: 'Completed Work Orders', angle: -90, position: 'insideLeft' }}
+                />
+                <YAxis 
+                  yAxisId="right"
+                  orientation="right"
+                  label={{ value: 'Avg Days to Close', angle: 90, position: 'insideRight' }}
                 />
                 <Tooltip />
                 <Line
+                  yAxisId="left"
                   type="monotone"
                   dataKey="shop_completed"
                   stroke="#3b82f6"
-                  name="Shop (SHPCST)"
+                  name="Completed"
                   strokeWidth={2}
                   dot={{ fill: '#3b82f6' }}
                 />
                 <Line
+                  yAxisId="right"
                   type="monotone"
-                  dataKey="road_completed"
-                  stroke="#ef4444"
-                  name="Road (RDCST)"
+                  dataKey="shop_avg_days"
+                  stroke="#10b981"
+                  name="Avg Days"
                   strokeWidth={2}
-                  dot={{ fill: '#ef4444' }}
+                  strokeDasharray="5 5"
+                  dot={{ fill: '#10b981' }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
+
+      {/* Road Service Trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Road Service Trend (RDCST)</CardTitle>
+          <CardDescription>Completed work orders and average days to close</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={serviceData.monthlyTrend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis 
+                yAxisId="left"
+                label={{ value: 'Completed Work Orders', angle: -90, position: 'insideLeft' }}
+              />
+              <YAxis 
+                yAxisId="right"
+                orientation="right"
+                label={{ value: 'Avg Days to Close', angle: 90, position: 'insideRight' }}
+              />
+              <Tooltip />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="road_completed"
+                stroke="#ef4444"
+                name="Completed"
+                strokeWidth={2}
+                dot={{ fill: '#ef4444' }}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="road_avg_days"
+                stroke="#f59e0b"
+                name="Avg Days"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={{ fill: '#f59e0b' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
       {/* Technician Performance */}
       <Card>
