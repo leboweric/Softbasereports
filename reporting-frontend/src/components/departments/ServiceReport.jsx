@@ -211,7 +211,7 @@ const ServiceReport = ({ user, onNavigate }) => {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{serviceData.summary.shopAvgRepairTime || 0}h</div>
+            <div className="text-2xl font-bold">{serviceData.summary.shopAvgRepairTime || 0} days</div>
             <p className="text-xs text-muted-foreground">SHPCST per work order</p>
           </CardContent>
         </Card>
@@ -222,7 +222,7 @@ const ServiceReport = ({ user, onNavigate }) => {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{serviceData.summary.roadAvgRepairTime || 0}h</div>
+            <div className="text-2xl font-bold">{serviceData.summary.roadAvgRepairTime || 0} days</div>
             <p className="text-xs text-muted-foreground">RDCST per work order</p>
           </CardContent>
         </Card>

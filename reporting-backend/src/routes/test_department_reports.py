@@ -1685,11 +1685,11 @@ def register_department_routes(reports_bp):
             
             test_result = db.execute_query(test_query)
             
-            # Calculate average repair time for SHPCST and RDCST
+            # Calculate average repair time for SHPCST and RDCST in days
             avg_repair_query = f"""
             SELECT 
                 SaleCode,
-                AVG(DATEDIFF(hour, OpenDate, ClosedDate)) as avg_hours
+                AVG(CAST(DATEDIFF(day, OpenDate, ClosedDate) AS FLOAT)) as avg_days
             FROM ben002.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND ClosedDate IS NOT NULL
@@ -1752,8 +1752,8 @@ def register_department_routes(reports_bp):
                     revenue_by_month[key] = float(row.get('revenue', 0) or 0)
             
             # Process results by SaleCode
-            shop_data = {'open': 0, 'closed_this_month': 0, 'closed_last_month': 0, 'avg_repair_hours': 0}
-            road_data = {'open': 0, 'closed_this_month': 0, 'closed_last_month': 0, 'avg_repair_hours': 0}
+            shop_data = {'open': 0, 'closed_this_month': 0, 'closed_last_month': 0, 'avg_repair_days': 0}
+            road_data = {'open': 0, 'closed_this_month': 0, 'closed_last_month': 0, 'avg_repair_days': 0}
             total_open = 0
             
             if test_result:
@@ -1772,11 +1772,11 @@ def register_department_routes(reports_bp):
             # Process average repair times
             if avg_repair_result:
                 for row in avg_repair_result:
-                    avg_hours = round(row.get('avg_hours', 0) or 0, 1)
+                    avg_days = round(row.get('avg_days', 0) or 0, 1)
                     if row.get('SaleCode') == 'SHPCST':
-                        shop_data['avg_repair_hours'] = avg_hours
+                        shop_data['avg_repair_days'] = avg_days
                     elif row.get('SaleCode') == 'RDCST':
-                        road_data['avg_repair_hours'] = avg_hours
+                        road_data['avg_repair_days'] = avg_days
                 
             # Calculate current month's Service/Labor revenue
             # Updated to match OData exactly - excluding pure rental codes
@@ -1804,8 +1804,8 @@ def register_department_routes(reports_bp):
                 'summary': {
                     'openWorkOrders': total_open,
                     'completedToday': 0,
-                    'shopAvgRepairTime': shop_data['avg_repair_hours'],
-                    'roadAvgRepairTime': road_data['avg_repair_hours'],
+                    'shopAvgRepairTime': shop_data['avg_repair_days'],
+                    'roadAvgRepairTime': road_data['avg_repair_days'],
                     'technicianEfficiency': 87,
                     'revenue': current_month_revenue,
                     'customersServed': 0
