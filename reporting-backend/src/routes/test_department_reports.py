@@ -1436,7 +1436,7 @@ def register_department_routes(reports_bp):
             last_month_end = current_month_start - datetime.timedelta(days=1)
             last_month_start = last_month_end.replace(day=1)
             
-            # Count open and recently closed work orders
+            # Count open and recently closed work orders with labor SaleCodes
             test_query = f"""
             SELECT 
                 COUNT(*) as total_service,
@@ -1451,12 +1451,13 @@ def register_department_routes(reports_bp):
                     THEN 1 ELSE 0 
                 END) as closed_last_month
             FROM ben002.WO 
-            WHERE Type = 'S'
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
             """
             
             test_result = db.execute_query(test_query)
             
-            # Query for monthly trend - completed work orders and revenue
+            # Query for monthly trend - completed work orders with labor SaleCodes
             trend_query = """
             SELECT 
                 YEAR(ClosedDate) as year,
@@ -1464,7 +1465,8 @@ def register_department_routes(reports_bp):
                 DATENAME(month, ClosedDate) as month_name,
                 COUNT(*) as completed
             FROM ben002.WO
-            WHERE Type = 'S' 
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
             AND ClosedDate IS NOT NULL
             AND ClosedDate >= DATEADD(month, -6, GETDATE())
             GROUP BY YEAR(ClosedDate), MONTH(ClosedDate), DATENAME(month, ClosedDate)
