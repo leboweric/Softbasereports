@@ -3,6 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   Table,
   TableBody,
   TableCell,
@@ -32,13 +39,17 @@ import {
   TrendingUp,
   Calendar,
   UserCheck,
-  DollarSign
+  DollarSign,
+  Download
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [openWOModalOpen, setOpenWOModalOpen] = useState(false)
+  const [openWODetails, setOpenWODetails] = useState(null)
+  const [loadingWODetails, setLoadingWODetails] = useState(false)
 
   useEffect(() => {
     fetchServiceData()
@@ -64,6 +75,72 @@ const ServiceReport = ({ user, onNavigate }) => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchOpenWODetails = async () => {
+    setLoadingWODetails(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/open-work-orders-detail'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setOpenWODetails(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch work order details:', error)
+    } finally {
+      setLoadingWODetails(false)
+    }
+  }
+
+  const handleOpenWOClick = () => {
+    setOpenWOModalOpen(true)
+    if (!openWODetails) {
+      fetchOpenWODetails()
+    }
+  }
+
+  const exportToCSV = () => {
+    if (!openWODetails || !openWODetails.work_orders) return
+
+    const headers = ['WO#', 'Sale Code', 'Customer', 'Serial#', 'Make', 'Model', 'Unit#', 'Type', 'Technician', 'Writer', 'Open Date', 'Dept', 'Branch', 'PO#', 'Comments']
+    const rows = openWODetails.work_orders.map(wo => [
+      wo.WONo || '',
+      wo.SaleCode || '',
+      wo.CustomerSale || '',
+      wo.SerialNo || '',
+      wo.Make || '',
+      wo.Model || '',
+      wo.UnitNo || '',
+      wo.Type || '',
+      wo.Technician || '',
+      wo.Writer || '',
+      wo.OpenDate ? new Date(wo.OpenDate).toLocaleDateString() : '',
+      wo.SaleDept || '',
+      wo.SaleBranch || '',
+      wo.PONo || '',
+      (wo.Comments || '').replace(/,/g, ';').replace(/\n/g, ' ')
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `open_work_orders_${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
   }
 
   if (loading) {
@@ -103,14 +180,17 @@ const ServiceReport = ({ user, onNavigate }) => {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={handleOpenWOClick}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
             <AlertCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{serviceData.summary.openWorkOrders}</div>
-            <p className="text-xs text-muted-foreground">Awaiting service</p>
+            <p className="text-xs text-muted-foreground">Click to view details</p>
           </CardContent>
         </Card>
 
@@ -339,6 +419,92 @@ const ServiceReport = ({ user, onNavigate }) => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Open Work Orders Modal */}
+      <Dialog open={openWOModalOpen} onOpenChange={setOpenWOModalOpen}>
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Open Work Orders Detail</DialogTitle>
+            <DialogDescription>
+              {openWODetails ? `${openWODetails.total_count} open work orders with labor service codes` : 'Loading...'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingWODetails ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
+          ) : openWODetails ? (
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* Summary by SaleCode */}
+              {openWODetails.summary_by_salecode && (
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                  <h3 className="font-semibold mb-2">Summary by Sale Code:</h3>
+                  <div className="flex flex-wrap gap-3">
+                    {openWODetails.summary_by_salecode.map((item) => (
+                      <Badge key={item.SaleCode} variant="secondary" className="text-sm">
+                        {item.SaleCode}: {item.count}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Export Button */}
+              <div className="mb-4">
+                <Button onClick={exportToCSV} size="sm" variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export to CSV
+                </Button>
+              </div>
+              
+              {/* Table */}
+              <div className="flex-1 overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-white z-10">
+                    <TableRow>
+                      <TableHead>WO#</TableHead>
+                      <TableHead>Sale Code</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Equipment</TableHead>
+                      <TableHead>Serial#</TableHead>
+                      <TableHead>Technician</TableHead>
+                      <TableHead>Writer</TableHead>
+                      <TableHead>Open Date</TableHead>
+                      <TableHead>PO#</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {openWODetails.work_orders.map((wo) => (
+                      <TableRow key={wo.WONo}>
+                        <TableCell className="font-medium">{wo.WONo}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {wo.SaleCode}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{wo.CustomerSale}</TableCell>
+                        <TableCell>{wo.Make} {wo.Model}</TableCell>
+                        <TableCell>{wo.SerialNo}</TableCell>
+                        <TableCell>{wo.Technician || '-'}</TableCell>
+                        <TableCell>{wo.Writer || '-'}</TableCell>
+                        <TableCell>
+                          {wo.OpenDate ? new Date(wo.OpenDate).toLocaleDateString() : '-'}
+                        </TableCell>
+                        <TableCell>{wo.PONo || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No data available
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

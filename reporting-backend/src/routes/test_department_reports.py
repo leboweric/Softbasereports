@@ -748,6 +748,64 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/open-work-orders-detail', methods=['GET'])
+    @jwt_required()
+    def get_open_work_orders_detail():
+        """Get detailed list of open work orders with labor SaleCodes"""
+        try:
+            db = get_db()
+            
+            # Get all open work orders with labor SaleCodes
+            detail_query = """
+            SELECT 
+                WONo,
+                SaleCode,
+                CustomerSale,
+                SerialNo,
+                Make,
+                Model,
+                UnitNo,
+                Type,
+                Technician,
+                Writer,
+                OpenDate,
+                SaleDept,
+                SaleBranch,
+                PONo,
+                Comments
+            FROM ben002.WO
+            WHERE ClosedDate IS NULL
+            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                           'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            ORDER BY OpenDate DESC
+            """
+            
+            results = db.execute_query(detail_query)
+            
+            # Get summary by SaleCode
+            summary_query = """
+            SELECT 
+                SaleCode,
+                COUNT(*) as count
+            FROM ben002.WO
+            WHERE ClosedDate IS NULL
+            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                           'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            GROUP BY SaleCode
+            ORDER BY count DESC
+            """
+            
+            summary = db.execute_query(summary_query)
+            
+            return jsonify({
+                'work_orders': results,
+                'total_count': len(results),
+                'summary_by_salecode': summary
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/explore-wo-salecodes', methods=['GET'])
     @jwt_required()
     def explore_wo_salecodes():
