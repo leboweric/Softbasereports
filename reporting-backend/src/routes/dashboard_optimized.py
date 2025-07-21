@@ -1,10 +1,11 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 from src.services.azure_sql_service import AzureSQLService
+from src.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -423,34 +424,23 @@ class DashboardQueries:
     def get_department_margins(self):
         """Get department gross margin percentages by month"""
         try:
+            # Use the same calculation as the original dashboard - sum the taxable/nontax fields
             query = f"""
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                -- Parts calculations
-                SUM(CASE WHEN SaleCode IN ('PARTS', 'PARTSNT', 'FREIGHT', 'SHOPSP') 
-                    THEN GrandTotal ELSE 0 END) as parts_sales,
-                SUM(CASE WHEN SaleCode IN ('PARTS', 'PARTSNT', 'FREIGHT', 'SHOPSP') 
-                    THEN ISNULL(PartsCost, 0) ELSE 0 END) as parts_cost,
-                -- Labor calculations  
-                SUM(CASE WHEN SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
-                    'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
-                    'RENTR', 'RENT-DEL', 'MO-RENT')
-                    THEN GrandTotal ELSE 0 END) as labor_sales,
-                SUM(CASE WHEN SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
-                    'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
-                    'RENTR', 'RENT-DEL', 'MO-RENT')
-                    THEN ISNULL(LaborCost, 0) ELSE 0 END) as labor_cost,
-                -- Equipment calculations
-                SUM(CASE WHEN SaleCode IN ('USEDEQ', 'RTLEQP', 'ALLIEDE', 'NEWEQP') 
-                    THEN GrandTotal ELSE 0 END) as equipment_sales,
-                SUM(CASE WHEN SaleCode IN ('USEDEQ', 'RTLEQP', 'ALLIEDE', 'NEWEQP') 
-                    THEN ISNULL(EquipmentCost, 0) ELSE 0 END) as equipment_cost,
-                -- Rental calculations
-                SUM(CASE WHEN SaleCode IN ('RENT', 'DLVPKUP', 'DAMAGE', 'DAMAGE-', 'STRENT', 'HRENT', 'LIFTTRK', 'STRENT+') 
-                    THEN GrandTotal ELSE 0 END) as rental_sales,
-                SUM(CASE WHEN SaleCode IN ('RENT', 'DLVPKUP', 'DAMAGE', 'DAMAGE-', 'STRENT', 'HRENT', 'LIFTTRK', 'STRENT+') 
-                    THEN ISNULL(RentalCost, 0) ELSE 0 END) as rental_cost
+                -- Parts margin
+                SUM(PartsTaxable + PartsNonTax) as parts_revenue,
+                SUM(PartsCost) as parts_cost,
+                -- Labor margin
+                SUM(LaborTaxable + LaborNonTax) as labor_revenue,
+                SUM(LaborCost) as labor_cost,
+                -- Equipment margin
+                SUM(EquipmentTaxable + EquipmentNonTax) as equipment_revenue,
+                SUM(EquipmentCost) as equipment_cost,
+                -- Rental margin
+                SUM(RentalTaxable + RentalNonTax) as rental_revenue,
+                SUM(RentalCost) as rental_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '{self.twelve_months_ago}'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -464,22 +454,30 @@ class DashboardQueries:
                 for row in results:
                     month_date = datetime(row['year'], row['month'], 1)
                     
-                    # Calculate margins
+                    # Calculate margins - handle nulls and division by zero
+                    parts_revenue = float(row.get('parts_revenue') or 0)
+                    parts_cost = float(row.get('parts_cost') or 0)
                     parts_margin = 0
-                    if row['parts_sales'] > 0:
-                        parts_margin = ((row['parts_sales'] - row['parts_cost']) / row['parts_sales']) * 100
+                    if parts_revenue > 0:
+                        parts_margin = ((parts_revenue - parts_cost) / parts_revenue) * 100
                     
+                    labor_revenue = float(row.get('labor_revenue') or 0)
+                    labor_cost = float(row.get('labor_cost') or 0)
                     labor_margin = 0
-                    if row['labor_sales'] > 0:
-                        labor_margin = ((row['labor_sales'] - row['labor_cost']) / row['labor_sales']) * 100
+                    if labor_revenue > 0:
+                        labor_margin = ((labor_revenue - labor_cost) / labor_revenue) * 100
                     
+                    equipment_revenue = float(row.get('equipment_revenue') or 0)
+                    equipment_cost = float(row.get('equipment_cost') or 0)
                     equipment_margin = 0
-                    if row['equipment_sales'] > 0:
-                        equipment_margin = ((row['equipment_sales'] - row['equipment_cost']) / row['equipment_sales']) * 100
+                    if equipment_revenue > 0:
+                        equipment_margin = ((equipment_revenue - equipment_cost) / equipment_revenue) * 100
                     
+                    rental_revenue = float(row.get('rental_revenue') or 0)
+                    rental_cost = float(row.get('rental_cost') or 0)
                     rental_margin = 0
-                    if row['rental_sales'] > 0:
-                        rental_margin = ((row['rental_sales'] - row['rental_cost']) / row['rental_sales']) * 100
+                    if rental_revenue > 0:
+                        rental_margin = ((rental_revenue - rental_cost) / rental_revenue) * 100
                     
                     department_margins.append({
                         'month': month_date.strftime("%b"),
@@ -498,29 +496,51 @@ class DashboardQueries:
 @dashboard_optimized_bp.route('/api/reports/dashboard/summary-optimized', methods=['GET'])
 @jwt_required()
 def get_dashboard_summary_optimized():
-    """Optimized dashboard endpoint using parallel query execution"""
+    """Optimized dashboard endpoint using parallel query execution and caching"""
     start_time = time.time()
+    
+    # Check for cache refresh parameter
+    force_refresh = request.args.get('refresh', '').lower() == 'true'
     
     try:
         db = AzureSQLService()
         queries = DashboardQueries(db)
         
-        # Define all query tasks
+        # Cache TTL settings (in seconds)
+        cache_ttl = {
+            'total_sales': 300,  # 5 minutes - changes frequently
+            'inventory_count': 600,  # 10 minutes - changes moderately
+            'active_customers': 900,  # 15 minutes - changes slowly
+            'monthly_sales': 1800,  # 30 minutes - historical data
+            'uninvoiced': 300,  # 5 minutes - important to keep fresh
+            'monthly_quotes': 900,  # 15 minutes
+            'work_order_types': 300,  # 5 minutes - changes frequently
+            'top_customers': 1800,  # 30 minutes - changes slowly
+            'monthly_work_orders': 900,  # 15 minutes
+            'department_margins': 1800  # 30 minutes - historical data
+        }
+        
+        # Define all query tasks with caching
+        def cached_query(key, func, ttl):
+            cache_key = f"dashboard:{key}:{datetime.now().strftime('%Y-%m')}"
+            return cache_service.cache_query(cache_key, func, ttl, force_refresh)
+        
         query_tasks = {
-            'total_sales': queries.get_current_month_sales,
-            'inventory_count': queries.get_inventory_count,
-            'active_customers': queries.get_active_customers,
-            'monthly_sales': queries.get_monthly_sales,
-            'uninvoiced': queries.get_uninvoiced_work_orders,
-            'monthly_quotes': queries.get_monthly_quotes,
-            'work_order_types': queries.get_work_order_types,
-            'top_customers': queries.get_top_customers,
-            'monthly_work_orders': queries.get_monthly_work_orders_by_type,
-            'department_margins': queries.get_department_margins
+            'total_sales': lambda: cached_query('total_sales', queries.get_current_month_sales, cache_ttl['total_sales']),
+            'inventory_count': lambda: cached_query('inventory_count', queries.get_inventory_count, cache_ttl['inventory_count']),
+            'active_customers': lambda: cached_query('active_customers', queries.get_active_customers, cache_ttl['active_customers']),
+            'monthly_sales': lambda: cached_query('monthly_sales', queries.get_monthly_sales, cache_ttl['monthly_sales']),
+            'uninvoiced': lambda: cached_query('uninvoiced', queries.get_uninvoiced_work_orders, cache_ttl['uninvoiced']),
+            'monthly_quotes': lambda: cached_query('monthly_quotes', queries.get_monthly_quotes, cache_ttl['monthly_quotes']),
+            'work_order_types': lambda: cached_query('work_order_types', queries.get_work_order_types, cache_ttl['work_order_types']),
+            'top_customers': lambda: cached_query('top_customers', queries.get_top_customers, cache_ttl['top_customers']),
+            'monthly_work_orders': lambda: cached_query('monthly_work_orders', queries.get_monthly_work_orders_by_type, cache_ttl['monthly_work_orders']),
+            'department_margins': lambda: cached_query('department_margins', queries.get_department_margins, cache_ttl['department_margins'])
         }
         
         # Execute queries in parallel
         results = {}
+        cache_hits = 0
         with ThreadPoolExecutor(max_workers=10) as executor:
             # Submit all tasks
             future_to_key = {executor.submit(func): key for key, func in query_tasks.items()}
@@ -554,15 +574,35 @@ def get_dashboard_summary_optimized():
             'department_margins': results.get('department_margins', []),
             'period': datetime.now().strftime('%B %Y'),
             'last_updated': datetime.now().isoformat(),
-            'query_time': round(time.time() - start_time, 2)
+            'query_time': round(time.time() - start_time, 2),
+            'cache_enabled': cache_service.enabled,
+            'from_cache': not force_refresh and cache_service.enabled
         }
         
-        logger.info(f"Optimized dashboard loaded in {response_data['query_time']} seconds")
+        logger.info(f"Optimized dashboard loaded in {response_data['query_time']} seconds (cache: {response_data['from_cache']})")
         return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Error in optimized dashboard: {str(e)}", exc_info=True)
         return jsonify({
             'error': 'Failed to load dashboard data',
+            'message': str(e)
+        }), 500
+
+
+@dashboard_optimized_bp.route('/api/reports/dashboard/invalidate-cache', methods=['POST'])
+@jwt_required()
+def invalidate_dashboard_cache():
+    """Invalidate dashboard cache - useful after data updates"""
+    try:
+        cache_service.invalidate_dashboard()
+        return jsonify({
+            'success': True,
+            'message': 'Dashboard cache invalidated'
+        })
+    except Exception as e:
+        logger.error(f"Failed to invalidate cache: {str(e)}")
+        return jsonify({
+            'success': False,
             'message': str(e)
         }), 500

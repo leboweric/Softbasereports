@@ -39,7 +39,8 @@ import {
   Package, 
   Users,
   FileText,
-  Download
+  Download,
+  RefreshCw
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
@@ -47,6 +48,7 @@ const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadTime, setLoadTime] = useState(null)
+  const [fromCache, setFromCache] = useState(false)
   const [inventoryModalOpen, setInventoryModalOpen] = useState(false)
   const [inventoryDetails, setInventoryDetails] = useState(null)
   const [loadingInventory, setLoadingInventory] = useState(false)
@@ -64,12 +66,17 @@ const Dashboard = ({ user }) => {
     fetchDashboardData()
   }, [])
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (forceRefresh = false) => {
     const startTime = Date.now()
+    setLoading(true)
     try {
       const token = localStorage.getItem('token')
       // Try optimized endpoint first, fall back to regular if it fails
-      const response = await fetch(apiUrl('/api/reports/dashboard/summary-optimized'), {
+      const url = forceRefresh 
+        ? apiUrl('/api/reports/dashboard/summary-optimized?refresh=true')
+        : apiUrl('/api/reports/dashboard/summary-optimized')
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -88,9 +95,11 @@ const Dashboard = ({ user }) => {
         // Calculate load time
         const totalTime = (Date.now() - startTime) / 1000
         setLoadTime(data.query_time || totalTime)
+        setFromCache(data.from_cache || false)
         // Log query time if available
         if (data.query_time) {
-          console.log(`Dashboard loaded in ${data.query_time} seconds (parallel queries)`)
+          const cacheStatus = data.from_cache ? 'from cache' : 'fresh data'
+          console.log(`Dashboard loaded in ${data.query_time} seconds (${cacheStatus})`)
         }
       }
     } catch (error) {
@@ -207,12 +216,24 @@ const Dashboard = ({ user }) => {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          {loadTime && loadTime < 5 && (
-            <Badge variant="secondary" className="text-xs">
+          {loadTime && (
+            <Badge 
+              variant={fromCache ? "default" : "secondary"} 
+              className="text-xs"
+            >
               <TrendingUp className="mr-1 h-3 w-3" />
-              Loaded in {loadTime.toFixed(1)}s
+              {loadTime.toFixed(1)}s {fromCache && "(cached)"}
             </Badge>
           )}
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => fetchDashboardData(true)}
+            disabled={loading}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Button variant="outline" size="sm">
             <Download className="mr-2 h-4 w-4" />
             Export Report
