@@ -748,6 +748,76 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/explore-wo-salecodes', methods=['GET'])
+    @jwt_required()
+    def explore_wo_salecodes():
+        """Explore Work Order table to find SaleCode field"""
+        try:
+            db = get_db()
+            
+            # 1. Check if WO table has SaleCode or similar columns
+            column_query = """
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'WO'
+            AND (COLUMN_NAME LIKE '%Sale%' OR COLUMN_NAME LIKE '%Code%' 
+                 OR COLUMN_NAME LIKE '%Type%' OR COLUMN_NAME LIKE '%Category%')
+            ORDER BY COLUMN_NAME
+            """
+            
+            sale_columns = db.execute_query(column_query)
+            
+            # 2. Get sample of open work orders
+            sample_query = """
+            SELECT TOP 10 *
+            FROM ben002.WO
+            WHERE ClosedDate IS NULL
+            ORDER BY DateOpened DESC
+            """
+            
+            open_samples = db.execute_query(sample_query)
+            
+            # 3. Count open work orders by Type
+            type_counts = """
+            SELECT 
+                Type,
+                COUNT(*) as count
+            FROM ben002.WO
+            WHERE ClosedDate IS NULL
+            GROUP BY Type
+            ORDER BY count DESC
+            """
+            
+            type_results = db.execute_query(type_counts)
+            
+            # 4. Try to find SaleCode in WO
+            try:
+                salecode_test = """
+                SELECT 
+                    SaleCode,
+                    COUNT(*) as count
+                FROM ben002.WO
+                WHERE ClosedDate IS NULL
+                AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                               'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+                GROUP BY SaleCode
+                """
+                salecode_counts = db.execute_query(salecode_test)
+            except:
+                salecode_counts = {'error': 'SaleCode column not found in WO table'}
+            
+            return jsonify({
+                'sale_related_columns': sale_columns,
+                'open_wo_samples': open_samples[:3] if open_samples else [],
+                'open_by_type': type_results,
+                'open_by_salecode': salecode_counts,
+                'total_open': sum(t.get('count', 0) for t in type_results) if type_results else 0
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/verify-service-salecodes', methods=['GET'])
     @jwt_required()
     def verify_service_salecodes():

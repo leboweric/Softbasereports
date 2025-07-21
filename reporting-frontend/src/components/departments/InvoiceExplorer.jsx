@@ -549,6 +549,46 @@ const InvoiceExplorer = () => {
               ✅ Verify Labor Sales
             </Button>
             <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/explore-wo-salecodes'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== EXPLORE WORK ORDER SALECODES ===')
+                    console.log('Sale-related columns:', data.sale_related_columns)
+                    console.log('Open WO samples:', data.open_wo_samples)
+                    console.log('Open by Type:', data.open_by_type)
+                    console.log('Open by SaleCode:', data.open_by_salecode)
+                    
+                    let message = 'Work Order Table Analysis:\n\n'
+                    message += `Total Open WOs: ${data.total_open}\n\n`
+                    
+                    if (data.open_by_type && data.open_by_type.length > 0) {
+                      message += 'Open WOs by Type:\n'
+                      data.open_by_type.forEach(t => {
+                        message += `  ${t.Type}: ${t.count}\n`
+                      })
+                    }
+                    
+                    message += '\nCheck console for column names and sample data'
+                    alert(message)
+                  } else {
+                    alert('Failed to explore WO table')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              🔍 Explore WO SaleCodes
+            </Button>
+            <Button 
               onClick={testInvoiceLink} 
               disabled={testingLink}
             >
