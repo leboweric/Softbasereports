@@ -331,19 +331,19 @@ def register_department_routes(reports_bp):
             
             trend_result = db.execute_query(trend_query)
             
-            # Query for monthly revenue from invoices
-            # Check if we can use SaleDept to filter Service department
-            # Based on the dashboard, Service work orders are Type='S'
-            # Let's see if SaleDept=50 corresponds to Service (just a guess based on patterns)
+            # Query for monthly revenue from Service invoices
+            # Join with WO table using ControlNo = UnitNo and filter by Type='S'
             revenue_query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(i.InvoiceDate) as year,
+                MONTH(i.InvoiceDate) as month,
+                SUM(i.GrandTotal) as revenue
+            FROM ben002.InvoiceReg i
+            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            WHERE w.Type = 'S'
+            AND i.InvoiceDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+            ORDER BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
             """
             
             revenue_result = db.execute_query(revenue_query)
