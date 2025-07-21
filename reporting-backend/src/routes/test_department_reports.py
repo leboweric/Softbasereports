@@ -239,6 +239,76 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/find-service-salecodes', methods=['GET'])
+    @jwt_required()
+    def find_service_salecodes():
+        """Find the correct SaleCode values for Service revenue"""
+        try:
+            db = get_db()
+            
+            results = {}
+            
+            # Look for all SaleCodes and their patterns
+            salecode_analysis = """
+            SELECT 
+                SaleCode,
+                SaleDept,
+                COUNT(*) as count,
+                SUM(GrandTotal) as total_revenue,
+                AVG(LaborCost + LaborTaxable + LaborNonTax) as avg_labor,
+                AVG(PartsCost + PartsTaxable + PartsNonTax) as avg_parts
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = 7 
+            AND YEAR(InvoiceDate) = 2025
+            GROUP BY SaleCode, SaleDept
+            HAVING SUM(GrandTotal) > 1000
+            ORDER BY SUM(GrandTotal) DESC
+            """
+            
+            results['salecode_analysis'] = db.execute_query(salecode_analysis)
+            
+            # Look specifically at departments 40 and 45
+            dept_salecodes = """
+            SELECT DISTINCT
+                Dept,
+                SaleCode,
+                COUNT(*) as count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = 7 
+            AND YEAR(InvoiceDate) = 2025
+            AND Dept IN (40, 45)
+            GROUP BY Dept, SaleCode
+            ORDER BY Dept, revenue DESC
+            """
+            
+            try:
+                results['dept_salecodes'] = db.execute_query(dept_salecodes)
+            except:
+                results['dept_salecodes'] = []
+            
+            # Look for SaleCodes that might be Service (not containing 'CST')
+            non_cost_codes = """
+            SELECT 
+                SaleCode,
+                COUNT(*) as count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = 7 
+            AND YEAR(InvoiceDate) = 2025
+            AND SaleCode NOT LIKE '%CST%'
+            AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
+            GROUP BY SaleCode
+            ORDER BY revenue DESC
+            """
+            
+            results['non_cost_codes'] = db.execute_query(non_cost_codes)
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/test-saledept', methods=['GET'])
     @jwt_required()
     def test_saledept():
@@ -522,9 +592,8 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from Service invoices
-            # Option 1: If Dept column exists, use Department codes (40=Field, 45=Shop)
-            # Option 2: Otherwise fall back to SaleCode filter
-            # First, try with Department codes
+            # Using Department codes (40=Field, 45=Shop)
+            # NOTE: RDCST, SHPCST appear to be COST codes, not revenue codes
             revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
@@ -537,26 +606,8 @@ def register_department_routes(reports_bp):
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
             
-            # Try Department approach first
-            try:
-                revenue_result = db.execute_query(revenue_query)
-            except Exception as e:
-                # If Dept column doesn't exist, fall back to SaleCode
-                if "Invalid column name 'Dept'" in str(e):
-                    revenue_query = """
-                    SELECT 
-                        YEAR(InvoiceDate) as year,
-                        MONTH(InvoiceDate) as month,
-                        SUM(GrandTotal) as revenue
-                    FROM ben002.InvoiceReg
-                    WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
-                    AND InvoiceDate >= DATEADD(month, -6, GETDATE())
-                    GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                    ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                    """
-                    revenue_result = db.execute_query(revenue_query)
-                else:
-                    raise e
+            # Execute query
+            revenue_result = db.execute_query(revenue_query)
             
             # Create a revenue lookup dictionary
             revenue_by_month = {}
@@ -579,7 +630,7 @@ def register_department_routes(reports_bp):
                 closed_last_month = 0
                 
             # Calculate current month's Service revenue
-            # Try Department approach first, fall back to SaleCode if needed
+            # Using Department codes (40=Field, 45=Shop)
             current_month_revenue_query = f"""
             SELECT COALESCE(SUM(GrandTotal), 0) as revenue
             FROM ben002.InvoiceReg
@@ -591,20 +642,8 @@ def register_department_routes(reports_bp):
             try:
                 revenue_result = db.execute_query(current_month_revenue_query)
                 current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
-            except Exception as e:
-                if "Invalid column name 'Dept'" in str(e):
-                    # Fall back to SaleCode approach
-                    current_month_revenue_query = f"""
-                    SELECT COALESCE(SUM(GrandTotal), 0) as revenue
-                    FROM ben002.InvoiceReg
-                    WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
-                    AND MONTH(InvoiceDate) = {today.month}
-                    AND YEAR(InvoiceDate) = {today.year}
-                    """
-                    revenue_result = db.execute_query(current_month_revenue_query)
-                    current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
-                else:
-                    current_month_revenue = 0
+            except:
+                current_month_revenue = 0
             
             # Get month names for labels
             current_month_name = today.strftime('%B')  # e.g., "July"

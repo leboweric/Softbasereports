@@ -20,6 +20,8 @@ const InvoiceExplorer = () => {
   const [testingVerify, setTestingVerify] = useState(false)
   const [currentMonthTest, setCurrentMonthTest] = useState(null)
   const [testingCurrentMonth, setTestingCurrentMonth] = useState(false)
+  const [salecodeSearch, setSalecodeSearch] = useState(null)
+  const [searchingSalecodes, setSearchingSalecodes] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -185,6 +187,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const findServiceSalecodes = async () => {
+    setSearchingSalecodes(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/find-service-salecodes'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setSalecodeSearch(result)
+      } else {
+        setError(`Failed to find salecodes: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSearchingSalecodes(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -215,6 +240,13 @@ const InvoiceExplorer = () => {
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4 flex-wrap">
+            <Button 
+              onClick={findServiceSalecodes} 
+              disabled={searchingSalecodes}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {searchingSalecodes ? 'Searching...' : '🔍 Find Service SaleCodes'}
+            </Button>
             <Button 
               onClick={testInvoiceLink} 
               disabled={testingLink}
@@ -257,6 +289,93 @@ const InvoiceExplorer = () => {
               {testingCurrentMonth ? 'Testing...' : 'Test Current Month'}
             </Button>
           </div>
+          
+          {salecodeSearch && (
+            <div className="space-y-4 border-t pt-4">
+              <h4 className="font-semibold text-purple-600">Service SaleCode Analysis:</h4>
+              
+              {salecodeSearch.salecode_analysis && (
+                <div className="bg-purple-50 p-4 rounded border border-purple-200">
+                  <h5 className="font-medium mb-2">All SaleCodes in July (sorted by revenue):</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">SaleCode</th>
+                        <th className="text-left p-2">SaleDept</th>
+                        <th className="text-left p-2">Count</th>
+                        <th className="text-left p-2">Revenue</th>
+                        <th className="text-left p-2">Avg Labor</th>
+                        <th className="text-left p-2">Avg Parts</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salecodeSearch.salecode_analysis.slice(0, 15).map((code, idx) => (
+                        <tr key={idx} className={`border-b ${code.SaleCode?.includes('CST') ? 'bg-red-50' : ''}`}>
+                          <td className="p-2 font-mono">{code.SaleCode}</td>
+                          <td className="p-2">{code.SaleDept}</td>
+                          <td className="p-2">{code.count}</td>
+                          <td className="p-2">${(code.total_revenue || 0).toLocaleString()}</td>
+                          <td className="p-2">${(code.avg_labor || 0).toFixed(0)}</td>
+                          <td className="p-2">${(code.avg_parts || 0).toFixed(0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-xs text-red-600 mt-2">Red rows indicate potential cost codes (containing 'CST')</p>
+                </div>
+              )}
+              
+              {salecodeSearch.dept_salecodes && salecodeSearch.dept_salecodes.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded border border-blue-200">
+                  <h5 className="font-medium mb-2">SaleCodes for Departments 40 & 45:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Dept</th>
+                        <th className="text-left p-2">SaleCode</th>
+                        <th className="text-left p-2">Count</th>
+                        <th className="text-left p-2">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salecodeSearch.dept_salecodes.map((item, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">{item.Dept == 40 ? '40 (Field)' : '45 (Shop)'}</td>
+                          <td className="p-2 font-mono">{item.SaleCode}</td>
+                          <td className="p-2">{item.count}</td>
+                          <td className="p-2">${(item.revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {salecodeSearch.non_cost_codes && (
+                <div className="bg-green-50 p-4 rounded border border-green-200">
+                  <h5 className="font-medium mb-2">Revenue SaleCodes (no 'CST' in name, has labor):</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">SaleCode</th>
+                        <th className="text-left p-2">Count</th>
+                        <th className="text-left p-2">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salecodeSearch.non_cost_codes.slice(0, 10).map((code, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2 font-mono font-bold">{code.SaleCode}</td>
+                          <td className="p-2">{code.count}</td>
+                          <td className="p-2">${(code.revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           
           {linkTest && (
             <div className="space-y-4">
