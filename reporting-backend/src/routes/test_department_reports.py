@@ -2200,3 +2200,208 @@ def register_department_routes(reports_bp):
                 'error': str(e),
                 'type': 'accounting_report_error'
             }), 500
+    
+    @reports_bp.route('/departments/database-explorer', methods=['GET'])
+    @jwt_required()
+    def database_explorer():
+        """Explore database schema and data"""
+        try:
+            db = get_db()
+            table_name = request.args.get('table')
+            
+            if not table_name:
+                # Return list of all tables
+                tables_query = """
+                SELECT 
+                    t.TABLE_NAME,
+                    t.TABLE_TYPE,
+                    p.rows AS row_count
+                FROM INFORMATION_SCHEMA.TABLES t
+                LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
+                WHERE t.TABLE_SCHEMA = 'ben002'
+                AND p.index_id IN (0,1)
+                ORDER BY p.rows DESC
+                """
+                
+                tables = db.execute_query(tables_query)
+                return jsonify({
+                    'tables': tables,
+                    'total_tables': len(tables)
+                })
+            
+            else:
+                # Return info about specific table
+                # Get columns
+                columns_query = f"""
+                SELECT 
+                    COLUMN_NAME,
+                    DATA_TYPE,
+                    CHARACTER_MAXIMUM_LENGTH,
+                    IS_NULLABLE,
+                    COLUMN_DEFAULT
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME = '{table_name}'
+                ORDER BY ORDINAL_POSITION
+                """
+                
+                columns = db.execute_query(columns_query)
+                
+                # Get sample data
+                limit = request.args.get('limit', 10)
+                sample_query = f"SELECT TOP {limit} * FROM ben002.{table_name}"
+                
+                try:
+                    sample_data = db.execute_query(sample_query)
+                except Exception as e:
+                    sample_data = []
+                    logger.error(f"Error getting sample data: {str(e)}")
+                
+                # Get row count
+                count_query = f"SELECT COUNT(*) as total_rows FROM ben002.{table_name}"
+                count_result = db.execute_query(count_query)
+                
+                return jsonify({
+                    'table_name': table_name,
+                    'columns': columns,
+                    'total_rows': count_result[0]['total_rows'] if count_result else 0,
+                    'sample_data': sample_data
+                })
+                
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'database_explorer_error'
+            }), 500
+    
+    @reports_bp.route('/database-explorer', methods=['GET'])
+    @jwt_required()
+    def comprehensive_database_explorer():
+        """Comprehensive database explorer with all tables info"""
+        try:
+            db = get_db()
+            
+            # Get all tables with details
+            tables_query = """
+            SELECT 
+                t.TABLE_NAME as table_name,
+                p.rows as row_count
+            FROM INFORMATION_SCHEMA.TABLES t
+            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
+            WHERE t.TABLE_SCHEMA = 'ben002'
+            AND t.TABLE_TYPE = 'BASE TABLE'
+            AND p.index_id IN (0,1)
+            ORDER BY t.TABLE_NAME
+            """
+            
+            tables = db.execute_query(tables_query)
+            
+            # Get top 20 tables with full info
+            tables_with_details = []
+            for table in tables[:20]:  # Limit to top 20 to avoid timeout
+                table_name = table['table_name']
+                
+                # Get columns
+                columns_query = f"""
+                SELECT 
+                    COLUMN_NAME as column_name,
+                    DATA_TYPE as data_type,
+                    CHARACTER_MAXIMUM_LENGTH as character_maximum_length,
+                    IS_NULLABLE as is_nullable,
+                    COLUMN_DEFAULT as column_default
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME = '{table_name}'
+                ORDER BY ORDINAL_POSITION
+                """
+                
+                columns = db.execute_query(columns_query)
+                
+                # Get primary keys
+                pk_query = f"""
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                WHERE OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + CONSTRAINT_NAME), 'IsPrimaryKey') = 1
+                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME = '{table_name}'
+                """
+                
+                primary_keys = db.execute_query(pk_query)
+                pk_list = [pk['COLUMN_NAME'] for pk in primary_keys]
+                
+                # Get sample data
+                try:
+                    sample_query = f"SELECT TOP 5 * FROM ben002.{table_name}"
+                    sample_data = db.execute_query(sample_query)
+                except:
+                    sample_data = []
+                
+                # Get relationships (foreign keys)
+                fk_query = f"""
+                SELECT 
+                    fkc.COLUMN_NAME as column,
+                    pk.TABLE_NAME as referenced_table,
+                    pkc.COLUMN_NAME as referenced_column
+                FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc
+                JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE fkc
+                    ON rc.CONSTRAINT_NAME = fkc.CONSTRAINT_NAME
+                    AND rc.CONSTRAINT_SCHEMA = fkc.CONSTRAINT_SCHEMA
+                JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE pkc
+                    ON rc.UNIQUE_CONSTRAINT_NAME = pkc.CONSTRAINT_NAME
+                    AND rc.UNIQUE_CONSTRAINT_SCHEMA = pkc.CONSTRAINT_SCHEMA
+                JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk
+                    ON pkc.CONSTRAINT_NAME = pk.CONSTRAINT_NAME
+                    AND pkc.CONSTRAINT_SCHEMA = pk.CONSTRAINT_SCHEMA
+                WHERE fkc.TABLE_SCHEMA = 'ben002'
+                AND fkc.TABLE_NAME = '{table_name}'
+                """
+                
+                relationships = []
+                try:
+                    fk_results = db.execute_query(fk_query)
+                    for fk in fk_results:
+                        relationships.append({
+                            'type': 'foreign_key',
+                            'column': fk['column'],
+                            'referenced_table': fk['referenced_table'],
+                            'referenced_column': fk['referenced_column']
+                        })
+                except:
+                    pass
+                
+                tables_with_details.append({
+                    'table_name': table_name,
+                    'row_count': table['row_count'] or 0,
+                    'columns': columns,
+                    'primary_keys': pk_list,
+                    'sample_data': sample_data,
+                    'relationships': relationships
+                })
+            
+            # Calculate summary stats
+            total_rows = sum(t['row_count'] or 0 for t in tables)
+            
+            # Get total relationships count
+            relationships_query = """
+            SELECT COUNT(*) as count
+            FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS
+            WHERE CONSTRAINT_SCHEMA = 'ben002'
+            """
+            rel_result = db.execute_query(relationships_query)
+            total_relationships = rel_result[0]['count'] if rel_result else 0
+            
+            return jsonify({
+                'export_date': datetime.now().isoformat(),
+                'tables': tables_with_details,
+                'summary': {
+                    'total_tables': len(tables),
+                    'total_rows': total_rows,
+                    'total_relationships': total_relationships
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'database_explorer_error'
+            }), 500
