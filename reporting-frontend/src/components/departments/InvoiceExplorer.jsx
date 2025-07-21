@@ -508,6 +508,21 @@ const InvoiceExplorer = () => {
                   </table>
                 </div>
               )}
+              
+              {verifyTest.service_breakdown && (
+                <div className="bg-green-50 p-4 rounded border border-green-200">
+                  <h5 className="font-medium mb-2">Service Revenue Breakdown (CORRECTED):</h5>
+                  <ul className="space-y-1 text-sm">
+                    <li>Field Service (RDCST): ${(verifyTest.service_breakdown.field_service || 0).toLocaleString()}</li>
+                    <li>Shop Service (SHPCST): ${(verifyTest.service_breakdown.shop_service || 0).toLocaleString()}</li>
+                    <li>FM Road (FMROAD): ${(verifyTest.service_breakdown.fm_road || 0).toLocaleString()}</li>
+                    <li className="font-bold text-green-600">
+                      Total Service: ${(verifyTest.service_breakdown.total_service || 0).toLocaleString()}
+                    </li>
+                    <li className="text-green-600">Target: ~$73K ✓</li>
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

@@ -124,6 +124,20 @@ def register_department_routes(reports_bp):
             
             results['service_likely_codes'] = db.execute_query(service_codes)
             
+            # Test 5: Verify our Service filter gives correct July total
+            service_total_query = """
+            SELECT 
+                SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as field_service,
+                SUM(CASE WHEN SaleCode = 'SHPCST' THEN GrandTotal ELSE 0 END) as shop_service,
+                SUM(CASE WHEN SaleCode = 'FMROAD' THEN GrandTotal ELSE 0 END) as fm_road,
+                SUM(CASE WHEN SaleCode IN ('RDCST', 'SHPCST', 'FMROAD') THEN GrandTotal ELSE 0 END) as total_service
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = 7
+            AND YEAR(InvoiceDate) = 2025
+            """
+            
+            results['service_breakdown'] = db.execute_query(service_total_query)[0]
+            
             return jsonify(results)
             
         except Exception as e:
@@ -412,18 +426,18 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from Service invoices
-            # Join with WO table using ControlNo = UnitNo and filter by Type='S'
+            # Filter by SaleCode to get Service revenue (Field + Shop)
+            # RDCST = Road/Field Service, SHPCST = Shop Service
             revenue_query = """
             SELECT 
-                YEAR(i.InvoiceDate) as year,
-                MONTH(i.InvoiceDate) as month,
-                SUM(i.GrandTotal) as revenue
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
-            WHERE w.Type = 'S'
-            AND i.InvoiceDate >= DATEADD(month, -6, GETDATE())
-            GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
-            ORDER BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
+            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
             
             revenue_result = db.execute_query(revenue_query)
@@ -449,13 +463,13 @@ def register_department_routes(reports_bp):
                 closed_last_month = 0
                 
             # Calculate current month's Service revenue
+            # Using SaleCode filter for Service departments
             current_month_revenue_query = f"""
-            SELECT COALESCE(SUM(i.GrandTotal), 0) as revenue
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
-            WHERE w.Type = 'S'
-            AND MONTH(i.InvoiceDate) = {today.month}
-            AND YEAR(i.InvoiceDate) = {today.year}
+            SELECT COALESCE(SUM(GrandTotal), 0) as revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
+            AND MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
             """
             
             try:
