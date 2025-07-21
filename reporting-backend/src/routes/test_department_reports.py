@@ -1780,24 +1780,28 @@ def register_department_routes(reports_bp):
             
             sales_trend_result = db.execute_query(sales_trend_query)
             
-            # Query for technician performance - simplified version
+            # Query for technician performance - show last 30 days of activity
             technician_performance_query = f"""
             SELECT TOP 10
                 Technician,
                 COUNT(CASE WHEN ClosedDate IS NOT NULL 
-                      AND MONTH(ClosedDate) = {today.month}
-                      AND YEAR(ClosedDate) = {today.year}
+                      AND ClosedDate >= DATEADD(day, -30, GETDATE())
                       THEN 1 END) as completed_this_month,
                 CAST(COUNT(CASE WHEN ClosedDate IS NOT NULL 
-                      AND MONTH(ClosedDate) = {today.month}
-                      AND YEAR(ClosedDate) = {today.year}
+                      AND ClosedDate >= DATEADD(day, -30, GETDATE())
                       THEN 1 END) AS FLOAT) * 100.0 / 
-                NULLIF(COUNT(*), 0) as efficiency
+                NULLIF(COUNT(CASE WHEN 
+                    (ClosedDate >= DATEADD(day, -30, GETDATE())) OR 
+                    (ClosedDate IS NULL) 
+                    THEN 1 END), 0) as efficiency
             FROM ben002.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND Technician IS NOT NULL
             AND Technician != ''
             GROUP BY Technician
+            HAVING COUNT(CASE WHEN ClosedDate IS NOT NULL 
+                      AND ClosedDate >= DATEADD(day, -30, GETDATE())
+                      THEN 1 END) > 0
             ORDER BY completed_this_month DESC
             """
             

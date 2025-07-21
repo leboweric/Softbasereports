@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import {
   Dialog,
   DialogContent,
@@ -152,9 +153,11 @@ const ServiceReport = ({ user, onNavigate }) => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
+      <LoadingSpinner 
+        title="Loading Service Department" 
+        description="Fetching work orders and technician data..."
+        size="large"
+      />
     )
   }
 
@@ -465,13 +468,13 @@ const ServiceReport = ({ user, onNavigate }) => {
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
                 <p className="font-semibold mb-1">Performance Metrics:</p>
-                <p className="text-sm">• Completed WOs: Work orders completed this month</p>
-                <p className="text-sm">• Efficiency: (Completed this month) / (Completed + Open) × 100</p>
-                <p className="text-sm mt-1">Only shows technicians with completed work orders this month</p>
+                <p className="text-sm">• Completed WOs: Work orders completed in last 30 days</p>
+                <p className="text-sm">• Efficiency: (Completed last 30 days) / (Completed last 30 days + Currently Open) × 100</p>
+                <p className="text-sm mt-1">Only shows technicians with completed work orders in the last 30 days</p>
               </TooltipContent>
             </Tooltip>
           </CardTitle>
-          <CardDescription>Top performing technicians this month</CardDescription>
+          <CardDescription>Top performing technicians (last 30 days)</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

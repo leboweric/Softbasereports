@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import {
   Dialog,
   DialogContent,
@@ -134,22 +135,47 @@ const Dashboard = ({ user }) => {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse" />
-                <div className="h-4 w-4 bg-gray-200 rounded animate-pulse" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 bg-gray-200 rounded w-24 animate-pulse mb-2" />
-                <div className="h-3 bg-gray-200 rounded w-32 animate-pulse" />
-              </CardContent>
-            </Card>
-          ))}
+      <>
+        <LoadingSpinner 
+          title="Loading Dashboard" 
+          description="Fetching your business data..."
+          size="xlarge"
+          showProgress={true}
+        />
+        {/* Skeleton preview */}
+        <div className="px-8 pb-8">
+          <div className="max-w-6xl mx-auto space-y-6 opacity-30">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <Card key={i}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div className="h-4 bg-gray-200 rounded w-20 animate-pulse" />
+                    <div className="h-4 w-4 bg-gray-200 rounded animate-pulse" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-8 bg-gray-200 rounded w-24 animate-pulse mb-2" />
+                    <div className="h-3 bg-gray-200 rounded w-32 animate-pulse" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="h-96">
+                <CardHeader>
+                  <div className="h-6 bg-gray-200 rounded w-32 animate-pulse" />
+                  <div className="h-4 bg-gray-200 rounded w-48 animate-pulse mt-2" />
+                </CardHeader>
+              </Card>
+              <Card className="h-96">
+                <CardHeader>
+                  <div className="h-6 bg-gray-200 rounded w-32 animate-pulse" />
+                  <div className="h-4 bg-gray-200 rounded w-48 animate-pulse mt-2" />
+                </CardHeader>
+              </Card>
+            </div>
+          </div>
         </div>
-      </div>
+      </>
     )
   }
 
