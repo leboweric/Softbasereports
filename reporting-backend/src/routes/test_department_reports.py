@@ -240,6 +240,106 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/test-account-numbers', methods=['GET'])
+    @jwt_required()
+    def test_account_numbers():
+        """Test using Account numbers for Service revenue"""
+        try:
+            db = get_db()
+            
+            results = {}
+            
+            # First, check if there's an Account column in InvoiceReg
+            column_check = """
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'InvoiceReg'
+            AND COLUMN_NAME LIKE '%Account%'
+            ORDER BY COLUMN_NAME
+            """
+            
+            results['account_columns'] = db.execute_query(column_check)
+            
+            # Try different account column names
+            for col_name in ['Account', 'AccountNo', 'AccountNumber', 'AcctNo', 'GLAccount']:
+                try:
+                    test_query = f"""
+                    SELECT TOP 5
+                        {col_name} as account,
+                        COUNT(*) as count,
+                        SUM(GrandTotal) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE {col_name} IN ('410004', '410005')
+                    AND MONTH(InvoiceDate) = 7
+                    AND YEAR(InvoiceDate) = 2025
+                    GROUP BY {col_name}
+                    """
+                    result = db.execute_query(test_query)
+                    if result:
+                        results[f'found_in_{col_name}'] = result
+                        
+                        # Get monthly breakdown
+                        monthly_query = f"""
+                        SELECT 
+                            CONCAT(YEAR(InvoiceDate), '-', RIGHT('0' + CAST(MONTH(InvoiceDate) AS VARCHAR), 2)) as month,
+                            SUM(CASE WHEN {col_name} = '410004' THEN GrandTotal ELSE 0 END) as field_revenue,
+                            SUM(CASE WHEN {col_name} = '410005' THEN GrandTotal ELSE 0 END) as shop_revenue,
+                            SUM(GrandTotal) as total_revenue
+                        FROM ben002.InvoiceReg
+                        WHERE {col_name} IN ('410004', '410005')
+                        AND InvoiceDate >= '2025-03-01'
+                        AND InvoiceDate < '2025-08-01'
+                        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                        ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                        """
+                        results[f'monthly_by_{col_name}'] = db.execute_query(monthly_query)
+                        break
+                except:
+                    continue
+            
+            # Also check for any account fields with 4100 prefix
+            account_search = """
+            SELECT DISTINCT TOP 20
+                SaleAcct,
+                COUNT(*) as count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE SaleAcct LIKE '4100%'
+            AND MONTH(InvoiceDate) = 7
+            AND YEAR(InvoiceDate) = 2025
+            GROUP BY SaleAcct
+            ORDER BY revenue DESC
+            """
+            
+            try:
+                results['sale_acct_search'] = db.execute_query(account_search)
+            except:
+                # Try other potential column names
+                for col in ['GLAcct', 'GLAccount', 'SalesAcct']:
+                    try:
+                        search_query = f"""
+                        SELECT DISTINCT TOP 20
+                            {col} as account,
+                            COUNT(*) as count,
+                            SUM(GrandTotal) as revenue
+                        FROM ben002.InvoiceReg
+                        WHERE {col} LIKE '4100%'
+                        AND MONTH(InvoiceDate) = 7
+                        AND YEAR(InvoiceDate) = 2025
+                        GROUP BY {col}
+                        ORDER BY revenue DESC
+                        """
+                        results[f'{col}_search'] = db.execute_query(search_query)
+                        break
+                    except:
+                        continue
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/match-historical-revenue', methods=['GET'])
     @jwt_required()
     def match_historical_revenue():
@@ -702,28 +802,53 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from Service invoices
-            # Option 1: Try Department codes (40=Field, 45=Shop) first
-            # Option 2: If that doesn't work, use SaleCode (FMROAD=Field, FMSHOP=Shop)
-            revenue_query = """
-            SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
-            WHERE Dept IN (40, 45)
-            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            """
+            # Try multiple approaches in order of preference:
+            # 1. Account numbers (410004=Field, 410005=Shop) - most accurate
+            # 2. Department codes (40=Field, 45=Shop)
+            # 3. SaleCode (FMROAD=Field, FMSHOP=Shop)
             
-            # Try Department approach first
-            try:
-                revenue_result = db.execute_query(revenue_query)
-                # If no results or Dept column doesn't exist, try SaleCode
-                if not revenue_result or "Invalid column name 'Dept'" in str(revenue_result):
-                    raise Exception("Try SaleCode approach")
-            except:
-                # Fall back to SaleCode approach
+            revenue_result = None
+            
+            # Try Account number approach first (most accurate)
+            for account_col in ['SaleAcct', 'GLAccount', 'Account', 'AccountNo']:
+                try:
+                    revenue_query = f"""
+                    SELECT 
+                        YEAR(InvoiceDate) as year,
+                        MONTH(InvoiceDate) as month,
+                        SUM(GrandTotal) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE {account_col} IN ('410004', '410005')
+                    AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+                    GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                    ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                    """
+                    revenue_result = db.execute_query(revenue_query)
+                    if revenue_result:
+                        break
+                except:
+                    continue
+            
+            # If Account approach didn't work, try Department
+            if not revenue_result:
+                try:
+                    revenue_query = """
+                    SELECT 
+                        YEAR(InvoiceDate) as year,
+                        MONTH(InvoiceDate) as month,
+                        SUM(GrandTotal) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE Dept IN (40, 45)
+                    AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+                    GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                    ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                    """
+                    revenue_result = db.execute_query(revenue_query)
+                except:
+                    pass
+            
+            # Finally, fall back to SaleCode
+            if not revenue_result:
                 revenue_query = """
                 SELECT 
                     YEAR(InvoiceDate) as year,
@@ -758,31 +883,51 @@ def register_department_routes(reports_bp):
                 closed_last_month = 0
                 
             # Calculate current month's Service revenue
-            # Try Department first, then SaleCode
-            current_month_revenue_query = f"""
-            SELECT COALESCE(SUM(GrandTotal), 0) as revenue
-            FROM ben002.InvoiceReg
-            WHERE Dept IN (40, 45)
-            AND MONTH(InvoiceDate) = {today.month}
-            AND YEAR(InvoiceDate) = {today.year}
-            """
+            # Try Account numbers first, then Department, then SaleCode
+            current_month_revenue = 0
             
-            try:
-                revenue_result = db.execute_query(current_month_revenue_query)
-                current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
-                # If zero or error, try SaleCode approach
-                if current_month_revenue == 0:
-                    raise Exception("Try SaleCode")
-            except:
-                # Try SaleCode approach
-                current_month_revenue_query = f"""
-                SELECT COALESCE(SUM(GrandTotal), 0) as revenue
-                FROM ben002.InvoiceReg
-                WHERE SaleCode IN ('FMROAD', 'FMSHOP')
-                AND MONTH(InvoiceDate) = {today.month}
-                AND YEAR(InvoiceDate) = {today.year}
-                """
+            # Try Account approach first
+            for account_col in ['SaleAcct', 'GLAccount', 'Account', 'AccountNo']:
                 try:
+                    current_month_revenue_query = f"""
+                    SELECT COALESCE(SUM(GrandTotal), 0) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE {account_col} IN ('410004', '410005')
+                    AND MONTH(InvoiceDate) = {today.month}
+                    AND YEAR(InvoiceDate) = {today.year}
+                    """
+                    revenue_result = db.execute_query(current_month_revenue_query)
+                    current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
+                    if current_month_revenue > 0:
+                        break
+                except:
+                    continue
+            
+            # If Account approach didn't work, try Department
+            if current_month_revenue == 0:
+                try:
+                    current_month_revenue_query = f"""
+                    SELECT COALESCE(SUM(GrandTotal), 0) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE Dept IN (40, 45)
+                    AND MONTH(InvoiceDate) = {today.month}
+                    AND YEAR(InvoiceDate) = {today.year}
+                    """
+                    revenue_result = db.execute_query(current_month_revenue_query)
+                    current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
+                except:
+                    pass
+            
+            # Finally try SaleCode
+            if current_month_revenue == 0:
+                try:
+                    current_month_revenue_query = f"""
+                    SELECT COALESCE(SUM(GrandTotal), 0) as revenue
+                    FROM ben002.InvoiceReg
+                    WHERE SaleCode IN ('FMROAD', 'FMSHOP')
+                    AND MONTH(InvoiceDate) = {today.month}
+                    AND YEAR(InvoiceDate) = {today.year}
+                    """
                     revenue_result = db.execute_query(current_month_revenue_query)
                     current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
                 except:

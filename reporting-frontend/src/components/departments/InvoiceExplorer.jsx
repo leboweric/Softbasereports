@@ -24,6 +24,8 @@ const InvoiceExplorer = () => {
   const [searchingSalecodes, setSearchingSalecodes] = useState(false)
   const [historicalMatch, setHistoricalMatch] = useState(null)
   const [matchingHistorical, setMatchingHistorical] = useState(false)
+  const [accountTest, setAccountTest] = useState(null)
+  const [testingAccounts, setTestingAccounts] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -235,6 +237,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const testAccountNumbers = async () => {
+    setTestingAccounts(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/test-account-numbers'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setAccountTest(result)
+      } else {
+        setError(`Failed to test accounts: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setTestingAccounts(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -265,6 +290,13 @@ const InvoiceExplorer = () => {
         </CardHeader>
         <CardContent>
           <div className="flex gap-2 mb-4 flex-wrap">
+            <Button 
+              onClick={testAccountNumbers} 
+              disabled={testingAccounts}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {testingAccounts ? 'Testing...' : '💰 Test Account Numbers'}
+            </Button>
             <Button 
               onClick={matchHistoricalRevenue} 
               disabled={matchingHistorical}
@@ -321,6 +353,108 @@ const InvoiceExplorer = () => {
               {testingCurrentMonth ? 'Testing...' : 'Test Current Month'}
             </Button>
           </div>
+          
+          {accountTest && (
+            <div className="space-y-4 border-t pt-4">
+              <h4 className="font-semibold text-green-600">Account Number Testing (410004=Field, 410005=Shop):</h4>
+              
+              {accountTest.account_columns && accountTest.account_columns.length > 0 && (
+                <div className="bg-gray-50 p-4 rounded border border-gray-200">
+                  <h5 className="font-medium mb-2">Account-related columns found:</h5>
+                  <div className="flex flex-wrap gap-2">
+                    {accountTest.account_columns.map((col, idx) => (
+                      <span key={idx} className="px-2 py-1 bg-gray-200 rounded text-sm">
+                        {col.COLUMN_NAME}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {Object.keys(accountTest).filter(key => key.startsWith('found_in_')).map(key => {
+                const colName = key.replace('found_in_', '');
+                const data = accountTest[key];
+                const monthlyKey = `monthly_by_${colName}`;
+                const monthlyData = accountTest[monthlyKey];
+                
+                return (
+                  <div key={key} className="space-y-2">
+                    <div className="bg-green-50 p-4 rounded border border-green-200">
+                      <h5 className="font-medium mb-2">✅ Found in column: {colName}</h5>
+                      <table className="text-sm w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left p-2">Account</th>
+                            <th className="text-right p-2">Count</th>
+                            <th className="text-right p-2">July Revenue</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.map((row, idx) => (
+                            <tr key={idx} className="border-b">
+                              <td className="p-2">{row.account} ({row.account === '410004' ? 'Field' : 'Shop'})</td>
+                              <td className="p-2 text-right">{row.count}</td>
+                              <td className="p-2 text-right">${(row.revenue || 0).toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {monthlyData && (
+                      <div className="bg-blue-50 p-4 rounded border border-blue-200">
+                        <h5 className="font-medium mb-2">Monthly breakdown using {colName}:</h5>
+                        <table className="text-sm w-full">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left p-2">Month</th>
+                              <th className="text-right p-2">Field (410004)</th>
+                              <th className="text-right p-2">Shop (410005)</th>
+                              <th className="text-right p-2">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {monthlyData.map((row, idx) => (
+                              <tr key={idx} className="border-b">
+                                <td className="p-2">{row.month}</td>
+                                <td className="p-2 text-right">${(row.field_revenue || 0).toLocaleString()}</td>
+                                <td className="p-2 text-right">${(row.shop_revenue || 0).toLocaleString()}</td>
+                                <td className="p-2 text-right font-bold">${(row.total_revenue || 0).toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              
+              {(accountTest.sale_acct_search || accountTest.GLAcct_search || accountTest.GLAccount_search || accountTest.SalesAcct_search) && (
+                <div className="bg-yellow-50 p-4 rounded border border-yellow-200">
+                  <h5 className="font-medium mb-2">Account codes starting with 4100:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Account</th>
+                        <th className="text-right p-2">Count</th>
+                        <th className="text-right p-2">July Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(accountTest.sale_acct_search || accountTest.GLAcct_search || accountTest.GLAccount_search || accountTest.SalesAcct_search || []).map((row, idx) => (
+                        <tr key={idx} className={`border-b ${(row.SaleAcct || row.account) === '410004' || (row.SaleAcct || row.account) === '410005' ? 'bg-green-100 font-bold' : ''}`}>
+                          <td className="p-2">{row.SaleAcct || row.account}</td>
+                          <td className="p-2 text-right">{row.count}</td>
+                          <td className="p-2 text-right">${(row.revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
           
           {historicalMatch && (
             <div className="space-y-4 border-t pt-4">
