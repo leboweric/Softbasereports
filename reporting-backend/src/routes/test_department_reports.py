@@ -1780,33 +1780,43 @@ def register_department_routes(reports_bp):
             
             sales_trend_result = db.execute_query(sales_trend_query)
             
-            # Query for technician performance - completed work orders and efficiency
+            # Query for technician performance - simplified version
             technician_performance_query = f"""
             SELECT TOP 10
                 Technician,
-                COUNT(*) as total_assigned,
                 COUNT(CASE WHEN ClosedDate IS NOT NULL 
-                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}'
+                      AND MONTH(ClosedDate) = {today.month}
+                      AND YEAR(ClosedDate) = {today.year}
                       THEN 1 END) as completed_this_month,
                 CAST(COUNT(CASE WHEN ClosedDate IS NOT NULL 
-                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}'
+                      AND MONTH(ClosedDate) = {today.month}
+                      AND YEAR(ClosedDate) = {today.year}
                       THEN 1 END) AS FLOAT) * 100.0 / 
-                NULLIF(COUNT(CASE WHEN 
-                    (ClosedDate IS NOT NULL AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}')
-                    OR ClosedDate IS NULL 
-                    THEN 1 END), 0) as efficiency
+                NULLIF(COUNT(*), 0) as efficiency
             FROM ben002.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND Technician IS NOT NULL
             AND Technician != ''
             GROUP BY Technician
-            HAVING COUNT(CASE WHEN ClosedDate IS NOT NULL 
-                      AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}'
-                      THEN 1 END) > 0
             ORDER BY completed_this_month DESC
             """
             
             technician_result = db.execute_query(technician_performance_query)
+            
+            # Debug: Check if we have any technicians at all
+            debug_tech_query = """
+            SELECT TOP 20
+                Technician,
+                COUNT(*) as total_count,
+                COUNT(CASE WHEN ClosedDate IS NOT NULL THEN 1 END) as closed_count,
+                COUNT(CASE WHEN ClosedDate IS NULL THEN 1 END) as open_count
+            FROM ben002.WO
+            WHERE SaleCode IN ('SHPCST', 'RDCST')
+            GROUP BY Technician
+            ORDER BY total_count DESC
+            """
+            
+            debug_tech_result = db.execute_query(debug_tech_query)
             
             # Query for monthly revenue from Service/Labor invoices
             # Updated to match OData exactly - excluding pure rental codes
@@ -1945,7 +1955,9 @@ def register_department_routes(reports_bp):
                     'current_month': current_month_name,
                     'last_month': last_month_name,
                     'efficiency_debug': debug_result[0] if debug_result else None,
-                    'efficiency_raw': efficiency_result[0] if efficiency_result else None
+                    'efficiency_raw': efficiency_result[0] if efficiency_result else None,
+                    'technician_data': technician_result,
+                    'technician_debug': debug_tech_result
                 }
             })
             
