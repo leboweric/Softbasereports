@@ -13,6 +13,45 @@ def get_db():
 def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
     
+    @reports_bp.route('/departments/list-salecodes', methods=['GET'])
+    @jwt_required()
+    def list_salecodes():
+        """Just list all SaleCodes and their July totals"""
+        try:
+            db = get_db()
+            
+            query = """
+            SELECT 
+                SaleCode,
+                COUNT(*) as count,
+                SUM(GrandTotal) as total
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = 7
+            AND YEAR(InvoiceDate) = 2025
+            GROUP BY SaleCode
+            ORDER BY total DESC
+            """
+            
+            results = db.execute_query(query)
+            
+            # Find which ones might be Service
+            service_keywords = ['SERVICE', 'SVC', 'REPAIR', 'MAINT', 'LABOR', 'FIELD', 'SHOP', 'ROAD', 'FM']
+            potential_service = []
+            
+            for row in results:
+                code = row.get('SaleCode', '').upper()
+                if any(keyword in code for keyword in service_keywords):
+                    potential_service.append(row)
+            
+            return jsonify({
+                'all_codes': results,
+                'potential_service': potential_service,
+                'total_count': len(results)
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/simple-service-test', methods=['GET'])
     @jwt_required()
     def simple_service_test():
@@ -20,30 +59,49 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Just show me July 2025 data grouped by common fields
+            # First, let's just get July 2025 totals by SaleCode
             query = """
             SELECT 
-                Dept,
                 SaleCode,
-                RecvAccount,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as total_revenue
             FROM ben002.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
-            GROUP BY Dept, SaleCode, RecvAccount
+            GROUP BY SaleCode
             HAVING SUM(GrandTotal) > 1000
             ORDER BY total_revenue DESC
             """
             
             results = db.execute_query(query)
             
-            # Calculate totals for specific filters we think might work
+            # Also try with RecvAccount if it exists
+            recv_results = []
+            try:
+                recv_query = """
+                SELECT 
+                    RecvAccount,
+                    COUNT(*) as invoice_count,
+                    SUM(GrandTotal) as total_revenue
+                FROM ben002.InvoiceReg
+                WHERE MONTH(InvoiceDate) = 7
+                AND YEAR(InvoiceDate) = 2025
+                AND RecvAccount IS NOT NULL
+                GROUP BY RecvAccount
+                HAVING SUM(GrandTotal) > 1000
+                ORDER BY total_revenue DESC
+                """
+                recv_results = db.execute_query(recv_query)
+            except:
+                pass
+            
+            # Calculate specific totals
             summaries = {
-                'dept_40_45': sum(r['total_revenue'] for r in results if r.get('Dept') in [40, 45]),
                 'salecode_fm': sum(r['total_revenue'] for r in results if r.get('SaleCode') in ['FMROAD', 'FMSHOP']),
-                'recv_410004_410005': sum(r['total_revenue'] for r in results if r.get('RecvAccount') in ['410004', '410005']),
-                'total_july': sum(r['total_revenue'] for r in results)
+                'recv_410004_410005': sum(r['total_revenue'] for r in recv_results if r.get('RecvAccount') in ['410004', '410005']),
+                'total_july': sum(r['total_revenue'] for r in results),
+                'field_only': next((r['total_revenue'] for r in results if r.get('SaleCode') == 'FMROAD'), 0),
+                'shop_only': next((r['total_revenue'] for r in results if r.get('SaleCode') == 'FMSHOP'), 0)
             }
             
             return jsonify({

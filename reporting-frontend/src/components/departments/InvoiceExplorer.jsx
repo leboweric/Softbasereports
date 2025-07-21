@@ -319,6 +319,40 @@ const InvoiceExplorer = () => {
               onClick={async () => {
                 try {
                   const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/list-salecodes'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== ALL SALECODES IN JULY 2025 ===')
+                    console.log('Total codes:', data.total_count)
+                    console.log('All codes:', data.all_codes)
+                    console.log('Potential Service codes:', data.potential_service)
+                    
+                    // Show top 10 in alert
+                    let message = 'Top 10 SaleCodes in July 2025:\n\n'
+                    data.all_codes.slice(0, 10).forEach(code => {
+                      message += `${code.SaleCode}: $${code.total?.toLocaleString()} (${code.count} invoices)\n`
+                    })
+                    message += '\nCheck console for full list'
+                    alert(message)
+                  } else {
+                    alert('Failed to list codes')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              📋 List All SaleCodes
+            </Button>
+            <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
                   const response = await fetch(apiUrl('/api/reports/departments/simple-service-test'), {
                     headers: {
                       'Authorization': `Bearer ${token}`,
@@ -330,7 +364,7 @@ const InvoiceExplorer = () => {
                     console.log('Target:', data.target)
                     console.log('Summaries:', data.summaries)
                     console.log('Details:', data.details)
-                    alert(`July 2025 Revenue Totals:\n\nDept 40+45: $${data.summaries.dept_40_45?.toLocaleString()}\nFMROAD+FMSHOP: $${data.summaries.salecode_fm?.toLocaleString()}\nRecvAccount 410004+410005: $${data.summaries.recv_410004_410005?.toLocaleString()}\n\nCheck console for full details`)
+                    alert(`July 2025 Revenue Totals:\n\nFMROAD only: $${data.summaries.field_only?.toLocaleString()}\nFMSHOP only: $${data.summaries.shop_only?.toLocaleString()}\nFMROAD+FMSHOP: $${data.summaries.salecode_fm?.toLocaleString()}\nRecvAccount 410004+410005: $${data.summaries.recv_410004_410005?.toLocaleString()}\n\nTotal July Revenue: $${data.summaries.total_july?.toLocaleString()}\nTarget: $${data.target?.toLocaleString()}\n\nCheck console for full details`)
                   } else {
                     alert('Failed to run test')
                   }
