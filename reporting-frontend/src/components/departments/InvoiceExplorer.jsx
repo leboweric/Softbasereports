@@ -14,6 +14,8 @@ const InvoiceExplorer = () => {
   const [testingLinkV2, setTestingLinkV2] = useState(false)
   const [revenueTest, setRevenueTest] = useState(null)
   const [testingRevenue, setTestingRevenue] = useState(false)
+  const [deptTest, setDeptTest] = useState(null)
+  const [testingDept, setTestingDept] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -110,6 +112,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const testSaleDept = async () => {
+    setTestingDept(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/test-saledept'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setDeptTest(result)
+      } else {
+        setError(`Failed to test departments: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setTestingDept(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -139,7 +164,7 @@ const InvoiceExplorer = () => {
           <CardDescription>Test if ControlNo field links to work orders</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-2 mb-4 flex-wrap">
             <Button 
               onClick={testInvoiceLink} 
               disabled={testingLink}
@@ -159,6 +184,13 @@ const InvoiceExplorer = () => {
               variant="outline"
             >
               {testingRevenue ? 'Testing...' : 'Test Revenue Query'}
+            </Button>
+            <Button 
+              onClick={testSaleDept} 
+              disabled={testingDept}
+              variant="secondary"
+            >
+              {testingDept ? 'Testing...' : 'Test SaleDept Values'}
             </Button>
           </div>
           
@@ -312,6 +344,57 @@ const InvoiceExplorer = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {deptTest && (
+            <div className="space-y-4 mt-4 border-t pt-4">
+              <h4 className="font-semibold">SaleDept Analysis:</h4>
+              
+              {deptTest.department_distribution && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">Department Distribution:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">SaleDept</th>
+                        <th className="text-left p-2">SaleCode</th>
+                        <th className="text-left p-2">Count</th>
+                        <th className="text-left p-2">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {deptTest.department_distribution.slice(0, 10).map((dept, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">{dept.SaleDept}</td>
+                          <td className="p-2">{dept.SaleCode}</td>
+                          <td className="p-2">{dept.count}</td>
+                          <td className="p-2">${(dept.total_revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {deptTest.samples && Object.keys(deptTest.samples).length > 0 && (
+                <div className="bg-white p-4 rounded border">
+                  <h5 className="font-medium mb-2">Sample Invoices by Department:</h5>
+                  {Object.entries(deptTest.samples).map(([key, invoices]) => (
+                    <div key={key} className="mb-4">
+                      <h6 className="font-medium text-sm mb-1">{key}:</h6>
+                      <div className="text-xs space-y-1 ml-4">
+                        {invoices.map((inv, idx) => (
+                          <div key={idx}>
+                            Invoice {inv.InvoiceNo}: ${inv.GrandTotal} 
+                            (Labor: ${inv.LaborCost}, Parts: ${inv.PartsCost})
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -49,6 +49,55 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/test-saledept', methods=['GET'])
+    @jwt_required()
+    def test_saledept():
+        """Test SaleDept values in InvoiceReg to find Service department code"""
+        try:
+            db = get_db()
+            
+            # Get distribution of SaleDept values
+            dept_query = """
+            SELECT 
+                SaleDept,
+                SaleCode,
+                COUNT(*) as count,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -1, GETDATE())
+            GROUP BY SaleDept, SaleCode
+            ORDER BY COUNT(*) DESC
+            """
+            
+            dept_result = db.execute_query(dept_query)
+            
+            # Get sample invoices for each SaleDept
+            samples = {}
+            if dept_result:
+                for dept in dept_result[:5]:  # Top 5 departments
+                    sample_query = f"""
+                    SELECT TOP 3 
+                        InvoiceNo,
+                        SaleDept,
+                        SaleCode,
+                        SerialNo,
+                        GrandTotal,
+                        LaborCost,
+                        PartsCost
+                    FROM ben002.InvoiceReg
+                    WHERE SaleDept = {dept['SaleDept']}
+                    ORDER BY InvoiceDate DESC
+                    """
+                    samples[f"dept_{dept['SaleDept']}"] = db.execute_query(sample_query)
+            
+            return jsonify({
+                'department_distribution': dept_result,
+                'samples': samples
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/test-service-revenue', methods=['GET'])
     @jwt_required()
     def test_service_revenue():
@@ -283,8 +332,9 @@ def register_department_routes(reports_bp):
             trend_result = db.execute_query(trend_query)
             
             # Query for monthly revenue from invoices
-            # TODO: Need to properly link to WO table to filter Service only
-            # For now showing all invoices until we solve the join issue
+            # Check if we can use SaleDept to filter Service department
+            # Based on the dashboard, Service work orders are Type='S'
+            # Let's see if SaleDept=50 corresponds to Service (just a guess based on patterns)
             revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
