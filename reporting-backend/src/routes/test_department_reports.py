@@ -1976,6 +1976,7 @@ def register_department_routes(reports_bp):
     @jwt_required()
     def get_accounting_department_report():
         """Get Accounting Department report with real financial data"""
+        logger.info("Accounting endpoint called from test_department_reports.py")
         try:
             db = get_db()
             
@@ -2013,6 +2014,7 @@ def register_department_routes(reports_bp):
             monthly_result = db.execute_query(monthly_financial_query)
             
             monthlyFinancials = []
+            logger.info(f"Monthly financial data rows: {len(monthly_result) if monthly_result else 0}")
             for row in monthly_result:
                 revenue = float(row.get('revenue', 0) or 0)
                 total_cost = float(row.get('total_cost', 0) or 0)
@@ -2177,6 +2179,10 @@ def register_department_routes(reports_bp):
                     {'category': 'Other', 'amount': round(misc + rental, 2), 
                      'percentage': round(((misc + rental) / total_with_overhead * 100) if total_with_overhead > 0 else 0, 1)}
                 ]
+            
+            logger.info(f"Returning {len(monthlyFinancials)} months of financial data")
+            if monthlyFinancials:
+                logger.info(f"Sample month data: {monthlyFinancials[0]}")
             
             return jsonify({
                 'summary': summary,

@@ -519,9 +519,9 @@ def register_department_routes(reports_bp):
             }), 500
 
 
-    @reports_bp.route('/departments/accounting', methods=['GET'])
+    @reports_bp.route('/departments/accounting-old', methods=['GET'])
     @jwt_required()
-    def get_accounting_department_report():
+    def get_accounting_department_report_old():
         """Get Accounting Department report data"""
         try:
             db = get_db()
