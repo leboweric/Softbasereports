@@ -368,6 +368,22 @@ def register_department_routes(reports_bp):
                 closed_this_month = 0
                 closed_last_month = 0
                 
+            # Calculate current month's Service revenue
+            current_month_revenue_query = f"""
+            SELECT COALESCE(SUM(i.GrandTotal), 0) as revenue
+            FROM ben002.InvoiceReg i
+            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            WHERE w.Type = 'S'
+            AND MONTH(i.InvoiceDate) = {today.month}
+            AND YEAR(i.InvoiceDate) = {today.year}
+            """
+            
+            try:
+                revenue_result = db.execute_query(current_month_revenue_query)
+                current_month_revenue = float(revenue_result[0]['revenue']) if revenue_result else 0
+            except:
+                current_month_revenue = 0
+            
             # Get month names for labels
             current_month_name = today.strftime('%B')  # e.g., "July"
             last_month_name = last_month_end.strftime('%B')  # e.g., "June"
@@ -378,7 +394,7 @@ def register_department_routes(reports_bp):
                     'completedToday': 0,
                     'averageRepairTime': 0,
                     'technicianEfficiency': 87,
-                    'revenue': 0,
+                    'revenue': current_month_revenue,
                     'customersServed': 0
                 },
                 'workOrdersByStatus': [
