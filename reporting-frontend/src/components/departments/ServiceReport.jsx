@@ -10,6 +10,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   Table,
   TableBody,
   TableCell,
@@ -40,7 +46,8 @@ import {
   Calendar,
   UserCheck,
   DollarSign,
-  Download
+  Download,
+  Info
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
@@ -163,6 +170,7 @@ const ServiceReport = ({ user, onNavigate }) => {
   }
 
   return (
+    <TooltipProvider>
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-start">
         <div>
@@ -207,7 +215,19 @@ const ServiceReport = ({ user, onNavigate }) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Shop Avg Repair Time</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              Shop Avg Repair Time
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold mb-1">Calculation:</p>
+                  <p className="text-sm">Average days between OpenDate and ClosedDate for all SHPCST work orders completed this month.</p>
+                  <p className="text-sm mt-1">Formula: AVG(ClosedDate - OpenDate) in days</p>
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -218,7 +238,19 @@ const ServiceReport = ({ user, onNavigate }) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Road Avg Repair Time</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              Road Avg Repair Time
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold mb-1">Calculation:</p>
+                  <p className="text-sm">Average days between OpenDate and ClosedDate for all RDCST work orders completed this month.</p>
+                  <p className="text-sm mt-1">Formula: AVG(ClosedDate - OpenDate) in days</p>
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -229,7 +261,20 @@ const ServiceReport = ({ user, onNavigate }) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Efficiency</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              Efficiency
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-semibold mb-1">Calculation:</p>
+                  <p className="text-sm">Percentage of assigned work orders completed this month.</p>
+                  <p className="text-sm mt-2">Formula: (Completed WOs this month / Total assigned WOs) × 100</p>
+                  <p className="text-sm mt-2">Example: If technicians have 100 work orders (80 completed + 20 open), efficiency = 80%</p>
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -588,6 +633,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   )
 }
 
