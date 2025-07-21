@@ -187,7 +187,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card 
           className="cursor-pointer hover:shadow-lg transition-shadow"
           onClick={handleOpenWOClick}
@@ -202,16 +202,6 @@ const ServiceReport = ({ user, onNavigate }) => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed Today</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{serviceData.summary.completedToday}</div>
-            <p className="text-xs text-muted-foreground">Work orders</p>
-          </CardContent>
-        </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -259,51 +249,6 @@ const ServiceReport = ({ user, onNavigate }) => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              Efficiency
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="font-semibold mb-1">Calculation:</p>
-                  <p className="text-sm">Percentage of assigned work orders completed this month.</p>
-                  <p className="text-sm mt-2">Formula: (Completed WOs this month / Total assigned WOs) × 100</p>
-                  <p className="text-sm mt-2">Example: If technicians have 100 work orders (80 completed + 20 open), efficiency = 80%</p>
-                </TooltipContent>
-              </Tooltip>
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{serviceData.summary.technicianEfficiency}%</div>
-            <p className="text-xs text-muted-foreground">Technician average</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${serviceData.summary.revenue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Service income</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Customers Served</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{serviceData.summary.customersServed}</div>
-            <p className="text-xs text-muted-foreground">This month</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Work Orders by Status - Split into Shop and Road */}
