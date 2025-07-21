@@ -18,6 +18,8 @@ const InvoiceExplorer = () => {
   const [testingDept, setTestingDept] = useState(false)
   const [verifyTest, setVerifyTest] = useState(null)
   const [testingVerify, setTestingVerify] = useState(false)
+  const [currentMonthTest, setCurrentMonthTest] = useState(null)
+  const [testingCurrentMonth, setTestingCurrentMonth] = useState(false)
 
   useEffect(() => {
     fetchInvoiceColumns()
@@ -160,6 +162,29 @@ const InvoiceExplorer = () => {
     }
   }
 
+  const testCurrentMonth = async () => {
+    setTestingCurrentMonth(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/test-current-month'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setCurrentMonthTest(result)
+      } else {
+        setError(`Failed to test current month: ${response.status}`)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setTestingCurrentMonth(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -223,6 +248,13 @@ const InvoiceExplorer = () => {
               variant="destructive"
             >
               {testingVerify ? 'Verifying...' : 'Verify July Revenue'}
+            </Button>
+            <Button 
+              onClick={testCurrentMonth} 
+              disabled={testingCurrentMonth}
+              variant="secondary"
+            >
+              {testingCurrentMonth ? 'Testing...' : 'Test Current Month'}
             </Button>
           </div>
           
@@ -535,6 +567,82 @@ const InvoiceExplorer = () => {
                     </li>
                     <li className="text-blue-600">Using Department codes is cleaner!</li>
                   </ul>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {currentMonthTest && (
+            <div className="space-y-4 mt-4 border-t pt-4">
+              <h4 className="font-semibold text-purple-600">Current Month Test ({currentMonthTest.current_month?.month_name} {currentMonthTest.current_month?.year}):</h4>
+              
+              {currentMonthTest.total_current_month && (
+                <div className="bg-purple-50 p-4 rounded border border-purple-200">
+                  <h5 className="font-medium mb-2">Total Current Month (All Invoices):</h5>
+                  <p className="text-sm">
+                    {currentMonthTest.total_current_month.count} invoices, 
+                    Total: ${(currentMonthTest.total_current_month.total || 0).toLocaleString()}
+                  </p>
+                </div>
+              )}
+              
+              {currentMonthTest.by_department && !currentMonthTest.by_department.error && (
+                <div className="bg-blue-50 p-4 rounded border border-blue-200">
+                  <h5 className="font-medium mb-2">By Department (40=Field, 45=Shop):</h5>
+                  <ul className="space-y-1 text-sm">
+                    {currentMonthTest.by_department.map((dept, idx) => (
+                      <li key={idx}>
+                        Dept {dept.Dept}: {dept.count} invoices, ${(dept.revenue || 0).toLocaleString()}
+                      </li>
+                    ))}
+                    <li className="font-bold mt-2">
+                      Total Service (Dept method): ${
+                        currentMonthTest.by_department.reduce((sum, dept) => sum + (dept.revenue || 0), 0).toLocaleString()
+                      }
+                    </li>
+                  </ul>
+                </div>
+              )}
+              
+              {currentMonthTest.by_salecode && (
+                <div className="bg-green-50 p-4 rounded border border-green-200">
+                  <h5 className="font-medium mb-2">By SaleCode:</h5>
+                  <ul className="space-y-1 text-sm">
+                    {currentMonthTest.by_salecode.map((code, idx) => (
+                      <li key={idx}>
+                        {code.SaleCode}: {code.count} invoices, ${(code.revenue || 0).toLocaleString()}
+                      </li>
+                    ))}
+                    <li className="font-bold mt-2">
+                      Total Service (SaleCode method): ${
+                        currentMonthTest.by_salecode.reduce((sum, code) => sum + (code.revenue || 0), 0).toLocaleString()
+                      }
+                    </li>
+                  </ul>
+                </div>
+              )}
+              
+              {currentMonthTest.all_departments && currentMonthTest.all_departments.length > 0 && (
+                <div className="bg-gray-50 p-4 rounded border border-gray-200">
+                  <h5 className="font-medium mb-2">Top Departments This Month:</h5>
+                  <table className="text-sm w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Dept</th>
+                        <th className="text-left p-2">Count</th>
+                        <th className="text-left p-2">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentMonthTest.all_departments.map((dept, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-2">{dept.Dept}</td>
+                          <td className="p-2">{dept.count}</td>
+                          <td className="p-2">${(dept.revenue || 0).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

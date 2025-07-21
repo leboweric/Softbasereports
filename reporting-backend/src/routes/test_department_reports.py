@@ -49,6 +49,87 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/test-current-month', methods=['GET'])
+    @jwt_required()
+    def test_current_month():
+        """Test current month Service revenue calculation"""
+        try:
+            db = get_db()
+            today = datetime.datetime.now()
+            
+            results = {}
+            
+            # Test 1: Total invoices this month (no filter)
+            total_query = f"""
+            SELECT 
+                COUNT(*) as count,
+                SUM(GrandTotal) as total
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            """
+            results['total_current_month'] = db.execute_query(total_query)[0]
+            
+            # Test 2: Department approach
+            dept_query = f"""
+            SELECT 
+                Dept,
+                COUNT(*) as count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            AND Dept IN (40, 45)
+            GROUP BY Dept
+            """
+            try:
+                results['by_department'] = db.execute_query(dept_query)
+            except Exception as e:
+                results['by_department'] = {'error': str(e)}
+            
+            # Test 3: SaleCode approach
+            salecode_query = f"""
+            SELECT 
+                SaleCode,
+                COUNT(*) as count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD')
+            GROUP BY SaleCode
+            """
+            results['by_salecode'] = db.execute_query(salecode_query)
+            
+            # Test 4: All departments this month to see distribution
+            all_dept_query = f"""
+            SELECT TOP 10
+                Dept,
+                COUNT(*) as count,
+                SUM(GrandTotal) as revenue
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            GROUP BY Dept
+            ORDER BY revenue DESC
+            """
+            try:
+                results['all_departments'] = db.execute_query(all_dept_query)
+            except:
+                results['all_departments'] = []
+            
+            # Test 5: Check if we're in November or July
+            results['current_month'] = {
+                'month': today.month,
+                'year': today.year,
+                'month_name': today.strftime('%B')
+            }
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/verify-service-revenue', methods=['GET'])
     @jwt_required()
     def verify_service_revenue():
