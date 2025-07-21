@@ -49,6 +49,153 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/debug-revenue-number', methods=['GET'])
+    @jwt_required()
+    def debug_revenue_number():
+        """Debug where $23,511.68 is coming from"""
+        try:
+            db = get_db()
+            today = datetime.datetime.now()
+            
+            results = {
+                'target_amount': 23511.68,
+                'current_date': {
+                    'month': today.month,
+                    'year': today.year,
+                    'month_name': today.strftime('%B')
+                }
+            }
+            
+            # Test 1: Check what the Service endpoint is actually querying
+            # RecvAccount approach
+            recv_account_query = f"""
+            SELECT 
+                'RecvAccount' as method,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue,
+                MIN(InvoiceDate) as min_date,
+                MAX(InvoiceDate) as max_date
+            FROM ben002.InvoiceReg
+            WHERE RecvAccount IN ('410004', '410005')
+            AND MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            """
+            
+            try:
+                results['recv_account_test'] = db.execute_query(recv_account_query)[0]
+            except Exception as e:
+                results['recv_account_test'] = {'error': str(e)}
+            
+            # Test 2: Department approach
+            dept_query = f"""
+            SELECT 
+                'Department' as method,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue,
+                MIN(InvoiceDate) as min_date,
+                MAX(InvoiceDate) as max_date
+            FROM ben002.InvoiceReg
+            WHERE Dept IN (40, 45)
+            AND MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            """
+            
+            try:
+                results['dept_test'] = db.execute_query(dept_query)[0]
+            except Exception as e:
+                results['dept_test'] = {'error': str(e)}
+            
+            # Test 3: SaleCode approach (FMROAD, FMSHOP)
+            salecode_query = f"""
+            SELECT 
+                'SaleCode' as method,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue,
+                MIN(InvoiceDate) as min_date,
+                MAX(InvoiceDate) as max_date
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('FMROAD', 'FMSHOP')
+            AND MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            """
+            
+            results['salecode_test'] = db.execute_query(salecode_query)[0]
+            
+            # Test 4: Find ANY combination that equals $23,511.68
+            find_exact_query = f"""
+            SELECT TOP 10
+                SaleCode,
+                Dept,
+                RecvAccount,
+                COUNT(*) as count,
+                SUM(GrandTotal) as total
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            GROUP BY SaleCode, Dept, RecvAccount
+            HAVING SUM(GrandTotal) BETWEEN 23500 AND 23520
+            ORDER BY ABS(SUM(GrandTotal) - 23511.68)
+            """
+            
+            results['exact_match_search'] = db.execute_query(find_exact_query)
+            
+            # Test 5: Check if it's a single SaleCode
+            single_salecode_query = f"""
+            SELECT 
+                SaleCode,
+                COUNT(*) as count,
+                SUM(GrandTotal) as total
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            GROUP BY SaleCode
+            HAVING SUM(GrandTotal) BETWEEN 23000 AND 24000
+            ORDER BY ABS(SUM(GrandTotal) - 23511.68)
+            """
+            
+            results['single_salecode_matches'] = db.execute_query(single_salecode_query)
+            
+            # Test 6: Check July data specifically (in case date is wrong)
+            july_test_query = """
+            SELECT 
+                'July RecvAccount' as method,
+                COUNT(*) as invoice_count,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE RecvAccount IN ('410004', '410005')
+            AND MONTH(InvoiceDate) = 7
+            AND YEAR(InvoiceDate) = 2025
+            """
+            
+            try:
+                results['july_recv_account'] = db.execute_query(july_test_query)[0]
+            except:
+                results['july_recv_account'] = {'error': 'Failed'}
+            
+            # Test 7: Show what RecvAccount values exist for current month
+            recv_values_query = f"""
+            SELECT TOP 20
+                RecvAccount,
+                COUNT(*) as count,
+                SUM(GrandTotal) as total
+            FROM ben002.InvoiceReg
+            WHERE MONTH(InvoiceDate) = {today.month}
+            AND YEAR(InvoiceDate) = {today.year}
+            AND RecvAccount IS NOT NULL
+            GROUP BY RecvAccount
+            ORDER BY SUM(GrandTotal) DESC
+            """
+            
+            try:
+                results['recv_account_values'] = db.execute_query(recv_values_query)
+            except:
+                results['recv_account_values'] = []
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/test-current-month', methods=['GET'])
     @jwt_required()
     def test_current_month():
