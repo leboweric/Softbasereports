@@ -589,6 +589,55 @@ const InvoiceExplorer = () => {
               🔍 Explore WO SaleCodes
             </Button>
             <Button 
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/departments/validate-march-workorders'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  if (response.ok) {
+                    const data = await response.json()
+                    console.log('=== MARCH 2025 WORK ORDER VALIDATION ===')
+                    console.log('Total March WOs:', data.march_total)
+                    console.log('By SaleCode:', data.by_salecode)
+                    console.log('Sample WOs:', data.sample_workorders)
+                    console.log('All Types Comparison:', data.all_types_comparison)
+                    
+                    let message = `March 2025 Work Order Validation:\n\n`
+                    message += `Total Service WOs (with labor SaleCodes): ${data.march_total}\n\n`
+                    
+                    if (data.by_salecode && data.by_salecode.length > 0) {
+                      message += 'Breakdown by SaleCode:\n'
+                      data.by_salecode.forEach(item => {
+                        message += `  ${item.SaleCode}: ${item.count}\n`
+                      })
+                    }
+                    
+                    message += '\n'
+                    
+                    if (data.all_types_comparison && data.all_types_comparison.length > 0) {
+                      message += 'ALL WO Types in March (for comparison):\n'
+                      data.all_types_comparison.forEach(item => {
+                        message += `  Type ${item.Type}: ${item.count}\n`
+                      })
+                    }
+                    
+                    message += '\nCheck console for sample work orders'
+                    alert(message)
+                  } else {
+                    alert('Failed to validate March data')
+                  }
+                } catch (err) {
+                  alert('Error: ' + err.message)
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              📊 Validate March WOs (594)
+            </Button>
+            <Button 
               onClick={testInvoiceLink} 
               disabled={testingLink}
             >

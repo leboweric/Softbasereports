@@ -748,6 +748,92 @@ def register_department_routes(reports_bp):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/validate-march-workorders', methods=['GET'])
+    @jwt_required()
+    def validate_march_workorders():
+        """Validate March 2025 completed work orders by SaleCode"""
+        try:
+            db = get_db()
+            
+            # Get March completed WOs broken down by SaleCode
+            breakdown_query = """
+            SELECT 
+                SaleCode,
+                COUNT(*) as count
+            FROM ben002.WO
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            AND ClosedDate IS NOT NULL
+            AND YEAR(ClosedDate) = 2025
+            AND MONTH(ClosedDate) = 3
+            GROUP BY SaleCode
+            ORDER BY count DESC
+            """
+            
+            salecode_breakdown = db.execute_query(breakdown_query)
+            
+            # Get total for March
+            total_query = """
+            SELECT COUNT(*) as total_count
+            FROM ben002.WO
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            AND ClosedDate IS NOT NULL
+            AND YEAR(ClosedDate) = 2025
+            AND MONTH(ClosedDate) = 3
+            """
+            
+            total_result = db.execute_query(total_query)
+            
+            # Get sample of March WOs to verify they're service-related
+            sample_query = """
+            SELECT TOP 20
+                WONo,
+                SaleCode,
+                Type,
+                CustomerSale,
+                Make,
+                Model,
+                ClosedDate,
+                Technician
+            FROM ben002.WO
+            WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                             'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A')
+            AND ClosedDate IS NOT NULL
+            AND YEAR(ClosedDate) = 2025
+            AND MONTH(ClosedDate) = 3
+            ORDER BY ClosedDate DESC
+            """
+            
+            sample_wos = db.execute_query(sample_query)
+            
+            # Also check WOs by Type for comparison
+            type_breakdown = """
+            SELECT 
+                Type,
+                COUNT(*) as count
+            FROM ben002.WO
+            WHERE ClosedDate IS NOT NULL
+            AND YEAR(ClosedDate) = 2025
+            AND MONTH(ClosedDate) = 3
+            GROUP BY Type
+            ORDER BY count DESC
+            """
+            
+            type_results = db.execute_query(type_breakdown)
+            
+            return jsonify({
+                'march_total': total_result[0]['total_count'] if total_result else 0,
+                'by_salecode': salecode_breakdown,
+                'sample_workorders': sample_wos,
+                'all_types_comparison': type_results,
+                'labor_salecodes_used': ['RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
+                                        'RENTR', 'RENTPM', 'NEWEQP-R', 'SERVP-A']
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/open-work-orders-detail', methods=['GET'])
     @jwt_required()
     def get_open_work_orders_detail():
