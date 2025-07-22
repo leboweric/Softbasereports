@@ -55,7 +55,25 @@ To get the complete database schema:
 
 ## Deployment URLs
 - **Frontend**: https://softbasereports.netlify.app
-- **Backend**: https://softbase-reports-61982b9e3a95.herokuapp.com
+- **Backend**: https://softbasereports-production.up.railway.app
+
+## CRITICAL: API URL Usage
+**NEVER hardcode backend URLs in frontend code!** Always use the `apiUrl` helper function from `@/lib/api`:
+
+```javascript
+import { apiUrl } from '@/lib/api';
+
+// CORRECT:
+const response = await fetch(apiUrl('/api/some-endpoint'));
+
+// WRONG - NEVER DO THIS:
+const response = await fetch('https://some-url.herokuapp.com/api/some-endpoint');
+```
+
+The `apiUrl` function handles:
+- Local development (uses proxy)
+- Production deployment (uses Netlify redirects to Railway)
+- Environment-specific configuration
 
 ## Environment Variables
 Backend requires:
