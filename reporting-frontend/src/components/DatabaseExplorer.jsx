@@ -15,7 +15,8 @@ const DatabaseExplorer = ({ user }) => {
     try {
       setError(null);
       const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/api/reports/database-explorer'), {
+      // Temporarily use simple endpoint for debugging
+      const response = await fetch(apiUrl('/api/reports/database-explorer-simple'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -27,6 +28,7 @@ const DatabaseExplorer = ({ user }) => {
       }
 
       const data = await response.json();
+      console.log('Database Explorer API Response:', data);
       setDatabaseInfo(data);
     } catch (err) {
       setError(err.message);

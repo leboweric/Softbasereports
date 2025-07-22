@@ -32,6 +32,43 @@ def register_department_routes(reports_bp):
             logger.error(f"Test endpoint error: {str(e)}")
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/database-explorer-simple', methods=['GET'])
+    @jwt_required()
+    def database_explorer_simple():
+        """Simple version that just returns table names"""
+        try:
+            db = get_db()
+            
+            # Just get table names and counts
+            tables_query = """
+            SELECT TOP 10
+                t.TABLE_NAME as table_name,
+                p.rows as row_count
+            FROM INFORMATION_SCHEMA.TABLES t
+            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
+            WHERE t.TABLE_SCHEMA = 'ben002'
+            AND t.TABLE_TYPE = 'BASE TABLE'
+            AND p.index_id IN (0,1)
+            ORDER BY p.rows DESC
+            """
+            
+            tables = db.execute_query(tables_query)
+            
+            return jsonify({
+                'export_date': datetime.now().isoformat(),
+                'tables': [{'table_name': t['table_name'], 'row_count': t['row_count'] or 0} for t in tables],
+                'summary': {
+                    'total_tables': len(tables),
+                    'total_rows': sum(t['row_count'] or 0 for t in tables),
+                    'total_relationships': 0
+                },
+                'status': 'success'
+            })
+            
+        except Exception as e:
+            logger.error(f"Simple database explorer error: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e), 'type': 'database_explorer_error'}), 500
+    
     @reports_bp.route('/departments/list-salecodes', methods=['GET'])
     @jwt_required()
     def list_salecodes():
@@ -2373,9 +2410,11 @@ def register_department_routes(reports_bp):
             """
             
             tables = db.execute_query(tables_query)
+            logger.info(f"Found {len(tables)} tables in database")
             
             # Determine how many tables to process
             tables_to_process = tables if full_export else tables[:20]
+            logger.info(f"Processing {len(tables_to_process)} tables (full_export={full_export})")
             
             # Get tables with full info
             tables_with_details = []
