@@ -1,8 +1,11 @@
 # Simplified department report endpoints for testing
-from flask import jsonify
+from flask import jsonify, request
 from flask_jwt_extended import jwt_required
-import datetime
+from datetime import datetime, timedelta
 from src.services.azure_sql_service import AzureSQLService
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_db():
@@ -206,7 +209,7 @@ def register_department_routes(reports_bp):
         """Debug where $23,511.68 is coming from"""
         try:
             db = get_db()
-            today = datetime.datetime.now()
+            today = datetime.now()
             
             results = {
                 'target_amount': 23511.68,
@@ -353,7 +356,7 @@ def register_department_routes(reports_bp):
         """Test current month Service revenue calculation"""
         try:
             db = get_db()
-            today = datetime.datetime.now()
+            today = datetime.now()
             
             results = {}
             
@@ -1658,9 +1661,9 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get current date info for month calculations
-            today = datetime.datetime.now()
+            today = datetime.now()
             current_month_start = today.replace(day=1)
-            last_month_end = current_month_start - datetime.timedelta(days=1)
+            last_month_end = current_month_start - timedelta(days=1)
             last_month_start = last_month_end.replace(day=1)
             
             # Count open and recently closed work orders for SHPCST and RDCST separately
@@ -1981,7 +1984,7 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get current date info
-            today = datetime.datetime.now()
+            today = datetime.now()
             year_start = datetime.datetime(today.year, 1, 1)
             month_start = today.replace(day=1)
             
