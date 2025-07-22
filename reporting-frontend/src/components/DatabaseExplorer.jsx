@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Database, Table, Key, Clock, Package, ChevronRight, ChevronDown, RefreshCw } from 'lucide-react';
+import { Search, Database, Table, Key, Clock, Package, ChevronRight, ChevronDown, RefreshCw, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingSpinner from './ui/loading-spinner';
 
@@ -42,6 +42,61 @@ export default function DatabaseExplorer() {
   const handleRefresh = () => {
     setRefreshing(true);
     fetchDatabaseInfo();
+  };
+
+  const handleDownload = async () => {
+    try {
+      setRefreshing(true);
+      
+      // Fetch full export data
+      const response = await fetch('https://softbase-reports-61982b9e3a95.herokuapp.com/api/reports/database-explorer?full_export=true', {
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch full export data');
+      }
+
+      const fullData = await response.json();
+      
+      // Create a comprehensive export object
+      const exportData = {
+        export_date: new Date().toISOString(),
+        export_version: '1.0',
+        database: 'Softbase Evolution',
+        schema: 'ben002',
+        summary: fullData.summary,
+        tables: fullData.tables?.map(table => ({
+          table_name: table.table_name,
+          row_count: table.row_count,
+          columns: table.columns,
+          primary_keys: table.primary_keys,
+          relationships: table.relationships,
+          sample_data: table.sample_data?.slice(0, 3) // Include only 3 sample rows
+        }))
+      };
+      
+      // Convert to JSON with pretty formatting
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      
+      // Create blob and download
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `softbase_database_schema_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading database schema:', error);
+      alert('Failed to download database schema. Please try again.');
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const toggleTable = (tableName) => {
@@ -115,14 +170,24 @@ export default function DatabaseExplorer() {
                 <p className="text-gray-600">Browse Softbase database structure and sample data</p>
               </div>
             </div>
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleDownload}
+                disabled={loading || !databaseInfo}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export JSON
+              </button>
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
 
           {/* Summary Stats */}

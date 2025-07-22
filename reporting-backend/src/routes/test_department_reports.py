@@ -2281,6 +2281,9 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
+            # Check if this is a full export request
+            full_export = request.args.get('full_export', 'false').lower() == 'true'
+            
             # Get all tables with details
             tables_query = """
             SELECT 
@@ -2296,9 +2299,12 @@ def register_department_routes(reports_bp):
             
             tables = db.execute_query(tables_query)
             
-            # Get top 20 tables with full info
+            # Determine how many tables to process
+            tables_to_process = tables if full_export else tables[:20]
+            
+            # Get tables with full info
             tables_with_details = []
-            for table in tables[:20]:  # Limit to top 20 to avoid timeout
+            for table in tables_to_process:
                 table_name = table['table_name']
                 
                 # Get columns
