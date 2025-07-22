@@ -16,6 +16,22 @@ def get_db():
 def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
     
+    @reports_bp.route('/test-database-explorer', methods=['GET', 'OPTIONS'])
+    def test_database_explorer():
+        """Test endpoint to debug CORS and routing issues"""
+        try:
+            return jsonify({
+                'status': 'ok',
+                'message': 'Test endpoint working',
+                'timestamp': datetime.now().isoformat(),
+                'headers': dict(request.headers),
+                'method': request.method,
+                'path': request.path
+            })
+        except Exception as e:
+            logger.error(f"Test endpoint error: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/list-salecodes', methods=['GET'])
     @jwt_required()
     def list_salecodes():
@@ -2277,12 +2293,16 @@ def register_department_routes(reports_bp):
                 'type': 'database_explorer_error'
             }), 500
     
-    @reports_bp.route('/database-explorer', methods=['GET'])
+    @reports_bp.route('/database-explorer', methods=['GET', 'OPTIONS'])
     @jwt_required()
     def comprehensive_database_explorer():
         """Comprehensive database explorer with all tables info"""
+        logger.info(f"Database explorer called with method: {request.method}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        
         try:
             db = get_db()
+            logger.info("Database connection established")
             
             # Check if this is a full export request
             full_export = request.args.get('full_export', 'false').lower() == 'true'
@@ -2410,7 +2430,9 @@ def register_department_routes(reports_bp):
             })
             
         except Exception as e:
+            logger.error(f"Database explorer error: {str(e)}", exc_info=True)
             return jsonify({
                 'error': str(e),
-                'type': 'database_explorer_error'
+                'type': 'database_explorer_error',
+                'traceback': str(e.__class__.__name__)
             }), 500

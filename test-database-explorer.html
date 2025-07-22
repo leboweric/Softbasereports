@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Database Explorer Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; }
+        .error { background-color: #f8d7da; }
+        pre { white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Database Explorer API Test</h1>
+    
+    <div class="test">
+        <h2>Test 1: Check if backend is alive</h2>
+        <button onclick="testBackend()">Test Backend</button>
+        <pre id="backend-result"></pre>
+    </div>
+    
+    <div class="test">
+        <h2>Test 2: Test endpoint (no auth)</h2>
+        <button onclick="testEndpoint()">Test Endpoint</button>
+        <pre id="test-result"></pre>
+    </div>
+    
+    <div class="test">
+        <h2>Test 3: Database Explorer (with auth)</h2>
+        <input type="text" id="token" placeholder="Paste JWT token here" style="width: 400px;">
+        <button onclick="testDatabaseExplorer()">Test Database Explorer</button>
+        <pre id="explorer-result"></pre>
+    </div>
+    
+    <div class="test">
+        <h2>Test 4: cURL Commands</h2>
+        <pre id="curl-commands"></pre>
+    </div>
+
+    <script>
+        const API_BASE = 'https://softbase-reports-61982b9e3a95.herokuapp.com';
+        
+        // Generate cURL commands
+        document.getElementById('curl-commands').textContent = `
+# Test if backend is alive
+curl -v ${API_BASE}/api/auth/login
+
+# Test endpoint (should work without auth)
+curl -v ${API_BASE}/api/reports/test-database-explorer
+
+# Test database explorer (needs auth token)
+curl -v -H "Authorization: Bearer YOUR_TOKEN_HERE" ${API_BASE}/api/reports/database-explorer
+`;
+        
+        async function testBackend() {
+            const result = document.getElementById('backend-result');
+            try {
+                result.textContent = 'Testing...';
+                const response = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                result.textContent = `Status: ${response.status || 'Connected'}\nType: ${response.type}`;
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testEndpoint() {
+            const result = document.getElementById('test-result');
+            try {
+                result.textContent = 'Testing...';
+                const response = await fetch(`${API_BASE}/api/reports/test-database-explorer`);
+                const text = await response.text();
+                result.textContent = `Status: ${response.status}\nHeaders: ${JSON.stringify([...response.headers])}\nBody: ${text}`;
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testDatabaseExplorer() {
+            const result = document.getElementById('explorer-result');
+            const token = document.getElementById('token').value;
+            
+            if (!token) {
+                result.textContent = 'Please enter a JWT token';
+                return;
+            }
+            
+            try {
+                result.textContent = 'Testing...';
+                const response = await fetch(`${API_BASE}/api/reports/database-explorer`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const text = await response.text();
+                result.textContent = `Status: ${response.status}\nHeaders: ${JSON.stringify([...response.headers])}\nBody: ${text}`;
+            } catch (error) {
+                result.textContent = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
