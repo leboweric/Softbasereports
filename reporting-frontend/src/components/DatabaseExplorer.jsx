@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Database, Table, Key, Clock, Package, ChevronRight, ChevronDown, RefreshCw, Download } from 'lucide-react';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
+import { apiUrl } from '@/lib/api';
 
 const DatabaseExplorer = ({ user }) => {
   const [loading, setLoading] = useState(true);
@@ -13,9 +14,10 @@ const DatabaseExplorer = ({ user }) => {
   const fetchDatabaseInfo = async () => {
     try {
       setError(null);
-      // Temporarily use noauth endpoint for testing
-      const response = await fetch('https://softbase-reports-61982b9e3a95.herokuapp.com/api/reports/database-explorer-noauth', {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/api/reports/database-explorer'), {
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -49,9 +51,10 @@ const DatabaseExplorer = ({ user }) => {
       
       // Fetch full export data
       const token = localStorage.getItem('token');
-      const response = await fetch('https://softbase-reports-61982b9e3a95.herokuapp.com/api/reports/database-explorer?full_export=true', {
+      const response = await fetch(apiUrl('/api/reports/database-explorer?full_export=true'), {
         headers: {
           'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
       });
 
