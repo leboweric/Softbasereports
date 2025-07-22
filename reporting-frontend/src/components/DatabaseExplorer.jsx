@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Database, Table, Key, Clock, Package, ChevronRight, ChevronDown, RefreshCw, Download } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import LoadingSpinner from './ui/loading-spinner';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
-export default function DatabaseExplorer() {
-  const { user } = useAuth();
+const DatabaseExplorer = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [databaseInfo, setDatabaseInfo] = useState(null);
@@ -15,9 +13,10 @@ export default function DatabaseExplorer() {
   const fetchDatabaseInfo = async () => {
     try {
       setError(null);
+      const token = localStorage.getItem('token');
       const response = await fetch('https://softbase-reports-61982b9e3a95.herokuapp.com/api/reports/database-explorer', {
         headers: {
-          'Authorization': `Bearer ${user.token}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -37,7 +36,7 @@ export default function DatabaseExplorer() {
 
   useEffect(() => {
     fetchDatabaseInfo();
-  }, [user.token]);
+  }, []);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -49,9 +48,10 @@ export default function DatabaseExplorer() {
       setRefreshing(true);
       
       // Fetch full export data
+      const token = localStorage.getItem('token');
       const response = await fetch('https://softbase-reports-61982b9e3a95.herokuapp.com/api/reports/database-explorer?full_export=true', {
         headers: {
-          'Authorization': `Bearer ${user.token}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -384,3 +384,5 @@ export default function DatabaseExplorer() {
     </div>
   );
 }
+
+export default DatabaseExplorer;

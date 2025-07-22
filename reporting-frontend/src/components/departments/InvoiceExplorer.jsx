@@ -1100,7 +1100,7 @@ const InvoiceExplorer = () => {
               
               {historicalMatch.significant_codes && (
                 <div className="bg-gray-50 p-4 rounded border border-gray-200">
-                  <h5 className="font-medium mb-2">Top SaleCodes in July (>$5K):</h5>
+                  <h5 className="font-medium mb-2">Top SaleCodes in July (&gt;$5K):</h5>
                   <table className="text-sm w-full">
                     <thead>
                       <tr className="border-b">
