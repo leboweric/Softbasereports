@@ -2293,11 +2293,63 @@ def register_department_routes(reports_bp):
                 'type': 'database_explorer_error'
             }), 500
     
+    @reports_bp.route('/database-explorer-noauth', methods=['GET', 'OPTIONS'])
+    def database_explorer_noauth():
+        """Database explorer without auth for testing"""
+        logger.info("Database explorer NOAUTH called")
+        
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        try:
+            db = get_db()
+            
+            # Just return a simple response to test
+            tables_query = """
+            SELECT TOP 5
+                t.TABLE_NAME as table_name,
+                p.rows as row_count
+            FROM INFORMATION_SCHEMA.TABLES t
+            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
+            WHERE t.TABLE_SCHEMA = 'ben002'
+            AND t.TABLE_TYPE = 'BASE TABLE'
+            AND p.index_id IN (0,1)
+            ORDER BY p.rows DESC
+            """
+            
+            tables = db.execute_query(tables_query)
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Database explorer working',
+                'sample_tables': tables,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Database explorer NOAUTH error: {str(e)}", exc_info=True)
+            return jsonify({
+                'error': str(e),
+                'type': 'database_explorer_error'
+            }), 500
+    
     @reports_bp.route('/database-explorer', methods=['GET', 'OPTIONS'])
-    @jwt_required()
     def comprehensive_database_explorer():
         """Comprehensive database explorer with all tables info"""
         logger.info(f"Database explorer called with method: {request.method}")
+        
+        # Handle OPTIONS preflight request
+        if request.method == 'OPTIONS':
+            return '', 204
+            
+        # For GET requests, require JWT
+        from flask_jwt_extended import verify_jwt_in_request
+        try:
+            verify_jwt_in_request()
+        except Exception as e:
+            logger.error(f"JWT verification failed: {str(e)}")
+            return jsonify({'error': 'Authentication required'}), 401
+        
         logger.info(f"Headers: {dict(request.headers)}")
         
         try:
