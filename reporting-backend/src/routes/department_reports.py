@@ -546,13 +546,13 @@ def register_department_routes(reports_bp):
                 END as Status,
                 -- Get labor cost
                 COALESCE((SELECT SUM(Cost) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborCost,
-                -- Get parts cost
-                COALESCE((SELECT SUM(Cost * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsCost,
+                -- Get parts cost (without quantity since column might not exist)
+                COALESCE((SELECT SUM(Cost) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsCost,
                 -- Get misc cost
                 COALESCE((SELECT SUM(Cost) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscCost,
                 -- Get sell prices for revenue
                 COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborSell,
-                COALESCE((SELECT SUM(Sell * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsSell,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsSell,
                 COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscSell
             FROM ben002.WO w
             WHERE w.Type = 'S'  -- Service work orders
@@ -624,12 +624,12 @@ def register_department_routes(reports_bp):
                 COUNT(*) as WorkOrderCount,
                 SUM(
                     COALESCE((SELECT SUM(Cost) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) +
-                    COALESCE((SELECT SUM(Cost * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) +
+                    COALESCE((SELECT SUM(Cost) FROM ben002.WOParts WHERE WONo = w.WONo), 0) +
                     COALESCE((SELECT SUM(Cost) FROM ben002.WOMisc WHERE WONo = w.WONo), 0)
                 ) as TotalCost,
                 SUM(
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) +
-                    COALESCE((SELECT SUM(Sell * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) +
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) +
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0)
                 ) as TotalRevenue
             FROM ben002.WO w
