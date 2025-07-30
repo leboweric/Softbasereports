@@ -526,15 +526,14 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get service work orders associated with rental department
-            # Start with a simpler query to avoid column errors
+            # Get service work orders - ultra simplified to avoid column errors
             service_wo_query = """
-            SELECT 
+            SELECT TOP 100
                 w.WONo,
-                'Rental Department' as Customer,  -- Hardcode for now since we're filtering by rental
-                w.Equipment,
-                ISNULL(w.Make, '') as Make,
-                ISNULL(w.Model, '') as Model,
+                'Rental Department' as Customer,
+                '' as Equipment,
+                '' as Make,
+                '' as Model,
                 w.OpenDate,
                 w.CompletedDate,
                 w.ClosedDate,
@@ -557,7 +556,6 @@ def register_department_routes(reports_bp):
                 COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscSell
             FROM ben002.WO w
             WHERE w.Type = 'S'  -- Service work orders
-            -- For now, get ALL service work orders and filter later
             ORDER BY w.OpenDate DESC
             """
             
