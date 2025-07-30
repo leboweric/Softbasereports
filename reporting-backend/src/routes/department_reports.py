@@ -655,7 +655,7 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Optimized query that gets all data in one go
+            # Optimized query that gets all data in one go - ONLY OPEN WORK ORDERS
             optimized_query = """
             WITH RentalWOs AS (
                 SELECT TOP 100
@@ -681,13 +681,14 @@ def register_department_routes(reports_bp):
                 FROM ben002.WO w
                 WHERE w.Type = 'S'
                 AND w.SaleCode IN ('RENTR', 'RENTRS')
+                AND w.ClosedDate IS NULL  -- Only open work orders
+                AND w.InvoiceDate IS NULL  -- Not invoiced
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
                 SELECT 
                     WONo,
-                    SUM(Cost) as LaborCost,
-                    SUM(Sell) as LaborSell
+                    SUM(Cost) as LaborCost
                 FROM ben002.WOLabor
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
@@ -695,8 +696,7 @@ def register_department_routes(reports_bp):
             PartsCosts AS (
                 SELECT 
                     WONo,
-                    SUM(Cost) as PartsCost,
-                    SUM(Sell) as PartsSell
+                    SUM(Cost) as PartsCost
                 FROM ben002.WOParts
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
@@ -704,8 +704,7 @@ def register_department_routes(reports_bp):
             MiscCosts AS (
                 SELECT 
                     WONo,
-                    SUM(Cost) as MiscCost,
-                    SUM(Sell) as MiscSell
+                    SUM(Cost) as MiscCost
                 FROM ben002.WOMisc
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
@@ -713,15 +712,9 @@ def register_department_routes(reports_bp):
             SELECT 
                 r.*,
                 COALESCE(l.LaborCost, 0) as LaborCost,
-                COALESCE(l.LaborSell, 0) as LaborSell,
                 COALESCE(p.PartsCost, 0) as PartsCost,
-                COALESCE(p.PartsSell, 0) as PartsSell,
                 COALESCE(m.MiscCost, 0) as MiscCost,
-                COALESCE(m.MiscSell, 0) as MiscSell,
-                COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost,
-                COALESCE(l.LaborSell, 0) + COALESCE(p.PartsSell, 0) + COALESCE(m.MiscSell, 0) as TotalRevenue,
-                (COALESCE(l.LaborSell, 0) + COALESCE(p.PartsSell, 0) + COALESCE(m.MiscSell, 0)) - 
-                (COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0)) as Profit
+                COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost
             FROM RentalWOs r
             LEFT JOIN LaborCosts l ON r.WONo = l.WONo
             LEFT JOIN PartsCosts p ON r.WONo = p.WONo
@@ -734,21 +727,14 @@ def register_department_routes(reports_bp):
             # Process the results
             work_orders = []
             total_cost = 0
-            total_revenue = 0
             
             for wo in results:
                 labor_cost = float(wo.get('LaborCost', 0) or 0)
-                labor_sell = float(wo.get('LaborSell', 0) or 0)
                 parts_cost = float(wo.get('PartsCost', 0) or 0)
-                parts_sell = float(wo.get('PartsSell', 0) or 0)
                 misc_cost = float(wo.get('MiscCost', 0) or 0)
-                misc_sell = float(wo.get('MiscSell', 0) or 0)
                 total_wo_cost = float(wo.get('TotalCost', 0) or 0)
-                total_wo_revenue = float(wo.get('TotalRevenue', 0) or 0)
-                profit = float(wo.get('Profit', 0) or 0)
                 
                 total_cost += total_wo_cost
-                total_revenue += total_wo_revenue
                 
                 work_orders.append({
                     'woNumber': wo.get('WONo'),
@@ -757,20 +743,11 @@ def register_department_routes(reports_bp):
                     'make': wo.get('Make') or '',
                     'model': wo.get('Model') or '',
                     'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
-                    'completedDate': wo.get('CompletedDate').strftime('%Y-%m-%d') if wo.get('CompletedDate') else None,
-                    'closedDate': wo.get('ClosedDate').strftime('%Y-%m-%d') if wo.get('ClosedDate') else None,
-                    'invoiceDate': wo.get('InvoiceDate').strftime('%Y-%m-%d') if wo.get('InvoiceDate') else None,
-                    'invoiceNo': wo.get('InvoiceNo'),
                     'status': wo.get('Status'),
                     'laborCost': labor_cost,
                     'partsCost': parts_cost,
                     'miscCost': misc_cost,
-                    'totalCost': total_wo_cost,
-                    'laborRevenue': labor_sell,
-                    'partsRevenue': parts_sell,
-                    'miscRevenue': misc_sell,
-                    'totalRevenue': total_wo_revenue,
-                    'profit': profit
+                    'totalCost': total_wo_cost
                 })
             
             # If no data found, return mock data to show the format
@@ -846,20 +823,17 @@ def register_department_routes(reports_bp):
             
             # Calculate totals
             total_cost = sum(wo['totalCost'] for wo in work_orders)
-            total_revenue = sum(wo['totalRevenue'] for wo in work_orders)
             
             summary = {
                 'totalWorkOrders': len(work_orders),
-                'openWorkOrders': len([wo for wo in work_orders if wo['status'] == 'Open']),
-                'completedWorkOrders': len([wo for wo in work_orders if wo['status'] in ['Completed', 'Closed']]),
+                'totalLaborCost': sum(wo['laborCost'] for wo in work_orders),
+                'totalPartsCost': sum(wo['partsCost'] for wo in work_orders),
+                'totalMiscCost': sum(wo['miscCost'] for wo in work_orders),
                 'totalCost': total_cost,
-                'totalRevenue': total_revenue,
-                'totalProfit': total_revenue - total_cost,
-                'averageCostPerWO': total_cost / len(work_orders) if work_orders else 0,
-                'averageRevenuePerWO': total_revenue / len(work_orders) if work_orders else 0
+                'averageCostPerWO': total_cost / len(work_orders) if work_orders else 0
             }
             
-            # Optimized monthly trend query with costs and revenue
+            # Optimized monthly trend query for OPEN work orders only
             monthly_trend_query = """
             WITH MonthlyWOs AS (
                 SELECT 
@@ -870,6 +844,8 @@ def register_department_routes(reports_bp):
                 FROM ben002.WO w
                 WHERE w.Type = 'S'
                 AND w.SaleCode IN ('RENTR', 'RENTRS')
+                AND w.ClosedDate IS NULL  -- Only open work orders
+                AND w.InvoiceDate IS NULL
                 AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             )
             SELECT 
@@ -877,8 +853,10 @@ def register_department_routes(reports_bp):
                 mw.Month,
                 mw.MonthName,
                 COUNT(DISTINCT mw.WONo) as WorkOrderCount,
-                COALESCE(SUM(l.Cost) + SUM(p.Cost) + SUM(m.Cost), 0) as TotalCost,
-                COALESCE(SUM(l.Sell) + SUM(p.Sell) + SUM(m.Sell), 0) as TotalRevenue
+                COALESCE(SUM(l.Cost), 0) as LaborCost,
+                COALESCE(SUM(p.Cost), 0) as PartsCost,
+                COALESCE(SUM(m.Cost), 0) as MiscCost,
+                COALESCE(SUM(l.Cost) + SUM(p.Cost) + SUM(m.Cost), 0) as TotalCost
             FROM MonthlyWOs mw
             LEFT JOIN ben002.WOLabor l ON mw.WONo = l.WONo
             LEFT JOIN ben002.WOParts p ON mw.WONo = p.WONo
@@ -891,16 +869,15 @@ def register_department_routes(reports_bp):
                 monthly_trend = db.execute_query(monthly_trend_query)
                 trend_data = []
                 for row in monthly_trend:
-                    total_cost = float(row.get('TotalCost', 0) or 0)
-                    total_revenue = float(row.get('TotalRevenue', 0) or 0)
                     trend_data.append({
                         'year': row.get('Year'),
                         'month': row.get('Month'),
                         'monthName': row.get('MonthName'),
                         'workOrderCount': row.get('WorkOrderCount'),
-                        'totalCost': total_cost,
-                        'totalRevenue': total_revenue,
-                        'profit': total_revenue - total_cost
+                        'laborCost': float(row.get('LaborCost', 0) or 0),
+                        'partsCost': float(row.get('PartsCost', 0) or 0),
+                        'miscCost': float(row.get('MiscCost', 0) or 0),
+                        'totalCost': float(row.get('TotalCost', 0) or 0)
                     })
             except Exception as e:
                 # Fallback to empty trend data

@@ -80,17 +80,47 @@ const RentalServiceReport = () => {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Work Orders</CardTitle>
+            <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
             <Wrench className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{summary?.totalWorkOrders || 0}</div>
             <p className="text-xs text-muted-foreground">
-              {summary?.openWorkOrders || 0} open, {summary?.completedWorkOrders || 0} completed
+              Currently open
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Labor Cost</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(summary?.totalLaborCost || 0)}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Parts Cost</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(summary?.totalPartsCost || 0)}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Misc Cost</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(summary?.totalMiscCost || 0)}</div>
           </CardContent>
         </Card>
 
@@ -103,32 +133,6 @@ const RentalServiceReport = () => {
             <div className="text-2xl font-bold">{formatCurrency(summary?.totalCost || 0)}</div>
             <p className="text-xs text-muted-foreground">
               Avg: {formatCurrency(summary?.averageCostPerWO || 0)}/WO
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary?.totalRevenue || 0)}</div>
-            <p className="text-xs text-muted-foreground">
-              Avg: {formatCurrency(summary?.averageRevenuePerWO || 0)}/WO
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Profit</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary?.totalProfit || 0)}</div>
-            <p className="text-xs text-muted-foreground">
-              Margin: {summary?.totalRevenue ? ((summary.totalProfit / summary.totalRevenue) * 100).toFixed(1) : '0'}%
             </p>
           </CardContent>
         </Card>
@@ -148,9 +152,10 @@ const RentalServiceReport = () => {
                 <YAxis />
                 <Tooltip formatter={(value) => formatCurrency(value)} />
                 <Legend />
-                <Line type="monotone" dataKey="totalCost" stroke="#ef4444" name="Cost" />
-                <Line type="monotone" dataKey="totalRevenue" stroke="#3b82f6" name="Revenue" />
-                <Line type="monotone" dataKey="profit" stroke="#10b981" name="Profit" />
+                <Line type="monotone" dataKey="totalCost" stroke="#ef4444" name="Total Cost" />
+                <Line type="monotone" dataKey="laborCost" stroke="#3b82f6" name="Labor Cost" />
+                <Line type="monotone" dataKey="partsCost" stroke="#10b981" name="Parts Cost" />
+                <Line type="monotone" dataKey="miscCost" stroke="#f59e0b" name="Misc Cost" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -160,7 +165,7 @@ const RentalServiceReport = () => {
       {/* Work Orders Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Service Work Orders for Rental Department</CardTitle>
+          <CardTitle>Open Service Work Orders for Rental Department</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -172,13 +177,10 @@ const RentalServiceReport = () => {
                   <TableHead>Make/Model</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Open Date</TableHead>
-                  <TableHead>Completed</TableHead>
                   <TableHead className="text-right">Labor Cost</TableHead>
                   <TableHead className="text-right">Parts Cost</TableHead>
                   <TableHead className="text-right">Misc Cost</TableHead>
                   <TableHead className="text-right">Total Cost</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Profit</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -189,37 +191,26 @@ const RentalServiceReport = () => {
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
                     <TableCell>{wo.openDate}</TableCell>
-                    <TableCell>{wo.completedDate || '-'}</TableCell>
                     <TableCell className="text-right">{formatCurrency(wo.laborCost)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(wo.partsCost)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(wo.miscCost)}</TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(wo.totalCost)}</TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(wo.totalRevenue)}</TableCell>
-                    <TableCell className={`text-right font-medium ${wo.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(wo.profit)}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
-                <TableCell colSpan={6}>Total</TableCell>
+                <TableCell colSpan={5}>Total</TableCell>
                 <TableCell className="text-right">
-                  {formatCurrency(workOrders.reduce((sum, wo) => sum + wo.laborCost, 0))}
+                  {formatCurrency(summary?.totalLaborCost || 0)}
                 </TableCell>
                 <TableCell className="text-right">
-                  {formatCurrency(workOrders.reduce((sum, wo) => sum + wo.partsCost, 0))}
+                  {formatCurrency(summary?.totalPartsCost || 0)}
                 </TableCell>
                 <TableCell className="text-right">
-                  {formatCurrency(workOrders.reduce((sum, wo) => sum + wo.miscCost, 0))}
+                  {formatCurrency(summary?.totalMiscCost || 0)}
                 </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(summary?.totalCost || 0)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(summary?.totalRevenue || 0)}
-                </TableCell>
-                <TableCell className={`text-right ${(summary?.totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(summary?.totalProfit || 0)}
                 </TableCell>
               </TableRow>
             </Table>
@@ -239,18 +230,15 @@ const RentalServiceReport = () => {
                 data={[
                   {
                     category: 'Labor',
-                    cost: workOrders.reduce((sum, wo) => sum + wo.laborCost, 0),
-                    revenue: workOrders.reduce((sum, wo) => sum + wo.laborRevenue, 0)
+                    cost: summary?.totalLaborCost || 0
                   },
                   {
                     category: 'Parts',
-                    cost: workOrders.reduce((sum, wo) => sum + wo.partsCost, 0),
-                    revenue: workOrders.reduce((sum, wo) => sum + wo.partsRevenue, 0)
+                    cost: summary?.totalPartsCost || 0
                   },
                   {
                     category: 'Misc',
-                    cost: workOrders.reduce((sum, wo) => sum + wo.miscCost, 0),
-                    revenue: workOrders.reduce((sum, wo) => sum + wo.miscRevenue, 0)
+                    cost: summary?.totalMiscCost || 0
                   }
                 ]}
               >
@@ -258,9 +246,7 @@ const RentalServiceReport = () => {
                 <XAxis dataKey="category" />
                 <YAxis />
                 <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Legend />
-                <Bar dataKey="cost" fill="#ef4444" name="Cost" />
-                <Bar dataKey="revenue" fill="#3b82f6" name="Revenue" />
+                <Bar dataKey="cost" fill="#ef4444" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
