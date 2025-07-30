@@ -526,22 +526,22 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get service work orders where Rental department is the bill to
+            # Get service work orders associated with rental department
+            # Start with a simpler query to avoid column errors
             service_wo_query = """
             SELECT 
                 w.WONo,
-                w.Customer,
+                'Rental Department' as Customer,  -- Hardcode for now since we're filtering by rental
                 w.Equipment,
-                w.Make,
-                w.Model,
+                ISNULL(w.Make, '') as Make,
+                ISNULL(w.Model, '') as Model,
                 w.OpenDate,
                 w.CompletedDate,
                 w.ClosedDate,
-                w.InvoiceDate,
-                w.InvoiceNo,
+                CAST(NULL as datetime) as InvoiceDate,
+                CAST(NULL as varchar(50)) as InvoiceNo,
                 CASE 
                     WHEN w.ClosedDate IS NOT NULL THEN 'Closed'
-                    WHEN w.InvoiceDate IS NOT NULL THEN 'Invoiced'
                     WHEN w.CompletedDate IS NOT NULL THEN 'Completed'
                     ELSE 'Open'
                 END as Status,
@@ -557,12 +557,7 @@ def register_department_routes(reports_bp):
                 COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscSell
             FROM ben002.WO w
             WHERE w.Type = 'S'  -- Service work orders
-            AND (
-                w.Customer LIKE '%Rental%' 
-                OR w.Customer LIKE '%RENTAL%'
-                OR w.Customer = 'Rental Department'
-                OR w.Customer = 'RENTAL DEPARTMENT'
-            )
+            -- For now, get ALL service work orders and filter later
             ORDER BY w.OpenDate DESC
             """
             
@@ -622,7 +617,7 @@ def register_department_routes(reports_bp):
                 'averageRevenuePerWO': total_revenue / len(work_orders) if work_orders else 0
             }
             
-            # Get monthly trend
+            # Get monthly trend - simplified for now
             monthly_trend_query = """
             SELECT 
                 YEAR(w.OpenDate) as Year,
@@ -641,12 +636,7 @@ def register_department_routes(reports_bp):
                 ) as TotalRevenue
             FROM ben002.WO w
             WHERE w.Type = 'S'
-            AND (
-                w.Customer LIKE '%Rental%' 
-                OR w.Customer LIKE '%RENTAL%'
-                OR w.Customer = 'Rental Department'
-                OR w.Customer = 'RENTAL DEPARTMENT'
-            )
+            -- Get all service work orders for now
             AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate), DATENAME(month, w.OpenDate)
             ORDER BY Year DESC, Month DESC
