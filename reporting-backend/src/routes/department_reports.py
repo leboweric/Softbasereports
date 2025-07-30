@@ -683,6 +683,7 @@ def register_department_routes(reports_bp):
                 AND w.SaleCode IN ('RENTR', 'RENTRS')
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL  -- Not invoiced
+                AND w.CompletedDate IS NULL  -- Not completed
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
@@ -846,6 +847,7 @@ def register_department_routes(reports_bp):
                 AND w.SaleCode IN ('RENTR', 'RENTRS')
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL
+                AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             )
             SELECT 
