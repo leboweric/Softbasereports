@@ -519,6 +519,63 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/rental/sale-codes', methods=['GET'])
+    @jwt_required()
+    def get_sale_codes():
+        """Get all unique SaleCodes to identify rental patterns"""
+        try:
+            db = get_db()
+            
+            # Get unique sale codes with counts
+            codes_query = """
+            SELECT 
+                w.SaleCode,
+                w.SaleDept,
+                COUNT(*) as Count,
+                MIN(c.CustomerName) as SampleCustomer
+            FROM ben002.WO w
+            LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
+            WHERE w.Type = 'S'
+            AND w.OpenDate >= DATEADD(month, -3, GETDATE())
+            GROUP BY w.SaleCode, w.SaleDept
+            ORDER BY Count DESC
+            """
+            
+            codes = db.execute_query(codes_query)
+            
+            # Also get a sample of work orders that might be rental
+            rental_sample_query = """
+            SELECT TOP 10
+                w.WONo,
+                w.SaleCode,
+                w.SaleDept,
+                w.BillTo,
+                c.CustomerName,
+                w.Comments
+            FROM ben002.WO w
+            LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
+            WHERE w.Type = 'S'
+            AND (
+                c.CustomerName LIKE '%Rental%' OR
+                w.Comments LIKE '%rental%' OR
+                w.Comments LIKE '%RENTAL%'
+            )
+            ORDER BY w.OpenDate DESC
+            """
+            
+            rental_samples = db.execute_query(rental_sample_query)
+            
+            return jsonify({
+                'sale_codes': codes,
+                'rental_samples': rental_samples
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'sale_codes_error'
+            }), 500
+
     @reports_bp.route('/departments/rental/wo-schema', methods=['GET'])
     @jwt_required()
     def get_wo_schema():
@@ -625,11 +682,13 @@ def register_department_routes(reports_bp):
             WHERE w.Type = 'S'  -- Service work orders
             AND (
                 -- Look for rental department indicators
-                w.SaleCode LIKE '%RD%' OR
                 w.SaleCode LIKE '%RENT%' OR
-                w.SaleDept = 40 OR  -- Based on sample data
-                c.CustomerName LIKE '%Rental%' OR
-                c.CustomerName LIKE '%RENTAL%'
+                w.SaleCode = 'RNT' OR
+                w.SaleCode = 'RENTAL' OR
+                c.CustomerName LIKE '%Rental Department%' OR
+                c.CustomerName = 'RENTAL DEPARTMENT' OR
+                c.CustomerName = 'Rental Dept' OR
+                w.BillTo = 'RENTAL' -- Sometimes departments are stored as customer numbers
             )
             ORDER BY w.OpenDate DESC
             """
@@ -798,11 +857,13 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
             WHERE w.Type = 'S'
             AND (
-                w.SaleCode LIKE '%RD%' OR
                 w.SaleCode LIKE '%RENT%' OR
-                w.SaleDept = 40 OR
-                c.CustomerName LIKE '%Rental%' OR
-                c.CustomerName LIKE '%RENTAL%'
+                w.SaleCode = 'RNT' OR
+                w.SaleCode = 'RENTAL' OR
+                c.CustomerName LIKE '%Rental Department%' OR
+                c.CustomerName = 'RENTAL DEPARTMENT' OR
+                c.CustomerName = 'Rental Dept' OR
+                w.BillTo = 'RENTAL'
             )
             AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate), DATENAME(month, w.OpenDate)
