@@ -657,7 +657,7 @@ def register_department_routes(reports_bp):
             
             # Get service work orders - now we know the correct columns
             service_wo_query = """
-            SELECT TOP 20
+            SELECT TOP 100
                 w.WONo,
                 w.BillTo,
                 c.CustomerName,
@@ -681,14 +681,9 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
             WHERE w.Type = 'S'  -- Service work orders
             AND (
-                -- Look for rental department indicators
-                w.SaleCode LIKE '%RENT%' OR
-                w.SaleCode = 'RNT' OR
-                w.SaleCode = 'RENTAL' OR
-                c.CustomerName LIKE '%Rental Department%' OR
-                c.CustomerName = 'RENTAL DEPARTMENT' OR
-                c.CustomerName = 'Rental Dept' OR
-                w.BillTo = 'RENTAL' -- Sometimes departments are stored as customer numbers
+                -- Rental department service codes
+                w.SaleCode = 'RENTR' OR     -- Rental Repairs (SaleDept 40)
+                w.SaleCode = 'RENTRS'       -- Rental Repairs - Shop (SaleDept 45)
             )
             ORDER BY w.OpenDate DESC
             """
@@ -857,13 +852,8 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
             WHERE w.Type = 'S'
             AND (
-                w.SaleCode LIKE '%RENT%' OR
-                w.SaleCode = 'RNT' OR
-                w.SaleCode = 'RENTAL' OR
-                c.CustomerName LIKE '%Rental Department%' OR
-                c.CustomerName = 'RENTAL DEPARTMENT' OR
-                c.CustomerName = 'Rental Dept' OR
-                w.BillTo = 'RENTAL'
+                w.SaleCode = 'RENTR' OR     -- Rental Repairs
+                w.SaleCode = 'RENTRS'       -- Rental Repairs - Shop
             )
             AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate), DATENAME(month, w.OpenDate)
