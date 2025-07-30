@@ -534,7 +534,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as Count,
                 MIN(c.CustomerName) as SampleCustomer
             FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
+            LEFT JOIN ben002.Customer c ON w.BillTo = c.Customer
             WHERE w.Type = 'S'
             AND w.OpenDate >= DATEADD(month, -3, GETDATE())
             GROUP BY w.SaleCode, w.SaleDept
@@ -553,7 +553,7 @@ def register_department_routes(reports_bp):
                 c.CustomerName,
                 w.Comments
             FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
+            LEFT JOIN ben002.Customer c ON w.BillTo = c.Customer
             WHERE w.Type = 'S'
             AND (
                 c.CustomerName LIKE '%Rental%' OR
@@ -655,12 +655,12 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get service work orders - now we know the correct columns
+            # Get service work orders - without customer join for now
             service_wo_query = """
             SELECT TOP 100
                 w.WONo,
                 w.BillTo,
-                c.CustomerName,
+                w.BillTo as CustomerName,  -- Use BillTo as customer name for now
                 w.UnitNo as Equipment,
                 w.Make,
                 w.Model,
@@ -678,7 +678,6 @@ def register_department_routes(reports_bp):
                 w.SaleCode,
                 w.SaleDept
             FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
             WHERE w.Type = 'S'  -- Service work orders
             AND (
                 -- Rental department service codes
@@ -849,7 +848,6 @@ def register_department_routes(reports_bp):
                 DATENAME(month, w.OpenDate) as MonthName,
                 COUNT(*) as WorkOrderCount
             FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.CustomerNo
             WHERE w.Type = 'S'
             AND (
                 w.SaleCode = 'RENTR' OR     -- Rental Repairs
