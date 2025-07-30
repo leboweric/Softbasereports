@@ -519,6 +519,78 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/rental/wo-schema', methods=['GET'])
+    @jwt_required()
+    def get_wo_schema():
+        """Diagnostic endpoint to understand WO table structure"""
+        try:
+            db = get_db()
+            
+            # Get column information for WO table
+            schema_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                CHARACTER_MAXIMUM_LENGTH,
+                IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'WO'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            columns = db.execute_query(schema_query)
+            
+            # Get a sample work order to see actual data
+            sample_query = """
+            SELECT TOP 1 *
+            FROM ben002.WO
+            WHERE Type = 'S'
+            ORDER BY OpenDate DESC
+            """
+            
+            sample = db.execute_query(sample_query)
+            
+            # Check for potential customer/billto fields
+            customer_fields = []
+            if columns:
+                for col in columns:
+                    col_name = col.get('COLUMN_NAME', '').lower()
+                    if any(term in col_name for term in ['customer', 'cust', 'bill', 'client', 'account']):
+                        customer_fields.append(col.get('COLUMN_NAME'))
+            
+            # Check WOLabor, WOParts, WOMisc table structures
+            labor_cols_query = """
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'WOLabor'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            parts_cols_query = """
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'WOParts'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            labor_cols = db.execute_query(labor_cols_query)
+            parts_cols = db.execute_query(parts_cols_query)
+            
+            return jsonify({
+                'wo_columns': columns,
+                'sample_work_order': sample[0] if sample else None,
+                'potential_customer_fields': customer_fields,
+                'labor_columns': labor_cols,
+                'parts_columns': parts_cols
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'schema_error'
+            }), 500
+
     @reports_bp.route('/departments/rental/service-report', methods=['GET'])
     @jwt_required()
     def get_rental_service_report():
