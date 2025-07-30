@@ -655,84 +655,103 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get service work orders - without customer join for now
-            service_wo_query = """
-            SELECT TOP 100
-                w.WONo,
-                w.BillTo,
-                w.BillTo as CustomerName,  -- Use BillTo as customer name for now
-                w.UnitNo as Equipment,
-                w.Make,
-                w.Model,
-                w.OpenDate,
-                w.CompletedDate,
-                w.ClosedDate,
-                w.InvoiceDate,
-                CAST(NULL as varchar(50)) as InvoiceNo,
-                CASE 
-                    WHEN w.ClosedDate IS NOT NULL THEN 'Closed'
-                    WHEN w.InvoiceDate IS NOT NULL THEN 'Invoiced'
-                    WHEN w.CompletedDate IS NOT NULL THEN 'Completed'
-                    ELSE 'Open'
-                END as Status,
-                w.SaleCode,
-                w.SaleDept
-            FROM ben002.WO w
-            WHERE w.Type = 'S'  -- Service work orders
-            AND (
-                -- Rental department service codes
-                w.SaleCode = 'RENTR' OR     -- Rental Repairs (SaleDept 40)
-                w.SaleCode = 'RENTRS'       -- Rental Repairs - Shop (SaleDept 45)
+            # Optimized query that gets all data in one go
+            optimized_query = """
+            WITH RentalWOs AS (
+                SELECT TOP 100
+                    w.WONo,
+                    w.BillTo,
+                    w.BillTo as CustomerName,
+                    w.UnitNo as Equipment,
+                    w.Make,
+                    w.Model,
+                    w.OpenDate,
+                    w.CompletedDate,
+                    w.ClosedDate,
+                    w.InvoiceDate,
+                    CAST(NULL as varchar(50)) as InvoiceNo,
+                    CASE 
+                        WHEN w.ClosedDate IS NOT NULL THEN 'Closed'
+                        WHEN w.InvoiceDate IS NOT NULL THEN 'Invoiced'
+                        WHEN w.CompletedDate IS NOT NULL THEN 'Completed'
+                        ELSE 'Open'
+                    END as Status,
+                    w.SaleCode,
+                    w.SaleDept
+                FROM ben002.WO w
+                WHERE w.Type = 'S'
+                AND w.SaleCode IN ('RENTR', 'RENTRS')
+                ORDER BY w.OpenDate DESC
+            ),
+            LaborCosts AS (
+                SELECT 
+                    WONo,
+                    SUM(Cost) as LaborCost,
+                    SUM(Sell) as LaborSell
+                FROM ben002.WOLabor
+                WHERE WONo IN (SELECT WONo FROM RentalWOs)
+                GROUP BY WONo
+            ),
+            PartsCosts AS (
+                SELECT 
+                    WONo,
+                    SUM(Cost) as PartsCost,
+                    SUM(Sell) as PartsSell
+                FROM ben002.WOParts
+                WHERE WONo IN (SELECT WONo FROM RentalWOs)
+                GROUP BY WONo
+            ),
+            MiscCosts AS (
+                SELECT 
+                    WONo,
+                    SUM(Cost) as MiscCost,
+                    SUM(Sell) as MiscSell
+                FROM ben002.WOMisc
+                WHERE WONo IN (SELECT WONo FROM RentalWOs)
+                GROUP BY WONo
             )
-            ORDER BY w.OpenDate DESC
+            SELECT 
+                r.*,
+                COALESCE(l.LaborCost, 0) as LaborCost,
+                COALESCE(l.LaborSell, 0) as LaborSell,
+                COALESCE(p.PartsCost, 0) as PartsCost,
+                COALESCE(p.PartsSell, 0) as PartsSell,
+                COALESCE(m.MiscCost, 0) as MiscCost,
+                COALESCE(m.MiscSell, 0) as MiscSell,
+                COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost,
+                COALESCE(l.LaborSell, 0) + COALESCE(p.PartsSell, 0) + COALESCE(m.MiscSell, 0) as TotalRevenue,
+                (COALESCE(l.LaborSell, 0) + COALESCE(p.PartsSell, 0) + COALESCE(m.MiscSell, 0)) - 
+                (COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0)) as Profit
+            FROM RentalWOs r
+            LEFT JOIN LaborCosts l ON r.WONo = l.WONo
+            LEFT JOIN PartsCosts p ON r.WONo = p.WONo
+            LEFT JOIN MiscCosts m ON r.WONo = m.WONo
+            ORDER BY r.OpenDate DESC
             """
             
-            service_wos = db.execute_query(service_wo_query)
+            results = db.execute_query(optimized_query)
             
             # Process the results
             work_orders = []
             total_cost = 0
             total_revenue = 0
             
-            for wo in service_wos:
-                wo_no = wo.get('WONo')
-                
-                # Get costs in a single query for efficiency
-                cost_query = f"""
-                SELECT 
-                    COALESCE(SUM(l.Cost), 0) as LaborCost,
-                    COALESCE(SUM(l.Sell), 0) as LaborSell,
-                    COALESCE((SELECT SUM(Cost) FROM ben002.WOParts WHERE WONo = {wo_no}), 0) as PartsCost,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = {wo_no}), 0) as PartsSell,
-                    COALESCE((SELECT SUM(Cost) FROM ben002.WOMisc WHERE WONo = {wo_no}), 0) as MiscCost,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = {wo_no}), 0) as MiscSell
-                FROM ben002.WOLabor l
-                WHERE l.WONo = {wo_no}
-                """
-                
-                try:
-                    cost_result = db.execute_query(cost_query)
-                    if cost_result and len(cost_result) > 0:
-                        costs = cost_result[0]
-                        labor_cost = float(costs.get('LaborCost', 0) or 0)
-                        labor_sell = float(costs.get('LaborSell', 0) or 0)
-                        parts_cost = float(costs.get('PartsCost', 0) or 0)
-                        parts_sell = float(costs.get('PartsSell', 0) or 0)
-                        misc_cost = float(costs.get('MiscCost', 0) or 0)
-                        misc_sell = float(costs.get('MiscSell', 0) or 0)
-                    else:
-                        labor_cost = labor_sell = parts_cost = parts_sell = misc_cost = misc_sell = 0
-                except:
-                    labor_cost = labor_sell = parts_cost = parts_sell = misc_cost = misc_sell = 0
-                
-                total_wo_cost = labor_cost + parts_cost + misc_cost
-                total_wo_revenue = labor_sell + parts_sell + misc_sell
+            for wo in results:
+                labor_cost = float(wo.get('LaborCost', 0) or 0)
+                labor_sell = float(wo.get('LaborSell', 0) or 0)
+                parts_cost = float(wo.get('PartsCost', 0) or 0)
+                parts_sell = float(wo.get('PartsSell', 0) or 0)
+                misc_cost = float(wo.get('MiscCost', 0) or 0)
+                misc_sell = float(wo.get('MiscSell', 0) or 0)
+                total_wo_cost = float(wo.get('TotalCost', 0) or 0)
+                total_wo_revenue = float(wo.get('TotalRevenue', 0) or 0)
+                profit = float(wo.get('Profit', 0) or 0)
                 
                 total_cost += total_wo_cost
                 total_revenue += total_wo_revenue
                 
                 work_orders.append({
-                    'woNumber': wo_no,
+                    'woNumber': wo.get('WONo'),
                     'customer': wo.get('CustomerName') or wo.get('BillTo') or 'Unknown',
                     'equipment': wo.get('Equipment') or '',
                     'make': wo.get('Make') or '',
@@ -751,7 +770,7 @@ def register_department_routes(reports_bp):
                     'partsRevenue': parts_sell,
                     'miscRevenue': misc_sell,
                     'totalRevenue': total_wo_revenue,
-                    'profit': total_wo_revenue - total_wo_cost
+                    'profit': profit
                 })
             
             # If no data found, return mock data to show the format
@@ -840,39 +859,52 @@ def register_department_routes(reports_bp):
                 'averageRevenuePerWO': total_revenue / len(work_orders) if work_orders else 0
             }
             
-            # Get monthly trend for rental service work orders
+            # Optimized monthly trend query with costs and revenue
             monthly_trend_query = """
-            SELECT 
-                YEAR(w.OpenDate) as Year,
-                MONTH(w.OpenDate) as Month,
-                DATENAME(month, w.OpenDate) as MonthName,
-                COUNT(*) as WorkOrderCount
-            FROM ben002.WO w
-            WHERE w.Type = 'S'
-            AND (
-                w.SaleCode = 'RENTR' OR     -- Rental Repairs
-                w.SaleCode = 'RENTRS'       -- Rental Repairs - Shop
+            WITH MonthlyWOs AS (
+                SELECT 
+                    w.WONo,
+                    YEAR(w.OpenDate) as Year,
+                    MONTH(w.OpenDate) as Month,
+                    DATENAME(month, w.OpenDate) as MonthName
+                FROM ben002.WO w
+                WHERE w.Type = 'S'
+                AND w.SaleCode IN ('RENTR', 'RENTRS')
+                AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             )
-            AND w.OpenDate >= DATEADD(month, -12, GETDATE())
-            GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate), DATENAME(month, w.OpenDate)
-            ORDER BY Year DESC, Month DESC
+            SELECT 
+                mw.Year,
+                mw.Month,
+                mw.MonthName,
+                COUNT(DISTINCT mw.WONo) as WorkOrderCount,
+                COALESCE(SUM(l.Cost) + SUM(p.Cost) + SUM(m.Cost), 0) as TotalCost,
+                COALESCE(SUM(l.Sell) + SUM(p.Sell) + SUM(m.Sell), 0) as TotalRevenue
+            FROM MonthlyWOs mw
+            LEFT JOIN ben002.WOLabor l ON mw.WONo = l.WONo
+            LEFT JOIN ben002.WOParts p ON mw.WONo = p.WONo
+            LEFT JOIN ben002.WOMisc m ON mw.WONo = m.WONo
+            GROUP BY mw.Year, mw.Month, mw.MonthName
+            ORDER BY mw.Year DESC, mw.Month DESC
             """
             
             try:
                 monthly_trend = db.execute_query(monthly_trend_query)
                 trend_data = []
                 for row in monthly_trend:
+                    total_cost = float(row.get('TotalCost', 0) or 0)
+                    total_revenue = float(row.get('TotalRevenue', 0) or 0)
                     trend_data.append({
                         'year': row.get('Year'),
                         'month': row.get('Month'),
                         'monthName': row.get('MonthName'),
                         'workOrderCount': row.get('WorkOrderCount'),
-                        'totalCost': 0,  # Would need to calculate separately
-                        'totalRevenue': 0,  # Would need to calculate separately
-                        'profit': 0  # Would need to calculate separately
+                        'totalCost': total_cost,
+                        'totalRevenue': total_revenue,
+                        'profit': total_revenue - total_cost
                     })
-            except:
+            except Exception as e:
                 # Fallback to empty trend data
+                print(f"Monthly trend error: {e}")
                 trend_data = []
             
             return jsonify({
