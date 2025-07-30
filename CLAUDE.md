@@ -106,3 +106,55 @@ Backend requires:
 4. Database Explorer for schema browsing
 5. AI Query tool for natural language queries
 6. Report Creator for custom reports
+
+## Recent Features Added
+
+### Rental Service Report (2025-07-30)
+Created a comprehensive Service Report for the Rental Department showing service work orders billed to rental.
+
+**Requirements:**
+- Show total number of Service Work Orders associated with Rental Trucks
+- Display list with real-time cost breakdown (Labor, Parts, Misc)
+- Include sum totals at the bottom
+- Service Work Orders where Rental Department is the Bill To
+
+**Implementation Details:**
+1. **Backend Endpoint**: `/api/reports/departments/rental/service-report` in `department_reports.py`
+2. **Frontend Component**: `RentalServiceReport.jsx` 
+3. **Access**: Available under "Service Report" tab on the Rental page
+
+**Key Database Insights:**
+- Rental service work orders are identified by SaleCode:
+  - `RENTR` = Rental Repairs (SaleDept 40)
+  - `RENTRS` = Rental Repairs - Shop (SaleDept 45)
+- WO table uses `BillTo` field (not Customer)
+- Equipment is stored in `UnitNo` field
+- WOParts table doesn't have a Quantity column (use Cost directly)
+
+**Performance Optimizations:**
+- Original implementation made 100+ queries (one per work order)
+- Optimized to single CTE-based query joining all cost tables
+- Added optimized monthly trend query with costs/revenue
+- Reduced load time from several seconds to milliseconds
+
+**Query Structure:**
+```sql
+WITH RentalWOs AS (
+    -- Get rental service work orders
+),
+LaborCosts AS (
+    -- Aggregate labor costs
+),
+PartsCosts AS (
+    -- Aggregate parts costs  
+),
+MiscCosts AS (
+    -- Aggregate misc costs
+)
+-- Join everything together
+```
+
+**Diagnostic Tools Created:**
+- `/api/reports/departments/rental/wo-schema` - Explores WO table structure
+- `/api/reports/departments/rental/sale-codes` - Lists all sale codes
+- `RentalDiagnostic.jsx` - Frontend diagnostic component (can be removed)
