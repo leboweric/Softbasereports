@@ -702,8 +702,8 @@ def register_department_routes(reports_bp):
                 SELECT 
                     COALESCE(SUM(l.Cost), 0) as LaborCost,
                     COALESCE(SUM(l.Sell), 0) as LaborSell,
-                    COALESCE((SELECT SUM(Cost * Quantity) FROM ben002.WOParts WHERE WONo = {wo_no}), 0) as PartsCost,
-                    COALESCE((SELECT SUM(Sell * Quantity) FROM ben002.WOParts WHERE WONo = {wo_no}), 0) as PartsSell,
+                    COALESCE((SELECT SUM(Cost) FROM ben002.WOParts WHERE WONo = {wo_no}), 0) as PartsCost,
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = {wo_no}), 0) as PartsSell,
                     COALESCE((SELECT SUM(Cost) FROM ben002.WOMisc WHERE WONo = {wo_no}), 0) as MiscCost,
                     COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = {wo_no}), 0) as MiscSell
                 FROM ben002.WOLabor l
