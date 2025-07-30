@@ -2038,7 +2038,7 @@ def register_department_routes(reports_bp):
             
             # Get current date info
             today = datetime.now()
-            year_start = datetime.datetime(today.year, 1, 1)
+            year_start = datetime(today.year, 1, 1)
             month_start = today.replace(day=1)
             
             # Get monthly financial data for the last 12 months
