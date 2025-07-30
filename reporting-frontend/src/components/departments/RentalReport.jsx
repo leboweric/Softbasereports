@@ -10,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   BarChart, 
   Bar, 
@@ -35,6 +36,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+import RentalServiceReport from './RentalServiceReport'
 
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
@@ -129,6 +131,14 @@ const RentalReport = ({ user }) => {
         <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
         <p className="text-muted-foreground">Fleet management and rental analytics</p>
       </div>
+
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="service-report">Service Report</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -351,6 +361,12 @@ const RentalReport = ({ user }) => {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+
+        <TabsContent value="service-report">
+          <RentalServiceReport />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

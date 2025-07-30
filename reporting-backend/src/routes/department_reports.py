@@ -519,6 +519,168 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/rental/service-report', methods=['GET'])
+    @jwt_required()
+    def get_rental_service_report():
+        """Get Service Work Orders billed to Rental Department"""
+        try:
+            db = get_db()
+            
+            # Get service work orders where Rental department is the bill to
+            service_wo_query = """
+            SELECT 
+                w.WONo,
+                w.Customer,
+                w.Equipment,
+                w.Make,
+                w.Model,
+                w.OpenDate,
+                w.CompletedDate,
+                w.ClosedDate,
+                w.InvoiceDate,
+                w.InvoiceNo,
+                CASE 
+                    WHEN w.ClosedDate IS NOT NULL THEN 'Closed'
+                    WHEN w.InvoiceDate IS NOT NULL THEN 'Invoiced'
+                    WHEN w.CompletedDate IS NOT NULL THEN 'Completed'
+                    ELSE 'Open'
+                END as Status,
+                -- Get labor cost
+                COALESCE((SELECT SUM(Cost) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborCost,
+                -- Get parts cost
+                COALESCE((SELECT SUM(Cost * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsCost,
+                -- Get misc cost
+                COALESCE((SELECT SUM(Cost) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscCost,
+                -- Get sell prices for revenue
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborSell,
+                COALESCE((SELECT SUM(Sell * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsSell,
+                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscSell
+            FROM ben002.WO w
+            WHERE w.Type = 'S'  -- Service work orders
+            AND (
+                w.Customer LIKE '%Rental%' 
+                OR w.Customer LIKE '%RENTAL%'
+                OR w.Customer = 'Rental Department'
+                OR w.Customer = 'RENTAL DEPARTMENT'
+            )
+            ORDER BY w.OpenDate DESC
+            """
+            
+            service_wos = db.execute_query(service_wo_query)
+            
+            # Process the results
+            work_orders = []
+            total_cost = 0
+            total_revenue = 0
+            
+            for wo in service_wos:
+                labor_cost = float(wo.get('LaborCost', 0) or 0)
+                parts_cost = float(wo.get('PartsCost', 0) or 0)
+                misc_cost = float(wo.get('MiscCost', 0) or 0)
+                total_wo_cost = labor_cost + parts_cost + misc_cost
+                
+                labor_sell = float(wo.get('LaborSell', 0) or 0)
+                parts_sell = float(wo.get('PartsSell', 0) or 0)
+                misc_sell = float(wo.get('MiscSell', 0) or 0)
+                total_wo_revenue = labor_sell + parts_sell + misc_sell
+                
+                total_cost += total_wo_cost
+                total_revenue += total_wo_revenue
+                
+                work_orders.append({
+                    'woNumber': wo.get('WONo'),
+                    'customer': wo.get('Customer'),
+                    'equipment': wo.get('Equipment'),
+                    'make': wo.get('Make'),
+                    'model': wo.get('Model'),
+                    'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
+                    'completedDate': wo.get('CompletedDate').strftime('%Y-%m-%d') if wo.get('CompletedDate') else None,
+                    'closedDate': wo.get('ClosedDate').strftime('%Y-%m-%d') if wo.get('ClosedDate') else None,
+                    'invoiceDate': wo.get('InvoiceDate').strftime('%Y-%m-%d') if wo.get('InvoiceDate') else None,
+                    'invoiceNo': wo.get('InvoiceNo'),
+                    'status': wo.get('Status'),
+                    'laborCost': labor_cost,
+                    'partsCost': parts_cost,
+                    'miscCost': misc_cost,
+                    'totalCost': total_wo_cost,
+                    'laborRevenue': labor_sell,
+                    'partsRevenue': parts_sell,
+                    'miscRevenue': misc_sell,
+                    'totalRevenue': total_wo_revenue,
+                    'profit': total_wo_revenue - total_wo_cost
+                })
+            
+            # Get summary statistics
+            summary = {
+                'totalWorkOrders': len(work_orders),
+                'openWorkOrders': len([wo for wo in work_orders if wo['status'] == 'Open']),
+                'completedWorkOrders': len([wo for wo in work_orders if wo['status'] in ['Completed', 'Closed', 'Invoiced']]),
+                'totalCost': total_cost,
+                'totalRevenue': total_revenue,
+                'totalProfit': total_revenue - total_cost,
+                'averageCostPerWO': total_cost / len(work_orders) if work_orders else 0,
+                'averageRevenuePerWO': total_revenue / len(work_orders) if work_orders else 0
+            }
+            
+            # Get monthly trend
+            monthly_trend_query = """
+            SELECT 
+                YEAR(w.OpenDate) as Year,
+                MONTH(w.OpenDate) as Month,
+                DATENAME(month, w.OpenDate) as MonthName,
+                COUNT(*) as WorkOrderCount,
+                SUM(
+                    COALESCE((SELECT SUM(Cost) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) +
+                    COALESCE((SELECT SUM(Cost * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) +
+                    COALESCE((SELECT SUM(Cost) FROM ben002.WOMisc WHERE WONo = w.WONo), 0)
+                ) as TotalCost,
+                SUM(
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) +
+                    COALESCE((SELECT SUM(Sell * Quantity) FROM ben002.WOParts WHERE WONo = w.WONo), 0) +
+                    COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0)
+                ) as TotalRevenue
+            FROM ben002.WO w
+            WHERE w.Type = 'S'
+            AND (
+                w.Customer LIKE '%Rental%' 
+                OR w.Customer LIKE '%RENTAL%'
+                OR w.Customer = 'Rental Department'
+                OR w.Customer = 'RENTAL DEPARTMENT'
+            )
+            AND w.OpenDate >= DATEADD(month, -12, GETDATE())
+            GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate), DATENAME(month, w.OpenDate)
+            ORDER BY Year DESC, Month DESC
+            """
+            
+            monthly_trend = db.execute_query(monthly_trend_query)
+            
+            trend_data = []
+            for row in monthly_trend:
+                cost = float(row.get('TotalCost', 0) or 0)
+                revenue = float(row.get('TotalRevenue', 0) or 0)
+                trend_data.append({
+                    'year': row.get('Year'),
+                    'month': row.get('Month'),
+                    'monthName': row.get('MonthName'),
+                    'workOrderCount': row.get('WorkOrderCount'),
+                    'totalCost': cost,
+                    'totalRevenue': revenue,
+                    'profit': revenue - cost
+                })
+            
+            return jsonify({
+                'summary': summary,
+                'workOrders': work_orders,
+                'monthlyTrend': trend_data
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_service_report_error'
+            }), 500
+
+
     @reports_bp.route('/departments/accounting-old', methods=['GET'])
     @jwt_required()
     def get_accounting_department_report_old():
