@@ -655,7 +655,7 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Optimized query that gets all data in one go - ONLY OPEN WORK ORDERS
+            # Optimized query for rental work orders based on BillTo and Department
             optimized_query = """
             WITH RentalWOs AS (
                 SELECT TOP 100
@@ -677,13 +677,12 @@ def register_department_routes(reports_bp):
                         ELSE 'Open'
                     END as Status,
                     w.SaleCode,
-                    w.SaleDept
+                    w.SaleDept,
+                    w.Department
                 FROM ben002.WO w
                 WHERE w.Type = 'S'
-                AND w.SaleCode IN ('RENTR', 'RENTRS')
-                AND w.ClosedDate IS NULL  -- Only open work orders
-                AND w.InvoiceDate IS NULL  -- Not invoiced
-                AND w.CompletedDate IS NULL  -- Not completed
+                AND w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
+                AND w.Department IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
@@ -834,7 +833,7 @@ def register_department_routes(reports_bp):
                 'averageCostPerWO': total_cost / len(work_orders) if work_orders else 0
             }
             
-            # Optimized monthly trend query for OPEN work orders only
+            # Monthly trend query for rental work orders
             monthly_trend_query = """
             WITH MonthlyWOs AS (
                 SELECT 
@@ -844,10 +843,8 @@ def register_department_routes(reports_bp):
                     DATENAME(month, w.OpenDate) as MonthName
                 FROM ben002.WO w
                 WHERE w.Type = 'S'
-                AND w.SaleCode IN ('RENTR', 'RENTRS')
-                AND w.ClosedDate IS NULL  -- Only open work orders
-                AND w.InvoiceDate IS NULL
-                AND w.CompletedDate IS NULL  -- Not completed
+                AND w.BillTo IN ('900006', '900066')
+                AND w.Department IN ('47', '45', '40')
                 AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             )
             SELECT 

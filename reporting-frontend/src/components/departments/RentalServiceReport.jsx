@@ -83,13 +83,13 @@ const RentalServiceReport = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Work Orders</CardTitle>
             <Wrench className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{summary?.totalWorkOrders || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Currently open
+              All statuses
             </p>
           </CardContent>
         </Card>
@@ -165,7 +165,7 @@ const RentalServiceReport = () => {
       {/* Work Orders Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Open Service Work Orders for Rental Department</CardTitle>
+          <CardTitle>Service Work Orders for Rental Department</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
