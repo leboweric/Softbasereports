@@ -689,9 +689,9 @@ def register_department_routes(reports_bp):
                 AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
                 AND (
-                    w.WONo LIKE '140%' OR  -- Work orders starting with 140
-                    w.WONo LIKE '145%' OR  -- Work orders starting with 145
-                    w.WONo LIKE '147%'     -- Work orders starting with 147
+                    w.WONo LIKE '140%' OR  -- RENTR (Rental Repairs)
+                    w.WONo LIKE '145%' OR  -- RENTS (Rental Shop)
+                    w.WONo LIKE '147%'     -- RENTPM (Rental PM)
                 )
                 ORDER BY w.OpenDate DESC
             ),
@@ -862,9 +862,9 @@ def register_department_routes(reports_bp):
                 AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
                 AND (
-                    w.WONo LIKE '140%' OR  -- Work orders starting with 140
-                    w.WONo LIKE '145%' OR  -- Work orders starting with 145
-                    w.WONo LIKE '147%'     -- Work orders starting with 147
+                    w.WONo LIKE '140%' OR  -- RENTR (Rental Repairs)
+                    w.WONo LIKE '145%' OR  -- RENTS (Rental Shop)
+                    w.WONo LIKE '147%'     -- RENTPM (Rental PM)
                 )
             )
             SELECT 
