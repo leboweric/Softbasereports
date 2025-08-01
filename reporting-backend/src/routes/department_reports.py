@@ -648,6 +648,55 @@ def register_department_routes(reports_bp):
                 'type': 'schema_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/check-145', methods=['GET'])
+    @jwt_required()
+    def check_145_work_orders():
+        """Quick diagnostic to check 145 work orders"""
+        try:
+            db = get_db()
+            
+            query = """
+            SELECT TOP 10
+                w.WONo,
+                w.BillTo,
+                w.SaleDept,
+                w.SaleCode,
+                w.Type,
+                w.OpenDate,
+                w.CompletedDate,
+                w.ClosedDate,
+                w.InvoiceDate
+            FROM ben002.WO w
+            WHERE w.WONo LIKE '145%'
+            AND w.OpenDate >= '2025-06-01'
+            ORDER BY w.OpenDate DESC
+            """
+            
+            results = db.execute_query(query)
+            
+            work_orders = []
+            for wo in results:
+                work_orders.append({
+                    'woNumber': wo.get('WONo'),
+                    'billTo': wo.get('BillTo'),
+                    'saleDept': wo.get('SaleDept'),
+                    'saleCode': wo.get('SaleCode'),
+                    'type': wo.get('Type'),
+                    'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
+                    'completedDate': wo.get('CompletedDate').strftime('%Y-%m-%d') if wo.get('CompletedDate') else None,
+                    'closedDate': wo.get('ClosedDate').strftime('%Y-%m-%d') if wo.get('ClosedDate') else None,
+                    'invoiceDate': wo.get('InvoiceDate').strftime('%Y-%m-%d') if wo.get('InvoiceDate') else None,
+                })
+            
+            return jsonify({
+                'count': len(work_orders),
+                'workOrders': work_orders
+            })
+            
+        except Exception as e:
+            logger.error(f"Error checking 145 work orders: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/rental/service-report', methods=['GET'])
     @jwt_required()
     def get_rental_service_report():
