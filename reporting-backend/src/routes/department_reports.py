@@ -683,6 +683,9 @@ def register_department_routes(reports_bp):
                 WHERE w.Type = 'S'
                 AND w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.Department IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
+                AND w.ClosedDate IS NULL  -- Only open work orders
+                AND w.InvoiceDate IS NULL  -- Not invoiced
+                AND w.CompletedDate IS NULL  -- Not completed
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
@@ -845,6 +848,9 @@ def register_department_routes(reports_bp):
                 WHERE w.Type = 'S'
                 AND w.BillTo IN ('900006', '900066')
                 AND w.Department IN ('47', '45', '40')
+                AND w.ClosedDate IS NULL  -- Only open work orders
+                AND w.InvoiceDate IS NULL
+                AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= DATEADD(month, -12, GETDATE())
             )
             SELECT 
