@@ -1,7 +1,7 @@
 # Department-specific report endpoints
 from flask import jsonify
 from flask_jwt_extended import jwt_required
-from datetime import datetime
+from datetime import datetime, timedelta
 from src.services.azure_sql_service import AzureSQLService
 
 def get_db():
@@ -179,12 +179,49 @@ def register_department_routes(reports_bp):
                 {'name': 'Technician 3', 'completed': 41, 'efficiency': 90}
             ]
             
+            # 5. Monthly Labor Revenue - Last 12 months
+            labor_revenue_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+            AND Department = 'Service'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            labor_revenue_result = db.execute_query(labor_revenue_query)
+            
+            monthlyLaborRevenue = []
+            for row in labor_revenue_result:
+                month_date = datetime(row['year'], row['month'], 1)
+                monthlyLaborRevenue.append({
+                    'month': month_date.strftime("%b"),
+                    'amount': float(row['labor_revenue'] or 0)
+                })
+            
+            # Pad with zeros for missing months
+            if len(monthlyLaborRevenue) < 12:
+                all_months = []
+                current_date = datetime.now()
+                for i in range(11, -1, -1):
+                    month_date = current_date - timedelta(days=i*30)
+                    all_months.append(month_date.strftime("%b"))
+                
+                existing_months = [item['month'] for item in monthlyLaborRevenue]
+                for month in all_months:
+                    if month not in existing_months:
+                        monthlyLaborRevenue.append({'month': month, 'amount': 0})
+            
             return jsonify({
                 'summary': summary,
                 'workOrdersByStatus': workOrdersByStatus,
                 'recentWorkOrders': recentWorkOrders,
                 'monthlyTrend': monthlyTrend,
-                'technicianPerformance': technicianPerformance
+                'technicianPerformance': technicianPerformance,
+                'monthlyLaborRevenue': monthlyLaborRevenue
             })
             
         except Exception as e:
@@ -348,13 +385,50 @@ def register_department_routes(reports_bp):
             # Placeholder for recent orders
             recentOrders = []
             
+            # 6. Monthly Parts Revenue - Last 12 months
+            parts_revenue_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+            AND Department = 'Parts'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            parts_revenue_result = db.execute_query(parts_revenue_query)
+            
+            monthlyPartsRevenue = []
+            for row in parts_revenue_result:
+                month_date = datetime(row['year'], row['month'], 1)
+                monthlyPartsRevenue.append({
+                    'month': month_date.strftime("%b"),
+                    'amount': float(row['parts_revenue'] or 0)
+                })
+            
+            # Pad with zeros for missing months
+            if len(monthlyPartsRevenue) < 12:
+                all_months = []
+                current_date = datetime.now()
+                for i in range(11, -1, -1):
+                    month_date = current_date - timedelta(days=i*30)
+                    all_months.append(month_date.strftime("%b"))
+                
+                existing_months = [item['month'] for item in monthlyPartsRevenue]
+                for month in all_months:
+                    if month not in existing_months:
+                        monthlyPartsRevenue.append({'month': month, 'amount': 0})
+            
             return jsonify({
                 'summary': summary,
                 'inventoryByCategory': inventoryByCategory,
                 'topMovingParts': topMovingParts,
                 'lowStockAlerts': lowStockAlerts,
                 'monthlyTrend': monthlyTrend,
-                'recentOrders': recentOrders
+                'recentOrders': recentOrders,
+                'monthlyPartsRevenue': monthlyPartsRevenue
             })
             
         except Exception as e:

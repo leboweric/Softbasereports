@@ -457,6 +457,29 @@ const ServiceReport = ({ user, onNavigate }) => {
         </CardContent>
       </Card>
 
+      {/* Monthly Labor Revenue */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Monthly Labor Revenue</CardTitle>
+          <CardDescription>Labor revenue over the last 12 months</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={serviceData.monthlyLaborRevenue || []}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis 
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+              />
+              <RechartsTooltip 
+                formatter={(value) => `$${value.toLocaleString()}`}
+              />
+              <Bar dataKey="amount" fill="#3b82f6" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
       {/* Technician Performance */}
       <Card>
         <CardHeader>

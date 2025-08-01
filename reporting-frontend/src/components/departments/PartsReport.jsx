@@ -265,6 +265,29 @@ const PartsReport = ({ user }) => {
         </Card>
       </div>
 
+      {/* Monthly Parts Revenue */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Monthly Parts Revenue</CardTitle>
+          <CardDescription>Parts revenue over the last 12 months</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={partsData?.monthlyPartsRevenue || []}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis 
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+              />
+              <Tooltip 
+                formatter={(value) => `$${value.toLocaleString()}`}
+              />
+              <Bar dataKey="amount" fill="#10b981" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2">
         {/* Top Moving Parts */}
         <Card>
