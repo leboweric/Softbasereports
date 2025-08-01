@@ -681,7 +681,7 @@ def register_department_routes(reports_bp):
                     w.SaleCode,
                     w.SaleDept
                 FROM ben002.WO w
-                WHERE w.Type = 'S'
+                WHERE (w.Type = 'S' OR w.Type = 'P')  -- Service OR PM work orders
                 AND w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
                 AND w.ClosedDate IS NULL  -- Only open work orders
@@ -854,7 +854,7 @@ def register_department_routes(reports_bp):
                     MONTH(w.OpenDate) as Month,
                     DATENAME(month, w.OpenDate) as MonthName
                 FROM ben002.WO w
-                WHERE w.Type = 'S'
+                WHERE (w.Type = 'S' OR w.Type = 'P')  -- Service OR PM work orders
                 AND w.BillTo IN ('900006', '900066')
                 AND w.SaleDept IN ('47', '45', '40')
                 AND w.ClosedDate IS NULL  -- Only open work orders
