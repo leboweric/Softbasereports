@@ -72,54 +72,18 @@ const PartsReport = ({ user }) => {
     )
   }
 
-  const mockData = {
-    summary: {
-      totalInventoryValue: 1245680,
-      totalParts: 8934,
-      lowStockItems: 45,
-      pendingOrders: 23,
-      monthlySales: 187450,
-      turnoverRate: 4.2
-    },
-    inventoryByCategory: [
-      { category: 'Filters', value: 125000, count: 2340 },
-      { category: 'Hydraulic Parts', value: 345000, count: 1256 },
-      { category: 'Engine Parts', value: 425000, count: 987 },
-      { category: 'Electrical', value: 185000, count: 1543 },
-      { category: 'Tires & Tracks', value: 165680, count: 234 }
-    ],
-    topMovingParts: [
-      { partNumber: 'FL-1234', description: 'Oil Filter - CAT 320', quantity: 145, monthlyUsage: 45 },
-      { partNumber: 'HY-5678', description: 'Hydraulic Hose 3/4"', quantity: 89, monthlyUsage: 38 },
-      { partNumber: 'EN-9012', description: 'Air Filter - Komatsu', quantity: 76, monthlyUsage: 32 },
-      { partNumber: 'EL-3456', description: 'Alternator Belt', quantity: 234, monthlyUsage: 28 },
-      { partNumber: 'TR-7890', description: 'Track Pad - 600mm', quantity: 45, monthlyUsage: 12 }
-    ],
-    lowStockAlerts: [
-      { partNumber: 'FL-4567', description: 'Fuel Filter - Volvo', currentStock: 3, reorderPoint: 10, status: 'Critical' },
-      { partNumber: 'HY-1234', description: 'Hydraulic Pump Seal', currentStock: 5, reorderPoint: 15, status: 'Low' },
-      { partNumber: 'EN-5678', description: 'Turbo Gasket', currentStock: 2, reorderPoint: 8, status: 'Critical' },
-      { partNumber: 'EL-9012', description: 'Starter Motor', currentStock: 1, reorderPoint: 5, status: 'Critical' },
-      { partNumber: 'BR-3456', description: 'Brake Pads Set', currentStock: 8, reorderPoint: 20, status: 'Low' }
-    ],
-    monthlyTrend: [
-      { month: 'Jan', sales: 156000, orders: 234 },
-      { month: 'Feb', sales: 178000, orders: 256 },
-      { month: 'Mar', sales: 165000, orders: 245 },
-      { month: 'Apr', sales: 189000, orders: 278 },
-      { month: 'May', sales: 195000, orders: 289 },
-      { month: 'Jun', sales: 187450, orders: 267 }
-    ],
-    recentOrders: [
-      { orderNumber: 'PO-2024-001', supplier: 'CAT Parts Direct', items: 15, value: 12450, status: 'Shipped', eta: '2 days' },
-      { orderNumber: 'PO-2024-002', supplier: 'Komatsu Supply', items: 8, value: 8900, status: 'Processing', eta: '5 days' },
-      { orderNumber: 'PO-2024-003', supplier: 'Universal Hydraulics', items: 23, value: 15670, status: 'Delivered', eta: '-' },
-      { orderNumber: 'PO-2024-004', supplier: 'Filters Plus', items: 45, value: 4560, status: 'Shipped', eta: '1 day' },
-      { orderNumber: 'PO-2024-005', supplier: 'Track & Tire Co', items: 6, value: 34500, status: 'Ordered', eta: '7 days' }
-    ]
+  if (!partsData) {
+    return (
+      <div className="p-6">
+        <div className="text-center text-gray-500">
+          <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
+          <p>Unable to load parts data. Please try again later.</p>
+        </div>
+      </div>
+    )
   }
 
-  const data = partsData || mockData
+  const data = partsData
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 

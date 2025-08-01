@@ -60,7 +60,7 @@ def register_department_routes(reports_bp):
                     'openWorkOrders': row.get('openWorkOrders', 0) or 0,
                     'completedToday': row.get('completedToday', 0) or 0,
                     'averageRepairTime': round(row.get('averageRepairTime', 0) or 0, 1),
-                    'technicianEfficiency': 87,  # Placeholder - would need technician table
+                    'technicianEfficiency': 0
                     'revenue': float(row.get('revenue', 0) or 0),
                     'customersServed': row.get('customersServed', 0) or 0
                 }
@@ -170,12 +170,8 @@ def register_department_routes(reports_bp):
                     'revenue': float(row[2] or 0)
                 })
             
-            # Placeholder for technician performance (would need technician data)
-            technicianPerformance = [
-                {'name': 'Technician 1', 'completed': 45, 'efficiency': 92},
-                {'name': 'Technician 2', 'completed': 38, 'efficiency': 88},
-                {'name': 'Technician 3', 'completed': 41, 'efficiency': 90}
-            ]
+            # Technician performance data not available yet
+            technicianPerformance = []
             
             # 5. Monthly Labor Revenue - Last 12 months
             labor_revenue_query = """
@@ -261,9 +257,9 @@ def register_department_routes(reports_bp):
                 'totalInventoryValue': float(summary_result[0][0] or 0),
                 'totalParts': summary_result[0][1] or 0,
                 'lowStockItems': summary_result[0][2] or 0,
-                'pendingOrders': 0,  # Would need purchase order table
+                'pendingOrders': 0
                 'monthlySales': float(summary_result[0][3] or 0),
-                'turnoverRate': 4.2  # Placeholder
+                'turnoverRate': 0
             }
             
             # 2. Inventory by Category (simplified - would need category table)
@@ -377,7 +373,7 @@ def register_department_routes(reports_bp):
                     'orders': row[2]
                 })
             
-            # Placeholder for recent orders
+            # Recent orders data not available yet
             recentOrders = []
             
             # 6. Monthly Parts Revenue - Last 12 months
@@ -557,15 +553,11 @@ def register_department_routes(reports_bp):
                 monthlyTrend.append({
                     'month': row[0][:3],
                     'revenue': float(row[1] or 0),
-                    'utilization': 65 + (row[2] % 10)  # Placeholder calculation
+                    'utilization': 0
                 })
             
-            # Placeholder data
-            rentalsByDuration = [
-                {'duration': 'Daily', 'count': 15, 'revenue': 45000},
-                {'duration': 'Weekly', 'count': 35, 'revenue': 125000},
-                {'duration': 'Monthly', 'count': 38, 'revenue': 215750}
-            ]
+            # Rental duration data not available yet
+            rentalsByDuration = []
             
             topCustomers = []
             
@@ -834,76 +826,6 @@ def register_department_routes(reports_bp):
                     'totalCost': total_wo_cost
                 })
             
-            # If no data found, return mock data to show the format
-            if not work_orders:
-                work_orders = [
-                {
-                    'woNumber': 'WO-2024-001',
-                    'customer': 'Rental Department',
-                    'equipment': 'CAT 320D',
-                    'make': 'Caterpillar',
-                    'model': '320D',
-                    'openDate': '2024-06-01',
-                    'completedDate': '2024-06-05',
-                    'closedDate': '2024-06-05',
-                    'invoiceDate': '2024-06-06',
-                    'invoiceNo': 'INV-2024-001',
-                    'status': 'Closed',
-                    'laborCost': 1200.00,
-                    'partsCost': 800.00,
-                    'miscCost': 150.00,
-                    'totalCost': 2150.00,
-                    'laborRevenue': 1500.00,
-                    'partsRevenue': 1000.00,
-                    'miscRevenue': 200.00,
-                    'totalRevenue': 2700.00,
-                    'profit': 550.00
-                },
-                {
-                    'woNumber': 'WO-2024-002',
-                    'customer': 'Rental Department',
-                    'equipment': 'Komatsu PC200',
-                    'make': 'Komatsu',
-                    'model': 'PC200',
-                    'openDate': '2024-06-10',
-                    'completedDate': '2024-06-12',
-                    'closedDate': None,
-                    'invoiceDate': None,
-                    'invoiceNo': None,
-                    'status': 'Completed',
-                    'laborCost': 800.00,
-                    'partsCost': 1200.00,
-                    'miscCost': 100.00,
-                    'totalCost': 2100.00,
-                    'laborRevenue': 1000.00,
-                    'partsRevenue': 1500.00,
-                    'miscRevenue': 125.00,
-                    'totalRevenue': 2625.00,
-                    'profit': 525.00
-                },
-                {
-                    'woNumber': 'WO-2024-003',
-                    'customer': 'Rental Department',
-                    'equipment': 'John Deere 544K',
-                    'make': 'John Deere',
-                    'model': '544K',
-                    'openDate': '2024-06-15',
-                    'completedDate': None,
-                    'closedDate': None,
-                    'invoiceDate': None,
-                    'invoiceNo': None,
-                    'status': 'Open',
-                    'laborCost': 500.00,
-                    'partsCost': 300.00,
-                    'miscCost': 50.00,
-                    'totalCost': 850.00,
-                    'laborRevenue': 625.00,
-                    'partsRevenue': 375.00,
-                    'miscRevenue': 65.00,
-                    'totalRevenue': 1065.00,
-                    'profit': 215.00
-                }
-            ]
             
             # Calculate totals
             total_cost = sum(wo['totalCost'] for wo in work_orders)
@@ -1007,7 +929,7 @@ def register_department_routes(reports_bp):
                  WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}' 
                  AND InvoiceDate < '{today.strftime('%Y-%m-%d')}') as totalRevenue,
                  
-                -- Total Expenses (placeholder - would need expense table)
+                -- Total Expenses (expense data not available)
                 0 as totalExpenses,
                 
                 -- Accounts Receivable
@@ -1027,7 +949,7 @@ def register_department_routes(reports_bp):
             summary_result = db.execute_query(summary_query)
             
             total_revenue = float(summary_result[0][0] or 0)
-            total_expenses = total_revenue * 0.75  # Placeholder calculation
+            total_expenses = 0  # Expense data not available
             net_profit = total_revenue - total_expenses
             
             summary = {
@@ -1083,7 +1005,7 @@ def register_department_routes(reports_bp):
             monthlyFinancials = []
             for row in financial_trend_result:
                 revenue = float(row[1] or 0)
-                expenses = revenue * 0.75  # Placeholder
+                expenses = 0  # Expense data not available
                 monthlyFinancials.append({
                     'month': row[0][:3],
                     'revenue': revenue,
@@ -1120,14 +1042,8 @@ def register_department_routes(reports_bp):
                     'status': row[4]
                 })
             
-            # Placeholder data
-            expenseCategories = [
-                {'category': 'Labor', 'amount': total_expenses * 0.35, 'percentage': 35},
-                {'category': 'Parts & Materials', 'amount': total_expenses * 0.25, 'percentage': 25},
-                {'category': 'Equipment', 'amount': total_expenses * 0.20, 'percentage': 20},
-                {'category': 'Overhead', 'amount': total_expenses * 0.15, 'percentage': 15},
-                {'category': 'Other', 'amount': total_expenses * 0.05, 'percentage': 5}
-            ]
+            # Expense categories data not available yet
+            expenseCategories = []
             
             cashFlowTrend = []
             pendingPayables = []
