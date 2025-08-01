@@ -343,19 +343,22 @@ const Dashboard = ({ user }) => {
 
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Sales (No Equipment)</CardTitle>
+            <CardTitle>Monthly Sales by Revenue Stream</CardTitle>
             <CardDescription>
-              Sales excluding new equipment
+              Sales breakdown excluding equipment
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_sales_no_equipment || []}>
+              <BarChart data={dashboardData?.monthly_sales_by_stream || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="amount" fill="#10b981" />
+                <Bar dataKey="parts" stackId="sales" fill="#ef4444" name="Parts" />
+                <Bar dataKey="labor" stackId="sales" fill="#3b82f6" name="Labor" />
+                <Bar dataKey="rental" stackId="sales" fill="#a855f7" name="Rental" />
+                <Bar dataKey="misc" stackId="sales" fill="#f59e0b" name="Misc" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

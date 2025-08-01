@@ -153,6 +153,63 @@ class DashboardQueries:
             logger.error(f"Monthly sales excluding equipment query failed: {str(e)}")
             return []
     
+    def get_monthly_sales_by_stream(self):
+        """Get monthly sales by revenue stream for last 12 months"""
+        try:
+            query = f"""
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
+                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue,
+                SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
+                SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{self.twelve_months_ago}'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            results = self.db.execute_query(query)
+            
+            monthly_data = []
+            if results:
+                for row in results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_data.append({
+                        'month': month_date.strftime("%b"),
+                        'parts': float(row['parts_revenue'] or 0),
+                        'labor': float(row['labor_revenue'] or 0),
+                        'rental': float(row['rental_revenue'] or 0),
+                        'misc': float(row['misc_revenue'] or 0)
+                    })
+            
+            # Pad with zeros for missing months
+            if len(monthly_data) < 12:
+                all_months = []
+                for i in range(11, -1, -1):
+                    month_date = self.current_date - timedelta(days=i*30)
+                    all_months.append(month_date.strftime("%b"))
+                
+                existing_months = [item['month'] for item in monthly_data]
+                for month in all_months:
+                    if month not in existing_months:
+                        monthly_data.append({
+                            'month': month, 
+                            'parts': 0,
+                            'labor': 0,
+                            'rental': 0,
+                            'misc': 0
+                        })
+                
+                # Sort by month order
+                month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                monthly_data.sort(key=lambda x: month_order.index(x['month']))
+            
+            return monthly_data
+        except Exception as e:
+            logger.error(f"Monthly sales by stream query failed: {str(e)}")
+            return []
+    
     def get_uninvoiced_work_orders(self):
         """Get uninvoiced work orders value and count"""
         try:
@@ -572,6 +629,7 @@ def get_dashboard_summary_optimized():
             'active_customers': lambda: cached_query('active_customers', queries.get_active_customers, cache_ttl['active_customers']),
             'monthly_sales': lambda: cached_query('monthly_sales', queries.get_monthly_sales, cache_ttl['monthly_sales']),
             'monthly_sales_no_equipment': lambda: cached_query('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment, cache_ttl['monthly_sales']),
+            'monthly_sales_by_stream': lambda: cached_query('monthly_sales_by_stream', queries.get_monthly_sales_by_stream, cache_ttl['monthly_sales']),
             'uninvoiced': lambda: cached_query('uninvoiced', queries.get_uninvoiced_work_orders, cache_ttl['uninvoiced']),
             'monthly_quotes': lambda: cached_query('monthly_quotes', queries.get_monthly_quotes, cache_ttl['monthly_quotes']),
             'work_order_types': lambda: cached_query('work_order_types', queries.get_work_order_types, cache_ttl['work_order_types']),
@@ -611,6 +669,7 @@ def get_dashboard_summary_optimized():
             'work_order_types': wo_types_data['types'],
             'monthly_sales': results.get('monthly_sales', []),
             'monthly_sales_no_equipment': results.get('monthly_sales_no_equipment', []),
+            'monthly_sales_by_stream': results.get('monthly_sales_by_stream', []),
             'monthly_quotes': results.get('monthly_quotes', []),
             'top_customers': results.get('top_customers', []),
             'monthly_work_orders_by_type': results.get('monthly_work_orders', []),
