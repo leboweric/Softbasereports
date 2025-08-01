@@ -112,6 +112,47 @@ class DashboardQueries:
             logger.error(f"Monthly sales query failed: {str(e)}")
             return []
     
+    def get_monthly_sales_excluding_equipment(self):
+        """Get monthly sales for last 12 months excluding equipment sales"""
+        try:
+            query = f"""
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as amount
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{self.twelve_months_ago}'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            results = self.db.execute_query(query)
+            
+            monthly_sales = []
+            if results:
+                for row in results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_sales.append({
+                        'month': month_date.strftime("%b"),
+                        'amount': float(row['amount'])
+                    })
+            
+            # Pad with zeros for missing months
+            if len(monthly_sales) < 12:
+                all_months = []
+                for i in range(11, -1, -1):
+                    month_date = self.current_date - timedelta(days=i*30)
+                    all_months.append(month_date.strftime("%b"))
+                
+                existing_months = [item['month'] for item in monthly_sales]
+                for month in all_months:
+                    if month not in existing_months:
+                        monthly_sales.append({'month': month, 'amount': 0})
+            
+            return monthly_sales
+        except Exception as e:
+            logger.error(f"Monthly sales excluding equipment query failed: {str(e)}")
+            return []
+    
     def get_uninvoiced_work_orders(self):
         """Get uninvoiced work orders value and count"""
         try:
@@ -530,6 +571,7 @@ def get_dashboard_summary_optimized():
             'inventory_count': lambda: cached_query('inventory_count', queries.get_inventory_count, cache_ttl['inventory_count']),
             'active_customers': lambda: cached_query('active_customers', queries.get_active_customers, cache_ttl['active_customers']),
             'monthly_sales': lambda: cached_query('monthly_sales', queries.get_monthly_sales, cache_ttl['monthly_sales']),
+            'monthly_sales_no_equipment': lambda: cached_query('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment, cache_ttl['monthly_sales']),
             'uninvoiced': lambda: cached_query('uninvoiced', queries.get_uninvoiced_work_orders, cache_ttl['uninvoiced']),
             'monthly_quotes': lambda: cached_query('monthly_quotes', queries.get_monthly_quotes, cache_ttl['monthly_quotes']),
             'work_order_types': lambda: cached_query('work_order_types', queries.get_work_order_types, cache_ttl['work_order_types']),
@@ -568,6 +610,7 @@ def get_dashboard_summary_optimized():
             'open_work_orders_count': wo_types_data['total_count'],
             'work_order_types': wo_types_data['types'],
             'monthly_sales': results.get('monthly_sales', []),
+            'monthly_sales_no_equipment': results.get('monthly_sales_no_equipment', []),
             'monthly_quotes': results.get('monthly_quotes', []),
             'top_customers': results.get('top_customers', []),
             'monthly_work_orders_by_type': results.get('monthly_work_orders', []),
