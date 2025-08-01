@@ -51,7 +51,7 @@ const RentalServiceReport = () => {
 
   const getStatusBadge = (status) => {
     const variants = {
-      'Open': 'destructive',
+      'Open': 'secondary',
       'Completed': 'secondary',
       'Invoiced': 'default',
       'Closed': 'outline'
@@ -186,7 +186,10 @@ const RentalServiceReport = () => {
               </TableHeader>
               <TableBody>
                 {workOrders.map((wo) => (
-                  <TableRow key={wo.woNumber}>
+                  <TableRow 
+                    key={wo.woNumber}
+                    className={wo.totalCost > 0 ? "bg-amber-50" : ""}
+                  >
                     <TableCell className="font-medium">{wo.woNumber}</TableCell>
                     <TableCell>{wo.billTo || 'N/A'}</TableCell>
                     <TableCell>{wo.shipToCustomer || 'N/A'}</TableCell>
