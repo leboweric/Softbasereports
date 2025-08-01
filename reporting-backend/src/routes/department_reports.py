@@ -662,7 +662,8 @@ def register_department_routes(reports_bp):
                     w.WONo,
                     w.BillTo,
                     w.BillTo as CustomerName,
-                    w.ShipTo as ShipToCustomer,
+                    w.ShipTo,
+                    c.CustomerName as ShipToCustomer,
                     w.UnitNo as Equipment,
                     w.SerialNo as SerialNumber,
                     w.Make,
@@ -681,11 +682,16 @@ def register_department_routes(reports_bp):
                     w.SaleCode,
                     w.SaleDept
                 FROM ben002.WO w
+                LEFT JOIN ben002.Customer c ON w.ShipTo = c.CustomerNo
                 WHERE w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
-                AND w.ClosedDate IS NULL  -- Only open work orders
-                AND w.InvoiceDate IS NULL  -- Not invoiced
-                AND w.CompletedDate IS NULL  -- Not completed
+                AND (
+                    -- Include Open work orders (not closed, not invoiced, not completed)
+                    (w.ClosedDate IS NULL AND w.InvoiceDate IS NULL AND w.CompletedDate IS NULL)
+                    OR 
+                    -- Include Completed work orders (but not yet closed or invoiced)
+                    (w.CompletedDate IS NOT NULL AND w.ClosedDate IS NULL AND w.InvoiceDate IS NULL)
+                )
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
                 AND (
                     (w.WONo LIKE '140%' AND w.Type = 'S') OR  -- RENTR (Rental Repairs) - Service only
