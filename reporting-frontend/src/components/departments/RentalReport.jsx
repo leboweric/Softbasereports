@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
+import Check147 from './Check147'
 
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
@@ -136,6 +137,7 @@ const RentalReport = ({ user }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="service-report">Service Report</TabsTrigger>
+          <TabsTrigger value="check-147">Check 147</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -365,6 +367,10 @@ const RentalReport = ({ user }) => {
 
         <TabsContent value="service-report">
           <RentalServiceReport />
+        </TabsContent>
+
+        <TabsContent value="check-147">
+          <Check147 />
         </TabsContent>
       </Tabs>
     </div>
