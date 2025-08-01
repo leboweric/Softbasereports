@@ -687,6 +687,7 @@ def register_department_routes(reports_bp):
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL  -- Not invoiced
                 AND w.CompletedDate IS NULL  -- Not completed
+                AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
@@ -854,7 +855,7 @@ def register_department_routes(reports_bp):
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL
                 AND w.CompletedDate IS NULL  -- Not completed
-                AND w.OpenDate >= DATEADD(month, -12, GETDATE())
+                AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
             )
             SELECT 
                 mw.Year,
