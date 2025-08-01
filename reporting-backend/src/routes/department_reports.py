@@ -677,12 +677,11 @@ def register_department_routes(reports_bp):
                         ELSE 'Open'
                     END as Status,
                     w.SaleCode,
-                    w.SaleDept,
-                    w.Department
+                    w.SaleDept
                 FROM ben002.WO w
                 WHERE w.Type = 'S'
                 AND w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
-                AND w.Department IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
+                AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL  -- Not invoiced
                 AND w.CompletedDate IS NULL  -- Not completed
@@ -847,7 +846,7 @@ def register_department_routes(reports_bp):
                 FROM ben002.WO w
                 WHERE w.Type = 'S'
                 AND w.BillTo IN ('900006', '900066')
-                AND w.Department IN ('47', '45', '40')
+                AND w.SaleDept IN ('47', '45', '40')
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL
                 AND w.CompletedDate IS NULL  -- Not completed
