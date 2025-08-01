@@ -748,6 +748,7 @@ def register_department_routes(reports_bp):
                     'serialNumber': wo.get('SerialNumber') or '',
                     'make': wo.get('Make') or '',
                     'model': wo.get('Model') or '',
+                    'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
                     'status': wo.get('Status'),
                     'laborCost': labor_cost,
                     'partsCost': parts_cost,

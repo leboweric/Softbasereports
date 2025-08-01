@@ -144,6 +144,7 @@ const RentalServiceReport = () => {
                   <TableHead>Serial Number</TableHead>
                   <TableHead>Make/Model</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Date Opened</TableHead>
                   <TableHead className="text-right">Total Cost</TableHead>
                 </TableRow>
               </TableHeader>
@@ -156,12 +157,13 @@ const RentalServiceReport = () => {
                     <TableCell>{wo.serialNumber || 'N/A'}</TableCell>
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
+                    <TableCell>{wo.openDate || 'N/A'}</TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(wo.totalCost)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
-                <TableCell colSpan={6}>Total</TableCell>
+                <TableCell colSpan={7}>Total</TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(summary?.totalCost || 0)}
                 </TableCell>
