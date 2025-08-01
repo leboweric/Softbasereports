@@ -682,7 +682,7 @@ def register_department_routes(reports_bp):
                     w.SaleCode,
                     w.SaleDept
                 FROM ben002.WO w
-                LEFT JOIN ben002.Customer c ON w.ShipTo = c.CustomerCode
+                LEFT JOIN ben002.Customer c ON w.ShipTo = c.CustomerNo
                 WHERE w.Type = 'S'
                 AND w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
