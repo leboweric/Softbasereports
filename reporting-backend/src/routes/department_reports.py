@@ -698,6 +698,7 @@ def register_department_routes(reports_bp):
                     (w.WONo LIKE '147%' AND w.Type = 'PM')    -- RENTPM (Rental PM)
                 )
                 AND w.SaleCode IN ('RENTR', 'RENTRS', 'RENTPM')  -- Include all rental-related SaleCodes
+                AND w.WONo NOT IN ('140001773', '140001780')  -- Exclude corrupt work orders
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
