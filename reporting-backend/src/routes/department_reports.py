@@ -60,7 +60,7 @@ def register_department_routes(reports_bp):
                     'openWorkOrders': row.get('openWorkOrders', 0) or 0,
                     'completedToday': row.get('completedToday', 0) or 0,
                     'averageRepairTime': round(row.get('averageRepairTime', 0) or 0, 1),
-                    'technicianEfficiency': 0
+                    'technicianEfficiency': 0,
                     'revenue': float(row.get('revenue', 0) or 0),
                     'customersServed': row.get('customersServed', 0) or 0
                 }
