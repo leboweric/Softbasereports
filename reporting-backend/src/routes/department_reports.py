@@ -688,6 +688,11 @@ def register_department_routes(reports_bp):
                 AND w.InvoiceDate IS NULL  -- Not invoiced
                 AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
+                AND (
+                    w.WONo LIKE '140%' OR  -- Work orders starting with 140
+                    w.WONo LIKE '145%' OR  -- Work orders starting with 145
+                    w.WONo LIKE '147%'     -- Work orders starting with 147
+                )
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
@@ -856,6 +861,11 @@ def register_department_routes(reports_bp):
                 AND w.InvoiceDate IS NULL
                 AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
+                AND (
+                    w.WONo LIKE '140%' OR  -- Work orders starting with 140
+                    w.WONo LIKE '145%' OR  -- Work orders starting with 145
+                    w.WONo LIKE '147%'     -- Work orders starting with 147
+                )
             )
             SELECT 
                 mw.Year,
