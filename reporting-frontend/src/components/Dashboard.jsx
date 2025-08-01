@@ -420,7 +420,8 @@ const Dashboard = ({ user }) => {
       </div>
 
       {/* Charts - Third Row */}
-      <Card>
+      <div className="grid gap-4">
+        <Card>
           <CardHeader>
             <CardTitle>Department Gross Margins %</CardTitle>
             <CardDescription>
