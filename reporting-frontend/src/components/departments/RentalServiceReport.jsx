@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { DollarSign, Wrench, Download } from 'lucide-react'
+import { DollarSign, Wrench, Download, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { apiUrl } from '@/lib/api'
 
@@ -159,15 +159,26 @@ const RentalServiceReport = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Service Work Orders for Rental Department (Open & Completed)</CardTitle>
-          <Button 
-            onClick={exportToCSV} 
-            variant="outline" 
-            size="sm"
-            disabled={workOrders.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export to CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={fetchData} 
+              variant="outline" 
+              size="sm"
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+            <Button 
+              onClick={exportToCSV} 
+              variant="outline" 
+              size="sm"
+              disabled={workOrders.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export to CSV
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
