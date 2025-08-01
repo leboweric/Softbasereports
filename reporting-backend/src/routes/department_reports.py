@@ -519,6 +519,78 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/rental/check-147', methods=['GET'])
+    @jwt_required()
+    def check_147_work_orders():
+        """Check 147 work orders to diagnose why they're not showing"""
+        try:
+            db = get_db()
+            
+            # Check all 147 work orders
+            check_query = """
+            SELECT TOP 20
+                w.WONo,
+                w.Type,
+                w.BillTo,
+                w.SaleDept,
+                w.OpenDate,
+                w.ClosedDate,
+                w.InvoiceDate,
+                w.CompletedDate,
+                CASE 
+                    WHEN w.ClosedDate IS NOT NULL THEN 'Closed'
+                    WHEN w.InvoiceDate IS NOT NULL THEN 'Invoiced'
+                    WHEN w.CompletedDate IS NOT NULL THEN 'Completed'
+                    ELSE 'Open'
+                END as Status
+            FROM ben002.WO w
+            WHERE w.WONo LIKE '147%'
+            AND w.OpenDate >= '2025-06-01'
+            ORDER BY w.OpenDate DESC
+            """
+            
+            results = db.execute_query(check_query)
+            
+            # Check specifically for open ones
+            open_query = """
+            SELECT COUNT(*) as OpenCount
+            FROM ben002.WO w
+            WHERE w.WONo LIKE '147%'
+            AND w.ClosedDate IS NULL
+            AND w.InvoiceDate IS NULL
+            AND w.CompletedDate IS NULL
+            AND w.OpenDate >= '2025-06-01'
+            """
+            
+            open_count = db.execute_query(open_query)
+            
+            # Check what types 147 work orders have
+            type_query = """
+            SELECT DISTINCT w.Type, COUNT(*) as Count
+            FROM ben002.WO w
+            WHERE w.WONo LIKE '147%'
+            AND w.OpenDate >= '2025-06-01'
+            GROUP BY w.Type
+            """
+            
+            types = db.execute_query(type_query)
+            
+            return jsonify({
+                'work_orders_147': results,
+                'open_count': open_count[0] if open_count else {'OpenCount': 0},
+                'types': types,
+                'query_filters': {
+                    'bill_to': ['900006', '900066'],
+                    'sale_dept': ['47', '45', '40'],
+                    'types': ['S', 'P']
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e)
+            }), 500
+
     @reports_bp.route('/departments/rental/sale-codes', methods=['GET'])
     @jwt_required()
     def get_sale_codes():
