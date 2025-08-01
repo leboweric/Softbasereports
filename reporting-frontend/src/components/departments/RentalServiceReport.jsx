@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { DollarSign, Wrench } from 'lucide-react'
+import { DollarSign, Wrench, Download } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { apiUrl } from '@/lib/api'
 
 const RentalServiceReport = () => {
@@ -58,6 +59,55 @@ const RentalServiceReport = () => {
     return <Badge variant={variants[status] || 'default'}>{status}</Badge>
   }
 
+  const exportToCSV = () => {
+    // Create CSV headers
+    const headers = ['WO#', 'Bill To', 'Ship To Customer', 'Serial Number', 'Make', 'Model', 'Status', 'Date Opened', 'Total Cost']
+    
+    // Create CSV rows
+    const rows = workOrders.map(wo => [
+      wo.woNumber,
+      wo.billTo || '',
+      wo.shipToCustomer || '',
+      wo.serialNumber || '',
+      wo.make || '',
+      wo.model || '',
+      wo.status || '',
+      wo.openDate || '',
+      wo.totalCost || 0
+    ])
+    
+    // Add summary row
+    rows.push([])
+    rows.push(['', '', '', '', '', '', '', 'Total:', summary?.totalCost || 0])
+    
+    // Convert to CSV string
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => {
+        // Escape quotes and wrap in quotes if contains comma or quotes
+        const cellStr = String(cell)
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`
+        }
+        return cellStr
+      }).join(','))
+    ].join('\n')
+    
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    const today = new Date().toISOString().split('T')[0]
+    link.setAttribute('href', url)
+    link.setAttribute('download', `rental_service_report_${today}.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -107,8 +157,17 @@ const RentalServiceReport = () => {
 
       {/* Work Orders Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Open Service Work Orders for Rental Department</CardTitle>
+          <Button 
+            onClick={exportToCSV} 
+            variant="outline" 
+            size="sm"
+            disabled={workOrders.length === 0}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export to CSV
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
