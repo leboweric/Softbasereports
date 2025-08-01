@@ -308,12 +308,12 @@ const Dashboard = ({ user }) => {
       </div>
 
       {/* Charts - First Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
           <CardHeader>
             <CardTitle>Monthly Sales</CardTitle>
             <CardDescription>
-              Sales performance over the last 12 months
+              Total sales over the last 12 months
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
@@ -329,7 +329,27 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
 
-        <Card className="col-span-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Monthly Sales (No Equipment)</CardTitle>
+            <CardDescription>
+              Sales excluding new equipment
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={dashboardData?.monthly_sales_no_equipment || []}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Bar dataKey="amount" fill="#10b981" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader>
             <CardTitle>Open Work Orders by Type</CardTitle>
             <CardDescription>
@@ -432,72 +452,6 @@ const Dashboard = ({ user }) => {
                   dataKey="rental_margin" 
                   stroke="#a855f7" 
                   name="Rental"
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts - Third Row - Sales Comparison */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly Sales (Excluding Equipment)</CardTitle>
-            <CardDescription>
-              Sales performance without new equipment sales
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_sales_no_equipment || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="amount" fill="#10b981" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales Comparison</CardTitle>
-            <CardDescription>
-              Total Sales vs Sales Excluding Equipment
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2">
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={(() => {
-                const totalSales = dashboardData?.monthly_sales || [];
-                const noEquipmentSales = dashboardData?.monthly_sales_no_equipment || [];
-                
-                // Combine the data
-                return totalSales.map((item, index) => ({
-                  month: item.month,
-                  totalAmount: item.amount,
-                  noEquipmentAmount: noEquipmentSales[index]?.amount || 0
-                }));
-              })()}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Line 
-                  type="monotone" 
-                  dataKey="totalAmount" 
-                  stroke="#8884d8" 
-                  name="Total Sales"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="noEquipmentAmount" 
-                  stroke="#10b981" 
-                  name="Sales (No Equipment)"
                   strokeWidth={2}
                 />
               </LineChart>
