@@ -173,7 +173,8 @@ const RentalServiceReport = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>WO#</TableHead>
-                  <TableHead>Equipment</TableHead>
+                  <TableHead>Bill To</TableHead>
+                  <TableHead>Serial Number</TableHead>
                   <TableHead>Make/Model</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Open Date</TableHead>
@@ -187,7 +188,8 @@ const RentalServiceReport = () => {
                 {workOrders.map((wo) => (
                   <TableRow key={wo.woNumber}>
                     <TableCell className="font-medium">{wo.woNumber}</TableCell>
-                    <TableCell>{wo.equipment || 'N/A'}</TableCell>
+                    <TableCell>{wo.billTo || 'N/A'}</TableCell>
+                    <TableCell>{wo.serialNumber || 'N/A'}</TableCell>
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
                     <TableCell>{wo.openDate}</TableCell>
@@ -199,7 +201,7 @@ const RentalServiceReport = () => {
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
-                <TableCell colSpan={5}>Total</TableCell>
+                <TableCell colSpan={6}>Total</TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(summary?.totalLaborCost || 0)}
                 </TableCell>

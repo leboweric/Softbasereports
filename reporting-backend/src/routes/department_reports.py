@@ -663,6 +663,7 @@ def register_department_routes(reports_bp):
                     w.BillTo,
                     w.BillTo as CustomerName,
                     w.UnitNo as Equipment,
+                    w.SerialNo as SerialNumber,
                     w.Make,
                     w.Model,
                     w.OpenDate,
@@ -740,8 +741,9 @@ def register_department_routes(reports_bp):
                 
                 work_orders.append({
                     'woNumber': wo.get('WONo'),
+                    'billTo': wo.get('BillTo') or '',
                     'customer': wo.get('CustomerName') or wo.get('BillTo') or 'Unknown',
-                    'equipment': wo.get('Equipment') or '',
+                    'serialNumber': wo.get('SerialNumber') or '',
                     'make': wo.get('Make') or '',
                     'model': wo.get('Model') or '',
                     'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
