@@ -695,10 +695,10 @@ def register_department_routes(reports_bp):
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
                 AND (
                     (w.WONo LIKE '140%' AND w.Type = 'S') OR  -- RENTR (Rental Repairs)
-                    (w.WONo LIKE '145%' AND w.Type = 'S') OR  -- RENTRS/RENTS (Rental Shop)
+                    (w.WONo LIKE '145%' AND w.Type = 'S') OR  -- RENTRS (Rental Shop)
                     (w.WONo LIKE '147%' AND w.Type = 'PM')    -- RENTPM (Rental PM)
                 )
-                AND w.SaleCode IN ('RENTR', 'RENTRS', 'RENTS', 'RENTPM')  -- Include all rental-related SaleCodes
+                AND w.SaleCode IN ('RENTR', 'RENTRS', 'RENTPM')  -- Include all rental-related SaleCodes
                 ORDER BY w.OpenDate DESC
             ),
             LaborCosts AS (
