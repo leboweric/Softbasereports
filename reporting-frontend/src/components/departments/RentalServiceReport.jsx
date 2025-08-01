@@ -80,7 +80,7 @@ const RentalServiceReport = () => {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
@@ -91,36 +91,6 @@ const RentalServiceReport = () => {
             <p className="text-xs text-muted-foreground">
               Currently open
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Labor Cost</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary?.totalLaborCost || 0)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Parts Cost</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary?.totalPartsCost || 0)}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Misc Cost</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary?.totalMiscCost || 0)}</div>
           </CardContent>
         </Card>
 
@@ -151,11 +121,7 @@ const RentalServiceReport = () => {
                 <XAxis dataKey="monthName" />
                 <YAxis />
                 <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Legend />
-                <Line type="monotone" dataKey="totalCost" stroke="#ef4444" name="Total Cost" />
-                <Line type="monotone" dataKey="laborCost" stroke="#3b82f6" name="Labor Cost" />
-                <Line type="monotone" dataKey="partsCost" stroke="#10b981" name="Parts Cost" />
-                <Line type="monotone" dataKey="miscCost" stroke="#f59e0b" name="Misc Cost" />
+                <Line type="monotone" dataKey="totalCost" stroke="#ef4444" name="Total Cost" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
@@ -178,9 +144,6 @@ const RentalServiceReport = () => {
                   <TableHead>Serial Number</TableHead>
                   <TableHead>Make/Model</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Labor Cost</TableHead>
-                  <TableHead className="text-right">Parts Cost</TableHead>
-                  <TableHead className="text-right">Misc Cost</TableHead>
                   <TableHead className="text-right">Total Cost</TableHead>
                 </TableRow>
               </TableHeader>
@@ -193,24 +156,12 @@ const RentalServiceReport = () => {
                     <TableCell>{wo.serialNumber || 'N/A'}</TableCell>
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(wo.laborCost)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(wo.partsCost)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(wo.miscCost)}</TableCell>
                     <TableCell className="text-right font-medium">{formatCurrency(wo.totalCost)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
                 <TableCell colSpan={6}>Total</TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(summary?.totalLaborCost || 0)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(summary?.totalPartsCost || 0)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(summary?.totalMiscCost || 0)}
-                </TableCell>
                 <TableCell className="text-right">
                   {formatCurrency(summary?.totalCost || 0)}
                 </TableCell>
@@ -220,40 +171,6 @@ const RentalServiceReport = () => {
         </CardContent>
       </Card>
 
-      {/* Cost Breakdown Chart */}
-      {workOrders.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Cost Breakdown by Category</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart
-                data={[
-                  {
-                    category: 'Labor',
-                    cost: summary?.totalLaborCost || 0
-                  },
-                  {
-                    category: 'Parts',
-                    cost: summary?.totalPartsCost || 0
-                  },
-                  {
-                    category: 'Misc',
-                    cost: summary?.totalMiscCost || 0
-                  }
-                ]}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Bar dataKey="cost" fill="#ef4444" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
