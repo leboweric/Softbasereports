@@ -171,6 +171,42 @@ const Dashboard = ({ user }) => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
 
+  // Custom tooltip for Monthly Sales (No Equipment)
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length && dashboardData?.monthly_sales_by_stream) {
+      const monthData = dashboardData.monthly_sales_by_stream.find(item => item.month === label)
+      const total = payload[0].value
+      
+      return (
+        <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+          <p className="font-semibold mb-2">{label}</p>
+          <p className="font-semibold text-green-600 mb-2">Total: {formatCurrency(total)}</p>
+          {monthData && (
+            <div className="text-sm space-y-1 border-t pt-2">
+              <div className="flex justify-between">
+                <span>Parts:</span>
+                <span className="ml-4">{formatCurrency(monthData.parts)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Labor:</span>
+                <span className="ml-4">{formatCurrency(monthData.labor)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Rental:</span>
+                <span className="ml-4">{formatCurrency(monthData.rental)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Misc:</span>
+                <span className="ml-4">{formatCurrency(monthData.misc)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
+    return null
+  }
+
   if (loading) {
     return (
       <>
@@ -354,7 +390,7 @@ const Dashboard = ({ user }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="amount" fill="#10b981" />
               </BarChart>
             </ResponsiveContainer>
