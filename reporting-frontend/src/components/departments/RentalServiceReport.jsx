@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { DollarSign, Wrench, TrendingUp, FileText } from 'lucide-react'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { DollarSign, Wrench } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const RentalServiceReport = () => {
@@ -11,7 +10,6 @@ const RentalServiceReport = () => {
   const [error, setError] = useState(null)
   const [summary, setSummary] = useState(null)
   const [workOrders, setWorkOrders] = useState([])
-  const [monthlyTrend, setMonthlyTrend] = useState([])
 
   useEffect(() => {
     fetchData()
@@ -35,7 +33,6 @@ const RentalServiceReport = () => {
       const data = await response.json()
       setSummary(data.summary)
       setWorkOrders(data.workOrders)
-      setMonthlyTrend(data.monthlyTrend.reverse()) // Reverse to show oldest to newest
       setError(null)
     } catch (err) {
       setError(err.message || 'An error occurred')
@@ -107,26 +104,6 @@ const RentalServiceReport = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Monthly Trend Chart */}
-      {monthlyTrend.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Monthly Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyTrend}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="monthName" />
-                <YAxis />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
-                <Line type="monotone" dataKey="totalCost" stroke="#ef4444" name="Total Cost" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Work Orders Table */}
       <Card>
