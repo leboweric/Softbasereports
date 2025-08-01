@@ -61,6 +61,7 @@ const Dashboard = ({ user }) => {
     equipment: true
   })
   const [includeCurrentMonth, setIncludeCurrentMonth] = useState(true)
+  const [includeCurrentMonthMargins, setIncludeCurrentMonthMargins] = useState(true)
 
   useEffect(() => {
     fetchDashboardData()
@@ -154,6 +155,17 @@ const Dashboard = ({ user }) => {
     } else {
       // Exclude the last month (current month)
       return dashboardData.monthly_work_orders_by_type.slice(0, -1)
+    }
+  }
+
+  const getFilteredMarginsData = () => {
+    if (!dashboardData?.department_margins) return []
+    
+    if (includeCurrentMonthMargins) {
+      return dashboardData.department_margins
+    } else {
+      // Exclude the last month (current month)
+      return dashboardData.department_margins.slice(0, -1)
     }
   }
 
@@ -415,9 +427,22 @@ const Dashboard = ({ user }) => {
               Margin percentages by department over time
             </CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent>
+            <div className="flex items-center space-x-2 mb-4">
+              <Checkbox 
+                id="current-month-margins-filter"
+                checked={includeCurrentMonthMargins}
+                onCheckedChange={setIncludeCurrentMonthMargins}
+              />
+              <label 
+                htmlFor="current-month-margins-filter" 
+                className="text-sm font-medium cursor-pointer"
+              >
+                Include Current Month
+              </label>
+            </div>
             <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={dashboardData?.department_margins || []}>
+              <LineChart data={getFilteredMarginsData()}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis 
