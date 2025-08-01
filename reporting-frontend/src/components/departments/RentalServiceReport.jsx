@@ -174,10 +174,10 @@ const RentalServiceReport = () => {
                 <TableRow>
                   <TableHead>WO#</TableHead>
                   <TableHead>Bill To</TableHead>
+                  <TableHead>Ship To Customer</TableHead>
                   <TableHead>Serial Number</TableHead>
                   <TableHead>Make/Model</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Open Date</TableHead>
                   <TableHead className="text-right">Labor Cost</TableHead>
                   <TableHead className="text-right">Parts Cost</TableHead>
                   <TableHead className="text-right">Misc Cost</TableHead>
@@ -189,10 +189,10 @@ const RentalServiceReport = () => {
                   <TableRow key={wo.woNumber}>
                     <TableCell className="font-medium">{wo.woNumber}</TableCell>
                     <TableCell>{wo.billTo || 'N/A'}</TableCell>
+                    <TableCell>{wo.shipToCustomer || 'N/A'}</TableCell>
                     <TableCell>{wo.serialNumber || 'N/A'}</TableCell>
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
-                    <TableCell>{wo.openDate}</TableCell>
                     <TableCell className="text-right">{formatCurrency(wo.laborCost)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(wo.partsCost)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(wo.miscCost)}</TableCell>
