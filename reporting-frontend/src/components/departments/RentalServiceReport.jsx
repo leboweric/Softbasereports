@@ -188,7 +188,7 @@ const RentalServiceReport = () => {
                 {workOrders.map((wo) => (
                   <TableRow 
                     key={wo.woNumber}
-                    className={wo.totalCost > 0 ? "bg-amber-50" : ""}
+                    className={wo.totalCost > 0 ? "bg-blue-50" : ""}
                   >
                     <TableCell className="font-medium">{wo.woNumber}</TableCell>
                     <TableCell>{wo.billTo || 'N/A'}</TableCell>
