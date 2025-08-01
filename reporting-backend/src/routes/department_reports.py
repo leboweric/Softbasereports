@@ -735,7 +735,7 @@ def register_department_routes(reports_bp):
             LEFT JOIN LaborCosts l ON r.WONo = l.WONo
             LEFT JOIN PartsCosts p ON r.WONo = p.WONo
             LEFT JOIN MiscCosts m ON r.WONo = m.WONo
-            ORDER BY r.OpenDate DESC
+            ORDER BY TotalCost DESC, r.OpenDate DESC
             """
             
             results = db.execute_query(optimized_query)
