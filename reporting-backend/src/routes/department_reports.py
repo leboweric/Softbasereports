@@ -783,17 +783,16 @@ def register_department_routes(reports_bp):
                     w.SaleCode,
                     w.SaleDept
                 FROM ben002.WO w
-                WHERE (w.Type = 'S' OR w.Type = 'PM')  -- Service OR PM work orders
-                AND w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
+                WHERE w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL  -- Not invoiced
                 AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
                 AND (
-                    w.WONo LIKE '140%' OR  -- RENTR (Rental Repairs)
-                    w.WONo LIKE '145%' OR  -- RENTS (Rental Shop)
-                    w.WONo LIKE '147%'     -- RENTPM (Rental PM)
+                    (w.WONo LIKE '140%' AND w.Type = 'S') OR  -- RENTR (Rental Repairs) - Service only
+                    (w.WONo LIKE '145%' AND w.Type = 'S') OR  -- RENTS (Rental Shop) - Service only
+                    (w.WONo LIKE '147%' AND w.Type = 'PM')    -- RENTPM (Rental PM) - PM only
                 )
                 ORDER BY w.OpenDate DESC
             ),
@@ -956,17 +955,16 @@ def register_department_routes(reports_bp):
                     MONTH(w.OpenDate) as Month,
                     DATENAME(month, w.OpenDate) as MonthName
                 FROM ben002.WO w
-                WHERE (w.Type = 'S' OR w.Type = 'PM')  -- Service OR PM work orders
-                AND w.BillTo IN ('900006', '900066')
+                WHERE w.BillTo IN ('900006', '900066')
                 AND w.SaleDept IN ('47', '45', '40')
                 AND w.ClosedDate IS NULL  -- Only open work orders
                 AND w.InvoiceDate IS NULL
                 AND w.CompletedDate IS NULL  -- Not completed
                 AND w.OpenDate >= '2025-06-01'  -- Only work orders opened on or after June 1, 2025
                 AND (
-                    w.WONo LIKE '140%' OR  -- RENTR (Rental Repairs)
-                    w.WONo LIKE '145%' OR  -- RENTS (Rental Shop)
-                    w.WONo LIKE '147%'     -- RENTPM (Rental PM)
+                    (w.WONo LIKE '140%' AND w.Type = 'S') OR  -- RENTR (Rental Repairs) - Service only
+                    (w.WONo LIKE '145%' AND w.Type = 'S') OR  -- RENTS (Rental Shop) - Service only
+                    (w.WONo LIKE '147%' AND w.Type = 'PM')    -- RENTPM (Rental PM) - PM only
                 )
             )
             SELECT 
