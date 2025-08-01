@@ -41,9 +41,8 @@ def register_department_routes(reports_bp):
                  AND OpenDate >= DATEADD(month, -1, GETDATE())) as averageRepairTime,
                 
                 -- Monthly Revenue
-                (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
-                 WHERE Department = 'Service' 
-                 AND InvoiceDate >= '{month_start.strftime('%Y-%m-%d')}' 
+                (SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) FROM ben002.InvoiceReg 
+                 WHERE InvoiceDate >= '{month_start.strftime('%Y-%m-%d')}' 
                  AND InvoiceDate < '{today.strftime('%Y-%m-%d')}') as revenue,
                  
                 -- Customers Served
@@ -156,8 +155,7 @@ def register_department_routes(reports_bp):
                 COUNT(DISTINCT InvoiceNo) as completed,
                 SUM(GrandTotal) as revenue
             FROM ben002.InvoiceReg
-            WHERE Department = 'Service'
-            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY DATENAME(month, InvoiceDate), MONTH(InvoiceDate), YEAR(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -187,7 +185,6 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-            AND Department = 'Service'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -242,20 +239,19 @@ def register_department_routes(reports_bp):
             summary_query = """
             SELECT 
                 -- Total Inventory Value
-                (SELECT SUM(OnHand * Cost) FROM ben002.NationalParts WHERE OnHand > 0) as totalInventoryValue,
+                (SELECT SUM(QtyOnHand * Cost) FROM ben002.NationalParts WHERE QtyOnHand > 0) as totalInventoryValue,
                 
                 -- Total Parts
-                (SELECT COUNT(*) FROM ben002.NationalParts WHERE OnHand > 0) as totalParts,
+                (SELECT COUNT(*) FROM ben002.NationalParts WHERE QtyOnHand > 0) as totalParts,
                 
                 -- Low Stock Items
                 (SELECT COUNT(*) FROM ben002.NationalParts 
-                 WHERE OnHand > 0 AND OnHand <= MinimumStock) as lowStockItems,
+                 WHERE QtyOnHand > 0 AND QtyOnHand <= MinimumStock) as lowStockItems,
                  
                 -- Monthly Sales (from parts work orders)
                 (SELECT SUM(i.GrandTotal) 
                  FROM ben002.InvoiceReg i
-                 WHERE i.Department = 'Parts'
-                 AND MONTH(i.InvoiceDate) = MONTH(GETDATE())
+                 WHERE MONTH(i.InvoiceDate) = MONTH(GETDATE())
                  AND YEAR(i.InvoiceDate) = YEAR(GETDATE())) as monthlySales
             """
             
@@ -280,10 +276,10 @@ def register_department_routes(reports_bp):
                     WHEN Description LIKE '%BATTERY%' THEN 'Batteries'
                     ELSE 'Other'
                 END as category,
-                SUM(OnHand * Cost) as value,
+                SUM(QtyOnHand * Cost) as value,
                 COUNT(*) as count
             FROM ben002.NationalParts
-            WHERE OnHand > 0
+            WHERE QtyOnHand > 0
             GROUP BY 
                 CASE 
                     WHEN Description LIKE '%FILTER%' THEN 'Filters'
@@ -310,13 +306,13 @@ def register_department_routes(reports_bp):
             SELECT TOP 5
                 p.PartNo,
                 p.Description,
-                p.OnHand as quantity,
+                p.QtyOnHand as quantity,
                 COUNT(wp.WONo) as monthlyUsage
             FROM ben002.NationalParts p
             LEFT JOIN ben002.WOParts wp ON p.PartNo = wp.PartNo
                 AND wp.Date >= DATEADD(month, -1, GETDATE())
-            WHERE p.OnHand > 0
-            GROUP BY p.PartNo, p.Description, p.OnHand
+            WHERE p.QtyOnHand > 0
+            GROUP BY p.PartNo, p.Description, p.QtyOnHand
             ORDER BY COUNT(wp.WONo) DESC
             """
             
@@ -336,15 +332,15 @@ def register_department_routes(reports_bp):
             SELECT TOP 5
                 PartNo,
                 Description,
-                OnHand as currentStock,
+                QtyOnHand as currentStock,
                 MinimumStock as reorderPoint,
                 CASE 
-                    WHEN OnHand <= MinimumStock * 0.5 THEN 'Critical'
+                    WHEN QtyOnHand <= MinimumStock * 0.5 THEN 'Critical'
                     ELSE 'Low'
                 END as status
             FROM ben002.NationalParts
-            WHERE OnHand > 0 AND OnHand <= MinimumStock
-            ORDER BY (CAST(OnHand as FLOAT) / NULLIF(MinimumStock, 0)) ASC
+            WHERE QtyOnHand > 0 AND QtyOnHand <= MinimumStock
+            ORDER BY (CAST(QtyOnHand as FLOAT) / NULLIF(MinimumStock, 0)) ASC
             """
             
             low_stock_result = db.execute_query(low_stock_query)
@@ -366,8 +362,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as sales,
                 COUNT(*) as orders
             FROM ben002.InvoiceReg
-            WHERE Department = 'Parts'
-            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY DATENAME(month, InvoiceDate), MONTH(InvoiceDate), YEAR(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -393,7 +388,6 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-            AND Department = 'Parts'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -459,8 +453,7 @@ def register_department_routes(reports_bp):
                 -- Monthly Revenue
                 (SELECT SUM(GrandTotal) 
                  FROM ben002.InvoiceReg 
-                 WHERE Department = 'Rental'
-                 AND MONTH(InvoiceDate) = MONTH(GETDATE())
+                 WHERE MONTH(InvoiceDate) = MONTH(GETDATE())
                  AND YEAR(InvoiceDate) = YEAR(GETDATE())) as monthlyRevenue
             """
             
@@ -552,8 +545,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as revenue,
                 COUNT(*) as rentals
             FROM ben002.InvoiceReg
-            WHERE Department = 'Rental'
-            AND InvoiceDate >= DATEADD(month, -6, GETDATE())
+            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY DATENAME(month, InvoiceDate), MONTH(InvoiceDate), YEAR(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
