@@ -662,8 +662,7 @@ def register_department_routes(reports_bp):
                     w.WONo,
                     w.BillTo,
                     w.BillTo as CustomerName,
-                    w.ShipTo,
-                    c.Name as ShipToCustomer,
+                    w.ShipTo as ShipToCustomer,
                     w.UnitNo as Equipment,
                     w.SerialNo as SerialNumber,
                     w.Make,
@@ -682,7 +681,6 @@ def register_department_routes(reports_bp):
                     w.SaleCode,
                     w.SaleDept
                 FROM ben002.WO w
-                LEFT JOIN ben002.Customer c ON w.ShipTo = c.ID
                 WHERE w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
                 AND (
