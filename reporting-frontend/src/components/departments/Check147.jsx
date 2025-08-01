@@ -108,6 +108,37 @@ const Check147 = () => {
               </div>
 
               <div>
+                <h3 className="font-semibold mb-2">Open 147s Matching Our Filters:</h3>
+                <p className="text-lg font-bold mb-2">Count: {data.filtered_count || 0}</p>
+                {data.filtered_147s && data.filtered_147s.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-2 py-1 text-left text-xs font-medium text-gray-500">WO#</th>
+                          <th className="px-2 py-1 text-left text-xs font-medium text-gray-500">Type</th>
+                          <th className="px-2 py-1 text-left text-xs font-medium text-gray-500">BillTo</th>
+                          <th className="px-2 py-1 text-left text-xs font-medium text-gray-500">SaleDept</th>
+                          <th className="px-2 py-1 text-left text-xs font-medium text-gray-500">OpenDate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {data.filtered_147s.map((wo, idx) => (
+                          <tr key={idx} className="bg-green-50">
+                            <td className="px-2 py-1 text-sm font-medium">{wo.WONo}</td>
+                            <td className="px-2 py-1 text-sm">{wo.Type}</td>
+                            <td className="px-2 py-1 text-sm">{wo.BillTo}</td>
+                            <td className="px-2 py-1 text-sm">{wo.SaleDept}</td>
+                            <td className="px-2 py-1 text-sm">{wo.OpenDate?.split('T')[0]}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <h3 className="font-semibold mb-2">Current Filters:</h3>
                 <pre className="bg-gray-100 p-2 rounded text-sm">
                   {JSON.stringify(data.query_filters, null, 2)}

@@ -562,6 +562,34 @@ def register_department_routes(reports_bp):
             AND w.OpenDate >= '2025-06-01'
             """
             
+            # Check open 147s with our exact filters
+            filtered_query = """
+            SELECT 
+                w.WONo,
+                w.Type,
+                w.BillTo,
+                w.SaleDept,
+                w.OpenDate,
+                CASE 
+                    WHEN w.ClosedDate IS NOT NULL THEN 'Closed'
+                    WHEN w.InvoiceDate IS NOT NULL THEN 'Invoiced'
+                    WHEN w.CompletedDate IS NOT NULL THEN 'Completed'
+                    ELSE 'Open'
+                END as Status
+            FROM ben002.WO w
+            WHERE w.WONo LIKE '147%'
+            AND (w.Type = 'S' OR w.Type = 'PM')
+            AND w.BillTo IN ('900006', '900066')
+            AND w.SaleDept IN ('47', '45', '40')
+            AND w.ClosedDate IS NULL
+            AND w.InvoiceDate IS NULL
+            AND w.CompletedDate IS NULL
+            AND w.OpenDate >= '2025-06-01'
+            ORDER BY w.OpenDate DESC
+            """
+            
+            filtered_results = db.execute_query(filtered_query)
+            
             open_count = db.execute_query(open_query)
             
             # Check what types 147 work orders have
@@ -578,11 +606,13 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'work_orders_147': results,
                 'open_count': open_count[0] if open_count else {'OpenCount': 0},
+                'filtered_147s': filtered_results,
+                'filtered_count': len(filtered_results),
                 'types': types,
                 'query_filters': {
                     'bill_to': ['900006', '900066'],
                     'sale_dept': ['47', '45', '40'],
-                    'types': ['S', 'P']
+                    'types': ['S', 'PM']
                 }
             })
             
