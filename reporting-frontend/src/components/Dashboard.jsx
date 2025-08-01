@@ -385,10 +385,7 @@ const Dashboard = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Charts - Third Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-4">
           <CardHeader>
             <CardTitle>Monthly Quotes</CardTitle>
@@ -408,8 +405,10 @@ const Dashboard = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+      </div>
 
-        <Card className="col-span-3">
+      {/* Charts - Third Row */}
+      <Card>
           <CardHeader>
             <CardTitle>Department Gross Margins %</CardTitle>
             <CardDescription>
