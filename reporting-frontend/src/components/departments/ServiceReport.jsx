@@ -77,9 +77,39 @@ const ServiceReport = ({ user, onNavigate }) => {
         setServiceData(data)
       } else {
         console.error('Failed to fetch service data:', response.status)
+        // Set default empty data structure instead of leaving it null
+        setServiceData({
+          summary: {
+            openWorkOrders: 0,
+            shopAvgRepairTime: 0,
+            roadAvgRepairTime: 0
+          },
+          shopWorkOrdersByStatus: [],
+          roadWorkOrdersByStatus: [],
+          monthlyTrend: [],
+          salesTrend: [],
+          technicianPerformance: [],
+          recentWorkOrders: [],
+          monthlyLaborRevenue: []
+        })
       }
     } catch (error) {
       console.error('Error fetching service data:', error)
+      // Set default empty data structure on error
+      setServiceData({
+        summary: {
+          openWorkOrders: 0,
+          shopAvgRepairTime: 0,
+          roadAvgRepairTime: 0
+        },
+        shopWorkOrdersByStatus: [],
+        roadWorkOrdersByStatus: [],
+        monthlyTrend: [],
+        salesTrend: [],
+        technicianPerformance: [],
+        recentWorkOrders: [],
+        monthlyLaborRevenue: []
+      })
     } finally {
       setLoading(false)
     }
@@ -161,16 +191,6 @@ const ServiceReport = ({ user, onNavigate }) => {
     )
   }
 
-  if (!serviceData) {
-    return (
-      <div className="p-6">
-        <div className="text-center text-gray-500">
-          <AlertCircle className="h-12 w-12 mx-auto mb-4" />
-          <p>Unable to load service data. Please try again later.</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <TooltipProvider>

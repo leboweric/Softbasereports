@@ -56,9 +56,45 @@ const PartsReport = ({ user }) => {
       if (response.ok) {
         const data = await response.json()
         setPartsData(data)
+      } else {
+        console.error('Failed to fetch parts data:', response.status)
+        // Set default empty data structure
+        setPartsData({
+          summary: {
+            totalInventoryValue: 0,
+            totalParts: 0,
+            lowStockItems: 0,
+            pendingOrders: 0,
+            monthlySales: 0,
+            turnoverRate: 0
+          },
+          inventoryByCategory: [],
+          topMovingParts: [],
+          lowStockAlerts: [],
+          monthlyTrend: [],
+          recentOrders: [],
+          monthlyPartsRevenue: []
+        })
       }
     } catch (error) {
       console.error('Error fetching parts data:', error)
+      // Set default empty data structure on error
+      setPartsData({
+        summary: {
+          totalInventoryValue: 0,
+          totalParts: 0,
+          lowStockItems: 0,
+          pendingOrders: 0,
+          monthlySales: 0,
+          turnoverRate: 0
+        },
+        inventoryByCategory: [],
+        topMovingParts: [],
+        lowStockAlerts: [],
+        monthlyTrend: [],
+        recentOrders: [],
+        monthlyPartsRevenue: []
+      })
     } finally {
       setLoading(false)
     }
@@ -72,18 +108,22 @@ const PartsReport = ({ user }) => {
     )
   }
 
-  if (!partsData) {
-    return (
-      <div className="p-6">
-        <div className="text-center text-gray-500">
-          <AlertTriangle className="h-12 w-12 mx-auto mb-4" />
-          <p>Unable to load parts data. Please try again later.</p>
-        </div>
-      </div>
-    )
+  const data = partsData || {
+    summary: {
+      totalInventoryValue: 0,
+      totalParts: 0,
+      lowStockItems: 0,
+      pendingOrders: 0,
+      monthlySales: 0,
+      turnoverRate: 0
+    },
+    inventoryByCategory: [],
+    topMovingParts: [],
+    lowStockAlerts: [],
+    monthlyTrend: [],
+    recentOrders: [],
+    monthlyPartsRevenue: []
   }
-
-  const data = partsData
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
 
