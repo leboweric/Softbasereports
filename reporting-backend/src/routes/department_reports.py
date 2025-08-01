@@ -257,7 +257,7 @@ def register_department_routes(reports_bp):
                 'totalInventoryValue': float(summary_result[0][0] or 0),
                 'totalParts': summary_result[0][1] or 0,
                 'lowStockItems': summary_result[0][2] or 0,
-                'pendingOrders': 0
+                'pendingOrders': 0,
                 'monthlySales': float(summary_result[0][3] or 0),
                 'turnoverRate': 0
             }
