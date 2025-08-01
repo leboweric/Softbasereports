@@ -50,13 +50,29 @@ const RentalServiceReport = () => {
   }
 
   const getStatusBadge = (status) => {
-    const variants = {
-      'Open': 'secondary',
-      'Completed': 'secondary',
-      'Invoiced': 'default',
-      'Closed': 'outline'
+    if (status === 'Open') {
+      return (
+        <Badge 
+          variant="secondary" 
+          className="bg-yellow-100 text-yellow-800 border-yellow-200"
+        >
+          {status}
+        </Badge>
+      )
+    } else if (status === 'Completed') {
+      return (
+        <Badge 
+          variant="secondary" 
+          className="bg-green-100 text-green-800 border-green-200"
+        >
+          {status}
+        </Badge>
+      )
+    } else if (status === 'Invoiced') {
+      return <Badge variant="default">{status}</Badge>
+    } else {
+      return <Badge variant="outline">{status}</Badge>
     }
-    return <Badge variant={variants[status] || 'default'}>{status}</Badge>
   }
 
   const exportToCSV = () => {
