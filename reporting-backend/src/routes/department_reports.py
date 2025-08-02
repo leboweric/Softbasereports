@@ -108,8 +108,38 @@ def register_department_routes(reports_bp):
                     if month not in existing_months:
                         monthlyPartsRevenue.append({'month': month, 'amount': 0})
             
+            # Debug: Get NationalParts column info
+            debug_info = None
+            try:
+                debug_query = "SELECT TOP 1 * FROM ben002.NationalParts"
+                debug_result = db.execute_query(debug_query)
+                
+                if debug_result and len(debug_result) > 0:
+                    columns = list(debug_result[0].keys())
+                    inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower()]
+                    
+                    debug_info = {
+                        'table_exists': True,
+                        'total_columns': len(columns),
+                        'inventory_columns': inventory_columns,
+                        'has_OnHand': 'OnHand' in columns,
+                        'has_QtyOnHand': 'QtyOnHand' in columns,
+                        'sample_columns': columns[:10]  # First 10 columns
+                    }
+                else:
+                    debug_info = {
+                        'table_exists': True,
+                        'error': 'No data in table'
+                    }
+            except Exception as e:
+                debug_info = {
+                    'table_exists': False,
+                    'error': str(e)
+                }
+            
             return jsonify({
-                'monthlyPartsRevenue': monthlyPartsRevenue
+                'monthlyPartsRevenue': monthlyPartsRevenue,
+                'debug': debug_info
             })
             
         except Exception as e:
