@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from src.services.database import db
+from src.services.azure_sql_service import AzureSQLService
 from src.utils.auth import require_auth
 
 expense_search_diagnostic_bp = Blueprint('expense_search_diagnostic', __name__)
@@ -9,6 +9,7 @@ expense_search_diagnostic_bp = Blueprint('expense_search_diagnostic', __name__)
 def search_for_expenses():
     """Search for G&A expenses across various tables"""
     try:
+        db = AzureSQLService()
         results = {
             'invoice_expenses': {},
             'wo_expenses': {},
@@ -52,9 +53,7 @@ def search_for_expenses():
         ORDER BY ORDINAL_POSITION
         """
         
-        cursor = db.get_connection().cursor(as_dict=True)
-        cursor.execute(numeric_cols_query)
-        numeric_columns = cursor.fetchall()
+        numeric_columns = db.execute_query(numeric_cols_query)
         
         results['potential_expense_fields'] = [
             {
@@ -72,8 +71,7 @@ def search_for_expenses():
         ORDER BY InvoiceDate DESC
         """
         
-        cursor.execute(sample_query)
-        sample_invoices = cursor.fetchall()
+        sample_invoices = db.execute_query(sample_query)
         
         # Check for expense patterns in Department or SaleCode
         dept_analysis_query = """
@@ -87,8 +85,7 @@ def search_for_expenses():
         ORDER BY Department, SaleCode
         """
         
-        cursor.execute(dept_analysis_query)
-        dept_patterns = cursor.fetchall()
+        dept_patterns = db.execute_query(dept_analysis_query)
         
         results['invoice_expenses']['sample_records'] = [
             {
@@ -123,8 +120,7 @@ def search_for_expenses():
         ORDER BY WONo DESC
         """
         
-        cursor.execute(wo_expense_query)
-        wo_expenses = cursor.fetchall()
+        wo_expenses = db.execute_query(wo_expense_query)
         
         results['wo_expenses']['sample_records'] = [
             {
@@ -150,8 +146,7 @@ def search_for_expenses():
         ORDER BY TABLE_SCHEMA, TABLE_NAME
         """
         
-        cursor.execute(gl_schema_check)
-        gl_tables = cursor.fetchall()
+        gl_tables = db.execute_query(gl_schema_check)
         
         # Group by schema
         schemas = {}
@@ -182,8 +177,6 @@ def search_for_expenses():
         results['recommendations'].append(
             "Consider that G&A expenses might be tracked as negative invoices or specific department codes"
         )
-        
-        cursor.close()
         
         return jsonify(results), 200
         
