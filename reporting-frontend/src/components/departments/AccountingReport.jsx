@@ -308,13 +308,13 @@ const AccountingReport = ({ user }) => {
         </CardContent>
       </Card>
 
-      {/* Total Expenses Over Time */}
+      {/* G&A Expenses Over Time */}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle>Total Expenses Over Time</CardTitle>
-              <CardDescription>Monthly expense trends to track cost changes</CardDescription>
+              <CardTitle>G&A Expenses Over Time</CardTitle>
+              <CardDescription>General & Administrative expenses (Payroll, Professional Services, etc.)</CardDescription>
             </div>
             <Button 
               variant="outline" 

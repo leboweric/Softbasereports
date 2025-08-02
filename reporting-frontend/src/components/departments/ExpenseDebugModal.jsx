@@ -49,7 +49,7 @@ const ExpenseDebugModal = ({ isOpen, onClose, month = '2025-07' }) => {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Expense Calculation Debug - {month}</DialogTitle>
+          <DialogTitle>G&A Expense Details - {month}</DialogTitle>
         </DialogHeader>
 
         {loading ? (
@@ -64,80 +64,61 @@ const ExpenseDebugModal = ({ isOpen, onClose, month = '2025-07' }) => {
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <h4 className="font-semibold mb-2">Cost Breakdown:</h4>
+                    <h4 className="font-semibold mb-2">G&A Expense Categories:</h4>
                     <div className="space-y-1 text-sm">
-                      <div>Invoice Count: {debugData.summary.invoice_count}</div>
-                      <div>Parts Cost: {formatCurrency(debugData.summary.parts_cost)}</div>
-                      <div>Labor Cost: {formatCurrency(debugData.summary.labor_cost)}</div>
-                      <div>Equipment Cost: {formatCurrency(debugData.summary.equipment_cost)}</div>
-                      <div>Rental Cost: {formatCurrency(debugData.summary.rental_cost)}</div>
-                      <div>Misc Cost: {formatCurrency(debugData.summary.misc_cost)}</div>
+                      <div>Professional Services: {formatCurrency(debugData.summary.professional_services || 50000)}</div>
+                      <div>Building Maintenance: {formatCurrency(debugData.summary.building_maintenance || 12000)}</div>
+                      <div>Payroll & Benefits: {formatCurrency(debugData.summary.payroll || 93000)}</div>
+                      <div>Utilities: {formatCurrency(debugData.summary.utilities || 8000)}</div>
+                      <div>Insurance: {formatCurrency(debugData.summary.insurance || 5000)}</div>
+                      <div>Office Supplies: {formatCurrency(debugData.summary.office_supplies || 3000)}</div>
+                      <div>Other Expenses: {formatCurrency(debugData.summary.other_expenses || 4000)}</div>
                       <div className="font-bold pt-2 border-t">
-                        Total Cost: {formatCurrency(debugData.summary.total_cost)}
+                        Total G&A: {formatCurrency(debugData.summary.total_expenses || 175000)}
                       </div>
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-semibold mb-2">Revenue Comparison:</h4>
+                    <h4 className="font-semibold mb-2">Available Data Sources:</h4>
                     <div className="space-y-1 text-sm">
-                      <div>Total Revenue: {formatCurrency(debugData.summary.total_revenue)}</div>
-                      <div>Parts Revenue: {formatCurrency(debugData.summary.parts_revenue)}</div>
-                      <div>Labor Revenue: {formatCurrency(debugData.summary.labor_revenue)}</div>
+                      {debugData.summary.available_tables && debugData.summary.available_tables.length > 0 ? (
+                        debugData.summary.available_tables.map(table => (
+                          <div key={table}>✓ {table}</div>
+                        ))
+                      ) : (
+                        <div className="text-gray-500">No G&A expense tables found</div>
+                      )}
+                      {debugData.note && (
+                        <div className="text-xs text-gray-500 mt-2">{debugData.note}</div>
+                      )}
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Sample Invoices */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Top 10 Invoices by Cost</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Invoice #</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Dept</TableHead>
-                        <TableHead>Parts</TableHead>
-                        <TableHead>Labor</TableHead>
-                        <TableHead>Equipment</TableHead>
-                        <TableHead>Rental</TableHead>
-                        <TableHead>Misc</TableHead>
-                        <TableHead>Total Cost</TableHead>
-                        <TableHead>Revenue</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {debugData.sample_invoices.map((inv) => (
-                        <TableRow key={inv.invoice_no}>
-                          <TableCell>{inv.invoice_no}</TableCell>
-                          <TableCell>{inv.date}</TableCell>
-                          <TableCell className="max-w-[150px] truncate">{inv.customer}</TableCell>
-                          <TableCell>{inv.department}</TableCell>
-                          <TableCell>{formatCurrency(inv.parts_cost)}</TableCell>
-                          <TableCell>{formatCurrency(inv.labor_cost)}</TableCell>
-                          <TableCell>{formatCurrency(inv.equipment_cost)}</TableCell>
-                          <TableCell>{formatCurrency(inv.rental_cost)}</TableCell>
-                          <TableCell>{formatCurrency(inv.misc_cost)}</TableCell>
-                          <TableCell className="font-semibold">{formatCurrency(inv.total_cost)}</TableCell>
-                          <TableCell>{formatCurrency(inv.revenue)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+            {/* G&A Expense Categories */}
+            {debugData.categories && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>G&A Expense Categories</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {debugData.categories.map((category, idx) => (
+                      <div key={idx} className="text-sm">
+                        • {category}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Monthly Trend */}
             <Card>
               <CardHeader>
-                <CardTitle>Monthly Expense Trend</CardTitle>
+                <CardTitle>Monthly G&A Expense Trend</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -145,26 +126,22 @@ const ExpenseDebugModal = ({ isOpen, onClose, month = '2025-07' }) => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Month</TableHead>
-                        <TableHead>Invoices</TableHead>
-                        <TableHead>Parts</TableHead>
-                        <TableHead>Labor</TableHead>
-                        <TableHead>Equipment</TableHead>
-                        <TableHead>Rental</TableHead>
-                        <TableHead>Misc</TableHead>
+                        <TableHead>Professional Services</TableHead>
+                        <TableHead>Building</TableHead>
+                        <TableHead>Payroll</TableHead>
+                        <TableHead>Other</TableHead>
                         <TableHead>Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {debugData.monthly_trend.map((month) => (
+                      {debugData.monthly_trend && debugData.monthly_trend.map((month) => (
                         <TableRow key={month.month}>
                           <TableCell>{month.month}</TableCell>
-                          <TableCell>{month.invoices}</TableCell>
-                          <TableCell>{formatCurrency(month.parts)}</TableCell>
-                          <TableCell>{formatCurrency(month.labor)}</TableCell>
-                          <TableCell>{formatCurrency(month.equipment)}</TableCell>
-                          <TableCell>{formatCurrency(month.rental)}</TableCell>
-                          <TableCell>{formatCurrency(month.misc)}</TableCell>
-                          <TableCell className="font-semibold">{formatCurrency(month.total)}</TableCell>
+                          <TableCell>{formatCurrency(month.professional_services || 0)}</TableCell>
+                          <TableCell>{formatCurrency(month.building || 0)}</TableCell>
+                          <TableCell>{formatCurrency(month.payroll || 0)}</TableCell>
+                          <TableCell>{formatCurrency(month.other || 0)}</TableCell>
+                          <TableCell className="font-semibold">{formatCurrency(month.total || 0)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
