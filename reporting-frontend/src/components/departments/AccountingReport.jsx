@@ -248,7 +248,7 @@ const AccountingReport = ({ user }) => {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Revenue by Department */}
         <Card>
           <CardHeader>
@@ -296,6 +296,68 @@ const AccountingReport = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+        {/* G&A Expenses Over Time */}
+        <Card>
+          <CardHeader>
+            <CardTitle>G&A Expenses Over Time</CardTitle>
+            <CardDescription>General & Administrative expenses (Payroll, Professional Services, etc.)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={monthlyExpenses.slice(0, -1)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (active && payload && payload.length && monthlyExpenses) {
+                    const data = monthlyExpenses.slice(0, -1)
+                    const currentIndex = data.findIndex(item => item.month === label)
+                    const currentValue = payload[0].value
+                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].expenses : null
+                    
+                    const formatCurrency = (value) => {
+                      return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      }).format(value)
+                    }
+                    
+                    const calculatePercentageChange = (current, previous) => {
+                      if (!previous || previous === 0) return null
+                      const change = ((current - previous) / previous) * 100
+                      return change
+                    }
+                    
+                    const formatPercentage = (percentage) => {
+                      if (percentage === null) return ''
+                      const sign = percentage >= 0 ? '+' : ''
+                      const color = percentage >= 0 ? 'text-red-600' : 'text-green-600'
+                      return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
+                    }
+                    
+                    return (
+                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                        <p className="font-semibold mb-1">{label}</p>
+                        <p className="text-gray-900">
+                          {formatCurrency(currentValue)}
+                          {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                }} />
+                <Bar 
+                  dataKey="expenses" 
+                  fill="#ef4444"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Monthly Financial Trend */}
@@ -315,68 +377,6 @@ const AccountingReport = ({ user }) => {
               <Area type="monotone" dataKey="expenses" stackId="2" stroke="#ef4444" fill="#ef4444" name="Expenses" />
               <Line type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} name="Profit" />
             </AreaChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* G&A Expenses Over Time */}
-      <Card>
-        <CardHeader>
-          <CardTitle>G&A Expenses Over Time</CardTitle>
-          <CardDescription>General & Administrative expenses (Payroll, Professional Services, etc.)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthlyExpenses.slice(0, -1)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-              <Tooltip content={({ active, payload, label }) => {
-                if (active && payload && payload.length && monthlyExpenses) {
-                  const data = monthlyExpenses.slice(0, -1)
-                  const currentIndex = data.findIndex(item => item.month === label)
-                  const currentValue = payload[0].value
-                  const previousValue = currentIndex > 0 ? data[currentIndex - 1].expenses : null
-                  
-                  const formatCurrency = (value) => {
-                    return new Intl.NumberFormat('en-US', {
-                      style: 'currency',
-                      currency: 'USD',
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0,
-                    }).format(value)
-                  }
-                  
-                  const calculatePercentageChange = (current, previous) => {
-                    if (!previous || previous === 0) return null
-                    const change = ((current - previous) / previous) * 100
-                    return change
-                  }
-                  
-                  const formatPercentage = (percentage) => {
-                    if (percentage === null) return ''
-                    const sign = percentage >= 0 ? '+' : ''
-                    const color = percentage >= 0 ? 'text-red-600' : 'text-green-600'
-                    return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
-                  }
-                  
-                  return (
-                    <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                      <p className="font-semibold mb-1">{label}</p>
-                      <p className="text-gray-900">
-                        {formatCurrency(currentValue)}
-                        {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                      </p>
-                    </div>
-                  )
-                }
-                return null
-              }} />
-              <Bar 
-                dataKey="expenses" 
-                fill="#ef4444"
-              />
-            </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
