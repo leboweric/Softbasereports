@@ -119,9 +119,10 @@ def register_department_routes(reports_bp):
             }), 500
 
 
-    @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
-    @jwt_required()
-    def get_parts_fill_rate():
+    # Commenting out fill-rate endpoint until we can verify NationalParts column names
+    # @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
+    # @jwt_required()
+    # def get_parts_fill_rate():
         """Get parts fill rate analysis - shows parts that were not in stock when ordered"""
         try:
             db = get_db()
