@@ -44,6 +44,7 @@ import AccountingDiagnostics from './AccountingDiagnostics'
 import ExpenseSearchDiagnostic from '../diagnostics/ExpenseSearchDiagnostic'
 import InvoiceColumnsDiagnostic from '../diagnostics/InvoiceColumnsDiagnostic'
 import FindExpenseAccounts from '../diagnostics/FindExpenseAccounts'
+import AnalyzeGLAccounts from '../diagnostics/AnalyzeGLAccounts'
 
 const AccountingReport = ({ user }) => {
   const [accountingData, setAccountingData] = useState(null)
@@ -54,6 +55,7 @@ const AccountingReport = ({ user }) => {
   const [expenseSearchOpen, setExpenseSearchOpen] = useState(false)
   const [invoiceColumnsOpen, setInvoiceColumnsOpen] = useState(false)
   const [findExpenseAccountsOpen, setFindExpenseAccountsOpen] = useState(false)
+  const [analyzeGLAccountsOpen, setAnalyzeGLAccountsOpen] = useState(false)
 
   useEffect(() => {
     fetchAccountingData()
@@ -364,6 +366,13 @@ const AccountingReport = ({ user }) => {
               >
                 Find 6xxxxx
               </Button>
+              <Button 
+                variant="primary" 
+                size="sm"
+                onClick={() => setAnalyzeGLAccountsOpen(true)}
+              >
+                Analyze GL
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -579,6 +588,19 @@ const AccountingReport = ({ user }) => {
               <Button onClick={() => setFindExpenseAccountsOpen(false)} variant="ghost" size="sm">✕</Button>
             </div>
             <FindExpenseAccounts />
+          </div>
+        </div>
+      )}
+      
+      {/* Analyze GL Accounts Modal */}
+      {analyzeGLAccountsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">GL Expense Account Analysis</h2>
+              <Button onClick={() => setAnalyzeGLAccountsOpen(false)} variant="ghost" size="sm">✕</Button>
+            </div>
+            <AnalyzeGLAccounts />
           </div>
         </div>
       )}
