@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -21,7 +22,7 @@ import {
   Tooltip as RechartsTooltip, 
   ResponsiveContainer
 } from 'recharts'
-import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import {
   Tooltip,
@@ -157,6 +158,66 @@ const PartsReport = ({ user, onNavigate }) => {
     } finally {
       setVelocityLoading(false)
     }
+  }
+
+  const downloadReorderAlerts = () => {
+    if (!reorderAlertData || !reorderAlertData.alerts) return
+
+    // Prepare CSV content
+    const headers = [
+      'Part Number',
+      'Description',
+      'Alert Level',
+      'Current Stock',
+      'On Order',
+      'Days of Stock',
+      'Avg Daily Usage',
+      'Reorder Point',
+      'Suggested Order Qty',
+      'Unit Cost',
+      'List Price',
+      'Orders Last 90 Days'
+    ]
+
+    const rows = reorderAlertData.alerts.map(alert => [
+      alert.partNo,
+      alert.description,
+      alert.alertLevel,
+      Math.round(alert.currentStock),
+      Math.round(alert.onOrder),
+      alert.daysOfStock === 999 ? 'Unlimited' : alert.daysOfStock,
+      alert.avgDailyUsage.toFixed(2),
+      alert.suggestedReorderPoint,
+      alert.suggestedOrderQty,
+      alert.cost.toFixed(2),
+      alert.listPrice.toFixed(2),
+      alert.ordersLast90Days
+    ])
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map(cell => 
+          typeof cell === 'string' && cell.includes(',') 
+            ? `"${cell}"` 
+            : cell
+        ).join(',')
+      )
+    ].join('\n')
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    link.setAttribute('href', url)
+    link.setAttribute('download', `parts_reorder_alerts_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
 
@@ -318,7 +379,17 @@ const PartsReport = ({ user, onNavigate }) => {
                 <AlertTriangle className="h-5 w-5" />
                 Parts Reorder Alerts
               </span>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={downloadReorderAlerts}
+                  className="bg-green-600 hover:bg-green-700"
+                  title="Download to Excel"
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Excel
+                </Button>
                 <Badge variant="destructive" className="flex items-center gap-1">
                   <span className="text-xs">Out of Stock</span>
                   <span className="font-bold">{reorderAlertData.summary?.outOfStock || 0}</span>
