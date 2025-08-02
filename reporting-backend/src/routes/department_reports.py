@@ -733,7 +733,7 @@ def register_department_routes(reports_bp):
             order_soon_count = sum(1 for f in forecasts if f['orderRecommendation'] == 'Order Soon')
             
             return jsonify({
-                'forecasts': forecasts[:100],  # Top 100 by value
+                'forecasts': forecasts,  # All parts, no limit
                 'monthlyTrend': monthly_trend,
                 'summary': {
                     'totalParts': len(forecasts),
