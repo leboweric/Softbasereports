@@ -665,6 +665,12 @@ def register_department_routes(reports_bp):
             
             trend_results = db.execute_query(monthly_trend_query)
             
+            # Check if queries returned results
+            if not forecast_results:
+                forecast_results = []
+            if not trend_results:
+                trend_results = []
+            
             # Format results
             forecasts = []
             total_forecast_value = 0
@@ -700,22 +706,27 @@ def register_department_routes(reports_bp):
                 })
             
             # Add forecast data points for visualization
-            if monthly_trend:
-                # Calculate average of last 3 months
-                recent_demand = [m['actualDemand'] for m in monthly_trend[-3:]]
-                avg_recent_demand = sum(recent_demand) / len(recent_demand) if recent_demand else 0
-                
-                # Add current and future months with forecast
-                current_date = datetime.now()
-                for i in range(3):  # Next 3 months
-                    forecast_date = current_date + timedelta(days=30 * i)
-                    monthly_trend.append({
-                        'month': forecast_date.strftime("%b %Y"),
-                        'actualDemand': 0,  # No actual data for future
-                        'forecast': int(avg_recent_demand * 1.05) if i > 0 else int(avg_recent_demand),  # Slight growth
-                        'uniqueParts': 0,
-                        'workOrders': 0
-                    })
+            if monthly_trend and len(monthly_trend) > 0:
+                try:
+                    # Calculate average of last 3 months
+                    recent_months = monthly_trend[-3:] if len(monthly_trend) >= 3 else monthly_trend
+                    recent_demand = [m['actualDemand'] for m in recent_months if 'actualDemand' in m]
+                    avg_recent_demand = sum(recent_demand) / len(recent_demand) if recent_demand else 0
+                    
+                    # Add current and future months with forecast
+                    current_date = datetime.now()
+                    for i in range(3):  # Next 3 months
+                        forecast_date = current_date + timedelta(days=30 * (i + 1))
+                        monthly_trend.append({
+                            'month': forecast_date.strftime("%b %Y"),
+                            'actualDemand': 0,  # No actual data for future
+                            'forecast': int(avg_recent_demand * (1.05 ** (i + 1))),  # 5% growth per month
+                            'uniqueParts': 0,
+                            'workOrders': 0
+                        })
+                except Exception as e:
+                    # If forecast generation fails, just continue without forecast points
+                    pass
             
             # Summary statistics
             order_now_count = sum(1 for f in forecasts if f['orderRecommendation'] == 'Order Now')
@@ -750,9 +761,14 @@ def register_department_routes(reports_bp):
             })
             
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Forecast error: {str(e)}")
+            print(f"Traceback: {error_details}")
             return jsonify({
                 'error': str(e),
-                'type': 'forecast_error'
+                'type': 'forecast_error',
+                'details': error_details[:500]  # First 500 chars of traceback
             }), 500
 
 
