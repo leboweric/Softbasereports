@@ -694,10 +694,28 @@ def register_department_routes(reports_bp):
                 month_date = datetime(row['Year'], row['Month'], 1)
                 monthly_trend.append({
                     'month': month_date.strftime("%b %Y"),
+                    'actualDemand': row.get('TotalQuantity', 0),
                     'uniqueParts': row.get('UniqueParts', 0),
-                    'totalQuantity': row.get('TotalQuantity', 0),
                     'workOrders': row.get('WorkOrders', 0)
                 })
+            
+            # Add forecast data points for visualization
+            if monthly_trend:
+                # Calculate average of last 3 months
+                recent_demand = [m['actualDemand'] for m in monthly_trend[-3:]]
+                avg_recent_demand = sum(recent_demand) / len(recent_demand) if recent_demand else 0
+                
+                # Add current and future months with forecast
+                current_date = datetime.now()
+                for i in range(3):  # Next 3 months
+                    forecast_date = current_date + timedelta(days=30 * i)
+                    monthly_trend.append({
+                        'month': forecast_date.strftime("%b %Y"),
+                        'actualDemand': 0,  # No actual data for future
+                        'forecast': int(avg_recent_demand * 1.05) if i > 0 else int(avg_recent_demand),  # Slight growth
+                        'uniqueParts': 0,
+                        'workOrders': 0
+                    })
             
             # Summary statistics
             order_now_count = sum(1 for f in forecasts if f['orderRecommendation'] == 'Order Now')
