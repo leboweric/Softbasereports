@@ -548,8 +548,13 @@ const Dashboard = ({ user }) => {
                       {customer.invoice_count} invoices
                     </p>
                   </div>
-                  <div className="text-sm font-medium text-gray-900">
-                    {formatCurrency(customer.sales)}
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatCurrency(customer.sales)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {customer.percentage}%
+                    </div>
                   </div>
                 </div>
               )) || (

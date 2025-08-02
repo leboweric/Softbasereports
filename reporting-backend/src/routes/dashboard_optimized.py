@@ -380,6 +380,15 @@ class DashboardQueries:
     def get_top_customers(self):
         """Get top 10 customers by fiscal YTD sales"""
         try:
+            # First get total sales for the fiscal year
+            total_sales_query = f"""
+            SELECT SUM(GrandTotal) as total_sales
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{self.fiscal_year_start}'
+            """
+            total_result = self.db.execute_query(total_sales_query)
+            total_fiscal_sales = float(total_result[0]['total_sales']) if total_result and total_result[0]['total_sales'] else 0
+            
             query = f"""
             SELECT TOP 10
                 CASE 
@@ -405,11 +414,14 @@ class DashboardQueries:
             
             if results:
                 for i, customer in enumerate(results):
+                    customer_sales = float(customer['total_sales'])
+                    percentage = (customer_sales / total_fiscal_sales * 100) if total_fiscal_sales > 0 else 0
                     top_customers.append({
                         'rank': i + 1,
                         'name': customer['customer_name'],
-                        'sales': float(customer['total_sales']),
-                        'invoice_count': int(customer['invoice_count'])
+                        'sales': customer_sales,
+                        'invoice_count': int(customer['invoice_count']),
+                        'percentage': round(percentage, 1)
                     })
             
             return top_customers
