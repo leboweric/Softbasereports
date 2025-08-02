@@ -322,7 +322,7 @@ const Dashboard = ({ user }) => {
               {dashboardData?.active_customers || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Last 30 days
+              Last 30 days • {dashboardData?.total_customers || 0} total
             </p>
           </CardContent>
         </Card>

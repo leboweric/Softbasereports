@@ -73,6 +73,20 @@ class DashboardQueries:
             logger.error(f"Active customers query failed: {str(e)}")
             return 0
     
+    def get_total_customers(self):
+        """Get total number of customers in the system"""
+        try:
+            query = """
+            SELECT COUNT(*) as total_customers
+            FROM ben002.Customer
+            WHERE Active = 1
+            """
+            result = self.db.execute_query(query)
+            return int(result[0]['total_customers']) if result else 0
+        except Exception as e:
+            logger.error(f"Total customers query failed: {str(e)}")
+            return 0
+    
     def get_monthly_sales(self):
         """Get monthly sales since March 2025"""
         try:
@@ -723,6 +737,7 @@ def get_dashboard_summary_optimized():
             'total_sales': lambda: cached_query('total_sales', queries.get_current_month_sales, cache_ttl['total_sales']),
             'inventory_count': lambda: cached_query('inventory_count', queries.get_inventory_count, cache_ttl['inventory_count']),
             'active_customers': lambda: cached_query('active_customers', queries.get_active_customers, cache_ttl['active_customers']),
+            'total_customers': lambda: cached_query('total_customers', queries.get_total_customers, cache_ttl['active_customers']),
             'monthly_sales': lambda: cached_query('monthly_sales', queries.get_monthly_sales, cache_ttl['monthly_sales']),
             'monthly_sales_no_equipment': lambda: cached_query('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment, cache_ttl['monthly_sales']),
             'monthly_sales_by_stream': lambda: cached_query('monthly_sales_by_stream', queries.get_monthly_sales_by_stream, cache_ttl['monthly_sales']),
@@ -759,6 +774,7 @@ def get_dashboard_summary_optimized():
             'total_sales': results.get('total_sales', 0),
             'inventory_count': results.get('inventory_count', 0),
             'active_customers': results.get('active_customers', 0),
+            'total_customers': results.get('total_customers', 0),
             'uninvoiced_work_orders': int(uninvoiced_data['value']),
             'uninvoiced_count': uninvoiced_data['count'],
             'open_work_orders_value': int(wo_types_data['total_value']),
