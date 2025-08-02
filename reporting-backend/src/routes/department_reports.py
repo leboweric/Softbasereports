@@ -119,6 +119,44 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/test-columns', methods=['GET'])
+    @jwt_required()
+    def test_parts_columns():
+        """Test which column names exist in NationalParts table"""
+        try:
+            db = get_db()
+            
+            # Try to get column information
+            columns_query = """
+            SELECT TOP 1 * FROM ben002.NationalParts
+            """
+            
+            result = db.execute_query(columns_query)
+            
+            if result and len(result) > 0:
+                columns = list(result[0].keys())
+                
+                # Check for specific columns we're interested in
+                inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower()]
+                
+                return jsonify({
+                    'all_columns': columns,
+                    'inventory_related_columns': inventory_columns,
+                    'has_OnHand': 'OnHand' in columns,
+                    'has_QtyOnHand': 'QtyOnHand' in columns,
+                    'sample_row': result[0]
+                })
+            else:
+                return jsonify({
+                    'error': 'No data found in NationalParts table'
+                }), 404
+                
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'test_columns_error'
+            }), 500
+
     # Commenting out fill-rate endpoint until we can verify NationalParts column names
     # @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
     # @jwt_required()
