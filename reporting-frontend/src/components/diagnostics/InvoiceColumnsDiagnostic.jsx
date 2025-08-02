@@ -5,21 +5,31 @@ import { apiUrl } from '@/lib/api';
 export default function InvoiceColumnsDiagnostic() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
 
   const runDiagnostic = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('authToken') || localStorage.getItem('token');
       const response = await fetch(apiUrl('/api/diagnostics/invoice-columns'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
+      console.log('Response status:', response.status);
       const result = await response.json();
-      setData(result);
+      console.log('Result:', result);
+      
+      if (!response.ok) {
+        setError(result.error || 'Failed to get columns');
+      } else {
+        setData(result);
+      }
     } catch (err) {
       console.error(err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -31,6 +41,12 @@ export default function InvoiceColumnsDiagnostic() {
       <Button onClick={runDiagnostic} disabled={loading}>
         {loading ? 'Running...' : 'Get Invoice Columns'}
       </Button>
+      
+      {error && (
+        <div className="mt-4 p-4 bg-red-100 text-red-700 rounded">
+          Error: {error}
+        </div>
+      )}
       
       {data && (
         <div className="mt-4 space-y-4">
