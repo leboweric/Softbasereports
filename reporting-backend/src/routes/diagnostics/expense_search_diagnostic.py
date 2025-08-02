@@ -1,11 +1,11 @@
 from flask import Blueprint, jsonify
+from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
-from src.utils.auth import require_auth
 
 expense_search_diagnostic_bp = Blueprint('expense_search_diagnostic', __name__)
 
 @expense_search_diagnostic_bp.route('/api/diagnostics/expense-search', methods=['GET'])
-@require_auth
+@jwt_required()
 def search_for_expenses():
     """Search for G&A expenses across various tables"""
     try:
