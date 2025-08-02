@@ -266,18 +266,31 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_quotes(self):
-        """Get monthly quotes since March"""
+        """Get monthly quotes since March - handling potential duplicates"""
         try:
+            # First, let's try to understand the quote structure with a more sophisticated query
+            # This query attempts to group by customer and date to get the latest quote per customer per day
             query = """
+            WITH LatestQuotes AS (
+                SELECT 
+                    YEAR(CreationTime) as year,
+                    MONTH(CreationTime) as month,
+                    Customer,
+                    CAST(CreationTime AS DATE) as QuoteDate,
+                    MAX(CreationTime) as LatestQuoteTime,
+                    MAX(Amount) as MaxAmount
+                FROM ben002.WOQuote
+                WHERE CreationTime >= '2025-03-01'
+                AND Amount > 0
+                GROUP BY YEAR(CreationTime), MONTH(CreationTime), Customer, CAST(CreationTime AS DATE)
+            )
             SELECT 
-                YEAR(CreationTime) as year,
-                MONTH(CreationTime) as month,
-                SUM(Amount) as amount
-            FROM ben002.WOQuote
-            WHERE CreationTime >= '2025-03-01'
-            AND Amount > 0
-            GROUP BY YEAR(CreationTime), MONTH(CreationTime)
-            ORDER BY YEAR(CreationTime), MONTH(CreationTime)
+                year,
+                month,
+                SUM(MaxAmount) as amount
+            FROM LatestQuotes
+            GROUP BY year, month
+            ORDER BY year, month
             """
             
             results = self.db.execute_query(query)

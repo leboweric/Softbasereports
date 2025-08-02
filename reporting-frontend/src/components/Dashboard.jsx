@@ -438,7 +438,7 @@ const Dashboard = ({ user }) => {
           <CardHeader>
             <CardTitle>Monthly Quotes</CardTitle>
             <CardDescription>
-              Total dollar value quoted each month since March
+              Total value quoted per month (latest quote per customer per day)
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
@@ -781,27 +781,9 @@ const Dashboard = ({ user }) => {
               <Users className="h-6 w-6 mb-2" />
               Customer Report
             </Button>
-            <Button 
-              variant="outline" 
-              className="h-20 flex-col"
-              onClick={async () => {
-                try {
-                  const token = localStorage.getItem('token')
-                  const response = await fetch(apiUrl('/api/reports/quote-debug'), {
-                    headers: {
-                      'Authorization': `Bearer ${token}`,
-                    },
-                  })
-                  const data = await response.json()
-                  console.log('Quote Debug Data:', data)
-                  alert('Check console for quote debug data')
-                } catch (error) {
-                  console.error('Quote debug failed:', error)
-                }
-              }}
-            >
+            <Button variant="outline" className="h-20 flex-col">
               <TrendingUp className="h-6 w-6 mb-2" />
-              Quote Debug
+              Financial Summary
             </Button>
           </div>
         </CardContent>

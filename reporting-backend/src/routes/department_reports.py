@@ -1652,7 +1652,6 @@ def register_department_routes(reports_bp):
     
     
     @reports_bp.route('/quote-debug', methods=['GET'])
-    @jwt_required()
     def get_quote_debug():
         """Debug endpoint to examine WOQuote table structure"""
         try:
