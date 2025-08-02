@@ -118,6 +118,177 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
+    @jwt_required()
+    def get_parts_fill_rate():
+        """Get parts fill rate analysis - shows parts that were not in stock when ordered"""
+        try:
+            db = get_db()
+            
+            # Get the time period (default last 30 days)
+            days_back = request.args.get('days', 30, type=int)
+            
+            # Query to find parts orders and their stock status
+            # This identifies when a part was requested but had zero or insufficient stock
+            fill_rate_query = f"""
+            WITH PartsOrders AS (
+                SELECT 
+                    wp.PartNo,
+                    wp.WONo,
+                    wp.Date as OrderDate,
+                    wp.Qty as OrderedQty,
+                    wp.Description,
+                    -- Get the stock level at time of order (approximate by current stock)
+                    COALESCE(np.OnHand, 0) as StockOnHand,
+                    CASE 
+                        WHEN np.OnHand IS NULL OR np.OnHand = 0 THEN 'Out of Stock'
+                        WHEN np.OnHand < wp.Qty THEN 'Insufficient Stock'
+                        ELSE 'In Stock'
+                    END as StockStatus,
+                    w.BillTo as Customer
+                FROM ben002.WOParts wp
+                LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
+                LEFT JOIN ben002.WO w ON wp.WONo = w.WONo
+                WHERE wp.Date >= DATEADD(day, -{days_back}, GETDATE())
+                    AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')  -- Linde parts
+            )
+            SELECT 
+                -- Overall metrics
+                COUNT(*) as TotalOrders,
+                SUM(CASE WHEN StockStatus = 'In Stock' THEN 1 ELSE 0 END) as FilledOrders,
+                SUM(CASE WHEN StockStatus != 'In Stock' THEN 1 ELSE 0 END) as UnfilledOrders,
+                CAST(
+                    CAST(SUM(CASE WHEN StockStatus = 'In Stock' THEN 1 ELSE 0 END) AS FLOAT) / 
+                    CAST(COUNT(*) AS FLOAT) * 100 
+                AS DECIMAL(5,2)) as FillRate
+            FROM PartsOrders
+            """
+            
+            fill_rate_result = db.execute_query(fill_rate_query)
+            
+            # Get details of parts most frequently out of stock
+            problem_parts_query = f"""
+            WITH PartsOrders AS (
+                SELECT 
+                    wp.PartNo,
+                    wp.Description,
+                    wp.Qty as OrderedQty,
+                    COALESCE(np.OnHand, 0) as StockOnHand,
+                    CASE 
+                        WHEN np.OnHand IS NULL OR np.OnHand = 0 THEN 'Out of Stock'
+                        WHEN np.OnHand < wp.Qty THEN 'Insufficient Stock'
+                        ELSE 'In Stock'
+                    END as StockStatus
+                FROM ben002.WOParts wp
+                LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
+                WHERE wp.Date >= DATEADD(day, -{days_back}, GETDATE())
+                    AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
+            )
+            SELECT TOP 10
+                PartNo,
+                MAX(Description) as Description,
+                COUNT(*) as TotalOrders,
+                SUM(CASE WHEN StockStatus != 'In Stock' THEN 1 ELSE 0 END) as StockoutCount,
+                MAX(StockOnHand) as CurrentStock,
+                CAST(
+                    CAST(SUM(CASE WHEN StockStatus != 'In Stock' THEN 1 ELSE 0 END) AS FLOAT) / 
+                    CAST(COUNT(*) AS FLOAT) * 100 
+                AS DECIMAL(5,2)) as StockoutRate
+            FROM PartsOrders
+            GROUP BY PartNo
+            HAVING SUM(CASE WHEN StockStatus != 'In Stock' THEN 1 ELSE 0 END) > 0
+            ORDER BY StockoutCount DESC
+            """
+            
+            problem_parts_result = db.execute_query(problem_parts_query)
+            
+            # Parse results
+            fill_rate_data = {}
+            if fill_rate_result and len(fill_rate_result) > 0:
+                row = fill_rate_result[0]
+                fill_rate_data = {
+                    'totalOrders': row.get('TotalOrders', 0),
+                    'filledOrders': row.get('FilledOrders', 0),
+                    'unfilledOrders': row.get('UnfilledOrders', 0),
+                    'fillRate': float(row.get('FillRate', 0))
+                }
+            else:
+                fill_rate_data = {
+                    'totalOrders': 0,
+                    'filledOrders': 0,
+                    'unfilledOrders': 0,
+                    'fillRate': 0
+                }
+            
+            # Parse problem parts
+            problem_parts = []
+            if problem_parts_result:
+                for row in problem_parts_result:
+                    problem_parts.append({
+                        'partNo': row.get('PartNo', ''),
+                        'description': row.get('Description', ''),
+                        'totalOrders': row.get('TotalOrders', 0),
+                        'stockoutCount': row.get('StockoutCount', 0),
+                        'currentStock': row.get('CurrentStock', 0),
+                        'stockoutRate': float(row.get('StockoutRate', 0))
+                    })
+            
+            # Get fill rate trend over time
+            trend_query = f"""
+            WITH MonthlyOrders AS (
+                SELECT 
+                    YEAR(wp.Date) as Year,
+                    MONTH(wp.Date) as Month,
+                    COUNT(*) as TotalOrders,
+                    SUM(CASE 
+                        WHEN np.OnHand IS NULL OR np.OnHand = 0 OR np.OnHand < wp.Qty 
+                        THEN 0 ELSE 1 
+                    END) as FilledOrders
+                FROM ben002.WOParts wp
+                LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
+                WHERE wp.Date >= DATEADD(month, -6, GETDATE())
+                    AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
+                GROUP BY YEAR(wp.Date), MONTH(wp.Date)
+            )
+            SELECT 
+                Year,
+                Month,
+                TotalOrders,
+                FilledOrders,
+                CAST(
+                    CAST(FilledOrders AS FLOAT) / CAST(TotalOrders AS FLOAT) * 100 
+                AS DECIMAL(5,2)) as FillRate
+            FROM MonthlyOrders
+            ORDER BY Year, Month
+            """
+            
+            trend_result = db.execute_query(trend_query)
+            
+            fill_rate_trend = []
+            if trend_result:
+                for row in trend_result:
+                    month_date = datetime(row['Year'], row['Month'], 1)
+                    fill_rate_trend.append({
+                        'month': month_date.strftime("%b"),
+                        'fillRate': float(row.get('FillRate', 0)),
+                        'totalOrders': row.get('TotalOrders', 0),
+                        'filledOrders': row.get('FilledOrders', 0)
+                    })
+            
+            return jsonify({
+                'summary': fill_rate_data,
+                'problemParts': problem_parts,
+                'fillRateTrend': fill_rate_trend,
+                'period': f'Last {days_back} days'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'parts_fill_rate_error'
+            }), 500
+
+
     @reports_bp.route('/departments/rental', methods=['GET'])
     @jwt_required()
     def get_rental_department_report():
