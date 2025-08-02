@@ -21,7 +21,7 @@ import {
   Tooltip as RechartsTooltip, 
   ResponsiveContainer
 } from 'recharts'
-import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import {
   Tooltip,
@@ -35,14 +35,17 @@ const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
   const [fillRateData, setFillRateData] = useState(null)
   const [reorderAlertData, setReorderAlertData] = useState(null)
+  const [velocityData, setVelocityData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [fillRateLoading, setFillRateLoading] = useState(true)
   const [reorderAlertLoading, setReorderAlertLoading] = useState(true)
+  const [velocityLoading, setVelocityLoading] = useState(true)
 
   useEffect(() => {
     fetchPartsData()
     fetchFillRateData()
     fetchReorderAlertData()
+    fetchVelocityData()
   }, [])
 
   const fetchPartsData = async () => {
@@ -120,6 +123,30 @@ const PartsReport = ({ user, onNavigate }) => {
       setReorderAlertData(null)
     } finally {
       setReorderAlertLoading(false)
+    }
+  }
+
+  const fetchVelocityData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/parts/velocity'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setVelocityData(data)
+      } else {
+        console.error('Failed to fetch velocity data:', response.status)
+        setVelocityData(null)
+      }
+    } catch (error) {
+      console.error('Error fetching velocity data:', error)
+      setVelocityData(null)
+    } finally {
+      setVelocityLoading(false)
     }
   }
 
@@ -438,6 +465,170 @@ const PartsReport = ({ user, onNavigate }) => {
               <p className="mt-1">Safety Stock: {reorderAlertData.safetyStockDays} days • Lead Time: {reorderAlertData.leadTimeAssumption} days</p>
             </div>
           </CardContent>
+            </Card>
+          )}
+
+          {/* Parts Velocity Analysis */}
+          {velocityData && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Parts Velocity Analysis
+                </CardTitle>
+                <CardDescription>
+                  Inventory turnover and movement patterns • {velocityData.analysisInfo?.period}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Velocity Summary Cards */}
+                <div className="grid grid-cols-4 gap-4">
+                  {Object.entries(velocityData.summary || {}).map(([category, data]) => {
+                    const getCategoryColor = (cat) => {
+                      if (cat === 'Very Fast' || cat === 'Fast') return 'text-green-600'
+                      if (cat === 'Medium') return 'text-blue-600'
+                      if (cat === 'Slow' || cat === 'Very Slow') return 'text-yellow-600'
+                      if (cat === 'Dead Stock' || cat === 'No Movement') return 'text-red-600'
+                      return 'text-gray-600'
+                    }
+                    
+                    const getCategoryIcon = (cat) => {
+                      if (cat === 'Very Fast' || cat === 'Fast') return <Zap className="h-4 w-4" />
+                      if (cat === 'Dead Stock' || cat === 'No Movement') return <Turtle className="h-4 w-4" />
+                      return <Clock className="h-4 w-4" />
+                    }
+                    
+                    return (
+                      <div key={category} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`flex items-center gap-1 text-sm font-medium ${getCategoryColor(category)}`}>
+                            {getCategoryIcon(category)}
+                            {category}
+                          </span>
+                          <Badge variant="secondary">{data.partCount}</Badge>
+                        </div>
+                        <p className="text-lg font-bold">${(data.totalValue / 1000).toFixed(1)}k</p>
+                        <p className="text-xs text-muted-foreground">
+                          {data.avgTurnoverRate > 0 ? `${data.avgTurnoverRate.toFixed(1)}x/yr` : 'No turnover'}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Movement Trend Chart */}
+                {velocityData.movementTrend && velocityData.movementTrend.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Monthly Parts Movement Trend</h4>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={velocityData.movementTrend}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis yAxisId="left" orientation="left" />
+                        <YAxis yAxisId="right" orientation="right" />
+                        <RechartsTooltip />
+                        <Line 
+                          yAxisId="left"
+                          type="monotone" 
+                          dataKey="totalQuantity" 
+                          stroke="#10b981" 
+                          name="Total Quantity"
+                        />
+                        <Line 
+                          yAxisId="right"
+                          type="monotone" 
+                          dataKey="uniqueParts" 
+                          stroke="#3b82f6" 
+                          name="Unique Parts"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Parts List Table */}
+                {velocityData.parts && velocityData.parts.length > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold">Parts Inventory Analysis</h4>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-md">
+                            <div className="space-y-2">
+                              <p className="font-semibold">Velocity Categories:</p>
+                              {Object.entries(velocityData.analysisInfo?.velocityCategories || {}).map(([cat, desc]) => (
+                                <p key={cat} className="text-sm">
+                                  <span className="font-medium">{cat}:</span> {desc}
+                                </p>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Part Number</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead className="text-center">Velocity</TableHead>
+                          <TableHead className="text-center">Health</TableHead>
+                          <TableHead className="text-right">Stock</TableHead>
+                          <TableHead className="text-right">Value</TableHead>
+                          <TableHead className="text-right">Turnover</TableHead>
+                          <TableHead className="text-right">Last Move</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {velocityData.parts.slice(0, 20).map((part) => (
+                          <TableRow key={part.partNo}>
+                            <TableCell className="font-medium">{part.partNo}</TableCell>
+                            <TableCell>{part.description}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                variant={
+                                  part.velocityCategory === 'Very Fast' || part.velocityCategory === 'Fast' ? 'success' :
+                                  part.velocityCategory === 'Medium' ? 'default' :
+                                  part.velocityCategory === 'Dead Stock' || part.velocityCategory === 'No Movement' ? 'destructive' :
+                                  'secondary'
+                                }
+                              >
+                                {part.velocityCategory}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                variant={
+                                  part.stockHealth === 'Normal' ? 'outline' :
+                                  part.stockHealth === 'Stockout Risk' ? 'destructive' :
+                                  'secondary'
+                                }
+                                className={
+                                  part.stockHealth === 'Obsolete Risk' ? 'bg-orange-500' :
+                                  part.stockHealth === 'Overstock Risk' ? 'bg-yellow-500' : ''
+                                }
+                              >
+                                {part.stockHealth}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">{part.currentStock}</TableCell>
+                            <TableCell className="text-right">${part.inventoryValue.toFixed(0)}</TableCell>
+                            <TableCell className="text-right">
+                              {part.annualTurnoverRate > 0 ? `${part.annualTurnoverRate.toFixed(1)}x` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {part.daysSinceLastMovement !== null ? `${part.daysSinceLastMovement}d` : 'Never'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
             </Card>
           )}
 

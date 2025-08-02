@@ -282,6 +282,236 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/velocity', methods=['GET'])
+    @jwt_required()
+    def get_parts_velocity_analysis():
+        """Get parts velocity analysis - identifies fast vs slow moving inventory"""
+        try:
+            db = get_db()
+            
+            # Get time period from query params (default 365 days)
+            days_back = int(request.args.get('days', 365))
+            
+            # Parts velocity analysis query
+            velocity_query = f"""
+            WITH PartMovement AS (
+                -- Calculate part movement over the period
+                SELECT 
+                    p.PartNo,
+                    p.Description,
+                    p.OnHand as CurrentStock,
+                    p.Cost,
+                    p.List as ListPrice,
+                    p.OnHand * p.Cost as InventoryValue,
+                    -- Count of times ordered
+                    COALESCE(wp.OrderCount, 0) as OrderCount,
+                    -- Total quantity sold/used
+                    COALESCE(wp.TotalQtyMoved, 0) as TotalQtyMoved,
+                    -- Days since last movement
+                    DATEDIFF(day, wp.LastMovementDate, GETDATE()) as DaysSinceLastMovement,
+                    -- Average days between orders
+                    wp.AvgDaysBetweenOrders,
+                    -- Calculate annual turnover rate
+                    CASE 
+                        WHEN p.OnHand > 0 AND wp.TotalQtyMoved > 0
+                        THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / p.OnHand
+                        ELSE 0
+                    END as AnnualTurnoverRate
+                FROM ben002.Parts p
+                LEFT JOIN (
+                    SELECT 
+                        wp.PartNo,
+                        COUNT(DISTINCT wp.WONo) as OrderCount,
+                        SUM(wp.Qty) as TotalQtyMoved,
+                        MAX(w.OpenDate) as LastMovementDate,
+                        -- Calculate average days between orders
+                        CASE 
+                            WHEN COUNT(DISTINCT w.OpenDate) > 1
+                            THEN DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) / (COUNT(DISTINCT w.OpenDate) - 1)
+                            ELSE NULL
+                        END as AvgDaysBetweenOrders
+                    FROM ben002.WOParts wp
+                    INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                    WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
+                    GROUP BY wp.PartNo
+                ) wp ON p.PartNo = wp.PartNo
+                WHERE p.OnHand > 0 OR wp.OrderCount > 0  -- Parts with stock or movement
+            )
+            SELECT 
+                PartNo,
+                Description,
+                CurrentStock,
+                Cost,
+                ListPrice,
+                InventoryValue,
+                OrderCount,
+                TotalQtyMoved,
+                DaysSinceLastMovement,
+                AvgDaysBetweenOrders,
+                AnnualTurnoverRate,
+                -- Velocity classification
+                CASE 
+                    WHEN DaysSinceLastMovement IS NULL THEN 'No Movement'
+                    WHEN DaysSinceLastMovement > 365 THEN 'Dead Stock'
+                    WHEN DaysSinceLastMovement > 180 THEN 'Slow Moving'
+                    WHEN AnnualTurnoverRate >= 12 THEN 'Very Fast'
+                    WHEN AnnualTurnoverRate >= 6 THEN 'Fast'
+                    WHEN AnnualTurnoverRate >= 2 THEN 'Medium'
+                    WHEN AnnualTurnoverRate >= 0.5 THEN 'Slow'
+                    ELSE 'Very Slow'
+                END as VelocityCategory,
+                -- Stock health indicator
+                CASE
+                    WHEN CurrentStock = 0 AND OrderCount > 0 THEN 'Stockout Risk'
+                    WHEN DaysSinceLastMovement > 365 AND CurrentStock > 0 THEN 'Obsolete Risk'
+                    WHEN AnnualTurnoverRate < 0.5 AND InventoryValue > 1000 THEN 'Overstock Risk'
+                    WHEN AnnualTurnoverRate > 12 AND CurrentStock < 10 THEN 'Understock Risk'
+                    ELSE 'Normal'
+                END as StockHealth
+            FROM PartMovement
+            ORDER BY InventoryValue DESC
+            """
+            
+            velocity_results = db.execute_query(velocity_query)
+            
+            # Summary statistics by category
+            summary_query = f"""
+            WITH PartMovement AS (
+                SELECT 
+                    p.PartNo,
+                    p.OnHand * p.Cost as InventoryValue,
+                    COALESCE(wp.TotalQtyMoved, 0) as TotalQtyMoved,
+                    DATEDIFF(day, wp.LastMovementDate, GETDATE()) as DaysSinceLastMovement,
+                    CASE 
+                        WHEN p.OnHand > 0 AND wp.TotalQtyMoved > 0
+                        THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / p.OnHand
+                        ELSE 0
+                    END as AnnualTurnoverRate
+                FROM ben002.Parts p
+                LEFT JOIN (
+                    SELECT 
+                        wp.PartNo,
+                        SUM(wp.Qty) as TotalQtyMoved,
+                        MAX(w.OpenDate) as LastMovementDate
+                    FROM ben002.WOParts wp
+                    INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                    WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
+                    GROUP BY wp.PartNo
+                ) wp ON p.PartNo = wp.PartNo
+                WHERE p.OnHand > 0 OR wp.TotalQtyMoved > 0
+            )
+            SELECT 
+                CASE 
+                    WHEN DaysSinceLastMovement IS NULL THEN 'No Movement'
+                    WHEN DaysSinceLastMovement > 365 THEN 'Dead Stock'
+                    WHEN DaysSinceLastMovement > 180 THEN 'Slow Moving'
+                    WHEN AnnualTurnoverRate >= 12 THEN 'Very Fast'
+                    WHEN AnnualTurnoverRate >= 6 THEN 'Fast'
+                    WHEN AnnualTurnoverRate >= 2 THEN 'Medium'
+                    WHEN AnnualTurnoverRate >= 0.5 THEN 'Slow'
+                    ELSE 'Very Slow'
+                END as VelocityCategory,
+                COUNT(*) as PartCount,
+                SUM(InventoryValue) as TotalValue,
+                AVG(AnnualTurnoverRate) as AvgTurnoverRate
+            FROM PartMovement
+            GROUP BY 
+                CASE 
+                    WHEN DaysSinceLastMovement IS NULL THEN 'No Movement'
+                    WHEN DaysSinceLastMovement > 365 THEN 'Dead Stock'
+                    WHEN DaysSinceLastMovement > 180 THEN 'Slow Moving'
+                    WHEN AnnualTurnoverRate >= 12 THEN 'Very Fast'
+                    WHEN AnnualTurnoverRate >= 6 THEN 'Fast'
+                    WHEN AnnualTurnoverRate >= 2 THEN 'Medium'
+                    WHEN AnnualTurnoverRate >= 0.5 THEN 'Slow'
+                    ELSE 'Very Slow'
+                END
+            """
+            
+            summary_results = db.execute_query(summary_query)
+            
+            # Monthly movement trend
+            trend_query = f"""
+            SELECT 
+                YEAR(w.OpenDate) as Year,
+                MONTH(w.OpenDate) as Month,
+                COUNT(DISTINCT wp.PartNo) as UniqueParts,
+                COUNT(DISTINCT wp.WONo) as OrderCount,
+                SUM(wp.Qty) as TotalQuantity,
+                SUM(wp.Qty * wp.Cost) as TotalValue
+            FROM ben002.WOParts wp
+            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
+            GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate)
+            ORDER BY Year, Month
+            """
+            
+            trend_results = db.execute_query(trend_query)
+            
+            # Format results
+            parts_list = []
+            for part in velocity_results:
+                parts_list.append({
+                    'partNo': part.get('PartNo', ''),
+                    'description': part.get('Description', ''),
+                    'currentStock': part.get('CurrentStock', 0),
+                    'cost': float(part.get('Cost', 0)),
+                    'listPrice': float(part.get('ListPrice', 0)),
+                    'inventoryValue': float(part.get('InventoryValue', 0)),
+                    'orderCount': part.get('OrderCount', 0),
+                    'totalQtyMoved': part.get('TotalQtyMoved', 0),
+                    'daysSinceLastMovement': part.get('DaysSinceLastMovement'),
+                    'avgDaysBetweenOrders': part.get('AvgDaysBetweenOrders'),
+                    'annualTurnoverRate': float(part.get('AnnualTurnoverRate', 0)),
+                    'velocityCategory': part.get('VelocityCategory', 'Unknown'),
+                    'stockHealth': part.get('StockHealth', 'Unknown')
+                })
+            
+            summary = {}
+            for cat in summary_results:
+                summary[cat['VelocityCategory']] = {
+                    'partCount': cat.get('PartCount', 0),
+                    'totalValue': float(cat.get('TotalValue', 0)),
+                    'avgTurnoverRate': float(cat.get('AvgTurnoverRate', 0))
+                }
+            
+            movement_trend = []
+            for row in trend_results:
+                month_date = datetime(row['Year'], row['Month'], 1)
+                movement_trend.append({
+                    'month': month_date.strftime("%b %Y"),
+                    'uniqueParts': row.get('UniqueParts', 0),
+                    'orderCount': row.get('OrderCount', 0),
+                    'totalQuantity': row.get('TotalQuantity', 0),
+                    'totalValue': float(row.get('TotalValue', 0))
+                })
+            
+            return jsonify({
+                'parts': parts_list[:100],  # Limit to top 100 by value
+                'summary': summary,
+                'movementTrend': movement_trend,
+                'analysisInfo': {
+                    'period': f'Last {days_back} days',
+                    'velocityCategories': {
+                        'Very Fast': 'Turnover > 12x/year',
+                        'Fast': 'Turnover 6-12x/year',
+                        'Medium': 'Turnover 2-6x/year',
+                        'Slow': 'Turnover 0.5-2x/year',
+                        'Very Slow': 'Turnover < 0.5x/year',
+                        'Slow Moving': 'No movement 180-365 days',
+                        'Dead Stock': 'No movement > 365 days',
+                        'No Movement': 'Never ordered'
+                    }
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'velocity_analysis_error'
+            }), 500
+
+
     @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
     @jwt_required()
     def get_parts_fill_rate():
