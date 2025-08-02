@@ -187,6 +187,66 @@ const PartsReport = ({ user, onNavigate }) => {
     }
   }
 
+  const downloadForecast = () => {
+    if (!forecastData || !forecastData.forecasts) return
+
+    // Prepare CSV content
+    const headers = [
+      'Part Number',
+      'Description',
+      'Demand Trend',
+      'Current Stock',
+      'On Order',
+      'Avg Monthly Demand',
+      'Forecast Demand (90 days)',
+      'Safety Stock',
+      'Order Recommendation',
+      'Unit Cost',
+      'Forecast Value',
+      'Equipment Count'
+    ]
+
+    const rows = forecastData.forecasts.map(part => [
+      part.partNo,
+      part.description,
+      part.demandTrend,
+      Math.round(part.currentStock),
+      Math.round(part.onOrder),
+      part.avgMonthlyDemand.toFixed(1),
+      part.forecastDemand,
+      part.safetyStock,
+      part.orderRecommendation,
+      part.unitCost.toFixed(2),
+      part.forecastValue.toFixed(2),
+      part.equipmentCount
+    ])
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map(cell => 
+          typeof cell === 'string' && cell.includes(',') 
+            ? `"${cell}"` 
+            : cell
+        ).join(',')
+      )
+    ].join('\n')
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    link.setAttribute('href', url)
+    link.setAttribute('download', `parts_demand_forecast_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   const downloadReorderAlerts = () => {
     if (!reorderAlertData || !reorderAlertData.alerts) return
 
@@ -866,6 +926,16 @@ const PartsReport = ({ user, onNavigate }) => {
                   <CardTitle className="flex items-center justify-between">
                     <span>Parts Demand Forecast</span>
                     <div className="flex items-center gap-2 text-sm font-normal">
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={downloadForecast}
+                        className="bg-green-600 hover:bg-green-700"
+                        title="Download to Excel"
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Excel
+                      </Button>
                       <Badge variant="outline">Lead Time: {forecastData.leadTimeAssumption} days</Badge>
                       <Badge variant="outline">Forecast: {forecastData.forecastDays} days</Badge>
                     </div>
