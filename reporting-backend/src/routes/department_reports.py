@@ -1726,4 +1726,136 @@ def register_department_routes(reports_bp):
                 'type': 'accounting_report_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/expense-debug', methods=['GET'])
+    @jwt_required()
+    def get_expense_debug():
+        """Debug endpoint to analyze expense calculations"""
+        try:
+            db = get_db()
+            
+            # Get detailed breakdown for a specific month
+            month = request.args.get('month', '2025-07')  # Default to July 2025
+            
+            # Get expense breakdown by category
+            breakdown_query = f"""
+            SELECT 
+                COUNT(*) as invoice_count,
+                SUM(COALESCE(PartsCost, 0)) as parts_cost,
+                SUM(COALESCE(LaborCost, 0)) as labor_cost,
+                SUM(COALESCE(EquipmentCost, 0)) as equipment_cost,
+                SUM(COALESCE(RentalCost, 0)) as rental_cost,
+                SUM(COALESCE(MiscCost, 0)) as misc_cost,
+                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + 
+                    COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
+                    COALESCE(MiscCost, 0)) as total_cost,
+                -- Also check revenue fields for comparison
+                SUM(GrandTotal) as total_revenue,
+                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
+                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue
+            FROM ben002.InvoiceReg
+            WHERE FORMAT(InvoiceDate, 'yyyy-MM') = '{month}'
+            """
+            
+            result = db.execute_query(breakdown_query)
+            
+            if result:
+                breakdown = result[0]
+                
+                # Get sample invoices with high costs
+                sample_query = f"""
+                SELECT TOP 10
+                    InvoiceNo,
+                    InvoiceDate,
+                    BillToName,
+                    Department,
+                    SaleCode,
+                    PartsCost,
+                    LaborCost,
+                    EquipmentCost,
+                    RentalCost,
+                    MiscCost,
+                    (COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + 
+                     COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
+                     COALESCE(MiscCost, 0)) as total_cost,
+                    GrandTotal as revenue
+                FROM ben002.InvoiceReg
+                WHERE FORMAT(InvoiceDate, 'yyyy-MM') = '{month}'
+                ORDER BY (COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + 
+                         COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
+                         COALESCE(MiscCost, 0)) DESC
+                """
+                
+                samples = db.execute_query(sample_query)
+                
+                # Get monthly trend with breakdown
+                trend_query = """
+                SELECT 
+                    FORMAT(InvoiceDate, 'yyyy-MM') as month,
+                    COUNT(*) as invoices,
+                    SUM(COALESCE(PartsCost, 0)) as parts,
+                    SUM(COALESCE(LaborCost, 0)) as labor,
+                    SUM(COALESCE(EquipmentCost, 0)) as equipment,
+                    SUM(COALESCE(RentalCost, 0)) as rental,
+                    SUM(COALESCE(MiscCost, 0)) as misc,
+                    SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + 
+                        COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
+                        COALESCE(MiscCost, 0)) as total
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= '2025-03-01'
+                GROUP BY FORMAT(InvoiceDate, 'yyyy-MM')
+                ORDER BY FORMAT(InvoiceDate, 'yyyy-MM')
+                """
+                
+                trend = db.execute_query(trend_query)
+                
+                return jsonify({
+                    'month': month,
+                    'summary': {
+                        'invoice_count': int(breakdown['invoice_count']),
+                        'parts_cost': float(breakdown['parts_cost'] or 0),
+                        'labor_cost': float(breakdown['labor_cost'] or 0),
+                        'equipment_cost': float(breakdown['equipment_cost'] or 0),
+                        'rental_cost': float(breakdown['rental_cost'] or 0),
+                        'misc_cost': float(breakdown['misc_cost'] or 0),
+                        'total_cost': float(breakdown['total_cost'] or 0),
+                        'total_revenue': float(breakdown['total_revenue'] or 0),
+                        'parts_revenue': float(breakdown['parts_revenue'] or 0),
+                        'labor_revenue': float(breakdown['labor_revenue'] or 0)
+                    },
+                    'sample_invoices': [{
+                        'invoice_no': row['InvoiceNo'],
+                        'date': row['InvoiceDate'].strftime('%Y-%m-%d') if row['InvoiceDate'] else None,
+                        'customer': row['BillToName'],
+                        'department': row['Department'],
+                        'sale_code': row['SaleCode'],
+                        'parts_cost': float(row['PartsCost'] or 0),
+                        'labor_cost': float(row['LaborCost'] or 0),
+                        'equipment_cost': float(row['EquipmentCost'] or 0),
+                        'rental_cost': float(row['RentalCost'] or 0),
+                        'misc_cost': float(row['MiscCost'] or 0),
+                        'total_cost': float(row['total_cost'] or 0),
+                        'revenue': float(row['revenue'] or 0)
+                    } for row in samples],
+                    'monthly_trend': [{
+                        'month': row['month'],
+                        'invoices': int(row['invoices']),
+                        'parts': float(row['parts'] or 0),
+                        'labor': float(row['labor'] or 0),
+                        'equipment': float(row['equipment'] or 0),
+                        'rental': float(row['rental'] or 0),
+                        'misc': float(row['misc'] or 0),
+                        'total': float(row['total'] or 0)
+                    } for row in trend]
+                })
+            
+            return jsonify({
+                'error': 'No data found for the specified month'
+            }), 404
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'expense_debug_error'
+            }), 500
+
 

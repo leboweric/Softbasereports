@@ -38,11 +38,13 @@ import {
   Calculator
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+import ExpenseDebugModal from './ExpenseDebugModal'
 
 const AccountingReport = ({ user }) => {
   const [accountingData, setAccountingData] = useState(null)
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [loading, setLoading] = useState(true)
+  const [debugModalOpen, setDebugModalOpen] = useState(false)
 
   useEffect(() => {
     fetchAccountingData()
@@ -309,8 +311,19 @@ const AccountingReport = ({ user }) => {
       {/* Total Expenses Over Time */}
       <Card>
         <CardHeader>
-          <CardTitle>Total Expenses Over Time</CardTitle>
-          <CardDescription>Monthly expense trends to track cost changes</CardDescription>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Total Expenses Over Time</CardTitle>
+              <CardDescription>Monthly expense trends to track cost changes</CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setDebugModalOpen(true)}
+            >
+              View Details
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -472,6 +485,13 @@ const AccountingReport = ({ user }) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Debug Modal */}
+      <ExpenseDebugModal 
+        isOpen={debugModalOpen} 
+        onClose={() => setDebugModalOpen(false)}
+        month="2025-07"
+      />
     </div>
   )
 }
