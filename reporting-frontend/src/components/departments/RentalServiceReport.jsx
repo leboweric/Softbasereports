@@ -163,7 +163,9 @@ const RentalServiceReport = () => {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary?.totalCost || 0)}</div>
+            <div className={`text-2xl font-bold ${(summary?.totalCost || 0) > 0 ? 'text-red-600' : ''}`}>
+              {formatCurrency(summary?.totalCost || 0)}
+            </div>
             <p className="text-xs text-muted-foreground">
               Avg: {formatCurrency(summary?.averageCostPerWO || 0)}/WO
             </p>
@@ -224,13 +226,15 @@ const RentalServiceReport = () => {
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
                     <TableCell>{wo.openDate || 'N/A'}</TableCell>
-                    <TableCell className="text-right font-medium">{formatCurrency(wo.totalCost)}</TableCell>
+                    <TableCell className={`text-right font-medium ${wo.totalCost > 0 ? 'text-red-600' : ''}`}>
+                      {formatCurrency(wo.totalCost)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
                 <TableCell colSpan={7}>Total</TableCell>
-                <TableCell className="text-right">
+                <TableCell className={`text-right ${(summary?.totalCost || 0) > 0 ? 'text-red-600' : ''}`}>
                   {formatCurrency(summary?.totalCost || 0)}
                 </TableCell>
               </TableRow>
