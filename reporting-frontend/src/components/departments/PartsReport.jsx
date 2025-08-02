@@ -417,10 +417,10 @@ const PartsReport = ({ user, onNavigate }) => {
                         <TableCell className="font-medium">#{index + 1}</TableCell>
                         <TableCell className="font-medium">{part.partNo}</TableCell>
                         <TableCell>{part.description}</TableCell>
-                        <TableCell className="text-right font-medium text-lg">{part.totalQuantity.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-medium text-lg">{Math.round(part.totalQuantity).toLocaleString()}</TableCell>
                         <TableCell className="text-center">{part.orderCount}</TableCell>
                         <TableCell className="text-right">
-                          ${part.totalRevenue.toLocaleString()}
+                          ${part.totalRevenue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge 
