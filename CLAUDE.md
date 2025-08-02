@@ -202,9 +202,16 @@ Always verify table contents before assuming based on table names. What seems li
 
 ### Monthly Quotes (2025-08-02)
 
-**Note:** The WOQuote table structure is not fully documented. Initial attempt to handle duplicate quotes by Customer failed because the WOQuote table doesn't have a Customer column.
+**WOQuote Table Structure Discovery:**
+The WOQuote table contains individual quote line items, not complete quotes. Key findings:
+- Each row is a line item (QuoteLine field) 
+- Multiple line items per work order (WONo)
+- Type field indicates line type: L=Labor, P=Parts, etc.
+- No Customer field - quotes are linked via work order number
+- Amount field contains the dollar value for each line item
 
-**Current Implementation:** Simple sum of all quotes by month:
+**Current Implementation:** 
+Sum all quote line items by month to get total quoted value:
 ```sql
 SELECT 
     YEAR(CreationTime) as year,
@@ -216,4 +223,4 @@ AND Amount > 0
 GROUP BY YEAR(CreationTime), MONTH(CreationTime)
 ```
 
-**TODO:** Once we understand the WOQuote table structure better (via Database Explorer export), we can implement proper duplicate handling if needed.
+**Note:** The "duplicate" quotes seen in the data are actually multiple line items for the same work order (e.g., separate lines for labor, parts, delivery), which is expected behavior. The current implementation correctly sums all line items to show total monthly quote values.

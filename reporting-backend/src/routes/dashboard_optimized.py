@@ -266,9 +266,10 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_quotes(self):
-        """Get monthly quotes since March"""
+        """Get monthly quotes since March - properly handling quote line items"""
         try:
-            # Simple query without assuming Customer column exists
+            # WOQuote contains line items, not complete quotes
+            # Sum all line items to get total quoted value per month
             query = """
             SELECT 
                 YEAR(CreationTime) as year,
