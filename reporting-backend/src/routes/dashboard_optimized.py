@@ -266,27 +266,43 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_quotes(self):
-        """Get monthly quotes since March - one quote total per work order"""
+        """Get monthly quotes since March - latest quote per work order"""
         try:
-            # First sum all line items per WO per month, then sum by month
-            # This ensures each WO is only counted once per month
+            # Use only the latest quote per WO per month
             query = """
-            WITH WOQuoteTotals AS (
+            WITH LatestQuotes AS (
+                -- First, get the latest quote date for each WO per month
                 SELECT 
                     YEAR(CreationTime) as year,
                     MONTH(CreationTime) as month,
                     WONo,
-                    SUM(Amount) as wo_total
+                    MAX(CAST(CreationTime AS DATE)) as latest_quote_date
                 FROM ben002.WOQuote
                 WHERE CreationTime >= '2025-03-01'
                 AND Amount > 0
                 GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
+            ),
+            QuoteTotals AS (
+                -- Then sum all line items for each WO on its latest quote date
+                SELECT 
+                    lq.year,
+                    lq.month,
+                    lq.WONo,
+                    SUM(wq.Amount) as wo_total
+                FROM LatestQuotes lq
+                INNER JOIN ben002.WOQuote wq
+                    ON lq.WONo = wq.WONo
+                    AND lq.year = YEAR(wq.CreationTime)
+                    AND lq.month = MONTH(wq.CreationTime)
+                    AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
+                WHERE wq.Amount > 0
+                GROUP BY lq.year, lq.month, lq.WONo
             )
             SELECT 
                 year,
                 month,
                 SUM(wo_total) as amount
-            FROM WOQuoteTotals
+            FROM QuoteTotals
             GROUP BY year, month
             ORDER BY year, month
             """

@@ -211,29 +211,43 @@ The WOQuote table contains individual quote line items, not complete quotes. Key
 - Amount field contains the dollar value for each line item
 
 **Current Implementation:** 
-Sum quote totals by work order to ensure each WO is counted only once per month:
+Uses only the latest quote per work order per month:
 ```sql
-WITH WOQuoteTotals AS (
+WITH LatestQuotes AS (
+    -- Get the latest quote date for each WO per month
     SELECT 
         YEAR(CreationTime) as year,
         MONTH(CreationTime) as month,
         WONo,
-        SUM(Amount) as wo_total
+        MAX(CAST(CreationTime AS DATE)) as latest_quote_date
     FROM ben002.WOQuote
     WHERE CreationTime >= '2025-03-01'
     AND Amount > 0
     GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
+),
+QuoteTotals AS (
+    -- Sum all line items for each WO on its latest quote date
+    SELECT 
+        lq.year,
+        lq.month,
+        lq.WONo,
+        SUM(wq.Amount) as wo_total
+    FROM LatestQuotes lq
+    INNER JOIN ben002.WOQuote wq
+        ON lq.WONo = wq.WONo
+        AND lq.year = YEAR(wq.CreationTime)
+        AND lq.month = MONTH(wq.CreationTime)
+        AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
+    WHERE wq.Amount > 0
+    GROUP BY lq.year, lq.month, lq.WONo
 )
-SELECT 
-    year,
-    month,
-    SUM(wo_total) as amount
-FROM WOQuoteTotals
+SELECT year, month, SUM(wo_total) as amount
+FROM QuoteTotals
 GROUP BY year, month
 ```
 
 **Benefits of this approach:**
-- Each work order is counted only once per month
-- If a WO is re-quoted within the same month, all line items are summed together
-- Prevents potential double-counting if quotes are revised
-- Shows true total value quoted per month by unique work order
+- Each work order uses only its most recent quote within each month
+- Multiple quote revisions are handled properly (only latest counts)
+- Reflects the actual quote values customers are seeing
+- More accurate representation of expected revenue
