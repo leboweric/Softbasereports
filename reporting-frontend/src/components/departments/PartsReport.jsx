@@ -171,7 +171,8 @@ const PartsReport = ({ user, onNavigate }) => {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="stock-alerts">Stock Alerts</TabsTrigger>
+          <TabsTrigger value="velocity">Velocity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -199,7 +200,7 @@ const PartsReport = ({ user, onNavigate }) => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="inventory" className="space-y-6">
+        <TabsContent value="stock-alerts" className="space-y-6">
           {/* Parts Fill Rate Card */}
           {fillRateData && (
             <Card>
@@ -467,7 +468,9 @@ const PartsReport = ({ user, onNavigate }) => {
           </CardContent>
             </Card>
           )}
+        </TabsContent>
 
+        <TabsContent value="velocity" className="space-y-6">
           {/* Parts Velocity Analysis */}
           {velocityData && (
             <Card>
@@ -631,7 +634,6 @@ const PartsReport = ({ user, onNavigate }) => {
               </CardContent>
             </Card>
           )}
-
         </TabsContent>
       </Tabs>
     </div>
