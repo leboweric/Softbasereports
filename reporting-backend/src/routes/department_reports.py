@@ -184,6 +184,39 @@ def register_department_routes(reports_bp):
                     debug_info['parts_tables'] = []
             except:
                 debug_info['parts_tables'] = []
+                
+            # Check Parts table (main inventory table)
+            try:
+                parts_count_query = "SELECT COUNT(*) as row_count FROM ben002.Parts"
+                parts_count_result = db.execute_query(parts_count_query)
+                parts_row_count = parts_count_result[0]['row_count'] if parts_count_result else 0
+                
+                if parts_row_count > 0:
+                    parts_query = "SELECT TOP 1 * FROM ben002.Parts"
+                    parts_result = db.execute_query(parts_query)
+                    
+                    if parts_result and len(parts_result) > 0:
+                        columns = list(parts_result[0].keys())
+                        inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower() or 'avail' in col.lower()]
+                        
+                        debug_info['parts'] = {
+                            'table_exists': True,
+                            'row_count': parts_row_count,
+                            'total_columns': len(columns),
+                            'inventory_columns': inventory_columns,
+                            'sample_columns': columns[:15]  # Show more columns
+                        }
+                else:
+                    debug_info['parts'] = {
+                        'table_exists': True,
+                        'row_count': 0,
+                        'error': 'Table is empty'
+                    }
+            except Exception as e:
+                debug_info['parts'] = {
+                    'table_exists': False,
+                    'error': str(e)
+                }
             
             return jsonify({
                 'monthlyPartsRevenue': monthlyPartsRevenue,

@@ -155,6 +155,53 @@ const PartsReport = ({ user, onNavigate }) => {
               </Table>
             </div>
 
+            {/* Parts Table Info */}
+            {partsData.debug.parts && (
+              <div>
+                <h4 className="font-semibold mb-2">Parts Table (Main Inventory):</h4>
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">Exists:</TableCell>
+                      <TableCell>
+                        <Badge variant={partsData.debug.parts.table_exists ? "success" : "destructive"}>
+                          {partsData.debug.parts.table_exists ? "Yes" : "No"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="font-medium">Row Count:</TableCell>
+                      <TableCell>{partsData.debug.parts.row_count || "0"}</TableCell>
+                    </TableRow>
+                    {partsData.debug.parts.inventory_columns && (
+                      <TableRow>
+                        <TableCell className="font-medium">Inventory Columns:</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            {partsData.debug.parts.inventory_columns.map((col) => (
+                              <Badge key={col} variant="success">{col}</Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {partsData.debug.parts.sample_columns && (
+                      <TableRow>
+                        <TableCell className="font-medium">Sample Columns:</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            {partsData.debug.parts.sample_columns.map((col) => (
+                              <Badge key={col} variant="secondary">{col}</Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
             {/* Other Parts Tables */}
             {partsData.debug.parts_tables && (
               <div>
