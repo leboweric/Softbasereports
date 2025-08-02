@@ -569,7 +569,7 @@ const PartsReport = ({ user, onNavigate }) => {
                 {velocityData.parts && velocityData.parts.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold">Parts Inventory Analysis</h4>
+                      <h4 className="font-semibold">High Value Inventory Analysis</h4>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
