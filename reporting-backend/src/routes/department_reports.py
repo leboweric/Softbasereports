@@ -119,6 +119,65 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/top10', methods=['GET'])
+    @jwt_required()
+    def get_parts_top10():
+        """Get top 10 parts by revenue in last 30 days"""
+        try:
+            db = get_db()
+            
+            top_parts_query = """
+            SELECT TOP 10
+                wp.PartNo,
+                MAX(wp.Description) as Description,
+                COUNT(DISTINCT wp.WONo) as OrderCount,
+                SUM(wp.Qty) as TotalQuantity,
+                SUM(wp.Sell) as TotalRevenue,
+                AVG(wp.Sell / NULLIF(wp.Qty, 0)) as AvgUnitPrice,
+                MAX(p.OnHand) as CurrentStock,
+                MAX(p.Cost) as UnitCost,
+                CASE 
+                    WHEN MAX(p.OnHand) = 0 THEN 'Out of Stock'
+                    WHEN MAX(p.OnHand) < 10 THEN 'Low Stock'
+                    ELSE 'In Stock'
+                END as StockStatus
+            FROM ben002.WOParts wp
+            LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            WHERE w.OpenDate >= DATEADD(day, -30, GETDATE())
+            AND wp.Sell > 0
+            GROUP BY wp.PartNo
+            ORDER BY SUM(wp.Sell) DESC
+            """
+            
+            results = db.execute_query(top_parts_query)
+            
+            top_parts = []
+            for part in results:
+                top_parts.append({
+                    'partNo': part.get('PartNo', ''),
+                    'description': part.get('Description', ''),
+                    'orderCount': part.get('OrderCount', 0),
+                    'totalQuantity': part.get('TotalQuantity', 0),
+                    'totalRevenue': float(part.get('TotalRevenue', 0)),
+                    'avgUnitPrice': float(part.get('AvgUnitPrice', 0)),
+                    'currentStock': part.get('CurrentStock', 0),
+                    'unitCost': float(part.get('UnitCost', 0)),
+                    'stockStatus': part.get('StockStatus', '')
+                })
+            
+            return jsonify({
+                'topParts': top_parts,
+                'period': 'Last 30 days'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'top_parts_error'
+            }), 500
+
+
     @reports_bp.route('/departments/parts/reorder-alert', methods=['GET'])
     @jwt_required()
     def get_parts_reorder_alert():

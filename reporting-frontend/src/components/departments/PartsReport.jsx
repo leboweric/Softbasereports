@@ -50,6 +50,8 @@ const PartsReport = ({ user, onNavigate }) => {
   const [velocityLoading, setVelocityLoading] = useState(true)
   const [forecastData, setForecastData] = useState(null)
   const [forecastLoading, setForecastLoading] = useState(true)
+  const [top10Data, setTop10Data] = useState(null)
+  const [top10Loading, setTop10Loading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
 
@@ -59,6 +61,7 @@ const PartsReport = ({ user, onNavigate }) => {
     fetchReorderAlertData()
     fetchVelocityData()
     fetchForecastData()
+    fetchTop10Data()
   }, [])
 
   const fetchPartsData = async () => {
@@ -184,6 +187,30 @@ const PartsReport = ({ user, onNavigate }) => {
       setForecastData(null)
     } finally {
       setForecastLoading(false)
+    }
+  }
+
+  const fetchTop10Data = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/parts/top10'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setTop10Data(data)
+      } else {
+        console.error('Failed to fetch top 10 parts data:', response.status)
+        setTop10Data(null)
+      }
+    } catch (error) {
+      console.error('Error fetching top 10 parts data:', error)
+      setTop10Data(null)
+    } finally {
+      setTop10Loading(false)
     }
   }
 
@@ -354,6 +381,69 @@ const PartsReport = ({ user, onNavigate }) => {
                   <Bar dataKey="amount" fill="#10b981" />
                 </BarChart>
               </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Top 10 Parts */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Top 10 Parts by Revenue
+              </CardTitle>
+              <CardDescription>
+                {top10Data?.period || 'Last 30 days'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {top10Loading ? (
+                <LoadingSpinner />
+              ) : top10Data && top10Data.topParts && top10Data.topParts.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]">Rank</TableHead>
+                      <TableHead>Part Number</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-center">Orders</TableHead>
+                      <TableHead className="text-right">Qty Sold</TableHead>
+                      <TableHead className="text-right">Revenue</TableHead>
+                      <TableHead className="text-center">Stock Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {top10Data.topParts.map((part, index) => (
+                      <TableRow key={part.partNo}>
+                        <TableCell className="font-medium">#{index + 1}</TableCell>
+                        <TableCell className="font-medium">{part.partNo}</TableCell>
+                        <TableCell>{part.description}</TableCell>
+                        <TableCell className="text-center">{part.orderCount}</TableCell>
+                        <TableCell className="text-right">{part.totalQuantity}</TableCell>
+                        <TableCell className="text-right font-medium">
+                          ${part.totalRevenue.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge 
+                            variant={
+                              part.stockStatus === 'Out of Stock' ? 'destructive' :
+                              part.stockStatus === 'Low Stock' ? 'secondary' : 'outline'
+                            }
+                            className={
+                              part.stockStatus === 'Low Stock' ? 'bg-yellow-500 hover:bg-yellow-600' : ''
+                            }
+                          >
+                            {part.stockStatus}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No parts data available for this period
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
