@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
-from datetime import datetime, timedelta
+from datetime import datetime
 
 dashboard_pace_bp = Blueprint('dashboard_pace', __name__)
 
