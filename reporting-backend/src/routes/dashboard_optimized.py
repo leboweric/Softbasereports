@@ -76,16 +76,28 @@ class DashboardQueries:
     def get_total_customers(self):
         """Get total number of customers in the system"""
         try:
+            # First try without WHERE clause to see if we get any customers
             query = """
             SELECT COUNT(*) as total_customers
             FROM ben002.Customer
-            WHERE Active = 1
             """
             result = self.db.execute_query(query)
             return int(result[0]['total_customers']) if result else 0
         except Exception as e:
             logger.error(f"Total customers query failed: {str(e)}")
-            return 0
+            # If Customer table doesn't exist, try counting unique customers from invoices
+            try:
+                query = """
+                SELECT COUNT(DISTINCT BillToName) as total_customers
+                FROM ben002.InvoiceReg
+                WHERE BillToName IS NOT NULL
+                AND BillToName != ''
+                """
+                result = self.db.execute_query(query)
+                return int(result[0]['total_customers']) if result else 0
+            except Exception as e2:
+                logger.error(f"Fallback total customers query failed: {str(e2)}")
+                return 0
     
     def get_monthly_sales(self):
         """Get monthly sales since March 2025"""
