@@ -287,11 +287,19 @@ const AccountingReport = ({ user }) => {
                 <CardDescription>General & Administrative expenses (Payroll, Professional Services, etc.)</CardDescription>
               </div>
               {monthlyExpenses && monthlyExpenses.length > 1 && (() => {
-                const completeMonths = monthlyExpenses.slice(0, -1)
+                // Calculate average of all months first
+                const allMonths = monthlyExpenses.slice(0, -1)
+                const totalAverage = allMonths.reduce((sum, item) => sum + item.expenses, 0) / allMonths.length
+                
+                // Filter out months that are likely incomplete (less than 50% of average)
+                const completeMonths = allMonths.filter(month => month.expenses > totalAverage * 0.5)
+                
+                if (completeMonths.length === 0) return null
+                
                 const average = completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length
                 return (
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Average</p>
+                    <p className="text-sm text-muted-foreground">Average (Complete Months)</p>
                     <p className="text-lg font-semibold">${(average / 1000).toFixed(0)}k</p>
                   </div>
                 )
