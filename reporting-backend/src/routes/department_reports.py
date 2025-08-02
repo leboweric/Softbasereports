@@ -713,6 +713,12 @@ def register_department_routes(reports_bp):
                     'totalForecastValue': total_forecast_value,
                     'forecastPeriod': forecast_days
                 },
+                'forecastDays': forecast_days,
+                'leadTimeAssumption': 14,
+                'analysisInfo': {
+                    'description': 'Based on 12 months historical usage patterns with trend analysis',
+                    'period': 'Last 12 months'
+                },
                 'forecastInfo': {
                     'method': 'Historical average with trend adjustment',
                     'confidence': 'Based on 12 months historical data',

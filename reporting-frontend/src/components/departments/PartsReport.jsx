@@ -895,9 +895,9 @@ const PartsReport = ({ user, onNavigate }) => {
                             <TableCell className="font-medium">{part.partNo}</TableCell>
                             <TableCell>{part.description}</TableCell>
                             <TableCell className="text-center">
-                              {part.trend === 'Growing' ? (
+                              {part.demandTrend === 'Growing' || part.demandTrend === 'Strong Growth' ? (
                                 <TrendingUp className="h-4 w-4 text-green-600 inline" />
-                              ) : part.trend === 'Declining' ? (
+                              ) : part.demandTrend === 'Declining' || part.demandTrend === 'Declining Fast' ? (
                                 <TrendingDown className="h-4 w-4 text-red-600 inline" />
                               ) : (
                                 <span className="text-muted-foreground">—</span>
@@ -906,18 +906,18 @@ const PartsReport = ({ user, onNavigate }) => {
                             <TableCell className="text-right">{Math.round(part.currentStock)}</TableCell>
                             <TableCell className="text-right">{part.avgMonthlyDemand.toFixed(1)}</TableCell>
                             <TableCell className="text-right">{part.forecastDemand}</TableCell>
-                            <TableCell className="text-right">{part.recommendedSafetyStock}</TableCell>
+                            <TableCell className="text-right">{part.safetyStock}</TableCell>
                             <TableCell className="text-center">
                               <Badge 
                                 variant={
-                                  part.recommendation === 'Order Now' ? 'destructive' :
-                                  part.recommendation === 'Order Soon' ? 'secondary' : 'outline'
+                                  part.orderRecommendation === 'Order Now' ? 'destructive' :
+                                  part.orderRecommendation === 'Order Soon' ? 'secondary' : 'outline'
                                 }
                                 className={
-                                  part.recommendation === 'Order Soon' ? 'bg-orange-500 hover:bg-orange-600' : ''
+                                  part.orderRecommendation === 'Order Soon' ? 'bg-orange-500 hover:bg-orange-600' : ''
                                 }
                               >
-                                {part.recommendation}
+                                {part.orderRecommendation}
                               </Badge>
                             </TableCell>
                           </TableRow>
