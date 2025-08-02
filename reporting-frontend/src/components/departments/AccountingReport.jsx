@@ -387,7 +387,7 @@ const AccountingReport = ({ user }) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyExpenses.slice(0, -1)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <BarChart data={monthlyExpenses.slice(0, -1)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -432,14 +432,11 @@ const AccountingReport = ({ user }) => {
                 }
                 return null
               }} />
-              <Line 
-                type="monotone" 
+              <Bar 
                 dataKey="expenses" 
-                stroke="#ef4444" 
-                strokeWidth={2}
-                dot={{ fill: '#ef4444', r: 4 }}
+                fill="#ef4444"
               />
-            </LineChart>
+            </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
