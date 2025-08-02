@@ -42,7 +42,7 @@ def get_invoice_columns():
         sample_query = """
         SELECT TOP 5 *
         FROM ben002.InvoiceReg
-        WHERE TotalSale < 0  -- Look for negative amounts (expenses)
+        WHERE GrandTotal < 0  -- Look for negative amounts (expenses)
         ORDER BY InvoiceDate DESC
         """
         
