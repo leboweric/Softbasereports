@@ -122,7 +122,7 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/parts/top10', methods=['GET'])
     @jwt_required()
     def get_parts_top10():
-        """Get top 10 parts by revenue in last 30 days"""
+        """Get top 10 parts by quantity sold in last 30 days"""
         try:
             db = get_db()
             
@@ -145,9 +145,9 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
             INNER JOIN ben002.WO w ON wp.WONo = w.WONo
             WHERE w.OpenDate >= DATEADD(day, -30, GETDATE())
-            AND wp.Sell > 0
+            AND wp.Qty > 0
             GROUP BY wp.PartNo
-            ORDER BY SUM(wp.Sell) DESC
+            ORDER BY SUM(wp.Qty) DESC
             """
             
             results = db.execute_query(top_parts_query)

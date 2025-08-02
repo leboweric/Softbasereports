@@ -389,7 +389,7 @@ const PartsReport = ({ user, onNavigate }) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Top 10 Parts by Revenue
+                Top 10 Parts by Quantity
               </CardTitle>
               <CardDescription>
                 {top10Data?.period || 'Last 30 days'}
@@ -405,8 +405,8 @@ const PartsReport = ({ user, onNavigate }) => {
                       <TableHead className="w-[50px]">Rank</TableHead>
                       <TableHead>Part Number</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead className="text-center">Orders</TableHead>
                       <TableHead className="text-right">Qty Sold</TableHead>
+                      <TableHead className="text-center">Orders</TableHead>
                       <TableHead className="text-right">Revenue</TableHead>
                       <TableHead className="text-center">Stock Status</TableHead>
                     </TableRow>
@@ -417,9 +417,9 @@ const PartsReport = ({ user, onNavigate }) => {
                         <TableCell className="font-medium">#{index + 1}</TableCell>
                         <TableCell className="font-medium">{part.partNo}</TableCell>
                         <TableCell>{part.description}</TableCell>
+                        <TableCell className="text-right font-medium text-lg">{part.totalQuantity.toLocaleString()}</TableCell>
                         <TableCell className="text-center">{part.orderCount}</TableCell>
-                        <TableCell className="text-right">{part.totalQuantity}</TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-right">
                           ${part.totalRevenue.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-center">
