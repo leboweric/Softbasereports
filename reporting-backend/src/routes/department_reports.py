@@ -581,7 +581,7 @@ def register_department_routes(reports_bp):
                 -- Count equipment that uses each part (based on recent service)
                 SELECT 
                     wp.PartNo,
-                    COUNT(DISTINCT CASE WHEN w.Equipment IS NOT NULL THEN w.Equipment END) as EquipmentCount,
+                    COUNT(DISTINCT CASE WHEN w.UnitNo IS NOT NULL THEN w.UnitNo END) as EquipmentCount,
                     0 as AvgEquipmentHours
                 FROM ben002.WOParts wp
                 INNER JOIN ben002.WO w ON wp.WONo = w.WONo
@@ -996,7 +996,8 @@ def register_department_routes(reports_bp):
                 0 as dailyRate,   -- Would need rate table
                 'Active' as status
             FROM ben002.WO w
-            JOIN ben002.Equipment e ON w.Equipment = e.StockNo
+            -- Equipment join removed - column mapping issues
+            -- JOIN ben002.Equipment e ON w.UnitNo = e.StockNo
             WHERE w.Type = 'R' AND w.ClosedDate IS NULL
             ORDER BY w.OpenDate DESC
             """
