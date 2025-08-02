@@ -376,6 +376,7 @@ class DashboardQueries:
                     month_date = datetime(row['year'], row['month'], 1)
                     monthly_quotes.append({
                         'month': month_date.strftime("%b"),
+                        'year': row['year'],
                         'amount': float(row['amount'])
                     })
             
@@ -384,14 +385,24 @@ class DashboardQueries:
             all_months = []
             date = start_date
             while date <= self.current_date:
-                all_months.append(date.strftime("%b"))
+                all_months.append({'month': date.strftime("%b"), 'year': date.year})
                 if date.month == 12:
                     date = date.replace(year=date.year + 1, month=1)
                 else:
                     date = date.replace(month=date.month + 1)
             
-            existing_quotes = {item['month']: item['amount'] for item in monthly_quotes}
-            monthly_quotes = [{'month': month, 'amount': existing_quotes.get(month, 0)} for month in all_months]
+            existing_quotes = {f"{item['year']}-{item['month']}": item for item in monthly_quotes}
+            monthly_quotes = []
+            for month_info in all_months:
+                key = f"{month_info['year']}-{month_info['month']}"
+                if key in existing_quotes:
+                    monthly_quotes.append(existing_quotes[key])
+                else:
+                    monthly_quotes.append({
+                        'month': month_info['month'],
+                        'year': month_info['year'],
+                        'amount': 0
+                    })
             
             return monthly_quotes
         except Exception as e:

@@ -8,7 +8,7 @@ dashboard_pace_bp = Blueprint('dashboard_pace', __name__)
 @dashboard_pace_bp.route('/api/dashboard/sales-pace', methods=['GET'])
 @jwt_required()
 def get_sales_pace():
-    """Get sales pace data comparing current month to previous month through same day"""
+    """Get sales and quotes pace data comparing current month to previous month through same day"""
     try:
         db = AzureSQLService()
         
@@ -88,6 +88,72 @@ def get_sales_pace():
         projected_total = (current_sales / current_day) * days_in_month if current_day > 0 else 0
         projected_no_equip = (current_no_equip / current_day) * days_in_month if current_day > 0 else 0
         
+        # Get quotes pace data
+        current_quotes_query = f"""
+        WITH LatestQuotes AS (
+            SELECT 
+                WONo,
+                MAX(CAST(CreationTime AS DATE)) as latest_quote_date
+            FROM ben002.WOQuote
+            WHERE YEAR(CreationTime) = {current_year}
+                AND MONTH(CreationTime) = {current_month}
+                AND DAY(CreationTime) <= {current_day}
+                AND Amount > 0
+            GROUP BY WONo
+        ),
+        QuoteTotals AS (
+            SELECT 
+                lq.WONo,
+                SUM(wq.Amount) as wo_total
+            FROM LatestQuotes lq
+            INNER JOIN ben002.WOQuote wq
+                ON lq.WONo = wq.WONo
+                AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
+            WHERE wq.Amount > 0
+            GROUP BY lq.WONo
+        )
+        SELECT SUM(wo_total) as total_quotes
+        FROM QuoteTotals
+        """
+        
+        prev_quotes_query = f"""
+        WITH LatestQuotes AS (
+            SELECT 
+                WONo,
+                MAX(CAST(CreationTime AS DATE)) as latest_quote_date
+            FROM ben002.WOQuote
+            WHERE YEAR(CreationTime) = {prev_year}
+                AND MONTH(CreationTime) = {prev_month}
+                AND DAY(CreationTime) <= {current_day}
+                AND Amount > 0
+            GROUP BY WONo
+        ),
+        QuoteTotals AS (
+            SELECT 
+                lq.WONo,
+                SUM(wq.Amount) as wo_total
+            FROM LatestQuotes lq
+            INNER JOIN ben002.WOQuote wq
+                ON lq.WONo = wq.WONo
+                AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
+            WHERE wq.Amount > 0
+            GROUP BY lq.WONo
+        )
+        SELECT SUM(wo_total) as total_quotes
+        FROM QuoteTotals
+        """
+        
+        # Execute quotes queries
+        current_quotes_results = db.execute_query(current_quotes_query)
+        prev_quotes_results = db.execute_query(prev_quotes_query)
+        
+        # Process quotes results
+        current_quotes = float(current_quotes_results[0]['total_quotes'] or 0) if current_quotes_results else 0
+        previous_quotes = float(prev_quotes_results[0]['total_quotes'] or 0) if prev_quotes_results else 0
+        
+        # Calculate quotes pace percentage
+        quotes_pace_pct = ((current_quotes / previous_quotes) - 1) * 100 if previous_quotes > 0 else 0
+        
         return jsonify({
             'current_month': {
                 'year': current_year,
@@ -111,6 +177,12 @@ def get_sales_pace():
                 'percentage_no_equipment': round(pace_pct_no_equip, 1),
                 'ahead_behind': 'ahead' if pace_pct > 0 else 'behind' if pace_pct < 0 else 'on pace',
                 'ahead_behind_no_equipment': 'ahead' if pace_pct_no_equip > 0 else 'behind' if pace_pct_no_equip < 0 else 'on pace'
+            },
+            'quotes': {
+                'current_month_to_date': current_quotes,
+                'previous_month_through_same_day': previous_quotes,
+                'pace_percentage': round(quotes_pace_pct, 1),
+                'ahead_behind': 'ahead' if quotes_pace_pct > 0 else 'behind' if quotes_pace_pct < 0 else 'on pace'
             }
         })
         

@@ -314,6 +314,61 @@ const Dashboard = ({ user }) => {
     )
   }
 
+  // Custom bar shape for Quotes chart
+  const CustomBarQuotes = (props) => {
+    const { fill, x, y, width, height, payload } = props
+    const currentMonth = new Date().getMonth() + 1
+    const currentYear = new Date().getFullYear()
+    
+    // Check if this is the current month
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const isCurrentMonth = payload && 
+      payload.month === monthNames[currentMonth - 1] && 
+      payload.year === currentYear &&
+      paceData
+    
+    return (
+      <g>
+        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        {isCurrentMonth && paceData && paceData.quotes && (
+          <g>
+            {/* Pace indicator */}
+            <rect 
+              x={x} 
+              y={y - 20} 
+              width={width} 
+              height={18} 
+              fill={paceData.quotes.pace_percentage > 0 ? '#10b981' : '#ef4444'}
+              rx={4}
+            />
+            <text 
+              x={x + width / 2} 
+              y={y - 6} 
+              textAnchor="middle" 
+              fill="white" 
+              fontSize="11" 
+              fontWeight="bold"
+            >
+              {paceData.quotes.pace_percentage > 0 ? '+' : ''}{paceData.quotes.pace_percentage}%
+            </text>
+            {/* Arrow icon */}
+            {paceData.quotes.pace_percentage !== 0 && (
+              <text 
+                x={x + width / 2} 
+                y={y - 25} 
+                textAnchor="middle" 
+                fill={paceData.quotes.pace_percentage > 0 ? '#10b981' : '#ef4444'}
+                fontSize="16"
+              >
+                {paceData.quotes.pace_percentage > 0 ? '↑' : '↓'}
+              </text>
+            )}
+          </g>
+        )}
+      </g>
+    )
+  }
+
   // Helper function to format percentage with color
   const formatPercentage = (percentage) => {
     if (percentage === null) return ''
@@ -707,7 +762,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_quotes || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={dashboardData?.monthly_quotes || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -730,7 +785,7 @@ const Dashboard = ({ user }) => {
                   }
                   return null
                 }} />
-                <Bar dataKey="amount" fill="#f59e0b" />
+                <Bar dataKey="amount" fill="#f59e0b" shape={<CustomBarQuotes />} />
                 {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
