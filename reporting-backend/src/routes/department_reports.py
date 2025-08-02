@@ -148,16 +148,17 @@ def register_department_routes(reports_bp):
                 -- Get current stock levels and costs
                 SELECT 
                     PartNo,
-                    OnHand,
-                    OnOrder,
-                    Cost,
-                    List,
+                    MAX(OnHand) as OnHand,
+                    MAX(OnOrder) as OnOrder,
+                    MAX(Cost) as Cost,
+                    MAX(List) as List,
                     -- Estimate reorder point as 14 days of average usage (2 week lead time)
                     -- This should be replaced with actual reorder point field if available
                     0 as ReorderPoint,
                     0 as MinStock
                 FROM ben002.Parts
                 WHERE OnHand IS NOT NULL
+                GROUP BY PartNo
             )
             SELECT 
                 cs.PartNo,
@@ -214,15 +215,22 @@ def register_department_routes(reports_bp):
                     AND wp.Qty > 0
                 GROUP BY wp.PartNo
                 HAVING COUNT(DISTINCT wp.WONo) >= 3
+            ),
+            PartsAggregated AS (
+                SELECT 
+                    PartNo,
+                    MAX(OnHand) as OnHand
+                FROM ben002.Parts
+                GROUP BY PartNo
             )
             SELECT 
-                COUNT(CASE WHEN p.OnHand <= 0 THEN 1 END) as OutOfStock,
-                COUNT(CASE WHEN p.OnHand > 0 AND p.OnHand < (pu.AvgDailyUsage * 7) THEN 1 END) as Critical,
-                COUNT(CASE WHEN p.OnHand >= (pu.AvgDailyUsage * 7) AND p.OnHand < (pu.AvgDailyUsage * 14) THEN 1 END) as Low,
-                COUNT(CASE WHEN p.OnHand >= (pu.AvgDailyUsage * 14) AND p.OnHand < (pu.AvgDailyUsage * 21) THEN 1 END) as NeedsReorder,
+                COUNT(CASE WHEN pa.OnHand <= 0 THEN 1 END) as OutOfStock,
+                COUNT(CASE WHEN pa.OnHand > 0 AND pa.OnHand < (pu.AvgDailyUsage * 7) THEN 1 END) as Critical,
+                COUNT(CASE WHEN pa.OnHand >= (pu.AvgDailyUsage * 7) AND pa.OnHand < (pu.AvgDailyUsage * 14) THEN 1 END) as Low,
+                COUNT(CASE WHEN pa.OnHand >= (pu.AvgDailyUsage * 14) AND pa.OnHand < (pu.AvgDailyUsage * 21) THEN 1 END) as NeedsReorder,
                 COUNT(*) as TotalTrackedParts
-            FROM ben002.Parts p
-            INNER JOIN PartUsage pu ON p.PartNo = pu.PartNo
+            FROM PartsAggregated pa
+            INNER JOIN PartUsage pu ON pa.PartNo = pu.PartNo
             """
             
             summary_result = db.execute_query(summary_query)
