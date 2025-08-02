@@ -29,6 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
@@ -140,10 +141,42 @@ const PartsReport = ({ user, onNavigate }) => {
         <p className="text-muted-foreground">Monitor parts sales and inventory performance</p>
       </div>
 
-      {/* Parts Fill Rate Card */}
-      {fillRateData && (
-        <Card>
-          <CardHeader>
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="inventory">Inventory</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {/* Monthly Parts Revenue */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Monthly Parts Revenue</CardTitle>
+              <CardDescription>Parts revenue over the last 12 months</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={partsData?.monthlyPartsRevenue || []}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis 
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  />
+                  <RechartsTooltip 
+                    formatter={(value) => `$${value.toLocaleString()}`}
+                  />
+                  <Bar dataKey="amount" fill="#10b981" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="inventory" className="space-y-6">
+          {/* Parts Fill Rate Card */}
+          {fillRateData && (
+            <Card>
+              <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <Package className="h-5 w-5" />
@@ -156,8 +189,8 @@ const PartsReport = ({ user, onNavigate }) => {
             <CardDescription>
               {fillRateData.period} - Target: 90% fill rate
             </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+              </CardHeader>
+              <CardContent className="space-y-6">
             {/* Summary Stats */}
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
@@ -236,13 +269,13 @@ const PartsReport = ({ user, onNavigate }) => {
               </div>
             )}
           </CardContent>
-        </Card>
-      )}
+            </Card>
+          )}
 
-      {/* Reorder Alert Card */}
-      {reorderAlertData && (
-        <Card>
-          <CardHeader>
+          {/* Reorder Alert Card */}
+          {reorderAlertData && (
+            <Card>
+              <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5" />
@@ -266,8 +299,8 @@ const PartsReport = ({ user, onNavigate }) => {
             <CardDescription>
               Parts needing reorder based on {reorderAlertData.analysisInfo?.period} usage • Lead time: {reorderAlertData.leadTimeAssumption} days
             </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+              </CardHeader>
+              <CardContent className="space-y-4">
             {/* Alert Summary Stats */}
             <div className="grid grid-cols-5 gap-4 text-center">
               <div>
@@ -405,31 +438,11 @@ const PartsReport = ({ user, onNavigate }) => {
               <p className="mt-1">Safety Stock: {reorderAlertData.safetyStockDays} days • Lead Time: {reorderAlertData.leadTimeAssumption} days</p>
             </div>
           </CardContent>
-        </Card>
-      )}
+            </Card>
+          )}
 
-      {/* Monthly Parts Revenue */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Monthly Parts Revenue</CardTitle>
-          <CardDescription>Parts revenue over the last 12 months</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={partsData?.monthlyPartsRevenue || []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis 
-                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-              />
-              <RechartsTooltip 
-                formatter={(value) => `$${value.toLocaleString()}`}
-              />
-              <Bar dataKey="amount" fill="#10b981" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
