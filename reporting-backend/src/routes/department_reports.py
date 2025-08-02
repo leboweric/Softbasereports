@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
 from flask import request
 from src.services.azure_sql_service import AzureSQLService
+import json
 
 def get_db():
     """Get database connection"""
@@ -1662,88 +1663,91 @@ def register_department_routes(reports_bp):
             # Common tables might include: APInvoice, GLTransaction, ExpenseReport, etc.
             # For now, returning mock data to demonstrate the structure
             
-            # Try to find G&A expenses from various potential sources
-            # This query attempts multiple approaches in case some tables don't exist
+            # Get G&A expenses from InvoiceReg where Department starts with 6
             expenses_query = """
             WITH MonthlyExpenses AS (
-                -- First attempt: Look for AP/Vendor invoices with expense categories
                 SELECT 
                     YEAR(InvoiceDate) as year,
                     MONTH(InvoiceDate) as month,
-                    SUM(Amount) as total_expenses
-                FROM (
-                    -- Try APInvoice table
-                    SELECT 
-                        InvoiceDate,
-                        TotalAmount as Amount
-                    FROM ben002.APInvoice
-                    WHERE InvoiceDate >= '2025-03-01'
-                    AND EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'APInvoice')
-                    
-                    UNION ALL
-                    
-                    -- Try VendorInvoice table
-                    SELECT 
-                        PostDate as InvoiceDate,
-                        Amount
-                    FROM ben002.VendorInvoice  
-                    WHERE PostDate >= '2025-03-01'
-                    AND EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'VendorInvoice')
-                    
-                    UNION ALL
-                    
-                    -- Try GLTransaction table for expense accounts
-                    SELECT 
-                        TransactionDate as InvoiceDate,
-                        DebitAmount as Amount
-                    FROM ben002.GLTransaction
-                    WHERE TransactionDate >= '2025-03-01'
-                    AND AccountType = 'Expense'
-                    AND EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'GLTransaction')
-                    
-                    UNION ALL
-                    
-                    -- Fallback: Use placeholder data if no tables exist
-                    SELECT 
-                        DATEFROMPARTS(2025, m.month, 1) as InvoiceDate,
-                        m.amount as Amount
-                    FROM (
-                        VALUES 
-                            (3, 150000),
-                            (4, 165000),
-                            (5, 158000),
-                            (6, 172000),
-                            (7, 168000),
-                            (8, 175000)
-                    ) m(month, amount)
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM INFORMATION_SCHEMA.TABLES 
-                        WHERE TABLE_SCHEMA = 'ben002' 
-                        AND TABLE_NAME IN ('APInvoice', 'VendorInvoice', 'GLTransaction')
-                    )
-                ) AS AllExpenses
-                WHERE InvoiceDate IS NOT NULL
+                    -- Negative TotalSale for expense accounts
+                    -SUM(COALESCE(TotalSale, 0)) as total_expenses
+                FROM ben002.InvoiceReg
+                WHERE Department LIKE '6%'  -- Expense accounts start with 6
+                    AND InvoiceDate >= '2025-03-01'
+                    AND InvoiceDate < DATEADD(DAY, 1, GETDATE())  -- Up to today
                 GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ),
+            ExpenseCategories AS (
+                SELECT 
+                    CASE 
+                        WHEN Department LIKE '600%' THEN 'Advertising & Marketing'
+                        WHEN Department LIKE '601%' THEN 'Payroll & Benefits'
+                        WHEN Department LIKE '602%' THEN 'Facilities & Rent'
+                        WHEN Department LIKE '603%' THEN 'Insurance'
+                        WHEN Department LIKE '604%' THEN 'Professional Services'
+                        WHEN Department LIKE '605%' THEN 'IT & Computer'
+                        WHEN Department LIKE '606%' THEN 'Depreciation'
+                        WHEN Department LIKE '607%' THEN 'Interest & Finance'
+                        WHEN Department LIKE '608%' THEN 'Travel & Entertainment'
+                        WHEN Department LIKE '609%' THEN 'Office & Admin'
+                        ELSE 'Other Expenses'
+                    END as category,
+                    -SUM(COALESCE(TotalSale, 0)) as amount
+                FROM ben002.InvoiceReg
+                WHERE Department LIKE '6%'
+                    AND InvoiceDate >= DATEADD(MONTH, -6, GETDATE())
+                GROUP BY 
+                    CASE 
+                        WHEN Department LIKE '600%' THEN 'Advertising & Marketing'
+                        WHEN Department LIKE '601%' THEN 'Payroll & Benefits'
+                        WHEN Department LIKE '602%' THEN 'Facilities & Rent'
+                        WHEN Department LIKE '603%' THEN 'Insurance'
+                        WHEN Department LIKE '604%' THEN 'Professional Services'
+                        WHEN Department LIKE '605%' THEN 'IT & Computer'
+                        WHEN Department LIKE '606%' THEN 'Depreciation'
+                        WHEN Department LIKE '607%' THEN 'Interest & Finance'
+                        WHEN Department LIKE '608%' THEN 'Travel & Entertainment'
+                        WHEN Department LIKE '609%' THEN 'Office & Admin'
+                        ELSE 'Other Expenses'
+                    END
+                HAVING SUM(COALESCE(TotalSale, 0)) != 0
             )
             SELECT 
-                year,
-                month,
-                total_expenses
-            FROM MonthlyExpenses
-            WHERE year = 2025 AND month >= 3
-            ORDER BY year, month
+                (SELECT year, month, total_expenses 
+                 FROM MonthlyExpenses 
+                 ORDER BY year, month 
+                 FOR JSON AUTO) as monthly_data,
+                (SELECT category, amount 
+                 FROM ExpenseCategories 
+                 WHERE amount > 0
+                 ORDER BY amount DESC
+                 FOR JSON AUTO) as category_data
             """
             
             expenses_results = db.execute_query(expenses_query)
             monthly_expenses = []
+            expense_categories = []
             
-            if expenses_results:
-                for row in expenses_results:
+            if expenses_results and len(expenses_results) > 0:
+                result = expenses_results[0]
+                
+                # Parse monthly data
+                import json
+                monthly_data = json.loads(result.get('monthly_data', '[]'))
+                for row in monthly_data:
                     month_date = datetime(row['year'], row['month'], 1)
                     monthly_expenses.append({
-                        'month': month_date.strftime("%b"),
+                        'month': month_date.strftime("%B"),
+                        'year': row['year'],
                         'expenses': float(row['total_expenses'] or 0)
                     })
+                
+                # Parse category data
+                category_data = json.loads(result.get('category_data', '[]'))
+                expense_categories = [{
+                    'category': cat['category'],
+                    'amount': float(cat['amount'] or 0)
+                } for cat in category_data]
             
             # Pad missing months
             current_date = datetime.now()
@@ -1761,13 +1765,19 @@ def register_department_routes(reports_bp):
             existing_data = {item['month']: item['expenses'] for item in monthly_expenses}
             monthly_expenses = [{'month': month, 'expenses': existing_data.get(month, 0)} for month in all_months]
             
-            # Return empty structure to prevent frontend errors
-            # In production, these would be populated with real data
+            # Calculate summary metrics
+            total_expenses = sum(item['expenses'] for item in monthly_expenses)
+            avg_expenses = total_expenses / len(monthly_expenses) if monthly_expenses else 0
+            
+            # Return structure with real expense data
             return jsonify({
                 'monthly_expenses': monthly_expenses,
                 'summary': {
+                    'total_expenses': round(total_expenses, 2),
+                    'average_monthly': round(avg_expenses, 2),
+                    'expense_categories': expense_categories,
                     'totalRevenue': 0,
-                    'totalExpenses': 0,
+                    'totalExpenses': total_expenses,
                     'netProfit': 0,
                     'profitMargin': 0,
                     'accountsReceivable': 0,
@@ -1776,7 +1786,7 @@ def register_department_routes(reports_bp):
                     'overdueInvoices': 0
                 },
                 'revenueByDepartment': [],
-                'expenseCategories': [],
+                'expenseCategories': expense_categories,
                 'monthlyFinancials': [],
                 'cashFlowTrend': [],
                 'outstandingInvoices': [],

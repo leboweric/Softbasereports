@@ -41,6 +41,7 @@ import {
 import { apiUrl } from '@/lib/api'
 import ExpenseDebugModal from './ExpenseDebugModal'
 import AccountingDiagnostics from './AccountingDiagnostics'
+import ExpenseSearchDiagnostic from '../diagnostics/ExpenseSearchDiagnostic'
 
 const AccountingReport = ({ user }) => {
   const [accountingData, setAccountingData] = useState(null)
@@ -48,6 +49,7 @@ const AccountingReport = ({ user }) => {
   const [loading, setLoading] = useState(true)
   const [debugModalOpen, setDebugModalOpen] = useState(false)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
+  const [expenseSearchOpen, setExpenseSearchOpen] = useState(false)
 
   useEffect(() => {
     fetchAccountingData()
@@ -329,13 +331,22 @@ const AccountingReport = ({ user }) => {
               <CardTitle>G&A Expenses Over Time</CardTitle>
               <CardDescription>General & Administrative expenses (Payroll, Professional Services, etc.)</CardDescription>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setDebugModalOpen(true)}
-            >
-              View Details
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setDebugModalOpen(true)}
+              >
+                View Details
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setExpenseSearchOpen(true)}
+              >
+                Search Expenses
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -511,6 +522,19 @@ const AccountingReport = ({ user }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
             <AccountingDiagnostics onClose={() => setDiagnosticsOpen(false)} />
+          </div>
+        </div>
+      )}
+      
+      {/* Expense Search Modal */}
+      {expenseSearchOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Expense Search Diagnostic</h2>
+              <Button onClick={() => setExpenseSearchOpen(false)} variant="ghost" size="sm">✕</Button>
+            </div>
+            <ExpenseSearchDiagnostic />
           </div>
         </div>
       )}
