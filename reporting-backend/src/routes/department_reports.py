@@ -487,7 +487,7 @@ def register_department_routes(reports_bp):
                 })
             
             return jsonify({
-                'parts': parts_list[:100],  # Limit to top 100 by value
+                'parts': parts_list,  # Return all parts for category filtering
                 'summary': summary,
                 'movementTrend': movement_trend,
                 'analysisInfo': {

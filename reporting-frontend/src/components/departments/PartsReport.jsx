@@ -30,6 +30,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
@@ -40,6 +47,8 @@ const PartsReport = ({ user, onNavigate }) => {
   const [fillRateLoading, setFillRateLoading] = useState(true)
   const [reorderAlertLoading, setReorderAlertLoading] = useState(true)
   const [velocityLoading, setVelocityLoading] = useState(true)
+  const [selectedCategory, setSelectedCategory] = useState(null)
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false)
 
   useEffect(() => {
     fetchPartsData()
@@ -502,7 +511,14 @@ const PartsReport = ({ user, onNavigate }) => {
                     }
                     
                     return (
-                      <div key={category} className="border rounded-lg p-3">
+                      <div 
+                        key={category} 
+                        className="border rounded-lg p-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                        onClick={() => {
+                          setSelectedCategory(category)
+                          setCategoryModalOpen(true)
+                        }}
+                      >
                         <div className="flex items-center justify-between mb-2">
                           <span className={`flex items-center gap-1 text-sm font-medium ${getCategoryColor(category)}`}>
                             {getCategoryIcon(category)}
@@ -636,6 +652,68 @@ const PartsReport = ({ user, onNavigate }) => {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Category Parts Modal */}
+      <Dialog open={categoryModalOpen} onOpenChange={setCategoryModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedCategory && (
+                <>
+                  {selectedCategory === 'Very Fast' || selectedCategory === 'Fast' ? <Zap className="h-5 w-5 text-green-600" /> :
+                   selectedCategory === 'Dead Stock' || selectedCategory === 'No Movement' ? <Turtle className="h-5 w-5 text-red-600" /> :
+                   <Clock className="h-5 w-5 text-yellow-600" />}
+                  {selectedCategory} Parts
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {velocityData?.summary[selectedCategory] && (
+                <span>
+                  {velocityData.summary[selectedCategory].partCount} parts • 
+                  ${(velocityData.summary[selectedCategory].totalValue / 1000).toFixed(1)}k total value
+                  {velocityData.summary[selectedCategory].avgTurnoverRate > 0 && 
+                    ` • ${velocityData.summary[selectedCategory].avgTurnoverRate.toFixed(1)}x average turnover`
+                  }
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="mt-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Part Number</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Stock</TableHead>
+                  <TableHead className="text-right">Value</TableHead>
+                  <TableHead className="text-right">Turnover</TableHead>
+                  <TableHead className="text-right">Last Movement</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {velocityData?.parts
+                  .filter(part => part.velocityCategory === selectedCategory)
+                  .map((part) => (
+                    <TableRow key={part.partNo}>
+                      <TableCell className="font-medium">{part.partNo}</TableCell>
+                      <TableCell>{part.description}</TableCell>
+                      <TableCell className="text-right">{part.currentStock}</TableCell>
+                      <TableCell className="text-right">${part.inventoryValue.toFixed(0)}</TableCell>
+                      <TableCell className="text-right">
+                        {part.annualTurnoverRate > 0 ? `${part.annualTurnoverRate.toFixed(1)}x` : '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {part.daysSinceLastMovement !== null ? `${part.daysSinceLastMovement}d ago` : 'Never'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
