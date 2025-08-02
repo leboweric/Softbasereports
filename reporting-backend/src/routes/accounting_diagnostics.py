@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from ..utils.decorators import get_db
+from ..services.azure_sql_service import AzureSQLService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ accounting_diagnostics_bp = Blueprint('accounting_diagnostics', __name__)
 def discover_accounting_tables():
     """Comprehensive discovery of accounting and finance related tables"""
     try:
-        db = get_db()
+        db = AzureSQLService()
         
         # Step 1: Find all potential accounting/finance tables
         discovery_query = """
