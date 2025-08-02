@@ -293,7 +293,7 @@ const PartsReport = ({ user, onNavigate }) => {
                         <TableCell className="text-right">
                           {part.stockoutCount} / {part.totalOrders}
                         </TableCell>
-                        <TableCell className="text-right">{part.currentStock}</TableCell>
+                        <TableCell className="text-right">{Math.round(part.currentStock)}</TableCell>
                         <TableCell className="text-right">
                           <Badge variant={part.stockoutRate > 20 ? "destructive" : "secondary"}>
                             {part.stockoutRate.toFixed(1)}%
@@ -442,10 +442,10 @@ const PartsReport = ({ user, onNavigate }) => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {alert.currentStock}
+                          {Math.round(alert.currentStock)}
                           {alert.onOrder > 0 && (
                             <span className="text-sm text-muted-foreground ml-1">
-                              (+{alert.onOrder})
+                              (+{Math.round(alert.onOrder)})
                             </span>
                           )}
                         </TableCell>
