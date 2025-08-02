@@ -235,14 +235,14 @@ def register_department_routes(reports_bp):
             summary_query = """
             SELECT 
                 -- Total Inventory Value
-                (SELECT SUM(QtyOnHand * Cost) FROM ben002.NationalParts WHERE QtyOnHand > 0) as totalInventoryValue,
+                (SELECT SUM(OnHand * Cost) FROM ben002.NationalParts WHERE OnHand > 0) as totalInventoryValue,
                 
                 -- Total Parts
-                (SELECT COUNT(*) FROM ben002.NationalParts WHERE QtyOnHand > 0) as totalParts,
+                (SELECT COUNT(*) FROM ben002.NationalParts WHERE OnHand > 0) as totalParts,
                 
                 -- Low Stock Items
                 (SELECT COUNT(*) FROM ben002.NationalParts 
-                 WHERE QtyOnHand > 0 AND QtyOnHand <= MinimumStock) as lowStockItems,
+                 WHERE OnHand > 0 AND OnHand <= MinimumStock) as lowStockItems,
                  
                 -- Monthly Sales (from parts work orders)
                 (SELECT SUM(i.GrandTotal) 
@@ -272,10 +272,10 @@ def register_department_routes(reports_bp):
                     WHEN Description LIKE '%BATTERY%' THEN 'Batteries'
                     ELSE 'Other'
                 END as category,
-                SUM(QtyOnHand * Cost) as value,
+                SUM(OnHand * Cost) as value,
                 COUNT(*) as count
             FROM ben002.NationalParts
-            WHERE QtyOnHand > 0
+            WHERE OnHand > 0
             GROUP BY 
                 CASE 
                     WHEN Description LIKE '%FILTER%' THEN 'Filters'
@@ -302,13 +302,13 @@ def register_department_routes(reports_bp):
             SELECT TOP 5
                 p.PartNo,
                 p.Description,
-                p.QtyOnHand as quantity,
+                p.OnHand as quantity,
                 COUNT(wp.WONo) as monthlyUsage
             FROM ben002.NationalParts p
             LEFT JOIN ben002.WOParts wp ON p.PartNo = wp.PartNo
                 AND wp.Date >= DATEADD(month, -1, GETDATE())
-            WHERE p.QtyOnHand > 0
-            GROUP BY p.PartNo, p.Description, p.QtyOnHand
+            WHERE p.OnHand > 0
+            GROUP BY p.PartNo, p.Description, p.OnHand
             ORDER BY COUNT(wp.WONo) DESC
             """
             
@@ -328,15 +328,15 @@ def register_department_routes(reports_bp):
             SELECT TOP 5
                 PartNo,
                 Description,
-                QtyOnHand as currentStock,
+                OnHand as currentStock,
                 MinimumStock as reorderPoint,
                 CASE 
-                    WHEN QtyOnHand <= MinimumStock * 0.5 THEN 'Critical'
+                    WHEN OnHand <= MinimumStock * 0.5 THEN 'Critical'
                     ELSE 'Low'
                 END as status
             FROM ben002.NationalParts
-            WHERE QtyOnHand > 0 AND QtyOnHand <= MinimumStock
-            ORDER BY (CAST(QtyOnHand as FLOAT) / NULLIF(MinimumStock, 0)) ASC
+            WHERE OnHand > 0 AND OnHand <= MinimumStock
+            ORDER BY (CAST(OnHand as FLOAT) / NULLIF(MinimumStock, 0)) ASC
             """
             
             low_stock_result = db.execute_query(low_stock_query)
