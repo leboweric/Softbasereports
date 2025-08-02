@@ -24,6 +24,7 @@ from src.routes.softbase_reports import softbase_reports_bp
 from src.routes.dashboard_optimized import dashboard_optimized_bp
 from src.routes.accounting_diagnostics import accounting_diagnostics_bp
 from src.routes.diagnostics.expense_search_diagnostic import expense_search_diagnostic_bp
+from src.routes.diagnostics.invoice_columns_diagnostic import invoice_columns_diagnostic_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -74,6 +75,7 @@ app.register_blueprint(softbase_reports_bp)
 app.register_blueprint(dashboard_optimized_bp)
 app.register_blueprint(accounting_diagnostics_bp)
 app.register_blueprint(expense_search_diagnostic_bp)
+app.register_blueprint(invoice_columns_diagnostic_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite

@@ -42,6 +42,7 @@ import { apiUrl } from '@/lib/api'
 import ExpenseDebugModal from './ExpenseDebugModal'
 import AccountingDiagnostics from './AccountingDiagnostics'
 import ExpenseSearchDiagnostic from '../diagnostics/ExpenseSearchDiagnostic'
+import InvoiceColumnsDiagnostic from '../diagnostics/InvoiceColumnsDiagnostic'
 
 const AccountingReport = ({ user }) => {
   const [accountingData, setAccountingData] = useState(null)
@@ -50,6 +51,7 @@ const AccountingReport = ({ user }) => {
   const [debugModalOpen, setDebugModalOpen] = useState(false)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
   const [expenseSearchOpen, setExpenseSearchOpen] = useState(false)
+  const [invoiceColumnsOpen, setInvoiceColumnsOpen] = useState(false)
 
   useEffect(() => {
     fetchAccountingData()
@@ -346,6 +348,13 @@ const AccountingReport = ({ user }) => {
               >
                 Search Expenses
               </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setInvoiceColumnsOpen(true)}
+              >
+                Check Columns
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -535,6 +544,19 @@ const AccountingReport = ({ user }) => {
               <Button onClick={() => setExpenseSearchOpen(false)} variant="ghost" size="sm">✕</Button>
             </div>
             <ExpenseSearchDiagnostic />
+          </div>
+        </div>
+      )}
+      
+      {/* Invoice Columns Modal */}
+      {invoiceColumnsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Invoice Columns Check</h2>
+              <Button onClick={() => setInvoiceColumnsOpen(false)} variant="ghost" size="sm">✕</Button>
+            </div>
+            <InvoiceColumnsDiagnostic />
           </div>
         </div>
       )}
