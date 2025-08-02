@@ -278,21 +278,6 @@ const Dashboard = ({ user }) => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.open_work_orders_value || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {dashboardData?.open_work_orders_count || 0} orders
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -302,6 +287,21 @@ const Dashboard = ({ user }) => {
             </div>
             <p className="text-xs text-muted-foreground">
               Last 30 days
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {formatCurrency(dashboardData?.open_work_orders_value || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {dashboardData?.open_work_orders_count || 0} orders
             </p>
           </CardContent>
         </Card>
@@ -333,7 +333,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_sales || []}>
+              <BarChart data={dashboardData?.monthly_sales || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -353,7 +353,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_sales_no_equipment || []}>
+              <BarChart data={dashboardData?.monthly_sales_no_equipment || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -410,7 +410,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_quotes || []}>
+              <BarChart data={dashboardData?.monthly_quotes || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -446,7 +446,7 @@ const Dashboard = ({ user }) => {
               </label>
             </div>
             <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={getFilteredMarginsData()}>
+              <LineChart data={getFilteredMarginsData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis 
@@ -658,7 +658,7 @@ const Dashboard = ({ user }) => {
             </div>
             
             <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={getFilteredWOData()}>
+              <LineChart data={getFilteredWOData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
