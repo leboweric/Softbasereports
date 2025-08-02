@@ -711,6 +711,82 @@ class DashboardQueries:
         except Exception as e:
             logger.error(f"Monthly active customers query failed: {str(e)}")
             return []
+    
+    def get_monthly_open_work_orders(self):
+        """Get monthly open work orders value since March 2025"""
+        try:
+            # Get snapshot of open work orders value at the end of each month
+            query = """
+            WITH MonthEnds AS (
+                SELECT DISTINCT 
+                    YEAR(OpenDate) as year,
+                    MONTH(OpenDate) as month,
+                    EOMONTH(OpenDate) as month_end
+                FROM ben002.WO
+                WHERE OpenDate >= '2025-03-01'
+            )
+            SELECT 
+                me.year,
+                me.month,
+                SUM(
+                    CASE 
+                        WHEN w.OpenDate <= me.month_end 
+                        AND (w.ClosedDate IS NULL OR w.ClosedDate > me.month_end)
+                        AND (w.InvoiceDate IS NULL OR w.InvoiceDate > me.month_end)
+                        THEN COALESCE(l.labor_total, 0) + COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0)
+                        ELSE 0
+                    END
+                ) as open_value
+            FROM MonthEnds me
+            CROSS JOIN ben002.WO w
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as labor_total 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ) l ON w.WONo = l.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as parts_total 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ) p ON w.WONo = p.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as misc_total 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            ) m ON w.WONo = m.WONo
+            GROUP BY me.year, me.month, me.month_end
+            ORDER BY me.year, me.month
+            """
+            
+            results = self.db.execute_query(query)
+            monthly_work_orders = []
+            
+            if results:
+                for row in results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_work_orders.append({
+                        'month': month_date.strftime("%b"),
+                        'value': float(row['open_value'] or 0)
+                    })
+            
+            # Pad missing months from March onwards
+            start_date = datetime(2025, 3, 1)
+            all_months = []
+            date = start_date
+            while date <= self.current_date:
+                all_months.append(date.strftime("%b"))
+                if date.month == 12:
+                    date = date.replace(year=date.year + 1, month=1)
+                else:
+                    date = date.replace(month=date.month + 1)
+            
+            existing_data = {item['month']: item['value'] for item in monthly_work_orders}
+            monthly_work_orders = [{'month': month, 'value': existing_data.get(month, 0)} for month in all_months]
+            
+            return monthly_work_orders
+        except Exception as e:
+            logger.error(f"Monthly open work orders query failed: {str(e)}")
+            return []
 
 
 @dashboard_optimized_bp.route('/api/reports/dashboard/summary-optimized', methods=['GET'])
@@ -759,7 +835,8 @@ def get_dashboard_summary_optimized():
             'top_customers': lambda: cached_query('top_customers', queries.get_top_customers, cache_ttl['top_customers']),
             'monthly_work_orders': lambda: cached_query('monthly_work_orders', queries.get_monthly_work_orders_by_type, cache_ttl['monthly_work_orders']),
             'department_margins': lambda: cached_query('department_margins', queries.get_department_margins, cache_ttl['department_margins']),
-            'monthly_active_customers': lambda: cached_query('monthly_active_customers', queries.get_monthly_active_customers, cache_ttl['active_customers'])
+            'monthly_active_customers': lambda: cached_query('monthly_active_customers', queries.get_monthly_active_customers, cache_ttl['active_customers']),
+            'monthly_open_work_orders': lambda: cached_query('monthly_open_work_orders', queries.get_monthly_open_work_orders, cache_ttl['work_order_types'])
         }
         
         # Execute queries in parallel
@@ -800,6 +877,7 @@ def get_dashboard_summary_optimized():
             'monthly_work_orders_by_type': results.get('monthly_work_orders', []),
             'department_margins': results.get('department_margins', []),
             'monthly_active_customers': results.get('monthly_active_customers', []),
+            'monthly_open_work_orders': results.get('monthly_open_work_orders', []),
             'period': datetime.now().strftime('%B %Y'),
             'last_updated': datetime.now().isoformat(),
             'query_time': round(time.time() - start_time, 2),

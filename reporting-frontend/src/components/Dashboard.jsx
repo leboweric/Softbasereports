@@ -586,7 +586,51 @@ const Dashboard = ({ user }) => {
       </div>
 
       {/* Charts - Third Row */}
-      <div className="grid gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Open Work Orders Over Time</CardTitle>
+            <CardDescription>
+              Total value of open work orders each month
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={dashboardData?.monthly_open_work_orders?.slice(0, -1) || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (active && payload && payload.length && dashboardData?.monthly_open_work_orders) {
+                    const data = dashboardData.monthly_open_work_orders.slice(0, -1)
+                    const currentIndex = data.findIndex(item => item.month === label)
+                    const currentValue = payload[0].value
+                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].value : null
+                    
+                    return (
+                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                        <p className="font-semibold mb-1">{label}</p>
+                        <p className="text-orange-600">
+                          {formatCurrency(currentValue)}
+                          {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                }} />
+                <Line 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke="#f97316" 
+                  strokeWidth={2}
+                  dot={{ fill: '#f97316', r: 4 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Department Gross Margins %</CardTitle>
