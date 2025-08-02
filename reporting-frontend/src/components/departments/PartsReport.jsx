@@ -13,21 +13,26 @@ import {
 import { 
   BarChart, 
   Bar, 
+  LineChart,
+  Line,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
   ResponsiveContainer
 } from 'recharts'
-import { AlertCircle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
+  const [fillRateData, setFillRateData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [fillRateLoading, setFillRateLoading] = useState(true)
 
   useEffect(() => {
     fetchPartsData()
+    fetchFillRateData()
   }, [])
 
   const fetchPartsData = async () => {
@@ -60,6 +65,30 @@ const PartsReport = ({ user, onNavigate }) => {
     }
   }
 
+  const fetchFillRateData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/parts/fill-rate'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setFillRateData(data)
+      } else {
+        console.error('Failed to fetch fill rate data:', response.status)
+        setFillRateData(null)
+      }
+    } catch (error) {
+      console.error('Error fetching fill rate data:', error)
+      setFillRateData(null)
+    } finally {
+      setFillRateLoading(false)
+    }
+  }
+
 
   if (loading) {
     return (
@@ -78,143 +107,99 @@ const PartsReport = ({ user, onNavigate }) => {
         <p className="text-muted-foreground">Monitor parts sales and inventory performance</p>
       </div>
 
-      {/* Debug Information */}
-      {partsData?.debug && (
-        <Card className="border-orange-200 bg-orange-50">
+      {/* Parts Fill Rate Card */}
+      {fillRateData && (
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-600" />
-              Debug: Parts Tables Information
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Linde Parts Fill Rate
+              </span>
+              <Badge variant={fillRateData.summary?.fillRate >= 90 ? "success" : "destructive"}>
+                {fillRateData.summary?.fillRate?.toFixed(1)}%
+              </Badge>
             </CardTitle>
             <CardDescription>
-              Temporary debug information to identify correct tables and column names
+              {fillRateData.period} - Target: 90% fill rate
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* NationalParts Info */}
-            <div>
-              <h4 className="font-semibold mb-2">NationalParts Table:</h4>
-              <Table>
-                <TableBody>
-                  {partsData.debug.nationalparts && (
-                    <>
-                      <TableRow>
-                        <TableCell className="font-medium">Exists:</TableCell>
-                        <TableCell>
-                          <Badge variant={partsData.debug.nationalparts.table_exists ? "success" : "destructive"}>
-                            {partsData.debug.nationalparts.table_exists ? "Yes" : "No"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="font-medium">Row Count:</TableCell>
-                        <TableCell>{partsData.debug.nationalparts.row_count || "0"}</TableCell>
-                      </TableRow>
-                      {partsData.debug.nationalparts.error && (
-                        <TableRow>
-                          <TableCell className="font-medium">Error:</TableCell>
-                          <TableCell className="text-red-600">{partsData.debug.nationalparts.error}</TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  )}
-                </TableBody>
-              </Table>
+          <CardContent className="space-y-6">
+            {/* Summary Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <p className="text-2xl font-bold">{fillRateData.summary?.totalOrders || 0}</p>
+                <p className="text-sm text-muted-foreground">Total Orders</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">{fillRateData.summary?.filledOrders || 0}</p>
+                <p className="text-sm text-muted-foreground">Filled Orders</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-red-600">{fillRateData.summary?.unfilledOrders || 0}</p>
+                <p className="text-sm text-muted-foreground">Stockouts</p>
+              </div>
             </div>
 
-            {/* WOParts Info */}
-            <div>
-              <h4 className="font-semibold mb-2">WOParts Table:</h4>
-              <Table>
-                <TableBody>
-                  {partsData.debug.woparts && (
-                    <>
-                      <TableRow>
-                        <TableCell className="font-medium">Exists:</TableCell>
-                        <TableCell>
-                          <Badge variant={partsData.debug.woparts.table_exists ? "success" : "destructive"}>
-                            {partsData.debug.woparts.table_exists ? "Yes" : "No"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                      {partsData.debug.woparts.columns && (
-                        <TableRow>
-                          <TableCell className="font-medium">Columns:</TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-2">
-                              {partsData.debug.woparts.columns.map((col) => (
-                                <Badge key={col} variant="secondary">{col}</Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Parts Table Info */}
-            {partsData.debug.parts && (
+            {/* Fill Rate Trend */}
+            {fillRateData.fillRateTrend && fillRateData.fillRateTrend.length > 0 && (
               <div>
-                <h4 className="font-semibold mb-2">Parts Table (Main Inventory):</h4>
-                <Table>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell className="font-medium">Exists:</TableCell>
-                      <TableCell>
-                        <Badge variant={partsData.debug.parts.table_exists ? "success" : "destructive"}>
-                          {partsData.debug.parts.table_exists ? "Yes" : "No"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Row Count:</TableCell>
-                      <TableCell>{partsData.debug.parts.row_count || "0"}</TableCell>
-                    </TableRow>
-                    {partsData.debug.parts.inventory_columns && (
-                      <TableRow>
-                        <TableCell className="font-medium">Inventory Columns:</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-2">
-                            {partsData.debug.parts.inventory_columns.map((col) => (
-                              <Badge key={col} variant="success">{col}</Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {partsData.debug.parts.sample_columns && (
-                      <TableRow>
-                        <TableCell className="font-medium">Sample Columns:</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-2">
-                            {partsData.debug.parts.sample_columns.map((col) => (
-                              <Badge key={col} variant="secondary">{col}</Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                <h4 className="font-semibold mb-2">Fill Rate Trend</h4>
+                <ResponsiveContainer width="100%" height={200}>
+                  <LineChart data={fillRateData.fillRateTrend}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis domain={[0, 100]} />
+                    <RechartsTooltip 
+                      formatter={(value, name) => {
+                        if (name === 'fillRate') return `${value.toFixed(1)}%`
+                        return value
+                      }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="fillRate" 
+                      stroke="#10b981" 
+                      strokeWidth={2}
+                      dot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             )}
 
-            {/* Other Parts Tables */}
-            {partsData.debug.parts_tables && (
+            {/* Problem Parts Table */}
+            {fillRateData.problemParts && fillRateData.problemParts.length > 0 && (
               <div>
-                <h4 className="font-semibold mb-2">All Parts/Inventory Tables in Database:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {partsData.debug.parts_tables.length > 0 ? (
-                    partsData.debug.parts_tables.map((table) => (
-                      <Badge key={table} variant="outline">{table}</Badge>
-                    ))
-                  ) : (
-                    <span className="text-muted-foreground">No parts/inventory tables found</span>
-                  )}
-                </div>
+                <h4 className="font-semibold mb-2">Parts Frequently Out of Stock</h4>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Part Number</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Stockouts</TableHead>
+                      <TableHead className="text-right">Current Stock</TableHead>
+                      <TableHead className="text-right">Stockout Rate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {fillRateData.problemParts.map((part) => (
+                      <TableRow key={part.partNo}>
+                        <TableCell className="font-medium">{part.partNo}</TableCell>
+                        <TableCell>{part.description}</TableCell>
+                        <TableCell className="text-right">
+                          {part.stockoutCount} / {part.totalOrders}
+                        </TableCell>
+                        <TableCell className="text-right">{part.currentStock}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant={part.stockoutRate > 20 ? "destructive" : "secondary"}>
+                            {part.stockoutRate.toFixed(1)}%
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>

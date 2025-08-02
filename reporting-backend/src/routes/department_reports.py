@@ -108,119 +108,8 @@ def register_department_routes(reports_bp):
                     if month not in existing_months:
                         monthlyPartsRevenue.append({'month': month, 'amount': 0})
             
-            # Debug: Get table info
-            debug_info = {}
-            
-            # Check NationalParts
-            try:
-                # First check if table has any data
-                count_query = "SELECT COUNT(*) as row_count FROM ben002.NationalParts"
-                count_result = db.execute_query(count_query)
-                row_count = count_result[0]['row_count'] if count_result else 0
-                
-                if row_count > 0:
-                    debug_query = "SELECT TOP 1 * FROM ben002.NationalParts"
-                    debug_result = db.execute_query(debug_query)
-                    
-                    if debug_result and len(debug_result) > 0:
-                        columns = list(debug_result[0].keys())
-                        inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower()]
-                        
-                        debug_info['nationalparts'] = {
-                            'table_exists': True,
-                            'row_count': row_count,
-                            'total_columns': len(columns),
-                            'inventory_columns': inventory_columns,
-                            'has_OnHand': 'OnHand' in columns,
-                            'has_QtyOnHand': 'QtyOnHand' in columns,
-                            'sample_columns': columns[:10]
-                        }
-                else:
-                    debug_info['nationalparts'] = {
-                        'table_exists': True,
-                        'row_count': 0,
-                        'error': 'Table is empty'
-                    }
-            except Exception as e:
-                debug_info['nationalparts'] = {
-                    'table_exists': False,
-                    'error': str(e)
-                }
-            
-            # Check WOParts table
-            try:
-                woparts_query = "SELECT TOP 1 * FROM ben002.WOParts"
-                woparts_result = db.execute_query(woparts_query)
-                
-                if woparts_result and len(woparts_result) > 0:
-                    columns = list(woparts_result[0].keys())
-                    debug_info['woparts'] = {
-                        'table_exists': True,
-                        'columns': columns,
-                        'has_qty': 'Qty' in columns,
-                        'has_description': 'Description' in columns,
-                        'has_partno': 'PartNo' in columns
-                    }
-            except Exception as e:
-                debug_info['woparts'] = {
-                    'table_exists': False,
-                    'error': str(e)
-                }
-                
-            # Look for other potential parts tables
-            try:
-                tables_query = """
-                SELECT TABLE_NAME 
-                FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_SCHEMA = 'ben002' 
-                AND (TABLE_NAME LIKE '%Part%' OR TABLE_NAME LIKE '%Inventory%')
-                ORDER BY TABLE_NAME
-                """
-                tables_result = db.execute_query(tables_query)
-                
-                if tables_result:
-                    debug_info['parts_tables'] = [row['TABLE_NAME'] for row in tables_result]
-                else:
-                    debug_info['parts_tables'] = []
-            except:
-                debug_info['parts_tables'] = []
-                
-            # Check Parts table (main inventory table)
-            try:
-                parts_count_query = "SELECT COUNT(*) as row_count FROM ben002.Parts"
-                parts_count_result = db.execute_query(parts_count_query)
-                parts_row_count = parts_count_result[0]['row_count'] if parts_count_result else 0
-                
-                if parts_row_count > 0:
-                    parts_query = "SELECT TOP 1 * FROM ben002.Parts"
-                    parts_result = db.execute_query(parts_query)
-                    
-                    if parts_result and len(parts_result) > 0:
-                        columns = list(parts_result[0].keys())
-                        inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower() or 'avail' in col.lower()]
-                        
-                        debug_info['parts'] = {
-                            'table_exists': True,
-                            'row_count': parts_row_count,
-                            'total_columns': len(columns),
-                            'inventory_columns': inventory_columns,
-                            'sample_columns': columns[:15]  # Show more columns
-                        }
-                else:
-                    debug_info['parts'] = {
-                        'table_exists': True,
-                        'row_count': 0,
-                        'error': 'Table is empty'
-                    }
-            except Exception as e:
-                debug_info['parts'] = {
-                    'table_exists': False,
-                    'error': str(e)
-                }
-            
             return jsonify({
-                'monthlyPartsRevenue': monthlyPartsRevenue,
-                'debug': debug_info
+                'monthlyPartsRevenue': monthlyPartsRevenue
             })
             
         except Exception as e:
@@ -230,48 +119,9 @@ def register_department_routes(reports_bp):
             }), 500
 
 
-    @reports_bp.route('/departments/parts/test-columns', methods=['GET'])
+    @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
     @jwt_required()
-    def test_parts_columns():
-        """Test which column names exist in NationalParts table"""
-        try:
-            db = get_db()
-            
-            # Try to get column information
-            columns_query = """
-            SELECT TOP 1 * FROM ben002.NationalParts
-            """
-            
-            result = db.execute_query(columns_query)
-            
-            if result and len(result) > 0:
-                columns = list(result[0].keys())
-                
-                # Check for specific columns we're interested in
-                inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower()]
-                
-                return jsonify({
-                    'all_columns': columns,
-                    'inventory_related_columns': inventory_columns,
-                    'has_OnHand': 'OnHand' in columns,
-                    'has_QtyOnHand': 'QtyOnHand' in columns,
-                    'sample_row': result[0]
-                })
-            else:
-                return jsonify({
-                    'error': 'No data found in NationalParts table'
-                }), 404
-                
-        except Exception as e:
-            return jsonify({
-                'error': str(e),
-                'type': 'test_columns_error'
-            }), 500
-
-    # Commenting out fill-rate endpoint until we can verify NationalParts column names
-    # @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
-    # @jwt_required()
-    # def get_parts_fill_rate():
+    def get_parts_fill_rate():
         """Get parts fill rate analysis - shows parts that were not in stock when ordered"""
         try:
             db = get_db()
@@ -288,18 +138,21 @@ def register_department_routes(reports_bp):
                     wp.WONo,
                     w.OpenDate as OrderDate,
                     wp.Qty as OrderedQty,
+                    wp.BOQty as BackorderQty,
                     wp.Description,
-                    -- Get the stock level at time of order (approximate by current stock)
-                    COALESCE(np.OnHand, 0) as StockOnHand,
+                    -- Get the current stock level (approximation)
+                    COALESCE(p.OnHand, 0) as CurrentStock,
+                    -- Determine if this was a stockout based on backorder quantity
                     CASE 
-                        WHEN np.OnHand IS NULL OR np.OnHand = 0 THEN 'Out of Stock'
-                        WHEN np.OnHand < wp.Qty THEN 'Insufficient Stock'
+                        WHEN wp.BOQty > 0 THEN 'Backordered'
+                        WHEN p.OnHand IS NULL OR p.OnHand = 0 THEN 'Out of Stock'
+                        WHEN p.OnHand < wp.Qty THEN 'Partial Stock'
                         ELSE 'In Stock'
                     END as StockStatus,
                     w.BillTo as Customer
                 FROM ben002.WOParts wp
                 INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
+                LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
                 WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')  -- Linde parts
             )
@@ -308,6 +161,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as TotalOrders,
                 SUM(CASE WHEN StockStatus = 'In Stock' THEN 1 ELSE 0 END) as FilledOrders,
                 SUM(CASE WHEN StockStatus != 'In Stock' THEN 1 ELSE 0 END) as UnfilledOrders,
+                SUM(CASE WHEN StockStatus = 'Backordered' THEN 1 ELSE 0 END) as BackorderedOrders,
                 CAST(
                     CAST(SUM(CASE WHEN StockStatus = 'In Stock' THEN 1 ELSE 0 END) AS FLOAT) / 
                     CAST(COUNT(*) AS FLOAT) * 100 
@@ -324,15 +178,15 @@ def register_department_routes(reports_bp):
                     wp.PartNo,
                     wp.Description,
                     wp.Qty as OrderedQty,
-                    COALESCE(np.OnHand, 0) as StockOnHand,
+                    COALESCE(p.OnHand, 0) as StockOnHand,
                     CASE 
-                        WHEN np.OnHand IS NULL OR np.OnHand = 0 THEN 'Out of Stock'
-                        WHEN np.OnHand < wp.Qty THEN 'Insufficient Stock'
+                        WHEN p.OnHand IS NULL OR p.OnHand = 0 THEN 'Out of Stock'
+                        WHEN p.OnHand < wp.Qty THEN 'Insufficient Stock'
                         ELSE 'In Stock'
                     END as StockStatus
                 FROM ben002.WOParts wp
                 INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
+                LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
                 WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
             )
@@ -393,12 +247,12 @@ def register_department_routes(reports_bp):
                     MONTH(w.OpenDate) as Month,
                     COUNT(*) as TotalOrders,
                     SUM(CASE 
-                        WHEN np.OnHand IS NULL OR np.OnHand = 0 OR np.OnHand < wp.Qty 
+                        WHEN p.OnHand IS NULL OR p.OnHand = 0 OR p.OnHand < wp.Qty 
                         THEN 0 ELSE 1 
                     END) as FilledOrders
                 FROM ben002.WOParts wp
                 INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
+                LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
                 WHERE w.OpenDate >= DATEADD(month, -6, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
                 GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate)
