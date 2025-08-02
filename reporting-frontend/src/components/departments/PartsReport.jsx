@@ -875,51 +875,6 @@ const PartsReport = ({ user, onNavigate }) => {
                 </Card>
               </div>
 
-              {/* Monthly Trend Chart */}
-              {forecastData.monthlyTrend && forecastData.monthlyTrend.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Monthly Demand Trend</CardTitle>
-                    <CardDescription>
-                      Historical usage patterns with {forecastData.forecastDays}-day forecast
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={forecastData.monthlyTrend}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
-                        <RechartsTooltip 
-                          formatter={(value, name) => {
-                            if (name === 'actualDemand') return [`${value} units`, 'Actual']
-                            if (name === 'forecast') return [`${value} units`, 'Forecast']
-                            return value
-                          }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="actualDemand" 
-                          stroke="#3b82f6" 
-                          strokeWidth={2}
-                          name="Actual Demand"
-                        />
-                        {forecastData.monthlyTrend.some(m => m.forecast) && (
-                          <Line 
-                            type="monotone" 
-                            dataKey="forecast" 
-                            stroke="#10b981" 
-                            strokeWidth={2}
-                            strokeDasharray="5 5"
-                            name="Forecast"
-                          />
-                        )}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Forecast Table */}
               <Card>
                 <CardHeader>
