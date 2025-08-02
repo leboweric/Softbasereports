@@ -364,7 +364,7 @@ const Dashboard = ({ user }) => {
           <CardHeader>
             <CardTitle>Monthly Sales</CardTitle>
             <CardDescription>
-              Total sales over the last 12 months
+              Total sales since March 2025
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -393,14 +393,19 @@ const Dashboard = ({ user }) => {
                   return null
                 }} />
                 <Bar dataKey="amount" fill="#8884d8" />
-                {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (
-                  <ReferenceLine 
-                    y={dashboardData.monthly_sales.reduce((sum, item) => sum + item.amount, 0) / dashboardData.monthly_sales.length} 
-                    stroke="#666" 
-                    strokeDasharray="3 3"
-                    label={{ value: "Average", position: "insideTopRight" }}
-                  />
-                )}
+                {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
+                  // Only calculate average for complete months (exclude current month - August)
+                  const completeMonths = dashboardData.monthly_sales.slice(0, -1)
+                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                  return (
+                    <ReferenceLine 
+                      y={average} 
+                      stroke="#666" 
+                      strokeDasharray="3 3"
+                      label={{ value: "Average", position: "insideTopRight" }}
+                    />
+                  )
+                })()}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -421,14 +426,19 @@ const Dashboard = ({ user }) => {
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="amount" fill="#10b981" />
-                {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (
-                  <ReferenceLine 
-                    y={dashboardData.monthly_sales_no_equipment.reduce((sum, item) => sum + item.amount, 0) / dashboardData.monthly_sales_no_equipment.length} 
-                    stroke="#666" 
-                    strokeDasharray="3 3"
-                    label={{ value: "Average", position: "insideTopRight" }}
-                  />
-                )}
+                {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
+                  // Only calculate average for complete months (exclude current month - August)
+                  const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
+                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                  return (
+                    <ReferenceLine 
+                      y={average} 
+                      stroke="#666" 
+                      strokeDasharray="3 3"
+                      label={{ value: "Average", position: "insideTopRight" }}
+                    />
+                  )
+                })()}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -504,14 +514,19 @@ const Dashboard = ({ user }) => {
                   return null
                 }} />
                 <Bar dataKey="amount" fill="#f59e0b" />
-                {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (
-                  <ReferenceLine 
-                    y={dashboardData.monthly_quotes.reduce((sum, item) => sum + item.amount, 0) / dashboardData.monthly_quotes.length} 
-                    stroke="#666" 
-                    strokeDasharray="3 3"
-                    label={{ value: "Average", position: "insideTopRight" }}
-                  />
-                )}
+                {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
+                  // Only calculate average for complete months (exclude current month - August)
+                  const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
+                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                  return (
+                    <ReferenceLine 
+                      y={average} 
+                      stroke="#666" 
+                      strokeDasharray="3 3"
+                      label={{ value: "Average", position: "insideTopRight" }}
+                    />
+                  )
+                })()}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

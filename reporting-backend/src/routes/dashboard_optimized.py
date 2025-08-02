@@ -74,15 +74,15 @@ class DashboardQueries:
             return 0
     
     def get_monthly_sales(self):
-        """Get monthly sales for last 12 months"""
+        """Get monthly sales since March 2025"""
         try:
-            query = f"""
+            query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as amount
             FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.twelve_months_ago}'
+            WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -97,15 +97,19 @@ class DashboardQueries:
                         'amount': float(row['amount'])
                     })
             
-            # Pad with zeros for missing months
-            if len(monthly_sales) < 12:
-                all_months = []
-                for i in range(11, -1, -1):
-                    month_date = self.current_date - timedelta(days=i*30)
-                    all_months.append(month_date.strftime("%b"))
-                
-                existing_data = {item['month']: item['amount'] for item in monthly_sales}
-                monthly_sales = [{'month': month, 'amount': existing_data.get(month, 0)} for month in all_months]
+            # Pad missing months from March onwards
+            start_date = datetime(2025, 3, 1)
+            all_months = []
+            date = start_date
+            while date <= self.current_date:
+                all_months.append(date.strftime("%b"))
+                if date.month == 12:
+                    date = date.replace(year=date.year + 1, month=1)
+                else:
+                    date = date.replace(month=date.month + 1)
+            
+            existing_data = {item['month']: item['amount'] for item in monthly_sales}
+            monthly_sales = [{'month': month, 'amount': existing_data.get(month, 0)} for month in all_months]
             
             return monthly_sales
         except Exception as e:
@@ -113,15 +117,15 @@ class DashboardQueries:
             return []
     
     def get_monthly_sales_excluding_equipment(self):
-        """Get monthly sales for last 12 months excluding equipment sales"""
+        """Get monthly sales since March 2025 excluding equipment sales"""
         try:
-            query = f"""
+            query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as amount
             FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.twelve_months_ago}'
+            WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -136,17 +140,19 @@ class DashboardQueries:
                         'amount': float(row['amount'])
                     })
             
-            # Pad with zeros for missing months
-            if len(monthly_sales) < 12:
-                all_months = []
-                for i in range(11, -1, -1):
-                    month_date = self.current_date - timedelta(days=i*30)
-                    all_months.append(month_date.strftime("%b"))
-                
-                existing_months = [item['month'] for item in monthly_sales]
-                for month in all_months:
-                    if month not in existing_months:
-                        monthly_sales.append({'month': month, 'amount': 0})
+            # Pad missing months from March onwards
+            start_date = datetime(2025, 3, 1)
+            all_months = []
+            date = start_date
+            while date <= self.current_date:
+                all_months.append(date.strftime("%b"))
+                if date.month == 12:
+                    date = date.replace(year=date.year + 1, month=1)
+                else:
+                    date = date.replace(month=date.month + 1)
+            
+            existing_data = {item['month']: item['amount'] for item in monthly_sales}
+            monthly_sales = [{'month': month, 'amount': existing_data.get(month, 0)} for month in all_months]
             
             return monthly_sales
         except Exception as e:
@@ -154,9 +160,9 @@ class DashboardQueries:
             return []
     
     def get_monthly_sales_by_stream(self):
-        """Get monthly sales by revenue stream for last 12 months"""
+        """Get monthly sales by revenue stream since March 2025"""
         try:
-            query = f"""
+            query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
@@ -165,7 +171,7 @@ class DashboardQueries:
                 SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
                 SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue
             FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.twelve_months_ago}'
+            WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -183,27 +189,32 @@ class DashboardQueries:
                         'misc': float(row['misc_revenue'] or 0)
                     })
             
-            # Pad with zeros for missing months
-            if len(monthly_data) < 12:
-                all_months = []
-                for i in range(11, -1, -1):
-                    month_date = self.current_date - timedelta(days=i*30)
-                    all_months.append(month_date.strftime("%b"))
-                
-                existing_months = [item['month'] for item in monthly_data]
-                for month in all_months:
-                    if month not in existing_months:
-                        monthly_data.append({
-                            'month': month, 
-                            'parts': 0,
-                            'labor': 0,
-                            'rental': 0,
-                            'misc': 0
-                        })
-                
-                # Sort by month order
-                month_order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                monthly_data.sort(key=lambda x: month_order.index(x['month']))
+            # Pad missing months from March onwards
+            start_date = datetime(2025, 3, 1)
+            all_months = []
+            date = start_date
+            while date <= self.current_date:
+                all_months.append(date.strftime("%b"))
+                if date.month == 12:
+                    date = date.replace(year=date.year + 1, month=1)
+                else:
+                    date = date.replace(month=date.month + 1)
+            
+            existing_months = [item['month'] for item in monthly_data]
+            existing_data = {item['month']: item for item in monthly_data}
+            
+            monthly_data = []
+            for month in all_months:
+                if month in existing_data:
+                    monthly_data.append(existing_data[month])
+                else:
+                    monthly_data.append({
+                        'month': month, 
+                        'parts': 0,
+                        'labor': 0,
+                        'rental': 0,
+                        'misc': 0
+                    })
             
             return monthly_data
         except Exception as e:
