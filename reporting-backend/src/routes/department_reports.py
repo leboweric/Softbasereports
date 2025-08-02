@@ -1718,7 +1718,7 @@ def register_department_routes(reports_bp):
                     YEAR(InvoiceDate) as year,
                     MONTH(InvoiceDate) as month,
                     -- Negative TotalSale for expense accounts
-                    -SUM(COALESCE(TotalSale, 0)) as total_expenses
+                    -SUM(COALESCE(GrandTotal, 0)) as total_expenses
                 FROM ben002.InvoiceReg
                 WHERE {where_clause}  -- Expense accounts start with 6
                     AND InvoiceDate >= '2025-03-01'
@@ -1740,7 +1740,7 @@ def register_department_routes(reports_bp):
                         WHEN {where_clause.replace("'6%'", "'609%'")} THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END as category,
-                    -SUM(COALESCE(TotalSale, 0)) as amount
+                    -SUM(COALESCE(GrandTotal, 0)) as amount
                 FROM ben002.InvoiceReg
                 WHERE {where_clause}
                     AND InvoiceDate >= DATEADD(MONTH, -6, GETDATE())
@@ -1758,7 +1758,7 @@ def register_department_routes(reports_bp):
                         WHEN {where_clause.replace("'6%'", "'609%'")} THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END
-                HAVING SUM(COALESCE(TotalSale, 0)) != 0
+                HAVING SUM(COALESCE(GrandTotal, 0)) != 0
             )
             SELECT 
                 (SELECT year, month, total_expenses 

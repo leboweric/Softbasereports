@@ -22,7 +22,7 @@ def search_for_expenses():
         SELECT TOP 100
             InvoiceNo,
             InvoiceDate,
-            Department,
+            SaleDept,
             SaleCode,
             PartsTaxable,
             PartsNonTax,
@@ -34,7 +34,7 @@ def search_for_expenses():
             RentalNonTax,
             EquipmentTaxable,
             EquipmentNonTax,
-            TotalSale,
+            GrandTotal,
             -- Check for any other numeric fields that might be expenses
             COLUMN_NAME
         FROM INFORMATION_SCHEMA.COLUMNS
@@ -73,16 +73,16 @@ def search_for_expenses():
         
         sample_invoices = db.execute_query(sample_query)
         
-        # Check for expense patterns in Department or SaleCode
+        # Check for expense patterns in SaleDept or SaleCode
         dept_analysis_query = """
         SELECT DISTINCT
-            Department,
+            SaleDept,
             SaleCode,
             COUNT(*) as record_count
         FROM ben002.InvoiceReg
         WHERE InvoiceDate >= DATEADD(MONTH, -6, GETDATE())
-        GROUP BY Department, SaleCode
-        ORDER BY Department, SaleCode
+        GROUP BY SaleDept, SaleCode
+        ORDER BY SaleDept, SaleCode
         """
         
         dept_patterns = db.execute_query(dept_analysis_query)
@@ -91,16 +91,16 @@ def search_for_expenses():
             {
                 'invoice_no': inv.get('InvoiceNo'),
                 'date': str(inv.get('InvoiceDate', '')),
-                'department': inv.get('Department'),
+                'department': inv.get('SaleDept'),
                 'sale_code': inv.get('SaleCode'),
-                'total': float(inv.get('TotalSale', 0))
+                'total': float(inv.get('GrandTotal', 0))
             }
             for inv in sample_invoices[:5]
         ]
         
         results['invoice_expenses']['department_patterns'] = [
             {
-                'department': d['Department'],
+                'department': d['SaleDept'],
                 'sale_code': d['SaleCode'],
                 'count': d['record_count']
             }

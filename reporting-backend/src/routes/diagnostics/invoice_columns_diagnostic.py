@@ -64,11 +64,19 @@ def get_invoice_columns():
                         'sample_value': value
                     })
         
+        # Get columns that might be totals/amounts
+        amount_columns = []
+        for col in columns:
+            col_name = col['COLUMN_NAME'].lower()
+            if any(term in col_name for term in ['total', 'amount', 'grand', 'sale', 'cost']):
+                amount_columns.append(col['COLUMN_NAME'])
+        
         return jsonify({
             'total_columns': len(columns),
             'all_columns': [col['COLUMN_NAME'] for col in columns],
             'potential_dept_columns': potential_dept_columns,
             'expense_columns': expense_columns,
+            'amount_columns': amount_columns,
             'sample_records': samples[:2] if samples else []
         }), 200
         
