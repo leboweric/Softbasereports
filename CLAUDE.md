@@ -53,8 +53,11 @@ To get the complete database schema:
 2. Technician Performance showing 0 data (changed to last 30 days)
 3. Department Gross Margins calculation (fixed to use invoice-level fields)
 4. Accounting Financial Performance showing mock data (fixed endpoint conflict)
-5. Monthly Quotes handling duplicates (now takes max amount per customer per day)
+5. Monthly Quotes handling duplicates (now uses latest quote per work order per month)
 6. Top 10 Customers now shows percentage of total fiscal YTD sales
+7. Parts reports: Added fill rate, reorder alerts, velocity analysis, demand forecasting
+8. Filtered consumables (oil, grease, coolant, anti-freeze) from Top 10 Parts
+9. Fixed decimal displays to show whole numbers for stock quantities
 
 ## Deployment URLs
 - **Frontend**: https://softbasereports.netlify.app
@@ -251,3 +254,33 @@ GROUP BY year, month
 - Multiple quote revisions are handled properly (only latest counts)
 - Reflects the actual quote values customers are seeing
 - More accurate representation of expected revenue
+
+### Parts Management Reports (2025-08-02)
+
+Created comprehensive parts inventory management system with multiple reports.
+
+**Reports Implemented:**
+1. **Parts Fill Rate**: Shows which Linde parts were not on hand when ordered
+2. **Parts Reorder Alerts**: Identifies parts needing reorder based on usage patterns
+3. **Parts Velocity Analysis**: Categorizes inventory by movement speed
+4. **Parts Demand Forecast**: Predicts future demand based on historical trends
+5. **Top 10 Parts by Quantity**: Shows most frequently sold parts
+
+**Key Features:**
+- Tab-based organization (Overview, Stock Alerts, Velocity, Forecast)
+- Excel download functionality for all reports
+- Clickable cards showing details in modal dialogs
+- Hover tooltips explaining calculations
+- Filtered out consumables (oil, grease, coolant, anti-freeze) from analysis
+
+**Technical Details:**
+- Fill rate calculation: (Orders with stock / Total orders) × 100
+- Reorder point: (Lead time + Safety stock) × Average daily usage
+- Velocity categories: Very Fast (>12x/year), Fast (6-12x), Medium (2-6x), Slow (0.5-2x), Very Slow (<0.5x)
+- Forecast uses 12-month history with trend adjustment factors
+
+**UI Improvements:**
+- Fixed decimal displays (was showing "34.0000", now shows "34")
+- Removed low-value Monthly Demand Trend card
+- Default "Include Current Month" unchecked on Dashboard
+- Added percentage of total sales to Top 10 Customers
