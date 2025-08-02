@@ -2,6 +2,7 @@
 from flask import jsonify
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
+from flask import request
 from src.services.azure_sql_service import AzureSQLService
 
 def get_db():
