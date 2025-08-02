@@ -146,6 +146,8 @@ def register_department_routes(reports_bp):
             INNER JOIN ben002.WO w ON wp.WONo = w.WONo
             WHERE w.OpenDate >= DATEADD(day, -30, GETDATE())
             AND wp.Qty > 0
+            AND wp.Description NOT LIKE '%OIL%'
+            AND wp.Description NOT LIKE '%GREASE%'
             GROUP BY wp.PartNo
             ORDER BY SUM(wp.Qty) DESC
             """
