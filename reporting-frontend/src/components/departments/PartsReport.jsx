@@ -48,6 +48,8 @@ const PartsReport = ({ user, onNavigate }) => {
   const [fillRateLoading, setFillRateLoading] = useState(true)
   const [reorderAlertLoading, setReorderAlertLoading] = useState(true)
   const [velocityLoading, setVelocityLoading] = useState(true)
+  const [forecastData, setForecastData] = useState(null)
+  const [forecastLoading, setForecastLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
 
@@ -56,6 +58,7 @@ const PartsReport = ({ user, onNavigate }) => {
     fetchFillRateData()
     fetchReorderAlertData()
     fetchVelocityData()
+    fetchForecastData()
   }, [])
 
   const fetchPartsData = async () => {
@@ -160,6 +163,30 @@ const PartsReport = ({ user, onNavigate }) => {
     }
   }
 
+  const fetchForecastData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/parts/forecast'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setForecastData(data)
+      } else {
+        console.error('Failed to fetch forecast data:', response.status)
+        setForecastData(null)
+      }
+    } catch (error) {
+      console.error('Error fetching forecast data:', error)
+      setForecastData(null)
+    } finally {
+      setForecastLoading(false)
+    }
+  }
+
   const downloadReorderAlerts = () => {
     if (!reorderAlertData || !reorderAlertData.alerts) return
 
@@ -243,6 +270,7 @@ const PartsReport = ({ user, onNavigate }) => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="stock-alerts">Stock Alerts</TabsTrigger>
           <TabsTrigger value="velocity">Velocity</TabsTrigger>
+          <TabsTrigger value="forecast">Forecast</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -718,6 +746,200 @@ const PartsReport = ({ user, onNavigate }) => {
                     </Table>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="forecast" className="space-y-6">
+          {/* Parts Demand Forecast */}
+          {forecastLoading ? (
+            <LoadingSpinner 
+              title="Loading Forecast Data" 
+              description="Analyzing demand patterns..."
+            />
+          ) : forecastData ? (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Order Now</p>
+                        <p className="text-2xl font-bold text-red-600">{forecastData.summary?.orderNowCount || 0}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Critical items</p>
+                      </div>
+                      <AlertTriangle className="h-8 w-8 text-red-600 opacity-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Order Soon</p>
+                        <p className="text-2xl font-bold text-orange-600">{forecastData.summary?.orderSoonCount || 0}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Within {forecastData.forecastDays || 90} days</p>
+                      </div>
+                      <Clock className="h-8 w-8 text-orange-600 opacity-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Total Parts</p>
+                        <p className="text-2xl font-bold">{forecastData.summary?.totalParts || 0}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Tracked items</p>
+                      </div>
+                      <Package className="h-8 w-8 text-blue-600 opacity-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Forecast Value</p>
+                        <p className="text-2xl font-bold">${((forecastData.summary?.totalForecastValue || 0) / 1000).toFixed(1)}k</p>
+                        <p className="text-xs text-muted-foreground mt-1">Next {forecastData.forecastDays || 90} days</p>
+                      </div>
+                      <TrendingUp className="h-8 w-8 text-green-600 opacity-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Monthly Trend Chart */}
+              {forecastData.monthlyTrend && forecastData.monthlyTrend.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Monthly Demand Trend</CardTitle>
+                    <CardDescription>
+                      Historical usage patterns with {forecastData.forecastDays}-day forecast
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={forecastData.monthlyTrend}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="month" />
+                        <YAxis />
+                        <RechartsTooltip 
+                          formatter={(value, name) => {
+                            if (name === 'actualDemand') return [`${value} units`, 'Actual']
+                            if (name === 'forecast') return [`${value} units`, 'Forecast']
+                            return value
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="actualDemand" 
+                          stroke="#3b82f6" 
+                          strokeWidth={2}
+                          name="Actual Demand"
+                        />
+                        {forecastData.monthlyTrend.some(m => m.forecast) && (
+                          <Line 
+                            type="monotone" 
+                            dataKey="forecast" 
+                            stroke="#10b981" 
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            name="Forecast"
+                          />
+                        )}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Forecast Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>Parts Demand Forecast</span>
+                    <div className="flex items-center gap-2 text-sm font-normal">
+                      <Badge variant="outline">Lead Time: {forecastData.leadTimeAssumption} days</Badge>
+                      <Badge variant="outline">Forecast: {forecastData.forecastDays} days</Badge>
+                    </div>
+                  </CardTitle>
+                  <CardDescription>
+                    {forecastData.analysisInfo?.description}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {forecastData.forecasts && forecastData.forecasts.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Part Number</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead className="text-center">Trend</TableHead>
+                          <TableHead className="text-right">Current Stock</TableHead>
+                          <TableHead className="text-right">Avg Monthly</TableHead>
+                          <TableHead className="text-right">Forecast Demand</TableHead>
+                          <TableHead className="text-right">Safety Stock</TableHead>
+                          <TableHead className="text-center">Recommendation</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {forecastData.forecasts.map((part) => (
+                          <TableRow key={part.partNo}>
+                            <TableCell className="font-medium">{part.partNo}</TableCell>
+                            <TableCell>{part.description}</TableCell>
+                            <TableCell className="text-center">
+                              {part.trend === 'Growing' ? (
+                                <TrendingUp className="h-4 w-4 text-green-600 inline" />
+                              ) : part.trend === 'Declining' ? (
+                                <TrendingDown className="h-4 w-4 text-red-600 inline" />
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">{Math.round(part.currentStock)}</TableCell>
+                            <TableCell className="text-right">{part.avgMonthlyDemand.toFixed(1)}</TableCell>
+                            <TableCell className="text-right">{part.forecastDemand}</TableCell>
+                            <TableCell className="text-right">{part.recommendedSafetyStock}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                variant={
+                                  part.recommendation === 'Order Now' ? 'destructive' :
+                                  part.recommendation === 'Order Soon' ? 'secondary' : 'outline'
+                                }
+                                className={
+                                  part.recommendation === 'Order Soon' ? 'bg-orange-500 hover:bg-orange-600' : ''
+                                }
+                              >
+                                {part.recommendation}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No parts require forecasting at this time
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-lg font-medium">Unable to load forecast data</p>
+                  <p className="text-sm text-muted-foreground mt-2">Please try refreshing the page</p>
+                </div>
               </CardContent>
             </Card>
           )}

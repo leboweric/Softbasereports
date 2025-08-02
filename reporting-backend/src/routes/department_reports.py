@@ -522,6 +522,217 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/forecast', methods=['GET'])
+    @jwt_required()
+    def get_parts_demand_forecast():
+        """Get parts demand forecast based on historical usage and trends"""
+        try:
+            db = get_db()
+            
+            # Get forecast period from query params (default 90 days)
+            forecast_days = int(request.args.get('days', 90))
+            
+            # Historical demand analysis with seasonality
+            forecast_query = f"""
+            WITH HistoricalDemand AS (
+                -- Get 12 months of historical data
+                SELECT 
+                    wp.PartNo,
+                    MAX(wp.Description) as Description,
+                    YEAR(w.OpenDate) as Year,
+                    MONTH(w.OpenDate) as Month,
+                    SUM(wp.Qty) as MonthlyQty,
+                    COUNT(DISTINCT wp.WONo) as OrderCount
+                FROM ben002.WOParts wp
+                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
+                    AND wp.Qty > 0
+                GROUP BY wp.PartNo, YEAR(w.OpenDate), MONTH(w.OpenDate)
+            ),
+            PartTrends AS (
+                -- Calculate trends and seasonality
+                SELECT 
+                    PartNo,
+                    Description,
+                    AVG(MonthlyQty) as AvgMonthlyDemand,
+                    STDEV(MonthlyQty) as DemandStdDev,
+                    MAX(MonthlyQty) as PeakMonthlyDemand,
+                    MIN(MonthlyQty) as MinMonthlyDemand,
+                    COUNT(DISTINCT CONCAT(Year, '-', Month)) as ActiveMonths,
+                    -- Calculate trend (simple linear regression slope)
+                    (12 * SUM(CAST(Month + (Year - 2024) * 12 AS FLOAT) * MonthlyQty) - 
+                     SUM(CAST(Month + (Year - 2024) * 12 AS FLOAT)) * SUM(MonthlyQty)) /
+                    (12 * SUM(POWER(CAST(Month + (Year - 2024) * 12 AS FLOAT), 2)) - 
+                     POWER(SUM(CAST(Month + (Year - 2024) * 12 AS FLOAT)), 2)) as TrendSlope
+                FROM HistoricalDemand
+                GROUP BY PartNo, Description
+                HAVING COUNT(DISTINCT CONCAT(Year, '-', Month)) >= 3  -- At least 3 months of data
+            ),
+            CurrentInventory AS (
+                SELECT 
+                    PartNo,
+                    MAX(OnHand) as CurrentStock,
+                    MAX(OnOrder) as OnOrder,
+                    MAX(Cost) as UnitCost
+                FROM ben002.Parts
+                GROUP BY PartNo
+            ),
+            EquipmentCounts AS (
+                -- Count equipment that uses each part (based on recent service)
+                SELECT 
+                    wp.PartNo,
+                    COUNT(DISTINCT e.StockNo) as EquipmentCount,
+                    AVG(e.Hours) as AvgEquipmentHours
+                FROM ben002.WOParts wp
+                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                LEFT JOIN ben002.Equipment e ON w.UnitNo = e.StockNo
+                WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
+                GROUP BY wp.PartNo
+            )
+            SELECT 
+                pt.PartNo,
+                pt.Description,
+                -- Current state
+                COALESCE(ci.CurrentStock, 0) as CurrentStock,
+                COALESCE(ci.OnOrder, 0) as OnOrder,
+                COALESCE(ci.UnitCost, 0) as UnitCost,
+                -- Historical metrics
+                pt.AvgMonthlyDemand,
+                pt.PeakMonthlyDemand,
+                pt.ActiveMonths,
+                COALESCE(ec.EquipmentCount, 0) as EquipmentUsingPart,
+                -- Forecast for period
+                CAST(pt.AvgMonthlyDemand * ({forecast_days} / 30.0) * 
+                     CASE 
+                         WHEN pt.TrendSlope > 0 THEN 1.1  -- Growing demand
+                         WHEN pt.TrendSlope < -0.5 THEN 0.9  -- Declining demand
+                         ELSE 1.0  -- Stable demand
+                     END AS INT) as ForecastDemand,
+                -- Safety stock recommendation (based on variability)
+                CAST(
+                    CASE 
+                        WHEN pt.DemandStdDev > pt.AvgMonthlyDemand THEN pt.AvgMonthlyDemand * 0.5
+                        ELSE pt.DemandStdDev * 1.65  -- 95% service level
+                    END AS INT
+                ) as SafetyStock,
+                -- Reorder recommendation
+                CASE 
+                    WHEN COALESCE(ci.CurrentStock, 0) + COALESCE(ci.OnOrder, 0) < 
+                         (pt.AvgMonthlyDemand * ({forecast_days} / 30.0)) 
+                    THEN 'Order Now'
+                    WHEN COALESCE(ci.CurrentStock, 0) + COALESCE(ci.OnOrder, 0) < 
+                         (pt.AvgMonthlyDemand * ({forecast_days} / 30.0) * 1.5)
+                    THEN 'Order Soon'
+                    ELSE 'Adequate Stock'
+                END as OrderRecommendation,
+                -- Trend indicator
+                CASE 
+                    WHEN pt.TrendSlope > 1 THEN 'Strong Growth'
+                    WHEN pt.TrendSlope > 0 THEN 'Growing'
+                    WHEN pt.TrendSlope < -1 THEN 'Declining Fast'
+                    WHEN pt.TrendSlope < 0 THEN 'Declining'
+                    ELSE 'Stable'
+                END as DemandTrend
+            FROM PartTrends pt
+            LEFT JOIN CurrentInventory ci ON pt.PartNo = ci.PartNo
+            LEFT JOIN EquipmentCounts ec ON pt.PartNo = ec.PartNo
+            WHERE pt.AvgMonthlyDemand > 0
+            ORDER BY 
+                CASE 
+                    WHEN COALESCE(ci.CurrentStock, 0) + COALESCE(ci.OnOrder, 0) < 
+                         (pt.AvgMonthlyDemand * ({forecast_days} / 30.0)) 
+                    THEN 1 
+                    ELSE 2 
+                END,
+                (pt.AvgMonthlyDemand * COALESCE(ci.UnitCost, 0)) DESC
+            """
+            
+            forecast_results = db.execute_query(forecast_query)
+            
+            # Monthly trend for visualization
+            monthly_trend_query = """
+            SELECT 
+                YEAR(w.OpenDate) as Year,
+                MONTH(w.OpenDate) as Month,
+                COUNT(DISTINCT wp.PartNo) as UniqueParts,
+                SUM(wp.Qty) as TotalQuantity,
+                COUNT(DISTINCT w.WONo) as WorkOrders
+            FROM ben002.WOParts wp
+            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
+            GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate)
+            ORDER BY Year, Month
+            """
+            
+            trend_results = db.execute_query(monthly_trend_query)
+            
+            # Format results
+            forecasts = []
+            total_forecast_value = 0
+            
+            for part in forecast_results:
+                forecast_value = float(part.get('ForecastDemand', 0)) * float(part.get('UnitCost', 0))
+                total_forecast_value += forecast_value
+                
+                forecasts.append({
+                    'partNo': part.get('PartNo', ''),
+                    'description': part.get('Description', ''),
+                    'currentStock': part.get('CurrentStock', 0),
+                    'onOrder': part.get('OnOrder', 0),
+                    'unitCost': float(part.get('UnitCost', 0)),
+                    'avgMonthlyDemand': float(part.get('AvgMonthlyDemand', 0)),
+                    'peakMonthlyDemand': part.get('PeakMonthlyDemand', 0),
+                    'forecastDemand': part.get('ForecastDemand', 0),
+                    'safetyStock': part.get('SafetyStock', 0),
+                    'orderRecommendation': part.get('OrderRecommendation', ''),
+                    'demandTrend': part.get('DemandTrend', ''),
+                    'equipmentCount': part.get('EquipmentUsingPart', 0),
+                    'forecastValue': forecast_value
+                })
+            
+            monthly_trend = []
+            for row in trend_results:
+                month_date = datetime(row['Year'], row['Month'], 1)
+                monthly_trend.append({
+                    'month': month_date.strftime("%b %Y"),
+                    'uniqueParts': row.get('UniqueParts', 0),
+                    'totalQuantity': row.get('TotalQuantity', 0),
+                    'workOrders': row.get('WorkOrders', 0)
+                })
+            
+            # Summary statistics
+            order_now_count = sum(1 for f in forecasts if f['orderRecommendation'] == 'Order Now')
+            order_soon_count = sum(1 for f in forecasts if f['orderRecommendation'] == 'Order Soon')
+            
+            return jsonify({
+                'forecasts': forecasts[:100],  # Top 100 by value
+                'monthlyTrend': monthly_trend,
+                'summary': {
+                    'totalParts': len(forecasts),
+                    'orderNowCount': order_now_count,
+                    'orderSoonCount': order_soon_count,
+                    'totalForecastValue': total_forecast_value,
+                    'forecastPeriod': forecast_days
+                },
+                'forecastInfo': {
+                    'method': 'Historical average with trend adjustment',
+                    'confidence': 'Based on 12 months historical data',
+                    'factors': [
+                        'Average monthly demand',
+                        'Demand trend (growing/declining)',
+                        'Seasonal variations',
+                        'Equipment count using part'
+                    ]
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'forecast_error'
+            }), 500
+
+
     @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
     @jwt_required()
     def get_parts_fill_rate():
