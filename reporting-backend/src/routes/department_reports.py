@@ -1663,102 +1663,53 @@ def register_department_routes(reports_bp):
             # Common tables might include: APInvoice, GLTransaction, ExpenseReport, etc.
             # For now, returning mock data to demonstrate the structure
             
-            # First, check which column contains expense codes starting with 6
-            check_columns_query = """
-            SELECT TOP 1
-                CASE 
-                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE ExpCode LIKE '6%') THEN 'ExpCode'
-                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE SaleCode LIKE '6%') THEN 'SaleCode'
-                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE RecvAccount LIKE '6%') THEN 'RecvAccount'
-                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE CAST(ExpDept AS VARCHAR) LIKE '6%') THEN 'ExpDept'
-                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE CAST(SaleDept AS VARCHAR) LIKE '6%') THEN 'SaleDept'
-                    ELSE 'Unknown'
-                END as dept_column
-            """
-            
-            column_result = db.execute_query(check_columns_query)
-            dept_column = 'SaleCode'  # Default
-            if column_result and len(column_result) > 0:
-                dept_column = column_result[0].get('dept_column', 'SaleCode')
-            
-            # If we couldn't find a department column, use mock data
-            if dept_column == 'Unknown':
-                # Return mock data
-                return jsonify({
-                    'monthly_expenses': [
-                        {'month': 'March', 'year': 2025, 'expenses': 75000},
-                        {'month': 'April', 'year': 2025, 'expenses': 82000},
-                        {'month': 'May', 'year': 2025, 'expenses': 78500},
-                        {'month': 'June', 'year': 2025, 'expenses': 91000},
-                        {'month': 'July', 'year': 2025, 'expenses': 85000}
-                    ],
-                    'summary': {
-                        'total_expenses': 411500,
-                        'average_monthly': 82300,
-                        'expense_categories': [
-                            {'category': 'Payroll & Benefits', 'amount': 185000},
-                            {'category': 'Facilities & Rent', 'amount': 82000},
-                            {'category': 'Professional Services', 'amount': 61000},
-                            {'category': 'IT & Computer', 'amount': 41000},
-                            {'category': 'Other Expenses', 'amount': 42500}
-                        ]
-                    }
-                }), 200
-            
-            # Build the WHERE clause based on column type
-            if dept_column in ['ExpDept', 'SaleDept']:
-                where_clause = f"CAST({dept_column} AS VARCHAR) LIKE '6%'"
-            else:
-                where_clause = f"{dept_column} LIKE '6%'"
-            
-            # Get G&A expenses from InvoiceReg using dynamic column
-            expenses_query = f"""
+            # Get G&A expenses from GLDetail table (which has the actual expense transactions)
+            expenses_query = """
             WITH MonthlyExpenses AS (
                 SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    -- Negative TotalSale for expense accounts
-                    -SUM(COALESCE(GrandTotal, 0)) as total_expenses
-                FROM ben002.InvoiceReg
-                WHERE {where_clause}  -- Expense accounts start with 6
-                    AND InvoiceDate >= '2025-03-01'
-                    AND InvoiceDate < DATEADD(DAY, 1, GETDATE())  -- Up to today
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                    YEAR(gld.EffectiveDate) as year,
+                    MONTH(gld.EffectiveDate) as month,
+                    SUM(gld.Amount) as total_expenses
+                FROM ben002.GLDetail gld
+                WHERE gld.AccountNo LIKE '6%'  -- Expense accounts start with 6
+                    AND gld.EffectiveDate >= '2025-03-01'
+                    AND gld.EffectiveDate < DATEADD(DAY, 1, GETDATE())
+                GROUP BY YEAR(gld.EffectiveDate), MONTH(gld.EffectiveDate)
             ),
             ExpenseCategories AS (
                 SELECT 
                     CASE 
-                        WHEN {where_clause.replace("'6%'", "'600%'")} THEN 'Advertising & Marketing'
-                        WHEN {where_clause.replace("'6%'", "'601%'")} THEN 'Payroll & Benefits'
-                        WHEN {where_clause.replace("'6%'", "'602%'")} THEN 'Facilities & Rent'
-                        WHEN {where_clause.replace("'6%'", "'603%'")} THEN 'Insurance'
-                        WHEN {where_clause.replace("'6%'", "'604%'")} THEN 'Professional Services'
-                        WHEN {where_clause.replace("'6%'", "'605%'")} THEN 'IT & Computer'
-                        WHEN {where_clause.replace("'6%'", "'606%'")} THEN 'Depreciation'
-                        WHEN {where_clause.replace("'6%'", "'607%'")} THEN 'Interest & Finance'
-                        WHEN {where_clause.replace("'6%'", "'608%'")} THEN 'Travel & Entertainment'
-                        WHEN {where_clause.replace("'6%'", "'609%'")} THEN 'Office & Admin'
+                        WHEN gld.AccountNo LIKE '600%' THEN 'Advertising & Marketing'
+                        WHEN gld.AccountNo LIKE '601%' THEN 'Payroll & Benefits'
+                        WHEN gld.AccountNo LIKE '602%' THEN 'Facilities & Rent'
+                        WHEN gld.AccountNo LIKE '603%' THEN 'Insurance'
+                        WHEN gld.AccountNo LIKE '604%' THEN 'Professional Services'
+                        WHEN gld.AccountNo LIKE '605%' THEN 'IT & Computer'
+                        WHEN gld.AccountNo LIKE '606%' THEN 'Depreciation'
+                        WHEN gld.AccountNo LIKE '607%' THEN 'Interest & Finance'
+                        WHEN gld.AccountNo LIKE '608%' THEN 'Travel & Entertainment'
+                        WHEN gld.AccountNo LIKE '609%' THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END as category,
-                    -SUM(COALESCE(GrandTotal, 0)) as amount
-                FROM ben002.InvoiceReg
-                WHERE {where_clause}
-                    AND InvoiceDate >= DATEADD(MONTH, -6, GETDATE())
+                    SUM(gld.Amount) as amount
+                FROM ben002.GLDetail gld
+                WHERE gld.AccountNo LIKE '6%'
+                    AND gld.EffectiveDate >= DATEADD(MONTH, -6, GETDATE())
                 GROUP BY 
                     CASE 
-                        WHEN {where_clause.replace("'6%'", "'600%'")} THEN 'Advertising & Marketing'
-                        WHEN {where_clause.replace("'6%'", "'601%'")} THEN 'Payroll & Benefits'
-                        WHEN {where_clause.replace("'6%'", "'602%'")} THEN 'Facilities & Rent'
-                        WHEN {where_clause.replace("'6%'", "'603%'")} THEN 'Insurance'
-                        WHEN {where_clause.replace("'6%'", "'604%'")} THEN 'Professional Services'
-                        WHEN {where_clause.replace("'6%'", "'605%'")} THEN 'IT & Computer'
-                        WHEN {where_clause.replace("'6%'", "'606%'")} THEN 'Depreciation'
-                        WHEN {where_clause.replace("'6%'", "'607%'")} THEN 'Interest & Finance'
-                        WHEN {where_clause.replace("'6%'", "'608%'")} THEN 'Travel & Entertainment'
-                        WHEN {where_clause.replace("'6%'", "'609%'")} THEN 'Office & Admin'
+                        WHEN gld.AccountNo LIKE '600%' THEN 'Advertising & Marketing'
+                        WHEN gld.AccountNo LIKE '601%' THEN 'Payroll & Benefits'
+                        WHEN gld.AccountNo LIKE '602%' THEN 'Facilities & Rent'
+                        WHEN gld.AccountNo LIKE '603%' THEN 'Insurance'
+                        WHEN gld.AccountNo LIKE '604%' THEN 'Professional Services'
+                        WHEN gld.AccountNo LIKE '605%' THEN 'IT & Computer'
+                        WHEN gld.AccountNo LIKE '606%' THEN 'Depreciation'
+                        WHEN gld.AccountNo LIKE '607%' THEN 'Interest & Finance'
+                        WHEN gld.AccountNo LIKE '608%' THEN 'Travel & Entertainment'
+                        WHEN gld.AccountNo LIKE '609%' THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END
-                HAVING SUM(COALESCE(GrandTotal, 0)) != 0
+                HAVING SUM(gld.Amount) != 0
             )
             SELECT 
                 (SELECT year, month, total_expenses 
@@ -1817,12 +1768,12 @@ def register_department_routes(reports_bp):
             total_expenses = sum(item['expenses'] for item in monthly_expenses)
             avg_expenses = total_expenses / len(monthly_expenses) if monthly_expenses else 0
             
-            # Return structure with real expense data
+            # Return structure with real expense data from GL
             return jsonify({
                 'monthly_expenses': monthly_expenses,
                 'debug_info': {
-                    'detected_column': dept_column,
-                    'where_clause': where_clause
+                    'data_source': 'GLDetail table',
+                    'account_filter': 'AccountNo LIKE 6%'
                 },
                 'summary': {
                     'total_expenses': round(total_expenses, 2),
