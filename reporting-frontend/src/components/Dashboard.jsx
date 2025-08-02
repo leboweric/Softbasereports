@@ -37,6 +37,7 @@ import {
 import { 
   DollarSign, 
   TrendingUp, 
+  TrendingDown,
   Package, 
   Users,
   FileText,
@@ -48,6 +49,7 @@ import { apiUrl } from '@/lib/api'
 const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [paceData, setPaceData] = useState(null)
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
   const [visibleWOTypes, setVisibleWOTypes] = useState({
@@ -100,11 +102,32 @@ const Dashboard = ({ user }) => {
           const cacheStatus = data.from_cache ? 'from cache' : 'fresh data'
           console.log(`Dashboard loaded in ${data.query_time} seconds (${cacheStatus})`)
         }
+        
+        // Fetch pace data
+        fetchPaceData()
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchPaceData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/dashboard/sales-pace'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setPaceData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching pace data:', error)
     }
   }
 
@@ -147,6 +170,116 @@ const Dashboard = ({ user }) => {
     if (!previous || previous === 0) return null
     const change = ((current - previous) / previous) * 100
     return change
+  }
+
+  // Custom bar shape with pace indicator
+  const CustomBar = (props) => {
+    const { fill, x, y, width, height, payload } = props
+    const currentMonth = new Date().getMonth() + 1
+    const currentYear = new Date().getFullYear()
+    
+    // Check if this is the current month
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const isCurrentMonth = payload && 
+      payload.month === monthNames[currentMonth - 1] && 
+      payload.year === currentYear &&
+      paceData
+    
+    return (
+      <g>
+        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        {isCurrentMonth && paceData && (
+          <g>
+            {/* Pace indicator */}
+            <rect 
+              x={x} 
+              y={y - 20} 
+              width={width} 
+              height={18} 
+              fill={paceData.pace.percentage > 0 ? '#10b981' : '#ef4444'}
+              rx={4}
+            />
+            <text 
+              x={x + width / 2} 
+              y={y - 6} 
+              textAnchor="middle" 
+              fill="white" 
+              fontSize="11" 
+              fontWeight="bold"
+            >
+              {paceData.pace.percentage > 0 ? '+' : ''}{paceData.pace.percentage}%
+            </text>
+            {/* Arrow icon */}
+            {paceData.pace.percentage !== 0 && (
+              <text 
+                x={x + width / 2} 
+                y={y - 25} 
+                textAnchor="middle" 
+                fill={paceData.pace.percentage > 0 ? '#10b981' : '#ef4444'}
+                fontSize="16"
+              >
+                {paceData.pace.percentage > 0 ? '↑' : '↓'}
+              </text>
+            )}
+          </g>
+        )}
+      </g>
+    )
+  }
+
+  // Custom bar shape for No Equipment chart
+  const CustomBarNoEquipment = (props) => {
+    const { fill, x, y, width, height, payload } = props
+    const currentMonth = new Date().getMonth() + 1
+    const currentYear = new Date().getFullYear()
+    
+    // Check if this is the current month
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const isCurrentMonth = payload && 
+      payload.month === monthNames[currentMonth - 1] && 
+      payload.year === currentYear &&
+      paceData
+    
+    return (
+      <g>
+        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        {isCurrentMonth && paceData && (
+          <g>
+            {/* Pace indicator */}
+            <rect 
+              x={x} 
+              y={y - 20} 
+              width={width} 
+              height={18} 
+              fill={paceData.pace.percentage_no_equipment > 0 ? '#10b981' : '#ef4444'}
+              rx={4}
+            />
+            <text 
+              x={x + width / 2} 
+              y={y - 6} 
+              textAnchor="middle" 
+              fill="white" 
+              fontSize="11" 
+              fontWeight="bold"
+            >
+              {paceData.pace.percentage_no_equipment > 0 ? '+' : ''}{paceData.pace.percentage_no_equipment}%
+            </text>
+            {/* Arrow icon */}
+            {paceData.pace.percentage_no_equipment !== 0 && (
+              <text 
+                x={x + width / 2} 
+                y={y - 25} 
+                textAnchor="middle" 
+                fill={paceData.pace.percentage_no_equipment > 0 ? '#10b981' : '#ef4444'}
+                fontSize="16"
+              >
+                {paceData.pace.percentage_no_equipment > 0 ? '↑' : '↓'}
+              </text>
+            )}
+          </g>
+        )}
+      </g>
+    )
   }
 
   // Helper function to format percentage with color
@@ -406,7 +539,7 @@ const Dashboard = ({ user }) => {
                   }
                   return null
                 }} />
-                <Bar dataKey="amount" fill="#8884d8" />
+                <Bar dataKey="amount" fill="#8884d8" shape={<CustomBar />} />
                 {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales.slice(0, -1)
@@ -453,7 +586,7 @@ const Dashboard = ({ user }) => {
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="amount" fill="#10b981" />
+                <Bar dataKey="amount" fill="#10b981" shape={<CustomBarNoEquipment />} />
                 {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)

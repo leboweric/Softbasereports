@@ -120,6 +120,7 @@ class DashboardQueries:
                     month_date = datetime(row['year'], row['month'], 1)
                     monthly_sales.append({
                         'month': month_date.strftime("%b"),
+                        'year': row['year'],
                         'amount': float(row['amount'])
                     })
             
@@ -128,14 +129,24 @@ class DashboardQueries:
             all_months = []
             date = start_date
             while date <= self.current_date:
-                all_months.append(date.strftime("%b"))
+                all_months.append({'month': date.strftime("%b"), 'year': date.year})
                 if date.month == 12:
                     date = date.replace(year=date.year + 1, month=1)
                 else:
                     date = date.replace(month=date.month + 1)
             
-            existing_data = {item['month']: item['amount'] for item in monthly_sales}
-            monthly_sales = [{'month': month, 'amount': existing_data.get(month, 0)} for month in all_months]
+            existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_sales}
+            monthly_sales = []
+            for month_info in all_months:
+                key = f"{month_info['year']}-{month_info['month']}"
+                if key in existing_data:
+                    monthly_sales.append(existing_data[key])
+                else:
+                    monthly_sales.append({
+                        'month': month_info['month'],
+                        'year': month_info['year'],
+                        'amount': 0
+                    })
             
             return monthly_sales
         except Exception as e:
@@ -163,6 +174,7 @@ class DashboardQueries:
                     month_date = datetime(row['year'], row['month'], 1)
                     monthly_sales.append({
                         'month': month_date.strftime("%b"),
+                        'year': row['year'],
                         'amount': float(row['amount'])
                     })
             
@@ -171,14 +183,24 @@ class DashboardQueries:
             all_months = []
             date = start_date
             while date <= self.current_date:
-                all_months.append(date.strftime("%b"))
+                all_months.append({'month': date.strftime("%b"), 'year': date.year})
                 if date.month == 12:
                     date = date.replace(year=date.year + 1, month=1)
                 else:
                     date = date.replace(month=date.month + 1)
             
-            existing_data = {item['month']: item['amount'] for item in monthly_sales}
-            monthly_sales = [{'month': month, 'amount': existing_data.get(month, 0)} for month in all_months]
+            existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_sales}
+            monthly_sales = []
+            for month_info in all_months:
+                key = f"{month_info['year']}-{month_info['month']}"
+                if key in existing_data:
+                    monthly_sales.append(existing_data[key])
+                else:
+                    monthly_sales.append({
+                        'month': month_info['month'],
+                        'year': month_info['year'],
+                        'amount': 0
+                    })
             
             return monthly_sales
         except Exception as e:
@@ -209,6 +231,7 @@ class DashboardQueries:
                     month_date = datetime(row['year'], row['month'], 1)
                     monthly_data.append({
                         'month': month_date.strftime("%b"),
+                        'year': row['year'],
                         'parts': float(row['parts_revenue'] or 0),
                         'labor': float(row['labor_revenue'] or 0),
                         'rental': float(row['rental_revenue'] or 0),
@@ -220,22 +243,23 @@ class DashboardQueries:
             all_months = []
             date = start_date
             while date <= self.current_date:
-                all_months.append(date.strftime("%b"))
+                all_months.append({'month': date.strftime("%b"), 'year': date.year})
                 if date.month == 12:
                     date = date.replace(year=date.year + 1, month=1)
                 else:
                     date = date.replace(month=date.month + 1)
             
-            existing_months = [item['month'] for item in monthly_data]
-            existing_data = {item['month']: item for item in monthly_data}
+            existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_data}
             
             monthly_data = []
-            for month in all_months:
-                if month in existing_data:
-                    monthly_data.append(existing_data[month])
+            for month_info in all_months:
+                key = f"{month_info['year']}-{month_info['month']}"
+                if key in existing_data:
+                    monthly_data.append(existing_data[key])
                 else:
                     monthly_data.append({
-                        'month': month, 
+                        'month': month_info['month'],
+                        'year': month_info['year'], 
                         'parts': 0,
                         'labor': 0,
                         'rental': 0,
