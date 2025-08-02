@@ -21,8 +21,14 @@ import {
   Tooltip as RechartsTooltip, 
   ResponsiveContainer
 } from 'recharts'
-import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
@@ -298,9 +304,51 @@ const PartsReport = ({ user, onNavigate }) => {
                       <TableHead className="text-center">Alert</TableHead>
                       <TableHead className="text-right">Stock</TableHead>
                       <TableHead className="text-right">Days Left</TableHead>
-                      <TableHead className="text-right">Daily Usage</TableHead>
-                      <TableHead className="text-right">Reorder Point</TableHead>
-                      <TableHead className="text-right">Order Qty</TableHead>
+                      <TableHead className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          Daily Usage
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p>Average quantity consumed per day over the last 90 days. Calculated by dividing total quantity used by the number of days in the period.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          Reorder Point
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p>The inventory level that triggers a new order. Calculated as: (14 days lead time + 7 days safety stock) × Average Daily Usage. When stock drops below this point, it's time to reorder.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          Order Qty
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <Info className="h-3 w-3 text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p>Suggested order quantity to maintain adequate stock. Calculated as 30 days × Average Daily Usage, providing approximately one month of inventory after considering lead time.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
