@@ -108,34 +108,82 @@ def register_department_routes(reports_bp):
                     if month not in existing_months:
                         monthlyPartsRevenue.append({'month': month, 'amount': 0})
             
-            # Debug: Get NationalParts column info
-            debug_info = None
+            # Debug: Get table info
+            debug_info = {}
+            
+            # Check NationalParts
             try:
-                debug_query = "SELECT TOP 1 * FROM ben002.NationalParts"
-                debug_result = db.execute_query(debug_query)
+                # First check if table has any data
+                count_query = "SELECT COUNT(*) as row_count FROM ben002.NationalParts"
+                count_result = db.execute_query(count_query)
+                row_count = count_result[0]['row_count'] if count_result else 0
                 
-                if debug_result and len(debug_result) > 0:
-                    columns = list(debug_result[0].keys())
-                    inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower()]
+                if row_count > 0:
+                    debug_query = "SELECT TOP 1 * FROM ben002.NationalParts"
+                    debug_result = db.execute_query(debug_query)
                     
-                    debug_info = {
-                        'table_exists': True,
-                        'total_columns': len(columns),
-                        'inventory_columns': inventory_columns,
-                        'has_OnHand': 'OnHand' in columns,
-                        'has_QtyOnHand': 'QtyOnHand' in columns,
-                        'sample_columns': columns[:10]  # First 10 columns
-                    }
+                    if debug_result and len(debug_result) > 0:
+                        columns = list(debug_result[0].keys())
+                        inventory_columns = [col for col in columns if 'hand' in col.lower() or 'qty' in col.lower() or 'stock' in col.lower()]
+                        
+                        debug_info['nationalparts'] = {
+                            'table_exists': True,
+                            'row_count': row_count,
+                            'total_columns': len(columns),
+                            'inventory_columns': inventory_columns,
+                            'has_OnHand': 'OnHand' in columns,
+                            'has_QtyOnHand': 'QtyOnHand' in columns,
+                            'sample_columns': columns[:10]
+                        }
                 else:
-                    debug_info = {
+                    debug_info['nationalparts'] = {
                         'table_exists': True,
-                        'error': 'No data in table'
+                        'row_count': 0,
+                        'error': 'Table is empty'
                     }
             except Exception as e:
-                debug_info = {
+                debug_info['nationalparts'] = {
                     'table_exists': False,
                     'error': str(e)
                 }
+            
+            # Check WOParts table
+            try:
+                woparts_query = "SELECT TOP 1 * FROM ben002.WOParts"
+                woparts_result = db.execute_query(woparts_query)
+                
+                if woparts_result and len(woparts_result) > 0:
+                    columns = list(woparts_result[0].keys())
+                    debug_info['woparts'] = {
+                        'table_exists': True,
+                        'columns': columns,
+                        'has_qty': 'Qty' in columns,
+                        'has_description': 'Description' in columns,
+                        'has_partno': 'PartNo' in columns
+                    }
+            except Exception as e:
+                debug_info['woparts'] = {
+                    'table_exists': False,
+                    'error': str(e)
+                }
+                
+            # Look for other potential parts tables
+            try:
+                tables_query = """
+                SELECT TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = 'ben002' 
+                AND (TABLE_NAME LIKE '%Part%' OR TABLE_NAME LIKE '%Inventory%')
+                ORDER BY TABLE_NAME
+                """
+                tables_result = db.execute_query(tables_query)
+                
+                if tables_result:
+                    debug_info['parts_tables'] = [row['TABLE_NAME'] for row in tables_result]
+                else:
+                    debug_info['parts_tables'] = []
+            except:
+                debug_info['parts_tables'] = []
             
             return jsonify({
                 'monthlyPartsRevenue': monthlyPartsRevenue,

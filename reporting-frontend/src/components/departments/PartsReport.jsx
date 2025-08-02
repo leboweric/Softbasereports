@@ -84,79 +84,92 @@ const PartsReport = ({ user, onNavigate }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-orange-600" />
-              Debug: NationalParts Table Information
+              Debug: Parts Tables Information
             </CardTitle>
             <CardDescription>
-              Temporary debug information to identify correct column names
+              Temporary debug information to identify correct tables and column names
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell className="font-medium">Table Exists:</TableCell>
-                  <TableCell>
-                    <Badge variant={partsData.debug.table_exists ? "success" : "destructive"}>
-                      {partsData.debug.table_exists ? "Yes" : "No"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-                {partsData.debug.table_exists && (
-                  <>
-                    <TableRow>
-                      <TableCell className="font-medium">Total Columns:</TableCell>
-                      <TableCell>{partsData.debug.total_columns}</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Has OnHand Column:</TableCell>
-                      <TableCell>
-                        <Badge variant={partsData.debug.has_OnHand ? "success" : "destructive"}>
-                          {partsData.debug.has_OnHand ? "Yes" : "No"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Has QtyOnHand Column:</TableCell>
-                      <TableCell>
-                        <Badge variant={partsData.debug.has_QtyOnHand ? "success" : "destructive"}>
-                          {partsData.debug.has_QtyOnHand ? "Yes" : "No"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Inventory Related Columns:</TableCell>
-                      <TableCell>
-                        {partsData.debug.inventory_columns?.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {partsData.debug.inventory_columns.map((col) => (
-                              <Badge key={col} variant="outline">{col}</Badge>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">None found</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell className="font-medium">Sample Columns:</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-2">
-                          {partsData.debug.sample_columns?.map((col) => (
-                            <Badge key={col} variant="secondary">{col}</Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  </>
-                )}
-                {partsData.debug.error && (
-                  <TableRow>
-                    <TableCell className="font-medium">Error:</TableCell>
-                    <TableCell className="text-red-600">{partsData.debug.error}</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+          <CardContent className="space-y-4">
+            {/* NationalParts Info */}
+            <div>
+              <h4 className="font-semibold mb-2">NationalParts Table:</h4>
+              <Table>
+                <TableBody>
+                  {partsData.debug.nationalparts && (
+                    <>
+                      <TableRow>
+                        <TableCell className="font-medium">Exists:</TableCell>
+                        <TableCell>
+                          <Badge variant={partsData.debug.nationalparts.table_exists ? "success" : "destructive"}>
+                            {partsData.debug.nationalparts.table_exists ? "Yes" : "No"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="font-medium">Row Count:</TableCell>
+                        <TableCell>{partsData.debug.nationalparts.row_count || "0"}</TableCell>
+                      </TableRow>
+                      {partsData.debug.nationalparts.error && (
+                        <TableRow>
+                          <TableCell className="font-medium">Error:</TableCell>
+                          <TableCell className="text-red-600">{partsData.debug.nationalparts.error}</TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* WOParts Info */}
+            <div>
+              <h4 className="font-semibold mb-2">WOParts Table:</h4>
+              <Table>
+                <TableBody>
+                  {partsData.debug.woparts && (
+                    <>
+                      <TableRow>
+                        <TableCell className="font-medium">Exists:</TableCell>
+                        <TableCell>
+                          <Badge variant={partsData.debug.woparts.table_exists ? "success" : "destructive"}>
+                            {partsData.debug.woparts.table_exists ? "Yes" : "No"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                      {partsData.debug.woparts.columns && (
+                        <TableRow>
+                          <TableCell className="font-medium">Columns:</TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-2">
+                              {partsData.debug.woparts.columns.map((col) => (
+                                <Badge key={col} variant="secondary">{col}</Badge>
+                              ))}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Other Parts Tables */}
+            {partsData.debug.parts_tables && (
+              <div>
+                <h4 className="font-semibold mb-2">All Parts/Inventory Tables in Database:</h4>
+                <div className="flex flex-wrap gap-2">
+                  {partsData.debug.parts_tables.length > 0 ? (
+                    partsData.debug.parts_tables.map((table) => (
+                      <Badge key={table} variant="outline">{table}</Badge>
+                    ))
+                  ) : (
+                    <span className="text-muted-foreground">No parts/inventory tables found</span>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
