@@ -477,34 +477,26 @@ const Dashboard = ({ user }) => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle>Open Work Orders by Type</CardTitle>
+            <CardTitle>Active Customers Over Time</CardTitle>
             <CardDescription>
-              {formatCurrency(dashboardData?.open_work_orders_value || 0)} in open/incomplete orders ({dashboardData?.open_work_orders_count || 0} total)
+              Number of customers with invoices each month
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <PieChart>
-                <Pie
-                  data={dashboardData?.work_order_types || []}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ type, percent }) => `${type} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={120}
-                  fill="#8884d8"
-                  dataKey="value"
-                  nameKey="type"
-                >
-                  {(dashboardData?.work_order_types || []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  formatter={(value, name) => [formatCurrency(value), name]}
-                  contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+              <LineChart data={dashboardData?.monthly_active_customers || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="customers" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2}
+                  dot={{ fill: '#3b82f6', r: 4 }}
                 />
-              </PieChart>
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

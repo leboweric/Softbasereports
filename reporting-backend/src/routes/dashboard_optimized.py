@@ -639,6 +639,52 @@ class DashboardQueries:
         except Exception as e:
             logger.error(f"Department margins query failed: {str(e)}")
             return []
+    
+    def get_monthly_active_customers(self):
+        """Get monthly active customers count since March 2025"""
+        try:
+            query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                COUNT(DISTINCT BillToName) as active_customers
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2025-03-01'
+            AND BillToName IS NOT NULL
+            AND BillToName != ''
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            results = self.db.execute_query(query)
+            monthly_customers = []
+            
+            if results:
+                for row in results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_customers.append({
+                        'month': month_date.strftime("%b"),
+                        'customers': int(row['active_customers'])
+                    })
+            
+            # Pad missing months from March onwards
+            start_date = datetime(2025, 3, 1)
+            all_months = []
+            date = start_date
+            while date <= self.current_date:
+                all_months.append(date.strftime("%b"))
+                if date.month == 12:
+                    date = date.replace(year=date.year + 1, month=1)
+                else:
+                    date = date.replace(month=date.month + 1)
+            
+            existing_data = {item['month']: item['customers'] for item in monthly_customers}
+            monthly_customers = [{'month': month, 'customers': existing_data.get(month, 0)} for month in all_months]
+            
+            return monthly_customers
+        except Exception as e:
+            logger.error(f"Monthly active customers query failed: {str(e)}")
+            return []
 
 
 @dashboard_optimized_bp.route('/api/reports/dashboard/summary-optimized', methods=['GET'])
@@ -685,7 +731,8 @@ def get_dashboard_summary_optimized():
             'work_order_types': lambda: cached_query('work_order_types', queries.get_work_order_types, cache_ttl['work_order_types']),
             'top_customers': lambda: cached_query('top_customers', queries.get_top_customers, cache_ttl['top_customers']),
             'monthly_work_orders': lambda: cached_query('monthly_work_orders', queries.get_monthly_work_orders_by_type, cache_ttl['monthly_work_orders']),
-            'department_margins': lambda: cached_query('department_margins', queries.get_department_margins, cache_ttl['department_margins'])
+            'department_margins': lambda: cached_query('department_margins', queries.get_department_margins, cache_ttl['department_margins']),
+            'monthly_active_customers': lambda: cached_query('monthly_active_customers', queries.get_monthly_active_customers, cache_ttl['active_customers'])
         }
         
         # Execute queries in parallel
@@ -724,6 +771,7 @@ def get_dashboard_summary_optimized():
             'top_customers': results.get('top_customers', []),
             'monthly_work_orders_by_type': results.get('monthly_work_orders', []),
             'department_margins': results.get('department_margins', []),
+            'monthly_active_customers': results.get('monthly_active_customers', []),
             'period': datetime.now().strftime('%B %Y'),
             'last_updated': datetime.now().isoformat(),
             'query_time': round(time.time() - start_time, 2),
