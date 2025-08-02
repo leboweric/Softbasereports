@@ -41,9 +41,11 @@ import RentalServiceReport from './RentalServiceReport'
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [inventoryCount, setInventoryCount] = useState(0)
 
   useEffect(() => {
     fetchRentalData()
+    fetchInventoryCount()
   }, [])
 
   const fetchRentalData = async () => {
@@ -63,6 +65,24 @@ const RentalReport = ({ user }) => {
       console.error('Error fetching rental data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchInventoryCount = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/dashboard/summary-optimized'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setInventoryCount(data.inventory_count || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching inventory count:', error)
     }
   }
 
@@ -207,6 +227,22 @@ const RentalReport = ({ user }) => {
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{data.summary.maintenanceDue}</div>
             <p className="text-xs text-muted-foreground">Units due service</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Rental Units Available Card */}
+      <div className="grid gap-4 md:grid-cols-1">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Rental Units Available</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{inventoryCount}</div>
+            <p className="text-xs text-muted-foreground">
+              Units ready to rent
+            </p>
           </CardContent>
         </Card>
       </div>

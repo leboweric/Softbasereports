@@ -49,9 +49,6 @@ const Dashboard = ({ user }) => {
   const [loading, setLoading] = useState(true)
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
-  const [inventoryModalOpen, setInventoryModalOpen] = useState(false)
-  const [inventoryDetails, setInventoryDetails] = useState(null)
-  const [loadingInventory, setLoadingInventory] = useState(false)
   const [visibleWOTypes, setVisibleWOTypes] = useState({
     service: true,
     rental: true,
@@ -110,33 +107,6 @@ const Dashboard = ({ user }) => {
     }
   }
 
-  const fetchInventoryDetails = async () => {
-    setLoadingInventory(true)
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/inventory-details'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setInventoryDetails(data)
-      }
-    } catch (error) {
-      console.error('Failed to fetch inventory details:', error)
-    } finally {
-      setLoadingInventory(false)
-    }
-  }
-
-  const handleInventoryClick = () => {
-    setInventoryModalOpen(true)
-    if (!inventoryDetails) {
-      fetchInventoryDetails()
-    }
-  }
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -306,20 +276,17 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
 
-        <Card 
-          className="cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={handleInventoryClick}
-        >
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rental Units Available</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {dashboardData?.inventory_count || 0}
+              {formatCurrency(dashboardData?.open_work_orders_value || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Units available • Click for details
+              {dashboardData?.open_work_orders_count || 0} orders
             </p>
           </CardContent>
         </Card>
@@ -364,7 +331,7 @@ const Dashboard = ({ user }) => {
               Total sales over the last 12 months
             </CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent>
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={dashboardData?.monthly_sales || []}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -384,7 +351,7 @@ const Dashboard = ({ user }) => {
               Sales excluding new equipment
             </CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent>
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={dashboardData?.monthly_sales_no_equipment || []}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -407,7 +374,7 @@ const Dashboard = ({ user }) => {
               {formatCurrency(dashboardData?.open_work_orders_value || 0)} in open/incomplete orders ({dashboardData?.open_work_orders_count || 0} total)
             </CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent>
             <ResponsiveContainer width="100%" height={350}>
               <PieChart>
                 <Pie
@@ -441,7 +408,7 @@ const Dashboard = ({ user }) => {
               Latest quote value per work order each month
             </CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent>
             <ResponsiveContainer width="100%" height={350}>
               <BarChart data={dashboardData?.monthly_quotes || []}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -789,62 +756,6 @@ const Dashboard = ({ user }) => {
         </CardContent>
       </Card>
 
-      {/* Inventory Details Modal */}
-      <Dialog open={inventoryModalOpen} onOpenChange={setInventoryModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Available Inventory Details</DialogTitle>
-            <DialogDescription>
-              Equipment currently available for rent
-            </DialogDescription>
-          </DialogHeader>
-          
-          {loadingInventory ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
-          ) : inventoryDetails && inventoryDetails.equipment ? (
-            <div className="mt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Unit #</TableHead>
-                    <TableHead>Make</TableHead>
-                    <TableHead>Model</TableHead>
-                    <TableHead>Year</TableHead>
-                    <TableHead>Serial #</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead className="text-right">Hours</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {inventoryDetails.equipment.map((item, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{item.unitNo}</TableCell>
-                      <TableCell>{item.make}</TableCell>
-                      <TableCell>{item.model}</TableCell>
-                      <TableCell>{item.year || '-'}</TableCell>
-                      <TableCell>{item.serialNo}</TableCell>
-                      <TableCell>{item.location || '-'}</TableCell>
-                      <TableCell className="text-right">{item.hours.toFixed(0)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.cost)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              
-              <div className="mt-4 text-sm text-muted-foreground">
-                Total: {inventoryDetails.total} units available
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              No inventory data available
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
