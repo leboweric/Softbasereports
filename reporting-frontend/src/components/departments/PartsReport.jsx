@@ -633,7 +633,7 @@ const PartsReport = ({ user, onNavigate }) => {
                                 {part.stockHealth}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right">{part.currentStock}</TableCell>
+                            <TableCell className="text-right">{Math.round(part.currentStock)}</TableCell>
                             <TableCell className="text-right">${part.inventoryValue.toFixed(0)}</TableCell>
                             <TableCell className="text-right">
                               {part.annualTurnoverRate > 0 ? `${part.annualTurnoverRate.toFixed(1)}x` : '-'}
@@ -699,7 +699,7 @@ const PartsReport = ({ user, onNavigate }) => {
                     <TableRow key={part.partNo}>
                       <TableCell className="font-medium">{part.partNo}</TableCell>
                       <TableCell>{part.description}</TableCell>
-                      <TableCell className="text-right">{part.currentStock}</TableCell>
+                      <TableCell className="text-right">{Math.round(part.currentStock)}</TableCell>
                       <TableCell className="text-right">${part.inventoryValue.toFixed(0)}</TableCell>
                       <TableCell className="text-right">
                         {part.annualTurnoverRate > 0 ? `${part.annualTurnoverRate.toFixed(1)}x` : '-'}
