@@ -581,11 +581,10 @@ def register_department_routes(reports_bp):
                 -- Count equipment that uses each part (based on recent service)
                 SELECT 
                     wp.PartNo,
-                    COUNT(DISTINCT e.StockNo) as EquipmentCount,
-                    AVG(e.Hours) as AvgEquipmentHours
+                    COUNT(DISTINCT CASE WHEN w.Equipment IS NOT NULL THEN w.Equipment END) as EquipmentCount,
+                    0 as AvgEquipmentHours
                 FROM ben002.WOParts wp
                 INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.Equipment e ON w.UnitNo = e.StockNo
                 WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
                 GROUP BY wp.PartNo
             )
