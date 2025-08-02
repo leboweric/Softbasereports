@@ -136,7 +136,7 @@ def register_department_routes(reports_bp):
                 SELECT 
                     wp.PartNo,
                     wp.WONo,
-                    wp.Date as OrderDate,
+                    w.OpenDate as OrderDate,
                     wp.Qty as OrderedQty,
                     wp.Description,
                     -- Get the stock level at time of order (approximate by current stock)
@@ -148,9 +148,9 @@ def register_department_routes(reports_bp):
                     END as StockStatus,
                     w.BillTo as Customer
                 FROM ben002.WOParts wp
+                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
                 LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
-                LEFT JOIN ben002.WO w ON wp.WONo = w.WONo
-                WHERE wp.Date >= DATEADD(day, -{days_back}, GETDATE())
+                WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')  -- Linde parts
             )
             SELECT 
@@ -181,8 +181,9 @@ def register_department_routes(reports_bp):
                         ELSE 'In Stock'
                     END as StockStatus
                 FROM ben002.WOParts wp
+                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
                 LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
-                WHERE wp.Date >= DATEADD(day, -{days_back}, GETDATE())
+                WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
             )
             SELECT TOP 10
@@ -238,18 +239,19 @@ def register_department_routes(reports_bp):
             trend_query = f"""
             WITH MonthlyOrders AS (
                 SELECT 
-                    YEAR(wp.Date) as Year,
-                    MONTH(wp.Date) as Month,
+                    YEAR(w.OpenDate) as Year,
+                    MONTH(w.OpenDate) as Month,
                     COUNT(*) as TotalOrders,
                     SUM(CASE 
                         WHEN np.OnHand IS NULL OR np.OnHand = 0 OR np.OnHand < wp.Qty 
                         THEN 0 ELSE 1 
                     END) as FilledOrders
                 FROM ben002.WOParts wp
+                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
                 LEFT JOIN ben002.NationalParts np ON wp.PartNo = np.PartNo
-                WHERE wp.Date >= DATEADD(month, -6, GETDATE())
+                WHERE w.OpenDate >= DATEADD(month, -6, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
-                GROUP BY YEAR(wp.Date), MONTH(wp.Date)
+                GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate)
             )
             SELECT 
                 Year,
