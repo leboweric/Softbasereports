@@ -266,20 +266,29 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_quotes(self):
-        """Get monthly quotes since March - properly handling quote line items"""
+        """Get monthly quotes since March - one quote total per work order"""
         try:
-            # WOQuote contains line items, not complete quotes
-            # Sum all line items to get total quoted value per month
+            # First sum all line items per WO per month, then sum by month
+            # This ensures each WO is only counted once per month
             query = """
+            WITH WOQuoteTotals AS (
+                SELECT 
+                    YEAR(CreationTime) as year,
+                    MONTH(CreationTime) as month,
+                    WONo,
+                    SUM(Amount) as wo_total
+                FROM ben002.WOQuote
+                WHERE CreationTime >= '2025-03-01'
+                AND Amount > 0
+                GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
+            )
             SELECT 
-                YEAR(CreationTime) as year,
-                MONTH(CreationTime) as month,
-                SUM(Amount) as amount
-            FROM ben002.WOQuote
-            WHERE CreationTime >= '2025-03-01'
-            AND Amount > 0
-            GROUP BY YEAR(CreationTime), MONTH(CreationTime)
-            ORDER BY YEAR(CreationTime), MONTH(CreationTime)
+                year,
+                month,
+                SUM(wo_total) as amount
+            FROM WOQuoteTotals
+            GROUP BY year, month
+            ORDER BY year, month
             """
             
             results = self.db.execute_query(query)

@@ -438,7 +438,7 @@ const Dashboard = ({ user }) => {
           <CardHeader>
             <CardTitle>Monthly Quotes</CardTitle>
             <CardDescription>
-              Total dollar value quoted each month since March
+              Total value quoted by work order (one total per WO per month)
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2">

@@ -211,16 +211,29 @@ The WOQuote table contains individual quote line items, not complete quotes. Key
 - Amount field contains the dollar value for each line item
 
 **Current Implementation:** 
-Sum all quote line items by month to get total quoted value:
+Sum quote totals by work order to ensure each WO is counted only once per month:
 ```sql
+WITH WOQuoteTotals AS (
+    SELECT 
+        YEAR(CreationTime) as year,
+        MONTH(CreationTime) as month,
+        WONo,
+        SUM(Amount) as wo_total
+    FROM ben002.WOQuote
+    WHERE CreationTime >= '2025-03-01'
+    AND Amount > 0
+    GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
+)
 SELECT 
-    YEAR(CreationTime) as year,
-    MONTH(CreationTime) as month,
-    SUM(Amount) as amount
-FROM ben002.WOQuote
-WHERE CreationTime >= '2025-03-01'
-AND Amount > 0
-GROUP BY YEAR(CreationTime), MONTH(CreationTime)
+    year,
+    month,
+    SUM(wo_total) as amount
+FROM WOQuoteTotals
+GROUP BY year, month
 ```
 
-**Note:** The "duplicate" quotes seen in the data are actually multiple line items for the same work order (e.g., separate lines for labor, parts, delivery), which is expected behavior. The current implementation correctly sums all line items to show total monthly quote values.
+**Benefits of this approach:**
+- Each work order is counted only once per month
+- If a WO is re-quoted within the same month, all line items are summed together
+- Prevents potential double-counting if quotes are revised
+- Shows true total value quoted per month by unique work order
