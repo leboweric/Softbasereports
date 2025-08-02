@@ -25,7 +25,8 @@ import {
   Pie,
   Cell,
   Area,
-  AreaChart
+  AreaChart,
+  ReferenceLine
 } from 'recharts'
 import { 
   DollarSign,
@@ -312,6 +313,21 @@ const AccountingReport = ({ user }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                {(() => {
+                  const allMonths = monthlyExpenses.slice(0, -1)
+                  const totalAverage = allMonths.reduce((sum, item) => sum + item.expenses, 0) / allMonths.length
+                  const completeMonths = allMonths.filter(month => month.expenses > totalAverage * 0.5)
+                  if (completeMonths.length === 0) return null
+                  const average = completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length
+                  return (
+                    <ReferenceLine 
+                      y={average} 
+                      stroke="#6b7280" 
+                      strokeDasharray="5 5" 
+                      label={{ value: `Avg: $${(average / 1000).toFixed(0)}k`, position: "right" }}
+                    />
+                  )
+                })()}
                 <Tooltip content={({ active, payload, label }) => {
                   if (active && payload && payload.length && monthlyExpenses) {
                     const data = monthlyExpenses.slice(0, -1)
