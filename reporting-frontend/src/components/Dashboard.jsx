@@ -141,33 +141,68 @@ const Dashboard = ({ user }) => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
 
+  // Helper function to calculate percentage change
+  const calculatePercentageChange = (current, previous) => {
+    if (!previous || previous === 0) return null
+    const change = ((current - previous) / previous) * 100
+    return change
+  }
+
+  // Helper function to format percentage with color
+  const formatPercentage = (percentage) => {
+    if (percentage === null) return ''
+    const sign = percentage >= 0 ? '+' : ''
+    const color = percentage >= 0 ? 'text-green-600' : 'text-red-600'
+    return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
+  }
+
   // Custom tooltip for Monthly Sales (No Equipment)
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length && dashboardData?.monthly_sales_by_stream) {
-      const monthData = dashboardData.monthly_sales_by_stream.find(item => item.month === label)
+      const data = dashboardData.monthly_sales_by_stream
+      const currentIndex = data.findIndex(item => item.month === label)
+      const monthData = data[currentIndex]
+      const previousMonthData = currentIndex > 0 ? data[currentIndex - 1] : null
       const total = payload[0].value
+      const previousTotal = previousMonthData ? 
+        (previousMonthData.parts + previousMonthData.labor + previousMonthData.rental + previousMonthData.misc) : null
       
       return (
         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
           <p className="font-semibold mb-2">{label}</p>
-          <p className="font-semibold text-green-600 mb-2">Total: {formatCurrency(total)}</p>
+          <p className="font-semibold text-green-600 mb-2">
+            Total: {formatCurrency(total)}
+            {formatPercentage(calculatePercentageChange(total, previousTotal))}
+          </p>
           {monthData && (
             <div className="text-sm space-y-1 border-t pt-2">
               <div className="flex justify-between">
                 <span>Parts:</span>
-                <span className="ml-4">{formatCurrency(monthData.parts)}</span>
+                <span className="ml-4">
+                  {formatCurrency(monthData.parts)}
+                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.parts, previousMonthData.parts))}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Labor:</span>
-                <span className="ml-4">{formatCurrency(monthData.labor)}</span>
+                <span className="ml-4">
+                  {formatCurrency(monthData.labor)}
+                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.labor, previousMonthData.labor))}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Rental:</span>
-                <span className="ml-4">{formatCurrency(monthData.rental)}</span>
+                <span className="ml-4">
+                  {formatCurrency(monthData.rental)}
+                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.rental, previousMonthData.rental))}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Misc:</span>
-                <span className="ml-4">{formatCurrency(monthData.misc)}</span>
+                <span className="ml-4">
+                  {formatCurrency(monthData.misc)}
+                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.misc, previousMonthData.misc))}
+                </span>
               </div>
             </div>
           )}
@@ -337,7 +372,25 @@ const Dashboard = ({ user }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (active && payload && payload.length && dashboardData?.monthly_sales) {
+                    const data = dashboardData.monthly_sales
+                    const currentIndex = data.findIndex(item => item.month === label)
+                    const currentValue = payload[0].value
+                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                    
+                    return (
+                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                        <p className="font-semibold mb-1">{label}</p>
+                        <p className="text-green-600">
+                          {formatCurrency(currentValue)}
+                          {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                }} />
                 <Bar dataKey="amount" fill="#8884d8" />
               </BarChart>
             </ResponsiveContainer>
@@ -414,7 +467,25 @@ const Dashboard = ({ user }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (active && payload && payload.length && dashboardData?.monthly_quotes) {
+                    const data = dashboardData.monthly_quotes
+                    const currentIndex = data.findIndex(item => item.month === label)
+                    const currentValue = payload[0].value
+                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                    
+                    return (
+                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                        <p className="font-semibold mb-1">{label}</p>
+                        <p className="text-yellow-600">
+                          {formatCurrency(currentValue)}
+                          {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                }} />
                 <Bar dataKey="amount" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
