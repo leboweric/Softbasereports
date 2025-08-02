@@ -31,7 +31,8 @@ import {
   Line,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  ReferenceLine
 } from 'recharts'
 import { 
   DollarSign, 
@@ -392,6 +393,14 @@ const Dashboard = ({ user }) => {
                   return null
                 }} />
                 <Bar dataKey="amount" fill="#8884d8" />
+                {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (
+                  <ReferenceLine 
+                    y={dashboardData.monthly_sales.reduce((sum, item) => sum + item.amount, 0) / dashboardData.monthly_sales.length} 
+                    stroke="#666" 
+                    strokeDasharray="3 3"
+                    label={{ value: "Average", position: "insideTopRight" }}
+                  />
+                )}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -412,6 +421,14 @@ const Dashboard = ({ user }) => {
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="amount" fill="#10b981" />
+                {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (
+                  <ReferenceLine 
+                    y={dashboardData.monthly_sales_no_equipment.reduce((sum, item) => sum + item.amount, 0) / dashboardData.monthly_sales_no_equipment.length} 
+                    stroke="#666" 
+                    strokeDasharray="3 3"
+                    label={{ value: "Average", position: "insideTopRight" }}
+                  />
+                )}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -487,6 +504,14 @@ const Dashboard = ({ user }) => {
                   return null
                 }} />
                 <Bar dataKey="amount" fill="#f59e0b" />
+                {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (
+                  <ReferenceLine 
+                    y={dashboardData.monthly_quotes.reduce((sum, item) => sum + item.amount, 0) / dashboardData.monthly_quotes.length} 
+                    stroke="#666" 
+                    strokeDasharray="3 3"
+                    label={{ value: "Average", position: "insideTopRight" }}
+                  />
+                )}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
