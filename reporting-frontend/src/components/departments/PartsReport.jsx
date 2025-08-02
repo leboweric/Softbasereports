@@ -389,7 +389,7 @@ const PartsReport = ({ user, onNavigate }) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Top 10 Parts by Quantity (excluding Oil & Grease)
+                Top 10 Parts by Quantity (excluding fluids)
               </CardTitle>
               <CardDescription>
                 {top10Data?.period || 'Last 30 days'}

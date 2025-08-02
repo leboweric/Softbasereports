@@ -148,6 +148,9 @@ def register_department_routes(reports_bp):
             AND wp.Qty > 0
             AND wp.Description NOT LIKE '%OIL%'
             AND wp.Description NOT LIKE '%GREASE%'
+            AND wp.Description NOT LIKE '%ANTI-FREEZE%'
+            AND wp.Description NOT LIKE '%ANTIFREEZE%'
+            AND wp.Description NOT LIKE '%COOLANT%'
             GROUP BY wp.PartNo
             ORDER BY SUM(wp.Qty) DESC
             """
