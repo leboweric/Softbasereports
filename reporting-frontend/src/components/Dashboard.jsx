@@ -60,8 +60,8 @@ const Dashboard = ({ user }) => {
     shop: true,
     equipment: true
   })
-  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(true)
-  const [includeCurrentMonthMargins, setIncludeCurrentMonthMargins] = useState(true)
+  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
+  const [includeCurrentMonthMargins, setIncludeCurrentMonthMargins] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
