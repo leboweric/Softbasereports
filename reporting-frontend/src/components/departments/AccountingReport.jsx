@@ -35,16 +35,19 @@ import {
   CreditCard,
   AlertCircle,
   FileText,
-  Calculator
+  Calculator,
+  Database
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import ExpenseDebugModal from './ExpenseDebugModal'
+import AccountingDiagnostics from './AccountingDiagnostics'
 
 const AccountingReport = ({ user }) => {
   const [accountingData, setAccountingData] = useState(null)
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [loading, setLoading] = useState(true)
   const [debugModalOpen, setDebugModalOpen] = useState(false)
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
 
   useEffect(() => {
     fetchAccountingData()
@@ -141,9 +144,19 @@ const AccountingReport = ({ user }) => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Accounting Department</h1>
-        <p className="text-muted-foreground">Financial overview and accounting metrics</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Accounting Department</h1>
+          <p className="text-muted-foreground">Financial overview and accounting metrics</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setDiagnosticsOpen(true)}
+        >
+          <Database className="mr-2 h-4 w-4" />
+          Table Diagnostics
+        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -492,6 +505,15 @@ const AccountingReport = ({ user }) => {
         onClose={() => setDebugModalOpen(false)}
         month="2025-07"
       />
+      
+      {/* Diagnostics Modal */}
+      {diagnosticsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <AccountingDiagnostics onClose={() => setDiagnosticsOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
