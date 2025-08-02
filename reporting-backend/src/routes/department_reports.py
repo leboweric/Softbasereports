@@ -1650,4 +1650,63 @@ def register_department_routes(reports_bp):
                 'type': 'accounting_report_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting', methods=['GET'])
+    @jwt_required()
+    def get_accounting_report():
+        """Get accounting department report data with expenses over time"""
+        try:
+            db = get_db()
+            
+            # Get total expenses over time since March 2025
+            expenses_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + 
+                    COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
+                    COALESCE(MiscCost, 0)) as total_expenses
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2025-03-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            expenses_results = db.execute_query(expenses_query)
+            monthly_expenses = []
+            
+            if expenses_results:
+                for row in expenses_results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_expenses.append({
+                        'month': month_date.strftime("%b"),
+                        'expenses': float(row['total_expenses'] or 0)
+                    })
+            
+            # Pad missing months
+            current_date = datetime.now()
+            start_date = datetime(2025, 3, 1)
+            all_months = []
+            date = start_date
+            
+            while date <= current_date:
+                all_months.append(date.strftime("%b"))
+                if date.month == 12:
+                    date = date.replace(year=date.year + 1, month=1)
+                else:
+                    date = date.replace(month=date.month + 1)
+            
+            existing_data = {item['month']: item['expenses'] for item in monthly_expenses}
+            monthly_expenses = [{'month': month, 'expenses': existing_data.get(month, 0)} for month in all_months]
+            
+            return jsonify({
+                'monthly_expenses': monthly_expenses,
+                'message': 'Accounting data retrieved successfully'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'accounting_report_error'
+            }), 500
+
 

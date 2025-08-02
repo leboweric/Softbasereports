@@ -41,6 +41,7 @@ import { apiUrl } from '@/lib/api'
 
 const AccountingReport = ({ user }) => {
   const [accountingData, setAccountingData] = useState(null)
+  const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -58,6 +59,7 @@ const AccountingReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
+        setMonthlyExpenses(data.monthly_expenses || [])
         setAccountingData(data)
       }
     } catch (error) {
@@ -300,6 +302,71 @@ const AccountingReport = ({ user }) => {
               <Area type="monotone" dataKey="expenses" stackId="2" stroke="#ef4444" fill="#ef4444" name="Expenses" />
               <Line type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} name="Profit" />
             </AreaChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Total Expenses Over Time */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Total Expenses Over Time</CardTitle>
+          <CardDescription>Monthly expense trends to track cost changes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={monthlyExpenses.slice(0, -1)} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+              <Tooltip content={({ active, payload, label }) => {
+                if (active && payload && payload.length && monthlyExpenses) {
+                  const data = monthlyExpenses.slice(0, -1)
+                  const currentIndex = data.findIndex(item => item.month === label)
+                  const currentValue = payload[0].value
+                  const previousValue = currentIndex > 0 ? data[currentIndex - 1].expenses : null
+                  
+                  const formatCurrency = (value) => {
+                    return new Intl.NumberFormat('en-US', {
+                      style: 'currency',
+                      currency: 'USD',
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0,
+                    }).format(value)
+                  }
+                  
+                  const calculatePercentageChange = (current, previous) => {
+                    if (!previous || previous === 0) return null
+                    const change = ((current - previous) / previous) * 100
+                    return change
+                  }
+                  
+                  const formatPercentage = (percentage) => {
+                    if (percentage === null) return ''
+                    const sign = percentage >= 0 ? '+' : ''
+                    const color = percentage >= 0 ? 'text-red-600' : 'text-green-600'
+                    return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
+                  }
+                  
+                  return (
+                    <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                      <p className="font-semibold mb-1">{label}</p>
+                      <p className="text-gray-900">
+                        {formatCurrency(currentValue)}
+                        {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                      </p>
+                    </div>
+                  )
+                }
+                return null
+              }} />
+              <Line 
+                type="monotone" 
+                dataKey="expenses" 
+                stroke="#ef4444" 
+                strokeWidth={2}
+                dot={{ fill: '#ef4444', r: 4 }}
+              />
+            </LineChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
