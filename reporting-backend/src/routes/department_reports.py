@@ -298,11 +298,11 @@ def register_department_routes(reports_bp):
                 -- Calculate part movement over the period
                 SELECT 
                     p.PartNo,
-                    p.Description,
-                    p.OnHand as CurrentStock,
-                    p.Cost,
-                    p.List as ListPrice,
-                    p.OnHand * p.Cost as InventoryValue,
+                    MAX(p.Description) as Description,
+                    MAX(p.OnHand) as CurrentStock,
+                    MAX(p.Cost) as Cost,
+                    MAX(p.List) as ListPrice,
+                    MAX(p.OnHand * p.Cost) as InventoryValue,
                     -- Count of times ordered
                     COALESCE(wp.OrderCount, 0) as OrderCount,
                     -- Total quantity sold/used
@@ -313,8 +313,8 @@ def register_department_routes(reports_bp):
                     wp.AvgDaysBetweenOrders,
                     -- Calculate annual turnover rate
                     CASE 
-                        WHEN p.OnHand > 0 AND wp.TotalQtyMoved > 0
-                        THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / p.OnHand
+                        WHEN MAX(p.OnHand) > 0 AND wp.TotalQtyMoved > 0
+                        THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / MAX(p.OnHand)
                         ELSE 0
                     END as AnnualTurnoverRate
                 FROM ben002.Parts p
@@ -336,6 +336,7 @@ def register_department_routes(reports_bp):
                     GROUP BY wp.PartNo
                 ) wp ON p.PartNo = wp.PartNo
                 WHERE p.OnHand > 0 OR wp.OrderCount > 0  -- Parts with stock or movement
+                GROUP BY p.PartNo, wp.OrderCount, wp.TotalQtyMoved, wp.LastMovementDate, wp.AvgDaysBetweenOrders
             )
             SELECT 
                 PartNo,
@@ -379,12 +380,12 @@ def register_department_routes(reports_bp):
             WITH PartMovement AS (
                 SELECT 
                     p.PartNo,
-                    p.OnHand * p.Cost as InventoryValue,
+                    MAX(p.OnHand * p.Cost) as InventoryValue,
                     COALESCE(wp.TotalQtyMoved, 0) as TotalQtyMoved,
                     DATEDIFF(day, wp.LastMovementDate, GETDATE()) as DaysSinceLastMovement,
                     CASE 
-                        WHEN p.OnHand > 0 AND wp.TotalQtyMoved > 0
-                        THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / p.OnHand
+                        WHEN MAX(p.OnHand) > 0 AND wp.TotalQtyMoved > 0
+                        THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / MAX(p.OnHand)
                         ELSE 0
                     END as AnnualTurnoverRate
                 FROM ben002.Parts p
@@ -399,6 +400,7 @@ def register_department_routes(reports_bp):
                     GROUP BY wp.PartNo
                 ) wp ON p.PartNo = wp.PartNo
                 WHERE p.OnHand > 0 OR wp.TotalQtyMoved > 0
+                GROUP BY p.PartNo, wp.TotalQtyMoved, wp.LastMovementDate
             )
             SELECT 
                 CASE 
