@@ -119,6 +119,169 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/reorder-alert', methods=['GET'])
+    @jwt_required()
+    def get_parts_reorder_alert():
+        """Get parts reorder point alerts - identifies parts needing reorder"""
+        try:
+            db = get_db()
+            
+            # Calculate average daily usage and current stock levels
+            reorder_alert_query = """
+            WITH PartUsage AS (
+                -- Calculate average daily usage over last 90 days
+                SELECT 
+                    wp.PartNo,
+                    MAX(wp.Description) as Description,
+                    COUNT(DISTINCT wp.WONo) as OrderCount,
+                    SUM(wp.Qty) as TotalQtyUsed,
+                    DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1 as DaysInPeriod,
+                    CAST(SUM(wp.Qty) AS FLOAT) / NULLIF(DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1, 0) as AvgDailyUsage
+                FROM ben002.WOParts wp
+                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                WHERE w.OpenDate >= DATEADD(day, -90, GETDATE())
+                    AND wp.Qty > 0
+                GROUP BY wp.PartNo
+                HAVING COUNT(DISTINCT wp.WONo) >= 3  -- At least 3 orders in period
+            ),
+            CurrentStock AS (
+                -- Get current stock levels and costs
+                SELECT 
+                    PartNo,
+                    OnHand,
+                    OnOrder,
+                    Cost,
+                    List,
+                    -- Estimate reorder point as 14 days of average usage (2 week lead time)
+                    -- This should be replaced with actual reorder point field if available
+                    0 as ReorderPoint,
+                    0 as MinStock
+                FROM ben002.Parts
+                WHERE OnHand IS NOT NULL
+            )
+            SELECT 
+                cs.PartNo,
+                pu.Description,
+                cs.OnHand as CurrentStock,
+                cs.OnOrder as OnOrder,
+                CAST(pu.AvgDailyUsage AS DECIMAL(10,2)) as AvgDailyUsage,
+                -- Calculate days of stock remaining
+                CASE 
+                    WHEN pu.AvgDailyUsage > 0 
+                    THEN CAST(cs.OnHand / pu.AvgDailyUsage AS INT)
+                    ELSE 999
+                END as DaysOfStock,
+                -- Estimate reorder point (14 days lead time + 7 days safety stock)
+                CAST(CEILING(pu.AvgDailyUsage * 21) AS INT) as SuggestedReorderPoint,
+                -- Reorder quantity (30 days worth)
+                CAST(CEILING(pu.AvgDailyUsage * 30) AS INT) as SuggestedOrderQty,
+                cs.Cost,
+                cs.List,
+                pu.OrderCount as OrdersLast90Days,
+                -- Alert level
+                CASE 
+                    WHEN cs.OnHand <= 0 THEN 'Out of Stock'
+                    WHEN cs.OnHand < (pu.AvgDailyUsage * 7) THEN 'Critical'
+                    WHEN cs.OnHand < (pu.AvgDailyUsage * 14) THEN 'Low'
+                    WHEN cs.OnHand < (pu.AvgDailyUsage * 21) THEN 'Reorder'
+                    ELSE 'OK'
+                END as AlertLevel
+            FROM CurrentStock cs
+            INNER JOIN PartUsage pu ON cs.PartNo = pu.PartNo
+            WHERE cs.OnHand < (pu.AvgDailyUsage * 21)  -- Below suggested reorder point
+                OR cs.OnHand <= 0  -- Or completely out
+            ORDER BY 
+                CASE 
+                    WHEN cs.OnHand <= 0 THEN 1
+                    WHEN cs.OnHand < (pu.AvgDailyUsage * 7) THEN 2
+                    WHEN cs.OnHand < (pu.AvgDailyUsage * 14) THEN 3
+                    ELSE 4
+                END,
+                pu.AvgDailyUsage DESC
+            """
+            
+            reorder_alerts = db.execute_query(reorder_alert_query)
+            
+            # Get summary statistics
+            summary_query = """
+            WITH PartUsage AS (
+                SELECT 
+                    wp.PartNo,
+                    CAST(SUM(wp.Qty) AS FLOAT) / NULLIF(DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1, 0) as AvgDailyUsage
+                FROM ben002.WOParts wp
+                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                WHERE w.OpenDate >= DATEADD(day, -90, GETDATE())
+                    AND wp.Qty > 0
+                GROUP BY wp.PartNo
+                HAVING COUNT(DISTINCT wp.WONo) >= 3
+            )
+            SELECT 
+                COUNT(CASE WHEN p.OnHand <= 0 THEN 1 END) as OutOfStock,
+                COUNT(CASE WHEN p.OnHand > 0 AND p.OnHand < (pu.AvgDailyUsage * 7) THEN 1 END) as Critical,
+                COUNT(CASE WHEN p.OnHand >= (pu.AvgDailyUsage * 7) AND p.OnHand < (pu.AvgDailyUsage * 14) THEN 1 END) as Low,
+                COUNT(CASE WHEN p.OnHand >= (pu.AvgDailyUsage * 14) AND p.OnHand < (pu.AvgDailyUsage * 21) THEN 1 END) as NeedsReorder,
+                COUNT(*) as TotalTrackedParts
+            FROM ben002.Parts p
+            INNER JOIN PartUsage pu ON p.PartNo = pu.PartNo
+            """
+            
+            summary_result = db.execute_query(summary_query)
+            
+            summary = {
+                'outOfStock': 0,
+                'critical': 0,
+                'low': 0,
+                'needsReorder': 0,
+                'totalTracked': 0
+            }
+            
+            if summary_result and len(summary_result) > 0:
+                row = summary_result[0]
+                summary = {
+                    'outOfStock': row.get('OutOfStock', 0),
+                    'critical': row.get('Critical', 0),
+                    'low': row.get('Low', 0),
+                    'needsReorder': row.get('NeedsReorder', 0),
+                    'totalTracked': row.get('TotalTrackedParts', 0)
+                }
+            
+            # Format the alerts
+            formatted_alerts = []
+            for alert in reorder_alerts:
+                formatted_alerts.append({
+                    'partNo': alert.get('PartNo', ''),
+                    'description': alert.get('Description', ''),
+                    'currentStock': alert.get('CurrentStock', 0),
+                    'onOrder': alert.get('OnOrder', 0),
+                    'avgDailyUsage': float(alert.get('AvgDailyUsage', 0)),
+                    'daysOfStock': alert.get('DaysOfStock', 0),
+                    'suggestedReorderPoint': alert.get('SuggestedReorderPoint', 0),
+                    'suggestedOrderQty': alert.get('SuggestedOrderQty', 0),
+                    'cost': float(alert.get('Cost', 0)),
+                    'listPrice': float(alert.get('List', 0)),
+                    'ordersLast90Days': alert.get('OrdersLast90Days', 0),
+                    'alertLevel': alert.get('AlertLevel', 'Unknown')
+                })
+            
+            return jsonify({
+                'summary': summary,
+                'alerts': formatted_alerts,
+                'leadTimeAssumption': 14,  # Days
+                'safetyStockDays': 7,
+                'analysisInfo': {
+                    'period': 'Last 90 days',
+                    'method': 'Average daily usage calculation',
+                    'reorderFormula': '(Lead Time + Safety Stock) × Avg Daily Usage'
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'reorder_alert_error'
+            }), 500
+
+
     @reports_bp.route('/departments/parts/fill-rate', methods=['GET'])
     @jwt_required()
     def get_parts_fill_rate():

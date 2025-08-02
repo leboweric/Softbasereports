@@ -21,18 +21,21 @@ import {
   Tooltip as RechartsTooltip, 
   ResponsiveContainer
 } from 'recharts'
-import { TrendingUp, TrendingDown, Package } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
   const [fillRateData, setFillRateData] = useState(null)
+  const [reorderAlertData, setReorderAlertData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [fillRateLoading, setFillRateLoading] = useState(true)
+  const [reorderAlertLoading, setReorderAlertLoading] = useState(true)
 
   useEffect(() => {
     fetchPartsData()
     fetchFillRateData()
+    fetchReorderAlertData()
   }, [])
 
   const fetchPartsData = async () => {
@@ -86,6 +89,30 @@ const PartsReport = ({ user, onNavigate }) => {
       setFillRateData(null)
     } finally {
       setFillRateLoading(false)
+    }
+  }
+
+  const fetchReorderAlertData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/parts/reorder-alert'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setReorderAlertData(data)
+      } else {
+        console.error('Failed to fetch reorder alert data:', response.status)
+        setReorderAlertData(null)
+      }
+    } catch (error) {
+      console.error('Error fetching reorder alert data:', error)
+      setReorderAlertData(null)
+    } finally {
+      setReorderAlertLoading(false)
     }
   }
 
@@ -202,6 +229,133 @@ const PartsReport = ({ user, onNavigate }) => {
                 </Table>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Reorder Alert Card */}
+      {reorderAlertData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5" />
+                Parts Reorder Alerts
+              </span>
+              <div className="flex gap-2">
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <span className="text-xs">Out of Stock</span>
+                  <span className="font-bold">{reorderAlertData.summary?.outOfStock || 0}</span>
+                </Badge>
+                <Badge variant="destructive" className="bg-orange-500 flex items-center gap-1">
+                  <span className="text-xs">Critical</span>
+                  <span className="font-bold">{reorderAlertData.summary?.critical || 0}</span>
+                </Badge>
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <span className="text-xs">Low</span>
+                  <span className="font-bold">{reorderAlertData.summary?.low || 0}</span>
+                </Badge>
+              </div>
+            </CardTitle>
+            <CardDescription>
+              Parts needing reorder based on {reorderAlertData.analysisInfo?.period} usage • Lead time: {reorderAlertData.leadTimeAssumption} days
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Alert Summary Stats */}
+            <div className="grid grid-cols-5 gap-4 text-center">
+              <div>
+                <p className="text-sm text-muted-foreground">Tracked Parts</p>
+                <p className="text-2xl font-bold">{reorderAlertData.summary?.totalTracked || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Out of Stock</p>
+                <p className="text-2xl font-bold text-red-600">{reorderAlertData.summary?.outOfStock || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Critical (&lt;7 days)</p>
+                <p className="text-2xl font-bold text-orange-600">{reorderAlertData.summary?.critical || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Low (&lt;14 days)</p>
+                <p className="text-2xl font-bold text-yellow-600">{reorderAlertData.summary?.low || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Need Reorder</p>
+                <p className="text-2xl font-bold text-blue-600">{reorderAlertData.summary?.needsReorder || 0}</p>
+              </div>
+            </div>
+
+            {/* Reorder Alerts Table */}
+            {reorderAlertData.alerts && reorderAlertData.alerts.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-2">Parts Requiring Immediate Attention</h4>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Part Number</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-center">Alert</TableHead>
+                      <TableHead className="text-right">Stock</TableHead>
+                      <TableHead className="text-right">Days Left</TableHead>
+                      <TableHead className="text-right">Daily Usage</TableHead>
+                      <TableHead className="text-right">Reorder Point</TableHead>
+                      <TableHead className="text-right">Order Qty</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {reorderAlertData.alerts.map((alert) => (
+                      <TableRow key={alert.partNo}>
+                        <TableCell className="font-medium">{alert.partNo}</TableCell>
+                        <TableCell>{alert.description}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge 
+                            variant={
+                              alert.alertLevel === 'Out of Stock' ? 'destructive' :
+                              alert.alertLevel === 'Critical' ? 'destructive' :
+                              alert.alertLevel === 'Low' ? 'secondary' : 'default'
+                            }
+                            className={
+                              alert.alertLevel === 'Critical' ? 'bg-orange-500' :
+                              alert.alertLevel === 'Low' ? 'bg-yellow-500' : ''
+                            }
+                          >
+                            {alert.alertLevel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {alert.currentStock}
+                          {alert.onOrder > 0 && (
+                            <span className="text-sm text-muted-foreground ml-1">
+                              (+{alert.onOrder})
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={alert.daysOfStock < 7 ? 'text-red-600 font-bold' : ''}>
+                            {alert.daysOfStock === 999 ? '∞' : alert.daysOfStock}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">{alert.avgDailyUsage.toFixed(1)}</TableCell>
+                        <TableCell className="text-right">{alert.suggestedReorderPoint}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+                            {alert.suggestedOrderQty}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Calculation Info */}
+            <div className="text-sm text-muted-foreground border-t pt-4">
+              <p><strong>Reorder Formula:</strong> {reorderAlertData.analysisInfo?.reorderFormula}</p>
+              <p className="mt-1">Safety Stock: {reorderAlertData.safetyStockDays} days • Lead Time: {reorderAlertData.leadTimeAssumption} days</p>
+            </div>
           </CardContent>
         </Card>
       )}
