@@ -264,7 +264,7 @@ const Dashboard = ({ user }) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Bennett Dashboard</h1>
           <p className="text-muted-foreground">
             Welcome back, {user?.first_name}! Here's what's happening with your business.
           </p>
@@ -932,36 +932,6 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>
-            Common tasks and reports
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="h-20 flex-col">
-              <FileText className="h-6 w-6 mb-2" />
-              Sales Report
-            </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <Package className="h-6 w-6 mb-2" />
-              Inventory Report
-            </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <Users className="h-6 w-6 mb-2" />
-              Customer Report
-            </Button>
-            <Button variant="outline" className="h-20 flex-col">
-              <TrendingUp className="h-6 w-6 mb-2" />
-              Financial Summary
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
     </div>
   )
