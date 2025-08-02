@@ -1663,14 +1663,15 @@ def register_department_routes(reports_bp):
             # Common tables might include: APInvoice, GLTransaction, ExpenseReport, etc.
             # For now, returning mock data to demonstrate the structure
             
-            # First, check which column exists for department/account codes
+            # First, check which column contains expense codes starting with 6
             check_columns_query = """
-            SELECT TOP 1 
+            SELECT TOP 1
                 CASE 
-                    WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvoiceReg' AND COLUMN_NAME = 'Department') THEN 'Department'
-                    WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvoiceReg' AND COLUMN_NAME = 'SaleCode') THEN 'SaleCode'
-                    WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvoiceReg' AND COLUMN_NAME = 'AccountNo') THEN 'AccountNo'
-                    WHEN EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvoiceReg' AND COLUMN_NAME = 'GLAccount') THEN 'GLAccount'
+                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE ExpCode LIKE '6%') THEN 'ExpCode'
+                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE SaleCode LIKE '6%') THEN 'SaleCode'
+                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE RecvAccount LIKE '6%') THEN 'RecvAccount'
+                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE CAST(ExpDept AS VARCHAR) LIKE '6%') THEN 'ExpDept'
+                    WHEN EXISTS (SELECT 1 FROM ben002.InvoiceReg WHERE CAST(SaleDept AS VARCHAR) LIKE '6%') THEN 'SaleDept'
                     ELSE 'Unknown'
                 END as dept_column
             """
@@ -1704,6 +1705,12 @@ def register_department_routes(reports_bp):
                     }
                 }), 200
             
+            # Build the WHERE clause based on column type
+            if dept_column in ['ExpDept', 'SaleDept']:
+                where_clause = f"CAST({dept_column} AS VARCHAR) LIKE '6%'"
+            else:
+                where_clause = f"{dept_column} LIKE '6%'"
+            
             # Get G&A expenses from InvoiceReg using dynamic column
             expenses_query = f"""
             WITH MonthlyExpenses AS (
@@ -1713,7 +1720,7 @@ def register_department_routes(reports_bp):
                     -- Negative TotalSale for expense accounts
                     -SUM(COALESCE(TotalSale, 0)) as total_expenses
                 FROM ben002.InvoiceReg
-                WHERE {dept_column} LIKE '6%'  -- Expense accounts start with 6
+                WHERE {where_clause}  -- Expense accounts start with 6
                     AND InvoiceDate >= '2025-03-01'
                     AND InvoiceDate < DATEADD(DAY, 1, GETDATE())  -- Up to today
                 GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1721,34 +1728,34 @@ def register_department_routes(reports_bp):
             ExpenseCategories AS (
                 SELECT 
                     CASE 
-                        WHEN {dept_column} LIKE '600%' THEN 'Advertising & Marketing'
-                        WHEN {dept_column} LIKE '601%' THEN 'Payroll & Benefits'
-                        WHEN {dept_column} LIKE '602%' THEN 'Facilities & Rent'
-                        WHEN {dept_column} LIKE '603%' THEN 'Insurance'
-                        WHEN {dept_column} LIKE '604%' THEN 'Professional Services'
-                        WHEN {dept_column} LIKE '605%' THEN 'IT & Computer'
-                        WHEN {dept_column} LIKE '606%' THEN 'Depreciation'
-                        WHEN {dept_column} LIKE '607%' THEN 'Interest & Finance'
-                        WHEN {dept_column} LIKE '608%' THEN 'Travel & Entertainment'
-                        WHEN {dept_column} LIKE '609%' THEN 'Office & Admin'
+                        WHEN {where_clause.replace("'6%'", "'600%'")} THEN 'Advertising & Marketing'
+                        WHEN {where_clause.replace("'6%'", "'601%'")} THEN 'Payroll & Benefits'
+                        WHEN {where_clause.replace("'6%'", "'602%'")} THEN 'Facilities & Rent'
+                        WHEN {where_clause.replace("'6%'", "'603%'")} THEN 'Insurance'
+                        WHEN {where_clause.replace("'6%'", "'604%'")} THEN 'Professional Services'
+                        WHEN {where_clause.replace("'6%'", "'605%'")} THEN 'IT & Computer'
+                        WHEN {where_clause.replace("'6%'", "'606%'")} THEN 'Depreciation'
+                        WHEN {where_clause.replace("'6%'", "'607%'")} THEN 'Interest & Finance'
+                        WHEN {where_clause.replace("'6%'", "'608%'")} THEN 'Travel & Entertainment'
+                        WHEN {where_clause.replace("'6%'", "'609%'")} THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END as category,
                     -SUM(COALESCE(TotalSale, 0)) as amount
                 FROM ben002.InvoiceReg
-                WHERE {dept_column} LIKE '6%'
+                WHERE {where_clause}
                     AND InvoiceDate >= DATEADD(MONTH, -6, GETDATE())
                 GROUP BY 
                     CASE 
-                        WHEN {dept_column} LIKE '600%' THEN 'Advertising & Marketing'
-                        WHEN {dept_column} LIKE '601%' THEN 'Payroll & Benefits'
-                        WHEN {dept_column} LIKE '602%' THEN 'Facilities & Rent'
-                        WHEN {dept_column} LIKE '603%' THEN 'Insurance'
-                        WHEN {dept_column} LIKE '604%' THEN 'Professional Services'
-                        WHEN {dept_column} LIKE '605%' THEN 'IT & Computer'
-                        WHEN {dept_column} LIKE '606%' THEN 'Depreciation'
-                        WHEN {dept_column} LIKE '607%' THEN 'Interest & Finance'
-                        WHEN {dept_column} LIKE '608%' THEN 'Travel & Entertainment'
-                        WHEN {dept_column} LIKE '609%' THEN 'Office & Admin'
+                        WHEN {where_clause.replace("'6%'", "'600%'")} THEN 'Advertising & Marketing'
+                        WHEN {where_clause.replace("'6%'", "'601%'")} THEN 'Payroll & Benefits'
+                        WHEN {where_clause.replace("'6%'", "'602%'")} THEN 'Facilities & Rent'
+                        WHEN {where_clause.replace("'6%'", "'603%'")} THEN 'Insurance'
+                        WHEN {where_clause.replace("'6%'", "'604%'")} THEN 'Professional Services'
+                        WHEN {where_clause.replace("'6%'", "'605%'")} THEN 'IT & Computer'
+                        WHEN {where_clause.replace("'6%'", "'606%'")} THEN 'Depreciation'
+                        WHEN {where_clause.replace("'6%'", "'607%'")} THEN 'Interest & Finance'
+                        WHEN {where_clause.replace("'6%'", "'608%'")} THEN 'Travel & Entertainment'
+                        WHEN {where_clause.replace("'6%'", "'609%'")} THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END
                 HAVING SUM(COALESCE(TotalSale, 0)) != 0
@@ -1813,6 +1820,10 @@ def register_department_routes(reports_bp):
             # Return structure with real expense data
             return jsonify({
                 'monthly_expenses': monthly_expenses,
+                'debug_info': {
+                    'detected_column': dept_column,
+                    'where_clause': where_clause
+                },
                 'summary': {
                     'total_expenses': round(total_expenses, 2),
                     'average_monthly': round(avg_expenses, 2),
