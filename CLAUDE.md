@@ -20,7 +20,8 @@ To get the complete database schema:
 - **WO**: Work orders (Type: S=Service, R=Rental, etc.)
 - **Customer**: Customer information and balances
 - **Equipment**: Equipment inventory and rental status
-- **NationalParts**: Parts inventory
+- **Parts**: Main parts inventory table (NOT NationalParts - see Important Discovery below)
+- **WOParts**: Parts used on work orders (includes BOQty for backorders)
 - **InvoiceArchive**: Archived invoice data
 - **InvoiceSales**: Sales line items
 
@@ -158,3 +159,41 @@ MiscCosts AS (
 - `/api/reports/departments/rental/wo-schema` - Explores WO table structure
 - `/api/reports/departments/rental/sale-codes` - Lists all sale codes
 - `RentalDiagnostic.jsx` - Frontend diagnostic component (can be removed)
+
+### Parts Inventory Table Discovery (2025-08-02)
+
+**IMPORTANT DISCOVERY: The actual parts inventory is in the `Parts` table, NOT `NationalParts`!**
+
+During implementation of the Parts Fill Rate report, we discovered:
+
+1. **NationalParts table is empty** (0 rows) - This was causing all inventory queries to fail
+2. **Parts table contains the actual inventory data** (11,413 rows)
+3. **Parts table has the `OnHand` column** we need for inventory tracking
+
+**Parts Table Structure:**
+- `PartNo`: Part number
+- `Description`: Part description  
+- `OnHand`: Current inventory on hand (the key field for fill rate calculations)
+- `Cost`: Part cost
+- `List`: List price
+- Other standard inventory fields
+
+**WOParts Table Structure (for tracking parts orders):**
+- `WONo`: Work order number
+- `PartNo`: Part number ordered
+- `Description`: Part description
+- `Qty`: Quantity ordered
+- `BOQty`: Backorder quantity (important for tracking stockouts)
+- `Sell`: Selling price
+- `Cost`: Cost
+
+**Parts Fill Rate Implementation:**
+The fill rate report now correctly:
+1. Joins WOParts with Parts table on PartNo
+2. Uses Parts.OnHand to check stock availability
+3. Uses WOParts.BOQty to identify backordered items
+4. Filters for Linde parts: `(PartNo LIKE 'L%' OR Description LIKE '%LINDE%')`
+5. Calculates fill rate as: (Orders with stock available / Total orders) × 100
+
+**Key Learning:**
+Always verify table contents before assuming based on table names. What seems like the obvious table (NationalParts for parts inventory) may not be the correct one. The Database Explorer's export functionality is invaluable for discovering the actual data structure.
