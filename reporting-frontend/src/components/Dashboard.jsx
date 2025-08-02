@@ -781,9 +781,27 @@ const Dashboard = ({ user }) => {
               <Users className="h-6 w-6 mb-2" />
               Customer Report
             </Button>
-            <Button variant="outline" className="h-20 flex-col">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={async () => {
+                try {
+                  const token = localStorage.getItem('token')
+                  const response = await fetch(apiUrl('/api/reports/quote-debug'), {
+                    headers: {
+                      'Authorization': `Bearer ${token}`,
+                    },
+                  })
+                  const data = await response.json()
+                  console.log('Quote Debug Data:', data)
+                  alert('Check console for quote debug data')
+                } catch (error) {
+                  console.error('Quote debug failed:', error)
+                }
+              }}
+            >
               <TrendingUp className="h-6 w-6 mb-2" />
-              Financial Summary
+              Quote Debug
             </Button>
           </div>
         </CardContent>
