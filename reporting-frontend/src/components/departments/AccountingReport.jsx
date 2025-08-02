@@ -39,25 +39,13 @@ import {
   Database
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
-import ExpenseDebugModal from './ExpenseDebugModal'
 import AccountingDiagnostics from './AccountingDiagnostics'
-import ExpenseSearchDiagnostic from '../diagnostics/ExpenseSearchDiagnostic'
-import InvoiceColumnsDiagnostic from '../diagnostics/InvoiceColumnsDiagnostic'
-import FindExpenseAccounts from '../diagnostics/FindExpenseAccounts'
-import AnalyzeGLAccounts from '../diagnostics/AnalyzeGLAccounts'
-import MonthlyExpenseDebug from '../diagnostics/MonthlyExpenseDebug'
 
 const AccountingReport = ({ user }) => {
   const [accountingData, setAccountingData] = useState(null)
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [debugModalOpen, setDebugModalOpen] = useState(false)
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false)
-  const [expenseSearchOpen, setExpenseSearchOpen] = useState(false)
-  const [invoiceColumnsOpen, setInvoiceColumnsOpen] = useState(false)
-  const [findExpenseAccountsOpen, setFindExpenseAccountsOpen] = useState(false)
-  const [analyzeGLAccountsOpen, setAnalyzeGLAccountsOpen] = useState(false)
-  const [monthlyDebugOpen, setMonthlyDebugOpen] = useState(false)
 
   useEffect(() => {
     fetchAccountingData()
@@ -334,56 +322,8 @@ const AccountingReport = ({ user }) => {
       {/* G&A Expenses Over Time */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>G&A Expenses Over Time</CardTitle>
-              <CardDescription>General & Administrative expenses (Payroll, Professional Services, etc.)</CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setDebugModalOpen(true)}
-              >
-                View Details
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setExpenseSearchOpen(true)}
-              >
-                Search Expenses
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setInvoiceColumnsOpen(true)}
-              >
-                Check Columns
-              </Button>
-              <Button 
-                variant="primary" 
-                size="sm"
-                onClick={() => setFindExpenseAccountsOpen(true)}
-              >
-                Find 6xxxxx
-              </Button>
-              <Button 
-                variant="primary" 
-                size="sm"
-                onClick={() => setAnalyzeGLAccountsOpen(true)}
-              >
-                Analyze GL
-              </Button>
-              <Button 
-                variant="destructive" 
-                size="sm"
-                onClick={() => setMonthlyDebugOpen(true)}
-              >
-                Debug Months
-              </Button>
-            </div>
-          </div>
+          <CardTitle>G&A Expenses Over Time</CardTitle>
+          <CardDescription>General & Administrative expenses (Payroll, Professional Services, etc.)</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -543,83 +483,11 @@ const AccountingReport = ({ user }) => {
         </Card>
       </div>
 
-      {/* Debug Modal */}
-      <ExpenseDebugModal 
-        isOpen={debugModalOpen} 
-        onClose={() => setDebugModalOpen(false)}
-        month="2025-07"
-      />
-      
       {/* Diagnostics Modal */}
       {diagnosticsOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
             <AccountingDiagnostics onClose={() => setDiagnosticsOpen(false)} />
-          </div>
-        </div>
-      )}
-      
-      {/* Expense Search Modal */}
-      {expenseSearchOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Expense Search Diagnostic</h2>
-              <Button onClick={() => setExpenseSearchOpen(false)} variant="ghost" size="sm">✕</Button>
-            </div>
-            <ExpenseSearchDiagnostic />
-          </div>
-        </div>
-      )}
-      
-      {/* Invoice Columns Modal */}
-      {invoiceColumnsOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Invoice Columns Check</h2>
-              <Button onClick={() => setInvoiceColumnsOpen(false)} variant="ghost" size="sm">✕</Button>
-            </div>
-            <InvoiceColumnsDiagnostic />
-          </div>
-        </div>
-      )}
-      
-      {/* Find Expense Accounts Modal */}
-      {findExpenseAccountsOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Find Expense Accounts (6xxxxx)</h2>
-              <Button onClick={() => setFindExpenseAccountsOpen(false)} variant="ghost" size="sm">✕</Button>
-            </div>
-            <FindExpenseAccounts />
-          </div>
-        </div>
-      )}
-      
-      {/* Analyze GL Accounts Modal */}
-      {analyzeGLAccountsOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">GL Expense Account Analysis</h2>
-              <Button onClick={() => setAnalyzeGLAccountsOpen(false)} variant="ghost" size="sm">✕</Button>
-            </div>
-            <AnalyzeGLAccounts />
-          </div>
-        </div>
-      )}
-      
-      {/* Monthly Debug Modal */}
-      {monthlyDebugOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Debug Monthly Expense Data</h2>
-              <Button onClick={() => setMonthlyDebugOpen(false)} variant="ghost" size="sm">✕</Button>
-            </div>
-            <MonthlyExpenseDebug />
           </div>
         </div>
       )}
