@@ -73,7 +73,7 @@ def get_sales_pace():
         full_month_query = f"""
         SELECT 
             SUM(GrandTotal) as total_sales,
-            SUM(CASE WHEN InvoiceType != 'M' THEN GrandTotal ELSE 0 END) as sales_no_equipment
+            SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as sales_no_equipment
         FROM ben002.InvoiceReg
         WHERE YEAR(InvoiceDate) = {prev_year}
             AND MONTH(InvoiceDate) = {prev_month}
