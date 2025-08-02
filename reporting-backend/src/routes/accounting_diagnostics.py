@@ -19,7 +19,7 @@ def discover_accounting_tables():
         SELECT 
             t.TABLE_NAME,
             t.TABLE_TYPE,
-            CAST(p.rows AS INT) as ROW_COUNT
+            COALESCE(CAST(p.rows AS INT), 0) as ROW_COUNT
         FROM INFORMATION_SCHEMA.TABLES t
         LEFT JOIN sys.partitions p 
             ON p.object_id = OBJECT_ID(t.TABLE_SCHEMA + '.' + t.TABLE_NAME)
@@ -97,7 +97,8 @@ def discover_accounting_tables():
             has_date_column = False
             date_columns = []
             
-            if table.get('ROW_COUNT', 0) > 0:
+            row_count = table.get('ROW_COUNT') or 0
+            if row_count > 0:
                 # Check for date columns
                 for col in columns:
                     if 'date' in col['COLUMN_NAME'].lower() or col['DATA_TYPE'] in ['datetime', 'date', 'datetime2']:
@@ -130,7 +131,7 @@ def discover_accounting_tables():
             
             detailed_tables.append({
                 'table_name': table_name,
-                'row_count': table.get('ROW_COUNT', 0),
+                'row_count': table.get('ROW_COUNT') or 0,
                 'category': category,
                 'columns': [{
                     'name': col['COLUMN_NAME'],
