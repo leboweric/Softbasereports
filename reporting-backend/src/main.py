@@ -28,6 +28,7 @@ from src.routes.diagnostics.invoice_columns_diagnostic import invoice_columns_di
 from src.routes.diagnostics.find_expense_accounts import find_expense_accounts_bp
 from src.routes.diagnostics.gl_table_structure import gl_table_structure_bp
 from src.routes.diagnostics.analyze_gl_accounts import analyze_gl_accounts_bp
+from src.routes.diagnostics.monthly_expense_debug import monthly_expense_debug_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -82,6 +83,7 @@ app.register_blueprint(invoice_columns_diagnostic_bp)
 app.register_blueprint(find_expense_accounts_bp)
 app.register_blueprint(gl_table_structure_bp)
 app.register_blueprint(analyze_gl_accounts_bp)
+app.register_blueprint(monthly_expense_debug_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
