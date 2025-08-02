@@ -1736,7 +1736,7 @@ def register_department_routes(reports_bp):
                 for row in monthly_data:
                     month_date = datetime(row['year'], row['month'], 1)
                     monthly_expenses.append({
-                        'month': month_date.strftime("%B"),
+                        'month': month_date.strftime("%b"),  # Use abbreviated month name to match
                         'year': row['year'],
                         'expenses': float(row['total_expenses'] or 0)
                     })
