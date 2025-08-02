@@ -488,7 +488,25 @@ const Dashboard = ({ user }) => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (active && payload && payload.length && dashboardData?.monthly_active_customers) {
+                    const data = dashboardData.monthly_active_customers.slice(0, -1)
+                    const currentIndex = data.findIndex(item => item.month === label)
+                    const currentValue = payload[0].value
+                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].customers : null
+                    
+                    return (
+                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                        <p className="font-semibold mb-1">{label}</p>
+                        <p className="text-blue-600">
+                          {currentValue} customers
+                          {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                }} />
                 <Line 
                   type="monotone" 
                   dataKey="customers" 
