@@ -200,36 +200,20 @@ The fill rate report now correctly:
 **Key Learning:**
 Always verify table contents before assuming based on table names. What seems like the obvious table (NationalParts for parts inventory) may not be the correct one. The Database Explorer's export functionality is invaluable for discovering the actual data structure.
 
-### Monthly Quotes Handling (2025-08-02)
+### Monthly Quotes (2025-08-02)
 
-**Issue:** Multiple quotes for the same customer were being summed together, inflating the monthly quote values.
+**Note:** The WOQuote table structure is not fully documented. Initial attempt to handle duplicate quotes by Customer failed because the WOQuote table doesn't have a Customer column.
 
-**Solution:** Modified the monthly quotes query to handle potential duplicates by:
-1. Grouping by Customer and Date to identify multiple quotes
-2. Taking the MAX amount per customer per day (assuming the latest/highest quote is the most relevant)
-3. Using a CTE (Common Table Expression) to first deduplicate at the customer/day level before summing monthly totals
-
-**Implementation:**
+**Current Implementation:** Simple sum of all quotes by month:
 ```sql
-WITH LatestQuotes AS (
-    SELECT 
-        YEAR(CreationTime) as year,
-        MONTH(CreationTime) as month,
-        Customer,
-        CAST(CreationTime AS DATE) as QuoteDate,
-        MAX(CreationTime) as LatestQuoteTime,
-        MAX(Amount) as MaxAmount
-    FROM ben002.WOQuote
-    WHERE CreationTime >= '2025-03-01'
-    AND Amount > 0
-    GROUP BY YEAR(CreationTime), MONTH(CreationTime), Customer, CAST(CreationTime AS DATE)
-)
 SELECT 
-    year,
-    month,
-    SUM(MaxAmount) as amount
-FROM LatestQuotes
-GROUP BY year, month
+    YEAR(CreationTime) as year,
+    MONTH(CreationTime) as month,
+    SUM(Amount) as amount
+FROM ben002.WOQuote
+WHERE CreationTime >= '2025-03-01'
+AND Amount > 0
+GROUP BY YEAR(CreationTime), MONTH(CreationTime)
 ```
 
-**Note:** Without knowing the exact WOQuote table structure (status fields, version tracking, etc.), this approach provides a reasonable approximation that prevents obvious double-counting while we await more information about the quote system's design.
+**TODO:** Once we understand the WOQuote table structure better (via Database Explorer export), we can implement proper duplicate handling if needed.
