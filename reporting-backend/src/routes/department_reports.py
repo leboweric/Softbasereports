@@ -1698,9 +1698,26 @@ def register_department_routes(reports_bp):
             existing_data = {item['month']: item['expenses'] for item in monthly_expenses}
             monthly_expenses = [{'month': month, 'expenses': existing_data.get(month, 0)} for month in all_months]
             
+            # Return empty structure to prevent frontend errors
+            # In production, these would be populated with real data
             return jsonify({
                 'monthly_expenses': monthly_expenses,
-                'message': 'Accounting data retrieved successfully'
+                'summary': {
+                    'totalRevenue': 0,
+                    'totalExpenses': 0,
+                    'netProfit': 0,
+                    'profitMargin': 0,
+                    'accountsReceivable': 0,
+                    'accountsPayable': 0,
+                    'cashFlow': 0,
+                    'overdueInvoices': 0
+                },
+                'revenueByDepartment': [],
+                'expenseCategories': [],
+                'monthlyFinancials': [],
+                'cashFlowTrend': [],
+                'outstandingInvoices': [],
+                'pendingPayables': []
             })
             
         except Exception as e:
