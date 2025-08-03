@@ -37,20 +37,27 @@ def register_department_routes(reports_bp):
             labor_revenue_result = db.execute_query(labor_revenue_query)
             
             monthlyLaborRevenue = []
+            current_date = datetime.now()
+            current_year = current_date.year
+            current_month = current_date.month
+            
             for row in labor_revenue_result:
                 month_date = datetime(row['year'], row['month'], 1)
                 labor_revenue = float(row['labor_revenue'] or 0)
                 labor_cost = float(row['labor_cost'] or 0)
                 
-                # Calculate gross margin percentage
-                margin_percentage = 0
-                if labor_revenue > 0:
-                    margin_percentage = ((labor_revenue - labor_cost) / labor_revenue) * 100
+                # Check if this is current month or future
+                is_current_or_future = (row['year'] > current_year) or (row['year'] == current_year and row['month'] >= current_month)
+                
+                # Calculate gross margin percentage only for historical months
+                margin_percentage = None
+                if not is_current_or_future and labor_revenue > 0:
+                    margin_percentage = round(((labor_revenue - labor_cost) / labor_revenue) * 100, 1)
                 
                 monthlyLaborRevenue.append({
                     'month': month_date.strftime("%b"),
                     'amount': labor_revenue,
-                    'margin': round(margin_percentage, 1)
+                    'margin': margin_percentage
                 })
             
             # Pad with zeros for missing months
@@ -104,20 +111,27 @@ def register_department_routes(reports_bp):
             parts_revenue_result = db.execute_query(parts_revenue_query)
             
             monthlyPartsRevenue = []
+            current_date = datetime.now()
+            current_year = current_date.year
+            current_month = current_date.month
+            
             for row in parts_revenue_result:
                 month_date = datetime(row['year'], row['month'], 1)
                 parts_revenue = float(row['parts_revenue'] or 0)
                 parts_cost = float(row['parts_cost'] or 0)
                 
-                # Calculate gross margin percentage
-                margin_percentage = 0
-                if parts_revenue > 0:
-                    margin_percentage = ((parts_revenue - parts_cost) / parts_revenue) * 100
+                # Check if this is current month or future
+                is_current_or_future = (row['year'] > current_year) or (row['year'] == current_year and row['month'] >= current_month)
+                
+                # Calculate gross margin percentage only for historical months
+                margin_percentage = None
+                if not is_current_or_future and parts_revenue > 0:
+                    margin_percentage = round(((parts_revenue - parts_cost) / parts_revenue) * 100, 1)
                 
                 monthlyPartsRevenue.append({
                     'month': month_date.strftime("%b"),
                     'amount': parts_revenue,
-                    'margin': round(margin_percentage, 1)
+                    'margin': margin_percentage
                 })
             
             # Pad with zeros for missing months

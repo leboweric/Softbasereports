@@ -60,7 +60,6 @@ const Dashboard = ({ user }) => {
   const [customerRiskData, setCustomerRiskData] = useState(null)
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
-  const [includeCurrentMonthMargins, setIncludeCurrentMonthMargins] = useState(false)
   // AI Predictions state
   const [workOrderPrediction, setWorkOrderPrediction] = useState(null)
   const [workOrderPredictionLoading, setWorkOrderPredictionLoading] = useState(false)
@@ -370,16 +369,6 @@ const Dashboard = ({ user }) => {
   }
 
 
-  const getFilteredMarginsData = () => {
-    if (!dashboardData?.department_margins) return []
-    
-    if (includeCurrentMonthMargins) {
-      return dashboardData.department_margins
-    } else {
-      // Exclude the last month (current month)
-      return dashboardData.department_margins.slice(0, -1)
-    }
-  }
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
 
@@ -944,72 +933,6 @@ const Dashboard = ({ user }) => {
             </Card>
           </div>
 
-          {/* Gross Margins Analysis */}
-          <Card>
-          <CardHeader>
-            <CardTitle>Department Gross Margins %</CardTitle>
-            <CardDescription>
-              Margin percentages by department over time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2 mb-4">
-              <Checkbox 
-                id="current-month-margins-filter"
-                checked={includeCurrentMonthMargins}
-                onCheckedChange={setIncludeCurrentMonthMargins}
-              />
-              <label 
-                htmlFor="current-month-margins-filter" 
-                className="text-sm font-medium cursor-pointer"
-              >
-                Include Current Month
-              </label>
-            </div>
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={getFilteredMarginsData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis 
-                  domain={[0, 100]}
-                  tickFormatter={(value) => `${value}%`}
-                />
-                <Tooltip 
-                  formatter={(value) => `${value}%`}
-                  labelFormatter={(label) => `Month: ${label}`}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="parts_margin" 
-                  stroke="#ef4444" 
-                  name="Parts"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="labor_margin" 
-                  stroke="#3b82f6" 
-                  name="Labor"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="equipment_margin" 
-                  stroke="#10b981" 
-                  name="Equipment"
-                  strokeWidth={2}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="rental_margin" 
-                  stroke="#a855f7" 
-                  name="Rental"
-                  strokeWidth={2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-            </Card>
         </TabsContent>
 
     {/* Customers Tab */}
