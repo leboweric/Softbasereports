@@ -6,6 +6,7 @@ import traceback
 import re
 from src.services.openai_service import OpenAIQueryService
 from src.services.softbase_service import SoftbaseService
+from src.services.sql_generator import SmartSQLGenerator
 from src.models.user import User
 from datetime import datetime, timedelta
 import calendar
@@ -73,8 +74,17 @@ def generate_sql_from_analysis(analysis):
     logger.info(f"Query analysis: type={query_type}, tables={tables}, intent={intent}")
     logger.info(f"Original query: {original_query}")
     logger.info(f"Full analysis object: {analysis}")
-    logger.info(f"Intent lowercased: {intent}")
-    logger.info(f"Checking if Polaris query matches...")
+    
+    # Try smart SQL generation first if we have structured data
+    if 'query_action' in analysis:
+        try:
+            logger.info(f"Using SmartSQLGenerator with action: {analysis['query_action']}")
+            smart_gen = SmartSQLGenerator()
+            sql = smart_gen.generate_sql(analysis)
+            if sql and 'Query not recognized' not in sql:
+                return sql
+        except Exception as e:
+            logger.warning(f"SmartSQLGenerator failed, falling back to pattern matching: {str(e)}")
     
     # Parse time period from intent
     time_period = parse_time_period(intent)
@@ -1266,6 +1276,40 @@ def generate_sql_from_analysis(analysis):
             'Query not recognized: {intent[:100]}' as error,
             'This specific query pattern needs to be implemented' as message
         """
+
+@ai_query_bp.route('/test-structured-prompt', methods=['POST'])
+@jwt_required()
+def test_structured_prompt():
+    """Test the new structured OpenAI prompt format"""
+    try:
+        data = request.get_json()
+        if not data or 'query' not in data:
+            return jsonify({'error': 'Query is required'}), 400
+        
+        # Get user context
+        current_user_id = get_jwt_identity()
+        jwt_claims = get_jwt()
+        organization_id = jwt_claims.get('organization_id')
+        
+        # Initialize OpenAI service
+        openai_service = OpenAIQueryService()
+        
+        # Process query
+        result = openai_service.process_natural_language_query(
+            data['query'], 
+            {'organization_id': organization_id}
+        )
+        
+        return jsonify({
+            'success': result.get('success', False),
+            'query': data['query'],
+            'structured_analysis': result.get('query_analysis'),
+            'raw_response': result
+        })
+        
+    except Exception as e:
+        logger.error(f"Error testing structured prompt: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 @ai_query_bp.route('/version', methods=['GET'])
 def get_version():

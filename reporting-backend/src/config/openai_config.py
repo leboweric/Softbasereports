@@ -186,9 +186,18 @@ class OpenAIConfig:
         Always respond in JSON format with:
         {{
             "intent": "brief description of what user wants (be specific about sales vs profit vs income)",
+            "query_action": "categorize the action: list_equipment|list_rentals|show_sales|show_inventory|service_status|parts_status|customer_info|financial_summary",
+            "entity_type": "main entity: equipment|customer|invoice|parts|technician|rental",
+            "entity_subtype": "if applicable: forklift|truck|part_type|etc",
             "tables": ["list", "of", "relevant", "tables"],
-            "filters": {{"field": "condition", "date_range": "parsed_dates"}},
+            "filters": {{
+                "status": "if applicable: rented|available|sold|active|overdue",
+                "time_period": "if applicable: current|last_month|last_week|specific_date",
+                "customer": "if specific customer mentioned",
+                "other": "any other filter conditions"
+            }},
             "query_type": "aggregation|list|count|analysis",
+            "use_rental_history": "true if query is about current/active rentals",
             "explanation": "human-readable explanation of the query",
             "suggested_visualization": "chart_type if applicable"
         }}
