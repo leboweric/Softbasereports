@@ -1066,7 +1066,7 @@ const Dashboard = ({ user }) => {
                     }} />
                     <Line 
                       type="monotone" 
-                      dataKey="active_customers" 
+                      dataKey="customers" 
                       stroke="#3b82f6" 
                       strokeWidth={2}
                       name="Active Customers"
