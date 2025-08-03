@@ -163,6 +163,74 @@ def generate_sql_from_analysis(analysis):
         ORDER BY wo.OpenDate DESC
         """
     
+    # Customer Insights exact query matches
+    elif ('give me the serial numbers of all forklifts that polaris rents from us' in intent or
+          'give me the serial numbers of all forklifts that polaris rents from us' in original_query or
+          ('polaris' in intent and 'rents' in intent and 'serial' in intent)):
+        return """
+        SELECT 
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            e.UnitNo,
+            c.Name as CustomerName
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        WHERE e.RentalStatus = 'Rented'
+        AND UPPER(c.Name) LIKE '%POLARIS%'
+        ORDER BY e.UnitNo
+        """
+    
+    elif ('which customers haven\'t made a purchase in 6 months' in intent or
+          'which customers haven\'t made a purchase in 6 months' in original_query or
+          'which customers haven\'t made a purchase in 6 months' in original_query.replace("'", "\'") if original_query else False or
+          ('customers' in intent and 'haven\'t' in intent and 'purchase' in intent and '6 months' in intent)):
+        six_months_ago = datetime.now() - timedelta(days=180)
+        return f"""
+        SELECT 
+            c.Name as customer,
+            c.LastSaleDate as last_purchase,
+            DATEDIFF(day, c.LastSaleDate, GETDATE()) as days_since_purchase
+        FROM ben002.Customer c
+        WHERE c.LastSaleDate < '{six_months_ago.strftime('%Y-%m-%d')}'
+           OR c.LastSaleDate IS NULL
+        ORDER BY c.LastSaleDate ASC
+        """
+    
+    elif ('show me all customers with outstanding invoices' in intent or
+          'show me all customers with outstanding invoices' in original_query or
+          ('customers' in intent and 'outstanding' in intent and 'invoice' in intent)):
+        return """
+        SELECT 
+            c.Name as customer,
+            SUM(ar.Balance) as balance,
+            COUNT(DISTINCT ar.InvoiceNo) as outstanding_invoices
+        FROM ben002.ARDetail ar
+        INNER JOIN ben002.Customer c ON ar.Customer = c.Number
+        WHERE ar.Balance > 0
+        GROUP BY c.Name
+        HAVING SUM(ar.Balance) > 0
+        ORDER BY balance DESC
+        """
+    
+    elif (('average order value by customer' in intent or
+           'average order value by customer' in original_query or
+           'what\'s the average order value by customer' in intent or
+           'what\'s the average order value by customer' in original_query or
+           'what\'s the average order value by customer' in original_query.replace("'", "\'") if original_query else False)):
+        return """
+        SELECT TOP 100
+            i.BillToName as customer,
+            COUNT(DISTINCT i.InvoiceNo) as total_orders,
+            AVG(i.GrandTotal) as average_value,
+            SUM(i.GrandTotal) as total_value
+        FROM ben002.InvoiceReg i
+        WHERE i.GrandTotal > 0
+        GROUP BY i.BillToName
+        HAVING COUNT(DISTINCT i.InvoiceNo) > 0
+        ORDER BY average_value DESC
+        """
+    
     # Parts & Service exact query matches - MUST BE FIRST to prevent generic handlers from catching them
     elif ('which linde parts were we not able to fill last week' in intent or 
         'which linde parts were we not able to fill last week' in original_query):
