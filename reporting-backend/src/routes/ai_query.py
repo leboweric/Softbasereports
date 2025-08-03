@@ -286,24 +286,10 @@ def generate_sql_from_analysis(analysis):
         SELECT 
             p.PartNo,
             p.Description,
-            p.OnHand as CurrentStock,
-            p.MinStock as ReorderPoint,
-            pd.Demand1 + pd.Demand2 + pd.Demand3 as Last3MonthsDemand,
-            CASE 
-                WHEN p.OnHand <= p.MinStock THEN 'REORDER NOW'
-                WHEN p.OnHand <= (p.MinStock * 1.5) THEN 'LOW STOCK'
-                ELSE 'OK'
-            END as Status
+            p.OnHand as QtyOnHand
         FROM ben002.Parts p
-        LEFT JOIN ben002.PartsDemand pd ON p.PartNo = pd.PartNo
-        WHERE p.OnHand <= p.MinStock
-           OR p.OnHand <= (p.MinStock * 1.5)
-        ORDER BY 
-            CASE 
-                WHEN p.OnHand <= p.MinStock THEN 0
-                ELSE 1
-            END,
-            p.OnHand ASC
+        WHERE p.OnHand <= ISNULL(p.MinStock, 10)
+        ORDER BY p.OnHand ASC
         """
     
     elif ('which technician completed the most services this month' in intent or
@@ -1152,24 +1138,10 @@ def generate_sql_from_analysis(analysis):
             SELECT 
                 p.PartNo,
                 p.Description,
-                p.OnHand as CurrentStock,
-                p.MinStock as ReorderPoint,
-                pd.Demand1 + pd.Demand2 + pd.Demand3 as Last3MonthsDemand,
-                CASE 
-                    WHEN p.OnHand <= p.MinStock THEN 'REORDER NOW'
-                    WHEN p.OnHand <= (p.MinStock * 1.5) THEN 'LOW STOCK'
-                    ELSE 'OK'
-                END as Status
+                p.OnHand as QtyOnHand
             FROM ben002.Parts p
-            LEFT JOIN ben002.PartsDemand pd ON p.PartNo = pd.PartNo
-            WHERE p.OnHand <= p.MinStock
-               OR p.OnHand <= (p.MinStock * 1.5)
-            ORDER BY 
-                CASE 
-                    WHEN p.OnHand <= p.MinStock THEN 0
-                    ELSE 1
-                END,
-                p.OnHand ASC
+            WHERE p.OnHand <= ISNULL(p.MinStock, 10)
+            ORDER BY p.OnHand ASC
             """
         elif 'low stock' in intent or 'low inventory' in intent:
             return """
