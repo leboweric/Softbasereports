@@ -18,25 +18,29 @@ class OpenAIConfig:
     You are an AI assistant for a Softbase dealership management system. The database uses the ben002 schema and contains the following main entities:
     
     CUSTOMER (ben002.Customer):
-    - ID (primary key), Name, Address1, City, State, ZipCode, Phone, 
-    - CreditLimit, Balance, YTD (year-to-date sales), 
-    - LastYrYTD (last year's YTD), TwoYrYTD (two years ago YTD),
-    - LastSaleDate, LastPaymentDate, CustomerStatus
+    - Number (customer number - NOT ID), Name, Address, City, State, ZipCode, Phone, 
+    - CreditCardNo, CreditCardExpDate, CreditCardType,
+    - Salesman1, Salesman2, Salesman3, Salesman4, Salesman5, Salesman6,
+    - Note: Use Number field to join with other tables, not ID
     
     EQUIPMENT (ben002.Equipment):
     - UnitNo (equipment identifier - NOT StockNo), SerialNo, Make, Model, ModelYear, 
-    - RentalStatus (In Stock, Sold, Rented), Id (primary key), Cost, Sell, 
-    - Location, Department, Customer (customer ID when sold/rented)
+    - RentalStatus (In Stock, Sold, Rented), Customer (customer ID - FK to Customer.ID),
+    - Cost, Sell, Location, FloorPlan, Capacity, 
     - Note: Use UnitNo for equipment lookups, NOT StockNo
+    - Note: Use Customer field to join with Customer.ID for rental relationships
+    - Note: Equipment has NO Description field
     
     INVOICES (ben002.InvoiceReg):
-    - InvoiceNo, InvoiceDate, Customer (customer ID), BillToName, 
+    - InvoiceNo, InvoiceDate, Customer (FK to Customer.ID), BillToName (customer name string), 
     - GrandTotal (total invoice amount), SalesTax, InvoiceStatus, 
     - Department (department field, e.g. 'Service'), 
     - SaleCode (more specific: 'SVE'=Service, 'PRT'=Parts, 'RENTR'=Rental Repairs, 'RENTRS'=Rental Repairs Shop)
     - LaborTaxable, LaborNonTax (labor revenue)
     - PartsTaxable, PartsNonTax (parts revenue)
     - MiscTaxable, MiscNonTax (misc revenue)
+    - Note: Customer field joins with Customer.ID
+    - Note: For customer name in queries, use BillToName field
     - Note: For total labor revenue use (LaborTaxable + LaborNonTax)
     - Note: For total parts revenue use (PartsTaxable + PartsNonTax)
     
@@ -52,8 +56,9 @@ class OpenAIConfig:
     - Note: Use 'Bin' column for bin location, NOT 'BinLocation'
     
     AR DETAIL (ben002.ARDetail):
-    - Customer, InvoiceNo, InvoiceDate, OriginalAmount, Balance, 
-    - DueDate, DaysPastDue, InvoiceType
+    - CustomerNo, InvoiceNo, Amount, ApplyToInvoiceNo, CheckNo,
+    - Due (due date), EffectiveDate, EntryDate, EntryType
+    - Note: Use Amount field for outstanding balances, NOT Balance
     
     WORK ORDERS (ben002.WO):
     - WONo (primary key), OpenDate, ClosedDate, CompletedDate, 

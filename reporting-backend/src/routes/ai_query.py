@@ -172,14 +172,14 @@ def generate_sql_from_analysis(analysis):
         SELECT 
             e.SerialNo,
             e.Make,
-            e.Model,
-            e.UnitNo,
-            c.Name as CustomerName
+            e.Model
         FROM ben002.Equipment e
         INNER JOIN ben002.Customer c ON e.Customer = c.ID
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
-        ORDER BY e.UnitNo
+        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%' 
+             OR UPPER(e.Description) LIKE '%FORK%')
+        ORDER BY e.SerialNo
         """
     
     elif ('which customers haven\'t made a purchase in 6 months' in intent or
@@ -206,14 +206,10 @@ def generate_sql_from_analysis(analysis):
         return """
         SELECT 
             c.Name as customer,
-            SUM(ar.Balance) as balance,
-            COUNT(DISTINCT ar.InvoiceNo) as outstanding_invoices
-        FROM ben002.ARDetail ar
-        INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
-        WHERE ar.Balance > 0
-        GROUP BY c.Name
-        HAVING SUM(ar.Balance) > 0
-        ORDER BY balance DESC
+            c.Balance as balance
+        FROM ben002.Customer c
+        WHERE c.Balance > 0
+        ORDER BY c.Balance DESC
         """
     
     elif (('average order value by customer' in intent or
@@ -222,11 +218,12 @@ def generate_sql_from_analysis(analysis):
            'what\'s the average order value by customer' in original_query or
            'what\'s the average order value by customer' in original_query.replace("'", "\'") if original_query else False)):
         return """
-        SELECT TOP 100
+        SELECT TOP 20
             i.BillToName as customer,
             AVG(i.GrandTotal) as average_value
         FROM ben002.InvoiceReg i
         WHERE i.GrandTotal > 0
+        AND i.BillToName IS NOT NULL
         GROUP BY i.BillToName
         HAVING COUNT(DISTINCT i.InvoiceNo) > 0
         ORDER BY average_value DESC
@@ -337,7 +334,7 @@ def generate_sql_from_analysis(analysis):
             c.Name as customer,
             e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         ORDER BY c.Name, e.UnitNo
         """
@@ -373,7 +370,7 @@ def generate_sql_from_analysis(analysis):
             e.ModelYear,
             c.Name as CustomerName
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
@@ -474,7 +471,7 @@ def generate_sql_from_analysis(analysis):
             c.Salesman1 as salesperson,
             SUM(i.GrandTotal) as sales
         FROM ben002.InvoiceReg i
-        INNER JOIN ben002.Customer c ON i.Customer = c.ID
+        INNER JOIN ben002.Customer c ON i.Customer = c.Number
         WHERE {date_filter}
         AND c.Salesman1 IS NOT NULL
         GROUP BY c.Salesman1
@@ -577,7 +574,7 @@ def generate_sql_from_analysis(analysis):
             e.Model,
             e.RentalStatus
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         ORDER BY c.Name, e.UnitNo
         """
@@ -618,7 +615,7 @@ def generate_sql_from_analysis(analysis):
             e.RentalStatus,
             c.Name as CustomerName
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
@@ -921,7 +918,7 @@ def generate_sql_from_analysis(analysis):
             SUM(i.GrandTotal) as TotalRevenue,
             AVG(i.GrandTotal) as AverageOrderValue
         FROM ben002.InvoiceReg i
-        INNER JOIN ben002.Customer c ON i.Customer = c.ID
+        INNER JOIN ben002.Customer c ON i.Customer = c.Number
         WHERE i.InvoiceDate >= DATEADD(year, -1, GETDATE())
         GROUP BY c.Name
         HAVING COUNT(DISTINCT i.InvoiceNo) > 0
