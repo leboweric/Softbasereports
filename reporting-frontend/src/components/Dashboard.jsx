@@ -199,6 +199,60 @@ const Dashboard = ({ user }) => {
     return months[monthNumber - 1] || 'Current Month'
   }
 
+  const downloadActiveCustomers = async (period = 'last30') => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/dashboard/active-customers-export?period=${period}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Convert to CSV
+        const headers = [
+          'Customer Name',
+          'Invoice Count', 
+          'First Invoice Date',
+          'Last Invoice Date',
+          'Total Sales',
+          'Average Invoice Value',
+          'Departments'
+        ]
+        
+        const csvContent = [
+          headers.join(','),
+          ...data.customers.map(customer => [
+            `"${customer.customer_name}"`,
+            customer.invoice_count,
+            customer.first_invoice_date,
+            customer.last_invoice_date,
+            customer.total_sales.toFixed(2),
+            customer.avg_invoice_value.toFixed(2),
+            `"${customer.departments}"`
+          ].join(','))
+        ].join('\n')
+        
+        // Create download
+        const blob = new Blob([csvContent], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `active-customers-${data.period.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+      } else {
+        console.error('Failed to download active customers data')
+      }
+    } catch (error) {
+      console.error('Error downloading active customers:', error)
+    }
+  }
+
   const getFilteredWOData = () => {
     if (!dashboardData?.monthly_work_orders_by_type) return []
     
@@ -1040,10 +1094,24 @@ const Dashboard = ({ user }) => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Active Customers Over Time</CardTitle>
-                <CardDescription>
-                  Number of customers with invoices each month
-                </CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Active Customers Over Time</CardTitle>
+                    <CardDescription>
+                      Number of customers with invoices each month
+                    </CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadActiveCustomers()}
+                    className="h-8 px-2"
+                    title="Download active customers list"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    CSV
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>

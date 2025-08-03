@@ -948,6 +948,93 @@ def get_dashboard_summary_optimized():
             'message': str(e)
         }), 500
 
+@dashboard_optimized_bp.route('/api/dashboard/active-customers-export', methods=['GET'])
+@jwt_required()
+def export_active_customers():
+    """Export detailed active customers list for CSV download"""
+    try:
+        db = AzureSQLService()
+        
+        # Get current month period or custom period if specified
+        period = request.args.get('period', 'current')  # 'current', 'last30', or 'YYYY-MM'
+        
+        if period == 'current':
+            # Current month
+            current_date = datetime.now()
+            start_date = current_date.replace(day=1).strftime('%Y-%m-%d')
+            end_date = current_date.strftime('%Y-%m-%d')
+            period_label = current_date.strftime('%B %Y')
+        elif period == 'last30':
+            # Last 30 days
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            period_label = 'Last 30 Days'
+        else:
+            # Specific month (format: YYYY-MM)
+            try:
+                year, month = period.split('-')
+                month_date = datetime(int(year), int(month), 1)
+                start_date = month_date.strftime('%Y-%m-%d')
+                # Get last day of month
+                if month_date.month == 12:
+                    next_month = month_date.replace(year=month_date.year + 1, month=1)
+                else:
+                    next_month = month_date.replace(month=month_date.month + 1)
+                end_date = (next_month - timedelta(days=1)).strftime('%Y-%m-%d')
+                period_label = month_date.strftime('%B %Y')
+            except:
+                return jsonify({'error': 'Invalid period format. Use YYYY-MM'}), 400
+        
+        # Query to get detailed active customers with their activity
+        query = f"""
+        SELECT 
+            BillToName as customer_name,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            MIN(InvoiceDate) as first_invoice_date,
+            MAX(InvoiceDate) as last_invoice_date,
+            SUM(GrandTotal) as total_sales,
+            AVG(GrandTotal) as avg_invoice_value,
+            STRING_AGG(DISTINCT Department, ', ') as departments
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '{start_date}'
+            AND InvoiceDate <= '{end_date}'
+            AND BillToName IS NOT NULL
+            AND BillToName != ''
+            AND GrandTotal > 0
+        GROUP BY BillToName
+        ORDER BY total_sales DESC
+        """
+        
+        results = db.execute_query(query)
+        customers = []
+        
+        if results:
+            for row in results:
+                customers.append({
+                    'customer_name': row['customer_name'],
+                    'invoice_count': int(row['invoice_count']),
+                    'first_invoice_date': row['first_invoice_date'].strftime('%Y-%m-%d') if row['first_invoice_date'] else '',
+                    'last_invoice_date': row['last_invoice_date'].strftime('%Y-%m-%d') if row['last_invoice_date'] else '',
+                    'total_sales': float(row['total_sales']),
+                    'avg_invoice_value': float(row['avg_invoice_value']),
+                    'departments': row['departments'] or ''
+                })
+        
+        return jsonify({
+            'customers': customers,
+            'period': period_label,
+            'total_customers': len(customers),
+            'total_sales': sum(c['total_sales'] for c in customers),
+            'date_range': f"{start_date} to {end_date}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error exporting active customers: {str(e)}")
+        return jsonify({
+            'error': 'Failed to export active customers',
+            'message': str(e)
+        }), 500
+
 
 @dashboard_optimized_bp.route('/api/reports/dashboard/invalidate-cache', methods=['POST'])
 @jwt_required()
