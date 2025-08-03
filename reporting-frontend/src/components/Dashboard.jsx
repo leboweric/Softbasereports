@@ -218,8 +218,7 @@ const Dashboard = ({ user }) => {
           'First Invoice Date',
           'Last Invoice Date',
           'Total Sales',
-          'Average Invoice Value',
-          'Departments'
+          'Average Invoice Value'
         ]
         
         const csvContent = [
@@ -230,8 +229,7 @@ const Dashboard = ({ user }) => {
             customer.first_invoice_date,
             customer.last_invoice_date,
             customer.total_sales.toFixed(2),
-            customer.avg_invoice_value.toFixed(2),
-            `"${customer.departments}"`
+            customer.avg_invoice_value.toFixed(2)
           ].join(','))
         ].join('\n')
         

@@ -993,8 +993,7 @@ def export_active_customers():
             MIN(InvoiceDate) as first_invoice_date,
             MAX(InvoiceDate) as last_invoice_date,
             SUM(GrandTotal) as total_sales,
-            AVG(GrandTotal) as avg_invoice_value,
-            STRING_AGG(DISTINCT Department, ', ') as departments
+            AVG(GrandTotal) as avg_invoice_value
         FROM ben002.InvoiceReg
         WHERE InvoiceDate >= '{start_date}'
             AND InvoiceDate <= '{end_date}'
@@ -1016,8 +1015,7 @@ def export_active_customers():
                     'first_invoice_date': row['first_invoice_date'].strftime('%Y-%m-%d') if row['first_invoice_date'] else '',
                     'last_invoice_date': row['last_invoice_date'].strftime('%Y-%m-%d') if row['last_invoice_date'] else '',
                     'total_sales': float(row['total_sales']),
-                    'avg_invoice_value': float(row['avg_invoice_value']),
-                    'departments': row['departments'] or ''
+                    'avg_invoice_value': float(row['avg_invoice_value'])
                 })
         
         return jsonify({
