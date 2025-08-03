@@ -52,6 +52,7 @@ const Dashboard = ({ user }) => {
   const [loading, setLoading] = useState(true)
   const [paceData, setPaceData] = useState(null)
   const [forecastData, setForecastData] = useState(null)
+  const [forecastLastUpdated, setForecastLastUpdated] = useState(null)
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
   const [visibleWOTypes, setVisibleWOTypes] = useState({
@@ -67,6 +68,13 @@ const Dashboard = ({ user }) => {
 
   useEffect(() => {
     fetchDashboardData()
+    
+    // Set up auto-refresh every 5 minutes for real-time updates
+    const interval = setInterval(() => {
+      fetchForecastData() // Update forecast more frequently for real-time adjustments
+    }, 5 * 60 * 1000) // 5 minutes
+    
+    return () => clearInterval(interval)
   }, [])
 
   const fetchDashboardData = async (forceRefresh = false) => {
@@ -169,6 +177,7 @@ const Dashboard = ({ user }) => {
         const data = await response.json()
         console.log('Forecast data fetched:', data)
         setForecastData(data)
+        setForecastLastUpdated(new Date())
       }
     } catch (error) {
       console.error('Error fetching forecast data:', error)
@@ -182,6 +191,12 @@ const Dashboard = ({ user }) => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount)
+  }
+
+  const getMonthName = (monthNumber) => {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                    'July', 'August', 'September', 'October', 'November', 'December']
+    return months[monthNumber - 1] || 'Current Month'
   }
 
   const getFilteredWOData = () => {
@@ -524,7 +539,10 @@ const Dashboard = ({ user }) => {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => fetchDashboardData(true)}
+            onClick={() => {
+              fetchDashboardData(true)
+              fetchForecastData()
+            }}
             disabled={loading}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -548,7 +566,7 @@ const Dashboard = ({ user }) => {
         {/* Sales Tab */}
         <TabsContent value="sales" className="space-y-4">
           {/* Key Sales Metrics */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Current Month Sales</CardTitle>
@@ -578,51 +596,6 @@ const Dashboard = ({ user }) => {
             </p>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {dashboardData?.active_customers || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Last 30 days • {dashboardData?.total_customers || 0} total
-            </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.open_work_orders_value || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {dashboardData?.open_work_orders_count || 0} orders
-            </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Uninvoiced Work Orders</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.uninvoiced_work_orders || 0)}
-            </div>
-                <p className="text-xs text-muted-foreground">
-                  {dashboardData?.uninvoiced_count || 0} orders pending
-                </p>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Sales Forecast Card */}
@@ -631,14 +604,30 @@ const Dashboard = ({ user }) => {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle className="text-xl">August Sales Forecast</CardTitle>
+                <CardTitle className="text-xl">{getMonthName(forecastData.current_month?.month)} Sales Forecast</CardTitle>
                 <CardDescription>
                   AI-powered prediction based on historical patterns
+                  {forecastLastUpdated && (
+                    <span className="text-xs text-muted-foreground block mt-1">
+                      Last updated: {forecastLastUpdated.toLocaleTimeString()}
+                    </span>
+                  )}
                 </CardDescription>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Confidence Level</p>
-                <p className="text-lg font-semibold">{forecastData.forecast?.confidence_level || '68%'}</p>
+              <div className="text-right space-y-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Confidence Level</p>
+                  <p className="text-lg font-semibold">{forecastData.forecast?.confidence_level || '68%'}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={fetchForecastData}
+                  className="h-8 px-2"
+                  title="Refresh forecast"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
               </div>
             </div>
           </CardHeader>
@@ -906,32 +895,8 @@ const Dashboard = ({ user }) => {
             </Card>
           </div>
 
-          {/* Revenue Streams Analysis */}
-          <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Revenue by Stream</CardTitle>
-            <CardDescription>
-              Monthly breakdown by parts, labor, rental, and misc
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_sales_by_stream || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="parts" stackId="a" fill="#ef4444" name="Parts" />
-                <Bar dataKey="labor" stackId="a" fill="#3b82f6" name="Labor" />
-                <Bar dataKey="rental" stackId="a" fill="#10b981" name="Rental" />
-                <Bar dataKey="misc" stackId="a" fill="#f59e0b" name="Misc" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card>
+          {/* Gross Margins Analysis */}
+          <Card>
           <CardHeader>
             <CardTitle>Department Gross Margins %</CardTitle>
             <CardDescription>
@@ -995,14 +960,8 @@ const Dashboard = ({ user }) => {
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
-      </div>
-
-      {/* Top 10 Customers */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Top 10 Customers</CardTitle>
+            </Card>
+        </TabsContent>
             <CardDescription>
               By fiscal year-to-date sales
             </CardDescription>
