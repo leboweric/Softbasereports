@@ -3,6 +3,7 @@ Smart SQL Generator that uses structured query analysis from OpenAI
 """
 from datetime import datetime, timedelta
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -250,13 +251,29 @@ class SmartSQLGenerator:
         time_period = filters.get('time_period', 'last_30_days')
         query_type = analysis.get('query_type', 'aggregation')
         
-        # Build date filter
-        date_filter = self._build_date_filter(time_period)
+        # Build date filter - pass analysis for month name parsing
+        date_filter = self._build_date_filter(time_period, analysis=analysis)
+        
+        # Build period description
+        period_desc = time_period
+        if time_period == 'specific_date' and analysis:
+            original_intent = filters.get('original_intent', '').lower()
+            # Extract month name for display
+            month_names = ['january', 'february', 'march', 'april', 'may', 'june', 
+                          'july', 'august', 'september', 'october', 'november', 'december']
+            for month in month_names:
+                if month in original_intent:
+                    year = datetime.now().year
+                    year_match = re.search(r'\b(20\d{2})\b', original_intent)
+                    if year_match:
+                        year = int(year_match.group(1))
+                    period_desc = f"{month.capitalize()} {year}"
+                    break
         
         if query_type == 'aggregation':
             return f"""
             SELECT 
-                '{time_period}' as period,
+                '{period_desc}' as period,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales,
                 AVG(GrandTotal) as average_sale
@@ -303,9 +320,40 @@ class SmartSQLGenerator:
             ORDER BY OnHand DESC
             """
     
-    def _build_date_filter(self, time_period, date_column='InvoiceDate'):
+    def _build_date_filter(self, time_period, date_column='InvoiceDate', analysis=None):
         """Build SQL date filter based on time period"""
         today = datetime.now()
+        
+        # Check if we need to parse month names from the original intent
+        if time_period == 'specific_date' and analysis:
+            original_intent = analysis.get('filters', {}).get('original_intent', '').lower()
+            
+            # Month names mapping
+            month_names = {
+                'january': 1, 'february': 2, 'march': 3, 'april': 4,
+                'may': 5, 'june': 6, 'july': 7, 'august': 8,
+                'september': 9, 'october': 10, 'november': 11, 'december': 12
+            }
+            
+            # Try to find a month name in the intent
+            for month_name, month_num in month_names.items():
+                if month_name in original_intent:
+                    # Default to current year unless a year is specified
+                    year = today.year
+                    
+                    # Check if a year is mentioned
+                    year_match = re.search(r'\b(20\d{2})\b', original_intent)
+                    if year_match:
+                        year = int(year_match.group(1))
+                    
+                    # Build date range for the month
+                    first_day = datetime(year, month_num, 1)
+                    if month_num == 12:
+                        last_day = datetime(year + 1, 1, 1)
+                    else:
+                        last_day = datetime(year, month_num + 1, 1)
+                    
+                    return f"{date_column} >= '{first_day.strftime('%Y-%m-%d')}' AND {date_column} < '{last_day.strftime('%Y-%m-%d')}'"
         
         if time_period == 'current' or time_period == 'this_month':
             return f"{date_column} >= '{today.strftime('%Y-%m-01')}'"
