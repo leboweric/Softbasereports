@@ -1053,71 +1053,28 @@ def analyze_customer_risk():
         recent_start = (current_date - timedelta(days=90)).strftime('%Y-%m-%d')
         very_recent_start = (current_date - timedelta(days=30)).strftime('%Y-%m-%d')
         
-        # Query to analyze customer behavior patterns
+        # Simplified query to avoid compatibility issues
         risk_analysis_query = f"""
-        WITH CustomerMetrics AS (
-            SELECT 
-                BillToName as customer_name,
-                COUNT(DISTINCT InvoiceNo) as total_invoices,
-                SUM(GrandTotal) as total_sales,
-                AVG(GrandTotal) as avg_invoice_value,
-                MIN(InvoiceDate) as first_invoice,
-                MAX(InvoiceDate) as last_invoice,
-                DATEDIFF(day, MIN(InvoiceDate), MAX(InvoiceDate)) as customer_lifespan_days,
-                -- Recent activity (last 90 days)
-                SUM(CASE WHEN InvoiceDate >= '{recent_start}' THEN GrandTotal ELSE 0 END) as recent_90_sales,
-                COUNT(CASE WHEN InvoiceDate >= '{recent_start}' THEN InvoiceNo ELSE NULL END) as recent_90_invoices,
-                -- Very recent activity (last 30 days)
-                SUM(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN GrandTotal ELSE 0 END) as recent_30_sales,
-                COUNT(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN InvoiceNo ELSE NULL END) as recent_30_invoices,
-                -- Days since last invoice
-                DATEDIFF(day, MAX(InvoiceDate), GETDATE()) as days_since_last_invoice
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{fiscal_year_start_str}'
-                AND BillToName IS NOT NULL
-                AND BillToName != ''
-                AND GrandTotal > 0
-            GROUP BY BillToName
-        ),
-        TopCustomers AS (
-            SELECT TOP 10 *,
-                -- Calculate expected monthly activity based on historical patterns
-                CASE 
-                    WHEN customer_lifespan_days > 0 
-                    THEN (total_invoices * 30.0) / customer_lifespan_days 
-                    ELSE 0 
-                END as expected_monthly_invoices,
-                CASE 
-                    WHEN customer_lifespan_days > 0 
-                    THEN (total_sales * 30.0) / customer_lifespan_days 
-                    ELSE 0 
-                END as expected_monthly_sales
-            FROM CustomerMetrics
-            ORDER BY total_sales DESC
-        )
-        SELECT 
-            customer_name,
-            total_sales,
-            total_invoices,
-            avg_invoice_value,
-            recent_90_sales,
-            recent_90_invoices,
-            recent_30_sales,
-            recent_30_invoices,
-            days_since_last_invoice,
-            expected_monthly_invoices,
-            expected_monthly_sales,
-            -- Risk indicators
-            CASE 
-                WHEN days_since_last_invoice > 60 THEN 'high'
-                WHEN days_since_last_invoice > 30 THEN 'medium'
-                WHEN recent_30_invoices = 0 AND expected_monthly_invoices > 1 THEN 'medium'
-                WHEN recent_30_sales < (expected_monthly_sales * 0.5) AND expected_monthly_sales > 1000 THEN 'medium'
-                WHEN recent_90_invoices < (expected_monthly_invoices * 2) AND expected_monthly_invoices > 0.5 THEN 'low'
-                ELSE 'none'
-            END as risk_level
-        FROM TopCustomers
-        ORDER BY total_sales DESC
+        SELECT TOP 10
+            BillToName as customer_name,
+            COUNT(DISTINCT InvoiceNo) as total_invoices,
+            SUM(GrandTotal) as total_sales,
+            AVG(GrandTotal) as avg_invoice_value,
+            MIN(InvoiceDate) as first_invoice,
+            MAX(InvoiceDate) as last_invoice,
+            DATEDIFF(day, MIN(InvoiceDate), MAX(InvoiceDate)) as customer_lifespan_days,
+            SUM(CASE WHEN InvoiceDate >= '{recent_start}' THEN GrandTotal ELSE 0 END) as recent_90_sales,
+            COUNT(CASE WHEN InvoiceDate >= '{recent_start}' THEN 1 ELSE NULL END) as recent_90_invoices,
+            SUM(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN GrandTotal ELSE 0 END) as recent_30_sales,
+            COUNT(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN 1 ELSE NULL END) as recent_30_invoices,
+            DATEDIFF(day, MAX(InvoiceDate), GETDATE()) as days_since_last_invoice
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '{fiscal_year_start_str}'
+            AND BillToName IS NOT NULL
+            AND BillToName != ''
+            AND GrandTotal > 0
+        GROUP BY BillToName
+        ORDER BY SUM(GrandTotal) DESC
         """
         
         results = db.execute_query(risk_analysis_query)
@@ -1125,42 +1082,69 @@ def analyze_customer_risk():
         
         if results:
             for row in results:
-                # Determine specific risk factors
+                # Calculate expected monthly values based on historical data
+                total_sales = float(row['total_sales'])
+                total_invoices = int(row['total_invoices'])
+                customer_lifespan_days = int(row['customer_lifespan_days']) or 1
+                
+                # Calculate expected monthly averages
+                customer_lifespan_months = max(customer_lifespan_days / 30.0, 1)
+                expected_monthly_sales = total_sales / customer_lifespan_months
+                expected_monthly_invoices = total_invoices / customer_lifespan_months
+                
+                # Get recent activity
+                recent_30_sales = float(row['recent_30_sales'])
+                recent_30_invoices = int(row['recent_30_invoices'])
+                recent_90_sales = float(row['recent_90_sales'])
+                recent_90_invoices = int(row['recent_90_invoices'])
+                days_since_last_invoice = int(row['days_since_last_invoice'])
+                
+                # Determine risk factors
                 risk_factors = []
-                risk_level = row['risk_level']
+                risk_level = 'low'
                 
-                if row['days_since_last_invoice'] > 60:
-                    risk_factors.append(f"No activity for {row['days_since_last_invoice']} days")
-                elif row['days_since_last_invoice'] > 30:
-                    risk_factors.append(f"No activity for {row['days_since_last_invoice']} days")
+                if days_since_last_invoice > 90:
+                    risk_factors.append(f"No activity for {days_since_last_invoice} days")
+                    risk_level = 'high'
+                elif days_since_last_invoice > 60:
+                    risk_factors.append(f"No activity for {days_since_last_invoice} days")
+                    risk_level = 'medium'
+                elif days_since_last_invoice > 30:
+                    risk_factors.append(f"No activity for {days_since_last_invoice} days")
+                    if risk_level == 'low':
+                        risk_level = 'medium'
                 
-                if row['recent_30_invoices'] == 0 and row['expected_monthly_invoices'] > 1:
+                if recent_30_invoices == 0 and expected_monthly_invoices > 1:
                     risk_factors.append("No invoices in last 30 days (usually active monthly)")
+                    if risk_level == 'low':
+                        risk_level = 'medium'
                 
-                if row['recent_30_sales'] < (row['expected_monthly_sales'] * 0.5) and row['expected_monthly_sales'] > 1000:
-                    expected = row['expected_monthly_sales']
-                    actual = row['recent_30_sales']
+                if recent_30_sales < (expected_monthly_sales * 0.5) and expected_monthly_sales > 1000:
+                    actual = recent_30_sales
+                    expected = expected_monthly_sales
                     risk_factors.append(f"Sales dropped {((expected - actual) / expected * 100):.0f}% below normal")
+                    risk_level = 'high'
                 
-                if row['recent_90_invoices'] < (row['expected_monthly_invoices'] * 2) and row['expected_monthly_invoices'] > 0.5:
+                if recent_90_invoices < (expected_monthly_invoices * 2) and expected_monthly_invoices > 0.5:
                     risk_factors.append("Invoice frequency has decreased significantly")
+                    if risk_level == 'low':
+                        risk_level = 'medium'
                 
                 # Calculate trends
-                recent_90_avg = row['recent_90_sales'] / 3 if row['recent_90_sales'] > 0 else 0  # 3-month average
-                expected_monthly = row['expected_monthly_sales']
+                recent_90_avg = recent_90_sales / 3.0 if recent_90_sales > 0 else 0  # 3-month average
                 
                 customers_risk.append({
                     'customer_name': row['customer_name'],
-                    'total_sales': float(row['total_sales']),
+                    'total_sales': total_sales,
                     'risk_level': risk_level,
                     'risk_factors': risk_factors,
-                    'days_since_last_invoice': int(row['days_since_last_invoice']),
-                    'recent_30_sales': float(row['recent_30_sales']),
-                    'recent_90_sales': float(row['recent_90_sales']),
-                    'expected_monthly_sales': float(expected_monthly),
+                    'days_since_last_invoice': days_since_last_invoice,
+                    'recent_30_sales': recent_30_sales,
+                    'recent_90_sales': recent_90_sales,
+                    'expected_monthly_sales': expected_monthly_sales,
                     'trend_analysis': {
-                        'recent_vs_expected': ((recent_90_avg / expected_monthly - 1) * 100) if expected_monthly > 0 else 0,
-                        'activity_status': 'declining' if recent_90_avg < expected_monthly * 0.8 else 'stable'
+                        'recent_vs_expected': ((recent_90_avg / expected_monthly_sales - 1) * 100) if expected_monthly_sales > 0 else 0,
+                        'activity_status': 'declining' if recent_90_avg < expected_monthly_sales * 0.8 else 'stable'
                     }
                 })
         
