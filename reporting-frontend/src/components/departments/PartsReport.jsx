@@ -467,7 +467,7 @@ const PartsReport = ({ user, onNavigate }) => {
                                 {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
                               </p>
                               {currentData.margin !== null && currentData.margin !== undefined && (
-                                <p className="text-emerald-600">
+                                <p className="text-amber-600">
                                   Margin: {currentData.margin}%
                                   {previousData && previousData.margin !== null && previousData.margin !== undefined && (
                                     <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
@@ -519,7 +519,7 @@ const PartsReport = ({ user, onNavigate }) => {
                         <ReferenceLine 
                           yAxisId="margin"
                           y={avgMargin} 
-                          stroke="#047857" 
+                          stroke="#d97706" 
                           strokeDasharray="3 3"
                           label={{ value: "Avg Margin", position: "insideTopRight" }}
                         />
@@ -531,14 +531,14 @@ const PartsReport = ({ user, onNavigate }) => {
                     yAxisId="margin" 
                     type="monotone" 
                     dataKey="margin" 
-                    stroke="#059669" 
+                    stroke="#f59e0b" 
                     strokeWidth={3}
                     name="Gross Margin %"
                     dot={(props) => {
                       const { payload } = props;
                       // Only render dots for months with actual margin data
                       if (payload.margin !== null && payload.margin !== undefined) {
-                        return <circle {...props} fill="#059669" r={4} />;
+                        return <circle {...props} fill="#f59e0b" r={4} />;
                       }
                       return null;
                     }}
