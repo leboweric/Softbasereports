@@ -27,6 +27,8 @@ class SmartSQLGenerator:
         handlers = {
             'list_equipment': self._handle_list_equipment,
             'list_rentals': self._handle_list_rentals,
+            'count_equipment': self._handle_count_equipment,
+            'count_rentals': self._handle_count_rentals,
             'show_sales': self._handle_show_sales,
             'show_inventory': self._handle_show_inventory,
             'service_status': self._handle_service_status,
@@ -135,8 +137,28 @@ class SmartSQLGenerator:
     def _handle_list_rentals(self, analysis):
         """Handle rental listing queries"""
         filters = analysis.get('filters', {})
+        query_type = filters.get('query_type', 'list')
+        entity_subtype = analysis.get('entity_subtype', '').lower()
         
-        # For active rentals, always use RentalHistory for accuracy
+        # Check if this is a count query
+        if query_type == 'count' or 'how many' in filters.get('original_intent', '').lower():
+            # This is asking for a count, not a list
+            # If entity_subtype is forklift, count forklifts on rent
+            if entity_subtype == 'forklift' or 'forklift' in filters.get('original_intent', '').lower():
+                return self._generate_rental_equipment_query('forklift', filters)
+            else:
+                # Count all rentals
+                sql = f"""
+                SELECT COUNT(DISTINCT e.SerialNo) as count
+                FROM ben002.RentalHistory rh
+                INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+                WHERE rh.Year = {self.current_year}
+                AND rh.Month = {self.current_month}
+                AND rh.DaysRented > 0
+                """
+                return sql
+        
+        # For listing active rentals, use RentalHistory for accuracy
         # Note: When using DISTINCT with ORDER BY, all ORDER BY columns must be in SELECT
         sql = f"""
         SELECT DISTINCT
@@ -158,6 +180,68 @@ class SmartSQLGenerator:
             sql += f" AND UPPER(c.Name) LIKE '%{filters['customer'].upper()}%'"
         
         sql += " ORDER BY c.Name, e.UnitNo"
+        return sql
+    
+    def _handle_count_equipment(self, analysis):
+        """Handle equipment counting queries"""
+        entity_subtype = analysis.get('entity_subtype', '').lower()
+        filters = analysis.get('filters', {})
+        status = filters.get('status', '')
+        
+        # If counting rented equipment, use RentalHistory
+        if status == 'rented' or 'rent' in filters.get('original_intent', '').lower():
+            sql = f"""
+            SELECT COUNT(DISTINCT e.SerialNo) as count
+            FROM ben002.RentalHistory rh
+            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            WHERE rh.Year = {self.current_year}
+            AND rh.Month = {self.current_month}
+            AND rh.DaysRented > 0
+            """
+            
+            # Add equipment type filter
+            if entity_subtype == 'forklift' or 'forklift' in filters.get('original_intent', '').lower():
+                sql += " AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')"
+            elif entity_subtype:
+                sql += f" AND UPPER(e.Model) LIKE '%{entity_subtype.upper()}%'"
+            
+            return sql
+        else:
+            # Count equipment by status
+            sql = "SELECT COUNT(*) as count FROM ben002.Equipment e WHERE 1=1"
+            
+            # Add equipment type filter
+            if entity_subtype == 'forklift':
+                sql += " AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')"
+            elif entity_subtype:
+                sql += f" AND UPPER(e.Model) LIKE '%{entity_subtype.upper()}%'"
+            
+            # Add status filter
+            if status == 'available':
+                sql += " AND e.RentalStatus = 'In Stock'"
+            elif status == 'sold':
+                sql += " AND e.RentalStatus = 'Sold'"
+            
+            return sql
+    
+    def _handle_count_rentals(self, analysis):
+        """Handle rental counting queries"""
+        filters = analysis.get('filters', {})
+        
+        sql = f"""
+        SELECT COUNT(DISTINCT rh.SerialNo) as count
+        FROM ben002.RentalHistory rh
+        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+        WHERE rh.Year = {self.current_year}
+        AND rh.Month = {self.current_month}
+        AND rh.DaysRented > 0
+        """
+        
+        # Add customer filter if specified
+        if filters.get('customer'):
+            sql += " INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number"
+            sql += f" AND UPPER(c.Name) LIKE '%{filters['customer'].upper()}%'"
+        
         return sql
     
     def _handle_show_sales(self, analysis):

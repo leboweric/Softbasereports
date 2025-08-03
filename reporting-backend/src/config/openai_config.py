@@ -180,13 +180,16 @@ class OpenAIConfig:
         - "net income" or "profit" = revenue minus costs (requires cost data - not available)
         - "gross margin" = revenue minus cost of goods sold (requires COGS - not available)
         - "collections" or "payments" = actual cash received (requires payment data)
+        - "how many" questions = use count_equipment or count_rentals action, NOT list actions
+        - "list" or "show me" = use list actions
         
         If user asks for net income, profit, or margin data, indicate in the intent that cost data is needed.
+        If user asks "how many", always set query_type to "count" and use count_equipment or count_rentals.
         
         Always respond in JSON format with:
         {{
             "intent": "brief description of what user wants (be specific about sales vs profit vs income)",
-            "query_action": "categorize the action: list_equipment|list_rentals|show_sales|show_inventory|service_status|parts_status|customer_info|financial_summary",
+            "query_action": "categorize the action: list_equipment|list_rentals|count_equipment|count_rentals|show_sales|show_inventory|service_status|parts_status|customer_info|financial_summary",
             "entity_type": "main entity: equipment|customer|invoice|parts|technician|rental",
             "entity_subtype": "if applicable: forklift|truck|part_type|etc",
             "tables": ["list", "of", "relevant", "tables"],
