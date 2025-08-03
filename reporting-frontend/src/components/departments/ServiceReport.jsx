@@ -173,14 +173,16 @@ const ServiceReport = ({ user, onNavigate }) => {
                             Revenue: {formatCurrency(currentData.amount)}
                             {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
                           </p>
-                          <p className="text-green-600">
-                            Margin: {currentData.margin || 0}%
-                            {previousData && currentData.margin && previousData.margin && (
-                              <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
-                                ({currentData.margin > previousData.margin ? '+' : ''}{(currentData.margin - previousData.margin).toFixed(1)}pp)
-                              </span>
-                            )}
-                          </p>
+                          {currentData.margin !== null && currentData.margin !== undefined && (
+                            <p className="text-green-600">
+                              Margin: {currentData.margin}%
+                              {previousData && previousData.margin !== null && previousData.margin !== undefined && (
+                                <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
+                                  ({currentData.margin > previousData.margin ? '+' : ''}{(currentData.margin - previousData.margin).toFixed(1)}pp)
+                                </span>
+                              )}
+                            </p>
+                          )}
                         </div>
                       </div>
                     )

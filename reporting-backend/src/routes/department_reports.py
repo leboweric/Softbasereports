@@ -67,7 +67,7 @@ def register_department_routes(reports_bp):
                         monthlyLaborRevenue.append({
                             'month': month, 
                             'amount': 0,
-                            'margin': 0
+                            'margin': None  # Use None/null for no data instead of 0
                         })
             
             return jsonify({
