@@ -367,8 +367,52 @@ def generate_sql_from_analysis(analysis):
                 yesterday = datetime.now() - timedelta(days=1)
                 date_filter = f" AND OpenDate >= '{yesterday.strftime('%Y-%m-%d')}' AND OpenDate < '{datetime.now().strftime('%Y-%m-%d')}'"
         
-        # Check if asking for count
-        if 'how many' in intent or 'count' in intent:
+        # Check what type of work order query
+        if 'value' in intent or 'cost' in intent or 'amount' in intent or 'total' in intent:
+            # Query for total value of work orders
+            return f"""
+            WITH WOCosts AS (
+                SELECT 
+                    wo.WONo,
+                    wo.Type,
+                    wo.OpenDate,
+                    wo.ClosedDate,
+                    ISNULL(labor.LaborCost, 0) as LaborCost,
+                    ISNULL(parts.PartsCost, 0) as PartsCost,
+                    ISNULL(misc.MiscCost, 0) as MiscCost,
+                    ISNULL(labor.LaborCost, 0) + ISNULL(parts.PartsCost, 0) + ISNULL(misc.MiscCost, 0) as TotalCost
+                FROM ben002.WO wo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as LaborCost
+                    FROM ben002.WOLabor
+                    GROUP BY WONo
+                ) labor ON wo.WONo = labor.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell * Qty) as PartsCost
+                    FROM ben002.WOParts
+                    GROUP BY WONo
+                ) parts ON wo.WONo = parts.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as MiscCost
+                    FROM ben002.WOMisc
+                    GROUP BY WONo
+                ) misc ON wo.WONo = misc.WONo
+                WHERE 1=1{date_filter}
+            )
+            SELECT 
+                COUNT(*) as total_work_orders,
+                SUM(TotalCost) as total_value,
+                AVG(TotalCost) as average_value,
+                SUM(LaborCost) as total_labor,
+                SUM(PartsCost) as total_parts,
+                SUM(MiscCost) as total_misc,
+                COUNT(CASE WHEN Type = 'S' THEN 1 END) as service_orders,
+                COUNT(CASE WHEN Type = 'R' THEN 1 END) as rental_orders,
+                COUNT(CASE WHEN Type = 'I' THEN 1 END) as internal_orders
+            FROM WOCosts
+            """
+        elif 'how many' in intent or 'count' in intent:
+            # Simple count query
             return f"""
             SELECT 
                 COUNT(*) as total_work_orders,
