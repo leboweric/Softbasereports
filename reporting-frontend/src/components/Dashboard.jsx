@@ -1301,7 +1301,7 @@ const Dashboard = ({ user }) => {
           </div>
 
           {/* Work Orders Charts */}
-          <div className="grid gap-4 md:grid-cols-1">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle>Work Orders Trends by Type</CardTitle>
