@@ -88,12 +88,13 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Monthly Parts Revenue - Last 12 months
+            # Monthly Parts Revenue and Margins - Last 12 months
             parts_revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue
+                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
+                SUM(COALESCE(PartsCost, 0)) as parts_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -105,9 +106,18 @@ def register_department_routes(reports_bp):
             monthlyPartsRevenue = []
             for row in parts_revenue_result:
                 month_date = datetime(row['year'], row['month'], 1)
+                parts_revenue = float(row['parts_revenue'] or 0)
+                parts_cost = float(row['parts_cost'] or 0)
+                
+                # Calculate gross margin percentage
+                margin_percentage = 0
+                if parts_revenue > 0:
+                    margin_percentage = ((parts_revenue - parts_cost) / parts_revenue) * 100
+                
                 monthlyPartsRevenue.append({
                     'month': month_date.strftime("%b"),
-                    'amount': float(row['parts_revenue'] or 0)
+                    'amount': parts_revenue,
+                    'margin': round(margin_percentage, 1)
                 })
             
             # Pad with zeros for missing months
@@ -121,7 +131,11 @@ def register_department_routes(reports_bp):
                 existing_months = [item['month'] for item in monthlyPartsRevenue]
                 for month in all_months:
                     if month not in existing_months:
-                        monthlyPartsRevenue.append({'month': month, 'amount': 0})
+                        monthlyPartsRevenue.append({
+                            'month': month, 
+                            'amount': 0,
+                            'margin': None  # Use None/null for no data instead of 0
+                        })
             
             return jsonify({
                 'monthlyPartsRevenue': monthlyPartsRevenue

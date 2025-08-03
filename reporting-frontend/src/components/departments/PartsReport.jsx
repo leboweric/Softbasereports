@@ -20,7 +20,10 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
-  ResponsiveContainer
+  ResponsiveContainer,
+  ReferenceLine,
+  ComposedChart,
+  Legend
 } from 'recharts'
 import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
@@ -54,6 +57,30 @@ const PartsReport = ({ user, onNavigate }) => {
   const [top10Loading, setTop10Loading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+
+  // Helper function to calculate percentage change
+  const calculatePercentageChange = (current, previous) => {
+    if (!previous || previous === 0) return null
+    const change = ((current - previous) / previous) * 100
+    return change
+  }
+
+  // Helper function to format percentage with color
+  const formatPercentage = (percentage) => {
+    if (percentage === null) return ''
+    const sign = percentage >= 0 ? '+' : ''
+    const color = percentage >= 0 ? 'text-green-600' : 'text-red-600'
+    return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
+  }
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
 
   useEffect(() => {
     fetchPartsData()
@@ -364,22 +391,152 @@ const PartsReport = ({ user, onNavigate }) => {
           {/* Monthly Parts Revenue */}
           <Card>
             <CardHeader>
-              <CardTitle>Monthly Parts Revenue</CardTitle>
-              <CardDescription>Parts revenue over the last 12 months</CardDescription>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Monthly Parts Revenue & Margin</CardTitle>
+                  <CardDescription>Parts revenue and gross margin % over the last 12 months</CardDescription>
+                </div>
+                {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
+                  // Only include historical months (before current month)
+                  const currentDate = new Date()
+                  const currentMonthIndex = currentDate.getMonth()
+                  const currentYear = currentDate.getFullYear()
+                  
+                  // Month names in order
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const currentMonthName = monthNames[currentMonthIndex]
+                  
+                  // Get index of current month in the data
+                  const currentMonthDataIndex = partsData.monthlyPartsRevenue.findIndex(item => item.month === currentMonthName)
+                  
+                  // Filter to only include months before current month with positive revenue
+                  const historicalMonths = currentMonthDataIndex > 0 
+                    ? partsData.monthlyPartsRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                    : partsData.monthlyPartsRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                  
+                  const avgRevenue = historicalMonths.length > 0 ? 
+                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                  const avgMargin = historicalMonths.length > 0 ? 
+                    historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
+                  
+                  return (
+                    <div className="text-right">
+                      <div className="mb-2">
+                        <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                        <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avg Margin</p>
+                        <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={partsData?.monthlyPartsRevenue || []}>
+                <ComposedChart data={partsData?.monthlyPartsRevenue || []} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis 
+                    yAxisId="revenue"
+                    orientation="left"
                     tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                   />
-                  <RechartsTooltip 
-                    formatter={(value) => `$${value.toLocaleString()}`}
+                  <YAxis
+                    yAxisId="margin"
+                    orientation="right"
+                    domain={[0, 100]}
+                    tickFormatter={(value) => `${value}%`}
                   />
-                  <Bar dataKey="amount" fill="#10b981" />
-                </BarChart>
+                  <RechartsTooltip 
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length && partsData?.monthlyPartsRevenue) {
+                        const data = partsData.monthlyPartsRevenue
+                        const currentIndex = data.findIndex(item => item.month === label)
+                        const currentData = data[currentIndex]
+                        const previousData = currentIndex > 0 ? data[currentIndex - 1] : null
+                        
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-2">{label}</p>
+                            <div className="space-y-1">
+                              <p className="text-green-600">
+                                Revenue: {formatCurrency(currentData.amount)}
+                                {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
+                              </p>
+                              {currentData.margin !== null && currentData.margin !== undefined && (
+                                <p className="text-emerald-600">
+                                  Margin: {currentData.margin}%
+                                  {previousData && previousData.margin !== null && previousData.margin !== undefined && (
+                                    <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
+                                      ({currentData.margin > previousData.margin ? '+' : ''}{(currentData.margin - previousData.margin).toFixed(1)}pp)
+                                    </span>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      }
+                      return null
+                    }}
+                  />
+                  <Legend />
+                  <Bar yAxisId="revenue" dataKey="amount" fill="#10b981" name="Revenue" />
+                  <Line 
+                    yAxisId="margin" 
+                    type="monotone" 
+                    dataKey="margin" 
+                    stroke="#059669" 
+                    strokeWidth={3}
+                    name="Gross Margin %"
+                    dot={{ fill: '#059669', r: 4 }}
+                  />
+                  {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
+                    // Only include historical months (before current month)
+                    const currentDate = new Date()
+                    const currentMonthIndex = currentDate.getMonth()
+                    const currentYear = currentDate.getFullYear()
+                    
+                    // Month names in order
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    const currentMonthName = monthNames[currentMonthIndex]
+                    
+                    // Get index of current month in the data
+                    const currentMonthDataIndex = partsData.monthlyPartsRevenue.findIndex(item => item.month === currentMonthName)
+                    
+                    // Filter to only include months before current month with positive revenue
+                    const historicalMonths = currentMonthDataIndex > 0 
+                      ? partsData.monthlyPartsRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                      : partsData.monthlyPartsRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                    
+                    const avgRevenue = historicalMonths.length > 0 ? 
+                      historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                    const avgMargin = historicalMonths.length > 0 ? 
+                      historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
+                    
+                    return (
+                      <>
+                        <ReferenceLine 
+                          yAxisId="revenue"
+                          y={avgRevenue} 
+                          stroke="#666" 
+                          strokeDasharray="3 3"
+                          label={{ value: "Avg Revenue", position: "insideTopLeft" }}
+                        />
+                        <ReferenceLine 
+                          yAxisId="margin"
+                          y={avgMargin} 
+                          stroke="#047857" 
+                          strokeDasharray="3 3"
+                          label={{ value: "Avg Margin", position: "insideTopRight" }}
+                        />
+                      </>
+                    )
+                  })()}
+                </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
