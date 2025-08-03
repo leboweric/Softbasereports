@@ -199,7 +199,15 @@ const ServiceReport = ({ user, onNavigate }) => {
                 stroke="#10b981" 
                 strokeWidth={3}
                 name="Gross Margin %"
-                dot={{ fill: '#10b981', r: 4 }}
+                dot={(props) => {
+                  const { payload } = props;
+                  // Only render dots for months with actual margin data
+                  if (payload.margin !== null && payload.margin !== undefined) {
+                    return <circle {...props} fill="#10b981" r={4} />;
+                  }
+                  return null;
+                }}
+                connectNulls={false}
               />
               {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
                 // Only include historical months (before current month)

@@ -492,7 +492,15 @@ const PartsReport = ({ user, onNavigate }) => {
                     stroke="#059669" 
                     strokeWidth={3}
                     name="Gross Margin %"
-                    dot={{ fill: '#059669', r: 4 }}
+                    dot={(props) => {
+                      const { payload } = props;
+                      // Only render dots for months with actual margin data
+                      if (payload.margin !== null && payload.margin !== undefined) {
+                        return <circle {...props} fill="#059669" r={4} />;
+                      }
+                      return null;
+                    }}
+                    connectNulls={false}
                   />
                   {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
                     // Only include historical months (before current month)
