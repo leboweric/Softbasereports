@@ -285,6 +285,163 @@ Created comprehensive parts inventory management system with multiple reports.
 - Default "Include Current Month" unchecked on Dashboard
 - Added percentage of total sales to Top 10 Customers
 
+## Complete Database Schema Documentation
+
+Generated on: 2025-08-03 - Schema: `ben002`
+
+### Base Tables (25 documented)
+
+#### APDetail
+Rows: 3,331
+- Accounts payable detail transactions
+- Key fields: AccountNo, Amount, APInvoiceNo, VendorNo, DueDate, CheckNo
+- Links to vendors and payment processing
+
+#### ARDetail  
+Rows: 8,413
+- Accounts receivable detail transactions
+- Key fields: CustomerNo, Amount, InvoiceNo, CheckNo, DueDate, Balance
+- Tracks customer payments and outstanding balances
+
+#### ChartOfAccounts
+Rows: 309
+- Complete chart of accounts structure
+- Key fields: AccountNo, Description, Type, Department, Section
+- Defines GL account hierarchy and categories
+
+#### Customer
+Rows: 2,227  
+- Master customer table
+- Key fields: ID (PK), Number, Name, CreditLimit, Balance, YTD, Terms, Salesman1-6
+- Contains all customer information including credit, sales history, tax settings
+
+#### Equipment
+Rows: 21,291
+- Equipment inventory master
+- Key fields: UnitNo (NOT StockNo!), SerialNo, Make, Model, Cost, Sell, RentalStatus, Customer
+- Tracks all equipment with rental status, costs, and customer assignments
+
+#### EquipmentHistory
+Rows: 15,369
+- Equipment transaction history
+- Key fields: SerialNo, Date, EntryType, Cost, Sell, WONo
+- Records all equipment movements and transactions
+
+#### GLDetail
+Rows: 64,180
+- General ledger detail transactions
+- Key fields: AccountNo, Amount, EffectiveDate, Journal, Source, CustomerNo, VendorNo
+- Complete GL transaction history
+
+#### InvoiceReg
+Rows: 5,148
+- Invoice register/header
+- Key fields: InvoiceNo, Customer, BillToName, InvoiceDate, GrandTotal, Department, SaleCode
+- Revenue fields: LaborTaxable, LaborNonTax, PartsTaxable, PartsNonTax
+- Note: Customer field is boolean, use BillToName for customer name
+
+#### PM (Preventive Maintenance)
+Rows: 2,792
+- PM schedules and history
+- Key fields: SerialNo, BillTo, Frequency, NextPMDate, Status, WONo
+- Tracks equipment maintenance schedules
+
+#### Parts
+Rows: 11,413  
+- Parts inventory master (NOT NationalParts!)
+- Key fields: PartNo, Description, OnHand (NOT QtyOnHand), Cost, List (NOT Price), Bin
+- This is the actual parts inventory table
+
+#### PartsCost
+Rows: 1,945
+- Parts cost layers
+- Key fields: PartNo, Warehouse, Cost, Qty, EntryDate
+- Tracks parts cost history by receipt
+
+#### PartsDemand
+Rows: 11,413
+- Parts demand history by month
+- Key fields: PartNo, Warehouse, Demand1-12 (current year), DemandLast1-12 (prior year)
+- Used for forecasting and velocity analysis
+
+#### PartsSales  
+Rows: 11,413
+- Parts sales history by month
+- Key fields: PartNo, Warehouse, Sales1-12 (current year), SalesLast1-12 (prior year)
+- Revenue tracking for parts analytics
+
+#### RentalContract
+Rows: 318
+- Rental agreement headers
+- Key fields: RentalContractNo, StartDate, EndDate, DeliveryCharge, PickupCharge
+- Manages rental agreements
+
+#### RentalHistory
+Rows: 11,568
+- Monthly rental revenue by equipment
+- Key fields: SerialNo, Year, Month, DaysRented, RentAmount
+- Tracks rental utilization and revenue
+
+#### SaleCodes
+Rows: 79
+- Department/sale code definitions
+- Key fields: Branch, Dept, Code, GL accounts for each revenue type
+- Maps departments to GL accounts
+
+#### Sales
+Rows: 2,227
+- Customer sales summary
+- Key fields: CustomerNo, YTD, LastYTD, ITD, by category (Parts, Labor, Rental, Equipment)
+- Pre-aggregated customer sales data
+
+#### ServiceClaim
+Rows: 0 (empty table)
+- Warranty/service claims
+- Key fields: DealerInvoiceNo, CustomerNo, SerialNo, RepairDate, DealerTotal
+- Tracks warranty claims processing
+
+#### TransDetail
+Rows: 0 (empty table)
+- Transportation/transfer details
+- Key fields: SerialNo, UnitNo, CustomerNo, ScheduledPickup, ScheduledDelivery
+- Equipment movement tracking
+
+#### WIPView
+Rows: 666
+- Work in progress summary view
+- Key fields: WONo, Name, OpenDate, Labor, Parts, Misc totals
+- Real-time WIP reporting
+
+#### WO (Work Orders)
+Rows: 6,879
+- Work order headers
+- Key fields: WONo (PK), Type (S/R/I), BillTo, UnitNo, OpenDate, ClosedDate, Technician
+- Note: Use ClosedDate IS NULL for open work orders
+
+#### WOLabor  
+Rows: 6,401
+- Work order labor details
+- Key fields: WONo, MechanicName, Hours, Cost, Sell, DateOfLabor
+- Labor charges by work order
+
+#### WOMisc
+Rows: 7,832
+- Work order miscellaneous charges
+- Key fields: WONo, Description, Cost, Sell, Taxable
+- Misc charges like freight, shop supplies
+
+#### WOParts
+Rows: 10,381
+- Work order parts details  
+- Key fields: WONo, PartNo, Qty, BOQty (backorder), Cost, Sell
+- Parts used on work orders
+
+#### WOQuote
+Rows: 1,481
+- Work order quotes
+- Key fields: WONo, QuoteLine, Type (L/P/M), Amount, CreationTime
+- Quote line items (not complete quotes)
+
 ## Key Database Views
 
 The database contains 271 views in addition to base tables. Here are the most important views for reporting and analytics:
