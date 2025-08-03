@@ -284,3 +284,40 @@ Created comprehensive parts inventory management system with multiple reports.
 - Removed low-value Monthly Demand Trend card
 - Default "Include Current Month" unchecked on Dashboard
 - Added percentage of total sales to Top 10 Customers
+
+## Key Database Views
+
+The database contains 271 views in addition to base tables. Here are the most important views for reporting and analytics:
+
+### Financial/Accounting Views
+- **GLDetail** (31 columns) - General ledger transaction details
+- **ARDetail** (38 columns) - Accounts receivable details  
+- **APDetail** (40 columns) - Accounts payable details
+- **TransDetail** (40 columns) - Transaction details
+- **ChartOfAccounts** (58 columns) - Account structure and hierarchy
+
+### Sales/Customer Views
+- **Sales** (57 columns) - Core sales data aggregations
+- **SalesCodes** (99 columns) - Department/sales categorization details
+
+### Work Order Views  
+- **WIPView** (20 columns) - Work in progress summary view
+
+### Equipment/Rental Views
+- **EquipmentHistory** (26 columns) - Equipment usage and maintenance history
+- **RentalContract** (25 columns) - Rental agreement details
+- **RentalHistory** (12 columns) - Rental transaction history
+
+### Parts/Inventory Views
+- **PartsSales** (34 columns) - Parts sales analytics  
+- **PartsDemand** (34 columns) - Parts demand forecasting data
+- **PartsCost** (20 columns) - Parts costing and pricing data
+
+### Service Views
+- **PM** (54 columns) - Preventive maintenance schedules and history
+
+These views contain pre-aggregated or denormalized data optimized for reporting, making them more efficient than joining multiple base tables. They are particularly useful for:
+- Dashboard metrics and KPIs
+- Historical trend analysis  
+- Forecasting and predictive analytics
+- Cross-departmental reporting
