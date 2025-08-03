@@ -45,17 +45,17 @@ class AIPredictionService:
                     COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost
                 FROM ben002.WO w
                 LEFT JOIN (
-                    SELECT WONo, SUM(Amount) as LaborCost
+                    SELECT WONo, SUM(Sell) as LaborCost
                     FROM ben002.WOLabor
                     GROUP BY WONo
                 ) l ON w.WONo = l.WONo
                 LEFT JOIN (
-                    SELECT WONo, SUM(Cost) as PartsCost
+                    SELECT WONo, SUM(Sell) as PartsCost
                     FROM ben002.WOParts
                     GROUP BY WONo
                 ) p ON w.WONo = p.WONo
                 LEFT JOIN (
-                    SELECT WONo, SUM(Amount) as MiscCost
+                    SELECT WONo, SUM(Sell) as MiscCost
                     FROM ben002.WOMisc
                     GROUP BY WONo
                 ) m ON w.WONo = m.WONo
@@ -89,18 +89,19 @@ class AIPredictionService:
             query = """
             WITH CustomerMetrics AS (
                 SELECT 
-                    c.CustomerNo,
-                    c.CustName,
+                    i.BillToName as CustName,
                     COUNT(DISTINCT MONTH(i.InvoiceDate)) as active_months,
                     SUM(i.GrandTotal) as total_revenue,
                     MAX(i.InvoiceDate) as last_invoice_date,
                     DATEDIFF(day, MAX(i.InvoiceDate), GETDATE()) as days_since_last_invoice,
                     AVG(i.GrandTotal) as avg_invoice_value,
                     COUNT(i.InvoiceNo) as invoice_count
-                FROM ben002.Customer c
-                LEFT JOIN ben002.InvoiceReg i ON c.CustomerNo = i.CustomerNo
+                FROM ben002.InvoiceReg i
                 WHERE i.InvoiceDate >= DATEADD(MONTH, -12, GETDATE())
-                GROUP BY c.CustomerNo, c.CustName
+                AND i.BillToName NOT LIKE '%Wells Fargo%'
+                AND i.BillToName NOT LIKE '%Maintenance contract%'
+                AND i.BillToName NOT LIKE '%Rental Fleet%'
+                GROUP BY i.BillToName
                 HAVING SUM(i.GrandTotal) > 0
             )
             SELECT TOP 50 * FROM CustomerMetrics
