@@ -188,17 +188,48 @@ def generate_sql_from_analysis(analysis):
         date_filter = ""
         period_desc = ""
         
+        # Check for month names first
+        month_names = ['january', 'february', 'march', 'april', 'may', 'june', 
+                      'july', 'august', 'september', 'october', 'november', 'december']
+        current_year = datetime.now().year
+        
+        # Check intent and original query for month names
+        query_lower = (intent + ' ' + analysis.get('original_query', '')).lower()
+        
+        for i, month in enumerate(month_names):
+            if month in query_lower:
+                month_num = i + 1
+                year = current_year
+                year_match = re.search(r'\b(20\d{2})\b', query_lower)
+                if year_match:
+                    year = int(year_match.group(1))
+                
+                first_day = datetime(year, month_num, 1)
+                if month_num == 12:
+                    last_day = datetime(year + 1, 1, 1)
+                else:
+                    last_day = datetime(year, month_num + 1, 1)
+                
+                date_filter = f"InvoiceDate >= '{first_day.strftime('%Y-%m-%d')}' AND InvoiceDate < '{last_day.strftime('%Y-%m-%d')}'"
+                period_desc = f"{month.capitalize()} {year}"
+                break
+        
         # If no month name found, check for other patterns
-        if 'last month' in intent:
-            first_day_of_month = today.replace(day=1)
-            last_month_end = first_day_of_month - timedelta(days=1)
-            last_month_start = last_month_end.replace(day=1)
-            date_filter = f"InvoiceDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND InvoiceDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
-            period_desc = last_month_start.strftime("%B %Y")
-        else:
-            thirty_days_ago = today - timedelta(days=30)
-            date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
-            period_desc = "last 30 days"
+        if not date_filter:
+            if 'last month' in intent:
+                first_day_of_month = today.replace(day=1)
+                last_month_end = first_day_of_month - timedelta(days=1)
+                last_month_start = last_month_end.replace(day=1)
+                date_filter = f"InvoiceDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND InvoiceDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+                period_desc = last_month_start.strftime("%B %Y")
+            elif 'this month' in intent:
+                first_day_of_month = today.replace(day=1)
+                date_filter = f"InvoiceDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
+                period_desc = "this month"
+            else:
+                thirty_days_ago = today - timedelta(days=30)
+                date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
+                period_desc = "last 30 days"
         
         return f"""
         SELECT 
@@ -706,6 +737,42 @@ def get_version():
         'api_key_configured': bool(os.getenv('OPENAI_API_KEY') and os.getenv('OPENAI_API_KEY') != 'your-openai-api-key-here'),
         'timestamp': datetime.now().isoformat()
     })
+
+@ai_query_bp.route('/check-sale-codes', methods=['GET'])
+def check_sale_codes():
+    """Check what SaleCodes exist in the database"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Get all unique SaleCodes with counts
+        query = """
+        SELECT 
+            SaleCode,
+            COUNT(*) as invoice_count,
+            SUM(GrandTotal) as total_sales,
+            MIN(InvoiceDate) as first_invoice,
+            MAX(InvoiceDate) as last_invoice
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2025-07-01'
+        GROUP BY SaleCode
+        ORDER BY total_sales DESC
+        """
+        
+        results = db.execute_query(query)
+        
+        return jsonify({
+            'success': True,
+            'sale_codes': results,
+            'total_codes': len(results) if results else 0
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking sale codes: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @ai_query_bp.route('/test-date-ranges', methods=['GET'])
 def test_date_ranges():
