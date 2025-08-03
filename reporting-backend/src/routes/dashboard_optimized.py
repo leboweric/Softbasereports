@@ -43,6 +43,21 @@ class DashboardQueries:
             logger.error(f"Current month sales query failed: {str(e)}")
             return 0
     
+    def get_ytd_sales(self):
+        """Get fiscal year-to-date sales"""
+        try:
+            query = f"""
+            SELECT COALESCE(SUM(GrandTotal), 0) as ytd_sales
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{self.fiscal_year_start}'
+                AND InvoiceDate < DATEADD(DAY, 1, GETDATE())
+            """
+            result = self.db.execute_query(query)
+            return int(float(result[0]['ytd_sales'])) if result else 0
+        except Exception as e:
+            logger.error(f"YTD sales query failed: {str(e)}")
+            return 0
+    
     def get_inventory_count(self):
         """Get count of equipment ready to rent"""
         try:
@@ -840,6 +855,7 @@ def get_dashboard_summary_optimized():
         # Cache TTL settings (in seconds)
         cache_ttl = {
             'total_sales': 300,  # 5 minutes - changes frequently
+            'ytd_sales': 300,  # 5 minutes - changes frequently
             'inventory_count': 600,  # 10 minutes - changes moderately
             'active_customers': 900,  # 15 minutes - changes slowly
             'monthly_sales': 1800,  # 30 minutes - historical data
@@ -858,6 +874,7 @@ def get_dashboard_summary_optimized():
         
         query_tasks = {
             'total_sales': lambda: cached_query('total_sales', queries.get_current_month_sales, cache_ttl['total_sales']),
+            'ytd_sales': lambda: cached_query('ytd_sales', queries.get_ytd_sales, cache_ttl['ytd_sales']),
             'inventory_count': lambda: cached_query('inventory_count', queries.get_inventory_count, cache_ttl['inventory_count']),
             'active_customers': lambda: cached_query('active_customers', queries.get_active_customers, cache_ttl['active_customers']),
             'total_customers': lambda: cached_query('total_customers', queries.get_total_customers, cache_ttl['active_customers']),
@@ -896,6 +913,7 @@ def get_dashboard_summary_optimized():
         
         response_data = {
             'total_sales': results.get('total_sales', 0),
+            'ytd_sales': results.get('ytd_sales', 0),
             'inventory_count': results.get('inventory_count', 0),
             'active_customers': results.get('active_customers', 0),
             'total_customers': results.get('total_customers', 0),
