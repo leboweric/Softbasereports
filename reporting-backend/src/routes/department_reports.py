@@ -2078,7 +2078,7 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(RentalCost, 0)) as rental_cost
                 FROM ben002.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                    AND Department = 'RENTAL'
+                    AND (SaleCode LIKE 'RENT%' OR (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0)
                 GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             )
             SELECT 
@@ -2134,33 +2134,33 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Check what departments exist
+            # First check what columns exist in InvoiceReg
+            columns_query = """
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'InvoiceReg' 
+            AND TABLE_SCHEMA = 'ben002'
+            AND (COLUMN_NAME LIKE '%dept%' OR COLUMN_NAME LIKE '%Dept%' OR COLUMN_NAME = 'SaleCode')
+            ORDER BY COLUMN_NAME
+            """
+            
+            columns_result = db.execute_query(columns_query)
+            column_names = [row['COLUMN_NAME'] for row in columns_result]
+            
+            # Check SaleCodes
             dept_query = """
-            SELECT DISTINCT Department, COUNT(*) as count
+            SELECT DISTINCT SaleCode, COUNT(*) as count
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-            GROUP BY Department
-            ORDER BY Department
+            GROUP BY SaleCode
+            ORDER BY SaleCode
             """
             
             dept_results = db.execute_query(dept_query)
-            departments = [{'dept': row['Department'], 'count': row['count']} for row in dept_results]
+            departments = [{'salecode': row['SaleCode'], 'count': row['count']} for row in dept_results]
             
             # Check rental data with different approaches
             rental_queries = {
-                'by_department': """
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    COUNT(*) as invoice_count,
-                    SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
-                    SUM(COALESCE(RentalCost, 0)) as rental_cost
-                FROM ben002.InvoiceReg
-                WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
-                    AND Department = 'RENTAL'
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                ORDER BY year, month
-                """,
                 
                 'by_salecode': """
                 SELECT 
@@ -2222,7 +2222,8 @@ def register_department_routes(reports_bp):
                     results[key] = f"Error: {str(e)}"
             
             return jsonify({
-                'departments': departments,
+                'columns': column_names,
+                'salecodes': departments,
                 'rental_data': results,
                 'message': 'Debug data for rental revenue troubleshooting'
             })
