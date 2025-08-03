@@ -1089,10 +1089,10 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {dashboardData?.open_work_orders_count || 0}
+                  {formatCurrency(dashboardData?.open_work_orders_value || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Active work orders
+                  Value of active work orders
                 </p>
               </CardContent>
             </Card>
@@ -1104,10 +1104,10 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {dashboardData?.uninvoiced_count || 0}
+                  {formatCurrency(dashboardData?.uninvoiced_work_orders || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Completed but not invoiced
+                  Value of uninvoiced work orders
                 </p>
               </CardContent>
             </Card>
