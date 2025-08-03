@@ -2388,7 +2388,7 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get all available forklifts
+            # Get all available forklifts - check various "available" statuses
             query = """
             SELECT 
                 UnitNo,
@@ -2400,7 +2400,10 @@ def register_department_routes(reports_bp):
                 Sell as ListPrice,
                 RentalStatus
             FROM ben002.Equipment
-            WHERE RentalStatus = 'In Stock'
+            WHERE (UPPER(RentalStatus) IN ('IN STOCK', 'INSTOCK', 'AVAILABLE', 'A', 'IDLE')
+                   OR RentalStatus IS NULL
+                   OR RentalStatus = ''
+                   OR UPPER(RentalStatus) NOT IN ('ON RENT', 'ONRENT', 'RENTED', 'R', 'OUT'))
                 AND (UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%')
             ORDER BY Make, Model, UnitNo
             """
@@ -2429,6 +2432,46 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'error': str(e),
                 'type': 'available_forklifts_error'
+            }), 500
+    
+    @reports_bp.route('/departments/rental/rental-status-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_rental_status_diagnostic():
+        """Diagnostic endpoint to check all rental statuses"""
+        try:
+            db = get_db()
+            
+            # Get all rental statuses with counts
+            query = """
+            SELECT 
+                COALESCE(RentalStatus, 'NULL/EMPTY') as status,
+                COUNT(*) as count,
+                COUNT(CASE WHEN UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%' THEN 1 END) as forklift_count
+            FROM ben002.Equipment
+            GROUP BY RentalStatus
+            ORDER BY count DESC
+            """
+            
+            results = db.execute_query(query)
+            
+            statuses = []
+            for row in results:
+                statuses.append({
+                    'status': row['status'],
+                    'count': row['count'],
+                    'forklift_count': row['forklift_count']
+                })
+            
+            return jsonify({
+                'rental_statuses': statuses,
+                'total_equipment': sum(s['count'] for s in statuses),
+                'total_forklifts': sum(s['forklift_count'] for s in statuses)
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_status_diagnostic_error'
             }), 500
 
 
