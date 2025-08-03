@@ -335,6 +335,31 @@ const RentalReport = ({ user }) => {
                   dot={false}
                   legendType="none"
                 />
+                {/* Add ReferenceLine for the label */}
+                {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
+                  const currentDate = new Date()
+                  const currentMonthIndex = currentDate.getMonth()
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const currentMonthName = monthNames[currentMonthIndex]
+                  const currentMonthDataIndex = monthlyRevenueData.findIndex(item => item.month === currentMonthName)
+                  const historicalMonths = currentMonthDataIndex > 0 
+                    ? monthlyRevenueData.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                    : monthlyRevenueData.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                  const avgRevenue = historicalMonths.length > 0 ? 
+                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                  
+                  if (avgRevenue > 0) {
+                    return (
+                      <ReferenceLine 
+                        yAxisId="revenue"
+                        y={avgRevenue} 
+                        stroke="none"
+                        label={{ value: "Average", position: "insideTopRight" }}
+                      />
+                    )
+                  }
+                  return null
+                })()}
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
