@@ -53,6 +53,7 @@ const Dashboard = ({ user }) => {
   const [paceData, setPaceData] = useState(null)
   const [forecastData, setForecastData] = useState(null)
   const [forecastLastUpdated, setForecastLastUpdated] = useState(null)
+  const [customerRiskData, setCustomerRiskData] = useState(null)
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
   const [visibleWOTypes, setVisibleWOTypes] = useState({
@@ -117,6 +118,8 @@ const Dashboard = ({ user }) => {
         fetchPaceData()
         // Fetch forecast data
         fetchForecastData()
+        // Fetch customer risk data
+        fetchCustomerRiskData()
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -184,6 +187,25 @@ const Dashboard = ({ user }) => {
     }
   }
 
+  const fetchCustomerRiskData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/dashboard/customer-risk-analysis'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Customer risk data fetched:', data)
+        setCustomerRiskData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching customer risk data:', error)
+    }
+  }
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -197,6 +219,11 @@ const Dashboard = ({ user }) => {
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 
                     'July', 'August', 'September', 'October', 'November', 'December']
     return months[monthNumber - 1] || 'Current Month'
+  }
+
+  const getCustomerRisk = (customerName) => {
+    if (!customerRiskData?.customers) return null
+    return customerRiskData.customers.find(c => c.customer_name === customerName)
   }
 
   const downloadActiveCustomers = async (period = 'last30') => {
@@ -594,6 +621,7 @@ const Dashboard = ({ user }) => {
             onClick={() => {
               fetchDashboardData(true)
               fetchForecastData()
+              fetchCustomerRiskData()
             }}
             disabled={loading}
           >
@@ -1061,28 +1089,85 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {dashboardData?.top_customers?.map((customer) => (
-                    <div key={customer.rank} className="flex items-center">
-                      <div className="w-8 text-sm font-medium text-muted-foreground">
-                        {customer.rank}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {customer.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {customer.invoice_count} invoices
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">
-                          {formatCurrency(customer.sales)}
+                  {dashboardData?.top_customers?.map((customer) => {
+                    const riskData = getCustomerRisk(customer.name)
+                    const riskLevel = riskData?.risk_level || 'none'
+                    const riskFactors = riskData?.risk_factors || []
+                    
+                    return (
+                      <div key={customer.rank} className="flex items-center relative group">
+                        <div className="w-8 text-sm font-medium text-muted-foreground">
+                          {customer.rank}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          {customer.percentage}%
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${
+                            riskLevel === 'high' ? 'text-red-600' :
+                            riskLevel === 'medium' ? 'text-orange-600' :
+                            riskLevel === 'low' ? 'text-yellow-600' :
+                            'text-gray-900'
+                          }`}>
+                            {customer.name}
+                            {riskLevel !== 'none' && (
+                              <span className={`ml-1 inline-block w-2 h-2 rounded-full ${
+                                riskLevel === 'high' ? 'bg-red-500' :
+                                riskLevel === 'medium' ? 'bg-orange-500' :
+                                'bg-yellow-500'
+                              }`} />
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {customer.invoice_count} invoices
+                            {riskData && riskData.days_since_last_invoice > 7 && (
+                              <span className="ml-1 text-orange-600">
+                                • {riskData.days_since_last_invoice}d ago
+                              </span>
+                            )}
+                          </p>
                         </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-gray-900">
+                            {formatCurrency(customer.sales)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {customer.percentage}%
+                          </div>
+                        </div>
+                        
+                        {/* Risk Tooltip */}
+                        {riskLevel !== 'none' && riskFactors.length > 0 && (
+                          <div className="absolute left-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                            <div className="flex items-center mb-2">
+                              <div className={`w-3 h-3 rounded-full mr-2 ${
+                                riskLevel === 'high' ? 'bg-red-500' :
+                                riskLevel === 'medium' ? 'bg-orange-500' :
+                                'bg-yellow-500'
+                              }`} />
+                              <span className={`font-semibold text-sm ${
+                                riskLevel === 'high' ? 'text-red-700' :
+                                riskLevel === 'medium' ? 'text-orange-700' :
+                                'text-yellow-700'
+                              }`}>
+                                {riskLevel.toUpperCase()} RISK
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {riskFactors.map((factor, index) => (
+                                <p key={index} className="text-xs text-gray-600">
+                                  • {factor}
+                                </p>
+                              ))}
+                            </div>
+                            {riskData && (
+                              <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+                                <p>Recent 30d: {formatCurrency(riskData.recent_30_sales)}</p>
+                                <p>Expected: {formatCurrency(riskData.expected_monthly_sales)}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    )
+                  }}
                   )) || (
                     <p className="text-sm text-gray-500">No customer data available</p>
                   )}

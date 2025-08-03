@@ -1033,6 +1033,150 @@ def export_active_customers():
             'message': str(e)
         }), 500
 
+@dashboard_optimized_bp.route('/api/dashboard/customer-risk-analysis', methods=['GET'])
+@jwt_required()
+def analyze_customer_risk():
+    """Analyze top customers for behavioral changes and risk factors"""
+    try:
+        db = AzureSQLService()
+        
+        # Current fiscal year dates
+        current_date = datetime.now()
+        if current_date.month >= 11:
+            fiscal_year_start = datetime(current_date.year, 11, 1)
+        else:
+            fiscal_year_start = datetime(current_date.year - 1, 11, 1)
+        
+        fiscal_year_start_str = fiscal_year_start.strftime('%Y-%m-%d')
+        
+        # Get last 90 days for recent activity analysis
+        recent_start = (current_date - timedelta(days=90)).strftime('%Y-%m-%d')
+        very_recent_start = (current_date - timedelta(days=30)).strftime('%Y-%m-%d')
+        
+        # Query to analyze customer behavior patterns
+        risk_analysis_query = f"""
+        WITH CustomerMetrics AS (
+            SELECT 
+                BillToName as customer_name,
+                COUNT(DISTINCT InvoiceNo) as total_invoices,
+                SUM(GrandTotal) as total_sales,
+                AVG(GrandTotal) as avg_invoice_value,
+                MIN(InvoiceDate) as first_invoice,
+                MAX(InvoiceDate) as last_invoice,
+                DATEDIFF(day, MIN(InvoiceDate), MAX(InvoiceDate)) as customer_lifespan_days,
+                -- Recent activity (last 90 days)
+                SUM(CASE WHEN InvoiceDate >= '{recent_start}' THEN GrandTotal ELSE 0 END) as recent_90_sales,
+                COUNT(CASE WHEN InvoiceDate >= '{recent_start}' THEN InvoiceNo ELSE NULL END) as recent_90_invoices,
+                -- Very recent activity (last 30 days)
+                SUM(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN GrandTotal ELSE 0 END) as recent_30_sales,
+                COUNT(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN InvoiceNo ELSE NULL END) as recent_30_invoices,
+                -- Days since last invoice
+                DATEDIFF(day, MAX(InvoiceDate), GETDATE()) as days_since_last_invoice
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '{fiscal_year_start_str}'
+                AND BillToName IS NOT NULL
+                AND BillToName != ''
+                AND GrandTotal > 0
+            GROUP BY BillToName
+        ),
+        TopCustomers AS (
+            SELECT TOP 10 *,
+                -- Calculate expected monthly activity based on historical patterns
+                CASE 
+                    WHEN customer_lifespan_days > 0 
+                    THEN (total_invoices * 30.0) / customer_lifespan_days 
+                    ELSE 0 
+                END as expected_monthly_invoices,
+                CASE 
+                    WHEN customer_lifespan_days > 0 
+                    THEN (total_sales * 30.0) / customer_lifespan_days 
+                    ELSE 0 
+                END as expected_monthly_sales
+            FROM CustomerMetrics
+            ORDER BY total_sales DESC
+        )
+        SELECT 
+            customer_name,
+            total_sales,
+            total_invoices,
+            avg_invoice_value,
+            recent_90_sales,
+            recent_90_invoices,
+            recent_30_sales,
+            recent_30_invoices,
+            days_since_last_invoice,
+            expected_monthly_invoices,
+            expected_monthly_sales,
+            -- Risk indicators
+            CASE 
+                WHEN days_since_last_invoice > 60 THEN 'high'
+                WHEN days_since_last_invoice > 30 THEN 'medium'
+                WHEN recent_30_invoices = 0 AND expected_monthly_invoices > 1 THEN 'medium'
+                WHEN recent_30_sales < (expected_monthly_sales * 0.5) AND expected_monthly_sales > 1000 THEN 'medium'
+                WHEN recent_90_invoices < (expected_monthly_invoices * 2) AND expected_monthly_invoices > 0.5 THEN 'low'
+                ELSE 'none'
+            END as risk_level
+        FROM TopCustomers
+        ORDER BY total_sales DESC
+        """
+        
+        results = db.execute_query(risk_analysis_query)
+        customers_risk = []
+        
+        if results:
+            for row in results:
+                # Determine specific risk factors
+                risk_factors = []
+                risk_level = row['risk_level']
+                
+                if row['days_since_last_invoice'] > 60:
+                    risk_factors.append(f"No activity for {row['days_since_last_invoice']} days")
+                elif row['days_since_last_invoice'] > 30:
+                    risk_factors.append(f"No activity for {row['days_since_last_invoice']} days")
+                
+                if row['recent_30_invoices'] == 0 and row['expected_monthly_invoices'] > 1:
+                    risk_factors.append("No invoices in last 30 days (usually active monthly)")
+                
+                if row['recent_30_sales'] < (row['expected_monthly_sales'] * 0.5) and row['expected_monthly_sales'] > 1000:
+                    expected = row['expected_monthly_sales']
+                    actual = row['recent_30_sales']
+                    risk_factors.append(f"Sales dropped {((expected - actual) / expected * 100):.0f}% below normal")
+                
+                if row['recent_90_invoices'] < (row['expected_monthly_invoices'] * 2) and row['expected_monthly_invoices'] > 0.5:
+                    risk_factors.append("Invoice frequency has decreased significantly")
+                
+                # Calculate trends
+                recent_90_avg = row['recent_90_sales'] / 3 if row['recent_90_sales'] > 0 else 0  # 3-month average
+                expected_monthly = row['expected_monthly_sales']
+                
+                customers_risk.append({
+                    'customer_name': row['customer_name'],
+                    'total_sales': float(row['total_sales']),
+                    'risk_level': risk_level,
+                    'risk_factors': risk_factors,
+                    'days_since_last_invoice': int(row['days_since_last_invoice']),
+                    'recent_30_sales': float(row['recent_30_sales']),
+                    'recent_90_sales': float(row['recent_90_sales']),
+                    'expected_monthly_sales': float(expected_monthly),
+                    'trend_analysis': {
+                        'recent_vs_expected': ((recent_90_avg / expected_monthly - 1) * 100) if expected_monthly > 0 else 0,
+                        'activity_status': 'declining' if recent_90_avg < expected_monthly * 0.8 else 'stable'
+                    }
+                })
+        
+        return jsonify({
+            'customers': customers_risk,
+            'analysis_date': current_date.isoformat(),
+            'period_analyzed': f"Fiscal YTD since {fiscal_year_start_str}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in customer risk analysis: {str(e)}")
+        return jsonify({
+            'error': 'Failed to analyze customer risk',
+            'message': str(e)
+        }), 500
+
 
 @dashboard_optimized_bp.route('/api/reports/dashboard/invalidate-cache', methods=['POST'])
 @jwt_required()
