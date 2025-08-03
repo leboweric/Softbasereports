@@ -323,7 +323,6 @@ def generate_sql_from_analysis(analysis):
                 WONo,
                 OpenDate,
                 Type,
-                Customer,
                 BillTo,
                 UnitNo,
                 CompletedDate,

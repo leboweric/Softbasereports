@@ -41,7 +41,7 @@ class OpenAIConfig:
     
     WORK ORDERS (ben002.WO):
     - WONo (primary key), OpenDate, ClosedDate, CompletedDate, Type (S=Service, R=Rental, I=Internal),
-    - Customer, BillTo, UnitNo, Technician, ServiceType
+    - BillTo (not Customer - this table doesn't have a Customer field), UnitNo, Technician, ServiceType
     - Note: Use ClosedDate IS NULL to find open work orders
     
     Common equipment brands in the system
