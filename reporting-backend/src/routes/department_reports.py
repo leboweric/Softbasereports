@@ -2289,6 +2289,19 @@ def register_department_routes(reports_bp):
                     ROW_NUMBER() OVER (ORDER BY total_revenue DESC) as rank
                 FROM RentalRevenue
                 WHERE total_revenue > 0
+            ),
+            -- Get current rental counts from RentalHistory for current month
+            CurrentRentals AS (
+                SELECT 
+                    c.Name as customer_name,
+                    COUNT(DISTINCT rh.SerialNo) as units_on_rent
+                FROM ben002.RentalHistory rh
+                INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+                INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                WHERE rh.Year = YEAR(GETDATE()) 
+                    AND rh.Month = MONTH(GETDATE())
+                    AND rh.DaysRented > 0
+                GROUP BY c.Name
             )
             SELECT TOP 10
                 rc.rank,
@@ -2297,8 +2310,9 @@ def register_department_routes(reports_bp):
                 rc.total_revenue,
                 rc.last_invoice_date,
                 DATEDIFF(day, rc.last_invoice_date, GETDATE()) as days_since_last_invoice,
-                0 as units_on_rent  -- Temporarily set to 0 due to data model mismatch
+                COALESCE(cr.units_on_rent, 0) as units_on_rent
             FROM RankedCustomers rc
+            LEFT JOIN CurrentRentals cr ON rc.customer_name = cr.customer_name
             ORDER BY rc.rank
             """
             
@@ -2494,23 +2508,54 @@ def register_department_routes(reports_bp):
             
             unit_type_results = db.execute_query(unit_type_query)
             
-            # Sample rental units
+            # Sample rental units with customer info
             sample_query = """
             SELECT TOP 10
-                UnitNo, Make, Model, UnitType, WebRentalFlag, RentalStatus, CustomerNo,
-                RentalRateCode, DayRent, WeekRent, MonthRent
-            FROM ben002.Equipment
-            WHERE (UnitType = 'Rental' OR WebRentalFlag = 1 OR RentalRateCode IS NOT NULL)
-                AND CustomerNo IS NOT NULL AND CustomerNo != ''
+                e.UnitNo, e.Make, e.Model, e.UnitType, e.WebRentalFlag, e.RentalStatus, 
+                e.CustomerNo, c.Name as CustomerName,
+                e.RentalRateCode, e.DayRent, e.WeekRent, e.MonthRent
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE (e.UnitType = 'Rental' OR e.WebRentalFlag = 1 OR e.RentalRateCode IS NOT NULL)
+                AND e.CustomerNo IS NOT NULL AND e.CustomerNo != ''
             """
             
             sample_results = db.execute_query(sample_query)
+            
+            # Check if RentalContractEquipment or similar table exists to link contracts to equipment/customers
+            contract_link_query = """
+            SELECT TOP 5 
+                rc.RentalContractNo,
+                rc.StartDate,
+                rc.EndDate,
+                e.SerialNo,
+                e.UnitNo,
+                e.CustomerNo,
+                c.Name as CustomerName
+            FROM ben002.RentalContract rc
+            INNER JOIN ben002.Equipment e ON e.CustomerNo IS NOT NULL
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE rc.DeletionTime IS NULL
+                AND (rc.EndDate IS NULL OR rc.EndDate >= GETDATE() OR rc.OpenEndedContract = 1)
+                AND EXISTS (
+                    SELECT 1 FROM ben002.RentalHistory rh 
+                    WHERE rh.SerialNo = e.SerialNo 
+                    AND rh.Year = YEAR(GETDATE()) 
+                    AND rh.Month = MONTH(GETDATE())
+                )
+            """
+            
+            try:
+                contract_link_results = db.execute_query(contract_link_query)
+            except:
+                contract_link_results = []
             
             return jsonify({
                 'rental_contracts': contract_results[0] if contract_results else {},
                 'rental_indicators': results[0] if results else {},
                 'unit_types': [{'type': row['UnitType'], 'count': row['count']} for row in unit_type_results] if unit_type_results else [],
-                'sample_rental_units': [dict(row) for row in sample_results] if sample_results else []
+                'sample_rental_units': [dict(row) for row in sample_results] if sample_results else [],
+                'contract_equipment_links': [dict(row) for row in contract_link_results] if contract_link_results else []
             })
             
         except Exception as e:
