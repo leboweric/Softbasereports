@@ -23,7 +23,10 @@ import {
   Line,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  ComposedChart,
+  Legend,
+  ReferenceLine
 } from 'recharts'
 import { 
   Truck,
@@ -42,10 +45,12 @@ const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [inventoryCount, setInventoryCount] = useState(0)
+  const [monthlyRevenueData, setMonthlyRevenueData] = useState(null)
 
   useEffect(() => {
     fetchRentalData()
     fetchInventoryCount()
+    fetchMonthlyRevenueData()
   }, [])
 
   const fetchRentalData = async () => {
@@ -84,6 +89,49 @@ const RentalReport = ({ user }) => {
     } catch (error) {
       console.error('Error fetching inventory count:', error)
     }
+  }
+
+  const fetchMonthlyRevenueData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/monthly-revenue'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setMonthlyRevenueData(data.monthlyRentalRevenue || [])
+      }
+    } catch (error) {
+      console.error('Error fetching monthly revenue data:', error)
+      setMonthlyRevenueData([])
+    }
+  }
+
+  // Helper function to calculate percentage change
+  const calculatePercentageChange = (current, previous) => {
+    if (!previous || previous === 0) return null
+    const change = ((current - previous) / previous) * 100
+    return change
+  }
+
+  // Helper function to format percentage with color
+  const formatPercentage = (percentage) => {
+    if (percentage === null) return ''
+    const sign = percentage >= 0 ? '+' : ''
+    const color = percentage >= 0 ? 'text-green-600' : 'text-red-600'
+    return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
+  }
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount)
   }
 
   if (loading) {
@@ -268,37 +316,159 @@ const RentalReport = ({ user }) => {
           </CardContent>
         </Card>
 
-        {/* Revenue Trend */}
+        {/* Monthly Revenue & Margin */}
         <Card className="col-span-4">
           <CardHeader>
-            <CardTitle>Revenue & Utilization Trend</CardTitle>
-            <CardDescription>Monthly rental performance metrics</CardDescription>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle>Monthly Rental Revenue & Margin</CardTitle>
+                <CardDescription>Rental revenue and gross margin % over the last 12 months</CardDescription>
+              </div>
+              {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
+                // Only include historical months (before current month)
+                const currentDate = new Date()
+                const currentMonthIndex = currentDate.getMonth()
+                const currentYear = currentDate.getFullYear()
+                
+                // Month names in order
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                const currentMonthName = monthNames[currentMonthIndex]
+                
+                // Get index of current month in the data
+                const currentMonthDataIndex = monthlyRevenueData.findIndex(item => item.month === currentMonthName)
+                
+                // Filter to only include months before current month with positive revenue
+                const historicalMonths = currentMonthDataIndex > 0 
+                  ? monthlyRevenueData.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                  : monthlyRevenueData.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                
+                const avgRevenue = historicalMonths.length > 0 ? 
+                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                const avgMargin = historicalMonths.length > 0 ? 
+                  historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
+                
+                return (
+                  <div className="text-right">
+                    <div className="mb-2">
+                      <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                      <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Avg Margin</p>
+                      <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={data.monthlyTrend}>
+              <ComposedChart data={(() => {
+                const data = monthlyRevenueData || []
+                
+                // Calculate averages for reference lines
+                if (data.length > 0) {
+                  const currentDate = new Date()
+                  const currentMonthIndex = currentDate.getMonth()
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const currentMonthName = monthNames[currentMonthIndex]
+                  const currentMonthDataIndex = data.findIndex(item => item.month === currentMonthName)
+                  
+                  const historicalMonths = currentMonthDataIndex > 0 
+                    ? data.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                    : data.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                  
+                  const avgRevenue = historicalMonths.length > 0 ? 
+                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                  
+                  // Add average values to each data point for reference line rendering
+                  return data.map(item => ({
+                    ...item,
+                    avgRevenue: avgRevenue
+                  }))
+                }
+                
+                return data
+              })()}  margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#3b82f6"
-                  name="Revenue ($)"
-                  strokeWidth={2}
+                <YAxis 
+                  yAxisId="revenue"
+                  orientation="left"
+                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="utilization"
-                  stroke="#10b981"
-                  name="Utilization (%)"
-                  strokeWidth={2}
+                <YAxis
+                  yAxisId="margin"
+                  orientation="right"
+                  domain={[0, 100]}
+                  tickFormatter={(value) => `${value}%`}
                 />
-              </LineChart>
+                <Tooltip 
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length && monthlyRevenueData) {
+                      const data = monthlyRevenueData
+                      const currentIndex = data.findIndex(item => item.month === label)
+                      const currentData = data[currentIndex]
+                      const previousData = currentIndex > 0 ? data[currentIndex - 1] : null
+                      
+                      return (
+                        <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                          <p className="font-semibold mb-2">{label}</p>
+                          <div className="space-y-1">
+                            <p className="text-purple-600">
+                              Revenue: {formatCurrency(currentData.amount)}
+                              {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
+                            </p>
+                            {currentData.margin !== null && currentData.margin !== undefined && (
+                              <p className="text-purple-800">
+                                Margin: {currentData.margin}%
+                                {previousData && previousData.margin !== null && previousData.margin !== undefined && (
+                                  <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
+                                    ({currentData.margin > previousData.margin ? '+' : ''}{(currentData.margin - previousData.margin).toFixed(1)}pp)
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  }}
+                />
+                <Legend />
+                <Bar yAxisId="revenue" dataKey="amount" fill="#9333ea" name="Revenue" />
+                {/* Average Revenue Line */}
+                <Line 
+                  yAxisId="revenue"
+                  type="monotone"
+                  dataKey="avgRevenue"
+                  stroke="#666"
+                  strokeDasharray="5 5"
+                  strokeWidth={2}
+                  name="Avg Revenue"
+                  dot={false}
+                  legendType="none"
+                />
+                <Line 
+                  yAxisId="margin" 
+                  type="monotone" 
+                  dataKey="margin" 
+                  stroke="#7c3aed" 
+                  strokeWidth={3}
+                  name="Gross Margin %"
+                  dot={(props) => {
+                    const { payload } = props;
+                    // Only render dots for months with actual margin data
+                    if (payload.margin !== null && payload.margin !== undefined) {
+                      return <circle {...props} fill="#7c3aed" r={4} />;
+                    }
+                    return null;
+                  }}
+                  connectNulls={false}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>

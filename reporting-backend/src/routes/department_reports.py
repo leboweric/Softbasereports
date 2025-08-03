@@ -2059,4 +2059,72 @@ def register_department_routes(reports_bp):
                 'type': 'table_discovery_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/monthly-revenue', methods=['GET'])
+    @jwt_required()
+    def get_rental_monthly_revenue():
+        """Get monthly rental revenue with gross margin"""
+        try:
+            db = get_db()
+            current_month = datetime.now().month
+            current_year = datetime.now().year
+            
+            # Get monthly rental revenue and cost data
+            query = """
+            WITH MonthlyData AS (
+                SELECT 
+                    YEAR(InvoiceDate) as year,
+                    MONTH(InvoiceDate) as month,
+                    SUM(COALESCE(RentalRevenue, 0)) as rental_revenue,
+                    SUM(COALESCE(RentalCost, 0)) as rental_cost
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+                    AND Department = 'RENTAL'
+                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            )
+            SELECT 
+                year,
+                month,
+                rental_revenue,
+                rental_cost
+            FROM MonthlyData
+            ORDER BY year, month
+            """
+            
+            results = db.execute_query(query)
+            
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            
+            monthly_data = []
+            for row in results:
+                year = row['year']
+                month = row['month']
+                rental_revenue = float(row['rental_revenue'] or 0)
+                rental_cost = float(row['rental_cost'] or 0)
+                
+                # Check if this is current month or future
+                is_current_or_future = (year > current_year) or (year == current_year and month >= current_month)
+                
+                # Calculate gross margin percentage only for historical months
+                margin_percentage = None
+                if not is_current_or_future and rental_revenue > 0:
+                    margin_percentage = round(((rental_revenue - rental_cost) / rental_revenue) * 100, 1)
+                
+                monthly_data.append({
+                    'month': month_names[month - 1],
+                    'amount': rental_revenue,
+                    'cost': rental_cost,
+                    'margin': margin_percentage
+                })
+            
+            return jsonify({
+                'monthlyRentalRevenue': monthly_data
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_monthly_revenue_error'
+            }), 500
+
 

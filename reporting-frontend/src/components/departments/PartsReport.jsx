@@ -543,18 +543,6 @@ const PartsReport = ({ user, onNavigate }) => {
                     }}
                     connectNulls={false}
                   />
-                  {/* Average Margin Line */}
-                  <Line 
-                    yAxisId="margin"
-                    type="monotone"
-                    dataKey="avgMargin"
-                    stroke="#d97706"
-                    strokeDasharray="5 5"
-                    strokeWidth={2}
-                    name="Avg Margin"
-                    dot={false}
-                    legendType="none"
-                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
