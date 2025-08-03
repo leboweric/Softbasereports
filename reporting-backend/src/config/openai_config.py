@@ -26,8 +26,11 @@ class OpenAIConfig:
     - Customer (foreign key), AcquiredDate, SaleAmount, Hours, Location
     
     INVOICES (ben002.InvoiceReg):
-    - InvoiceNo, InvoiceDate, Customer (foreign key), BillToName, 
-    - GrandTotal, SalesTax, InvoiceStatus, InvoiceType
+    - InvoiceNo, InvoiceDate, Customer (boolean field, NOT customer ID), BillToName, 
+    - GrandTotal (total invoice amount), SalesTax, InvoiceStatus, InvoiceType
+    - LaborTaxable, LaborNonTax (labor sales amounts)
+    - PartsTaxable, PartsNonTax (parts sales amounts)
+    - Note: For labor sales use LaborTaxable + LaborNonTax, for parts sales use PartsTaxable + PartsNonTax
     
     SERVICE CLAIMS (ben002.ServiceClaim):
     - ServiceClaimNo, OpenDate, CloseDate, Customer (foreign key), StockNo, SerialNo,
