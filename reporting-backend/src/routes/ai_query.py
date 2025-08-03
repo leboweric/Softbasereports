@@ -82,7 +82,14 @@ def generate_sql_from_analysis(analysis):
         # Extract number if specified from both intent and original query
         combined_text = intent + ' ' + analysis.get('original_query', '')
         num_match = re.search(r'top\s+(\d+)', combined_text)
-        limit = int(num_match.group(1)) if num_match else 10
+        if not num_match:
+            # Also check for written numbers
+            if 'five' in combined_text or '5' in combined_text:
+                limit = 5
+            else:
+                limit = 10
+        else:
+            limit = int(num_match.group(1))
         
         date_filter = get_date_filter(time_period)
         
@@ -99,8 +106,58 @@ def generate_sql_from_analysis(analysis):
         ORDER BY TotalRevenue DESC
         """
     
+    # Handle equipment sales queries (e.g., "Toyota forklift sales")
+    if ('toyota' in intent.lower() or 'linde' in intent.lower() or 'forklift' in intent.lower()) and \
+       ('sales' in intent or 'sold' in intent) and \
+       'equipment' not in intent:  # Don't match general equipment queries
+        # Equipment sales by make
+        date_filter = get_date_filter(time_period)
+        
+        # Determine the make
+        make_filter = ""
+        if 'toyota' in intent.lower():
+            make_filter = "AND UPPER(eh.Description) LIKE '%TOYOTA%'"
+        elif 'linde' in intent.lower():
+            make_filter = "AND UPPER(eh.Description) LIKE '%LINDE%'"
+        
+        return f"""
+        SELECT DISTINCT
+            i.InvoiceNo,
+            i.InvoiceDate,
+            i.BillToName as CustomerName,
+            eh.SerialNo,
+            eh.Description as EquipmentDescription,
+            i.GrandTotal as InvoiceTotal
+        FROM ben002.InvoiceReg i
+        INNER JOIN ben002.EquipmentHistory eh ON i.InvoiceNo = eh.WONo
+        WHERE {date_filter}
+        AND eh.EntryType = 'SALE'
+        {make_filter}
+        ORDER BY i.InvoiceDate DESC
+        """
+    
+    # Handle salesperson queries
+    elif 'salesperson' in intent and ('sales' in intent or 'highest' in intent or 'top' in intent):
+        # Salesperson performance query
+        date_filter = get_date_filter(time_period)
+        
+        # Join with Customer table to get salesperson info
+        return f"""
+        SELECT TOP 10
+            c.Salesman1 as Salesperson,
+            COUNT(DISTINCT i.InvoiceNo) as TotalInvoices,
+            SUM(i.GrandTotal) as TotalSales,
+            AVG(i.GrandTotal) as AverageSale
+        FROM ben002.InvoiceReg i
+        INNER JOIN ben002.Customer c ON i.Customer = c.ID
+        WHERE {date_filter}
+        AND c.Salesman1 IS NOT NULL
+        GROUP BY c.Salesman1
+        ORDER BY TotalSales DESC
+        """
+    
     # Handle net income/profit queries first (these need special handling)
-    if 'net income' in intent or 'profit' in intent or 'net profit' in intent:
+    elif 'net income' in intent or 'profit' in intent or 'net profit' in intent:
         # For net income, we need to return a message that we need cost data
         return """
         SELECT 
