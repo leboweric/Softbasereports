@@ -549,24 +549,24 @@ const Dashboard = ({ user }) => {
         <TabsContent value="sales" className="space-y-4">
           {/* Key Sales Metrics */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current Month Sales</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.total_sales || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {dashboardData?.period || 'Current Period'}
-            </p>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Current Month Sales</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(dashboardData?.total_sales || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {dashboardData?.period || 'Current Period'}
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">YTD Sales</CardTitle>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">YTD Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -576,12 +576,12 @@ const Dashboard = ({ user }) => {
             <p className="text-xs text-muted-foreground">
               Fiscal year to date
             </p>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -591,12 +591,12 @@ const Dashboard = ({ user }) => {
             <p className="text-xs text-muted-foreground">
               Last 30 days • {dashboardData?.total_customers || 0} total
             </p>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -606,28 +606,28 @@ const Dashboard = ({ user }) => {
             <p className="text-xs text-muted-foreground">
               {dashboardData?.open_work_orders_count || 0} orders
             </p>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Uninvoiced Work Orders</CardTitle>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Uninvoiced Work Orders</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {formatCurrency(dashboardData?.uninvoiced_work_orders || 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {dashboardData?.uninvoiced_count || 0} orders pending
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+                <p className="text-xs text-muted-foreground">
+                  {dashboardData?.uninvoiced_count || 0} orders pending
+                </p>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* Sales Forecast Card */}
-      {forecastData && (
-        <Card className="border-2 border-blue-100 bg-blue-50/20">
+          {/* Sales Forecast Card */}
+          {forecastData && (
+            <Card className="border-2 border-blue-100 bg-blue-50/20">
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
@@ -720,11 +720,11 @@ const Dashboard = ({ user }) => {
               </div>
             </div>
           </CardContent>
-        </Card>
-      )}
+            </Card>
+          )}
 
-      {/* Charts - First Row */}
-      <div className="grid gap-4 md:grid-cols-2">
+          {/* Charts - First Row */}
+          <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
@@ -835,11 +835,11 @@ const Dashboard = ({ user }) => {
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
-      </div>
+            </Card>
+          </div>
 
-      {/* Charts - Second Row */}
-      <div className="grid gap-4 md:grid-cols-2">
+          {/* Charts - Second Row */}
+          <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
@@ -903,10 +903,11 @@ const Dashboard = ({ user }) => {
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
+            </Card>
+          </div>
 
-      {/* Revenue Streams Analysis */}
-      <div className="grid gap-4 md:grid-cols-2">
+          {/* Revenue Streams Analysis */}
+          <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Revenue by Stream</CardTitle>
@@ -1229,9 +1230,9 @@ const Dashboard = ({ user }) => {
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
-      </div>
-    </TabsContent>
+            </Card>
+          </div>
+        </TabsContent>
 
     {/* Customers Tab */}
     <TabsContent value="customers" className="space-y-4">
