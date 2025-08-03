@@ -695,27 +695,27 @@ def generate_sql_from_analysis(analysis):
             SELECT TOP 20
                 PartNo,
                 Description,
-                QtyOnHand,
+                OnHand as QtyOnHand,
                 BinLocation,
                 Cost,
-                Price
-            FROM ben002.NationalParts
-            WHERE QtyOnHand < 10
-            ORDER BY QtyOnHand ASC
+                List as Price
+            FROM ben002.Parts
+            WHERE OnHand < 10
+            ORDER BY OnHand ASC
             """
         else:
             return """
             SELECT TOP 100
                 PartNo,
                 Description,
-                QtyOnHand,
+                OnHand as QtyOnHand,
                 BinLocation,
                 Supplier,
                 Cost,
-                Price
-            FROM ben002.NationalParts
-            WHERE QtyOnHand > 0
-            ORDER BY QtyOnHand DESC
+                List as Price
+            FROM ben002.Parts
+            WHERE OnHand > 0
+            ORDER BY OnHand DESC
             """
     
     # Default query with more helpful message

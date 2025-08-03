@@ -164,8 +164,12 @@ class OpenAIQueryService:
         notes = []
         
         if "tables" in response:
+            valid_tables = ["CUSTOMER", "EQUIPMENT", "INVOICEREG", "SERVICECLAIM", "PARTS", 
+                          "ARDETAIL", "WO", "WOLABOR", "WOPARTS", "WOMISC", "WOQUOTE", 
+                          "INVOICESALES", "SALES", "PARTSSALES", "WIPVIEW", "GLDETAIL", 
+                          "EQUIPMENTHISTORY"]
             for table in response["tables"]:
-                if table.upper() not in ["CUSTOMERS", "INVENTORY", "SALES", "RENTALS", "PARTS_ORDERS", "SERVICE_TICKETS", "EMPLOYEES"]:
+                if table.upper() not in valid_tables:
                     notes.append(f"Warning: Table '{table}' may not exist in the schema")
         
         if "query_type" in response and response["query_type"] == "aggregation":

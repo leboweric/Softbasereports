@@ -19,41 +19,66 @@ class OpenAIConfig:
     
     CUSTOMER (ben002.Customer):
     - ID (primary key), Name, Address1, City, State, ZipCode, Phone, 
-    - CreditLimit, Balance, YTD (year-to-date sales), LastSaleDate, LastPaymentDate
+    - CreditLimit, Balance, YTD (year-to-date sales), 
+    - LastYrYTD (last year's YTD), TwoYrYTD (two years ago YTD),
+    - LastSaleDate, LastPaymentDate, CustomerStatus
     
     EQUIPMENT (ben002.Equipment):
-    - UnitNo (equipment identifier), SerialNo, Make, Model, ModelYear, RentalStatus (In Stock, Sold, Rented),
-    - Id (primary key), Cost, Sell, Location, ControlNo (matches UnitNo)
+    - UnitNo (equipment identifier - NOT StockNo), SerialNo, Make, Model, ModelYear, 
+    - RentalStatus (In Stock, Sold, Rented), Id (primary key), Cost, Sell, 
+    - Location, Department, Customer (customer ID when sold/rented)
+    - Note: Use UnitNo for equipment lookups, NOT StockNo
     
     INVOICES (ben002.InvoiceReg):
-    - InvoiceNo, InvoiceDate, Customer (boolean field, NOT customer ID), BillToName, 
-    - GrandTotal (total invoice amount), SalesTax, InvoiceStatus, InvoiceType
-    - LaborTaxable, LaborNonTax (labor sales amounts)
-    - PartsTaxable, PartsNonTax (parts sales amounts)
-    - SaleCode (department identifier: 'SVE'=Service, 'PRT'=Parts, 'RENTR'=Rental Repairs, 'RENTRS'=Rental Repairs Shop)
-    - Note: For service sales filter by SaleCode='SVE', for rental sales use SaleCode IN ('RENTR','RENTRS')
-    - Note: For labor sales use LaborTaxable + LaborNonTax, for parts sales use PartsTaxable + PartsNonTax
+    - InvoiceNo, InvoiceDate, Customer (customer ID), BillToName, 
+    - GrandTotal (total invoice amount), SalesTax, InvoiceStatus, 
+    - Department (department field, e.g. 'Service'), 
+    - SaleCode (more specific: 'SVE'=Service, 'PRT'=Parts, 'RENTR'=Rental Repairs, 'RENTRS'=Rental Repairs Shop)
+    - LaborTaxable, LaborNonTax (labor revenue)
+    - PartsTaxable, PartsNonTax (parts revenue)
+    - MiscTaxable, MiscNonTax (misc revenue)
+    - Note: For total labor revenue use (LaborTaxable + LaborNonTax)
+    - Note: For total parts revenue use (PartsTaxable + PartsNonTax)
     
     SERVICE CLAIMS (ben002.ServiceClaim):
-    - ServiceClaimNo, OpenDate, CloseDate, Customer (foreign key), StockNo, SerialNo,
-    - TotalLabor, TotalParts, Technician (Note: Use CloseDate IS NULL to find open claims)
+    - ServiceClaimNo, OpenDate, CloseDate, Customer (customer ID), 
+    - StockNo, SerialNo, TotalLabor, TotalParts, Technician
+    - Note: Use CloseDate IS NULL to find open claims
     
-    PARTS (ben002.NationalParts):
-    - PartNo, Description, Supplier, Cost, Price, QtyOnHand, BinLocation
+    PARTS (ben002.Parts) - NOT NationalParts!:
+    - PartNo, Description, Supplier, Cost, List (list price), 
+    - OnHand (quantity on hand), BinLocation, PartType
+    - Note: The actual parts inventory is in Parts table, NOT NationalParts
     
     AR DETAIL (ben002.ARDetail):
-    - Customer, InvoiceNo, Balance, DueDate, DaysPastDue
+    - Customer, InvoiceNo, InvoiceDate, OriginalAmount, Balance, 
+    - DueDate, DaysPastDue, InvoiceType
     
     WORK ORDERS (ben002.WO):
-    - WONo (primary key), OpenDate, ClosedDate, CompletedDate, Type (S=Service, R=Rental, I=Internal),
-    - BillTo (not Customer - this table doesn't have a Customer field), UnitNo, Technician, ServiceType
+    - WONo (primary key), OpenDate, ClosedDate, CompletedDate, 
+    - Type (S=Service, R=Rental, I=Internal), BillTo (customer ID), 
+    - UnitNo (equipment), Technician, ServiceType, Department
     - Note: Use ClosedDate IS NULL to find open work orders
-    - Work order costs are in separate tables:
-      * ben002.WOLabor: WONo, Sell (labor cost)
-      * ben002.WOParts: WONo, Sell (unit price), Qty (quantity)
-      * ben002.WOMisc: WONo, Sell (misc cost)
     
-    Common equipment brands in the system
+    WORK ORDER COSTS:
+    - ben002.WOLabor: WONo, Sell (labor rate), Hours, TotalSell (total labor)
+    - ben002.WOParts: WONo, PartNo, Sell (unit price), Qty, BOQty (backorder qty)
+    - ben002.WOMisc: WONo, Description, Sell (misc cost)
+    
+    WORK ORDER QUOTES (ben002.WOQuote):
+    - WONo, QuoteLine (line number), Type (L=Labor, P=Parts), 
+    - Amount, CreationTime, QuoteNo
+    - Note: This contains quote line items, not complete quotes
+    
+    INVOICE SALES (ben002.InvoiceSales):
+    - InvoiceNo, ItemNo, Description, Quantity, Price, ExtPrice
+    
+    KEY VIEWS FOR REPORTING:
+    - ben002.Sales: Pre-aggregated sales data
+    - ben002.PartsSales: Parts sales analytics
+    - ben002.WIPView: Work in progress summary
+    - ben002.GLDetail: General ledger details
+    - ben002.EquipmentHistory: Equipment usage history
     """
     
     # Query suggestion templates
@@ -102,18 +127,18 @@ class OpenAIConfig:
         ]
     }
     
-    # Date parsing patterns
+    # Date parsing patterns (SQL Server compatible)
     DATE_PATTERNS = {
-        "last week": "DATE >= DATE('now', '-7 days')",
-        "this week": "DATE >= DATE('now', 'weekday 0', '-7 days')",
-        "last month": "DATE >= DATE('now', 'start of month', '-1 month') AND DATE < DATE('now', 'start of month')",
-        "this month": "DATE >= DATE('now', 'start of month')",
-        "last quarter": "DATE >= DATE('now', 'start of year', '+' || ((CAST(strftime('%m', 'now') AS INTEGER) - 1) / 3) * 3 || ' months', '-3 months')",
-        "this quarter": "DATE >= DATE('now', 'start of year', '+' || ((CAST(strftime('%m', 'now') AS INTEGER) - 1) / 3) * 3 || ' months')",
-        "last year": "DATE >= DATE('now', 'start of year', '-1 year') AND DATE < DATE('now', 'start of year')",
-        "this year": "DATE >= DATE('now', 'start of year')",
-        "yesterday": "DATE = DATE('now', '-1 day')",
-        "today": "DATE = DATE('now')"
+        "last week": ">= DATEADD(day, -7, GETDATE())",
+        "this week": ">= DATEADD(day, -DATEPART(dw, GETDATE()) + 1, GETDATE())",
+        "last month": ">= DATEADD(month, -1, DATEADD(day, 1-DAY(GETDATE()), GETDATE())) AND < DATEADD(day, 1-DAY(GETDATE()), GETDATE())",
+        "this month": ">= DATEADD(day, 1-DAY(GETDATE()), GETDATE())",
+        "last quarter": ">= DATEADD(quarter, -1, DATEADD(quarter, DATEDIFF(quarter, 0, GETDATE()), 0)) AND < DATEADD(quarter, DATEDIFF(quarter, 0, GETDATE()), 0)",
+        "this quarter": ">= DATEADD(quarter, DATEDIFF(quarter, 0, GETDATE()), 0)",
+        "last year": ">= DATEADD(year, -1, DATEADD(year, DATEDIFF(year, 0, GETDATE()), 0)) AND < DATEADD(year, DATEDIFF(year, 0, GETDATE()), 0)",
+        "this year": ">= DATEADD(year, DATEDIFF(year, 0, GETDATE()), 0)",
+        "yesterday": "= CAST(DATEADD(day, -1, GETDATE()) AS DATE)",
+        "today": "= CAST(GETDATE() AS DATE)"
     }
     
     @classmethod
@@ -126,9 +151,10 @@ class OpenAIConfig:
         
         When a user asks a question:
         1. Analyze the intent and identify relevant tables/fields
-        2. Convert time references (last week, this month, etc.) to appropriate date filters
-        3. Generate a structured query plan that can be executed against the database
-        4. Provide a clear explanation of what data will be retrieved
+        2. Prefer using optimized views when available (e.g., Sales view for sales analytics, PartsSales for parts analytics)
+        3. Convert time references (last week, this month, etc.) to appropriate date filters
+        4. Generate a structured query plan that can be executed against the database
+        5. Provide a clear explanation of what data will be retrieved
         
         IMPORTANT distinctions:
         - "sales" or "revenue" = total invoice amounts (GrandTotal from InvoiceReg)
