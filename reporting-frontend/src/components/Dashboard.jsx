@@ -1303,10 +1303,32 @@ const Dashboard = ({ user }) => {
           <div className="grid gap-4 md:grid-cols-1">
             <Card>
               <CardHeader>
-                <CardTitle>Total Open Work Orders Over Time</CardTitle>
-                <CardDescription>
-                  Total value of open work orders at month end since March 2025
-                </CardDescription>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Total Open Work Orders Over Time</CardTitle>
+                    <CardDescription>
+                      Total value of open work orders at month end since March 2025
+                    </CardDescription>
+                  </div>
+                  {dashboardData?.monthly_open_work_orders && dashboardData.monthly_open_work_orders.length > 1 && (() => {
+                    const data = dashboardData.monthly_open_work_orders;
+                    let increasingMonths = 0;
+                    for (let i = 1; i < data.length; i++) {
+                      if (data[i].value > data[i-1].value) increasingMonths++;
+                    }
+                    const percentIncreasing = (increasingMonths / (data.length - 1)) * 100;
+                    
+                    if (percentIncreasing >= 75) {
+                      return (
+                        <div className="flex items-center space-x-1 text-red-600">
+                          <TrendingUp className="h-4 w-4" />
+                          <span className="text-sm font-medium">Increasing Trend</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
@@ -1333,6 +1355,42 @@ const Dashboard = ({ user }) => {
                       stroke="#f97316" 
                       strokeWidth={2}
                       name="Open Work Orders Value"
+                      dot={(props) => {
+                        const { cx, cy, index, payload } = props;
+                        const data = dashboardData?.monthly_open_work_orders || [];
+                        const prevValue = index > 0 ? data[index - 1].value : null;
+                        const isIncreasing = prevValue !== null && payload.value > prevValue;
+                        
+                        return (
+                          <g>
+                            <circle cx={cx} cy={cy} r={4} fill="#f97316" />
+                            {isIncreasing && (
+                              <>
+                                {/* Red warning background */}
+                                <rect 
+                                  x={cx - 12} 
+                                  y={cy - 25} 
+                                  width={24} 
+                                  height={18} 
+                                  fill="#dc2626" 
+                                  rx={2}
+                                />
+                                {/* Up arrow */}
+                                <text 
+                                  x={cx} 
+                                  y={cy - 11} 
+                                  textAnchor="middle" 
+                                  fill="white" 
+                                  fontSize="14" 
+                                  fontWeight="bold"
+                                >
+                                  ↑
+                                </text>
+                              </>
+                            )}
+                          </g>
+                        );
+                      }}
                     />
                   </LineChart>
                 </ResponsiveContainer>

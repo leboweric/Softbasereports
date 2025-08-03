@@ -551,6 +551,9 @@ class DashboardQueries:
             change = total_value - previous_value
             change_percent = ((total_value - previous_value) / previous_value * 100) if previous_value > 0 else 0
             
+            # Debug logging
+            logger.info(f"Open WO Debug - Current: ${total_value:,.0f}, Previous (end of {previous_month_end.strftime('%B')}): ${previous_value:,.0f}, Change: ${change:,.0f} ({change_percent:.1f}%)")
+            
             return {
                 'types': work_order_types,
                 'total_value': total_value,
