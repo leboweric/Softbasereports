@@ -690,7 +690,33 @@ def generate_sql_from_analysis(analysis):
     
     # Handle parts queries
     elif any(term in intent for term in ['part', 'parts']):
-        if 'low stock' in intent or 'low inventory' in intent:
+        # Handle specific Linde parts fill rate query
+        if ('linde' in intent and 'not' in intent and 'fill' in intent) or \
+           ('linde' in intent and 'unable' in intent) or \
+           ('parts' in intent and 'fill' in intent and 'not' in intent):
+            # Get date filter for "last week"
+            date_filter = get_date_filter('last_week', 'wo.OpenDate')
+            
+            return f"""
+            SELECT DISTINCT
+                wp.PartNo,
+                wp.Description,
+                wp.WONo,
+                wo.OpenDate,
+                wp.Qty as QuantityOrdered,
+                wp.BOQty as BackorderQty,
+                p.OnHand as CurrentStock,
+                c.Name as CustomerName
+            FROM ben002.WOParts wp
+            INNER JOIN ben002.WO wo ON wp.WONo = wo.WONo
+            LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+            LEFT JOIN ben002.Customer c ON wo.BillTo = c.ID
+            WHERE {date_filter}
+            AND (wp.PartNo LIKE 'L%' OR UPPER(wp.Description) LIKE '%LINDE%')
+            AND wp.BOQty > 0
+            ORDER BY wo.OpenDate DESC, wp.PartNo
+            """
+        elif 'low stock' in intent or 'low inventory' in intent:
             return """
             SELECT TOP 20
                 PartNo,
