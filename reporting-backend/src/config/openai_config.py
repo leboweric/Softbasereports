@@ -50,10 +50,11 @@ class OpenAIConfig:
     - Note: Use CloseDate IS NULL to find open claims
     
     PARTS (ben002.Parts) - NOT NationalParts!:
-    - PartNo, Description, Supplier, Cost, List (list price), 
+    - PartNo, Description, Cost, List (list price), 
     - OnHand (quantity on hand), Bin (bin location - NOT BinLocation), PartType
     - Note: The actual parts inventory is in Parts table, NOT NationalParts
     - Note: Use 'Bin' column for bin location, NOT 'BinLocation'
+    - Note: Parts table has NO Supplier column
     
     AR DETAIL (ben002.ARDetail):
     - CustomerNo, InvoiceNo, Amount, ApplyToInvoiceNo, CheckNo,

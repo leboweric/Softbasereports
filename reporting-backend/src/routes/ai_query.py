@@ -81,7 +81,9 @@ def generate_sql_from_analysis(analysis):
     
     # Inventory Management exact query matches - MUST BE FIRST
     if ('how many linde forklifts do we have in stock' in intent or
-        'how many linde forklifts do we have in stock' in original_query):
+        'how many linde forklifts do we have in stock' in original_query or
+        ('linde' in intent.lower() and 'forklift' in intent and 'stock' in intent) or
+        ('count' in intent and 'linde' in intent.lower() and 'forklift' in intent)):
         return """
         SELECT 
             'Linde' as Make,
@@ -1189,7 +1191,6 @@ def generate_sql_from_analysis(analysis):
                 Description,
                 OnHand as QtyOnHand,
                 Bin,
-                Supplier,
                 Cost,
                 List as Price
             FROM ben002.Parts
