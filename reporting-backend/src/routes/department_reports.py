@@ -21,12 +21,13 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Monthly Labor Revenue - Last 12 months
+            # Monthly Labor Revenue and Margins - Last 12 months
             labor_revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue
+                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue,
+                SUM(COALESCE(LaborCost, 0)) as labor_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -38,9 +39,18 @@ def register_department_routes(reports_bp):
             monthlyLaborRevenue = []
             for row in labor_revenue_result:
                 month_date = datetime(row['year'], row['month'], 1)
+                labor_revenue = float(row['labor_revenue'] or 0)
+                labor_cost = float(row['labor_cost'] or 0)
+                
+                # Calculate gross margin percentage
+                margin_percentage = 0
+                if labor_revenue > 0:
+                    margin_percentage = ((labor_revenue - labor_cost) / labor_revenue) * 100
+                
                 monthlyLaborRevenue.append({
                     'month': month_date.strftime("%b"),
-                    'amount': float(row['labor_revenue'] or 0)
+                    'amount': labor_revenue,
+                    'margin': round(margin_percentage, 1)
                 })
             
             # Pad with zeros for missing months
@@ -54,7 +64,11 @@ def register_department_routes(reports_bp):
                 existing_months = [item['month'] for item in monthlyLaborRevenue]
                 for month in all_months:
                     if month not in existing_months:
-                        monthlyLaborRevenue.append({'month': month, 'amount': 0})
+                        monthlyLaborRevenue.append({
+                            'month': month, 
+                            'amount': 0,
+                            'margin': 0
+                        })
             
             return jsonify({
                 'monthlyLaborRevenue': monthlyLaborRevenue

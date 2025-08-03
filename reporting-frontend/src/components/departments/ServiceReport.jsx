@@ -9,7 +9,10 @@ import {
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
   ResponsiveContainer,
-  ReferenceLine
+  ReferenceLine,
+  ComposedChart,
+  Line,
+  Legend
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 
@@ -97,19 +100,27 @@ const ServiceReport = ({ user, onNavigate }) => {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle>Monthly Labor Revenue</CardTitle>
-              <CardDescription>Labor revenue over the last 12 months</CardDescription>
+              <CardTitle>Monthly Labor Revenue & Margin</CardTitle>
+              <CardDescription>Labor revenue and gross margin % over the last 12 months</CardDescription>
             </div>
             {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
               // Get current month name to exclude it from average
               const currentMonth = new Date().toLocaleString('default', { month: 'short' })
               const completeMonths = serviceData.monthlyLaborRevenue.filter(item => item.month !== currentMonth)
-              const average = completeMonths.length > 0 ? 
+              const avgRevenue = completeMonths.length > 0 ? 
                 completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
+              const avgMargin = completeMonths.length > 0 ? 
+                completeMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / completeMonths.length : 0
               return (
                 <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Average</p>
-                  <p className="text-lg font-semibold">{formatCurrency(average)}</p>
+                  <div className="mb-2">
+                    <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                    <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg Margin</p>
+                    <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                  </div>
                 </div>
               )
             })()}
@@ -117,50 +128,91 @@ const ServiceReport = ({ user, onNavigate }) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={serviceData?.monthlyLaborRevenue || []} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <ComposedChart data={serviceData?.monthlyLaborRevenue || []} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis 
+                yAxisId="revenue"
+                orientation="left"
                 tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+              />
+              <YAxis
+                yAxisId="margin"
+                orientation="right"
+                domain={[0, 100]}
+                tickFormatter={(value) => `${value}%`}
               />
               <RechartsTooltip 
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length && serviceData?.monthlyLaborRevenue) {
                     const data = serviceData.monthlyLaborRevenue
                     const currentIndex = data.findIndex(item => item.month === label)
-                    const currentValue = payload[0].value
-                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                    const currentData = data[currentIndex]
+                    const previousData = currentIndex > 0 ? data[currentIndex - 1] : null
                     
                     return (
                       <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                        <p className="font-semibold mb-1">{label}</p>
-                        <p className="text-blue-600">
-                          {formatCurrency(currentValue)}
-                          {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                        </p>
+                        <p className="font-semibold mb-2">{label}</p>
+                        <div className="space-y-1">
+                          <p className="text-blue-600">
+                            Revenue: {formatCurrency(currentData.amount)}
+                            {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
+                          </p>
+                          <p className="text-green-600">
+                            Margin: {currentData.margin || 0}%
+                            {previousData && currentData.margin && previousData.margin && (
+                              <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
+                                ({currentData.margin > previousData.margin ? '+' : ''}{(currentData.margin - previousData.margin).toFixed(1)}pp)
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
                     )
                   }
                   return null
                 }}
               />
-              <Bar dataKey="amount" fill="#3b82f6" />
+              <Legend />
+              <Bar yAxisId="revenue" dataKey="amount" fill="#3b82f6" name="Revenue" />
+              <Line 
+                yAxisId="margin" 
+                type="monotone" 
+                dataKey="margin" 
+                stroke="#10b981" 
+                strokeWidth={3}
+                name="Gross Margin %"
+                dot={{ fill: '#10b981', r: 4 }}
+              />
               {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
                 // Only calculate average for complete months (exclude current month)
                 const currentMonth = new Date().toLocaleString('default', { month: 'short' })
                 const completeMonths = serviceData.monthlyLaborRevenue.filter(item => item.month !== currentMonth)
-                const average = completeMonths.length > 0 ? 
+                const avgRevenue = completeMonths.length > 0 ? 
                   completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
+                const avgMargin = completeMonths.length > 0 ? 
+                  completeMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / completeMonths.length : 0
+                
                 return (
-                  <ReferenceLine 
-                    y={average} 
-                    stroke="#666" 
-                    strokeDasharray="3 3"
-                    label={{ value: "Average", position: "insideTopRight" }}
-                  />
+                  <>
+                    <ReferenceLine 
+                      yAxisId="revenue"
+                      y={avgRevenue} 
+                      stroke="#666" 
+                      strokeDasharray="3 3"
+                      label={{ value: "Avg Revenue", position: "insideTopLeft" }}
+                    />
+                    <ReferenceLine 
+                      yAxisId="margin"
+                      y={avgMargin} 
+                      stroke="#059669" 
+                      strokeDasharray="3 3"
+                      label={{ value: "Avg Margin", position: "insideTopRight" }}
+                    />
+                  </>
                 )
               })()}
-            </BarChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
