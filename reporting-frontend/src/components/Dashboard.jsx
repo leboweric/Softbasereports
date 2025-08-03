@@ -1066,11 +1066,29 @@ const Dashboard = ({ user }) => {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className={`text-2xl font-bold ${
+                  dashboardData?.active_customers_change > 0 ? 'text-green-600' :
+                  dashboardData?.active_customers_change < 0 ? 'text-red-600' :
+                  'text-gray-900'
+                }`}>
                   {dashboardData?.active_customers || 0}
+                  {dashboardData?.active_customers_change !== undefined && dashboardData?.active_customers_change !== 0 && (
+                    <span className={`ml-2 text-sm font-normal ${
+                      dashboardData.active_customers_change > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {dashboardData.active_customers_change > 0 ? '+' : ''}{dashboardData.active_customers_change}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Customers with invoices this month
+                  Customers with invoices in last 30 days
+                  {dashboardData?.active_customers_change_percent !== undefined && dashboardData?.active_customers_change_percent !== 0 && (
+                    <span className={`ml-1 ${
+                      dashboardData.active_customers_change_percent > 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      ({dashboardData.active_customers_change_percent > 0 ? '+' : ''}{dashboardData.active_customers_change_percent.toFixed(1)}% vs prev month)
+                    </span>
+                  )}
                 </p>
               </CardContent>
             </Card>

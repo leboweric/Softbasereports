@@ -73,20 +73,42 @@ class DashboardQueries:
             return 0
     
     def get_active_customers(self):
-        """Get count of active customers in last 30 days"""
+        """Get count of active customers in last 30 days with previous month comparison"""
         try:
+            # Calculate previous month period
+            sixty_days_ago = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
+            
             query = f"""
-            SELECT COUNT(DISTINCT BillToName) as active_customers
+            SELECT 
+                COUNT(DISTINCT CASE 
+                    WHEN InvoiceDate >= '{self.thirty_days_ago}' 
+                    THEN BillToName 
+                    ELSE NULL 
+                END) as active_customers,
+                COUNT(DISTINCT CASE 
+                    WHEN InvoiceDate >= '{sixty_days_ago}' AND InvoiceDate < '{self.thirty_days_ago}' 
+                    THEN BillToName 
+                    ELSE NULL 
+                END) as previous_month_customers
             FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.thirty_days_ago}'
+            WHERE InvoiceDate >= '{sixty_days_ago}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
             """
             result = self.db.execute_query(query)
-            return int(result[0]['active_customers']) if result else 0
+            if result:
+                current = int(result[0]['active_customers'])
+                previous = int(result[0]['previous_month_customers'])
+                return {
+                    'current': current,
+                    'previous': previous,
+                    'change': current - previous,
+                    'change_percent': ((current - previous) / previous * 100) if previous > 0 else 0
+                }
+            return {'current': 0, 'previous': 0, 'change': 0, 'change_percent': 0}
         except Exception as e:
             logger.error(f"Active customers query failed: {str(e)}")
-            return 0
+            return {'current': 0, 'previous': 0, 'change': 0, 'change_percent': 0}
     
     def get_total_customers(self):
         """Get total number of customers in the system"""
@@ -911,11 +933,27 @@ def get_dashboard_summary_optimized():
         uninvoiced_data = results.get('uninvoiced', {'value': 0, 'count': 0})
         wo_types_data = results.get('work_order_types', {'types': [], 'total_value': 0, 'total_count': 0})
         
+        # Handle active customers data (could be int or dict)
+        active_customers_data = results.get('active_customers', 0)
+        if isinstance(active_customers_data, dict):
+            active_customers_info = active_customers_data
+        else:
+            # Fallback for old format
+            active_customers_info = {
+                'current': active_customers_data,
+                'previous': 0,
+                'change': 0,
+                'change_percent': 0
+            }
+        
         response_data = {
             'total_sales': results.get('total_sales', 0),
             'ytd_sales': results.get('ytd_sales', 0),
             'inventory_count': results.get('inventory_count', 0),
-            'active_customers': results.get('active_customers', 0),
+            'active_customers': active_customers_info['current'],
+            'active_customers_change': active_customers_info['change'],
+            'active_customers_change_percent': active_customers_info['change_percent'],
+            'active_customers_previous': active_customers_info['previous'],
             'total_customers': results.get('total_customers', 0),
             'uninvoiced_work_orders': int(uninvoiced_data['value']),
             'uninvoiced_count': uninvoiced_data['count'],
