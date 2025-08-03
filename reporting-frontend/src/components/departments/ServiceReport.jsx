@@ -233,6 +233,31 @@ const ServiceReport = ({ user, onNavigate }) => {
                 dot={false}
                 legendType="none"
               />
+              {/* Add ReferenceLine for the label */}
+              {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
+                const currentDate = new Date()
+                const currentMonthIndex = currentDate.getMonth()
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                const currentMonthName = monthNames[currentMonthIndex]
+                const currentMonthDataIndex = serviceData.monthlyLaborRevenue.findIndex(item => item.month === currentMonthName)
+                const historicalMonths = currentMonthDataIndex > 0 
+                  ? serviceData.monthlyLaborRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                  : serviceData.monthlyLaborRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                const avgRevenue = historicalMonths.length > 0 ? 
+                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                
+                if (avgRevenue > 0) {
+                  return (
+                    <ReferenceLine 
+                      yAxisId="revenue"
+                      y={avgRevenue} 
+                      stroke="none"
+                      label={{ value: "Average", position: "insideTopRight" }}
+                    />
+                  )
+                }
+                return null
+              })()}
               <Line 
                 yAxisId="margin" 
                 type="monotone" 
