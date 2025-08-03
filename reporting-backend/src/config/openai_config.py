@@ -47,8 +47,9 @@ class OpenAIConfig:
     
     PARTS (ben002.Parts) - NOT NationalParts!:
     - PartNo, Description, Supplier, Cost, List (list price), 
-    - OnHand (quantity on hand), BinLocation, PartType
+    - OnHand (quantity on hand), Bin (bin location - NOT BinLocation), PartType
     - Note: The actual parts inventory is in Parts table, NOT NationalParts
+    - Note: Use 'Bin' column for bin location, NOT 'BinLocation'
     
     AR DETAIL (ben002.ARDetail):
     - Customer, InvoiceNo, InvoiceDate, OriginalAmount, Balance, 

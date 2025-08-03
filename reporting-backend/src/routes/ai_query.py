@@ -79,8 +79,104 @@ def generate_sql_from_analysis(analysis):
     
     # IMPORTANT: Check for specific query patterns FIRST before generic ones
     
+    # Parts & Service exact query matches - MUST BE FIRST to prevent generic handlers from catching them
+    if ('which linde parts were we not able to fill last week' in intent or 
+        'which linde parts were we not able to fill last week' in original_query):
+        # Get date filter for last week
+        last_week_start = datetime.now() - timedelta(days=7)
+        last_week_filter = f"wo.OpenDate >= '{last_week_start.strftime('%Y-%m-%d')}'"
+        
+        return f"""
+        SELECT DISTINCT
+            wp.PartNo,
+            wp.Description,
+            wp.WONo,
+            wo.OpenDate,
+            wp.Qty as QuantityOrdered,
+            wp.BOQty as BackorderQty,
+            p.OnHand as CurrentStock,
+            c.Name as CustomerName
+        FROM ben002.WOParts wp
+        INNER JOIN ben002.WO wo ON wp.WONo = wo.WONo
+        LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        WHERE {last_week_filter}
+        AND (wp.PartNo LIKE 'L%' OR UPPER(wp.Description) LIKE '%LINDE%')
+        AND wp.BOQty > 0
+        ORDER BY wo.OpenDate DESC, wp.PartNo
+        """
+    
+    elif ('show me all service appointments for tomorrow' in intent or 'service appointments for tomorrow' in intent or
+          'show me all service appointments for tomorrow' in original_query or 'service appointments for tomorrow' in original_query):
+        tomorrow = datetime.now() + timedelta(days=1)
+        tomorrow_str = tomorrow.strftime('%Y-%m-%d')
+        
+        return f"""
+        SELECT 
+            wo.WONo,
+            wo.Type as ServiceType,
+            c.Name as CustomerName,
+            wo.UnitNo,
+            wo.SerialNo,
+            wo.ScheduleDate as AppointmentTime,
+            wo.Technician,
+            wo.Comments
+        FROM ben002.WO wo
+        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        WHERE wo.Type = 'S'
+        AND CAST(wo.ScheduleDate AS DATE) = '{tomorrow_str}'
+        AND wo.ClosedDate IS NULL
+        ORDER BY wo.ScheduleDate
+        """
+    
+    elif ('what parts do we need to reorder' in intent or
+          'what parts do we need to reorder' in original_query):
+        return """
+        SELECT 
+            p.PartNo,
+            p.Description,
+            p.OnHand as CurrentStock,
+            p.MinStock as ReorderPoint,
+            pd.Demand1 + pd.Demand2 + pd.Demand3 as Last3MonthsDemand,
+            CASE 
+                WHEN p.OnHand <= p.MinStock THEN 'REORDER NOW'
+                WHEN p.OnHand <= (p.MinStock * 1.5) THEN 'LOW STOCK'
+                ELSE 'OK'
+            END as Status
+        FROM ben002.Parts p
+        LEFT JOIN ben002.PartsDemand pd ON p.PartNo = pd.PartNo
+        WHERE p.OnHand <= p.MinStock
+           OR p.OnHand <= (p.MinStock * 1.5)
+        ORDER BY 
+            CASE 
+                WHEN p.OnHand <= p.MinStock THEN 0
+                ELSE 1
+            END,
+            p.OnHand ASC
+        """
+    
+    elif ('which technician completed the most services this month' in intent or
+          'which technician completed the most services this month' in original_query):
+        month_filter = f"wo.ClosedDate >= '{datetime.now().strftime('%Y-%m-01')}'"
+        
+        return f"""
+        SELECT TOP 10
+            wo.Technician,
+            COUNT(DISTINCT wo.WONo) as CompletedServices,
+            SUM(wl.Hours) as TotalHours,
+            AVG(wl.Hours) as AvgHoursPerService
+        FROM ben002.WO wo
+        LEFT JOIN ben002.WOLabor wl ON wo.WONo = wl.WONo
+        WHERE wo.Type = 'S'
+        AND wo.ClosedDate IS NOT NULL
+        AND {month_filter}
+        GROUP BY wo.Technician
+        HAVING wo.Technician IS NOT NULL
+        ORDER BY CompletedServices DESC
+        """
+    
     # First check for exact query matches to ensure proper handling
-    if 'which customers have active rentals' in intent:
+    elif 'which customers have active rentals' in intent:
         return """
         SELECT DISTINCT
             c.Name as CustomerName,
