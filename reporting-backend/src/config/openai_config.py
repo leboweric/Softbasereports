@@ -22,8 +22,8 @@ class OpenAIConfig:
     - CreditLimit, Balance, YTD (year-to-date sales), LastSaleDate, LastPaymentDate
     
     EQUIPMENT (ben002.Equipment):
-    - StockNo, SerialNo, Make, Model, ModelYear, RentalStatus (In Stock, Sold, Rented),
-    - Customer (foreign key), AcquiredDate, SaleAmount, Hours, Location
+    - UnitNo (equipment identifier), SerialNo, Make, Model, ModelYear, RentalStatus (In Stock, Sold, Rented),
+    - Id (primary key), Cost, Sell, Location, ControlNo (matches UnitNo)
     
     INVOICES (ben002.InvoiceReg):
     - InvoiceNo, InvoiceDate, Customer (boolean field, NOT customer ID), BillToName, 

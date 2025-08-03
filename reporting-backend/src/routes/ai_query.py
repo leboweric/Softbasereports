@@ -526,18 +526,18 @@ def generate_sql_from_analysis(analysis):
             
             return f"""
             SELECT TOP 100
-                StockNo,
+                UnitNo,
                 SerialNo,
                 Make,
                 Model,
                 ModelYear,
                 RentalStatus,
                 Location,
-                Hours,
-                SaleAmount
+                Cost,
+                Sell
             FROM ben002.Equipment
             {where_clause}
-            ORDER BY StockNo DESC
+            ORDER BY UnitNo DESC
             """
     
     # Handle work order queries
