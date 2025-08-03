@@ -484,6 +484,24 @@ const PartsReport = ({ user, onNavigate }) => {
                     }}
                   />
                   <Legend />
+                  <Bar yAxisId="revenue" dataKey="amount" fill="#10b981" name="Revenue" />
+                  <Line 
+                    yAxisId="margin" 
+                    type="monotone" 
+                    dataKey="margin" 
+                    stroke="#f59e0b" 
+                    strokeWidth={3}
+                    name="Gross Margin %"
+                    dot={(props) => {
+                      const { payload } = props;
+                      // Only render dots for months with actual margin data
+                      if (payload.margin !== null && payload.margin !== undefined) {
+                        return <circle {...props} fill="#f59e0b" r={4} />;
+                      }
+                      return null;
+                    }}
+                    connectNulls={false}
+                  />
                   {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
                     // Only include historical months (before current month)
                     const currentDate = new Date()
@@ -515,6 +533,7 @@ const PartsReport = ({ user, onNavigate }) => {
                           stroke="#666" 
                           strokeDasharray="3 3"
                           label={{ value: "Avg Revenue", position: "insideTopLeft" }}
+                          isFront={true}
                         />
                         <ReferenceLine 
                           yAxisId="margin"
@@ -522,28 +541,11 @@ const PartsReport = ({ user, onNavigate }) => {
                           stroke="#d97706" 
                           strokeDasharray="3 3"
                           label={{ value: "Avg Margin", position: "insideTopRight" }}
+                          isFront={true}
                         />
                       </>
                     )
                   })()}
-                  <Bar yAxisId="revenue" dataKey="amount" fill="#10b981" name="Revenue" />
-                  <Line 
-                    yAxisId="margin" 
-                    type="monotone" 
-                    dataKey="margin" 
-                    stroke="#f59e0b" 
-                    strokeWidth={3}
-                    name="Gross Margin %"
-                    dot={(props) => {
-                      const { payload } = props;
-                      // Only render dots for months with actual margin data
-                      if (payload.margin !== null && payload.margin !== undefined) {
-                        return <circle {...props} fill="#f59e0b" r={4} />;
-                      }
-                      return null;
-                    }}
-                    connectNulls={false}
-                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
