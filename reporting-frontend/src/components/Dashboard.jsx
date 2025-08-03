@@ -199,7 +199,11 @@ const Dashboard = ({ user }) => {
       if (response.ok) {
         const data = await response.json()
         console.log('Customer risk data fetched:', data)
+        console.log('Number of customers analyzed:', data.customers?.length)
+        console.log('Customers with risk:', data.customers?.filter(c => c.risk_level !== 'none')?.length)
         setCustomerRiskData(data)
+      } else {
+        console.error('Customer risk API failed:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Error fetching customer risk data:', error)
@@ -222,8 +226,17 @@ const Dashboard = ({ user }) => {
   }
 
   const getCustomerRisk = (customerName) => {
-    if (!customerRiskData?.customers) return null
-    return customerRiskData.customers.find(c => c.customer_name === customerName)
+    if (!customerRiskData?.customers) {
+      console.log('No customer risk data available')
+      return null
+    }
+    const risk = customerRiskData.customers.find(c => c.customer_name === customerName)
+    if (!risk) {
+      console.log(`No risk data found for customer: ${customerName}`)
+    } else if (risk.risk_level !== 'none') {
+      console.log(`Risk found for ${customerName}:`, risk.risk_level, risk.risk_factors)
+    }
+    return risk
   }
 
   const downloadActiveCustomers = async (period = 'last30') => {
@@ -1085,6 +1098,12 @@ const Dashboard = ({ user }) => {
                 <CardTitle>Top 10 Customers</CardTitle>
                 <CardDescription>
                   By fiscal year-to-date sales
+                  {customerRiskData && (
+                    <span className="text-xs text-blue-600 block mt-1">
+                      Risk analysis: {customerRiskData.customers?.length || 0} customers analyzed, 
+                      {customerRiskData.customers?.filter(c => c.risk_level !== 'none')?.length || 0} at risk
+                    </span>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
