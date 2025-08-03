@@ -73,6 +73,8 @@ def generate_sql_from_analysis(analysis):
     logger.info(f"Query analysis: type={query_type}, tables={tables}, intent={intent}")
     logger.info(f"Original query: {original_query}")
     logger.info(f"Full analysis object: {analysis}")
+    logger.info(f"Intent lowercased: {intent}")
+    logger.info(f"Checking if Polaris query matches...")
     
     # Parse time period from intent
     time_period = parse_time_period(intent)
@@ -167,9 +169,9 @@ def generate_sql_from_analysis(analysis):
     # Customer Insights exact query matches
     elif ('give me the serial numbers of all forklifts that polaris rents from us' in intent or
           'give me the serial numbers of all forklifts that polaris rents from us' in original_query or
-          ('polaris' in intent.lower() and 'rents' in intent and 'serial' in intent) or
           ('polaris' in intent.lower() and 'serial' in intent) or
-          ('list serial numbers of rented forklifts' in intent and 'polaris' in original_query) or
+          ('polaris' in intent.lower() and 'forklift' in intent) or
+          ('serial' in intent and 'forklift' in intent and 'polaris' in intent.lower()) or
           ('serial' in intent and 'forklift' in intent and 'rent' in intent)):
         # Check if asking about specific customer
         if 'polaris' in intent.lower() or 'polaris' in (original_query or '').lower():
@@ -363,7 +365,7 @@ def generate_sql_from_analysis(analysis):
             DATEADD(day, 30, wo.OpenDate) as ExpectedReturnDate,
             DATEDIFF(day, DATEADD(day, 30, wo.OpenDate), GETDATE()) as DaysOverdue
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
         WHERE e.RentalStatus = 'Rented'
         AND wo.Type = 'R'
@@ -619,7 +621,7 @@ def generate_sql_from_analysis(analysis):
             rc.EndDate as DueDate,
             DATEDIFF(day, rc.EndDate, GETDATE()) as DaysOverdue
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         INNER JOIN ben002.RentalContract rc ON e.UnitNo = rc.UnitNo
         WHERE e.RentalStatus = 'Rented'
         AND rc.EndDate < GETDATE()
