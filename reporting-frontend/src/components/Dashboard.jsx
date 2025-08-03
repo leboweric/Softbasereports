@@ -1231,10 +1231,10 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
       </div>
-        </TabsContent>
+    </TabsContent>
 
-        {/* Customers Tab */}
-        <TabsContent value="customers" className="space-y-4">
+    {/* Customers Tab */}
+    <TabsContent value="customers" className="space-y-4">
           {/* Customer Metrics */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -1374,10 +1374,10 @@ const Dashboard = ({ user }) => {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </TabsContent>
+    </TabsContent>
 
-        {/* Work Orders Tab */}
-        <TabsContent value="workorders" className="space-y-4">
+    {/* Work Orders Tab */}
+    <TabsContent value="workorders" className="space-y-4">
           {/* Work Order Metrics */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
@@ -1558,8 +1558,8 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-      </Tabs>
+    </TabsContent>
+  </Tabs>
     </div>
   )
 }
