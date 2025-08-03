@@ -50,6 +50,7 @@ const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [paceData, setPaceData] = useState(null)
+  const [forecastData, setForecastData] = useState(null)
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
   const [visibleWOTypes, setVisibleWOTypes] = useState({
@@ -105,6 +106,8 @@ const Dashboard = ({ user }) => {
         
         // Fetch pace data
         fetchPaceData()
+        // Fetch forecast data
+        fetchForecastData()
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -152,6 +155,24 @@ const Dashboard = ({ user }) => {
     }
   }
 
+  const fetchForecastData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/dashboard/sales-forecast'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        console.log('Forecast data fetched:', data)
+        setForecastData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching forecast data:', error)
+    }
+  }
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -577,6 +598,104 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Sales Forecast Card */}
+      {forecastData && (
+        <Card className="border-2 border-blue-100 bg-blue-50/20">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-xl">August Sales Forecast</CardTitle>
+                <CardDescription>
+                  AI-powered prediction based on historical patterns
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Confidence Level</p>
+                <p className="text-lg font-semibold">{forecastData.forecast?.confidence_level || '68%'}</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Forecast Numbers */}
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Projected Month End Total</p>
+                  <p className="text-3xl font-bold text-blue-600">
+                    {formatCurrency(forecastData.forecast?.projected_total || 0)}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Range: {formatCurrency(forecastData.forecast?.forecast_low || 0)} - {formatCurrency(forecastData.forecast?.forecast_high || 0)}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">MTD Sales</p>
+                    <p className="text-xl font-semibold">{formatCurrency(forecastData.current_month?.mtd_sales || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Days Remaining</p>
+                    <p className="text-xl font-semibold">{forecastData.current_month?.days_remaining || 0}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-muted-foreground">Daily Run Rate Needed</p>
+                  <p className="text-xl font-semibold">{formatCurrency(forecastData.analysis?.daily_run_rate_needed || 0)}/day</p>
+                </div>
+              </div>
+              
+              {/* Key Factors */}
+              <div>
+                <h4 className="font-semibold mb-3">Key Factors</h4>
+                <div className="space-y-2">
+                  {forecastData.factors?.map((factor, index) => (
+                    <div key={index} className="flex items-start space-x-2">
+                      <div className={`mt-1 w-2 h-2 rounded-full ${
+                        factor.impact === 'positive' ? 'bg-green-500' : 
+                        factor.impact === 'negative' ? 'bg-red-500' : 
+                        'bg-gray-400'
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{factor.factor}</p>
+                        <p className="text-xs text-muted-foreground">{factor.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Progress Indicator */}
+                <div className="mt-4">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>Month Progress</span>
+                    <span>{forecastData.current_month?.month_progress_pct || 0}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 transition-all duration-500"
+                      style={{ width: `${forecastData.current_month?.month_progress_pct || 0}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                    <span>Sales vs Forecast</span>
+                    <span>{forecastData.analysis?.actual_pct_of_forecast || 0}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${
+                        (forecastData.analysis?.actual_pct_of_forecast || 0) > 100 ? 'bg-green-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${Math.min(100, forecastData.analysis?.actual_pct_of_forecast || 0)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts - First Row */}
       <div className="grid gap-4 md:grid-cols-2">
