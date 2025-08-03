@@ -88,7 +88,7 @@ def generate_sql_from_analysis(analysis):
             COUNT(*) as quantity_in_stock
         FROM ben002.Equipment
         WHERE (RentalStatus = 'In Stock' OR RentalStatus = 'Available')
-        AND (UPPER(Make) LIKE '%LINDE%' OR UPPER(Model) LIKE '%LINDE%' OR UPPER(Description) LIKE '%LINDE%')
+        AND (UPPER(Make) LIKE '%LINDE%' OR UPPER(Model) LIKE '%LINDE%')
         """
     
     elif ('which parts are running low on inventory' in intent or
@@ -140,7 +140,7 @@ def generate_sql_from_analysis(analysis):
         WHERE (e.RentalStatus = 'In Stock' OR e.RentalStatus = 'Available')
         AND e.Sell > 0
         AND e.Sell <= {price_limit}
-        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Description) LIKE '%FORK%' OR e.Type = 'FORKLIFT')
+        AND UPPER(e.Model) LIKE '%FORK%'
         ORDER BY e.Sell ASC
         """
     
@@ -937,8 +937,8 @@ def generate_sql_from_analysis(analysis):
                 Name,
                 City,
                 State,
-                Balance,
-                YTD as YTDSales
+                YTD as YTDSales,
+                CreditLimit
             FROM ben002.Customer
             ORDER BY YTD DESC
             """
@@ -950,10 +950,10 @@ def generate_sql_from_analysis(analysis):
                 City,
                 State,
                 CreditLimit,
-                Balance
+                YTD
             FROM ben002.Customer
-            WHERE Balance > 0
-            ORDER BY Balance DESC
+            WHERE YTD > 0
+            ORDER BY YTD DESC
             """
     
     # Handle equipment/inventory/forklift queries
