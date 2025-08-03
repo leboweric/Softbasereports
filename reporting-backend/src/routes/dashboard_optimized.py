@@ -516,11 +516,14 @@ class DashboardQueries:
     def get_top_customers(self):
         """Get top 10 customers by fiscal YTD sales"""
         try:
-            # First get total sales for the fiscal year
+            # First get total sales for the fiscal year (excluding non-customers)
             total_sales_query = f"""
             SELECT SUM(GrandTotal) as total_sales
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '{self.fiscal_year_start}'
+            AND BillToName IS NOT NULL
+            AND BillToName != ''
+            AND BillToName NOT IN ('Wells Fargo Financial', 'Maintenance contract', 'Rental Fleet')
             """
             total_result = self.db.execute_query(total_sales_query)
             total_fiscal_sales = float(total_result[0]['total_sales']) if total_result and total_result[0]['total_sales'] else 0
@@ -537,6 +540,7 @@ class DashboardQueries:
             WHERE InvoiceDate >= '{self.fiscal_year_start}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
+            AND BillToName NOT IN ('Wells Fargo Financial', 'Maintenance contract', 'Rental Fleet')
             GROUP BY 
                 CASE 
                     WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
