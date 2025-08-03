@@ -300,8 +300,10 @@ Rows: 3,331
 #### ARDetail  
 Rows: 8,413
 - Accounts receivable detail transactions
-- Key fields: CustomerNo, Amount, InvoiceNo, CheckNo, DueDate, Balance
-- Tracks customer payments and outstanding balances
+- Key fields: CustomerNo (nvarchar), Amount (decimal), InvoiceNo (int), CheckNo, Due (datetime)
+- Other fields: EntryType, EntryDate, EffectiveDate, ApplyToInvoiceNo, AccountNo
+- NO Balance column - use Amount field for outstanding amounts
+- Join with Customer using CustomerNo = Customer.Number
 
 #### ChartOfAccounts
 Rows: 309

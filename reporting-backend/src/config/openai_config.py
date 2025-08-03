@@ -58,9 +58,11 @@ class OpenAIConfig:
     - Note: Parts table has NO Supplier column
     
     AR DETAIL (ben002.ARDetail):
-    - CustomerNo, InvoiceNo, Amount, ApplyToInvoiceNo, CheckNo,
-    - Due (due date), EffectiveDate, EntryDate, EntryType
-    - Note: Use Amount field for outstanding balances, NOT Balance
+    - CustomerNo (nvarchar), InvoiceNo (int), Amount (decimal), ApplyToInvoiceNo, CheckNo,
+    - Due (datetime - due date), EffectiveDate, EntryDate, EntryType
+    - NO Balance column - use Amount field for outstanding balances
+    - Join with Customer using CustomerNo = Customer.Number
+    - EntryType indicates transaction type (invoice, payment, credit, etc.)
     
     WORK ORDERS (ben002.WO):
     - WONo (primary key), OpenDate, ClosedDate, CompletedDate, 
