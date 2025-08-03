@@ -34,5 +34,5 @@ ENV PYTHONPATH=/app
 # Expose port
 EXPOSE 5000
 
-# Start command
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "src.main:app"]
+# Start command - using shell form to expand $PORT variable
+CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 4 --timeout 120 src.main:app
