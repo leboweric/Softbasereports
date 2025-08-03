@@ -191,20 +191,16 @@ const RentalReport = ({ user }) => {
         const data = await response.json()
         
         // Convert to CSV
-        const headers = ['Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Description', 'Location', 'Cost', 'List Price', 'Rental Status', 'Last Rental Date', 'Hour Meter']
+        const headers = ['Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Cost', 'List Price', 'Rental Status']
         const rows = data.forklifts.map(forklift => [
           forklift.unit_no,
           forklift.serial_no,
           forklift.make,
           forklift.model,
           forklift.model_year || '',
-          forklift.description,
-          forklift.location || '',
           forklift.cost,
           forklift.list_price,
-          forklift.rental_status,
-          forklift.last_rental_date || '',
-          forklift.hour_meter || ''
+          forklift.rental_status
         ])
         
         const csvContent = [

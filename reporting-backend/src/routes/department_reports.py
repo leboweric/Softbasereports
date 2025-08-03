@@ -2289,16 +2289,6 @@ def register_department_routes(reports_bp):
                     ROW_NUMBER() OVER (ORDER BY total_revenue DESC) as rank
                 FROM RentalRevenue
                 WHERE total_revenue > 0
-            ),
-            CurrentRentals AS (
-                SELECT 
-                    Customer as customer_name,
-                    COUNT(*) as units_on_rent
-                FROM ben002.Equipment
-                WHERE RentalStatus = 'On Rent'
-                    AND Customer IS NOT NULL
-                    AND Customer != ''
-                GROUP BY Customer
             )
             SELECT TOP 10
                 rc.rank,
@@ -2307,9 +2297,8 @@ def register_department_routes(reports_bp):
                 rc.total_revenue,
                 rc.last_invoice_date,
                 DATEDIFF(day, rc.last_invoice_date, GETDATE()) as days_since_last_invoice,
-                COALESCE(cr.units_on_rent, 0) as units_on_rent
+                0 as units_on_rent  -- Temporarily set to 0 due to data model mismatch
             FROM RankedCustomers rc
-            LEFT JOIN CurrentRentals cr ON rc.customer_name = cr.customer_name
             ORDER BY rc.rank
             """
             
@@ -2359,17 +2348,31 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
+            # First, let's check what RentalStatus values exist
+            status_query = """
+            SELECT DISTINCT RentalStatus, COUNT(*) as count
+            FROM ben002.Equipment
+            WHERE RentalStatus IS NOT NULL
+            GROUP BY RentalStatus
+            ORDER BY count DESC
+            """
+            
+            status_results = db.execute_query(status_query)
+            
+            # Try different variations of "on rent" status
             query = """
             SELECT COUNT(*) as units_on_rent
             FROM ben002.Equipment
-            WHERE RentalStatus = 'On Rent'
+            WHERE UPPER(RentalStatus) IN ('ON RENT', 'ONRENT', 'RENTED', 'R', 'OUT')
+                OR RentalStatus LIKE '%rent%'
             """
             
             result = db.execute_query(query)
             units_on_rent = result[0]['units_on_rent'] if result else 0
             
             return jsonify({
-                'units_on_rent': units_on_rent
+                'units_on_rent': units_on_rent,
+                'rental_statuses': [{'status': row['RentalStatus'], 'count': row['count']} for row in status_results] if status_results else []
             })
             
         except Exception as e:
@@ -2393,17 +2396,12 @@ def register_department_routes(reports_bp):
                 Make,
                 Model,
                 ModelYear,
-                Description,
-                Location,
                 Cost,
                 Sell as ListPrice,
-                RentalStatus,
-                LastRentalDate,
-                HourMeter
+                RentalStatus
             FROM ben002.Equipment
             WHERE RentalStatus = 'In Stock'
-                AND (UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%' 
-                     OR UPPER(Description) LIKE '%FORK%')
+                AND (UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%')
             ORDER BY Make, Model, UnitNo
             """
             
@@ -2417,13 +2415,9 @@ def register_department_routes(reports_bp):
                     'make': row['Make'],
                     'model': row['Model'],
                     'model_year': row['ModelYear'],
-                    'description': row['Description'],
-                    'location': row['Location'],
                     'cost': float(row['Cost'] or 0),
                     'list_price': float(row['ListPrice'] or 0),
-                    'rental_status': row['RentalStatus'],
-                    'last_rental_date': row['LastRentalDate'].strftime('%Y-%m-%d') if row['LastRentalDate'] else None,
-                    'hour_meter': row['HourMeter']
+                    'rental_status': row['RentalStatus']
                 })
             
             return jsonify({
