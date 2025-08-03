@@ -631,10 +631,11 @@ const Dashboard = ({ user }) => {
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="sales" className="space-y-4">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-lg grid-cols-4">
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
+          <TabsTrigger value="forecast">Forecast</TabsTrigger>
         </TabsList>
 
         {/* Sales Tab */}
@@ -672,119 +673,6 @@ const Dashboard = ({ user }) => {
             </Card>
           </div>
 
-          {/* Sales Forecast Card */}
-          {forecastData && (
-            <Card className="border-2 border-blue-100 bg-blue-50/20">
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-xl">{getMonthName(forecastData.current_month?.month)} Sales Forecast</CardTitle>
-                <CardDescription>
-                  AI-powered prediction based on historical patterns
-                  {forecastLastUpdated && (
-                    <span className="text-xs text-muted-foreground block mt-1">
-                      Last updated: {forecastLastUpdated.toLocaleTimeString()}
-                    </span>
-                  )}
-                </CardDescription>
-              </div>
-              <div className="text-right space-y-2">
-                <div>
-                  <p className="text-sm text-muted-foreground">Confidence Level</p>
-                  <p className="text-lg font-semibold">{forecastData.forecast?.confidence_level || '68%'}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={fetchForecastData}
-                  className="h-8 px-2"
-                  title="Refresh forecast"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Forecast Numbers */}
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Projected Month End Total</p>
-                  <p className="text-3xl font-bold text-blue-600">
-                    {formatCurrency(forecastData.forecast?.projected_total || 0)}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Range: {formatCurrency(forecastData.forecast?.forecast_low || 0)} - {formatCurrency(forecastData.forecast?.forecast_high || 0)}
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">MTD Sales</p>
-                    <p className="text-xl font-semibold">{formatCurrency(forecastData.current_month?.mtd_sales || 0)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Days Remaining</p>
-                    <p className="text-xl font-semibold">{forecastData.current_month?.days_remaining || 0}</p>
-                  </div>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-muted-foreground">Daily Run Rate Needed</p>
-                  <p className="text-xl font-semibold">{formatCurrency(forecastData.analysis?.daily_run_rate_needed || 0)}/day</p>
-                </div>
-              </div>
-              
-              {/* Key Factors */}
-              <div>
-                <h4 className="font-semibold mb-3">Key Factors</h4>
-                <div className="space-y-2">
-                  {forecastData.factors?.map((factor, index) => (
-                    <div key={index} className="flex items-start space-x-2">
-                      <div className={`mt-1 w-2 h-2 rounded-full ${
-                        factor.impact === 'positive' ? 'bg-green-500' : 
-                        factor.impact === 'negative' ? 'bg-red-500' : 
-                        'bg-gray-400'
-                      }`} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{factor.factor}</p>
-                        <p className="text-xs text-muted-foreground">{factor.description}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Progress Indicator */}
-                <div className="mt-4">
-                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                    <span>Month Progress</span>
-                    <span>{forecastData.current_month?.month_progress_pct || 0}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 transition-all duration-500"
-                      style={{ width: `${forecastData.current_month?.month_progress_pct || 0}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>Sales vs Forecast</span>
-                    <span>{forecastData.analysis?.actual_pct_of_forecast || 0}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-500 ${
-                        (forecastData.analysis?.actual_pct_of_forecast || 0) > 100 ? 'bg-green-500' : 'bg-blue-500'
-                      }`}
-                      style={{ width: `${Math.min(100, forecastData.analysis?.actual_pct_of_forecast || 0)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-            </Card>
-          )}
 
           {/* Charts - First Row */}
           <div className="grid gap-4 md:grid-cols-2">
@@ -1398,6 +1286,123 @@ const Dashboard = ({ user }) => {
             </Card>
           </div>
     </TabsContent>
+
+        {/* Forecast Tab */}
+        <TabsContent value="forecast" className="space-y-4">
+          {/* Sales Forecast Card */}
+          {forecastData && (
+            <Card className="border-2 border-blue-100 bg-blue-50/20">
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-xl">{getMonthName(forecastData.current_month?.month)} Sales Forecast</CardTitle>
+                <CardDescription>
+                  AI-powered prediction based on historical patterns
+                  {forecastLastUpdated && (
+                    <span className="text-xs text-muted-foreground block mt-1">
+                      Last updated: {forecastLastUpdated.toLocaleTimeString()}
+                    </span>
+                  )}
+                </CardDescription>
+              </div>
+              <div className="text-right space-y-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Confidence Level</p>
+                  <p className="text-lg font-semibold">{forecastData.forecast?.confidence_level || '68%'}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={fetchForecastData}
+                  className="h-8 px-2"
+                  title="Refresh forecast"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Forecast Numbers */}
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Projected Month End Total</p>
+                  <p className="text-3xl font-bold text-blue-600">
+                    {formatCurrency(forecastData.forecast?.projected_total || 0)}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Range: {formatCurrency(forecastData.forecast?.forecast_low || 0)} - {formatCurrency(forecastData.forecast?.forecast_high || 0)}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">MTD Sales</p>
+                    <p className="text-xl font-semibold">{formatCurrency(forecastData.current_month?.mtd_sales || 0)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Days Remaining</p>
+                    <p className="text-xl font-semibold">{forecastData.current_month?.days_remaining || 0}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-muted-foreground">Daily Run Rate Needed</p>
+                  <p className="text-xl font-semibold">{formatCurrency(forecastData.analysis?.daily_run_rate_needed || 0)}/day</p>
+                </div>
+              </div>
+              
+              {/* Key Factors */}
+              <div>
+                <h4 className="font-semibold mb-3">Key Factors</h4>
+                <div className="space-y-2">
+                  {forecastData.factors?.map((factor, index) => (
+                    <div key={index} className="flex items-start space-x-2">
+                      <div className={`mt-1 w-2 h-2 rounded-full ${
+                        factor.impact === 'positive' ? 'bg-green-500' : 
+                        factor.impact === 'negative' ? 'bg-red-500' : 
+                        'bg-gray-400'
+                      }`} />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{factor.factor}</p>
+                        <p className="text-xs text-muted-foreground">{factor.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Progress Indicator */}
+                <div className="mt-4">
+                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                    <span>Month Progress</span>
+                    <span>{forecastData.current_month?.month_progress_pct || 0}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 transition-all duration-500"
+                      style={{ width: `${forecastData.current_month?.month_progress_pct || 0}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                    <span>Sales vs Forecast</span>
+                    <span>{forecastData.analysis?.actual_pct_of_forecast || 0}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${
+                        (forecastData.analysis?.actual_pct_of_forecast || 0) > 100 ? 'bg-green-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${Math.min(100, forecastData.analysis?.actual_pct_of_forecast || 0)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+            </Card>
+          )}
+        </TabsContent>
   </Tabs>
     </div>
   )
