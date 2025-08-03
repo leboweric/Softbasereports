@@ -484,24 +484,6 @@ const PartsReport = ({ user, onNavigate }) => {
                     }}
                   />
                   <Legend />
-                  <Bar yAxisId="revenue" dataKey="amount" fill="#10b981" name="Revenue" />
-                  <Line 
-                    yAxisId="margin" 
-                    type="monotone" 
-                    dataKey="margin" 
-                    stroke="#059669" 
-                    strokeWidth={3}
-                    name="Gross Margin %"
-                    dot={(props) => {
-                      const { payload } = props;
-                      // Only render dots for months with actual margin data
-                      if (payload.margin !== null && payload.margin !== undefined) {
-                        return <circle {...props} fill="#059669" r={4} />;
-                      }
-                      return null;
-                    }}
-                    connectNulls={false}
-                  />
                   {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
                     // Only include historical months (before current month)
                     const currentDate = new Date()
@@ -544,6 +526,24 @@ const PartsReport = ({ user, onNavigate }) => {
                       </>
                     )
                   })()}
+                  <Bar yAxisId="revenue" dataKey="amount" fill="#10b981" name="Revenue" />
+                  <Line 
+                    yAxisId="margin" 
+                    type="monotone" 
+                    dataKey="margin" 
+                    stroke="#059669" 
+                    strokeWidth={3}
+                    name="Gross Margin %"
+                    dot={(props) => {
+                      const { payload } = props;
+                      // Only render dots for months with actual margin data
+                      if (payload.margin !== null && payload.margin !== undefined) {
+                        return <circle {...props} fill="#059669" r={4} />;
+                      }
+                      return null;
+                    }}
+                    connectNulls={false}
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
