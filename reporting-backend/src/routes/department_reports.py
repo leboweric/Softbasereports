@@ -2127,4 +2127,110 @@ def register_department_routes(reports_bp):
                 'type': 'rental_monthly_revenue_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/debug-revenue', methods=['GET'])
+    @jwt_required()
+    def debug_rental_revenue():
+        """Debug endpoint to check rental revenue data"""
+        try:
+            db = get_db()
+            
+            # Check what departments exist
+            dept_query = """
+            SELECT DISTINCT Department, COUNT(*) as count
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+            GROUP BY Department
+            ORDER BY Department
+            """
+            
+            dept_results = db.execute_query(dept_query)
+            departments = [{'dept': row['Department'], 'count': row['count']} for row in dept_results]
+            
+            # Check rental data with different approaches
+            rental_queries = {
+                'by_department': """
+                SELECT 
+                    YEAR(InvoiceDate) as year,
+                    MONTH(InvoiceDate) as month,
+                    COUNT(*) as invoice_count,
+                    SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
+                    SUM(COALESCE(RentalCost, 0)) as rental_cost
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
+                    AND Department = 'RENTAL'
+                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                ORDER BY year, month
+                """,
+                
+                'by_salecode': """
+                SELECT 
+                    YEAR(InvoiceDate) as year,
+                    MONTH(InvoiceDate) as month,
+                    SaleCode,
+                    COUNT(*) as invoice_count,
+                    SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
+                    AND SaleCode IN ('RENTR', 'RENTRS', 'RENTPM')
+                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), SaleCode
+                ORDER BY year, month, SaleCode
+                """,
+                
+                'any_rental_revenue': """
+                SELECT TOP 10
+                    InvoiceDate,
+                    Department,
+                    SaleCode,
+                    RentalTaxable,
+                    RentalNonTax,
+                    RentalCost,
+                    GrandTotal
+                FROM ben002.InvoiceReg
+                WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
+                ORDER BY InvoiceDate DESC
+                """,
+                
+                'sample_invoices': """
+                SELECT TOP 10
+                    InvoiceDate,
+                    Department,
+                    SaleCode,
+                    LaborTaxable,
+                    LaborNonTax,
+                    PartsTaxable,
+                    PartsNonTax,
+                    RentalTaxable,
+                    RentalNonTax,
+                    EquipmentTaxable,
+                    EquipmentNonTax,
+                    GrandTotal
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= DATEADD(month, -1, GETDATE())
+                ORDER BY InvoiceDate DESC
+                """
+            }
+            
+            results = {}
+            for key, query in rental_queries.items():
+                try:
+                    result = db.execute_query(query)
+                    if key in ['by_department', 'by_salecode']:
+                        results[key] = [dict(row) for row in result]
+                    else:
+                        results[key] = [dict(row) for row in result]
+                except Exception as e:
+                    results[key] = f"Error: {str(e)}"
+            
+            return jsonify({
+                'departments': departments,
+                'rental_data': results,
+                'message': 'Debug data for rental revenue troubleshooting'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'debug_error'
+            }), 500
+
 

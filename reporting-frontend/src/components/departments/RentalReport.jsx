@@ -94,6 +94,20 @@ const RentalReport = ({ user }) => {
   const fetchMonthlyRevenueData = async () => {
     try {
       const token = localStorage.getItem('token')
+      
+      // First, let's debug what data exists
+      const debugResponse = await fetch(apiUrl('/api/reports/departments/rental/debug-revenue'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (debugResponse.ok) {
+        const debugData = await debugResponse.json()
+        console.log('RENTAL DEBUG DATA:', debugData)
+      }
+      
+      // Now fetch the actual data
       const response = await fetch(apiUrl('/api/reports/departments/rental/monthly-revenue'), {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -102,6 +116,7 @@ const RentalReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
+        console.log('RENTAL MONTHLY DATA:', data)
         setMonthlyRevenueData(data.monthlyRentalRevenue || [])
       }
     } catch (error) {
