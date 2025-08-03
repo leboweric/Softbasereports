@@ -471,7 +471,7 @@ def generate_sql_from_analysis(analysis):
             c.Salesman1 as salesperson,
             SUM(i.GrandTotal) as sales
         FROM ben002.InvoiceReg i
-        INNER JOIN ben002.Customer c ON i.Customer = c.Number
+        INNER JOIN ben002.Customer c ON i.Customer = c.ID
         WHERE {date_filter}
         AND c.Salesman1 IS NOT NULL
         GROUP BY c.Salesman1
@@ -918,7 +918,7 @@ def generate_sql_from_analysis(analysis):
             SUM(i.GrandTotal) as TotalRevenue,
             AVG(i.GrandTotal) as AverageOrderValue
         FROM ben002.InvoiceReg i
-        INNER JOIN ben002.Customer c ON i.Customer = c.Number
+        INNER JOIN ben002.Customer c ON i.Customer = c.ID
         WHERE i.InvoiceDate >= DATEADD(year, -1, GETDATE())
         GROUP BY c.Name
         HAVING COUNT(DISTINCT i.InvoiceNo) > 0
