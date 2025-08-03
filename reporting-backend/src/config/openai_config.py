@@ -25,25 +25,25 @@ class OpenAIConfig:
     - Note: NO Balance or YTD columns - use ARDetail for outstanding balances
     
     EQUIPMENT (ben002.Equipment):
-    - UnitNo (equipment identifier - NOT StockNo), SerialNo, Make, Model, ModelYear, 
-    - RentalStatus (In Stock, Sold, Rented), Customer (customer ID - FK to Customer.ID),
-    - Cost, Sell, Location, FloorPlan, Capacity, 
-    - Note: Use UnitNo for equipment lookups, NOT StockNo
-    - Note: Use Customer field to join with Customer.ID for rental relationships
-    - Note: Equipment has NO Description field
+    - UnitNo (nvarchar - equipment identifier), SerialNo, Make, Model, ModelYear,
+    - RentalStatus (In Stock, Sold, Rented), Location, SubLocation
+    - Customer (bit - boolean flag), CustomerNo (nvarchar - actual customer number)
+    - Cost (decimal), Sell (decimal), Retail (decimal)
+    - DayRent, WeekRent, MonthRent, FourWeekRent (rental rates)
+    - NO Description field! NO StockNo field!
+    - Join with Customer using CustomerNo = Customer.Number (NOT Customer field which is boolean)
     
     INVOICES (ben002.InvoiceReg):
-    - InvoiceNo, InvoiceDate, Customer (FK to Customer.ID), BillToName (customer name string), 
-    - GrandTotal (total invoice amount), SalesTax, InvoiceStatus, 
-    - Department (department field, e.g. 'Service'), 
-    - SaleCode (more specific: 'SVE'=Service, 'PRT'=Parts, 'RENTR'=Rental Repairs, 'RENTRS'=Rental Repairs Shop)
-    - LaborTaxable, LaborNonTax (labor revenue)
-    - PartsTaxable, PartsNonTax (parts revenue)
-    - MiscTaxable, MiscNonTax (misc revenue)
-    - Note: Customer field joins with Customer.ID
-    - Note: For customer name in queries, use BillToName field
-    - Note: For total labor revenue use (LaborTaxable + LaborNonTax)
-    - Note: For total parts revenue use (PartsTaxable + PartsNonTax)
+    - InvoiceNo (int PK), InvoiceDate, BillTo, BillToName (customer name string),
+    - Customer (bit NOT NULL - boolean flag, NOT a customer ID!)
+    - GrandTotal (total invoice amount), TotalTax
+    - SaleCode (e.g. 'SVE'=Service, 'PRT'=Parts), SaleDept (smallint), SaleBranch
+    - LaborTaxable, LaborNonTax, PartsTaxable, PartsNonTax (revenue fields)
+    - MiscTaxable, MiscNonTax, EquipmentTaxable, EquipmentNonTax
+    - RentalTaxable, RentalNonTax
+    - NO Department field! Use SaleCode/SaleDept
+    - Customer field is boolean - join invoices to customers via separate table
+    - For customer name in queries, use BillToName field
     
     SERVICE CLAIMS (ben002.ServiceClaim):
     - ServiceClaimNo, OpenDate, CloseDate, Customer (customer ID), 
@@ -51,11 +51,13 @@ class OpenAIConfig:
     - Note: Use CloseDate IS NULL to find open claims
     
     PARTS (ben002.Parts) - NOT NationalParts!:
-    - PartNo, Description, Cost, List (list price), 
-    - OnHand (quantity on hand), Bin (bin location - NOT BinLocation), PartType
-    - Note: The actual parts inventory is in Parts table, NOT NationalParts
-    - Note: Use 'Bin' column for bin location, NOT 'BinLocation'
-    - Note: Parts table has NO Supplier column
+    - Id (bigint PK), PartNo (nvarchar), Warehouse, Description,
+    - OnHand (decimal - quantity on hand), MinStock, MaxStock, AbsoluteMin
+    - Cost (decimal), List (decimal - list price), Discount, Wholesale
+    - Bin, Bin1, Bin2, Bin3, Bin4 (location fields)
+    - Allocated, OnOrder, BackOrder (inventory tracking)
+    - NO Supplier column! NO QtyOnHand - use OnHand!
+    - NO Price field - use List for list price!
     
     AR DETAIL (ben002.ARDetail):
     - CustomerNo (nvarchar), InvoiceNo (int), Amount (decimal), ApplyToInvoiceNo, CheckNo,

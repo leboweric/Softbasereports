@@ -322,8 +322,12 @@ Rows: 2,227
 #### Equipment
 Rows: 21,291
 - Equipment inventory master
-- Key fields: UnitNo (NOT StockNo!), SerialNo, Make, Model, Cost, Sell, RentalStatus, Customer
-- Tracks all equipment with rental status, costs, and customer assignments
+- Key fields: UnitNo (nvarchar), SerialNo (nvarchar), Make, Model, ModelYear, RentalStatus
+- Financial: Cost (decimal), Sell (decimal), Retail (decimal)
+- Customer: Customer (bit), CustomerNo (nvarchar) - Customer is boolean flag, CustomerNo is the actual customer number
+- Rental: RentalStatus, DayRent, WeekRent, MonthRent, Location
+- NO Description field! NO StockNo field!
+- Join with Customer using CustomerNo = Customer.Number
 
 #### EquipmentHistory
 Rows: 15,369
@@ -340,9 +344,14 @@ Rows: 64,180
 #### InvoiceReg
 Rows: 5,148
 - Invoice register/header
-- Key fields: InvoiceNo, Customer, BillToName, InvoiceDate, GrandTotal, Department, SaleCode
-- Revenue fields: LaborTaxable, LaborNonTax, PartsTaxable, PartsNonTax
-- Note: Customer field is boolean, use BillToName for customer name
+- Key fields: InvoiceNo (int PK), InvoiceDate (datetime), GrandTotal (decimal)
+- Customer info: Customer (bit NOT NULL), BillTo (nvarchar), BillToName (nvarchar)
+- Department: SaleCode (nvarchar), SaleBranch (smallint), SaleDept (smallint)
+- Revenue fields: LaborTaxable, LaborNonTax, PartsTaxable, PartsNonTax, MiscTaxable, MiscNonTax
+- Equipment/Rental: EquipmentTaxable, EquipmentNonTax, RentalTaxable, RentalNonTax
+- Tax fields: TotalTax, StateTax, CityTax, CountyTax, LocalTax
+- NO Department field! Use SaleCode/SaleDept instead
+- Customer field is a boolean flag - actual customer info is in separate table
 
 #### PM (Preventive Maintenance)
 Rows: 2,792
@@ -353,8 +362,13 @@ Rows: 2,792
 #### Parts
 Rows: 11,413  
 - Parts inventory master (NOT NationalParts!)
-- Key fields: PartNo, Description, OnHand (NOT QtyOnHand), Cost, List (NOT Price), Bin
-- This is the actual parts inventory table
+- Key fields: Id (bigint PK), PartNo (nvarchar), Warehouse (nvarchar), Description (nvarchar)
+- Inventory: OnHand (decimal), Allocated, OnOrder, BackOrder
+- Pricing: Cost (decimal), List (decimal), Discount, Internal, Warranty, Wholesale
+- Stock levels: MinStock (decimal), MaxStock (decimal), AbsoluteMin
+- Location: Bin, Bin1, Bin2, Bin3, Bin4
+- NO Supplier field! NO QtyOnHand field - use OnHand!
+- NO Price field - use List for list price!
 
 #### PartsCost
 Rows: 1,945

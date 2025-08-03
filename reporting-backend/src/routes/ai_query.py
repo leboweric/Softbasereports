@@ -179,7 +179,7 @@ def generate_sql_from_analysis(analysis):
                 e.Make,
                 e.Model
             FROM ben002.Equipment e
-            INNER JOIN ben002.Customer c ON e.Customer = c.ID
+            INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
             WHERE e.RentalStatus = 'Rented'
             AND UPPER(c.Name) LIKE '%POLARIS%'
             AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
@@ -383,7 +383,7 @@ def generate_sql_from_analysis(analysis):
             e.ModelYear,
             c.Name as CustomerName
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
@@ -399,7 +399,7 @@ def generate_sql_from_analysis(analysis):
             e.Model,
             c.Name as CustomerName
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         ORDER BY c.Name, e.UnitNo
         """
@@ -492,16 +492,15 @@ def generate_sql_from_analysis(analysis):
         else:
             date_filter = get_date_filter(time_period)
         
-        # Join with Customer table to get salesperson info
+        # Can't join InvoiceReg to Customer - Customer field is boolean
+        # Would need a separate mapping table or use BillToName
         return f"""
         SELECT TOP 1
-            c.Salesman1 as salesperson,
+            i.BillToName as salesperson,
             SUM(i.GrandTotal) as sales
         FROM ben002.InvoiceReg i
-        INNER JOIN ben002.Customer c ON i.Customer = c.ID
         WHERE {date_filter}
-        AND c.Salesman1 IS NOT NULL
-        GROUP BY c.Salesman1
+        GROUP BY i.BillToName
         ORDER BY sales DESC
         """
     
@@ -642,7 +641,7 @@ def generate_sql_from_analysis(analysis):
             e.RentalStatus,
             c.Name as CustomerName
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
@@ -938,18 +937,17 @@ def generate_sql_from_analysis(analysis):
     
     elif ('average' in intent and 'order' in intent and 'value' in intent and 'customer' in intent):
         # Average order value by customer
+        # InvoiceReg.Customer is boolean - use BillToName
         return """
         SELECT TOP 20
-            c.Name as CustomerName,
-            COUNT(DISTINCT i.InvoiceNo) as TotalOrders,
-            SUM(i.GrandTotal) as TotalRevenue,
-            AVG(i.GrandTotal) as AverageOrderValue
+            i.BillToName as customer,
+            AVG(i.GrandTotal) as average_value
         FROM ben002.InvoiceReg i
-        INNER JOIN ben002.Customer c ON i.Customer = c.ID
         WHERE i.InvoiceDate >= DATEADD(year, -1, GETDATE())
-        GROUP BY c.Name
+        AND i.BillToName IS NOT NULL
+        GROUP BY i.BillToName
         HAVING COUNT(DISTINCT i.InvoiceNo) > 0
-        ORDER BY AverageOrderValue DESC
+        ORDER BY average_value DESC
         """
     
     
