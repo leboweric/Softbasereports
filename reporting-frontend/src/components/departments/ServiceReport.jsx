@@ -104,15 +104,28 @@ const ServiceReport = ({ user, onNavigate }) => {
               <CardDescription>Labor revenue and gross margin % over the last 12 months</CardDescription>
             </div>
             {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
-              // Only include March through July 2025 for average calculation
-              const monthsToInclude = ['Mar', 'Apr', 'May', 'Jun', 'Jul']
-              const completeMonths = serviceData.monthlyLaborRevenue.filter(item => 
-                monthsToInclude.includes(item.month) && item.amount > 0
-              )
-              const avgRevenue = completeMonths.length > 0 ? 
-                completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
-              const avgMargin = completeMonths.length > 0 ? 
-                completeMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / completeMonths.length : 0
+              // Only include historical months (before current month)
+              const currentDate = new Date()
+              const currentMonthIndex = currentDate.getMonth()
+              const currentYear = currentDate.getFullYear()
+              
+              // Month names in order
+              const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+              const currentMonthName = monthNames[currentMonthIndex]
+              
+              // Get index of current month in the data
+              const currentMonthDataIndex = serviceData.monthlyLaborRevenue.findIndex(item => item.month === currentMonthName)
+              
+              // Filter to only include months before current month with positive revenue
+              const historicalMonths = currentMonthDataIndex > 0 
+                ? serviceData.monthlyLaborRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                : serviceData.monthlyLaborRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
+              
+              const avgRevenue = historicalMonths.length > 0 ? 
+                historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+              const avgMargin = historicalMonths.length > 0 ? 
+                historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
+              
               return (
                 <div className="text-right">
                   <div className="mb-2">
@@ -187,15 +200,27 @@ const ServiceReport = ({ user, onNavigate }) => {
                 dot={{ fill: '#10b981', r: 4 }}
               />
               {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
-                // Only include March through July 2025 for average calculation
-                const monthsToInclude = ['Mar', 'Apr', 'May', 'Jun', 'Jul']
-                const completeMonths = serviceData.monthlyLaborRevenue.filter(item => 
-                  monthsToInclude.includes(item.month) && item.amount > 0
-                )
-                const avgRevenue = completeMonths.length > 0 ? 
-                  completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
-                const avgMargin = completeMonths.length > 0 ? 
-                  completeMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / completeMonths.length : 0
+                // Only include historical months (before current month)
+                const currentDate = new Date()
+                const currentMonthIndex = currentDate.getMonth()
+                const currentYear = currentDate.getFullYear()
+                
+                // Month names in order
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                const currentMonthName = monthNames[currentMonthIndex]
+                
+                // Get index of current month in the data
+                const currentMonthDataIndex = serviceData.monthlyLaborRevenue.findIndex(item => item.month === currentMonthName)
+                
+                // Filter to only include months before current month with positive revenue
+                const historicalMonths = currentMonthDataIndex > 0 
+                  ? serviceData.monthlyLaborRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                  : serviceData.monthlyLaborRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                
+                const avgRevenue = historicalMonths.length > 0 ? 
+                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                const avgMargin = historicalMonths.length > 0 ? 
+                  historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
                 
                 return (
                   <>
