@@ -36,7 +36,8 @@ import {
   Users,
   Package,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
@@ -47,6 +48,7 @@ const RentalReport = ({ user }) => {
   const [inventoryCount, setInventoryCount] = useState(0)
   const [monthlyRevenueData, setMonthlyRevenueData] = useState(null)
   const [topCustomers, setTopCustomers] = useState(null)
+  const [downloadingForklifts, setDownloadingForklifts] = useState(false)
 
   useEffect(() => {
     fetchRentalData()
@@ -155,6 +157,59 @@ const RentalReport = ({ user }) => {
     }).format(amount)
   }
 
+  const handleDownloadForklifts = async () => {
+    setDownloadingForklifts(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/available-forklifts'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Convert to CSV
+        const headers = ['Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Description', 'Location', 'Cost', 'List Price', 'Rental Status', 'Last Rental Date', 'Hour Meter']
+        const rows = data.forklifts.map(forklift => [
+          forklift.unit_no,
+          forklift.serial_no,
+          forklift.make,
+          forklift.model,
+          forklift.model_year || '',
+          forklift.description,
+          forklift.location || '',
+          forklift.cost,
+          forklift.list_price,
+          forklift.rental_status,
+          forklift.last_rental_date || '',
+          forklift.hour_meter || ''
+        ])
+        
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n')
+        
+        // Download file
+        const blob = new Blob([csvContent], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `available_forklifts_${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('Error downloading forklift data:', error)
+    } finally {
+      setDownloadingForklifts(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -228,20 +283,32 @@ const RentalReport = ({ user }) => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-
-      {/* Rental Units Available Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Rental Units Available</CardTitle>
-          <Package className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{inventoryCount}</div>
-          <p className="text-xs text-muted-foreground">
-            Units ready to rent
-          </p>
-        </CardContent>
-      </Card>
+          {/* Top section with small cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Rental Units Available Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Rental Units Available</CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{inventoryCount}</div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Units ready to rent
+                </p>
+                <Button 
+                  onClick={handleDownloadForklifts}
+                  disabled={downloadingForklifts}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadingForklifts ? 'Downloading...' : 'Download 74 Forklifts'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
 
       {/* Monthly Revenue & Margin */}
       <Card>
@@ -406,6 +473,11 @@ const RentalReport = ({ user }) => {
                     </p>
                     <p className="text-xs text-gray-500">
                       {customer.invoice_count} invoices
+                      {customer.units_on_rent > 0 && (
+                        <span className="ml-1 text-purple-600">
+                          • {customer.units_on_rent} units on rent
+                        </span>
+                      )}
                       {customer.days_since_last > 30 && (
                         <span className="ml-1 text-orange-600">
                           • {customer.days_since_last}d ago

@@ -2095,7 +2095,8 @@ def register_department_routes(reports_bp):
             month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             
-            monthly_data = []
+            # Convert results to dictionary for easy lookup
+            data_by_month = {}
             for row in results:
                 year = row['year']
                 month = row['month']
@@ -2110,12 +2111,36 @@ def register_department_routes(reports_bp):
                 if not is_current_or_future and rental_revenue > 0:
                     margin_percentage = round(((rental_revenue - rental_cost) / rental_revenue) * 100, 1)
                 
-                monthly_data.append({
+                month_key = f"{year}-{month}"
+                data_by_month[month_key] = {
                     'month': month_names[month - 1],
                     'amount': rental_revenue,
                     'cost': rental_cost,
                     'margin': margin_percentage
-                })
+                }
+            
+            # Generate full 12-month range (6 months back, current month, 5 months forward)
+            monthly_data = []
+            current_date = datetime.now()
+            
+            for i in range(-6, 6):  # -6 to +5 gives us 12 months total
+                # Calculate the target date
+                target_date = current_date + timedelta(days=i * 30.5)  # Approximate month offset
+                target_month = (current_date.month + i - 1) % 12 + 1
+                target_year = current_date.year + (current_date.month + i - 1) // 12
+                
+                month_key = f"{target_year}-{target_month}"
+                
+                if month_key in data_by_month:
+                    monthly_data.append(data_by_month[month_key])
+                else:
+                    # Add empty data for missing months (including future)
+                    monthly_data.append({
+                        'month': month_names[target_month - 1],
+                        'amount': 0,
+                        'cost': 0,
+                        'margin': None
+                    })
             
             return jsonify({
                 'monthlyRentalRevenue': monthly_data
@@ -2241,7 +2266,7 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get top 10 rental customers by total revenue
+            # Get top 10 rental customers by total revenue with current rental count
             query = """
             WITH RentalRevenue AS (
                 SELECT 
@@ -2264,16 +2289,28 @@ def register_department_routes(reports_bp):
                     ROW_NUMBER() OVER (ORDER BY total_revenue DESC) as rank
                 FROM RentalRevenue
                 WHERE total_revenue > 0
+            ),
+            CurrentRentals AS (
+                SELECT 
+                    Customer as customer_name,
+                    COUNT(*) as units_on_rent
+                FROM ben002.Equipment
+                WHERE RentalStatus = 'On Rent'
+                    AND Customer IS NOT NULL
+                    AND Customer != ''
+                GROUP BY Customer
             )
             SELECT TOP 10
-                rank,
-                customer_name,
-                invoice_count,
-                total_revenue,
-                last_invoice_date,
-                DATEDIFF(day, last_invoice_date, GETDATE()) as days_since_last_invoice
-            FROM RankedCustomers
-            ORDER BY rank
+                rc.rank,
+                rc.customer_name,
+                rc.invoice_count,
+                rc.total_revenue,
+                rc.last_invoice_date,
+                DATEDIFF(day, rc.last_invoice_date, GETDATE()) as days_since_last_invoice,
+                COALESCE(cr.units_on_rent, 0) as units_on_rent
+            FROM RankedCustomers rc
+            LEFT JOIN CurrentRentals cr ON rc.customer_name = cr.customer_name
+            ORDER BY rc.rank
             """
             
             results = db.execute_query(query)
@@ -2300,7 +2337,8 @@ def register_department_routes(reports_bp):
                     'revenue': revenue,
                     'percentage': round(percentage, 1),
                     'last_invoice_date': row['last_invoice_date'].strftime('%Y-%m-%d') if row['last_invoice_date'] else None,
-                    'days_since_last': row['days_since_last_invoice']
+                    'days_since_last': row['days_since_last_invoice'],
+                    'units_on_rent': row['units_on_rent']
                 })
             
             return jsonify({
@@ -2312,6 +2350,65 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'error': str(e),
                 'type': 'rental_top_customers_error'
+            }), 500
+
+    @reports_bp.route('/departments/rental/available-forklifts', methods=['GET'])
+    @jwt_required()
+    def get_available_forklifts():
+        """Get list of available forklifts for download"""
+        try:
+            db = get_db()
+            
+            # Get all available forklifts
+            query = """
+            SELECT 
+                UnitNo,
+                SerialNo,
+                Make,
+                Model,
+                ModelYear,
+                Description,
+                Location,
+                Cost,
+                Sell as ListPrice,
+                RentalStatus,
+                LastRentalDate,
+                HourMeter
+            FROM ben002.Equipment
+            WHERE RentalStatus = 'In Stock'
+                AND (UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%' 
+                     OR UPPER(Description) LIKE '%FORK%')
+            ORDER BY Make, Model, UnitNo
+            """
+            
+            results = db.execute_query(query)
+            
+            forklifts = []
+            for row in results:
+                forklifts.append({
+                    'unit_no': row['UnitNo'],
+                    'serial_no': row['SerialNo'],
+                    'make': row['Make'],
+                    'model': row['Model'],
+                    'model_year': row['ModelYear'],
+                    'description': row['Description'],
+                    'location': row['Location'],
+                    'cost': float(row['Cost'] or 0),
+                    'list_price': float(row['ListPrice'] or 0),
+                    'rental_status': row['RentalStatus'],
+                    'last_rental_date': row['LastRentalDate'].strftime('%Y-%m-%d') if row['LastRentalDate'] else None,
+                    'hour_meter': row['HourMeter']
+                })
+            
+            return jsonify({
+                'forklifts': forklifts,
+                'count': len(forklifts)
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'available_forklifts_error'
             }), 500
 
 
