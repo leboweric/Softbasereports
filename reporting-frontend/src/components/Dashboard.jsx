@@ -997,6 +997,85 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Customer Charts */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Top 10 Customers</CardTitle>
+                <CardDescription>
+                  By fiscal year-to-date sales
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {dashboardData?.top_customers?.map((customer) => (
+                    <div key={customer.rank} className="flex items-center">
+                      <div className="w-8 text-sm font-medium text-muted-foreground">
+                        {customer.rank}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {customer.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {customer.invoice_count} invoices
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-gray-900">
+                          {formatCurrency(customer.sales)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {customer.percentage}%
+                        </div>
+                      </div>
+                    </div>
+                  )) || (
+                    <p className="text-sm text-gray-500">No customer data available</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Active Customers Over Time</CardTitle>
+                <CardDescription>
+                  Number of customers with invoices each month
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={dashboardData?.monthly_active_customers?.slice(0, -1) || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-1">{label}</p>
+                            <p className="text-blue-600">
+                              {payload[0].value} active customers
+                            </p>
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="active_customers" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      name="Active Customers"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
     {/* Work Orders Tab */}
