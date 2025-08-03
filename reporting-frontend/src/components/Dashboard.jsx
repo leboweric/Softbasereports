@@ -56,15 +56,6 @@ const Dashboard = ({ user }) => {
   const [customerRiskData, setCustomerRiskData] = useState(null)
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
-  const [visibleWOTypes, setVisibleWOTypes] = useState({
-    service: true,
-    rental: true,
-    parts: true,
-    pm: true,
-    shop: true,
-    equipment: true
-  })
-  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
   const [includeCurrentMonthMargins, setIncludeCurrentMonthMargins] = useState(false)
 
   useEffect(() => {
@@ -291,16 +282,6 @@ const Dashboard = ({ user }) => {
     }
   }
 
-  const getFilteredWOData = () => {
-    if (!dashboardData?.monthly_work_orders_by_type) return []
-    
-    if (includeCurrentMonth) {
-      return dashboardData.monthly_work_orders_by_type
-    } else {
-      // Exclude the last month (current month)
-      return dashboardData.monthly_work_orders_by_type.slice(0, -1)
-    }
-  }
 
   const getFilteredMarginsData = () => {
     if (!dashboardData?.department_margins) return []
@@ -1301,123 +1282,7 @@ const Dashboard = ({ user }) => {
           </div>
 
           {/* Work Orders Charts */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Work Orders Trends by Type</CardTitle>
-                <CardDescription>
-                  Total value of work orders by type
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-4 mb-4">
-                  <div className="flex items-center space-x-2 pr-4 border-r">
-                    <Checkbox 
-                      id="current-month-filter-wo"
-                      checked={includeCurrentMonth}
-                      onCheckedChange={setIncludeCurrentMonth}
-                    />
-                    <label 
-                      htmlFor="current-month-filter-wo" 
-                      className="text-sm font-medium cursor-pointer"
-                    >
-                      Include Current Month
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {Object.entries(visibleWOTypes).map(([type, visible]) => (
-                      <div key={type} className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`toggle-wo-${type}`}
-                          checked={visible}
-                          onCheckedChange={(checked) => 
-                            setVisibleWOTypes(prev => ({ ...prev, [type]: checked }))
-                          }
-                        />
-                        <label 
-                          htmlFor={`toggle-wo-${type}`} 
-                          className="text-sm font-medium capitalize cursor-pointer flex items-center gap-1"
-                        >
-                          <div className={`w-3 h-3 rounded ${
-                            type === 'service' ? 'bg-blue-500' :
-                            type === 'rental' ? 'bg-green-500' :
-                            type === 'parts' ? 'bg-yellow-500' :
-                            type === 'pm' ? 'bg-purple-500' :
-                            type === 'shop' ? 'bg-pink-500' :
-                            'bg-gray-500'
-                          }`} />
-                          {type === 'pm' ? 'PM' : type}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={getFilteredWOData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                    <Tooltip content={<CustomTooltip />} />
-                    {visibleWOTypes.service && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="service_value" 
-                        stroke="#3b82f6" 
-                        name="Service"
-                        strokeWidth={2}
-                      />
-                    )}
-                    {visibleWOTypes.rental && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="rental_value" 
-                        stroke="#ef4444" 
-                        name="Rental"
-                        strokeWidth={2}
-                      />
-                    )}
-                    {visibleWOTypes.parts && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="parts_value" 
-                        stroke="#10b981" 
-                        name="Parts"
-                        strokeWidth={2}
-                      />
-                    )}
-                    {visibleWOTypes.pm && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="pm_value" 
-                        stroke="#f59e0b" 
-                        name="Preventive Maint."
-                        strokeWidth={2}
-                      />
-                    )}
-                    {visibleWOTypes.shop && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="shop_value" 
-                        stroke="#8b5cf6" 
-                        name="Shop"
-                        strokeWidth={2}
-                      />
-                    )}
-                    {visibleWOTypes.equipment && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="equipment_value" 
-                        stroke="#ec4899" 
-                        name="Equipment"
-                        strokeWidth={2}
-                      />
-                    )}
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
+          <div className="grid gap-4 md:grid-cols-1">
             <Card>
               <CardHeader>
                 <CardTitle>Total Open Work Orders Over Time</CardTitle>
