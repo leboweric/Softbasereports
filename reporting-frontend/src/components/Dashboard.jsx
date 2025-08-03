@@ -722,7 +722,7 @@ const Dashboard = ({ user }) => {
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
-          <TabsTrigger value="forecast">Forecast</TabsTrigger>
+          <TabsTrigger value="forecast">AI Analytics</TabsTrigger>
         </TabsList>
 
         {/* Sales Tab */}
@@ -1374,7 +1374,7 @@ const Dashboard = ({ user }) => {
           </div>
     </TabsContent>
 
-        {/* Forecast Tab */}
+        {/* AI Analytics Tab */}
         <TabsContent value="forecast" className="space-y-4">
           {/* Sales Forecast Card */}
           {forecastData && (
