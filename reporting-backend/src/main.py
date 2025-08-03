@@ -33,6 +33,7 @@ from src.routes.dashboard_pace import dashboard_pace_bp
 from src.routes.diagnostics.sales_pace_debug import sales_pace_debug_bp
 from src.routes.sales_forecast import sales_forecast_bp
 from src.routes.ai_predictions import ai_predictions_bp
+from src.routes.ai_query_test import ai_query_test_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -92,6 +93,7 @@ app.register_blueprint(dashboard_pace_bp)
 app.register_blueprint(sales_pace_debug_bp)
 app.register_blueprint(sales_forecast_bp)
 app.register_blueprint(ai_predictions_bp)
+app.register_blueprint(ai_query_test_bp, url_prefix='/api/ai-test')
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite

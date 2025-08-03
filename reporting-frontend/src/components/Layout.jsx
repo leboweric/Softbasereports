@@ -27,6 +27,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
     { name: 'Rental', icon: Truck, id: 'rental' },
     { name: 'Accounting', icon: Calculator, id: 'accounting' },
     { name: 'AI Query', icon: Sparkles, id: 'ai-query' },
+    { name: 'AI Query Tester', icon: BarChart3, id: 'ai-query-tester' },
     { name: 'Report Creator', icon: FileText, id: 'report-creator' },
     { name: 'Reports', icon: FileText, id: 'reports' },
     { name: 'Database Explorer', icon: Database, id: 'database-explorer' },
@@ -78,7 +79,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
                 >
                   <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   {item.name}
-                  {item.id === 'ai-query' && (
+                  {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
                     <Badge variant="secondary" className="ml-auto text-xs">
                       AI
                     </Badge>
@@ -149,7 +150,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
                 >
                   <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
                   {item.name}
-                  {item.id === 'ai-query' && (
+                  {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
                     <Badge variant="secondary" className="ml-auto text-xs">
                       AI
                     </Badge>
