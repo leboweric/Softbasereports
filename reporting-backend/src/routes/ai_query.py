@@ -87,8 +87,8 @@ def generate_sql_from_analysis(analysis):
             'Linde' as Make,
             COUNT(*) as quantity_in_stock
         FROM ben002.Equipment
-        WHERE RentalStatus = 'In Stock' 
-        AND (UPPER(Make) LIKE '%LINDE%' OR UPPER(Model) LIKE '%LINDE%')
+        WHERE (RentalStatus = 'In Stock' OR RentalStatus = 'Available')
+        AND (UPPER(Make) LIKE '%LINDE%' OR UPPER(Model) LIKE '%LINDE%' OR UPPER(Description) LIKE '%LINDE%')
         """
     
     elif ('which parts are running low on inventory' in intent or
@@ -137,9 +137,10 @@ def generate_sql_from_analysis(analysis):
             e.ModelYear,
             e.SerialNo
         FROM ben002.Equipment e
-        WHERE e.RentalStatus = 'In Stock'
+        WHERE (e.RentalStatus = 'In Stock' OR e.RentalStatus = 'Available')
         AND e.Sell > 0
         AND e.Sell <= {price_limit}
+        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Description) LIKE '%FORK%' OR e.Type = 'FORKLIFT')
         ORDER BY e.Sell ASC
         """
     
@@ -159,14 +160,14 @@ def generate_sql_from_analysis(analysis):
         INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
         WHERE wo.Type = 'S'
         AND wo.ClosedDate IS NULL
-        AND (e.RentalStatus = 'In Maintenance' OR e.RentalStatus = 'Service')
         ORDER BY wo.OpenDate DESC
         """
     
     # Customer Insights exact query matches
     elif ('give me the serial numbers of all forklifts that polaris rents from us' in intent or
           'give me the serial numbers of all forklifts that polaris rents from us' in original_query or
-          ('polaris' in intent and 'rents' in intent and 'serial' in intent)):
+          ('polaris' in intent.lower() and 'rents' in intent and 'serial' in intent) or
+          ('polaris' in intent.lower() and 'serial' in intent)):
         return """
         SELECT 
             e.SerialNo,
@@ -189,12 +190,14 @@ def generate_sql_from_analysis(analysis):
         return f"""
         SELECT 
             c.Name as customer,
-            c.LastSaleDate as last_purchase,
-            DATEDIFF(day, c.LastSaleDate, GETDATE()) as days_since_purchase
+            MAX(i.InvoiceDate) as last_purchase,
+            DATEDIFF(day, MAX(i.InvoiceDate), GETDATE()) as days_since_purchase
         FROM ben002.Customer c
-        WHERE c.LastSaleDate < '{six_months_ago.strftime('%Y-%m-%d')}'
-           OR c.LastSaleDate IS NULL
-        ORDER BY c.LastSaleDate ASC
+        LEFT JOIN ben002.InvoiceReg i ON c.ID = i.Customer
+        GROUP BY c.ID, c.Name
+        HAVING MAX(i.InvoiceDate) < '{six_months_ago.strftime('%Y-%m-%d')}'
+           OR MAX(i.InvoiceDate) IS NULL
+        ORDER BY last_purchase ASC
         """
     
     elif ('show me all customers with outstanding invoices' in intent or
@@ -206,7 +209,7 @@ def generate_sql_from_analysis(analysis):
             SUM(ar.Balance) as balance,
             COUNT(DISTINCT ar.InvoiceNo) as outstanding_invoices
         FROM ben002.ARDetail ar
-        INNER JOIN ben002.Customer c ON ar.Customer = c.Number
+        INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
         WHERE ar.Balance > 0
         GROUP BY c.Name
         HAVING SUM(ar.Balance) > 0
@@ -221,9 +224,7 @@ def generate_sql_from_analysis(analysis):
         return """
         SELECT TOP 100
             i.BillToName as customer,
-            COUNT(DISTINCT i.InvoiceNo) as total_orders,
-            AVG(i.GrandTotal) as average_value,
-            SUM(i.GrandTotal) as total_value
+            AVG(i.GrandTotal) as average_value
         FROM ben002.InvoiceReg i
         WHERE i.GrandTotal > 0
         GROUP BY i.BillToName
@@ -233,7 +234,8 @@ def generate_sql_from_analysis(analysis):
     
     # Parts & Service exact query matches - MUST BE FIRST to prevent generic handlers from catching them
     elif ('which linde parts were we not able to fill last week' in intent or 
-        'which linde parts were we not able to fill last week' in original_query):
+          'which linde parts were we not able to fill last week' in original_query or
+          ('linde' in intent.lower() and 'parts' in intent and 'not' in intent and 'fill' in intent)):
         # Get date filter for last week
         last_week_start = datetime.now() - timedelta(days=7)
         last_week_filter = f"wo.OpenDate >= '{last_week_start.strftime('%Y-%m-%d')}'"
@@ -328,17 +330,16 @@ def generate_sql_from_analysis(analysis):
         """
     
     # First check for exact query matches to ensure proper handling
-    elif 'which customers have active rentals' in intent:
+    elif ('which customers have active rentals' in intent or
+          'which customers have active rentals' in original_query):
         return """
         SELECT DISTINCT
-            c.Name as CustomerName,
-            COUNT(e.UnitNo) as ActiveRentals,
-            STRING_AGG(e.UnitNo + ' - ' + e.Make + ' ' + e.Model, ', ') as Equipment
+            c.Name as customer,
+            e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
         FROM ben002.Equipment e
         INNER JOIN ben002.Customer c ON e.Customer = c.ID
         WHERE e.RentalStatus = 'Rented'
-        GROUP BY c.Name
-        ORDER BY ActiveRentals DESC
+        ORDER BY c.Name, e.UnitNo
         """
     
     elif 'show me overdue rental returns' in intent or 'overdue rental returns' in intent:
@@ -379,9 +380,12 @@ def generate_sql_from_analysis(analysis):
         """
     
     # Handle top customers queries
-    elif ('top' in intent and 'customer' in intent) or ('best' in intent and 'customer' in intent):
+    elif ('top' in intent and 'customer' in intent) or ('best' in intent and 'customer' in intent) or \
+         ('who are our top' in intent and 'customers' in intent) or \
+         ('who are our top' in original_query and 'customers' in original_query):
         # Extract number if specified from both intent and original query
-        combined_text = intent + ' ' + analysis.get('original_query', '')
+        combined_text = intent + ' ' + (original_query if original_query else '')
+        import re  # Ensure re is available in this scope
         num_match = re.search(r'top\s+(\d+)', combined_text)
         if not num_match:
             # Also check for written numbers
@@ -438,23 +442,43 @@ def generate_sql_from_analysis(analysis):
         """
     
     # Handle salesperson queries
-    elif 'salesperson' in intent and ('sales' in intent or 'highest' in intent or 'top' in intent):
+    elif ('which salesperson had the highest sales last quarter' in intent or
+          'which salesperson had the highest sales last quarter' in original_query or
+          ('salesperson' in intent and ('sales' in intent or 'highest' in intent or 'top' in intent))):
         # Salesperson performance query
-        date_filter = get_date_filter(time_period)
+        # Check if asking for last quarter specifically
+        if 'last quarter' in intent or 'last quarter' in original_query:
+            # Calculate last quarter date range
+            today = datetime.now()
+            current_quarter = (today.month - 1) // 3 + 1
+            current_year = today.year
+            
+            if current_quarter == 1:
+                # Last quarter was Q4 of previous year
+                start_date = datetime(current_year - 1, 10, 1)
+                end_date = datetime(current_year, 1, 1)
+            else:
+                # Last quarter was previous quarter of current year
+                start_month = (current_quarter - 2) * 3 + 1
+                start_date = datetime(current_year, start_month, 1)
+                end_month = (current_quarter - 1) * 3 + 1
+                end_date = datetime(current_year, end_month, 1)
+            
+            date_filter = f"i.InvoiceDate >= '{start_date.strftime('%Y-%m-%d')}' AND i.InvoiceDate < '{end_date.strftime('%Y-%m-%d')}'"
+        else:
+            date_filter = get_date_filter(time_period)
         
         # Join with Customer table to get salesperson info
         return f"""
-        SELECT TOP 10
-            c.Salesman1 as Salesperson,
-            COUNT(DISTINCT i.InvoiceNo) as TotalInvoices,
-            SUM(i.GrandTotal) as TotalSales,
-            AVG(i.GrandTotal) as AverageSale
+        SELECT TOP 1
+            c.Salesman1 as salesperson,
+            SUM(i.GrandTotal) as sales
         FROM ben002.InvoiceReg i
         INNER JOIN ben002.Customer c ON i.Customer = c.ID
         WHERE {date_filter}
         AND c.Salesman1 IS NOT NULL
         GROUP BY c.Salesman1
-        ORDER BY TotalSales DESC
+        ORDER BY sales DESC
         """
     
     # Handle net income/profit queries first (these need special handling)
