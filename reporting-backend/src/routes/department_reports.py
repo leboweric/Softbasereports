@@ -2359,11 +2359,11 @@ def register_department_routes(reports_bp):
             
             status_results = db.execute_query(status_query)
             
-            # Count equipment with NULL/EMPTY status as "on rent"
+            # Count equipment with a CustomerNo as "on rent" (more likely ~400 units)
             query = """
             SELECT COUNT(*) as units_on_rent
             FROM ben002.Equipment
-            WHERE RentalStatus IS NULL OR RentalStatus = ''
+            WHERE CustomerNo IS NOT NULL AND CustomerNo != ''
             """
             
             result = db.execute_query(query)
@@ -2449,6 +2449,28 @@ def register_department_routes(reports_bp):
             
             results = db.execute_query(query)
             
+            # Also check if there's a separate rental tracking table or if CustomerNo indicates rental
+            customer_query = """
+            SELECT 
+                COUNT(*) as total_with_customer,
+                COUNT(CASE WHEN CustomerNo IS NOT NULL AND CustomerNo != '' THEN 1 END) as with_customer_no,
+                COUNT(CASE WHEN Customer = 1 THEN 1 END) as with_customer_flag
+            FROM ben002.Equipment
+            """
+            
+            customer_results = db.execute_query(customer_query)
+            
+            # Sample some NULL/EMPTY status records to understand what they are
+            sample_query = """
+            SELECT TOP 10
+                UnitNo, Make, Model, Cost, Sell, CustomerNo, Customer,
+                CASE WHEN CustomerNo IS NOT NULL AND CustomerNo != '' THEN 'Has CustomerNo' ELSE 'No CustomerNo' END as customer_status
+            FROM ben002.Equipment
+            WHERE RentalStatus IS NULL OR RentalStatus = ''
+            """
+            
+            sample_results = db.execute_query(sample_query)
+            
             statuses = []
             for row in results:
                 statuses.append({
@@ -2460,7 +2482,9 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'rental_statuses': statuses,
                 'total_equipment': sum(s['count'] for s in statuses),
-                'total_forklifts': sum(s['forklift_count'] for s in statuses)
+                'total_forklifts': sum(s['forklift_count'] for s in statuses),
+                'customer_info': customer_results[0] if customer_results else {},
+                'sample_null_status': [dict(row) for row in sample_results] if sample_results else []
             })
             
         except Exception as e:

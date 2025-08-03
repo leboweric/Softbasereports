@@ -290,6 +290,22 @@ const RentalReport = ({ user }) => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
         <p className="text-muted-foreground">Fleet management and rental analytics</p>
+        <Button 
+          onClick={async () => {
+            const token = localStorage.getItem('token')
+            const response = await fetch(apiUrl('/api/reports/departments/rental/rental-status-diagnostic'), {
+              headers: { 'Authorization': `Bearer ${token}` }
+            })
+            const data = await response.json()
+            console.log('RENTAL STATUS DIAGNOSTIC V2:', data)
+            alert('Check console for rental status diagnostic data')
+          }}
+          variant="outline"
+          size="sm"
+          className="mt-2"
+        >
+          Run Diagnostic V2 (Check Console)
+        </Button>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
