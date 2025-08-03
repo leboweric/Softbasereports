@@ -232,14 +232,56 @@ const AIQuery = () => {
                 <TableBody>
                   {results.results.map((row, index) => (
                     <TableRow key={index}>
-                      {Object.values(row).map((value, cellIndex) => (
-                        <TableCell key={cellIndex}>
-                          {typeof value === 'number' && value > 1000 
-                            ? new Intl.NumberFormat().format(value)
-                            : String(value)
+                      {Object.entries(row).map(([key, value], cellIndex) => {
+                        // Format based on column name and value type
+                        const formattedValue = (() => {
+                          // Currency columns
+                          if (typeof value === 'number' && (
+                            key.toLowerCase().includes('revenue') ||
+                            key.toLowerCase().includes('sales') ||
+                            key.toLowerCase().includes('total') ||
+                            key.toLowerCase().includes('amount') ||
+                            key.toLowerCase().includes('value') ||
+                            key.toLowerCase().includes('cost') ||
+                            key.toLowerCase().includes('price') ||
+                            key.toLowerCase().includes('grandtotal') ||
+                            key.toLowerCase().includes('average_sale') ||
+                            key.toLowerCase().includes('average_value') ||
+                            key.toLowerCase().includes('labor') ||
+                            key.toLowerCase().includes('parts') ||
+                            key.toLowerCase().includes('misc')
+                          )) {
+                            return new Intl.NumberFormat('en-US', {
+                              style: 'currency',
+                              currency: 'USD',
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            }).format(value);
                           }
-                        </TableCell>
-                      ))}
+                          // Regular numbers (counts, IDs, etc.)
+                          else if (typeof value === 'number' && value > 999) {
+                            return new Intl.NumberFormat('en-US').format(value);
+                          }
+                          // Dates
+                          else if (value && typeof value === 'string' && value.includes('GMT')) {
+                            return new Date(value).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            });
+                          }
+                          // Everything else
+                          else {
+                            return String(value || '');
+                          }
+                        })();
+                        
+                        return (
+                          <TableCell key={cellIndex}>
+                            {formattedValue}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                   ))}
                 </TableBody>
