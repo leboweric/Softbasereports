@@ -253,6 +253,169 @@ def test_single_query_endpoint():
             "error": str(e)
         }), 500
 
+# Query variation groups for testing
+QUERY_VARIATION_GROUPS = {
+    "forklift_rentals": {
+        "description": "Different ways to ask for rented forklifts",
+        "expected_action": "list_equipment",
+        "expected_entity_type": "equipment",
+        "expected_entity_subtype": "forklift",
+        "expected_filters": {"status": "rented"},
+        "variations": [
+            "give me a list of all forklifts currently being rented",
+            "show me rented forklifts",
+            "which forklifts are on rent",
+            "list rental forklifts",
+            "what forklifts do we have out",
+            "I need to see our rental forklifts",
+            "can you pull up the lifts we have out?",
+            "forklift rentals list please",
+            "what fork trucks are customers using",
+            "display all forked vehicles currently deployed"
+        ]
+    },
+    "parts_reorder": {
+        "description": "Different ways to ask for parts that need reordering",
+        "expected_action": "parts_status",
+        "expected_entity_type": "parts",
+        "expected_filters": {"status": "low"},
+        "variations": [
+            "what parts do we need to reorder",
+            "show me parts running low",
+            "which parts are below minimum stock",
+            "parts needing reorder",
+            "low inventory parts list",
+            "what's running out in parts",
+            "parts below reorder point",
+            "inventory shortages",
+            "which parts are low on stock",
+            "parts with insufficient inventory"
+        ]
+    },
+    "active_rentals": {
+        "description": "Different ways to ask for customers with active rentals",
+        "expected_action": "list_rentals",
+        "expected_entity_type": "rental",
+        "expected_filters": {"status": "active"},
+        "variations": [
+            "which customers have active rentals",
+            "show me who's renting equipment",
+            "list of customers with rentals",
+            "active rental customers",
+            "who has equipment out",
+            "customers currently renting",
+            "show active rental accounts",
+            "who are we renting to",
+            "current rental customers list",
+            "display all active lessees"
+        ]
+    }
+}
+
+@ai_query_test_bp.route('/test-variations', methods=['POST'])
+@jwt_required()
+def test_query_variations():
+    """Test multiple variations of queries to ensure they produce consistent results"""
+    try:
+        data = request.get_json() or {}
+        group_name = data.get('group', None)
+        
+        # Get user context
+        current_user_id = get_jwt_identity()
+        jwt_claims = get_jwt()
+        organization_id = jwt_claims.get('organization_id')
+        if not organization_id:
+            user = User.query.get(current_user_id)
+            if user:
+                organization_id = user.organization_id
+        
+        user_context = {'organization_id': organization_id}
+        
+        # Determine which groups to test
+        if group_name and group_name in QUERY_VARIATION_GROUPS:
+            groups_to_test = {group_name: QUERY_VARIATION_GROUPS[group_name]}
+        else:
+            groups_to_test = QUERY_VARIATION_GROUPS
+        
+        results = {}
+        
+        for group_name, group_data in groups_to_test.items():
+            group_results = {
+                "description": group_data["description"],
+                "expected": {
+                    "action": group_data.get("expected_action"),
+                    "entity_type": group_data.get("expected_entity_type"),
+                    "entity_subtype": group_data.get("expected_entity_subtype"),
+                    "filters": group_data.get("expected_filters")
+                },
+                "variations": []
+            }
+            
+            sql_queries_seen = {}
+            unique_sql_count = 0
+            
+            for variation in group_data["variations"]:
+                # Test each variation
+                result = test_single_query(
+                    {"query": variation, "expected_fields": [], "expected_type": "list"},
+                    user_context
+                )
+                
+                # Extract key information
+                ai_analysis = result.get("ai_analysis", {})
+                sql_query = result.get("sql_query", "")
+                
+                # Normalize SQL for comparison (remove extra whitespace)
+                normalized_sql = " ".join(sql_query.split()) if sql_query else ""
+                
+                # Track unique SQL queries
+                if normalized_sql and normalized_sql not in sql_queries_seen:
+                    sql_queries_seen[normalized_sql] = []
+                    unique_sql_count += 1
+                
+                if normalized_sql:
+                    sql_queries_seen[normalized_sql].append(variation)
+                
+                variation_result = {
+                    "query": variation,
+                    "status": result["status"],
+                    "ai_analysis": {
+                        "query_action": ai_analysis.get("query_action"),
+                        "entity_type": ai_analysis.get("entity_type"),
+                        "entity_subtype": ai_analysis.get("entity_subtype"),
+                        "filters": ai_analysis.get("filters"),
+                        "use_rental_history": ai_analysis.get("use_rental_history")
+                    },
+                    "sql_normalized": normalized_sql[:100] + "..." if len(normalized_sql) > 100 else normalized_sql,
+                    "error": result.get("error")
+                }
+                
+                group_results["variations"].append(variation_result)
+            
+            # Add summary
+            group_results["summary"] = {
+                "total_variations": len(group_data["variations"]),
+                "unique_sql_queries": unique_sql_count,
+                "consistency_score": f"{(1 / unique_sql_count * 100):.1f}%" if unique_sql_count > 0 else "0%",
+                "sql_groups": [{"sql": sql[:100] + "...", "queries": queries} 
+                              for sql, queries in sql_queries_seen.items()]
+            }
+            
+            results[group_name] = group_results
+        
+        return jsonify({
+            "success": True,
+            "results": results,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in test-variations endpoint: {str(e)}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @ai_query_test_bp.route('/test-categories', methods=['GET'])
 @jwt_required()
 def get_test_categories():
@@ -263,6 +426,12 @@ def get_test_categories():
             "query_count": len(queries),
             "queries": [q["query"] for q in queries]
         }
+    
+    # Add variation groups
+    categories["Variation Groups"] = {
+        "groups": list(QUERY_VARIATION_GROUPS.keys()),
+        "total_variations": sum(len(g["variations"]) for g in QUERY_VARIATION_GROUPS.values())
+    }
     
     return jsonify({
         "success": True,
