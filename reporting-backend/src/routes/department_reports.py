@@ -2074,7 +2074,7 @@ def register_department_routes(reports_bp):
                 SELECT 
                     YEAR(InvoiceDate) as year,
                     MONTH(InvoiceDate) as month,
-                    SUM(COALESCE(RentalRevenue, 0)) as rental_revenue,
+                    SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
                     SUM(COALESCE(RentalCost, 0)) as rental_cost
                 FROM ben002.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
