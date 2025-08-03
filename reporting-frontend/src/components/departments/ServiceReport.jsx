@@ -104,9 +104,11 @@ const ServiceReport = ({ user, onNavigate }) => {
               <CardDescription>Labor revenue and gross margin % over the last 12 months</CardDescription>
             </div>
             {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
-              // Get current month name to exclude it from average
-              const currentMonth = new Date().toLocaleString('default', { month: 'short' })
-              const completeMonths = serviceData.monthlyLaborRevenue.filter(item => item.month !== currentMonth)
+              // Only include March through July 2025 for average calculation
+              const monthsToInclude = ['Mar', 'Apr', 'May', 'Jun', 'Jul']
+              const completeMonths = serviceData.monthlyLaborRevenue.filter(item => 
+                monthsToInclude.includes(item.month) && item.amount > 0
+              )
               const avgRevenue = completeMonths.length > 0 ? 
                 completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
               const avgMargin = completeMonths.length > 0 ? 
@@ -185,9 +187,11 @@ const ServiceReport = ({ user, onNavigate }) => {
                 dot={{ fill: '#10b981', r: 4 }}
               />
               {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
-                // Only calculate average for complete months (exclude current month)
-                const currentMonth = new Date().toLocaleString('default', { month: 'short' })
-                const completeMonths = serviceData.monthlyLaborRevenue.filter(item => item.month !== currentMonth)
+                // Only include March through July 2025 for average calculation
+                const monthsToInclude = ['Mar', 'Apr', 'May', 'Jun', 'Jul']
+                const completeMonths = serviceData.monthlyLaborRevenue.filter(item => 
+                  monthsToInclude.includes(item.month) && item.amount > 0
+                )
                 const avgRevenue = completeMonths.length > 0 ? 
                   completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
                 const avgMargin = completeMonths.length > 0 ? 
