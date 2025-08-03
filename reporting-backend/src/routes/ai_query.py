@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 import os
 import logging
 import traceback
+import re
 from src.services.openai_service import OpenAIQueryService
 from src.services.softbase_service import SoftbaseService
 from src.models.user import User
@@ -79,7 +80,6 @@ def generate_sql_from_analysis(analysis):
     # Handle top customers queries
     if ('top' in intent and 'customer' in intent) or ('best' in intent and 'customer' in intent):
         # Extract number if specified
-        import re
         num_match = re.search(r'top\s+(\d+)', intent)
         limit = int(num_match.group(1)) if num_match else 10
         
@@ -124,29 +124,62 @@ def generate_sql_from_analysis(analysis):
           ('revenue' in intent and not 'customer' in intent)):
         # Determine time period
         today = datetime.now()
+        date_filter = ""
+        period_desc = ""
         
-        if 'last month' in intent:
-            first_day_of_month = today.replace(day=1)
-            last_month_end = first_day_of_month - timedelta(days=1)
-            last_month_start = last_month_end.replace(day=1)
-            date_filter = f"InvoiceDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND InvoiceDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
-            period_desc = "last month"
-        elif 'this month' in intent:
-            first_day_of_month = today.replace(day=1)
-            date_filter = f"InvoiceDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
-            period_desc = "this month"
-        elif 'last week' in intent:
-            last_week = today - timedelta(days=7)
-            date_filter = f"InvoiceDate >= '{last_week.strftime('%Y-%m-%d')}'"
-            period_desc = "last week"
-        elif 'today' in intent:
-            date_filter = f"InvoiceDate >= '{today.strftime('%Y-%m-%d')}'"
-            period_desc = "today"
-        else:
-            # Default to last 30 days
-            thirty_days_ago = today - timedelta(days=30)
-            date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
-            period_desc = "last 30 days"
+        # Check for month names first
+        month_names = ['january', 'february', 'march', 'april', 'may', 'june', 
+                      'july', 'august', 'september', 'october', 'november', 'december']
+        current_year = datetime.now().year
+        
+        # Check intent and original query for month names
+        query_lower = (intent + ' ' + analysis.get('original_query', '')).lower()
+        
+        for i, month in enumerate(month_names):
+            if month in query_lower:
+                month_num = i + 1
+                # Assume current year unless specified
+                year = current_year
+                # Check if a year is mentioned
+                year_match = re.search(r'\b(20\d{2})\b', query_lower)
+                if year_match:
+                    year = int(year_match.group(1))
+                
+                # Create date range for the month
+                first_day = datetime(year, month_num, 1)
+                if month_num == 12:
+                    last_day = datetime(year + 1, 1, 1)
+                else:
+                    last_day = datetime(year, month_num + 1, 1)
+                
+                date_filter = f"InvoiceDate >= '{first_day.strftime('%Y-%m-%d')}' AND InvoiceDate < '{last_day.strftime('%Y-%m-%d')}'"
+                period_desc = f"{month.capitalize()} {year}"
+                break
+        
+        # If no month name found, check for other patterns
+        if not date_filter:
+            if 'last month' in intent:
+                first_day_of_month = today.replace(day=1)
+                last_month_end = first_day_of_month - timedelta(days=1)
+                last_month_start = last_month_end.replace(day=1)
+                date_filter = f"InvoiceDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND InvoiceDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+                period_desc = "last month"
+            elif 'this month' in intent:
+                first_day_of_month = today.replace(day=1)
+                date_filter = f"InvoiceDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
+                period_desc = "this month"
+            elif 'last week' in intent:
+                last_week = today - timedelta(days=7)
+                date_filter = f"InvoiceDate >= '{last_week.strftime('%Y-%m-%d')}'"
+                period_desc = "last week"
+            elif 'today' in intent:
+                date_filter = f"InvoiceDate >= '{today.strftime('%Y-%m-%d')}'"
+                period_desc = "today"
+            else:
+                # Default to last 30 days
+                thirty_days_ago = today - timedelta(days=30)
+                date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
+                period_desc = "last 30 days"
         
         if 'total' in intent or query_type == 'aggregation':
             return f"""
@@ -286,22 +319,53 @@ def generate_sql_from_analysis(analysis):
           'WO' in tables or 'wo' in ' '.join(tables).lower() or
           any(term in analysis.get('original_query', '').lower() for term in ['work order', 'workorder', 'work-order'])):
         date_filter = ""
-        if 'last month' in intent:
-            today = datetime.now()
-            first_day_of_month = today.replace(day=1)
-            last_month_end = first_day_of_month - timedelta(days=1)
-            last_month_start = last_month_end.replace(day=1)
-            date_filter = f" AND OpenDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND OpenDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
-        elif 'this month' in intent:
-            today = datetime.now()
-            first_day_of_month = today.replace(day=1)
-            date_filter = f" AND OpenDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
-        elif 'today' in intent:
-            today = datetime.now()
-            date_filter = f" AND OpenDate >= '{today.strftime('%Y-%m-%d')}'"
-        elif 'yesterday' in intent:
-            yesterday = datetime.now() - timedelta(days=1)
-            date_filter = f" AND OpenDate >= '{yesterday.strftime('%Y-%m-%d')}' AND OpenDate < '{datetime.now().strftime('%Y-%m-%d')}'"
+        
+        # Check for month names
+        month_names = ['january', 'february', 'march', 'april', 'may', 'june', 
+                      'july', 'august', 'september', 'october', 'november', 'december']
+        current_year = datetime.now().year
+        
+        # Check intent and original query for month names
+        query_lower = (intent + ' ' + analysis.get('original_query', '')).lower()
+        
+        for i, month in enumerate(month_names):
+            if month in query_lower:
+                month_num = i + 1
+                # Assume current year unless specified
+                year = current_year
+                # Check if a year is mentioned
+                year_match = re.search(r'\b(20\d{2})\b', query_lower)
+                if year_match:
+                    year = int(year_match.group(1))
+                
+                # Create date range for the month
+                first_day = datetime(year, month_num, 1)
+                if month_num == 12:
+                    last_day = datetime(year + 1, 1, 1)
+                else:
+                    last_day = datetime(year, month_num + 1, 1)
+                
+                date_filter = f" AND OpenDate >= '{first_day.strftime('%Y-%m-%d')}' AND OpenDate < '{last_day.strftime('%Y-%m-%d')}'"
+                break
+        
+        # If no month name found, check for other date patterns
+        if not date_filter:
+            if 'last month' in intent:
+                today = datetime.now()
+                first_day_of_month = today.replace(day=1)
+                last_month_end = first_day_of_month - timedelta(days=1)
+                last_month_start = last_month_end.replace(day=1)
+                date_filter = f" AND OpenDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND OpenDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+            elif 'this month' in intent:
+                today = datetime.now()
+                first_day_of_month = today.replace(day=1)
+                date_filter = f" AND OpenDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
+            elif 'today' in intent:
+                today = datetime.now()
+                date_filter = f" AND OpenDate >= '{today.strftime('%Y-%m-%d')}'"
+            elif 'yesterday' in intent:
+                yesterday = datetime.now() - timedelta(days=1)
+                date_filter = f" AND OpenDate >= '{yesterday.strftime('%Y-%m-%d')}' AND OpenDate < '{datetime.now().strftime('%Y-%m-%d')}'"
         
         # Check if asking for count
         if 'how many' in intent or 'count' in intent:
