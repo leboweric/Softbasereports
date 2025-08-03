@@ -378,6 +378,31 @@ def generate_sql_from_analysis(analysis):
         ORDER BY overdue DESC
         """
     
+    elif ('list' in intent and 'forklift' in intent and ('rent' in intent or 'being rented' in intent)) or \
+         ('forklift' in intent and 'currently' in intent and 'rent' in intent) or \
+         ('all forklifts' in intent and 'rent' in intent):
+        # List all forklifts currently being rented
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        return f"""
+        SELECT DISTINCT
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            c.Name as CustomerName,
+            rh.DaysRented,
+            rh.RentAmount
+        FROM ben002.RentalHistory rh
+        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        WHERE rh.Year = {current_year}
+        AND rh.Month = {current_month}
+        AND rh.DaysRented > 0
+        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
+        ORDER BY e.UnitNo
+        """
+    
     elif ('which equipment is rented out to polaris' in intent or
           ('list equipment rented out' in intent and 'polaris' in (original_query or '').lower())):
         return """
