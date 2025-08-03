@@ -94,20 +94,6 @@ const RentalReport = ({ user }) => {
   const fetchMonthlyRevenueData = async () => {
     try {
       const token = localStorage.getItem('token')
-      
-      // First, let's debug what data exists
-      const debugResponse = await fetch(apiUrl('/api/reports/departments/rental/debug-revenue'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-      
-      if (debugResponse.ok) {
-        const debugData = await debugResponse.json()
-        console.log('RENTAL DEBUG DATA:', debugData)
-      }
-      
-      // Now fetch the actual data
       const response = await fetch(apiUrl('/api/reports/departments/rental/monthly-revenue'), {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -116,7 +102,6 @@ const RentalReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('RENTAL MONTHLY DATA:', data)
         setMonthlyRevenueData(data.monthlyRentalRevenue || [])
       }
     } catch (error) {
@@ -242,8 +227,8 @@ const RentalReport = ({ user }) => {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle>Monthly Rental Revenue & Margin</CardTitle>
-                <CardDescription>Rental revenue and gross margin % over the last 12 months</CardDescription>
+                <CardTitle>Monthly Rental Revenue</CardTitle>
+                <CardDescription>Rental revenue over the last 12 months</CardDescription>
               </div>
               {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
                 // Only include historical months (before current month)
@@ -265,18 +250,12 @@ const RentalReport = ({ user }) => {
                 
                 const avgRevenue = historicalMonths.length > 0 ? 
                   historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                const avgMargin = historicalMonths.length > 0 ? 
-                  historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
                 
                 return (
                   <div className="text-right">
                     <div className="mb-2">
                       <p className="text-sm text-muted-foreground">Avg Revenue</p>
                       <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Avg Margin</p>
-                      <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
                     </div>
                   </div>
                 )
@@ -319,12 +298,6 @@ const RentalReport = ({ user }) => {
                   orientation="left"
                   tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 />
-                <YAxis
-                  yAxisId="margin"
-                  orientation="right"
-                  domain={[0, 100]}
-                  tickFormatter={(value) => `${value}%`}
-                />
                 <Tooltip 
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length && monthlyRevenueData) {
@@ -341,16 +314,6 @@ const RentalReport = ({ user }) => {
                               Revenue: {formatCurrency(currentData.amount)}
                               {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
                             </p>
-                            {currentData.margin !== null && currentData.margin !== undefined && (
-                              <p className="text-purple-800">
-                                Margin: {currentData.margin}%
-                                {previousData && previousData.margin !== null && previousData.margin !== undefined && (
-                                  <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
-                                    ({currentData.margin > previousData.margin ? '+' : ''}{(currentData.margin - previousData.margin).toFixed(1)}pp)
-                                  </span>
-                                )}
-                              </p>
-                            )}
                           </div>
                         </div>
                       )
@@ -371,23 +334,6 @@ const RentalReport = ({ user }) => {
                   name="Avg Revenue"
                   dot={false}
                   legendType="none"
-                />
-                <Line 
-                  yAxisId="margin" 
-                  type="monotone" 
-                  dataKey="margin" 
-                  stroke="#7c3aed" 
-                  strokeWidth={3}
-                  name="Gross Margin %"
-                  dot={(props) => {
-                    const { payload } = props;
-                    // Only render dots for months with actual margin data
-                    if (payload.margin !== null && payload.margin !== undefined) {
-                      return <circle {...props} fill="#7c3aed" r={4} />;
-                    }
-                    return null;
-                  }}
-                  connectNulls={false}
                 />
               </ComposedChart>
             </ResponsiveContainer>
