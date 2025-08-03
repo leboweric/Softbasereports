@@ -284,7 +284,7 @@ const RentalReport = ({ user }) => {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={350}>
               <ComposedChart data={(() => {
                 const data = monthlyRevenueData || []
                 
@@ -343,7 +343,7 @@ const RentalReport = ({ user }) => {
                   }}
                 />
                 <Legend />
-                <Bar yAxisId="revenue" dataKey="amount" fill="#9333ea" name="Revenue" />
+                <Bar yAxisId="revenue" dataKey="amount" fill="#9333ea" name="Revenue" maxBarSize={60} />
                 {/* Average Revenue Line */}
                 <Line 
                   yAxisId="revenue"
