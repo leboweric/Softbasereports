@@ -168,19 +168,35 @@ def generate_sql_from_analysis(analysis):
     elif ('give me the serial numbers of all forklifts that polaris rents from us' in intent or
           'give me the serial numbers of all forklifts that polaris rents from us' in original_query or
           ('polaris' in intent.lower() and 'rents' in intent and 'serial' in intent) or
-          ('polaris' in intent.lower() and 'serial' in intent)):
-        return """
-        SELECT 
-            e.SerialNo,
-            e.Make,
-            e.Model
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.Customer = c.ID
-        WHERE e.RentalStatus = 'Rented'
-        AND UPPER(c.Name) LIKE '%POLARIS%'
-        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
-        ORDER BY e.SerialNo
-        """
+          ('polaris' in intent.lower() and 'serial' in intent) or
+          ('list serial numbers of rented forklifts' in intent and 'polaris' in original_query) or
+          ('serial' in intent and 'forklift' in intent and 'rent' in intent)):
+        # Check if asking about specific customer
+        if 'polaris' in intent.lower() or 'polaris' in (original_query or '').lower():
+            return """
+            SELECT 
+                e.SerialNo,
+                e.Make,
+                e.Model
+            FROM ben002.Equipment e
+            INNER JOIN ben002.Customer c ON e.Customer = c.ID
+            WHERE e.RentalStatus = 'Rented'
+            AND UPPER(c.Name) LIKE '%POLARIS%'
+            AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
+            ORDER BY e.SerialNo
+            """
+        else:
+            # Generic rented forklifts
+            return """
+            SELECT 
+                e.SerialNo,
+                e.Make,
+                e.Model
+            FROM ben002.Equipment e
+            WHERE e.RentalStatus = 'Rented'
+            AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
+            ORDER BY e.SerialNo
+            """
     
     elif ('which customers haven\'t made a purchase in 6 months' in intent or
           'which customers haven\'t made a purchase in 6 months' in original_query or
@@ -205,11 +221,15 @@ def generate_sql_from_analysis(analysis):
           ('customers' in intent and 'outstanding' in intent and 'invoice' in intent)):
         return """
         SELECT 
+            ar.CustomerNo,
             c.Name as customer,
-            c.Balance as balance
-        FROM ben002.Customer c
-        WHERE c.Balance > 0
-        ORDER BY c.Balance DESC
+            SUM(ar.Amount) as balance
+        FROM ben002.ARDetail ar
+        INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
+        WHERE ar.Amount > 0
+        GROUP BY ar.CustomerNo, c.Name
+        HAVING SUM(ar.Amount) > 0
+        ORDER BY balance DESC
         """
     
     elif (('average order value by customer' in intent or
@@ -352,7 +372,8 @@ def generate_sql_from_analysis(analysis):
         ORDER BY DaysOverdue DESC
         """
     
-    elif 'which equipment is rented out to polaris' in intent:
+    elif ('which equipment is rented out to polaris' in intent or
+          ('list equipment rented out' in intent and 'polaris' in (original_query or '').lower())):
         return """
         SELECT 
             e.UnitNo,
@@ -366,6 +387,21 @@ def generate_sql_from_analysis(analysis):
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
+        """
+    
+    elif 'list equipment rented out to a specific customer' in intent:
+        # Generic handler when no specific customer mentioned
+        return """
+        SELECT 
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            c.Name as CustomerName
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        WHERE e.RentalStatus = 'Rented'
+        ORDER BY c.Name, e.UnitNo
         """
     
     # Handle top customers queries
@@ -1386,6 +1422,50 @@ def test_sql():
             'success': False,
             'error': str(e),
             'error_type': type(e).__name__
+        }), 500
+
+@ai_query_bp.route('/check-customer-columns', methods=['GET'])
+def check_customer_columns():
+    """Check actual Customer table columns"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Get column info
+        columns_query = """
+        SELECT 
+            COLUMN_NAME,
+            DATA_TYPE,
+            CHARACTER_MAXIMUM_LENGTH,
+            IS_NULLABLE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002' 
+        AND TABLE_NAME = 'Customer'
+        ORDER BY ORDINAL_POSITION
+        """
+        
+        columns = db.execute_query(columns_query)
+        
+        # Try to get sample data
+        sample_query = """
+        SELECT TOP 5 *
+        FROM ben002.Customer
+        ORDER BY ID
+        """
+        
+        sample_data = db.execute_query(sample_query)
+        
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'sample_data': sample_data,
+            'column_names': [col['COLUMN_NAME'] for col in columns] if columns else []
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 @ai_query_bp.route('/inspect-invoice-columns', methods=['GET'])

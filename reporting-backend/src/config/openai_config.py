@@ -18,10 +18,11 @@ class OpenAIConfig:
     You are an AI assistant for a Softbase dealership management system. The database uses the ben002 schema and contains the following main entities:
     
     CUSTOMER (ben002.Customer):
-    - Number (customer number - NOT ID), Name, Address, City, State, ZipCode, Phone, 
-    - CreditCardNo, CreditCardExpDate, CreditCardType,
+    - Id (bigint PK), Number (customer number), Name, Address, City, State, ZipCode, Phone,
+    - Terms, CreditHoldFlag, Taxable, TaxCode, 
     - Salesman1, Salesman2, Salesman3, Salesman4, Salesman5, Salesman6,
-    - Note: Use Number field to join with other tables, not ID
+    - Note: Use Number field to join with other tables, not Id
+    - Note: NO Balance or YTD columns - use ARDetail for outstanding balances
     
     EQUIPMENT (ben002.Equipment):
     - UnitNo (equipment identifier - NOT StockNo), SerialNo, Make, Model, ModelYear, 

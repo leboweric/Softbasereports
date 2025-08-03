@@ -312,8 +312,10 @@ Rows: 309
 #### Customer
 Rows: 2,227  
 - Master customer table
-- Key fields: ID (PK), Number, Name, CreditLimit, Balance, YTD, Terms, Salesman1-6
-- Contains all customer information including credit, sales history, tax settings
+- Key fields: Id (bigint PK), Number (nvarchar), Name, Address, City, State, ZipCode
+- Other fields: Terms, CreditHoldFlag, Taxable, TaxCode, Salesman1-6
+- NO Balance or YTD columns - use ARDetail for outstanding balances
+- Join with other tables using Number field, not Id
 
 #### Equipment
 Rows: 21,291
@@ -390,9 +392,10 @@ Rows: 79
 
 #### Sales
 Rows: 2,227
-- Customer sales summary
+- Customer sales summary view
 - Key fields: CustomerNo, YTD, LastYTD, ITD, by category (Parts, Labor, Rental, Equipment)
 - Pre-aggregated customer sales data
+- This is a VIEW that contains YTD sales data (Customer table itself has no YTD column)
 
 #### ServiceClaim
 Rows: 0 (empty table)
