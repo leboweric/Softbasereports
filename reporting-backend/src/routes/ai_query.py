@@ -79,8 +79,92 @@ def generate_sql_from_analysis(analysis):
     
     # IMPORTANT: Check for specific query patterns FIRST before generic ones
     
+    # Inventory Management exact query matches - MUST BE FIRST
+    if ('how many linde forklifts do we have in stock' in intent or
+        'how many linde forklifts do we have in stock' in original_query):
+        return """
+        SELECT 
+            'Linde' as Make,
+            COUNT(*) as quantity_in_stock
+        FROM ben002.Equipment
+        WHERE RentalStatus = 'In Stock' 
+        AND (UPPER(Make) LIKE '%LINDE%' OR UPPER(Model) LIKE '%LINDE%')
+        """
+    
+    elif ('which parts are running low on inventory' in intent or
+          'which parts are running low on inventory' in original_query or
+          'parts' in intent and 'low' in intent and 'inventory' in intent):
+        return """
+        SELECT TOP 100
+            p.PartNo,
+            p.Description,
+            p.OnHand as QtyOnHand,
+            p.MinStock as ReorderPoint,
+            CASE 
+                WHEN p.OnHand = 0 THEN 'OUT OF STOCK'
+                WHEN p.OnHand <= p.MinStock THEN 'CRITICAL LOW'
+                WHEN p.OnHand <= (p.MinStock * 1.5) THEN 'LOW'
+                ELSE 'OK'
+            END as Status
+        FROM ben002.Parts p
+        WHERE p.OnHand <= CASE 
+            WHEN p.MinStock * 1.5 > 10 THEN p.MinStock * 1.5 
+            ELSE 10 
+        END
+        ORDER BY 
+            CASE 
+                WHEN p.OnHand = 0 THEN 0
+                WHEN p.OnHand <= p.MinStock THEN 1
+                ELSE 2
+            END,
+            p.OnHand ASC
+        """
+    
+    elif ('show me all available forklifts under' in intent or
+          'show me all available forklifts under' in original_query or
+          ('available' in intent and 'forklift' in intent and 'under' in intent)):
+        # Extract price from query
+        import re
+        price_match = re.search(r'\$?([\d,]+)', original_query if original_query else intent)
+        price_limit = int(price_match.group(1).replace(',', '')) if price_match else 20000
+        
+        return f"""
+        SELECT 
+            e.UnitNo as StockNo,
+            e.Make,
+            e.Model,
+            e.Sell as SaleAmount,
+            e.ModelYear,
+            e.SerialNo
+        FROM ben002.Equipment e
+        WHERE e.RentalStatus = 'In Stock'
+        AND e.Sell > 0
+        AND e.Sell <= {price_limit}
+        ORDER BY e.Sell ASC
+        """
+    
+    elif ('what equipment is currently in maintenance' in intent or
+          'what equipment is currently in maintenance' in original_query or
+          ('equipment' in intent and 'maintenance' in intent)):
+        return """
+        SELECT DISTINCT
+            e.UnitNo as StockNo,
+            e.Make,
+            e.Model,
+            e.SerialNo,
+            wo.WONo as ServiceOrderNo,
+            wo.OpenDate as MaintenanceStartDate,
+            wo.Comments
+        FROM ben002.Equipment e
+        INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
+        WHERE wo.Type = 'S'
+        AND wo.ClosedDate IS NULL
+        AND (e.RentalStatus = 'In Maintenance' OR e.RentalStatus = 'Service')
+        ORDER BY wo.OpenDate DESC
+        """
+    
     # Parts & Service exact query matches - MUST BE FIRST to prevent generic handlers from catching them
-    if ('which linde parts were we not able to fill last week' in intent or 
+    elif ('which linde parts were we not able to fill last week' in intent or 
         'which linde parts were we not able to fill last week' in original_query):
         # Get date filter for last week
         last_week_start = datetime.now() - timedelta(days=7)
