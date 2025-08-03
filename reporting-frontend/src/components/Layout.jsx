@@ -46,7 +46,19 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
           <div className="flex h-16 items-center justify-between px-4 border-b">
-            <h1 className="text-xl font-bold text-gray-900">Reporting System</h1>
+            <div className="flex items-center space-x-3">
+              {/* Company Logo - Replace src with your company logo */}
+              <img 
+                src="/bennett-logo.png" 
+                alt="Bennett Equipment" 
+                className="h-10 w-auto"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'block';
+                }}
+              />
+              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>Bennett BI</h1>
+            </div>
             <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
               <X className="h-5 w-5" />
             </Button>
@@ -108,7 +120,19 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
           <div className="flex h-16 items-center px-4 border-b">
-            <h1 className="text-xl font-bold text-gray-900">Reporting System</h1>
+            <div className="flex items-center space-x-3">
+              {/* Company Logo - Replace src with your company logo */}
+              <img 
+                src="/bennett-logo.png" 
+                alt="Bennett Equipment" 
+                className="h-10 w-auto"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'block';
+                }}
+              />
+              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>Bennett BI</h1>
+            </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
             {navigation.map((item) => {
