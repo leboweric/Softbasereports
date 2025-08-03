@@ -1417,6 +1417,44 @@ const Dashboard = ({ user }) => {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Total Open Work Orders Over Time</CardTitle>
+                <CardDescription>
+                  Total value of open work orders at month end since March 2025
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={dashboardData?.monthly_open_work_orders || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-1">{label}</p>
+                            <p className="text-orange-600">
+                              {formatCurrency(payload[0].value)} in open work orders
+                            </p>
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#f97316" 
+                      strokeWidth={2}
+                      name="Open Work Orders Value"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
     </TabsContent>
   </Tabs>
