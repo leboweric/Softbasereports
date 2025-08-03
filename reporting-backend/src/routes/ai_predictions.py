@@ -194,12 +194,24 @@ class AIPredictionService:
             
             # Try to parse the response as JSON
             content = response.choices[0].message.content
+            logger.info(f"AI response content: {content[:200]}...")  # Log first 200 chars
+            
             # Remove any markdown code blocks if present
             if '```json' in content:
                 content = content.split('```json')[1].split('```')[0].strip()
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
-            return json.loads(content)
+            
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON: {e}")
+                logger.error(f"Content was: {content}")
+                # Return a default structure
+                return {
+                    "error": "Failed to parse AI response",
+                    "raw_content": content[:500]
+                }
         except Exception as e:
             logger.error(f"AI work order prediction failed: {str(e)}")
             return None
@@ -246,12 +258,24 @@ class AIPredictionService:
             
             # Try to parse the response as JSON
             content = response.choices[0].message.content
+            logger.info(f"AI response content: {content[:200]}...")  # Log first 200 chars
+            
             # Remove any markdown code blocks if present
             if '```json' in content:
                 content = content.split('```json')[1].split('```')[0].strip()
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
-            return json.loads(content)
+            
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON: {e}")
+                logger.error(f"Content was: {content}")
+                # Return a default structure
+                return {
+                    "error": "Failed to parse AI response",
+                    "raw_content": content[:500]
+                }
         except Exception as e:
             logger.error(f"AI customer churn prediction failed: {str(e)}")
             return None
@@ -300,12 +324,24 @@ class AIPredictionService:
             
             # Try to parse the response as JSON
             content = response.choices[0].message.content
+            logger.info(f"AI response content: {content[:200]}...")  # Log first 200 chars
+            
             # Remove any markdown code blocks if present
             if '```json' in content:
                 content = content.split('```json')[1].split('```')[0].strip()
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
-            return json.loads(content)
+            
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON: {e}")
+                logger.error(f"Content was: {content}")
+                # Return a default structure
+                return {
+                    "error": "Failed to parse AI response",
+                    "raw_content": content[:500]
+                }
         except Exception as e:
             logger.error(f"AI parts demand forecast failed: {str(e)}")
             return None
