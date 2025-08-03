@@ -502,6 +502,7 @@ const PartsReport = ({ user, onNavigate }) => {
                     }}
                     connectNulls={false}
                   />
+                  {/* Reference Lines */}
                   {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
                     // Only include historical months (before current month)
                     const currentDate = new Date()
@@ -525,26 +526,35 @@ const PartsReport = ({ user, onNavigate }) => {
                     const avgMargin = historicalMonths.length > 0 ? 
                       historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
                     
-                    return (
-                      <>
-                        <ReferenceLine 
-                          yAxisId="revenue"
-                          y={avgRevenue} 
-                          stroke="#666" 
-                          strokeDasharray="3 3"
-                          label={{ value: "Avg Revenue", position: "insideTopLeft" }}
-                          isFront={true}
-                        />
-                        <ReferenceLine 
-                          yAxisId="margin"
-                          y={avgMargin} 
-                          stroke="#d97706" 
-                          strokeDasharray="3 3"
-                          label={{ value: "Avg Margin", position: "insideTopRight" }}
-                          isFront={true}
-                        />
-                      </>
-                    )
+                    console.log('Parts Report - Avg Revenue:', avgRevenue, 'Avg Margin:', avgMargin)
+                    
+                    if (avgRevenue > 0) {
+                      return (
+                        <>
+                          <ReferenceLine 
+                            yAxisId="revenue"
+                            y={avgRevenue} 
+                            stroke="#666" 
+                            strokeDasharray="3 3"
+                            strokeWidth={2}
+                            label={{ value: `Avg: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(avgRevenue)}`, position: "insideTopLeft" }}
+                            isFront={true}
+                          />
+                          {avgMargin > 0 && (
+                            <ReferenceLine 
+                              yAxisId="margin"
+                              y={avgMargin} 
+                              stroke="#d97706" 
+                              strokeDasharray="3 3"
+                              strokeWidth={2}
+                              label={{ value: `Avg: ${avgMargin.toFixed(1)}%`, position: "insideTopRight" }}
+                              isFront={true}
+                            />
+                          )}
+                        </>
+                      )
+                    }
+                    return null
                   })()}
                 </ComposedChart>
               </ResponsiveContainer>
