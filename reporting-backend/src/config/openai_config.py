@@ -39,8 +39,10 @@ class OpenAIConfig:
     AR DETAIL (ben002.ARDetail):
     - Customer, InvoiceNo, Balance, DueDate, DaysPastDue
     
-    WORK ORDERS:
-    - Work order management for service and repairs
+    WORK ORDERS (ben002.WO):
+    - WONo (primary key), OpenDate, ClosedDate, CompletedDate, Type (S=Service, R=Rental, I=Internal),
+    - Customer, BillTo, UnitNo, Technician, ServiceType
+    - Note: Use ClosedDate IS NULL to find open work orders
     
     Common equipment brands in the system
     """

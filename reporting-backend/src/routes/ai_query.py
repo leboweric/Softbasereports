@@ -69,6 +69,7 @@ def generate_sql_from_analysis(analysis):
     
     # Log the analysis for debugging
     logger.info(f"Query analysis: type={query_type}, tables={tables}, intent={intent}")
+    logger.info(f"Full analysis object: {analysis}")
     
     # Parse time period from intent
     time_period = parse_time_period(intent)
@@ -280,7 +281,10 @@ def generate_sql_from_analysis(analysis):
             """
     
     # Handle work order queries
-    elif any(term in intent for term in ['work order', 'workorder', 'wo ', 'work-order']):
+    # Also check if WO table is mentioned or if the original query mentions work orders
+    elif (any(term in intent for term in ['work order', 'workorder', 'wo ', 'work-order']) or
+          'WO' in tables or 'wo' in ' '.join(tables).lower() or
+          any(term in analysis.get('original_query', '').lower() for term in ['work order', 'workorder', 'work-order'])):
         date_filter = ""
         if 'last month' in intent:
             today = datetime.now()
@@ -709,8 +713,14 @@ def natural_language_query():
         # Process the natural language query
         try:
             logger.info("Processing natural language query...")
-            result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
+            # Add the original query to the context for fallback processing
+            context = {'organization_id': organization_id, 'original_query': query_text}
+            result = openai_service.process_natural_language_query(query_text, context)
             logger.info(f"Query processing result: {result.get('success', False)}")
+            
+            # If AI processing succeeded, add the original query to the analysis for fallback
+            if result.get('success') and result.get('query_analysis'):
+                result['query_analysis']['original_query'] = query_text
         except Exception as e:
             logger.error(f"Error during query processing: {str(e)}", exc_info=True)
             return jsonify({'error': f'Error processing query: {str(e)}'}), 500
@@ -922,8 +932,14 @@ def validate_query():
         # Process the natural language query
         try:
             logger.info("Processing natural language query...")
-            result = openai_service.process_natural_language_query(query_text, {'organization_id': organization_id})
+            # Add the original query to the context for fallback processing
+            context = {'organization_id': organization_id, 'original_query': query_text}
+            result = openai_service.process_natural_language_query(query_text, context)
             logger.info(f"Query processing result: {result.get('success', False)}")
+            
+            # If AI processing succeeded, add the original query to the analysis for fallback
+            if result.get('success') and result.get('query_analysis'):
+                result['query_analysis']['original_query'] = query_text
         except Exception as e:
             logger.error(f"Error during query processing: {str(e)}", exc_info=True)
             return jsonify({'error': f'Error processing query: {str(e)}'}), 500
