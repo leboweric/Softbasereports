@@ -101,8 +101,11 @@ const ServiceReport = ({ user, onNavigate }) => {
               <CardDescription>Labor revenue over the last 12 months</CardDescription>
             </div>
             {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
-              const completeMonths = serviceData.monthlyLaborRevenue.slice(0, -1)
-              const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+              // Get current month name to exclude it from average
+              const currentMonth = new Date().toLocaleString('default', { month: 'short' })
+              const completeMonths = serviceData.monthlyLaborRevenue.filter(item => item.month !== currentMonth)
+              const average = completeMonths.length > 0 ? 
+                completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
               return (
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Average</p>
@@ -144,8 +147,10 @@ const ServiceReport = ({ user, onNavigate }) => {
               <Bar dataKey="amount" fill="#3b82f6" />
               {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
                 // Only calculate average for complete months (exclude current month)
-                const completeMonths = serviceData.monthlyLaborRevenue.slice(0, -1)
-                const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                const currentMonth = new Date().toLocaleString('default', { month: 'short' })
+                const completeMonths = serviceData.monthlyLaborRevenue.filter(item => item.month !== currentMonth)
+                const average = completeMonths.length > 0 ? 
+                  completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length : 0
                 return (
                   <ReferenceLine 
                     y={average} 
