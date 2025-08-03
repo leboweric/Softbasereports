@@ -32,6 +32,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
     { name: 'Report Creator', icon: FileText, id: 'report-creator' },
     { name: 'Reports', icon: FileText, id: 'reports' },
     { name: 'Database Explorer', icon: Database, id: 'database-explorer' },
+    { name: 'Schema Exporter', icon: FileText, id: 'schema-exporter' },
     { name: 'Users', icon: Users, id: 'users' },
     { name: 'Settings', icon: Settings, id: 'settings' },
   ]
