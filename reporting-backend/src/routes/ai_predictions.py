@@ -40,7 +40,7 @@ class AIPredictionService:
                 SELECT 
                     w.WONo,
                     w.OpenDate,
-                    w.CloseDate,
+                    w.ClosedDate,
                     w.Type,
                     COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost
                 FROM ben002.WO w
@@ -68,7 +68,7 @@ class AIPredictionService:
                     MONTH(OpenDate) as month,
                     COUNT(*) as count,
                     SUM(TotalCost) as total_value,
-                    AVG(DATEDIFF(day, OpenDate, CASE WHEN CloseDate IS NULL THEN GETDATE() ELSE CloseDate END)) as avg_completion_days,
+                    AVG(DATEDIFF(day, OpenDate, CASE WHEN ClosedDate IS NULL THEN GETDATE() ELSE ClosedDate END)) as avg_completion_days,
                     COUNT(CASE WHEN Type = 'S' THEN 1 END) as service_count,
                     COUNT(CASE WHEN Type = 'R' THEN 1 END) as rental_count,
                     COUNT(CASE WHEN Type = 'I' THEN 1 END) as internal_count
@@ -92,7 +92,7 @@ class AIPredictionService:
                     i.BillToName as CustName,
                     COUNT(DISTINCT MONTH(i.InvoiceDate)) as active_months,
                     SUM(i.GrandTotal) as total_revenue,
-                    MAX(i.InvoiceDate) as last_invoice_date,
+                    CONVERT(varchar, MAX(i.InvoiceDate), 120) as last_invoice_date,
                     DATEDIFF(day, MAX(i.InvoiceDate), GETDATE()) as days_since_last_invoice,
                     AVG(i.GrandTotal) as avg_invoice_value,
                     COUNT(i.InvoiceNo) as invoice_count
@@ -192,7 +192,14 @@ class AIPredictionService:
                 max_tokens=1000
             )
             
-            return json.loads(response.choices[0].message.content)
+            # Try to parse the response as JSON
+            content = response.choices[0].message.content
+            # Remove any markdown code blocks if present
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0].strip()
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0].strip()
+            return json.loads(content)
         except Exception as e:
             logger.error(f"AI work order prediction failed: {str(e)}")
             return None
@@ -237,7 +244,14 @@ class AIPredictionService:
                 max_tokens=1000
             )
             
-            return json.loads(response.choices[0].message.content)
+            # Try to parse the response as JSON
+            content = response.choices[0].message.content
+            # Remove any markdown code blocks if present
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0].strip()
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0].strip()
+            return json.loads(content)
         except Exception as e:
             logger.error(f"AI customer churn prediction failed: {str(e)}")
             return None
@@ -284,7 +298,14 @@ class AIPredictionService:
                 max_tokens=1000
             )
             
-            return json.loads(response.choices[0].message.content)
+            # Try to parse the response as JSON
+            content = response.choices[0].message.content
+            # Remove any markdown code blocks if present
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0].strip()
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0].strip()
+            return json.loads(content)
         except Exception as e:
             logger.error(f"AI parts demand forecast failed: {str(e)}")
             return None
