@@ -962,236 +962,6 @@ const Dashboard = ({ user }) => {
           </CardContent>
             </Card>
         </TabsContent>
-            <CardDescription>
-              By fiscal year-to-date sales
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {dashboardData?.top_customers?.map((customer) => (
-                <div key={customer.rank} className="flex items-center">
-                  <div className="w-8 text-sm font-medium text-muted-foreground">
-                    {customer.rank}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {customer.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {customer.invoice_count} invoices
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-gray-900">
-                      {formatCurrency(customer.sales)}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {customer.percentage}%
-                    </div>
-                  </div>
-                </div>
-              )) || (
-                <p className="text-sm text-gray-500">No customer data available</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader>
-            <CardTitle>Work Orders Trends by Type</CardTitle>
-            <CardDescription>
-              Dollar value of work orders opened by type since March
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4 mb-4">
-              <div className="flex items-center space-x-2 pr-4 border-r">
-                <Checkbox 
-                  id="current-month-filter"
-                  checked={includeCurrentMonth}
-                  onCheckedChange={setIncludeCurrentMonth}
-                />
-                <label 
-                  htmlFor="current-month-filter" 
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  Include Current Month
-                </label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="service-filter"
-                  checked={visibleWOTypes.service}
-                  onCheckedChange={(checked) => 
-                    setVisibleWOTypes(prev => ({ ...prev, service: checked }))
-                  }
-                />
-                <label 
-                  htmlFor="service-filter" 
-                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                >
-                  <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                  Service
-                </label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="rental-filter"
-                  checked={visibleWOTypes.rental}
-                  onCheckedChange={(checked) => 
-                    setVisibleWOTypes(prev => ({ ...prev, rental: checked }))
-                  }
-                />
-                <label 
-                  htmlFor="rental-filter" 
-                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                >
-                  <span className="w-3 h-3 bg-red-500 rounded-full"></span>
-                  Rental
-                </label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="parts-filter"
-                  checked={visibleWOTypes.parts}
-                  onCheckedChange={(checked) => 
-                    setVisibleWOTypes(prev => ({ ...prev, parts: checked }))
-                  }
-                />
-                <label 
-                  htmlFor="parts-filter" 
-                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                >
-                  <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-                  Parts
-                </label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="pm-filter"
-                  checked={visibleWOTypes.pm}
-                  onCheckedChange={(checked) => 
-                    setVisibleWOTypes(prev => ({ ...prev, pm: checked }))
-                  }
-                />
-                <label 
-                  htmlFor="pm-filter" 
-                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                >
-                  <span className="w-3 h-3 bg-yellow-500 rounded-full"></span>
-                  Preventive Maint.
-                </label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="shop-filter"
-                  checked={visibleWOTypes.shop}
-                  onCheckedChange={(checked) => 
-                    setVisibleWOTypes(prev => ({ ...prev, shop: checked }))
-                  }
-                />
-                <label 
-                  htmlFor="shop-filter" 
-                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                >
-                  <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
-                  Shop
-                </label>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="equipment-filter"
-                  checked={visibleWOTypes.equipment}
-                  onCheckedChange={(checked) => 
-                    setVisibleWOTypes(prev => ({ ...prev, equipment: checked }))
-                  }
-                />
-                <label 
-                  htmlFor="equipment-filter" 
-                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
-                >
-                  <span className="w-3 h-3 bg-pink-500 rounded-full"></span>
-                  Equipment
-                </label>
-              </div>
-            </div>
-            
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={getFilteredWOData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip 
-                  formatter={(value) => formatCurrency(value)}
-                  labelFormatter={(label) => `Month: ${label}`}
-                />
-                {visibleWOTypes.service && (
-                  <Line 
-                    type="monotone" 
-                    dataKey="service_value" 
-                    stroke="#3b82f6" 
-                    name="Service"
-                    strokeWidth={2}
-                  />
-                )}
-                {visibleWOTypes.rental && (
-                  <Line 
-                    type="monotone" 
-                    dataKey="rental_value" 
-                    stroke="#ef4444" 
-                    name="Rental"
-                    strokeWidth={2}
-                  />
-                )}
-                {visibleWOTypes.parts && (
-                  <Line 
-                    type="monotone" 
-                    dataKey="parts_value" 
-                    stroke="#10b981" 
-                    name="Parts"
-                    strokeWidth={2}
-                  />
-                )}
-                {visibleWOTypes.pm && (
-                  <Line 
-                    type="monotone" 
-                    dataKey="pm_value" 
-                    stroke="#f59e0b" 
-                    name="Preventive Maint."
-                    strokeWidth={2}
-                  />
-                )}
-                {visibleWOTypes.shop && (
-                  <Line 
-                    type="monotone" 
-                    dataKey="shop_value" 
-                    stroke="#8b5cf6" 
-                    name="Shop"
-                    strokeWidth={2}
-                  />
-                )}
-                {visibleWOTypes.equipment && (
-                  <Line 
-                    type="monotone" 
-                    dataKey="equipment_value" 
-                    stroke="#ec4899" 
-                    name="Equipment"
-                    strokeWidth={2}
-                  />
-                )}
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
 
     {/* Customers Tab */}
     <TabsContent value="customers" className="space-y-4">
@@ -1207,11 +977,11 @@ const Dashboard = ({ user }) => {
                   {dashboardData?.active_customers || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Last 30 days • {dashboardData?.total_customers || 0} total
+                  Customers with invoices this month
                 </p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
@@ -1222,119 +992,12 @@ const Dashboard = ({ user }) => {
                   {dashboardData?.total_customers || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  All time
+                  All customers in database
                 </p>
               </CardContent>
             </Card>
           </div>
-
-          {/* Customer Charts */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Active Customers Over Time Chart - Move from main dashboard */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Active Customers Over Time</CardTitle>
-                <CardDescription>
-                  Number of customers with invoices each month
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={dashboardData?.monthly_active_customers?.slice(0, -1) || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip content={({ active, payload, label }) => {
-                      if (active && payload && payload.length && dashboardData?.monthly_active_customers) {
-                        const data = dashboardData.monthly_active_customers.slice(0, -1)
-                        const currentIndex = data.findIndex(item => item.month === label)
-                        const currentValue = payload[0].value
-                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].customers : null
-                        
-                        return (
-                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                            <p className="font-semibold mb-1">{label}</p>
-                            <p className="text-blue-600">
-                              {currentValue} customers
-                              {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                            </p>
-                          </div>
-                        )
-                      }
-                      return null
-                    }} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="customers" 
-                      stroke="#3b82f6" 
-                      strokeWidth={2}
-                      dot={{ fill: '#3b82f6', r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Top 10 Customers - Move from main dashboard */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Top 10 Customers</CardTitle>
-                <CardDescription>
-                  By fiscal year-to-date sales
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {dashboardData?.top_customers?.map((customer, index) => (
-                    <div key={index} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium">{index + 1}.</span>
-                        <span className="text-sm truncate max-w-[200px]">{customer.name}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm font-medium">{formatCurrency(customer.sales)}</span>
-                        <span className="text-xs text-muted-foreground">
-                          ({customer.percentage_of_total}%)
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Revenue by Department - relevant to customers */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Revenue by Department</CardTitle>
-              <CardDescription>
-                Distribution of sales across departments
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
-                <PieChart>
-                  <Pie
-                    data={dashboardData?.revenue_by_department || []}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={120}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {(dashboardData?.revenue_by_department || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatCurrency(value)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-    </TabsContent>
+        </TabsContent>
 
     {/* Work Orders Tab */}
     <TabsContent value="workorders" className="space-y-4">
@@ -1347,10 +1010,10 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {formatCurrency(dashboardData?.open_work_orders_value || 0)}
+                  {dashboardData?.open_work_orders || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {dashboardData?.open_work_orders_count || 0} orders
+                  Active work orders
                 </p>
               </CardContent>
             </Card>
@@ -1362,106 +1025,68 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {formatCurrency(dashboardData?.uninvoiced_work_orders || 0)}
+                  {dashboardData?.uninvoiced_work_orders || 0}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {dashboardData?.uninvoiced_count || 0} orders pending
+                  Completed but not invoiced
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Work Order Charts */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Work Order Types */}
+          {/* Work Orders Charts */}
+          <div className="grid gap-4 md:grid-cols-1">
             <Card>
               <CardHeader>
-                <CardTitle>Work Order Types</CardTitle>
-                <CardDescription>
-                  Breakdown of work order types and values
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={dashboardData?.work_order_types || []}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={120}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {(dashboardData?.work_order_types || []).map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Monthly Work Orders by Type - Move from main dashboard */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Monthly Work Orders by Type</CardTitle>
-                  <div className="flex items-center space-x-4 text-sm">
-                    <label className="flex items-center space-x-2">
-                      <Checkbox 
-                        checked={visibleWOTypes.service}
-                        onCheckedChange={(checked) => 
-                          setVisibleWOTypes(prev => ({ ...prev, service: checked }))
-                        }
-                      />
-                      <span>Service</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <Checkbox 
-                        checked={visibleWOTypes.rental}
-                        onCheckedChange={(checked) => 
-                          setVisibleWOTypes(prev => ({ ...prev, rental: checked }))
-                        }
-                      />
-                      <span>Rental</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <Checkbox 
-                        checked={visibleWOTypes.parts}
-                        onCheckedChange={(checked) => 
-                          setVisibleWOTypes(prev => ({ ...prev, parts: checked }))
-                        }
-                      />
-                      <span>Parts</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <Checkbox 
-                        checked={visibleWOTypes.pm}
-                        onCheckedChange={(checked) => 
-                          setVisibleWOTypes(prev => ({ ...prev, pm: checked }))
-                        }
-                      />
-                      <span>PM</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <Checkbox 
-                        checked={visibleWOTypes.equipment}
-                        onCheckedChange={(checked) => 
-                          setVisibleWOTypes(prev => ({ ...prev, equipment: checked }))
-                        }
-                      />
-                      <span>Equipment</span>
-                    </label>
-                  </div>
-                </div>
+                <CardTitle>Work Orders Trends by Type</CardTitle>
                 <CardDescription>
                   Total value of work orders by type
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex flex-wrap gap-4 mb-4">
+                  <div className="flex items-center space-x-2 pr-4 border-r">
+                    <Checkbox 
+                      id="current-month-filter-wo"
+                      checked={includeCurrentMonth}
+                      onCheckedChange={setIncludeCurrentMonth}
+                    />
+                    <label 
+                      htmlFor="current-month-filter-wo" 
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      Include Current Month
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {Object.entries(visibleWOTypes).map(([type, visible]) => (
+                      <div key={type} className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`toggle-wo-${type}`}
+                          checked={visible}
+                          onCheckedChange={(checked) => 
+                            setVisibleWOTypes(prev => ({ ...prev, [type]: checked }))
+                          }
+                        />
+                        <label 
+                          htmlFor={`toggle-wo-${type}`} 
+                          className="text-sm font-medium capitalize cursor-pointer flex items-center gap-1"
+                        >
+                          <div className={`w-3 h-3 rounded ${
+                            type === 'service' ? 'bg-blue-500' :
+                            type === 'rental' ? 'bg-green-500' :
+                            type === 'parts' ? 'bg-yellow-500' :
+                            type === 'pm' ? 'bg-purple-500' :
+                            type === 'shop' ? 'bg-pink-500' :
+                            'bg-gray-500'
+                          }`} />
+                          {type === 'pm' ? 'PM' : type}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <ResponsiveContainer width="100%" height={350}>
                   <LineChart data={getFilteredWOData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -1481,7 +1106,7 @@ const Dashboard = ({ user }) => {
                       <Line 
                         type="monotone" 
                         dataKey="rental_value" 
-                        stroke="#10b981" 
+                        stroke="#ef4444" 
                         name="Rental"
                         strokeWidth={2}
                       />
@@ -1490,7 +1115,7 @@ const Dashboard = ({ user }) => {
                       <Line 
                         type="monotone" 
                         dataKey="parts_value" 
-                        stroke="#f59e0b" 
+                        stroke="#10b981" 
                         name="Parts"
                         strokeWidth={2}
                       />
@@ -1499,8 +1124,17 @@ const Dashboard = ({ user }) => {
                       <Line 
                         type="monotone" 
                         dataKey="pm_value" 
-                        stroke="#a855f7" 
-                        name="PM"
+                        stroke="#f59e0b" 
+                        name="Preventive Maint."
+                        strokeWidth={2}
+                      />
+                    )}
+                    {visibleWOTypes.shop && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="shop_value" 
+                        stroke="#8b5cf6" 
+                        name="Shop"
                         strokeWidth={2}
                       />
                     )}
@@ -1525,4 +1159,3 @@ const Dashboard = ({ user }) => {
 }
 
 export default Dashboard
-
