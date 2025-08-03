@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -536,8 +537,18 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Tabbed Interface */}
+      <Tabs defaultValue="sales" className="space-y-4">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsTrigger value="sales">Sales</TabsTrigger>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
+          <TabsTrigger value="workorders">Work Orders</TabsTrigger>
+        </TabsList>
+
+        {/* Sales Tab */}
+        <TabsContent value="sales" className="space-y-4">
+          {/* Key Sales Metrics */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Current Month Sales</CardTitle>
@@ -813,52 +824,8 @@ const Dashboard = ({ user }) => {
       </div>
 
       {/* Charts - Second Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Active Customers Over Time</CardTitle>
-            <CardDescription>
-              Number of customers with invoices each month
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={dashboardData?.monthly_active_customers?.slice(0, -1) || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip content={({ active, payload, label }) => {
-                  if (active && payload && payload.length && dashboardData?.monthly_active_customers) {
-                    const data = dashboardData.monthly_active_customers.slice(0, -1)
-                    const currentIndex = data.findIndex(item => item.month === label)
-                    const currentValue = payload[0].value
-                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].customers : null
-                    
-                    return (
-                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                        <p className="font-semibold mb-1">{label}</p>
-                        <p className="text-blue-600">
-                          {currentValue} customers
-                          {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                        </p>
-                      </div>
-                    )
-                  }
-                  return null
-                }} />
-                <Line 
-                  type="monotone" 
-                  dataKey="customers" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2}
-                  dot={{ fill: '#3b82f6', r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
@@ -922,50 +889,28 @@ const Dashboard = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
 
-      {/* Charts - Third Row */}
+      {/* Revenue Streams Analysis */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Open Work Orders Over Time</CardTitle>
+            <CardTitle>Revenue by Stream</CardTitle>
             <CardDescription>
-              Total value of open work orders each month
+              Monthly breakdown by parts, labor, rental, and misc
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={dashboardData?.monthly_open_work_orders?.slice(0, -1) || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={dashboardData?.monthly_sales_by_stream || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip content={({ active, payload, label }) => {
-                  if (active && payload && payload.length && dashboardData?.monthly_open_work_orders) {
-                    const data = dashboardData.monthly_open_work_orders.slice(0, -1)
-                    const currentIndex = data.findIndex(item => item.month === label)
-                    const currentValue = payload[0].value
-                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].value : null
-                    
-                    return (
-                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                        <p className="font-semibold mb-1">{label}</p>
-                        <p className="text-orange-600">
-                          {formatCurrency(currentValue)}
-                          {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                        </p>
-                      </div>
-                    )
-                  }
-                  return null
-                }} />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#f97316" 
-                  strokeWidth={2}
-                  dot={{ fill: '#f97316', r: 4 }}
-                />
-              </LineChart>
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="parts" stackId="a" fill="#ef4444" name="Parts" />
+                <Bar dataKey="labor" stackId="a" fill="#3b82f6" name="Labor" />
+                <Bar dataKey="rental" stackId="a" fill="#10b981" name="Rental" />
+                <Bar dataKey="misc" stackId="a" fill="#f59e0b" name="Misc" />
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -1271,7 +1216,335 @@ const Dashboard = ({ user }) => {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
 
+        {/* Customers Tab */}
+        <TabsContent value="customers" className="space-y-4">
+          {/* Customer Metrics */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {dashboardData?.active_customers || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Last 30 days • {dashboardData?.total_customers || 0} total
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {dashboardData?.total_customers || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  All time
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Customer Charts */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Active Customers Over Time Chart - Move from main dashboard */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Active Customers Over Time</CardTitle>
+                <CardDescription>
+                  Number of customers with invoices each month
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={dashboardData?.monthly_active_customers?.slice(0, -1) || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && payload.length && dashboardData?.monthly_active_customers) {
+                        const data = dashboardData.monthly_active_customers.slice(0, -1)
+                        const currentIndex = data.findIndex(item => item.month === label)
+                        const currentValue = payload[0].value
+                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].customers : null
+                        
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-1">{label}</p>
+                            <p className="text-blue-600">
+                              {currentValue} customers
+                              {previousValue && formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                            </p>
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="customers" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={{ fill: '#3b82f6', r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Top 10 Customers - Move from main dashboard */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top 10 Customers</CardTitle>
+                <CardDescription>
+                  By fiscal year-to-date sales
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {dashboardData?.top_customers?.map((customer, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium">{index + 1}.</span>
+                        <span className="text-sm truncate max-w-[200px]">{customer.name}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium">{formatCurrency(customer.sales)}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({customer.percentage_of_total}%)
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Revenue by Department - relevant to customers */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue by Department</CardTitle>
+              <CardDescription>
+                Distribution of sales across departments
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <PieChart>
+                  <Pie
+                    data={dashboardData?.revenue_by_department || []}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={120}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {(dashboardData?.revenue_by_department || []).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Work Orders Tab */}
+        <TabsContent value="workorders" className="space-y-4">
+          {/* Work Order Metrics */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Open Work Orders</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(dashboardData?.open_work_orders_value || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {dashboardData?.open_work_orders_count || 0} orders
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Uninvoiced Work Orders</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(dashboardData?.uninvoiced_work_orders || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {dashboardData?.uninvoiced_count || 0} orders pending
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Work Order Charts */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Work Order Types */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Work Order Types</CardTitle>
+                <CardDescription>
+                  Breakdown of work order types and values
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <PieChart>
+                    <Pie
+                      data={dashboardData?.work_order_types || []}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, value, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                      outerRadius={120}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {(dashboardData?.work_order_types || []).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Monthly Work Orders by Type - Move from main dashboard */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Monthly Work Orders by Type</CardTitle>
+                  <div className="flex items-center space-x-4 text-sm">
+                    <label className="flex items-center space-x-2">
+                      <Checkbox 
+                        checked={visibleWOTypes.service}
+                        onCheckedChange={(checked) => 
+                          setVisibleWOTypes(prev => ({ ...prev, service: checked }))
+                        }
+                      />
+                      <span>Service</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <Checkbox 
+                        checked={visibleWOTypes.rental}
+                        onCheckedChange={(checked) => 
+                          setVisibleWOTypes(prev => ({ ...prev, rental: checked }))
+                        }
+                      />
+                      <span>Rental</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <Checkbox 
+                        checked={visibleWOTypes.parts}
+                        onCheckedChange={(checked) => 
+                          setVisibleWOTypes(prev => ({ ...prev, parts: checked }))
+                        }
+                      />
+                      <span>Parts</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <Checkbox 
+                        checked={visibleWOTypes.pm}
+                        onCheckedChange={(checked) => 
+                          setVisibleWOTypes(prev => ({ ...prev, pm: checked }))
+                        }
+                      />
+                      <span>PM</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <Checkbox 
+                        checked={visibleWOTypes.equipment}
+                        onCheckedChange={(checked) => 
+                          setVisibleWOTypes(prev => ({ ...prev, equipment: checked }))
+                        }
+                      />
+                      <span>Equipment</span>
+                    </label>
+                  </div>
+                </div>
+                <CardDescription>
+                  Total value of work orders by type
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart data={getFilteredWOData()} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomTooltip />} />
+                    {visibleWOTypes.service && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="service_value" 
+                        stroke="#3b82f6" 
+                        name="Service"
+                        strokeWidth={2}
+                      />
+                    )}
+                    {visibleWOTypes.rental && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="rental_value" 
+                        stroke="#10b981" 
+                        name="Rental"
+                        strokeWidth={2}
+                      />
+                    )}
+                    {visibleWOTypes.parts && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="parts_value" 
+                        stroke="#f59e0b" 
+                        name="Parts"
+                        strokeWidth={2}
+                      />
+                    )}
+                    {visibleWOTypes.pm && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="pm_value" 
+                        stroke="#a855f7" 
+                        name="PM"
+                        strokeWidth={2}
+                      />
+                    )}
+                    {visibleWOTypes.equipment && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="equipment_value" 
+                        stroke="#ec4899" 
+                        name="Equipment"
+                        strokeWidth={2}
+                      />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
