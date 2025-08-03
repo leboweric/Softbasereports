@@ -235,32 +235,40 @@ const AIQuery = () => {
                       {Object.entries(row).map(([key, value], cellIndex) => {
                         // Format based on column name and value type
                         const formattedValue = (() => {
-                          // Currency columns
-                          if (typeof value === 'number' && (
-                            key.toLowerCase().includes('revenue') ||
-                            key.toLowerCase().includes('sales') ||
-                            key.toLowerCase().includes('total') ||
-                            key.toLowerCase().includes('amount') ||
-                            key.toLowerCase().includes('value') ||
-                            key.toLowerCase().includes('cost') ||
-                            key.toLowerCase().includes('price') ||
-                            key.toLowerCase().includes('grandtotal') ||
-                            key.toLowerCase().includes('average_sale') ||
-                            key.toLowerCase().includes('average_value') ||
-                            key.toLowerCase().includes('labor') ||
-                            key.toLowerCase().includes('parts') ||
-                            key.toLowerCase().includes('misc')
-                          )) {
+                          // Debug logging
+                          const keyLower = key.toLowerCase();
+                          
+                          // Parse numeric strings
+                          const numericValue = typeof value === 'string' && !isNaN(value) && value !== '' 
+                            ? parseFloat(value) 
+                            : value;
+                          
+                          // Currency columns - check if it's a number and matches currency patterns
+                          if (typeof numericValue === 'number' && !isNaN(numericValue) && (
+                            keyLower.includes('revenue') ||
+                            keyLower.includes('sales') ||
+                            keyLower.includes('total') ||
+                            keyLower.includes('amount') ||
+                            keyLower.includes('value') ||
+                            keyLower.includes('cost') ||
+                            keyLower.includes('price') ||
+                            keyLower.includes('grandtotal') ||
+                            keyLower.includes('average_sale') ||
+                            keyLower.includes('average_value') ||
+                            keyLower.includes('labor') ||
+                            keyLower.includes('parts') ||
+                            keyLower.includes('misc')
+                          ) && !keyLower.includes('count') && !keyLower.includes('orders')) {
                             return new Intl.NumberFormat('en-US', {
                               style: 'currency',
                               currency: 'USD',
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2
-                            }).format(value);
+                            }).format(numericValue);
                           }
                           // Regular numbers (counts, IDs, etc.)
-                          else if (typeof value === 'number' && value > 999) {
-                            return new Intl.NumberFormat('en-US').format(value);
+                          else if (typeof numericValue === 'number' && !isNaN(numericValue) && numericValue > 999) {
+                            return new Intl.NumberFormat('en-US').format(numericValue);
                           }
                           // Dates
                           else if (value && typeof value === 'string' && value.includes('GMT')) {
