@@ -254,7 +254,9 @@ def generate_sql_from_analysis(analysis):
     # Parts & Service exact query matches - MUST BE FIRST to prevent generic handlers from catching them
     elif ('which linde parts were we not able to fill last week' in intent or 
           'which linde parts were we not able to fill last week' in original_query or
-          ('linde' in intent.lower() and 'parts' in intent and 'not' in intent and 'fill' in intent)):
+          ('linde' in intent.lower() and 'parts' in intent and ('not' in intent or 'backorder' in intent or 'unable' in intent)) or
+          ('parts' in intent and 'backorder' in intent) or
+          ('linde' in original_query.lower() and 'parts' in original_query and 'fill' in original_query)):
         # Get date filter for last week
         last_week_start = datetime.now() - timedelta(days=7)
         last_week_filter = f"wo.OpenDate >= '{last_week_start.strftime('%Y-%m-%d')}'"
@@ -262,21 +264,13 @@ def generate_sql_from_analysis(analysis):
         return f"""
         SELECT DISTINCT
             wp.PartNo,
-            wp.Description,
-            wp.WONo,
-            wo.OpenDate,
-            wp.Qty as QuantityOrdered,
-            wp.BOQty as BackorderQty,
-            p.OnHand as CurrentStock,
-            c.Name as CustomerName
+            wp.Description
         FROM ben002.WOParts wp
         INNER JOIN ben002.WO wo ON wp.WONo = wo.WONo
-        LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
-        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
         WHERE {last_week_filter}
         AND (wp.PartNo LIKE 'L%' OR UPPER(wp.Description) LIKE '%LINDE%')
         AND wp.BOQty > 0
-        ORDER BY wo.OpenDate DESC, wp.PartNo
+        ORDER BY wp.PartNo
         """
     
     elif ('show me all service appointments for tomorrow' in intent or 'service appointments for tomorrow' in intent or
