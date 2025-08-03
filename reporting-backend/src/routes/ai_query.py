@@ -181,6 +181,63 @@ def generate_sql_from_analysis(analysis):
         AND Department IN (10, 40, 45)  -- Service departments (10=Service, 40=Field Service, 45=Shop Service)
         """
     
+    # Handle specific rental queries
+    elif 'rental' in intent and 'active' in intent and 'customer' in intent:
+        # Customers with active rentals
+        return """
+        SELECT DISTINCT
+            c.Name as CustomerName,
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            e.RentalStatus,
+            rc.StartDate,
+            rc.EndDate
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        LEFT JOIN ben002.RentalContract rc ON e.UnitNo = rc.UnitNo
+        WHERE e.RentalStatus = 'Rented'
+        ORDER BY c.Name, e.UnitNo
+        """
+    
+    elif 'rental' in intent and 'overdue' in intent:
+        # Overdue rental returns
+        return """
+        SELECT 
+            c.Name as CustomerName,
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            rc.EndDate as DueDate,
+            DATEDIFF(day, rc.EndDate, GETDATE()) as DaysOverdue
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.RentalContract rc ON e.UnitNo = rc.UnitNo
+        WHERE e.RentalStatus = 'Rented'
+        AND rc.EndDate < GETDATE()
+        ORDER BY DaysOverdue DESC
+        """
+    
+    elif 'equipment' in intent and 'rented' in intent and 'polaris' in intent.lower():
+        # Equipment rented to specific customer
+        return """
+        SELECT 
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            e.ModelYear,
+            e.RentalStatus,
+            c.Name as CustomerName
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        WHERE e.RentalStatus = 'Rented'
+        AND UPPER(c.Name) LIKE '%POLARIS%'
+        ORDER BY e.UnitNo
+        """
+    
     # Handle rental sales specifically
     elif 'rental' in intent and ('sales' in intent or 'revenue' in intent):
         # Determine time period
@@ -434,7 +491,58 @@ def generate_sql_from_analysis(analysis):
             ORDER BY InvoiceDate DESC
             """
     
-    # Handle customer queries
+    # Handle specific customer queries first
+    elif ('customer' in intent and 'outstanding' in intent and 'invoice' in intent):
+        # Customers with outstanding invoices - use ARDetail
+        return """
+        SELECT DISTINCT
+            c.ID as CustomerNo,
+            c.Name as CustomerName,
+            COUNT(DISTINCT ar.InvoiceNo) as OutstandingInvoices,
+            SUM(ar.Amount) as TotalOutstanding
+        FROM ben002.ARDetail ar
+        INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
+        WHERE ar.Amount > 0
+        GROUP BY c.ID, c.Name
+        HAVING SUM(ar.Amount) > 0
+        ORDER BY TotalOutstanding DESC
+        """
+    
+    elif ('customer' in intent and "haven't" in intent and 'purchase' in intent) or \
+         ('customer' in intent and 'not' in intent and 'purchase' in intent):
+        # Customers who haven't purchased recently
+        return """
+        SELECT 
+            c.ID as CustomerNo,
+            c.Name as CustomerName,
+            c.City,
+            c.State,
+            s.LastSaleDate,
+            DATEDIFF(day, s.LastSaleDate, GETDATE()) as DaysSinceLastSale
+        FROM ben002.Customer c
+        LEFT JOIN ben002.Sales s ON c.Number = s.CustomerNo
+        WHERE s.LastSaleDate < DATEADD(month, -6, GETDATE())
+           OR s.LastSaleDate IS NULL
+        ORDER BY s.LastSaleDate ASC
+        """
+    
+    elif ('average' in intent and 'order' in intent and 'value' in intent and 'customer' in intent):
+        # Average order value by customer
+        return """
+        SELECT TOP 20
+            c.Name as CustomerName,
+            COUNT(DISTINCT i.InvoiceNo) as TotalOrders,
+            SUM(i.GrandTotal) as TotalRevenue,
+            AVG(i.GrandTotal) as AverageOrderValue
+        FROM ben002.InvoiceReg i
+        INNER JOIN ben002.Customer c ON i.Customer = c.ID
+        WHERE i.InvoiceDate >= DATEADD(year, -1, GETDATE())
+        GROUP BY c.Name
+        HAVING COUNT(DISTINCT i.InvoiceNo) > 0
+        ORDER BY AverageOrderValue DESC
+        """
+    
+    # Handle general customer queries
     elif 'customer' in ' '.join(tables).lower():
         if query_type == 'aggregation':
             return """
@@ -474,8 +582,52 @@ def generate_sql_from_analysis(analysis):
                 brand_filter = f" AND LOWER(Make) LIKE '%{brand}%'"
                 break
         
+        # Handle specific equipment queries first
+        if 'maintenance' in intent:
+            # Equipment in maintenance (open work orders)
+            return """
+            SELECT DISTINCT
+                e.UnitNo,
+                e.SerialNo,
+                e.Make,
+                e.Model,
+                e.ModelYear,
+                wo.WONo,
+                wo.OpenDate,
+                wo.Technician,
+                wo.Comments
+            FROM ben002.Equipment e
+            INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
+            WHERE wo.ClosedDate IS NULL
+            AND wo.Type = 'S'
+            ORDER BY wo.OpenDate DESC
+            """
+        
+        elif 'under' in intent and any(char.isdigit() for char in intent):
+            # Equipment under a certain price
+            import re
+            price_match = re.search(r'(\d+(?:,\d{3})*(?:\.\d{2})?)', intent.replace(',', ''))
+            max_price = float(price_match.group(1)) if price_match else 20000
+            
+            return f"""
+            SELECT TOP 100
+                UnitNo,
+                SerialNo,
+                Make,
+                Model,
+                ModelYear,
+                Sell as SaleAmount,
+                RentalStatus,
+                Location
+            FROM ben002.Equipment
+            WHERE RentalStatus = 'In Stock'
+            AND Sell < {max_price}
+            AND Sell > 0
+            ORDER BY Sell ASC
+            """
+        
         # Check what type of query
-        if 'stock' in intent or 'in stock' in intent:
+        elif 'stock' in intent or 'in stock' in intent:
             # Query for in-stock items
             if brand_filter:
                 return f"""
@@ -667,6 +819,50 @@ def generate_sql_from_analysis(analysis):
             ORDER BY OpenDate DESC
             """
     
+    # Handle specific service queries first
+    elif 'service' in intent and 'appointment' in intent and 'tomorrow' in intent:
+        # Service appointments for tomorrow
+        tomorrow = datetime.now() + timedelta(days=1)
+        tomorrow_str = tomorrow.strftime('%Y-%m-%d')
+        
+        return f"""
+        SELECT 
+            wo.WONo,
+            wo.Type as ServiceType,
+            c.Name as CustomerName,
+            wo.UnitNo,
+            wo.SerialNo,
+            wo.ScheduleDate as AppointmentTime,
+            wo.Technician,
+            wo.Comments
+        FROM ben002.WO wo
+        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        WHERE wo.Type = 'S'
+        AND CAST(wo.ScheduleDate AS DATE) = '{tomorrow_str}'
+        AND wo.ClosedDate IS NULL
+        ORDER BY wo.ScheduleDate
+        """
+    
+    elif 'technician' in intent and 'most' in intent and 'service' in intent:
+        # Technician with most services
+        date_filter = get_date_filter(parse_time_period(intent), 'wo.ClosedDate')
+        
+        return f"""
+        SELECT TOP 10
+            wo.Technician,
+            COUNT(DISTINCT wo.WONo) as CompletedServices,
+            SUM(wl.Hours) as TotalHours,
+            AVG(wl.Hours) as AvgHoursPerService
+        FROM ben002.WO wo
+        LEFT JOIN ben002.WOLabor wl ON wo.WONo = wl.WONo
+        WHERE wo.Type = 'S'
+        AND wo.ClosedDate IS NOT NULL
+        AND {date_filter}
+        GROUP BY wo.Technician
+        HAVING wo.Technician IS NOT NULL
+        ORDER BY CompletedServices DESC
+        """
+    
     # Handle service/repair queries
     elif any(term in intent for term in ['service', 'repair', 'claim', 'maintenance']):
         date_filter = ""
@@ -716,13 +912,38 @@ def generate_sql_from_analysis(analysis):
             AND wp.BOQty > 0
             ORDER BY wo.OpenDate DESC, wp.PartNo
             """
+        elif 'reorder' in intent:
+            # Parts that need reordering
+            return """
+            SELECT 
+                p.PartNo,
+                p.Description,
+                p.OnHand as CurrentStock,
+                p.MinStock as ReorderPoint,
+                pd.Demand1 + pd.Demand2 + pd.Demand3 as Last3MonthsDemand,
+                CASE 
+                    WHEN p.OnHand <= p.MinStock THEN 'REORDER NOW'
+                    WHEN p.OnHand <= (p.MinStock * 1.5) THEN 'LOW STOCK'
+                    ELSE 'OK'
+                END as Status
+            FROM ben002.Parts p
+            LEFT JOIN ben002.PartsDemand pd ON p.PartNo = pd.PartNo
+            WHERE p.OnHand <= p.MinStock
+               OR p.OnHand <= (p.MinStock * 1.5)
+            ORDER BY 
+                CASE 
+                    WHEN p.OnHand <= p.MinStock THEN 0
+                    ELSE 1
+                END,
+                p.OnHand ASC
+            """
         elif 'low stock' in intent or 'low inventory' in intent:
             return """
             SELECT TOP 20
                 PartNo,
                 Description,
                 OnHand as QtyOnHand,
-                BinLocation,
+                Bin,
                 Cost,
                 List as Price
             FROM ben002.Parts
@@ -735,7 +956,7 @@ def generate_sql_from_analysis(analysis):
                 PartNo,
                 Description,
                 OnHand as QtyOnHand,
-                BinLocation,
+                Bin,
                 Supplier,
                 Cost,
                 List as Price
