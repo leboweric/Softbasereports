@@ -135,3 +135,32 @@ coverage/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Deployment configuration files
+Dockerfile
+docker-compose.yml
+docker-compose.yaml
+.dockerignore
+nixpacks.toml
+railway.toml
+railway.json
+Procfile
+app.json
+heroku.yml
+netlify.toml
+vercel.json
+
+# Test and debug files
+**/test_*.py
+**/debug_*.py
+**/*_diagnostic.py
+**/*_debug.py
+analyze_*.py
+**/tests/**
+**/test/**
+
+# Temporary analysis files
+*.analysis
+*.diagnostic
+*_test.html
+*_debug.html

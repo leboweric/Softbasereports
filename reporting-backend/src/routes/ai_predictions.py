@@ -36,19 +36,43 @@ class AIPredictionService:
         """Get historical work order data for predictions"""
         try:
             query = """
-            WITH MonthlyData AS (
+            WITH WOCosts AS (
+                SELECT 
+                    w.WONo,
+                    w.OpenDate,
+                    w.CloseDate,
+                    w.Type,
+                    COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost
+                FROM ben002.WO w
+                LEFT JOIN (
+                    SELECT WONo, SUM(Amount) as LaborCost
+                    FROM ben002.WOLabor
+                    GROUP BY WONo
+                ) l ON w.WONo = l.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Cost) as PartsCost
+                    FROM ben002.WOParts
+                    GROUP BY WONo
+                ) p ON w.WONo = p.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Amount) as MiscCost
+                    FROM ben002.WOMisc
+                    GROUP BY WONo
+                ) m ON w.WONo = m.WONo
+                WHERE w.OpenDate >= DATEADD(MONTH, -12, GETDATE())
+                AND w.OpenDate < GETDATE()
+            ),
+            MonthlyData AS (
                 SELECT 
                     YEAR(OpenDate) as year,
                     MONTH(OpenDate) as month,
                     COUNT(*) as count,
-                    SUM(TotalAmount) as total_value,
+                    SUM(TotalCost) as total_value,
                     AVG(DATEDIFF(day, OpenDate, CASE WHEN CloseDate IS NULL THEN GETDATE() ELSE CloseDate END)) as avg_completion_days,
                     COUNT(CASE WHEN Type = 'S' THEN 1 END) as service_count,
                     COUNT(CASE WHEN Type = 'R' THEN 1 END) as rental_count,
                     COUNT(CASE WHEN Type = 'I' THEN 1 END) as internal_count
-                FROM ben002.WO
-                WHERE OpenDate >= DATEADD(MONTH, -12, GETDATE())
-                AND OpenDate < GETDATE()
+                FROM WOCosts
                 GROUP BY YEAR(OpenDate), MONTH(OpenDate)
             )
             SELECT * FROM MonthlyData
@@ -143,15 +167,23 @@ class AIPredictionService:
                         Based on this monthly work order data from the past 12 months:
                         {data_summary}
                         
-                        Please provide predictions for the next month including:
-                        1. Expected number of work orders (provide a range)
-                        2. Expected total value of work orders
-                        3. Expected distribution by type (Service, Rental, Internal)
-                        4. Key factors influencing your prediction
-                        5. Confidence level (0-100%)
-                        6. Recommended capacity adjustments if needed
-                        
-                        Format your response as JSON.
+                        Please provide predictions for the next month in this exact JSON format:
+                        {{
+                            "expected_count": "150-175",
+                            "value_low": 250000,
+                            "value_high": 300000,
+                            "confidence": 85,
+                            "distribution": {{
+                                "service": 120,
+                                "rental": 40,
+                                "internal": 10
+                            }},
+                            "factors": [
+                                "Seasonal trends show increased activity",
+                                "Growing backlog from previous months"
+                            ],
+                            "recommendations": "Consider adding temporary staff"
+                        }}
                         """
                     }
                 ],
@@ -183,20 +215,20 @@ class AIPredictionService:
                         Based on this customer activity data from the past 12 months:
                         {data_summary}
                         
-                        Please identify:
-                        1. Top 5 customers at highest risk of churning
-                        2. Warning signs for each at-risk customer
-                        3. Recommended retention actions
-                        4. Overall churn risk percentage for customer base
-                        5. Key patterns in customer behavior
-                        
-                        Consider factors like:
-                        - Days since last invoice
-                        - Change in purchase frequency
-                        - Revenue trends
-                        - Seasonal patterns
-                        
-                        Format your response as JSON.
+                        Please analyze and provide predictions in this exact JSON format:
+                        {{
+                            "at_risk_count": 5,
+                            "overall_risk": 12,
+                            "at_risk_customers": [
+                                {{
+                                    "name": "Customer Name",
+                                    "risk_level": "High",
+                                    "warning_signs": ["No orders in 60 days", "50% revenue decline"],
+                                    "action": "Schedule account review meeting"
+                                }}
+                            ],
+                            "patterns": ["Seasonal slowdown", "Industry consolidation"]
+                        }}
                         """
                     }
                 ],
@@ -228,14 +260,22 @@ class AIPredictionService:
                         Based on this parts usage data from the past 12 months:
                         {data_summary}
                         
-                        Please provide:
-                        1. Top 10 parts with expected demand increase
-                        2. Recommended reorder quantities for next month
-                        3. Parts at risk of stockout
-                        4. Seasonal demand patterns identified
-                        5. Confidence level for each prediction
-                        
-                        Format your response as JSON.
+                        Please provide predictions in this exact JSON format:
+                        {{
+                            "high_demand_count": 10,
+                            "stockout_risk_count": 3,
+                            "top_demand_parts": [
+                                {{
+                                    "part_no": "L12345",
+                                    "description": "Part Description",
+                                    "predicted_demand": 150,
+                                    "recommended_reorder": 200,
+                                    "confidence": 85
+                                }}
+                            ],
+                            "stockout_risks": ["L12345", "L67890"],
+                            "patterns": ["Summer peak approaching", "New equipment deployments"]
+                        }}
                         """
                     }
                 ],
