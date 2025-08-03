@@ -283,13 +283,19 @@ def generate_sql_from_analysis(analysis):
     elif ('what parts do we need to reorder' in intent or
           'what parts do we need to reorder' in original_query):
         return """
-        SELECT 
+        SELECT TOP 100
             p.PartNo,
             p.Description,
             p.OnHand as QtyOnHand
         FROM ben002.Parts p
-        WHERE p.OnHand <= ISNULL(p.MinStock, 10)
-        ORDER BY p.OnHand ASC
+        WHERE p.OnHand < 10
+        AND p.PartNo NOT LIKE '%OIL%'
+        AND p.PartNo NOT LIKE '%GREASE%'
+        AND p.PartNo NOT LIKE '%COOLANT%'
+        AND p.Description NOT LIKE '%OIL%'
+        AND p.Description NOT LIKE '%GREASE%'
+        AND p.Description NOT LIKE '%COOLANT%'
+        ORDER BY p.OnHand ASC, p.PartNo
         """
     
     elif ('which technician completed the most services this month' in intent or
