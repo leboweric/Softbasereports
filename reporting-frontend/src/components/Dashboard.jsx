@@ -1546,6 +1546,14 @@ const Dashboard = ({ user }) => {
                           <p className="text-xs text-muted-foreground">Value Range</p>
                           <p className="text-sm font-medium">{formatCurrency(workOrderPrediction.prediction?.value_low || 0)} - {formatCurrency(workOrderPrediction.prediction?.value_high || 0)}</p>
                         </div>
+                        {workOrderPrediction.prediction?.distribution && (
+                          <div className="text-xs space-y-1">
+                            <p className="font-medium">Distribution:</p>
+                            <p>Service: {workOrderPrediction.prediction.distribution.service}</p>
+                            <p>Rental: {workOrderPrediction.prediction.distribution.rental}</p>
+                            <p>Internal: {workOrderPrediction.prediction.distribution.internal}</p>
+                          </div>
+                        )}
                         <div className="pt-2 border-t">
                           <p className="text-xs text-muted-foreground">Confidence: {workOrderPrediction.prediction?.confidence || '0'}%</p>
                           {workOrderPrediction.generated_at && (
@@ -1554,6 +1562,29 @@ const Dashboard = ({ user }) => {
                             </p>
                           )}
                         </div>
+                        {(workOrderPrediction.prediction?.factors || workOrderPrediction.prediction?.recommendations) && (
+                          <details className="text-xs pt-2 border-t">
+                            <summary className="cursor-pointer text-blue-600 font-medium">View Insights</summary>
+                            <div className="mt-2 space-y-2">
+                              {workOrderPrediction.prediction.factors && (
+                                <div>
+                                  <p className="font-medium">Key Factors:</p>
+                                  <ul className="list-disc list-inside space-y-1 text-gray-600">
+                                    {workOrderPrediction.prediction.factors.map((factor, i) => (
+                                      <li key={i}>{factor}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {workOrderPrediction.prediction.recommendations && (
+                                <div>
+                                  <p className="font-medium">Recommendation:</p>
+                                  <p className="text-gray-600">{workOrderPrediction.prediction.recommendations}</p>
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        )}
                       </div>
                     )
                   ) : (
@@ -1619,6 +1650,46 @@ const Dashboard = ({ user }) => {
                             </p>
                           )}
                         </div>
+                        {(customerChurnPrediction.prediction?.at_risk_customers || customerChurnPrediction.prediction?.patterns) && (
+                          <details className="text-xs pt-2 border-t">
+                            <summary className="cursor-pointer text-blue-600 font-medium">View Details</summary>
+                            <div className="mt-2 space-y-2">
+                              {customerChurnPrediction.prediction.at_risk_customers && (
+                                <div>
+                                  <p className="font-medium">At-Risk Customers:</p>
+                                  <div className="space-y-2 mt-1">
+                                    {customerChurnPrediction.prediction.at_risk_customers.slice(0, 5).map((customer, i) => (
+                                      <div key={i} className="bg-red-50 p-2 rounded">
+                                        <p className="font-medium text-red-800">{customer.name}</p>
+                                        <p className="text-red-600">Risk: {customer.risk_level}</p>
+                                        {customer.warning_signs && (
+                                          <ul className="list-disc list-inside text-gray-600 mt-1">
+                                            {customer.warning_signs.map((sign, j) => (
+                                              <li key={j} className="text-xs">{sign}</li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                        {customer.action && (
+                                          <p className="text-xs font-medium text-blue-600 mt-1">Action: {customer.action}</p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {customerChurnPrediction.prediction.patterns && (
+                                <div>
+                                  <p className="font-medium">Patterns:</p>
+                                  <ul className="list-disc list-inside space-y-1 text-gray-600">
+                                    {customerChurnPrediction.prediction.patterns.map((pattern, i) => (
+                                      <li key={i}>{pattern}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        )}
                       </div>
                     )
                   ) : (
@@ -1682,6 +1753,48 @@ const Dashboard = ({ user }) => {
                             </p>
                           )}
                         </div>
+                        {(partsDemandPrediction.prediction?.top_demand_parts || partsDemandPrediction.prediction?.stockout_risks || partsDemandPrediction.prediction?.patterns) && (
+                          <details className="text-xs pt-2 border-t">
+                            <summary className="cursor-pointer text-blue-600 font-medium">View Details</summary>
+                            <div className="mt-2 space-y-2">
+                              {partsDemandPrediction.prediction.top_demand_parts && (
+                                <div>
+                                  <p className="font-medium">High Demand Parts:</p>
+                                  <div className="space-y-1 mt-1">
+                                    {partsDemandPrediction.prediction.top_demand_parts.slice(0, 5).map((part, i) => (
+                                      <div key={i} className="bg-blue-50 p-2 rounded">
+                                        <p className="font-medium">{part.part_no} - {part.description}</p>
+                                        <p className="text-gray-600">Predicted: {part.predicted_demand} units</p>
+                                        <p className="text-gray-600">Reorder: {part.recommended_reorder} units</p>
+                                        <p className="text-xs text-gray-500">Confidence: {part.confidence}%</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {partsDemandPrediction.prediction.stockout_risks && (
+                                <div>
+                                  <p className="font-medium text-red-600">Stockout Risks:</p>
+                                  <ul className="list-disc list-inside space-y-1 text-red-600">
+                                    {partsDemandPrediction.prediction.stockout_risks.map((part, i) => (
+                                      <li key={i}>{part}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {partsDemandPrediction.prediction.patterns && (
+                                <div>
+                                  <p className="font-medium">Patterns:</p>
+                                  <ul className="list-disc list-inside space-y-1 text-gray-600">
+                                    {partsDemandPrediction.prediction.patterns.map((pattern, i) => (
+                                      <li key={i}>{pattern}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        )}
                       </div>
                     )
                   ) : (
