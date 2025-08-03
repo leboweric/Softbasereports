@@ -1167,8 +1167,7 @@ const Dashboard = ({ user }) => {
                         )}
                       </div>
                     )
-                  })
-                  )) || (
+                  }) || (
                     <p className="text-sm text-gray-500">No customer data available</p>
                   )}
                 </div>
