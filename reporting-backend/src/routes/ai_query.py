@@ -279,6 +279,56 @@ def generate_sql_from_analysis(analysis):
             ORDER BY StockNo DESC
             """
     
+    # Handle work order queries
+    elif any(term in intent for term in ['work order', 'workorder', 'wo ', 'work-order']):
+        date_filter = ""
+        if 'last month' in intent:
+            today = datetime.now()
+            first_day_of_month = today.replace(day=1)
+            last_month_end = first_day_of_month - timedelta(days=1)
+            last_month_start = last_month_end.replace(day=1)
+            date_filter = f" AND OpenDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND OpenDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+        elif 'this month' in intent:
+            today = datetime.now()
+            first_day_of_month = today.replace(day=1)
+            date_filter = f" AND OpenDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
+        elif 'today' in intent:
+            today = datetime.now()
+            date_filter = f" AND OpenDate >= '{today.strftime('%Y-%m-%d')}'"
+        elif 'yesterday' in intent:
+            yesterday = datetime.now() - timedelta(days=1)
+            date_filter = f" AND OpenDate >= '{yesterday.strftime('%Y-%m-%d')}' AND OpenDate < '{datetime.now().strftime('%Y-%m-%d')}'"
+        
+        # Check if asking for count
+        if 'how many' in intent or 'count' in intent:
+            return f"""
+            SELECT 
+                COUNT(*) as total_work_orders,
+                COUNT(CASE WHEN Type = 'S' THEN 1 END) as service_orders,
+                COUNT(CASE WHEN Type = 'R' THEN 1 END) as rental_orders,
+                COUNT(CASE WHEN Type = 'I' THEN 1 END) as internal_orders,
+                COUNT(CASE WHEN ClosedDate IS NULL THEN 1 END) as open_orders,
+                COUNT(CASE WHEN ClosedDate IS NOT NULL THEN 1 END) as closed_orders
+            FROM ben002.WO
+            WHERE 1=1{date_filter}
+            """
+        else:
+            # List work orders
+            return f"""
+            SELECT TOP 100
+                WONo,
+                OpenDate,
+                Type,
+                Customer,
+                BillTo,
+                UnitNo,
+                CompletedDate,
+                ClosedDate
+            FROM ben002.WO
+            WHERE 1=1{date_filter}
+            ORDER BY OpenDate DESC
+            """
+    
     # Handle service/repair queries
     elif any(term in intent for term in ['service', 'repair', 'claim', 'maintenance']):
         date_filter = ""
