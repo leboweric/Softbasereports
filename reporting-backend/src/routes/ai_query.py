@@ -178,7 +178,7 @@ def generate_sql_from_analysis(analysis):
             MAX(InvoiceDate) as period_end
         FROM ben002.InvoiceReg
         WHERE {date_filter}
-        AND SaleCode = 'SVE'
+        AND Department IN (10, 40, 45)  -- Service departments (10=Service, 40=Field Service, 45=Shop Service)
         """
     
     # Handle rental sales specifically
@@ -740,13 +740,13 @@ def get_version():
 
 @ai_query_bp.route('/check-sale-codes', methods=['GET'])
 def check_sale_codes():
-    """Check what SaleCodes exist in the database"""
+    """Check what SaleCodes and Departments exist in the database"""
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
         
         # Get all unique SaleCodes with counts
-        query = """
+        sale_codes_query = """
         SELECT 
             SaleCode,
             COUNT(*) as invoice_count,
@@ -759,12 +759,30 @@ def check_sale_codes():
         ORDER BY total_sales DESC
         """
         
-        results = db.execute_query(query)
+        # Get all unique Departments with counts
+        departments_query = """
+        SELECT 
+            Department,
+            COUNT(*) as invoice_count,
+            SUM(GrandTotal) as total_sales,
+            MIN(InvoiceDate) as first_invoice,
+            MAX(InvoiceDate) as last_invoice
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2025-07-01'
+        AND Department IS NOT NULL
+        GROUP BY Department
+        ORDER BY total_sales DESC
+        """
+        
+        sale_codes_results = db.execute_query(sale_codes_query)
+        departments_results = db.execute_query(departments_query)
         
         return jsonify({
             'success': True,
-            'sale_codes': results,
-            'total_codes': len(results) if results else 0
+            'sale_codes': sale_codes_results,
+            'departments': departments_results,
+            'total_sale_codes': len(sale_codes_results) if sale_codes_results else 0,
+            'total_departments': len(departments_results) if departments_results else 0
         })
         
     except Exception as e:
