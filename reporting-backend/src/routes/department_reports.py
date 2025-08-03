@@ -2359,12 +2359,11 @@ def register_department_routes(reports_bp):
             
             status_results = db.execute_query(status_query)
             
-            # Try different variations of "on rent" status
+            # Count equipment with NULL/EMPTY status as "on rent"
             query = """
             SELECT COUNT(*) as units_on_rent
             FROM ben002.Equipment
-            WHERE UPPER(RentalStatus) IN ('ON RENT', 'ONRENT', 'RENTED', 'R', 'OUT')
-                OR RentalStatus LIKE '%rent%'
+            WHERE RentalStatus IS NULL OR RentalStatus = ''
             """
             
             result = db.execute_query(query)
@@ -2388,7 +2387,7 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get all available forklifts - check various "available" statuses
+            # Get all forklifts regardless of rental status (only 5 exist)
             query = """
             SELECT 
                 UnitNo,
@@ -2398,13 +2397,9 @@ def register_department_routes(reports_bp):
                 ModelYear,
                 Cost,
                 Sell as ListPrice,
-                RentalStatus
+                COALESCE(RentalStatus, 'On Rent') as RentalStatus
             FROM ben002.Equipment
-            WHERE (UPPER(RentalStatus) IN ('IN STOCK', 'INSTOCK', 'AVAILABLE', 'A', 'IDLE')
-                   OR RentalStatus IS NULL
-                   OR RentalStatus = ''
-                   OR UPPER(RentalStatus) NOT IN ('ON RENT', 'ONRENT', 'RENTED', 'R', 'OUT'))
-                AND (UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%')
+            WHERE UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%'
             ORDER BY Make, Model, UnitNo
             """
             

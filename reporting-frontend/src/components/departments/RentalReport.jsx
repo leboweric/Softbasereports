@@ -146,7 +146,6 @@ const RentalReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Rental status data:', data) // Debug log to see what statuses exist
         setUnitsOnRent(data.units_on_rent || 0)
       }
     } catch (error) {
@@ -190,7 +189,6 @@ const RentalReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Forklift data received:', data) // Debug log
         
         // Convert to CSV
         const headers = ['Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Cost', 'List Price', 'Rental Status']
@@ -292,22 +290,6 @@ const RentalReport = ({ user }) => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
         <p className="text-muted-foreground">Fleet management and rental analytics</p>
-        <Button 
-          onClick={async () => {
-            const token = localStorage.getItem('token')
-            const response = await fetch(apiUrl('/api/reports/departments/rental/rental-status-diagnostic'), {
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
-            const data = await response.json()
-            console.log('RENTAL STATUS DIAGNOSTIC:', data)
-            alert('Check console for rental status diagnostic data')
-          }}
-          variant="outline"
-          size="sm"
-          className="mt-2"
-        >
-          Run Diagnostic (Check Console)
-        </Button>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
@@ -338,7 +320,7 @@ const RentalReport = ({ user }) => {
                   className="w-full"
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  {downloadingForklifts ? 'Downloading...' : 'Download 74 Forklifts'}
+                  {downloadingForklifts ? 'Downloading...' : 'Download All Forklifts'}
                 </Button>
               </CardContent>
             </Card>
