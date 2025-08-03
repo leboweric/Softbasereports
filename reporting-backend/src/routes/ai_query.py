@@ -79,23 +79,23 @@ def generate_sql_from_analysis(analysis):
     
     # Handle top customers queries
     if ('top' in intent and 'customer' in intent) or ('best' in intent and 'customer' in intent):
-        # Extract number if specified
-        num_match = re.search(r'top\s+(\d+)', intent)
+        # Extract number if specified from both intent and original query
+        combined_text = intent + ' ' + analysis.get('original_query', '')
+        num_match = re.search(r'top\s+(\d+)', combined_text)
         limit = int(num_match.group(1)) if num_match else 10
         
         date_filter = get_date_filter(time_period)
         
-        # Use a simpler query that groups by Customer ID from InvoiceReg
+        # Group by BillToName since Customer field is boolean
         return f"""
         SELECT TOP {limit}
-            i.Customer as CustomerID,
-            MAX(i.BillToName) as CustomerName,
+            i.BillToName as CustomerName,
             COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
             SUM(i.GrandTotal) as TotalRevenue,
             MAX(i.InvoiceDate) as LastPurchaseDate
         FROM ben002.InvoiceReg i
         WHERE {date_filter}
-        GROUP BY i.Customer
+        GROUP BY i.BillToName
         ORDER BY TotalRevenue DESC
         """
     
@@ -180,6 +180,12 @@ def generate_sql_from_analysis(analysis):
                 thirty_days_ago = today - timedelta(days=30)
                 date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
                 period_desc = "last 30 days"
+        
+        # Override period_desc if we detected a specific month
+        if 'last month' in intent and period_desc == "last month":
+            # Get the actual month name for last month
+            last_month_date = today.replace(day=1) - timedelta(days=1)
+            period_desc = last_month_date.strftime("%B %Y")
         
         if 'total' in intent or query_type == 'aggregation':
             return f"""
