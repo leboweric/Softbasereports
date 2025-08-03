@@ -11,8 +11,11 @@ class SmartSQLGenerator:
     """Generate SQL based on structured query analysis instead of pattern matching"""
     
     def __init__(self):
-        self.current_year = datetime.now().year
-        self.current_month = datetime.now().month
+        # Use current date
+        now = datetime.now()
+        self.current_year = now.year
+        self.current_month = now.month
+        # We'll need to check if data exists for current year in rental queries
     
     def generate_sql(self, query_analysis):
         """Main entry point - routes to appropriate handler based on query_action"""
@@ -91,18 +94,40 @@ class SmartSQLGenerator:
         query_type = filters.get('query_type', 'list')
         
         if query_type == 'count' or 'how many' in filters.get('original_intent', '').lower():
-            # Count query
-            sql = f"""
-            SELECT COUNT(DISTINCT e.SerialNo) as count
-            FROM ben002.RentalHistory rh
-            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-            WHERE rh.Year = {self.current_year}
-            AND rh.Month = {self.current_month}
-            AND rh.DaysRented > 0
+            # Count query - Use most recent rental data available
+            sql = """
+            WITH LatestRentals AS (
+                SELECT 
+                    SerialNo,
+                    MAX(Year * 100 + Month) as latest_period
+                FROM ben002.RentalHistory 
+                WHERE DaysRented > 0
+                GROUP BY SerialNo
+            ),
+            CurrentRentals AS (
+                SELECT DISTINCT e.SerialNo
+                FROM ben002.RentalHistory rh
+                INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+                INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
+                    AND (rh.Year * 100 + rh.Month) = lr.latest_period
+                WHERE rh.DaysRented > 0
+            )
+            SELECT COUNT(*) as count
+            FROM CurrentRentals cr
+            INNER JOIN ben002.Equipment e ON cr.SerialNo = e.SerialNo
+            WHERE 1=1
             """
         else:
             # List query - Include all fields in SELECT that are used in ORDER BY
-            sql = f"""
+            sql = """
+            WITH LatestRentals AS (
+                SELECT 
+                    SerialNo,
+                    MAX(Year * 100 + Month) as latest_period
+                FROM ben002.RentalHistory 
+                WHERE DaysRented > 0
+                GROUP BY SerialNo
+            )
             SELECT DISTINCT
                 e.UnitNo,
                 e.SerialNo,
@@ -110,13 +135,15 @@ class SmartSQLGenerator:
                 e.Model,
                 c.Name as CustomerName,
                 rh.DaysRented,
-                rh.RentAmount
+                rh.RentAmount,
+                rh.Year,
+                rh.Month
             FROM ben002.RentalHistory rh
             INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            WHERE rh.Year = {self.current_year}
-            AND rh.Month = {self.current_month}
-            AND rh.DaysRented > 0
+            INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
+                AND (rh.Year * 100 + rh.Month) = lr.latest_period
+            WHERE rh.DaysRented > 0
             """
         
         # Add equipment type filter
@@ -148,20 +175,36 @@ class SmartSQLGenerator:
             if entity_subtype == 'forklift' or 'forklift' in filters.get('original_intent', '').lower():
                 return self._generate_rental_equipment_query('forklift', filters)
             else:
-                # Count all rentals
-                sql = f"""
+                # Count all rentals using latest data
+                sql = """
+                WITH LatestRentals AS (
+                    SELECT 
+                        SerialNo,
+                        MAX(Year * 100 + Month) as latest_period
+                    FROM ben002.RentalHistory 
+                    WHERE DaysRented > 0
+                    GROUP BY SerialNo
+                )
                 SELECT COUNT(DISTINCT e.SerialNo) as count
                 FROM ben002.RentalHistory rh
                 INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-                WHERE rh.Year = {self.current_year}
-                AND rh.Month = {self.current_month}
-                AND rh.DaysRented > 0
+                INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
+                    AND (rh.Year * 100 + rh.Month) = lr.latest_period
+                WHERE rh.DaysRented > 0
                 """
                 return sql
         
-        # For listing active rentals, use RentalHistory for accuracy
+        # For listing active rentals, use latest rental data
         # Note: When using DISTINCT with ORDER BY, all ORDER BY columns must be in SELECT
-        sql = f"""
+        sql = """
+        WITH LatestRentals AS (
+            SELECT 
+                SerialNo,
+                MAX(Year * 100 + Month) as latest_period
+            FROM ben002.RentalHistory 
+            WHERE DaysRented > 0
+            GROUP BY SerialNo
+        )
         SELECT DISTINCT
             c.Name as customer,
             e.UnitNo,
@@ -171,9 +214,9 @@ class SmartSQLGenerator:
         FROM ben002.RentalHistory rh
         INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
         INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        WHERE rh.Year = {self.current_year}
-        AND rh.Month = {self.current_month}
-        AND rh.DaysRented > 0
+        INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
+            AND (rh.Year * 100 + rh.Month) = lr.latest_period
+        WHERE rh.DaysRented > 0
         """
         
         # Add customer filter if specified
@@ -189,15 +232,23 @@ class SmartSQLGenerator:
         filters = analysis.get('filters', {})
         status = filters.get('status', '')
         
-        # If counting rented equipment, use RentalHistory
+        # If counting rented equipment, use latest rental data
         if status == 'rented' or 'rent' in filters.get('original_intent', '').lower():
-            sql = f"""
+            sql = """
+            WITH LatestRentals AS (
+                SELECT 
+                    SerialNo,
+                    MAX(Year * 100 + Month) as latest_period
+                FROM ben002.RentalHistory 
+                WHERE DaysRented > 0
+                GROUP BY SerialNo
+            )
             SELECT COUNT(DISTINCT e.SerialNo) as count
             FROM ben002.RentalHistory rh
             INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-            WHERE rh.Year = {self.current_year}
-            AND rh.Month = {self.current_month}
-            AND rh.DaysRented > 0
+            INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
+                AND (rh.Year * 100 + rh.Month) = lr.latest_period
+            WHERE rh.DaysRented > 0
             """
             
             # Add equipment type filter
@@ -229,19 +280,27 @@ class SmartSQLGenerator:
         """Handle rental counting queries"""
         filters = analysis.get('filters', {})
         
-        sql = f"""
+        sql = """
+        WITH LatestRentals AS (
+            SELECT 
+                SerialNo,
+                MAX(Year * 100 + Month) as latest_period
+            FROM ben002.RentalHistory 
+            WHERE DaysRented > 0
+            GROUP BY SerialNo
+        )
         SELECT COUNT(DISTINCT rh.SerialNo) as count
         FROM ben002.RentalHistory rh
         INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-        WHERE rh.Year = {self.current_year}
-        AND rh.Month = {self.current_month}
-        AND rh.DaysRented > 0
+        INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
+            AND (rh.Year * 100 + rh.Month) = lr.latest_period
+        WHERE rh.DaysRented > 0
         """
         
         # Add customer filter if specified
         if filters.get('customer'):
-            sql += " INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number"
-            sql += f" AND UPPER(c.Name) LIKE '%{filters['customer'].upper()}%'"
+            sql += " AND EXISTS (SELECT 1 FROM ben002.Customer c WHERE e.CustomerNo = c.Number"
+            sql += f" AND UPPER(c.Name) LIKE '%{filters['customer'].upper()}%')"
         
         return sql
     
