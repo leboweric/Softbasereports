@@ -143,7 +143,36 @@ const ServiceReport = ({ user, onNavigate }) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <ComposedChart data={serviceData?.monthlyLaborRevenue || []} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
+            <ComposedChart data={(() => {
+              const data = serviceData?.monthlyLaborRevenue || []
+              
+              // Calculate averages for reference lines
+              if (data.length > 0) {
+                const currentDate = new Date()
+                const currentMonthIndex = currentDate.getMonth()
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                const currentMonthName = monthNames[currentMonthIndex]
+                const currentMonthDataIndex = data.findIndex(item => item.month === currentMonthName)
+                
+                const historicalMonths = currentMonthDataIndex > 0 
+                  ? data.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                  : data.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                
+                const avgRevenue = historicalMonths.length > 0 ? 
+                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                const avgMargin = historicalMonths.length > 0 ? 
+                  historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
+                
+                // Add average values to each data point for reference line rendering
+                return data.map(item => ({
+                  ...item,
+                  avgRevenue: avgRevenue,
+                  avgMargin: avgMargin
+                }))
+              }
+              
+              return data
+            })()}  margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis 
@@ -191,61 +220,19 @@ const ServiceReport = ({ user, onNavigate }) => {
                 }}
               />
               <Legend />
-              {/* Reference Lines - Moved before Bar and Line */}
-              {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
-                // Only include historical months (before current month)
-                const currentDate = new Date()
-                const currentMonthIndex = currentDate.getMonth()
-                const currentYear = currentDate.getFullYear()
-                
-                // Month names in order
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                const currentMonthName = monthNames[currentMonthIndex]
-                
-                // Get index of current month in the data
-                const currentMonthDataIndex = serviceData.monthlyLaborRevenue.findIndex(item => item.month === currentMonthName)
-                
-                // Filter to only include months before current month with positive revenue
-                const historicalMonths = currentMonthDataIndex > 0 
-                  ? serviceData.monthlyLaborRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                  : serviceData.monthlyLaborRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                
-                const avgRevenue = historicalMonths.length > 0 ? 
-                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                const avgMargin = historicalMonths.length > 0 ? 
-                  historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
-                
-                console.log('Service Report - Avg Revenue:', avgRevenue, 'Avg Margin:', avgMargin)
-                
-                if (avgRevenue > 0) {
-                  return (
-                    <>
-                      <ReferenceLine 
-                        yAxisId="revenue"
-                        y={avgRevenue} 
-                        stroke="#666" 
-                        strokeDasharray="3 3"
-                        strokeWidth={2}
-                        label={{ value: `Avg: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(avgRevenue)}`, position: "insideTopLeft" }}
-                        isFront={true}
-                      />
-                      {avgMargin > 0 && (
-                        <ReferenceLine 
-                          yAxisId="margin"
-                          y={avgMargin} 
-                          stroke="#059669" 
-                          strokeDasharray="3 3"
-                          strokeWidth={2}
-                          label={{ value: `Avg: ${avgMargin.toFixed(1)}%`, position: "insideTopRight" }}
-                          isFront={true}
-                        />
-                      )}
-                    </>
-                  )
-                }
-                return null
-              })()}
               <Bar yAxisId="revenue" dataKey="amount" fill="#3b82f6" name="Revenue" />
+              {/* Average Revenue Line */}
+              <Line 
+                yAxisId="revenue"
+                type="monotone"
+                dataKey="avgRevenue"
+                stroke="#666"
+                strokeDasharray="5 5"
+                strokeWidth={2}
+                name="Avg Revenue"
+                dot={false}
+                legendType="none"
+              />
               <Line 
                 yAxisId="margin" 
                 type="monotone" 
@@ -262,6 +249,18 @@ const ServiceReport = ({ user, onNavigate }) => {
                   return null;
                 }}
                 connectNulls={false}
+              />
+              {/* Average Margin Line */}
+              <Line 
+                yAxisId="margin"
+                type="monotone"
+                dataKey="avgMargin"
+                stroke="#059669"
+                strokeDasharray="5 5"
+                strokeWidth={2}
+                name="Avg Margin"
+                dot={false}
+                legendType="none"
               />
             </ComposedChart>
           </ResponsiveContainer>
