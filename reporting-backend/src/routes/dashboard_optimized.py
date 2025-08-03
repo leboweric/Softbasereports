@@ -523,7 +523,9 @@ class DashboardQueries:
             WHERE InvoiceDate >= '{self.fiscal_year_start}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
-            AND BillToName NOT IN ('Wells Fargo Financial', 'Maintenance contract', 'Rental Fleet')
+            AND BillToName NOT LIKE '%Wells Fargo%'
+            AND BillToName NOT LIKE '%Maintenance contract%'
+            AND BillToName NOT LIKE '%Rental Fleet%'
             """
             total_result = self.db.execute_query(total_sales_query)
             total_fiscal_sales = float(total_result[0]['total_sales']) if total_result and total_result[0]['total_sales'] else 0
@@ -540,7 +542,9 @@ class DashboardQueries:
             WHERE InvoiceDate >= '{self.fiscal_year_start}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
-            AND BillToName NOT IN ('Wells Fargo Financial', 'Maintenance contract', 'Rental Fleet')
+            AND BillToName NOT LIKE '%Wells Fargo%'
+            AND BillToName NOT LIKE '%Maintenance contract%'
+            AND BillToName NOT LIKE '%Rental Fleet%'
             GROUP BY 
                 CASE 
                     WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
