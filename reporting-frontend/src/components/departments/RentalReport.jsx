@@ -208,116 +208,22 @@ const RentalReport = ({ user }) => {
 
         <TabsContent value="overview" className="space-y-6">
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
-            <Truck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.summary.totalFleetSize}</div>
-            <p className="text-xs text-muted-foreground">Equipment units</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">On Rent</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.summary.unitsOnRent}</div>
-            <p className="text-xs text-muted-foreground">Active rentals</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Utilization</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold" style={{ color: utilizationColor }}>
-              {data.summary.utilizationRate}%
-            </div>
-            <p className="text-xs text-muted-foreground">Fleet utilization</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${data.summary.monthlyRevenue.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Rental income</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{data.summary.overdueReturns}</div>
-            <p className="text-xs text-muted-foreground">Returns overdue</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Maintenance</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{data.summary.maintenanceDue}</div>
-            <p className="text-xs text-muted-foreground">Units due service</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Rental Units Available Card */}
-      <div className="grid gap-4 md:grid-cols-1">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rental Units Available</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{inventoryCount}</div>
-            <p className="text-xs text-muted-foreground">
-              Units ready to rent
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Rental Units Available</CardTitle>
+          <Package className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{inventoryCount}</div>
+          <p className="text-xs text-muted-foreground">
+            Units ready to rent
+          </p>
+        </CardContent>
+      </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* Fleet by Category */}
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Fleet by Category</CardTitle>
-            <CardDescription>Equipment availability by type</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.fleetByCategory}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="onRent" stackId="a" fill="#3b82f6" name="On Rent" />
-                <Bar dataKey="available" stackId="a" fill="#10b981" name="Available" />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Monthly Revenue & Margin */}
-        <Card className="col-span-4">
+      {/* Monthly Revenue & Margin */}
+      <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
@@ -471,102 +377,7 @@ const RentalReport = ({ user }) => {
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
-        </Card>
-      </div>
-
-      {/* Rentals by Duration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Rentals by Duration</CardTitle>
-          <CardDescription>Distribution of rental contracts by duration type</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={data.rentalsByDuration} layout="horizontal">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="duration" />
-              <YAxis yAxisId="left" orientation="left" />
-              <YAxis yAxisId="right" orientation="right" />
-              <Tooltip />
-              <Bar yAxisId="left" dataKey="count" fill="#3b82f6" name="Count" />
-              <Bar yAxisId="right" dataKey="revenue" fill="#10b981" name="Revenue ($)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
       </Card>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Active Rentals */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Active Rentals</CardTitle>
-            <CardDescription>Current rental contracts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Contract</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Equipment</TableHead>
-                  <TableHead>Daily Rate</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.activeRentals.map((rental) => (
-                  <TableRow key={rental.contractNumber}>
-                    <TableCell className="font-medium">{rental.contractNumber}</TableCell>
-                    <TableCell>{rental.customer}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{rental.equipment}</TableCell>
-                    <TableCell>${rental.dailyRate}</TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={
-                          rental.status === 'Overdue' ? 'destructive' : 
-                          rental.status === 'Due Soon' ? 'default' : 'success'
-                        }
-                      >
-                        {rental.status}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        {/* Top Customers */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Customers</CardTitle>
-            <CardDescription>Most active rental customers</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Active</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Avg Days</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.topCustomers.map((customer) => (
-                  <TableRow key={customer.name}>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
-                    <TableCell className="text-right">{customer.activeRentals}</TableCell>
-                    <TableCell className="text-right">${customer.totalRevenue.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">{customer.avgDuration}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
         </TabsContent>
 
         <TabsContent value="service-report">
