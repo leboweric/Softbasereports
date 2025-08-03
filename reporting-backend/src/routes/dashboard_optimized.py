@@ -795,7 +795,7 @@ class DashboardQueries:
     def get_monthly_open_work_orders(self):
         """Get monthly open work orders value since March 2025"""
         try:
-            # Get snapshot of open work orders value at the end of each month
+            # Get snapshot of open work orders value at the end of each month (completed months only)
             query = """
             WITH MonthEnds AS (
                 SELECT DISTINCT 
@@ -804,6 +804,7 @@ class DashboardQueries:
                     EOMONTH(OpenDate) as month_end
                 FROM ben002.WO
                 WHERE OpenDate >= '2025-03-01'
+                AND EOMONTH(OpenDate) < EOMONTH(GETDATE())  -- Only include completed months
             )
             SELECT 
                 me.year,
@@ -849,11 +850,20 @@ class DashboardQueries:
                         'value': float(row['open_value'] or 0)
                     })
             
-            # Pad missing months from March onwards
+            # Pad missing months from March onwards (completed months only)
             start_date = datetime(2025, 3, 1)
+            # Get the end of the previous month (last completed month)
+            current_date = datetime.now()
+            if current_date.day == 1:
+                # If it's the 1st, use previous month
+                last_completed_month = current_date.replace(day=1) - timedelta(days=1)
+            else:
+                # Use the 1st of current month - 1 day to get last day of previous month
+                last_completed_month = current_date.replace(day=1) - timedelta(days=1)
+            
             all_months = []
             date = start_date
-            while date <= self.current_date:
+            while date <= last_completed_month.replace(day=1):  # Compare to first day of last completed month
                 all_months.append(date.strftime("%b"))
                 if date.month == 12:
                     date = date.replace(year=date.year + 1, month=1)
