@@ -118,6 +118,101 @@ def generate_sql_from_analysis(analysis):
             'Try asking for total sales or revenue instead' as suggestion
         """
     
+    # Handle service sales specifically (by department)
+    elif 'service' in intent and ('sales' in intent or 'revenue' in intent):
+        # Determine time period
+        today = datetime.now()
+        date_filter = ""
+        period_desc = ""
+        
+        # Check for month names first
+        month_names = ['january', 'february', 'march', 'april', 'may', 'june', 
+                      'july', 'august', 'september', 'october', 'november', 'december']
+        current_year = datetime.now().year
+        
+        # Check intent and original query for month names
+        query_lower = (intent + ' ' + analysis.get('original_query', '')).lower()
+        
+        for i, month in enumerate(month_names):
+            if month in query_lower:
+                month_num = i + 1
+                year = current_year
+                year_match = re.search(r'\b(20\d{2})\b', query_lower)
+                if year_match:
+                    year = int(year_match.group(1))
+                
+                first_day = datetime(year, month_num, 1)
+                if month_num == 12:
+                    last_day = datetime(year + 1, 1, 1)
+                else:
+                    last_day = datetime(year, month_num + 1, 1)
+                
+                date_filter = f"InvoiceDate >= '{first_day.strftime('%Y-%m-%d')}' AND InvoiceDate < '{last_day.strftime('%Y-%m-%d')}'"
+                period_desc = f"{month.capitalize()} {year}"
+                break
+        
+        # If no month name found, check for other patterns
+        if not date_filter:
+            if 'last month' in intent:
+                first_day_of_month = today.replace(day=1)
+                last_month_end = first_day_of_month - timedelta(days=1)
+                last_month_start = last_month_end.replace(day=1)
+                date_filter = f"InvoiceDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND InvoiceDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+                period_desc = last_month_start.strftime("%B %Y")
+            elif 'this month' in intent:
+                first_day_of_month = today.replace(day=1)
+                date_filter = f"InvoiceDate >= '{first_day_of_month.strftime('%Y-%m-%d')}'"
+                period_desc = "this month"
+            else:
+                thirty_days_ago = today - timedelta(days=30)
+                date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
+                period_desc = "last 30 days"
+        
+        return f"""
+        SELECT 
+            '{period_desc}' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_service_sales,
+            AVG(GrandTotal) as average_service_invoice,
+            MIN(InvoiceDate) as period_start,
+            MAX(InvoiceDate) as period_end
+        FROM ben002.InvoiceReg
+        WHERE {date_filter}
+        AND SaleCode = 'SVE'
+        """
+    
+    # Handle rental sales specifically
+    elif 'rental' in intent and ('sales' in intent or 'revenue' in intent):
+        # Determine time period
+        today = datetime.now()
+        date_filter = ""
+        period_desc = ""
+        
+        # If no month name found, check for other patterns
+        if 'last month' in intent:
+            first_day_of_month = today.replace(day=1)
+            last_month_end = first_day_of_month - timedelta(days=1)
+            last_month_start = last_month_end.replace(day=1)
+            date_filter = f"InvoiceDate >= '{last_month_start.strftime('%Y-%m-%d')}' AND InvoiceDate < '{first_day_of_month.strftime('%Y-%m-%d')}'"
+            period_desc = last_month_start.strftime("%B %Y")
+        else:
+            thirty_days_ago = today - timedelta(days=30)
+            date_filter = f"InvoiceDate >= '{thirty_days_ago.strftime('%Y-%m-%d')}'"
+            period_desc = "last 30 days"
+        
+        return f"""
+        SELECT 
+            '{period_desc}' as period,
+            COUNT(DISTINCT InvoiceNo) as invoice_count,
+            SUM(GrandTotal) as total_rental_sales,
+            AVG(GrandTotal) as average_rental_invoice,
+            MIN(InvoiceDate) as period_start,
+            MAX(InvoiceDate) as period_end
+        FROM ben002.InvoiceReg
+        WHERE {date_filter}
+        AND SaleCode IN ('RENTR', 'RENTRS')
+        """
+    
     # Handle labor sales specifically
     elif 'labor' in intent and ('sales' in intent or 'revenue' in intent):
         # Determine time period

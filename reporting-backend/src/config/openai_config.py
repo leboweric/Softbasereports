@@ -30,6 +30,8 @@ class OpenAIConfig:
     - GrandTotal (total invoice amount), SalesTax, InvoiceStatus, InvoiceType
     - LaborTaxable, LaborNonTax (labor sales amounts)
     - PartsTaxable, PartsNonTax (parts sales amounts)
+    - SaleCode (department identifier: 'SVE'=Service, 'PRT'=Parts, 'RENTR'=Rental Repairs, 'RENTRS'=Rental Repairs Shop)
+    - Note: For service sales filter by SaleCode='SVE', for rental sales use SaleCode IN ('RENTR','RENTRS')
     - Note: For labor sales use LaborTaxable + LaborNonTax, for parts sales use PartsTaxable + PartsNonTax
     
     SERVICE CLAIMS (ben002.ServiceClaim):
