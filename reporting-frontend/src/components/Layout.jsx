@@ -14,7 +14,8 @@ import {
   Wrench,
   Package,
   Truck,
-  Calculator
+  Calculator,
+  Search
 } from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
@@ -34,6 +35,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
     { name: 'Database Explorer', icon: Database, id: 'database-explorer' },
     { name: 'Schema Exporter', icon: FileText, id: 'schema-exporter' },
     { name: 'Simple Schema', icon: Database, id: 'simple-schema' },
+    { name: 'Table Discovery', icon: Search, id: 'table-discovery' },
     { name: 'Users', icon: Users, id: 'users' },
     { name: 'Settings', icon: Settings, id: 'settings' },
   ]
