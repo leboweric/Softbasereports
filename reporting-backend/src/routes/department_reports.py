@@ -2359,12 +2359,12 @@ def register_department_routes(reports_bp):
             
             status_results = db.execute_query(status_query)
             
-            # Count rental units that have a customer (on rent)
+            # Count active rental contracts (the proper way!)
             query = """
             SELECT COUNT(*) as units_on_rent
-            FROM ben002.Equipment
-            WHERE (UnitType = 'Rental' OR WebRentalFlag = 1 OR RentalRateCode IS NOT NULL)
-                AND CustomerNo IS NOT NULL AND CustomerNo != ''
+            FROM ben002.RentalContract
+            WHERE DeletionTime IS NULL
+                AND (EndDate IS NULL OR EndDate >= GETDATE() OR OpenEndedContract = 1)
             """
             
             result = db.execute_query(query)
@@ -2437,7 +2437,31 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Check various rental indicators
+            # Check rental contracts - this is the real answer!
+            rental_contract_query = """
+            SELECT 
+                COUNT(DISTINCT rc.RentalContractNo) as active_contracts,
+                COUNT(DISTINCT re.SerialNo) as units_on_contract
+            FROM ben002.RentalContract rc
+            LEFT JOIN ben002.RentalContractEquipment re ON rc.RentalContractNo = re.RentalContractNo
+            WHERE rc.DeletionTime IS NULL
+                AND (rc.EndDate IS NULL OR rc.EndDate >= GETDATE() OR rc.OpenEndedContract = 1)
+            """
+            
+            # If RentalContractEquipment doesn't exist, try simpler query
+            try:
+                contract_results = db.execute_query(rental_contract_query)
+            except:
+                # Fallback if join table doesn't exist
+                rental_contract_query = """
+                SELECT COUNT(*) as active_contracts
+                FROM ben002.RentalContract
+                WHERE DeletionTime IS NULL
+                    AND (EndDate IS NULL OR EndDate >= GETDATE() OR OpenEndedContract = 1)
+                """
+                contract_results = db.execute_query(rental_contract_query)
+            
+            # Check various rental indicators in Equipment table
             query = """
             SELECT 
                 -- Unit types
@@ -2483,6 +2507,7 @@ def register_department_routes(reports_bp):
             sample_results = db.execute_query(sample_query)
             
             return jsonify({
+                'rental_contracts': contract_results[0] if contract_results else {},
                 'rental_indicators': results[0] if results else {},
                 'unit_types': [{'type': row['UnitType'], 'count': row['count']} for row in unit_type_results] if unit_type_results else [],
                 'sample_rental_units': [dict(row) for row in sample_results] if sample_results else []
