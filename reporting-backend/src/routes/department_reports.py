@@ -2359,11 +2359,12 @@ def register_department_routes(reports_bp):
             
             status_results = db.execute_query(status_query)
             
-            # Count equipment with a CustomerNo as "on rent" (more likely ~400 units)
+            # Count rental units that have a customer (on rent)
             query = """
             SELECT COUNT(*) as units_on_rent
             FROM ben002.Equipment
-            WHERE CustomerNo IS NOT NULL AND CustomerNo != ''
+            WHERE (UnitType = 'Rental' OR WebRentalFlag = 1 OR RentalRateCode IS NOT NULL)
+                AND CustomerNo IS NOT NULL AND CustomerNo != ''
             """
             
             result = db.execute_query(query)
@@ -2432,59 +2433,59 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/rental-status-diagnostic', methods=['GET'])
     @jwt_required()
     def get_rental_status_diagnostic():
-        """Diagnostic endpoint to check all rental statuses"""
+        """Diagnostic endpoint to check rental indicators"""
         try:
             db = get_db()
             
-            # Get all rental statuses with counts
+            # Check various rental indicators
             query = """
             SELECT 
-                COALESCE(RentalStatus, 'NULL/EMPTY') as status,
-                COUNT(*) as count,
-                COUNT(CASE WHEN UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%' THEN 1 END) as forklift_count
+                -- Unit types
+                COUNT(*) as total_equipment,
+                COUNT(CASE WHEN UnitType = 'Rental' OR UnitType LIKE '%Rent%' THEN 1 END) as rental_unit_type,
+                COUNT(CASE WHEN WebRentalFlag = 1 THEN 1 END) as web_rental_flag,
+                COUNT(CASE WHEN RentalRateCode IS NOT NULL AND RentalRateCode != '' THEN 1 END) as has_rental_rate,
+                
+                -- Current rental status
+                COUNT(CASE WHEN CustomerNo IS NOT NULL AND CustomerNo != '' THEN 1 END) as has_customer,
+                COUNT(CASE WHEN RentalStatus = 'Ready To Rent' THEN 1 END) as ready_to_rent,
+                COUNT(CASE WHEN RentalStatus IS NULL OR RentalStatus = '' THEN 1 END) as null_status,
+                
+                -- Combinations
+                COUNT(CASE WHEN (UnitType = 'Rental' OR WebRentalFlag = 1) AND CustomerNo IS NOT NULL AND CustomerNo != '' THEN 1 END) as rental_units_with_customer,
+                COUNT(CASE WHEN (UnitType = 'Rental' OR WebRentalFlag = 1) AND (RentalStatus = 'Ready To Rent' OR RentalStatus = 'Hold') THEN 1 END) as rental_units_available
             FROM ben002.Equipment
-            GROUP BY RentalStatus
-            ORDER BY count DESC
             """
             
             results = db.execute_query(query)
             
-            # Also check if there's a separate rental tracking table or if CustomerNo indicates rental
-            customer_query = """
-            SELECT 
-                COUNT(*) as total_with_customer,
-                COUNT(CASE WHEN CustomerNo IS NOT NULL AND CustomerNo != '' THEN 1 END) as with_customer_no,
-                COUNT(CASE WHEN Customer = 1 THEN 1 END) as with_customer_flag
+            # Check UnitType values
+            unit_type_query = """
+            SELECT DISTINCT UnitType, COUNT(*) as count
             FROM ben002.Equipment
+            WHERE UnitType IS NOT NULL
+            GROUP BY UnitType
+            ORDER BY count DESC
             """
             
-            customer_results = db.execute_query(customer_query)
+            unit_type_results = db.execute_query(unit_type_query)
             
-            # Sample some NULL/EMPTY status records to understand what they are
+            # Sample rental units
             sample_query = """
             SELECT TOP 10
-                UnitNo, Make, Model, Cost, Sell, CustomerNo, Customer,
-                CASE WHEN CustomerNo IS NOT NULL AND CustomerNo != '' THEN 'Has CustomerNo' ELSE 'No CustomerNo' END as customer_status
+                UnitNo, Make, Model, UnitType, WebRentalFlag, RentalStatus, CustomerNo,
+                RentalRateCode, DayRent, WeekRent, MonthRent
             FROM ben002.Equipment
-            WHERE RentalStatus IS NULL OR RentalStatus = ''
+            WHERE (UnitType = 'Rental' OR WebRentalFlag = 1 OR RentalRateCode IS NOT NULL)
+                AND CustomerNo IS NOT NULL AND CustomerNo != ''
             """
             
             sample_results = db.execute_query(sample_query)
             
-            statuses = []
-            for row in results:
-                statuses.append({
-                    'status': row['status'],
-                    'count': row['count'],
-                    'forklift_count': row['forklift_count']
-                })
-            
             return jsonify({
-                'rental_statuses': statuses,
-                'total_equipment': sum(s['count'] for s in statuses),
-                'total_forklifts': sum(s['forklift_count'] for s in statuses),
-                'customer_info': customer_results[0] if customer_results else {},
-                'sample_null_status': [dict(row) for row in sample_results] if sample_results else []
+                'rental_indicators': results[0] if results else {},
+                'unit_types': [{'type': row['UnitType'], 'count': row['count']} for row in unit_type_results] if unit_type_results else [],
+                'sample_rental_units': [dict(row) for row in sample_results] if sample_results else []
             })
             
         except Exception as e:
