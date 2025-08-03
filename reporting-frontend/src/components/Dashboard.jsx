@@ -1256,11 +1256,29 @@ const Dashboard = ({ user }) => {
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
+                <div className={`text-2xl font-bold ${
+                  dashboardData?.open_work_orders_change > 0 ? 'text-red-600' :
+                  dashboardData?.open_work_orders_change < 0 ? 'text-green-600' :
+                  'text-gray-900'
+                }`}>
                   {formatCurrency(dashboardData?.open_work_orders_value || 0)}
+                  {dashboardData?.open_work_orders_change !== undefined && dashboardData?.open_work_orders_change !== 0 && (
+                    <span className={`ml-2 text-sm font-normal ${
+                      dashboardData.open_work_orders_change > 0 ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      {dashboardData.open_work_orders_change > 0 ? '+' : ''}{formatCurrency(dashboardData.open_work_orders_change)}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Value of active work orders
+                  {dashboardData?.open_work_orders_change_percent !== undefined && dashboardData?.open_work_orders_change_percent !== 0 && (
+                    <span className={`ml-1 ${
+                      dashboardData.open_work_orders_change_percent > 0 ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      ({dashboardData.open_work_orders_change_percent > 0 ? '+' : ''}{dashboardData.open_work_orders_change_percent.toFixed(1)}% vs 30 days ago)
+                    </span>
+                  )}
                 </p>
               </CardContent>
             </Card>

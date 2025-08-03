@@ -447,8 +447,13 @@ class DashboardQueries:
             return []
     
     def get_work_order_types(self):
-        """Get work order types breakdown"""
+        """Get work order types breakdown with month-over-month comparison"""
         try:
+            # Calculate previous month date
+            previous_month_date = datetime.now() - timedelta(days=30)
+            previous_month_str = previous_month_date.strftime('%Y-%m-%d')
+            
+            # Current open work orders query
             query = """
             SELECT 
                 CASE 
@@ -489,6 +494,34 @@ class DashboardQueries:
             ORDER BY total_value DESC
             """
             
+            # Previous month open work orders value query
+            previous_query = f"""
+            SELECT SUM(
+                COALESCE(l.labor_total, 0) + 
+                COALESCE(p.parts_total, 0) + 
+                COALESCE(m.misc_total, 0)
+            ) as previous_total_value
+            FROM ben002.WO w
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as labor_total 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ) l ON w.WONo = l.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as parts_total 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ) p ON w.WONo = p.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as misc_total 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            ) m ON w.WONo = m.WONo
+            WHERE w.OpenDate <= '{previous_month_str}'
+            AND (w.CompletedDate IS NULL OR w.CompletedDate > '{previous_month_str}')
+            AND (w.ClosedDate IS NULL OR w.ClosedDate > '{previous_month_str}')
+            """
+            
             results = self.db.execute_query(query)
             work_order_types = []
             total_value = 0
@@ -504,14 +537,27 @@ class DashboardQueries:
                     total_value += float(row['total_value'])
                     total_count += int(row['count'])
             
+            # Get previous month value
+            previous_result = self.db.execute_query(previous_query)
+            previous_value = 0
+            if previous_result and previous_result[0]['previous_total_value']:
+                previous_value = float(previous_result[0]['previous_total_value'])
+            
+            # Calculate change
+            change = total_value - previous_value
+            change_percent = ((total_value - previous_value) / previous_value * 100) if previous_value > 0 else 0
+            
             return {
                 'types': work_order_types,
                 'total_value': total_value,
-                'total_count': total_count
+                'total_count': total_count,
+                'previous_value': previous_value,
+                'change': change,
+                'change_percent': change_percent
             }
         except Exception as e:
             logger.error(f"Work order types query failed: {str(e)}")
-            return {'types': [], 'total_value': 0, 'total_count': 0}
+            return {'types': [], 'total_value': 0, 'total_count': 0, 'previous_value': 0, 'change': 0, 'change_percent': 0}
     
     def get_top_customers(self):
         """Get top 10 customers by fiscal YTD sales"""
@@ -949,7 +995,7 @@ def get_dashboard_summary_optimized():
         
         # Process results
         uninvoiced_data = results.get('uninvoiced', {'value': 0, 'count': 0})
-        wo_types_data = results.get('work_order_types', {'types': [], 'total_value': 0, 'total_count': 0})
+        wo_types_data = results.get('work_order_types', {'types': [], 'total_value': 0, 'total_count': 0, 'previous_value': 0, 'change': 0, 'change_percent': 0})
         
         # Handle active customers data (could be int or dict)
         active_customers_data = results.get('active_customers', 0)
@@ -977,6 +1023,9 @@ def get_dashboard_summary_optimized():
             'uninvoiced_count': uninvoiced_data['count'],
             'open_work_orders_value': int(wo_types_data['total_value']),
             'open_work_orders_count': wo_types_data['total_count'],
+            'open_work_orders_change': int(wo_types_data['change']),
+            'open_work_orders_change_percent': wo_types_data['change_percent'],
+            'open_work_orders_previous': int(wo_types_data['previous_value']),
             'work_order_types': wo_types_data['types'],
             'monthly_sales': results.get('monthly_sales', []),
             'monthly_sales_no_equipment': results.get('monthly_sales_no_equipment', []),
