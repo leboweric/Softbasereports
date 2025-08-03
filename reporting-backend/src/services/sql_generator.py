@@ -17,6 +17,12 @@ class SmartSQLGenerator:
         """Main entry point - routes to appropriate handler based on query_action"""
         query_action = query_analysis.get('query_action', '')
         
+        # Add original intent to filters for context
+        if 'filters' not in query_analysis:
+            query_analysis['filters'] = {}
+        query_analysis['filters']['original_intent'] = query_analysis.get('intent', '')
+        query_analysis['filters']['query_type'] = query_analysis.get('query_type', 'list')
+        
         # Route to appropriate handler
         handlers = {
             'list_equipment': self._handle_list_equipment,
@@ -78,22 +84,37 @@ class SmartSQLGenerator:
     
     def _generate_rental_equipment_query(self, equipment_type, filters):
         """Generate query for rental equipment using RentalHistory"""
-        sql = f"""
-        SELECT DISTINCT
-            e.UnitNo,
-            e.SerialNo,
-            e.Make,
-            e.Model,
-            c.Name as CustomerName,
-            rh.DaysRented,
-            rh.RentAmount
-        FROM ben002.RentalHistory rh
-        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        WHERE rh.Year = {self.current_year}
-        AND rh.Month = {self.current_month}
-        AND rh.DaysRented > 0
-        """
+        # Check if this is a count query
+        query_type = filters.get('query_type', 'list')
+        
+        if query_type == 'count' or 'how many' in filters.get('original_intent', '').lower():
+            # Count query
+            sql = f"""
+            SELECT COUNT(DISTINCT e.SerialNo) as count
+            FROM ben002.RentalHistory rh
+            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            WHERE rh.Year = {self.current_year}
+            AND rh.Month = {self.current_month}
+            AND rh.DaysRented > 0
+            """
+        else:
+            # List query - Include all fields in SELECT that are used in ORDER BY
+            sql = f"""
+            SELECT DISTINCT
+                e.UnitNo,
+                e.SerialNo,
+                e.Make,
+                e.Model,
+                c.Name as CustomerName,
+                rh.DaysRented,
+                rh.RentAmount
+            FROM ben002.RentalHistory rh
+            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE rh.Year = {self.current_year}
+            AND rh.Month = {self.current_month}
+            AND rh.DaysRented > 0
+            """
         
         # Add equipment type filter
         if equipment_type == 'forklift':
@@ -105,7 +126,10 @@ class SmartSQLGenerator:
         if filters.get('customer'):
             sql += f" AND UPPER(c.Name) LIKE '%{filters['customer'].upper()}%'"
         
-        sql += " ORDER BY e.UnitNo"
+        # Only add ORDER BY for list queries
+        if query_type != 'count' and 'how many' not in filters.get('original_intent', '').lower():
+            sql += " ORDER BY e.UnitNo"
+            
         return sql
     
     def _handle_list_rentals(self, analysis):
@@ -113,9 +137,13 @@ class SmartSQLGenerator:
         filters = analysis.get('filters', {})
         
         # For active rentals, always use RentalHistory for accuracy
+        # Note: When using DISTINCT with ORDER BY, all ORDER BY columns must be in SELECT
         sql = f"""
         SELECT DISTINCT
             c.Name as customer,
+            e.UnitNo,
+            e.Make,
+            e.Model,
             e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
         FROM ben002.RentalHistory rh
         INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
