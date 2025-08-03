@@ -14,6 +14,7 @@ import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import AIQueryTester from './components/AIQueryTester'
 import EquipmentSchemaChecker from './components/EquipmentSchemaChecker'
 import DatabaseSchemaExporter from './components/DatabaseSchemaExporter'
+import SimpleSchemaViewer from './components/SimpleSchemaViewer'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
@@ -100,6 +101,8 @@ function App() {
         return <EquipmentSchemaChecker user={user} organization={organization} />
       case 'schema-exporter':
         return <DatabaseSchemaExporter user={user} organization={organization} />
+      case 'simple-schema':
+        return <SimpleSchemaViewer user={user} organization={organization} />
       case 'users':
         return <div className="p-8 text-center text-gray-500">Users management coming soon...</div>
       case 'settings':

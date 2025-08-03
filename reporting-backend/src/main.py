@@ -36,6 +36,7 @@ from src.routes.ai_predictions import ai_predictions_bp
 from src.routes.ai_query_test import ai_query_test_bp
 from src.routes.equipment_diagnostic import equipment_diagnostic_bp
 from src.routes.full_schema_export import full_schema_export_bp
+from src.routes.simple_schema_export import simple_schema_export_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -98,6 +99,7 @@ app.register_blueprint(ai_predictions_bp)
 app.register_blueprint(ai_query_test_bp, url_prefix='/api/ai-test')
 app.register_blueprint(equipment_diagnostic_bp)
 app.register_blueprint(full_schema_export_bp)
+app.register_blueprint(simple_schema_export_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
