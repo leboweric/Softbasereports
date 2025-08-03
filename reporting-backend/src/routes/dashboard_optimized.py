@@ -449,9 +449,13 @@ class DashboardQueries:
     def get_work_order_types(self):
         """Get work order types breakdown with month-over-month comparison"""
         try:
-            # Calculate previous month date
-            previous_month_date = datetime.now() - timedelta(days=30)
-            previous_month_str = previous_month_date.strftime('%Y-%m-%d')
+            # Calculate previous month END date for proper comparison
+            current_date = datetime.now()
+            # Get first day of current month
+            first_of_month = current_date.replace(day=1)
+            # Get last day of previous month
+            previous_month_end = first_of_month - timedelta(days=1)
+            previous_month_end_str = previous_month_end.strftime('%Y-%m-%d')
             
             # Current open work orders query
             query = """
@@ -517,9 +521,9 @@ class DashboardQueries:
                 FROM ben002.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
-            WHERE w.OpenDate <= '{previous_month_str}'
-            AND (w.CompletedDate IS NULL OR w.CompletedDate > '{previous_month_str}')
-            AND (w.ClosedDate IS NULL OR w.ClosedDate > '{previous_month_str}')
+            WHERE w.OpenDate <= '{previous_month_end_str}'
+            AND (w.CompletedDate IS NULL OR w.CompletedDate > '{previous_month_end_str}')
+            AND (w.ClosedDate IS NULL OR w.ClosedDate > '{previous_month_end_str}')
             """
             
             results = self.db.execute_query(query)

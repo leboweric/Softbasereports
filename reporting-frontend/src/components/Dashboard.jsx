@@ -1276,7 +1276,7 @@ const Dashboard = ({ user }) => {
                     <span className={`ml-1 ${
                       dashboardData.open_work_orders_change_percent > 0 ? 'text-red-600' : 'text-green-600'
                     }`}>
-                      ({dashboardData.open_work_orders_change_percent > 0 ? '+' : ''}{dashboardData.open_work_orders_change_percent.toFixed(1)}% vs 30 days ago)
+                      ({dashboardData.open_work_orders_change_percent > 0 ? '+' : ''}{dashboardData.open_work_orders_change_percent.toFixed(1)}% vs prev month end)
                     </span>
                   )}
                 </p>
