@@ -28,6 +28,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
     { name: 'Accounting', icon: Calculator, id: 'accounting' },
     { name: 'AI Query', icon: Sparkles, id: 'ai-query' },
     { name: 'AI Query Tester', icon: BarChart3, id: 'ai-query-tester' },
+    { name: 'Equipment Schema', icon: Database, id: 'equipment-schema' },
     { name: 'Report Creator', icon: FileText, id: 'report-creator' },
     { name: 'Reports', icon: FileText, id: 'reports' },
     { name: 'Database Explorer', icon: Database, id: 'database-explorer' },

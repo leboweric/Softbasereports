@@ -12,6 +12,7 @@ import RentalReport from './components/departments/RentalReport'
 import AccountingReport from './components/departments/AccountingReport'
 import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import AIQueryTester from './components/AIQueryTester'
+import EquipmentSchemaChecker from './components/EquipmentSchemaChecker'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
@@ -94,6 +95,8 @@ function App() {
         return <InvoiceExplorer user={user} organization={organization} />
       case 'ai-query-tester':
         return <AIQueryTester user={user} organization={organization} />
+      case 'equipment-schema':
+        return <EquipmentSchemaChecker user={user} organization={organization} />
       case 'users':
         return <div className="p-8 text-center text-gray-500">Users management coming soon...</div>
       case 'settings':
