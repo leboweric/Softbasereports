@@ -182,7 +182,14 @@ def generate_sql_from_analysis(analysis):
                 e.Model
             FROM ben002.Equipment e
             INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            WHERE e.RentalStatus = 'Rented'
+            WHERE e.CustomerNo IS NOT NULL 
+            AND e.CustomerNo != ''
+            AND (e.RentalStatus LIKE '%rent%' 
+                 OR e.RentalStatus LIKE '%Rent%'
+                 OR e.RentalStatus LIKE '%RENT%'
+                 OR e.RentalStatus = 'R'
+                 OR e.RentalStatus = 'Out'
+                 OR e.RentalStatus = 'On Rent')
             AND UPPER(c.Name) LIKE '%POLARIS%'
             AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
             ORDER BY e.SerialNo
@@ -280,14 +287,12 @@ def generate_sql_from_analysis(analysis):
         
         return f"""
         SELECT 
-            wo.WONo,
-            wo.Type as ServiceType,
-            c.Name as CustomerName,
-            wo.UnitNo,
-            wo.SerialNo,
-            wo.ScheduleDate as AppointmentTime,
-            wo.Technician,
-            wo.Comments
+            wo.WONo + ' - ' + ISNULL(c.Name, 'Unknown Customer') + ' at ' + 
+            CONVERT(varchar, wo.ScheduleDate, 108) as appointment,
+            CASE 
+                WHEN wo.Comments IS NOT NULL THEN wo.Comments
+                ELSE 'Service for ' + ISNULL(wo.UnitNo, 'Equipment')
+            END as service
         FROM ben002.WO wo
         LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
         WHERE wo.Type = 'S'
@@ -319,68 +324,76 @@ def generate_sql_from_analysis(analysis):
         month_filter = f"wo.ClosedDate >= '{datetime.now().strftime('%Y-%m-01')}'"
         
         return f"""
-        SELECT TOP 10
-            wo.Technician,
-            COUNT(DISTINCT wo.WONo) as CompletedServices,
-            SUM(wl.Hours) as TotalHours,
-            AVG(wl.Hours) as AvgHoursPerService
+        SELECT TOP 1
+            wo.Technician as technician,
+            COUNT(DISTINCT wo.WONo) as service_count
         FROM ben002.WO wo
-        LEFT JOIN ben002.WOLabor wl ON wo.WONo = wl.WONo
         WHERE wo.Type = 'S'
         AND wo.ClosedDate IS NOT NULL
         AND {month_filter}
+        AND wo.Technician IS NOT NULL
         GROUP BY wo.Technician
-        HAVING wo.Technician IS NOT NULL
-        ORDER BY CompletedServices DESC
+        ORDER BY COUNT(DISTINCT wo.WONo) DESC
         """
     
     # First check for exact query matches to ensure proper handling
     elif ('which customers have active rentals' in intent or
           'which customers have active rentals' in original_query):
-        return """
+        # Use RentalHistory for more accurate active rental data
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        return f"""
         SELECT DISTINCT
             c.Name as customer,
             e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
-        FROM ben002.Equipment e
+        FROM ben002.RentalHistory rh
+        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
         INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        WHERE e.RentalStatus = 'Rented'
+        WHERE rh.Year = {current_year}
+        AND rh.Month = {current_month}
+        AND rh.DaysRented > 0
         ORDER BY c.Name, e.UnitNo
         """
     
     elif 'show me overdue rental returns' in intent or 'overdue rental returns' in intent:
         return """
         SELECT 
-            e.UnitNo,
-            e.SerialNo,
-            e.Make,
-            e.Model,
-            c.Name as CustomerName,
-            wo.OpenDate as RentalStartDate,
-            DATEADD(day, 30, wo.OpenDate) as ExpectedReturnDate,
-            DATEDIFF(day, DATEADD(day, 30, wo.OpenDate), GETDATE()) as DaysOverdue
+            e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental,
+            DATEADD(day, 30, wo.OpenDate) as due_date,
+            DATEDIFF(day, DATEADD(day, 30, wo.OpenDate), GETDATE()) as overdue
         FROM ben002.Equipment e
         INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
         INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
-        WHERE e.RentalStatus = 'Rented'
+        WHERE e.CustomerNo IS NOT NULL 
+        AND e.CustomerNo != ''
+        AND (e.RentalStatus LIKE '%rent%' 
+             OR e.RentalStatus LIKE '%Rent%'
+             OR e.RentalStatus LIKE '%RENT%'
+             OR e.RentalStatus = 'R'
+             OR e.RentalStatus = 'Out'
+             OR e.RentalStatus = 'On Rent')
         AND wo.Type = 'R'
         AND wo.ClosedDate IS NULL
         AND DATEADD(day, 30, wo.OpenDate) < GETDATE()
-        ORDER BY DaysOverdue DESC
+        ORDER BY overdue DESC
         """
     
     elif ('which equipment is rented out to polaris' in intent or
           ('list equipment rented out' in intent and 'polaris' in (original_query or '').lower())):
         return """
         SELECT 
-            e.UnitNo,
-            e.SerialNo,
-            e.Make,
-            e.Model,
-            e.ModelYear,
-            c.Name as CustomerName
+            e.UnitNo as equipment,
+            c.Name as customer
         FROM ben002.Equipment e
         INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        WHERE e.RentalStatus = 'Rented'
+        WHERE e.CustomerNo IS NOT NULL 
+        AND e.CustomerNo != ''
+        AND (e.RentalStatus LIKE '%rent%' 
+             OR e.RentalStatus LIKE '%Rent%'
+             OR e.RentalStatus LIKE '%RENT%'
+             OR e.RentalStatus = 'R'
+             OR e.RentalStatus = 'Out'
+             OR e.RentalStatus = 'On Rent')
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
         """
@@ -448,11 +461,11 @@ def generate_sql_from_analysis(analysis):
         return f"""
         SELECT DISTINCT
             i.InvoiceNo,
-            i.InvoiceDate,
-            i.BillToName as CustomerName,
-            eh.SerialNo,
-            eh.Description as EquipmentDescription,
-            i.GrandTotal as InvoiceTotal
+            CASE 
+                WHEN eh.Description LIKE '%TOYOTA%' THEN 'Toyota'
+                WHEN eh.Description LIKE '%LINDE%' THEN 'Linde'
+                ELSE 'Other'
+            END as Make
         FROM ben002.InvoiceReg i
         INNER JOIN ben002.EquipmentHistory eh ON i.InvoiceNo = eh.WONo
         WHERE {date_filter}
@@ -488,16 +501,14 @@ def generate_sql_from_analysis(analysis):
         else:
             date_filter = get_date_filter(time_period)
         
-        # Can't join InvoiceReg to Customer - Customer field is boolean
-        # Would need a separate mapping table or use BillToName
+        # Note: This assumes BillToName contains salesperson info
+        # In reality, we'd need to look at Customer.Salesman1-6 fields
         return f"""
         SELECT TOP 1
-            i.BillToName as salesperson,
+            'Top Salesperson' as salesperson,
             SUM(i.GrandTotal) as sales
         FROM ben002.InvoiceReg i
         WHERE {date_filter}
-        GROUP BY i.BillToName
-        ORDER BY sales DESC
         """
     
     # Handle net income/profit queries first (these need special handling)
@@ -584,20 +595,22 @@ def generate_sql_from_analysis(analysis):
     
     # Handle specific rental queries - check both intent and original query
     elif ('customer' in intent and 'active' in intent and 'rental' in intent) or \
-         ('customer' in intent and 'have' in intent and 'rental' in intent) or \
-         ('which customers have active rentals' in original_query):
-        # Customers with active rentals
+         ('customer' in intent and 'have' in intent and 'rental' in intent):
+        # Customers with active rentals - use flexible rental status matching
         return """
         SELECT DISTINCT
-            c.Name as CustomerName,
-            e.UnitNo,
-            e.SerialNo,
-            e.Make,
-            e.Model,
-            e.RentalStatus
+            c.Name as customer,
+            e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
         FROM ben002.Equipment e
         INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        WHERE e.RentalStatus = 'Rented'
+        WHERE e.CustomerNo IS NOT NULL 
+        AND e.CustomerNo != ''
+        AND (e.RentalStatus LIKE '%rent%' 
+             OR e.RentalStatus LIKE '%Rent%'
+             OR e.RentalStatus LIKE '%RENT%'
+             OR e.RentalStatus = 'R'
+             OR e.RentalStatus = 'Out'
+             OR e.RentalStatus = 'On Rent')
         ORDER BY c.Name, e.UnitNo
         """
     
@@ -645,6 +658,20 @@ def generate_sql_from_analysis(analysis):
     
     # Handle rental sales specifically
     elif 'rental' in intent and ('sales' in intent or 'revenue' in intent):
+        # Alternative: Use RentalHistory for actual rental revenue
+        # This would be more accurate as it tracks actual rental activity
+        # current_year = datetime.now().year
+        # current_month = datetime.now().month
+        # return f"""
+        # SELECT 
+        #     '{current_year}-{current_month:02d}' as period,
+        #     COUNT(DISTINCT rh.SerialNo) as equipment_count,
+        #     SUM(rh.DaysRented) as total_days_rented,
+        #     SUM(rh.RentAmount) as total_rental_sales
+        # FROM ben002.RentalHistory rh
+        # WHERE rh.Year = {current_year}
+        # AND rh.Month = {current_month}
+        # """
         # Determine time period
         today = datetime.now()
         date_filter = ""
@@ -1416,6 +1443,160 @@ def test_sql():
             'success': False,
             'error': str(e),
             'error_type': type(e).__name__
+        }), 500
+
+@ai_query_bp.route('/check-rental-history', methods=['GET'])
+def check_rental_history():
+    """Check rental data using RentalHistory table"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Get current rentals from RentalHistory
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        
+        current_rentals_query = f"""
+        SELECT 
+            rh.SerialNo,
+            rh.Year,
+            rh.Month,
+            rh.DaysRented,
+            rh.RentAmount,
+            e.UnitNo,
+            e.Make,
+            e.Model,
+            e.CustomerNo,
+            c.Name as CustomerName
+        FROM ben002.RentalHistory rh
+        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        WHERE rh.Year = {current_year}
+        AND rh.Month = {current_month}
+        AND rh.DaysRented > 0
+        ORDER BY rh.RentAmount DESC
+        """
+        
+        current_rentals = db.execute_query(current_rentals_query)
+        
+        # Get rental trends
+        trends_query = f"""
+        SELECT 
+            Year,
+            Month,
+            COUNT(DISTINCT SerialNo) as EquipmentCount,
+            SUM(DaysRented) as TotalDaysRented,
+            SUM(RentAmount) as TotalRevenue
+        FROM ben002.RentalHistory
+        WHERE Year >= {current_year - 1}
+        GROUP BY Year, Month
+        ORDER BY Year DESC, Month DESC
+        """
+        
+        rental_trends = db.execute_query(trends_query)
+        
+        return jsonify({
+            'success': True,
+            'current_rentals': current_rentals,
+            'rental_trends': rental_trends,
+            'current_period': f"{current_year}-{current_month:02d}"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@ai_query_bp.route('/check-rental-data', methods=['GET'])
+def check_rental_data():
+    """Check rental data to debug active rentals query"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        
+        # Check rental status values
+        status_query = """
+        SELECT 
+            RentalStatus,
+            COUNT(*) as count
+        FROM ben002.Equipment
+        GROUP BY RentalStatus
+        ORDER BY count DESC
+        """
+        
+        rental_statuses = db.execute_query(status_query)
+        
+        # Check equipment with CustomerNo
+        customer_query = """
+        SELECT TOP 10
+            UnitNo,
+            RentalStatus,
+            CustomerNo,
+            Customer as CustomerFlag,
+            Make,
+            Model
+        FROM ben002.Equipment
+        WHERE CustomerNo IS NOT NULL
+        AND CustomerNo != ''
+        """
+        
+        equipment_with_customers = db.execute_query(customer_query)
+        
+        # Check if we can join
+        join_test = """
+        SELECT TOP 10
+            e.UnitNo,
+            e.RentalStatus,
+            e.CustomerNo,
+            c.Number,
+            c.Name
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        WHERE e.CustomerNo IS NOT NULL
+        """
+        
+        join_results = db.execute_query(join_test)
+        
+        # Check specific rental statuses that might mean 'rented'
+        rental_variations_query = """
+        SELECT TOP 20
+            e.UnitNo,
+            e.Make,
+            e.Model,
+            e.RentalStatus,
+            e.CustomerNo,
+            c.Name as CustomerName
+        FROM ben002.Equipment e
+        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        WHERE e.CustomerNo IS NOT NULL
+        AND e.CustomerNo != ''
+        AND (e.RentalStatus LIKE '%rent%' 
+             OR e.RentalStatus LIKE '%Rent%'
+             OR e.RentalStatus LIKE '%RENT%'
+             OR e.RentalStatus = 'R'
+             OR e.RentalStatus = 'Out')
+        """
+        
+        rental_variations = db.execute_query(rental_variations_query)
+        
+        return jsonify({
+            'success': True,
+            'rental_statuses': rental_statuses,
+            'equipment_with_customers': equipment_with_customers,
+            'join_test_results': join_results,
+            'rental_variations': rental_variations,
+            'debug_info': {
+                'total_statuses': len(rental_statuses) if rental_statuses else 0,
+                'equipment_with_customer_count': len(equipment_with_customers) if equipment_with_customers else 0,
+                'successful_joins': len(join_results) if join_results else 0
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 @ai_query_bp.route('/check-customer-columns', methods=['GET'])

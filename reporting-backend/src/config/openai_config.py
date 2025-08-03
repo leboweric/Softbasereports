@@ -85,6 +85,13 @@ class OpenAIConfig:
     INVOICE SALES (ben002.InvoiceSales):
     - InvoiceNo, ItemNo, Description, Quantity, Price, ExtPrice
     
+    RENTAL HISTORY (ben002.RentalHistory):
+    - Id (bigint PK), SerialNo (nvarchar), Year (smallint), Month (smallint),
+    - DaysRented (int), RentAmount (decimal), CreationTime (datetime2)
+    - Tracks monthly rental activity for each equipment
+    - To find active rentals: Look for records in current/recent months
+    - Join with Equipment on SerialNo, then Customer on Equipment.CustomerNo
+    
     KEY VIEWS FOR REPORTING:
     - ben002.Sales: Pre-aggregated sales data
     - ben002.PartsSales: Parts sales analytics

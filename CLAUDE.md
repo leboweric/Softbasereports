@@ -397,8 +397,12 @@ Rows: 318
 #### RentalHistory
 Rows: 11,568
 - Monthly rental revenue by equipment
-- Key fields: SerialNo, Year, Month, DaysRented, RentAmount
-- Tracks rental utilization and revenue
+- Key fields: Id (bigint PK), SerialNo (nvarchar), Year (smallint), Month (smallint), DaysRented (int), RentAmount (decimal)
+- Tracks actual rental activity by month for each piece of equipment
+- Use this table to find active rentals: Equipment with records in recent months
+- Join with Equipment table on SerialNo to get equipment details
+- Join with Equipment.CustomerNo to get customer information
+- Audit fields: CreationTime, CreatorUserId, LastModificationTime, LastModifierUserId
 
 #### SaleCodes
 Rows: 79
