@@ -2352,6 +2352,32 @@ def register_department_routes(reports_bp):
                 'type': 'rental_top_customers_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/units-on-rent', methods=['GET'])
+    @jwt_required()
+    def get_units_on_rent():
+        """Get count of units currently on rent"""
+        try:
+            db = get_db()
+            
+            query = """
+            SELECT COUNT(*) as units_on_rent
+            FROM ben002.Equipment
+            WHERE RentalStatus = 'On Rent'
+            """
+            
+            result = db.execute_query(query)
+            units_on_rent = result[0]['units_on_rent'] if result else 0
+            
+            return jsonify({
+                'units_on_rent': units_on_rent
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'units_on_rent_error'
+            }), 500
+    
     @reports_bp.route('/departments/rental/available-forklifts', methods=['GET'])
     @jwt_required()
     def get_available_forklifts():

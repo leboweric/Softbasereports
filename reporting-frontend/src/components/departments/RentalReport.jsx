@@ -49,12 +49,14 @@ const RentalReport = ({ user }) => {
   const [monthlyRevenueData, setMonthlyRevenueData] = useState(null)
   const [topCustomers, setTopCustomers] = useState(null)
   const [downloadingForklifts, setDownloadingForklifts] = useState(false)
+  const [unitsOnRent, setUnitsOnRent] = useState(0)
 
   useEffect(() => {
     fetchRentalData()
     fetchInventoryCount()
     fetchMonthlyRevenueData()
     fetchTopCustomers()
+    fetchUnitsOnRent()
   }, [])
 
   const fetchRentalData = async () => {
@@ -130,6 +132,24 @@ const RentalReport = ({ user }) => {
     } catch (error) {
       console.error('Error fetching top customers:', error)
       setTopCustomers(null)
+    }
+  }
+
+  const fetchUnitsOnRent = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-rent'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setUnitsOnRent(data.units_on_rent || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching units on rent:', error)
     }
   }
 
@@ -306,6 +326,20 @@ const RentalReport = ({ user }) => {
                   <Download className="mr-2 h-4 w-4" />
                   {downloadingForklifts ? 'Downloading...' : 'Download 74 Forklifts'}
                 </Button>
+              </CardContent>
+            </Card>
+
+            {/* Number of Units on Rent Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Number of Units on Rent</CardTitle>
+                <Truck className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{unitsOnRent}</div>
+                <p className="text-xs text-muted-foreground">
+                  Currently rented out
+                </p>
               </CardContent>
             </Card>
           </div>
