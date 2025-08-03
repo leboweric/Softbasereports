@@ -87,8 +87,9 @@ def generate_sql_from_analysis(analysis):
             'Linde' as Make,
             COUNT(*) as quantity_in_stock
         FROM ben002.Equipment
-        WHERE (RentalStatus = 'In Stock' OR RentalStatus = 'Available')
-        AND (UPPER(Make) LIKE '%LINDE%' OR UPPER(Model) LIKE '%LINDE%')
+        WHERE RentalStatus = 'In Stock'
+        AND UPPER(Make) LIKE '%LINDE%'
+        AND (UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORKLIFT%')
         """
     
     elif ('which parts are running low on inventory' in intent or
@@ -133,14 +134,12 @@ def generate_sql_from_analysis(analysis):
             e.UnitNo as StockNo,
             e.Make,
             e.Model,
-            e.Sell as SaleAmount,
-            e.ModelYear,
-            e.SerialNo
+            e.Sell as SaleAmount
         FROM ben002.Equipment e
-        WHERE (e.RentalStatus = 'In Stock' OR e.RentalStatus = 'Available')
+        WHERE e.RentalStatus = 'In Stock'
         AND e.Sell > 0
         AND e.Sell <= {price_limit}
-        AND UPPER(e.Model) LIKE '%FORK%'
+        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
         ORDER BY e.Sell ASC
         """
     
@@ -177,8 +176,7 @@ def generate_sql_from_analysis(analysis):
         INNER JOIN ben002.Customer c ON e.Customer = c.ID
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
-        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%' 
-             OR UPPER(e.Description) LIKE '%FORK%')
+        AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
         ORDER BY e.SerialNo
         """
     
@@ -370,7 +368,7 @@ def generate_sql_from_analysis(analysis):
             e.ModelYear,
             c.Name as CustomerName
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
@@ -399,11 +397,10 @@ def generate_sql_from_analysis(analysis):
         return f"""
         SELECT TOP {limit}
             i.BillToName as CustomerName,
-            COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
-            SUM(i.GrandTotal) as TotalRevenue,
-            MAX(i.InvoiceDate) as LastPurchaseDate
+            SUM(i.GrandTotal) as TotalRevenue
         FROM ben002.InvoiceReg i
         WHERE {date_filter}
+        AND i.BillToName IS NOT NULL
         GROUP BY i.BillToName
         ORDER BY TotalRevenue DESC
         """
@@ -615,7 +612,7 @@ def generate_sql_from_analysis(analysis):
             e.RentalStatus,
             c.Name as CustomerName
         FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
@@ -925,155 +922,7 @@ def generate_sql_from_analysis(analysis):
         ORDER BY AverageOrderValue DESC
         """
     
-    # Handle general customer queries
-    elif 'customer' in ' '.join(tables).lower():
-        if query_type == 'aggregation':
-            return """
-            SELECT TOP 20
-                ID as CustomerNo,
-                Name,
-                City,
-                State,
-                YTD as YTDSales,
-                CreditLimit
-            FROM ben002.Customer
-            ORDER BY YTD DESC
-            """
-        else:
-            return """
-            SELECT TOP 100
-                ID as CustomerNo,
-                Name,
-                City,
-                State,
-                CreditLimit,
-                YTD
-            FROM ben002.Customer
-            WHERE YTD > 0
-            ORDER BY YTD DESC
-            """
     
-    # Handle equipment/inventory/forklift queries
-    elif any(term in intent for term in ['equipment', 'inventory', 'forklift', 'stock', 'unit']) or \
-         'equipment' in ' '.join(tables).lower() or 'inventory' in ' '.join(tables).lower():
-        
-        # Check for specific brand mentions
-        brand_filter = ""
-        brands = ['linde', 'toyota', 'crown', 'yale', 'hyster', 'clark', 'caterpillar']
-        for brand in brands:
-            if brand in intent:
-                brand_filter = f" AND LOWER(Make) LIKE '%{brand}%'"
-                break
-        
-        # Handle specific equipment queries first
-        if 'maintenance' in intent:
-            # Equipment in maintenance (open work orders)
-            return """
-            SELECT DISTINCT
-                e.UnitNo,
-                e.SerialNo,
-                e.Make,
-                e.Model,
-                e.ModelYear,
-                wo.WONo,
-                wo.OpenDate,
-                wo.Technician,
-                wo.Comments
-            FROM ben002.Equipment e
-            INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
-            WHERE wo.ClosedDate IS NULL
-            AND wo.Type = 'S'
-            ORDER BY wo.OpenDate DESC
-            """
-        
-        elif 'under' in intent and any(char.isdigit() for char in intent):
-            # Equipment under a certain price
-            import re
-            price_match = re.search(r'(\d+(?:,\d{3})*(?:\.\d{2})?)', intent.replace(',', ''))
-            max_price = float(price_match.group(1)) if price_match else 20000
-            
-            return f"""
-            SELECT TOP 100
-                UnitNo,
-                SerialNo,
-                Make,
-                Model,
-                ModelYear,
-                Sell as SaleAmount,
-                RentalStatus,
-                Location
-            FROM ben002.Equipment
-            WHERE RentalStatus = 'In Stock'
-            AND Sell < {max_price}
-            AND Sell > 0
-            ORDER BY Sell ASC
-            """
-        
-        # Check what type of query
-        elif 'stock' in intent or 'in stock' in intent:
-            # Query for in-stock items
-            if brand_filter:
-                return f"""
-                SELECT 
-                    Make,
-                    Model,
-                    COUNT(*) as quantity_in_stock,
-                    COUNT(DISTINCT Model) as unique_models
-                FROM ben002.Equipment
-                WHERE RentalStatus = 'In Stock'{brand_filter}
-                GROUP BY Make, Model
-                ORDER BY quantity_in_stock DESC
-                """
-            else:
-                return """
-                SELECT 
-                    Make,
-                    COUNT(*) as quantity_in_stock,
-                    COUNT(DISTINCT Model) as unique_models
-                FROM ben002.Equipment
-                WHERE RentalStatus = 'In Stock'
-                GROUP BY Make
-                ORDER BY quantity_in_stock DESC
-                """
-        
-        elif 'how many' in intent or 'count' in intent or query_type == 'count':
-            # Count query
-            where_clause = "WHERE 1=1"
-            if 'stock' in intent:
-                where_clause += " AND RentalStatus = 'In Stock'"
-            where_clause += brand_filter
-            
-            return f"""
-            SELECT 
-                COUNT(*) as total_count,
-                COUNT(CASE WHEN RentalStatus = 'In Stock' THEN 1 END) as in_stock,
-                COUNT(CASE WHEN RentalStatus = 'Rented' THEN 1 END) as rented,
-                COUNT(CASE WHEN RentalStatus = 'Sold' THEN 1 END) as sold
-            FROM ben002.Equipment
-            {where_clause}
-            """
-        
-        else:
-            # General equipment listing
-            where_clause = "WHERE 1=1"
-            if brand_filter:
-                where_clause += brand_filter
-            
-            return f"""
-            SELECT TOP 100
-                UnitNo,
-                SerialNo,
-                Make,
-                Model,
-                ModelYear,
-                RentalStatus,
-                Location,
-                Cost,
-                Sell
-            FROM ben002.Equipment
-            {where_clause}
-            ORDER BY UnitNo DESC
-            """
     
     # Handle work order queries
     # Also check if WO table is mentioned or if the original query mentions work orders
@@ -1348,15 +1197,13 @@ def generate_sql_from_analysis(analysis):
             ORDER BY OnHand DESC
             """
     
-    # Default query with more helpful message
+    # If no specific handler matched, return an error
     else:
-        logger.warning(f"Could not generate SQL for intent: {intent}")
+        logger.warning(f"No specific handler for query: {intent}")
         return f"""
         SELECT 
-            'Could not understand query: {intent[:100]}' as message,
-            'Try asking about: customers, sales, equipment inventory, service claims, or parts' as suggestion,
-            '{query_type}' as detected_type,
-            '{', '.join(tables)}' as detected_tables
+            'Query not recognized: {intent[:100]}' as error,
+            'This specific query pattern needs to be implemented' as message
         """
 
 @ai_query_bp.route('/version', methods=['GET'])
