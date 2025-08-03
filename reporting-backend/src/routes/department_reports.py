@@ -2234,4 +2234,84 @@ def register_department_routes(reports_bp):
                 'type': 'debug_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/top-customers', methods=['GET'])
+    @jwt_required()
+    def get_rental_top_customers():
+        """Get top 10 rental customers by revenue"""
+        try:
+            db = get_db()
+            
+            # Get top 10 rental customers by total revenue
+            query = """
+            WITH RentalRevenue AS (
+                SELECT 
+                    BillToName as customer_name,
+                    COUNT(DISTINCT InvoiceNo) as invoice_count,
+                    SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue,
+                    MAX(InvoiceDate) as last_invoice_date
+                FROM ben002.InvoiceReg
+                WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
+                    AND BillToName IS NOT NULL
+                    AND BillToName != ''
+                GROUP BY BillToName
+            ),
+            RankedCustomers AS (
+                SELECT 
+                    customer_name,
+                    invoice_count,
+                    total_revenue,
+                    last_invoice_date,
+                    ROW_NUMBER() OVER (ORDER BY total_revenue DESC) as rank
+                FROM RentalRevenue
+                WHERE total_revenue > 0
+            )
+            SELECT TOP 10
+                rank,
+                customer_name,
+                invoice_count,
+                total_revenue,
+                last_invoice_date,
+                DATEDIFF(day, last_invoice_date, GETDATE()) as days_since_last_invoice
+            FROM RankedCustomers
+            ORDER BY rank
+            """
+            
+            results = db.execute_query(query)
+            
+            # Calculate total revenue for percentage calculation
+            total_query = """
+            SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total
+            FROM ben002.InvoiceReg
+            WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
+            """
+            
+            total_result = db.execute_query(total_query)
+            total_revenue = float(total_result[0]['total'] or 0)
+            
+            top_customers = []
+            for row in results:
+                revenue = float(row['total_revenue'] or 0)
+                percentage = (revenue / total_revenue * 100) if total_revenue > 0 else 0
+                
+                top_customers.append({
+                    'rank': row['rank'],
+                    'name': row['customer_name'],
+                    'invoice_count': row['invoice_count'],
+                    'revenue': revenue,
+                    'percentage': round(percentage, 1),
+                    'last_invoice_date': row['last_invoice_date'].strftime('%Y-%m-%d') if row['last_invoice_date'] else None,
+                    'days_since_last': row['days_since_last_invoice']
+                })
+            
+            return jsonify({
+                'top_customers': top_customers,
+                'total_revenue': total_revenue
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_top_customers_error'
+            }), 500
+
 

@@ -46,11 +46,13 @@ const RentalReport = ({ user }) => {
   const [loading, setLoading] = useState(true)
   const [inventoryCount, setInventoryCount] = useState(0)
   const [monthlyRevenueData, setMonthlyRevenueData] = useState(null)
+  const [topCustomers, setTopCustomers] = useState(null)
 
   useEffect(() => {
     fetchRentalData()
     fetchInventoryCount()
     fetchMonthlyRevenueData()
+    fetchTopCustomers()
   }, [])
 
   const fetchRentalData = async () => {
@@ -107,6 +109,25 @@ const RentalReport = ({ user }) => {
     } catch (error) {
       console.error('Error fetching monthly revenue data:', error)
       setMonthlyRevenueData([])
+    }
+  }
+
+  const fetchTopCustomers = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/top-customers'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setTopCustomers(data)
+      }
+    } catch (error) {
+      console.error('Error fetching top customers:', error)
+      setTopCustomers(null)
     }
   }
 
@@ -363,6 +384,50 @@ const RentalReport = ({ user }) => {
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
+      </Card>
+
+      {/* Top 10 Rental Customers */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Top 10 Rental Customers</CardTitle>
+          <CardDescription>By total rental revenue</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {topCustomers?.top_customers ? (
+            <div className="space-y-3">
+              {topCustomers.top_customers.map((customer) => (
+                <div key={customer.rank} className="flex items-center">
+                  <div className="w-8 text-sm font-medium text-muted-foreground">
+                    {customer.rank}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {customer.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {customer.invoice_count} invoices
+                      {customer.days_since_last > 30 && (
+                        <span className="ml-1 text-orange-600">
+                          • {customer.days_since_last}d ago
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      {formatCurrency(customer.revenue)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {customer.percentage}%
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">No customer data available</p>
+          )}
+        </CardContent>
       </Card>
         </TabsContent>
 
