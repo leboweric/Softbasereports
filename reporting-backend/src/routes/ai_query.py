@@ -67,9 +67,11 @@ def generate_sql_from_analysis(analysis):
     tables = analysis.get('tables', [])
     filters = analysis.get('filters', {})
     intent = analysis.get('intent', '').lower()
+    original_query = analysis.get('original_query', '').lower() if 'original_query' in analysis else ''
     
     # Log the analysis for debugging
     logger.info(f"Query analysis: type={query_type}, tables={tables}, intent={intent}")
+    logger.info(f"Original query: {original_query}")
     logger.info(f"Full analysis object: {analysis}")
     
     # Parse time period from intent
@@ -77,8 +79,59 @@ def generate_sql_from_analysis(analysis):
     
     # IMPORTANT: Check for specific query patterns FIRST before generic ones
     
+    # First check for exact query matches to ensure proper handling
+    if 'which customers have active rentals' in intent:
+        return """
+        SELECT DISTINCT
+            c.Name as CustomerName,
+            COUNT(e.UnitNo) as ActiveRentals,
+            STRING_AGG(e.UnitNo + ' - ' + e.Make + ' ' + e.Model, ', ') as Equipment
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        WHERE e.RentalStatus = 'Rented'
+        GROUP BY c.Name
+        ORDER BY ActiveRentals DESC
+        """
+    
+    elif 'show me overdue rental returns' in intent or 'overdue rental returns' in intent:
+        return """
+        SELECT 
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            c.Name as CustomerName,
+            wo.OpenDate as RentalStartDate,
+            DATEADD(day, 30, wo.OpenDate) as ExpectedReturnDate,
+            DATEDIFF(day, DATEADD(day, 30, wo.OpenDate), GETDATE()) as DaysOverdue
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
+        WHERE e.RentalStatus = 'Rented'
+        AND wo.Type = 'R'
+        AND wo.ClosedDate IS NULL
+        AND DATEADD(day, 30, wo.OpenDate) < GETDATE()
+        ORDER BY DaysOverdue DESC
+        """
+    
+    elif 'which equipment is rented out to polaris' in intent:
+        return """
+        SELECT 
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            e.ModelYear,
+            c.Name as CustomerName
+        FROM ben002.Equipment e
+        INNER JOIN ben002.Customer c ON e.Customer = c.ID
+        WHERE e.RentalStatus = 'Rented'
+        AND UPPER(c.Name) LIKE '%POLARIS%'
+        ORDER BY e.UnitNo
+        """
+    
     # Handle top customers queries
-    if ('top' in intent and 'customer' in intent) or ('best' in intent and 'customer' in intent):
+    elif ('top' in intent and 'customer' in intent) or ('best' in intent and 'customer' in intent):
         # Extract number if specified from both intent and original query
         combined_text = intent + ' ' + analysis.get('original_query', '')
         num_match = re.search(r'top\s+(\d+)', combined_text)
@@ -238,8 +291,10 @@ def generate_sql_from_analysis(analysis):
         AND Department IN (10, 40, 45)  -- Service departments (10=Service, 40=Field Service, 45=Shop Service)
         """
     
-    # Handle specific rental queries
-    elif 'rental' in intent and 'active' in intent and 'customer' in intent:
+    # Handle specific rental queries - check both intent and original query
+    elif ('customer' in intent and 'active' in intent and 'rental' in intent) or \
+         ('customer' in intent and 'have' in intent and 'rental' in intent) or \
+         ('which customers have active rentals' in original_query):
         # Customers with active rentals
         return """
         SELECT DISTINCT
@@ -248,17 +303,16 @@ def generate_sql_from_analysis(analysis):
             e.SerialNo,
             e.Make,
             e.Model,
-            e.RentalStatus,
-            rc.StartDate,
-            rc.EndDate
+            e.RentalStatus
         FROM ben002.Equipment e
         INNER JOIN ben002.Customer c ON e.Customer = c.ID
-        LEFT JOIN ben002.RentalContract rc ON e.UnitNo = rc.UnitNo
         WHERE e.RentalStatus = 'Rented'
         ORDER BY c.Name, e.UnitNo
         """
     
-    elif 'rental' in intent and 'overdue' in intent:
+    elif ('overdue' in intent and 'rental' in intent) or \
+         ('rental' in intent and 'return' in intent and 'overdue' in intent) or \
+         ('overdue rental returns' in original_query):
         # Overdue rental returns
         return """
         SELECT 
@@ -277,7 +331,10 @@ def generate_sql_from_analysis(analysis):
         ORDER BY DaysOverdue DESC
         """
     
-    elif 'equipment' in intent and 'rented' in intent and 'polaris' in intent.lower():
+    elif ('equipment' in intent and 'rented' in intent and 'polaris' in intent.lower()) or \
+         ('equipment' in intent and 'polaris' in intent.lower()) or \
+         ('polaris' in intent.lower() and 'rent' in intent) or \
+         ('equipment is rented out to polaris' in original_query):
         # Equipment rented to specific customer
         return """
         SELECT 
