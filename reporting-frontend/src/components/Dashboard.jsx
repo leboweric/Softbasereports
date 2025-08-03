@@ -43,7 +43,11 @@ import {
   Users,
   FileText,
   Download,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle,
+  Wrench,
+  ShoppingCart,
+  Brain
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
@@ -57,6 +61,13 @@ const Dashboard = ({ user }) => {
   const [loadTime, setLoadTime] = useState(null)
   const [fromCache, setFromCache] = useState(false)
   const [includeCurrentMonthMargins, setIncludeCurrentMonthMargins] = useState(false)
+  // AI Predictions state
+  const [workOrderPrediction, setWorkOrderPrediction] = useState(null)
+  const [workOrderPredictionLoading, setWorkOrderPredictionLoading] = useState(false)
+  const [customerChurnPrediction, setCustomerChurnPrediction] = useState(null)
+  const [customerChurnLoading, setCustomerChurnLoading] = useState(false)
+  const [partsDemandPrediction, setPartsDemandPrediction] = useState(null)
+  const [partsDemandLoading, setPartsDemandLoading] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
@@ -198,6 +209,82 @@ const Dashboard = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching customer risk data:', error)
+    }
+  }
+
+  // AI Prediction Functions
+  const fetchWorkOrderPrediction = async (forceRefresh = false) => {
+    setWorkOrderPredictionLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      const url = forceRefresh 
+        ? apiUrl('/api/ai/predictions/work-orders?refresh=true')
+        : apiUrl('/api/ai/predictions/work-orders')
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setWorkOrderPrediction(data)
+      }
+    } catch (error) {
+      console.error('Error fetching work order prediction:', error)
+    } finally {
+      setWorkOrderPredictionLoading(false)
+    }
+  }
+
+  const fetchCustomerChurnPrediction = async (forceRefresh = false) => {
+    setCustomerChurnLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      const url = forceRefresh 
+        ? apiUrl('/api/ai/predictions/customer-churn?refresh=true')
+        : apiUrl('/api/ai/predictions/customer-churn')
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCustomerChurnPrediction(data)
+      }
+    } catch (error) {
+      console.error('Error fetching customer churn prediction:', error)
+    } finally {
+      setCustomerChurnLoading(false)
+    }
+  }
+
+  const fetchPartsDemandPrediction = async (forceRefresh = false) => {
+    setPartsDemandLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      const url = forceRefresh 
+        ? apiUrl('/api/ai/predictions/parts-demand?refresh=true')
+        : apiUrl('/api/ai/predictions/parts-demand')
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setPartsDemandPrediction(data)
+      }
+    } catch (error) {
+      console.error('Error fetching parts demand prediction:', error)
+    } finally {
+      setPartsDemandLoading(false)
     }
   }
 
@@ -1402,6 +1489,184 @@ const Dashboard = ({ user }) => {
           </CardContent>
             </Card>
           )}
+
+          {/* AI Predictions Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-600" />
+              AI-Powered Predictions
+            </h3>
+            
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Work Order Prediction Card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="h-5 w-5 text-orange-600" />
+                      <CardTitle className="text-sm font-medium">Work Order Forecast</CardTitle>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => fetchWorkOrderPrediction(true)}
+                      disabled={workOrderPredictionLoading}
+                      className="h-7 px-2"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${workOrderPredictionLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {workOrderPredictionLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <LoadingSpinner />
+                    </div>
+                  ) : workOrderPrediction ? (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Expected Next Month</p>
+                        <p className="text-xl font-bold">{workOrderPrediction.prediction?.expected_count || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Value Range</p>
+                        <p className="text-sm font-medium">{formatCurrency(workOrderPrediction.prediction?.value_low || 0)} - {formatCurrency(workOrderPrediction.prediction?.value_high || 0)}</p>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">Confidence: {workOrderPrediction.prediction?.confidence || '0'}%</p>
+                        {workOrderPrediction.generated_at && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Updated: {new Date(workOrderPrediction.generated_at).toLocaleTimeString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32 text-center">
+                      <p className="text-sm text-muted-foreground mb-3">Generate AI prediction</p>
+                      <Button size="sm" onClick={() => fetchWorkOrderPrediction()}>
+                        Generate Forecast
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Customer Churn Prediction Card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-red-600" />
+                      <CardTitle className="text-sm font-medium">Customer Churn Risk</CardTitle>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => fetchCustomerChurnPrediction(true)}
+                      disabled={customerChurnLoading}
+                      className="h-7 px-2"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${customerChurnLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {customerChurnLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <LoadingSpinner />
+                    </div>
+                  ) : customerChurnPrediction ? (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">At-Risk Customers</p>
+                        <p className="text-xl font-bold text-red-600">
+                          {customerChurnPrediction.prediction?.at_risk_count || 0}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Overall Churn Risk</p>
+                        <p className="text-sm font-medium">{customerChurnPrediction.prediction?.overall_risk || '0'}%</p>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">
+                          Analyzed: {customerChurnPrediction.customers_analyzed || 0} customers
+                        </p>
+                        {customerChurnPrediction.generated_at && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Updated: {new Date(customerChurnPrediction.generated_at).toLocaleTimeString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32 text-center">
+                      <p className="text-sm text-muted-foreground mb-3">Analyze customer risk</p>
+                      <Button size="sm" onClick={() => fetchCustomerChurnPrediction()}>
+                        Analyze Risk
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Parts Demand Prediction Card */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-5 w-5 text-blue-600" />
+                      <CardTitle className="text-sm font-medium">Parts Demand Forecast</CardTitle>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => fetchPartsDemandPrediction(true)}
+                      disabled={partsDemandLoading}
+                      className="h-7 px-2"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${partsDemandLoading ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {partsDemandLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <LoadingSpinner />
+                    </div>
+                  ) : partsDemandPrediction ? (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">High Demand Parts</p>
+                        <p className="text-xl font-bold">{partsDemandPrediction.prediction?.high_demand_count || 0}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Stockout Risk</p>
+                        <p className="text-sm font-medium">{partsDemandPrediction.prediction?.stockout_risk_count || 0} parts</p>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground">
+                          Analyzed: {partsDemandPrediction.parts_analyzed || 0} parts
+                        </p>
+                        {partsDemandPrediction.generated_at && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Updated: {new Date(partsDemandPrediction.generated_at).toLocaleTimeString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-32 text-center">
+                      <p className="text-sm text-muted-foreground mb-3">Forecast parts demand</p>
+                      <Button size="sm" onClick={() => fetchPartsDemandPrediction()}>
+                        Generate Forecast
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
   </Tabs>
     </div>
