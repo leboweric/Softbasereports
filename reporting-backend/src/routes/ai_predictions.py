@@ -202,6 +202,20 @@ class AIPredictionService:
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
             
+            # Try to extract JSON from the content
+            # Look for JSON that starts with { and ends with }
+            json_start = content.find('{')
+            json_end = content.rfind('}')
+            
+            if json_start != -1 and json_end != -1:
+                json_str = content[json_start:json_end + 1]
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse extracted JSON: {e}")
+                    logger.error(f"Extracted JSON was: {json_str[:200]}...")
+            
+            # If that didn't work, try the original content
             try:
                 return json.loads(content)
             except json.JSONDecodeError as e:
@@ -266,6 +280,20 @@ class AIPredictionService:
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
             
+            # Try to extract JSON from the content
+            # Look for JSON that starts with { and ends with }
+            json_start = content.find('{')
+            json_end = content.rfind('}')
+            
+            if json_start != -1 and json_end != -1:
+                json_str = content[json_start:json_end + 1]
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse extracted JSON: {e}")
+                    logger.error(f"Extracted JSON was: {json_str[:200]}...")
+            
+            # If that didn't work, try the original content
             try:
                 return json.loads(content)
             except json.JSONDecodeError as e:
@@ -332,6 +360,20 @@ class AIPredictionService:
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0].strip()
             
+            # Try to extract JSON from the content
+            # Look for JSON that starts with { and ends with }
+            json_start = content.find('{')
+            json_end = content.rfind('}')
+            
+            if json_start != -1 and json_end != -1:
+                json_str = content[json_start:json_end + 1]
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse extracted JSON: {e}")
+                    logger.error(f"Extracted JSON was: {json_str[:200]}...")
+            
+            # If that didn't work, try the original content
             try:
                 return json.loads(content)
             except json.JSONDecodeError as e:

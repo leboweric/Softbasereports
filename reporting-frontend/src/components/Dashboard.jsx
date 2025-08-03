@@ -1523,24 +1523,39 @@ const Dashboard = ({ user }) => {
                       <LoadingSpinner />
                     </div>
                   ) : workOrderPrediction ? (
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Expected Next Month</p>
-                        <p className="text-xl font-bold">{workOrderPrediction.prediction?.expected_count || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Value Range</p>
-                        <p className="text-sm font-medium">{formatCurrency(workOrderPrediction.prediction?.value_low || 0)} - {formatCurrency(workOrderPrediction.prediction?.value_high || 0)}</p>
-                      </div>
-                      <div className="pt-2 border-t">
-                        <p className="text-xs text-muted-foreground">Confidence: {workOrderPrediction.prediction?.confidence || '0'}%</p>
-                        {workOrderPrediction.generated_at && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Updated: {new Date(workOrderPrediction.generated_at).toLocaleTimeString()}
-                          </p>
+                    workOrderPrediction.prediction?.error ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-red-600 font-medium">Error generating prediction</p>
+                        <p className="text-xs text-muted-foreground">{workOrderPrediction.prediction.error}</p>
+                        {workOrderPrediction.prediction.raw_content && (
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-blue-600">Show details</summary>
+                            <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto max-h-32">
+                              {workOrderPrediction.prediction.raw_content}
+                            </pre>
+                          </details>
                         )}
                       </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Expected Next Month</p>
+                          <p className="text-xl font-bold">{workOrderPrediction.prediction?.expected_count || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Value Range</p>
+                          <p className="text-sm font-medium">{formatCurrency(workOrderPrediction.prediction?.value_low || 0)} - {formatCurrency(workOrderPrediction.prediction?.value_high || 0)}</p>
+                        </div>
+                        <div className="pt-2 border-t">
+                          <p className="text-xs text-muted-foreground">Confidence: {workOrderPrediction.prediction?.confidence || '0'}%</p>
+                          {workOrderPrediction.generated_at && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Updated: {new Date(workOrderPrediction.generated_at).toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
                   ) : (
                     <div className="flex flex-col items-center justify-center h-32 text-center">
                       <p className="text-sm text-muted-foreground mb-3">Generate AI prediction</p>
@@ -1577,28 +1592,35 @@ const Dashboard = ({ user }) => {
                       <LoadingSpinner />
                     </div>
                   ) : customerChurnPrediction ? (
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">At-Risk Customers</p>
-                        <p className="text-xl font-bold text-red-600">
-                          {customerChurnPrediction.prediction?.at_risk_count || 0}
-                        </p>
+                    customerChurnPrediction.prediction?.error ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-red-600 font-medium">Error analyzing risk</p>
+                        <p className="text-xs text-muted-foreground">{customerChurnPrediction.prediction.error}</p>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Overall Churn Risk</p>
-                        <p className="text-sm font-medium">{customerChurnPrediction.prediction?.overall_risk || '0'}%</p>
-                      </div>
-                      <div className="pt-2 border-t">
-                        <p className="text-xs text-muted-foreground">
-                          Analyzed: {customerChurnPrediction.customers_analyzed || 0} customers
-                        </p>
-                        {customerChurnPrediction.generated_at && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Updated: {new Date(customerChurnPrediction.generated_at).toLocaleTimeString()}
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">At-Risk Customers</p>
+                          <p className="text-xl font-bold text-red-600">
+                            {customerChurnPrediction.prediction?.at_risk_count || 0}
                           </p>
-                        )}
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Overall Churn Risk</p>
+                          <p className="text-sm font-medium">{customerChurnPrediction.prediction?.overall_risk || '0'}%</p>
+                        </div>
+                        <div className="pt-2 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            Analyzed: {customerChurnPrediction.customers_analyzed || 0} customers
+                          </p>
+                          {customerChurnPrediction.generated_at && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Updated: {new Date(customerChurnPrediction.generated_at).toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )
                   ) : (
                     <div className="flex flex-col items-center justify-center h-32 text-center">
                       <p className="text-sm text-muted-foreground mb-3">Analyze customer risk</p>
@@ -1635,26 +1657,33 @@ const Dashboard = ({ user }) => {
                       <LoadingSpinner />
                     </div>
                   ) : partsDemandPrediction ? (
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">High Demand Parts</p>
-                        <p className="text-xl font-bold">{partsDemandPrediction.prediction?.high_demand_count || 0}</p>
+                    partsDemandPrediction.prediction?.error ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-red-600 font-medium">Error generating forecast</p>
+                        <p className="text-xs text-muted-foreground">{partsDemandPrediction.prediction.error}</p>
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Stockout Risk</p>
-                        <p className="text-sm font-medium">{partsDemandPrediction.prediction?.stockout_risk_count || 0} parts</p>
-                      </div>
-                      <div className="pt-2 border-t">
-                        <p className="text-xs text-muted-foreground">
-                          Analyzed: {partsDemandPrediction.parts_analyzed || 0} parts
-                        </p>
-                        {partsDemandPrediction.generated_at && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Updated: {new Date(partsDemandPrediction.generated_at).toLocaleTimeString()}
+                    ) : (
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">High Demand Parts</p>
+                          <p className="text-xl font-bold">{partsDemandPrediction.prediction?.high_demand_count || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Stockout Risk</p>
+                          <p className="text-sm font-medium">{partsDemandPrediction.prediction?.stockout_risk_count || 0} parts</p>
+                        </div>
+                        <div className="pt-2 border-t">
+                          <p className="text-xs text-muted-foreground">
+                            Analyzed: {partsDemandPrediction.parts_analyzed || 0} parts
                           </p>
-                        )}
+                          {partsDemandPrediction.generated_at && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Updated: {new Date(partsDemandPrediction.generated_at).toLocaleTimeString()}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )
                   ) : (
                     <div className="flex flex-col items-center justify-center h-32 text-center">
                       <p className="text-sm text-muted-foreground mb-3">Forecast parts demand</p>
