@@ -2503,6 +2503,96 @@ def register_department_routes(reports_bp):
                 'type': 'units_on_rent_detail_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/units-on-hold', methods=['GET'])
+    @jwt_required()
+    def get_units_on_hold():
+        """Get count of units currently on hold"""
+        try:
+            db = get_db()
+            
+            # Count units with RentalStatus = 'Hold'
+            query = """
+            SELECT COUNT(*) as units_on_hold
+            FROM ben002.Equipment
+            WHERE RentalStatus = 'Hold'
+            """
+            
+            result = db.execute_query(query)
+            units_on_hold = result[0]['units_on_hold'] if result else 0
+            
+            return jsonify({
+                'units_on_hold': units_on_hold
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'units_on_hold_error'
+            }), 500
+
+    @reports_bp.route('/departments/rental/units-on-hold-detail', methods=['GET'])
+    @jwt_required()
+    def get_units_on_hold_detail():
+        """Get detailed list of units currently on hold"""
+        try:
+            db = get_db()
+            
+            # Get detailed information for units on hold
+            query = """
+            SELECT 
+                e.UnitNo,
+                e.SerialNo,
+                e.Make,
+                e.Model,
+                e.ModelYear,
+                e.Location,
+                e.Cost,
+                e.Sell as ListPrice,
+                e.DayRent,
+                e.WeekRent,
+                e.MonthRent,
+                e.RentalStatus,
+                -- Get customer info if assigned
+                e.CustomerNo,
+                c.Name as CustomerName
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE e.RentalStatus = 'Hold'
+            ORDER BY e.Make, e.Model, e.UnitNo
+            """
+            
+            results = db.execute_query(query)
+            
+            units_detail = []
+            for row in results:
+                units_detail.append({
+                    'unit_no': row['UnitNo'],
+                    'serial_no': row['SerialNo'],
+                    'make': row['Make'],
+                    'model': row['Model'],
+                    'model_year': row['ModelYear'],
+                    'location': row['Location'],
+                    'cost': float(row['Cost'] or 0),
+                    'list_price': float(row['ListPrice'] or 0),
+                    'day_rent': float(row['DayRent'] or 0),
+                    'week_rent': float(row['WeekRent'] or 0),
+                    'month_rent': float(row['MonthRent'] or 0),
+                    'rental_status': row['RentalStatus'],
+                    'customer_no': row['CustomerNo'] or '',
+                    'customer_name': row['CustomerName'] or 'No Customer Assigned'
+                })
+            
+            return jsonify({
+                'units': units_detail,
+                'count': len(units_detail)
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'units_on_hold_detail_error'
+            }), 500
+
     @reports_bp.route('/departments/rental/units-diagnostic', methods=['GET'])
     @jwt_required()
     def get_units_diagnostic():

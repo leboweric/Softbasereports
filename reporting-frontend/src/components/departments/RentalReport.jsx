@@ -37,7 +37,8 @@ import {
   Package,
   Clock,
   AlertCircle,
-  Download
+  Download,
+  PauseCircle
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
@@ -50,7 +51,9 @@ const RentalReport = ({ user }) => {
   const [topCustomers, setTopCustomers] = useState(null)
   const [downloadingForklifts, setDownloadingForklifts] = useState(false)
   const [downloadingUnitsOnRent, setDownloadingUnitsOnRent] = useState(false)
+  const [downloadingUnitsOnHold, setDownloadingUnitsOnHold] = useState(false)
   const [unitsOnRent, setUnitsOnRent] = useState(0)
+  const [unitsOnHold, setUnitsOnHold] = useState(0)
   
 
   useEffect(() => {
@@ -59,6 +62,7 @@ const RentalReport = ({ user }) => {
     fetchMonthlyRevenueData()
     fetchTopCustomers()
     fetchUnitsOnRent()
+    fetchUnitsOnHold()
   }, [])
 
   const fetchRentalData = async () => {
@@ -152,6 +156,24 @@ const RentalReport = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching units on rent:', error)
+    }
+  }
+
+  const fetchUnitsOnHold = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-hold'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setUnitsOnHold(data.units_on_hold || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching units on hold:', error)
     }
   }
 
@@ -286,6 +308,61 @@ const RentalReport = ({ user }) => {
     }
   }
 
+  const handleDownloadUnitsOnHold = async () => {
+    setDownloadingUnitsOnHold(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-hold-detail'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Convert to CSV
+        const headers = ['Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Location', 'Cost', 'List Price', 'Day Rate', 'Week Rate', 'Month Rate', 'Status', 'Customer No', 'Customer Name']
+        const rows = data.units.map(unit => [
+          unit.unit_no,
+          unit.serial_no,
+          unit.make,
+          unit.model,
+          unit.model_year || '',
+          unit.location || '',
+          unit.cost,
+          unit.list_price,
+          unit.day_rent || 0,
+          unit.week_rent || 0,
+          unit.month_rent || 0,
+          unit.rental_status,
+          unit.customer_no,
+          unit.customer_name
+        ])
+        
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n')
+        
+        // Download file
+        const blob = new Blob([csvContent], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `units_on_hold_${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('Error downloading units on hold data:', error)
+    } finally {
+      setDownloadingUnitsOnHold(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -405,6 +482,30 @@ const RentalReport = ({ user }) => {
                 >
                   <Download className="mr-2 h-4 w-4" />
                   {downloadingUnitsOnRent ? 'Downloading...' : 'Download Rental Details'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Units on Hold Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Units on Hold</CardTitle>
+                <PauseCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{unitsOnHold}</div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Reserved or maintenance
+                </p>
+                <Button 
+                  onClick={handleDownloadUnitsOnHold}
+                  disabled={downloadingUnitsOnHold}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadingUnitsOnHold ? 'Downloading...' : 'Download On Hold Equipment'}
                 </Button>
               </CardContent>
             </Card>
