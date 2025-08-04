@@ -735,7 +735,7 @@ const Dashboard = ({ user }) => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">YTD Sales</CardTitle>
+                <CardTitle className="text-sm font-medium">Fiscal YTD Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -743,7 +743,7 @@ const Dashboard = ({ user }) => {
               {formatCurrency(dashboardData?.ytd_sales || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Fiscal year to date
+              Since March {new Date().getFullYear()}
             </p>
               </CardContent>
             </Card>
@@ -994,7 +994,7 @@ const Dashboard = ({ user }) => {
               <CardHeader>
                 <CardTitle>Top 10 Customers</CardTitle>
                 <CardDescription>
-                  By fiscal year-to-date sales
+                  By fiscal YTD sales (since March)
                   {customerRiskData && (
                     <span className="text-xs text-blue-600 block mt-1">
                       Risk analysis: {customerRiskData.customers?.length || 0} customers analyzed, 
