@@ -2412,6 +2412,73 @@ def register_department_routes(reports_bp):
                 'type': 'units_on_rent_error'
             }), 500
     
+    @reports_bp.route('/departments/rental/units-on-rent-detail', methods=['GET'])
+    @jwt_required()
+    def get_units_on_rent_detail():
+        """Get detailed list of units currently on rent with customer information"""
+        try:
+            db = get_db()
+            
+            # Get detailed rental information from RentalHistory for current month
+            # Exclude internal/expense entries
+            query = """
+            SELECT DISTINCT
+                c.Name as CustomerName,
+                c.Number as CustomerNo,
+                e.UnitNo,
+                e.SerialNo,
+                e.Make,
+                e.Model,
+                e.ModelYear,
+                e.Location,
+                rh.DaysRented,
+                rh.RentAmount,
+                e.DayRent,
+                e.WeekRent,
+                e.MonthRent
+            FROM ben002.RentalHistory rh
+            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
+                AND (c.Name IS NULL OR c.Name NOT LIKE '%RENTAL FLEET%')
+                AND (c.Name IS NULL OR c.Name NOT LIKE '%EXPENSE%')
+                AND (c.Name IS NULL OR c.Name NOT LIKE '%INTERNAL%')
+            ORDER BY c.Name, e.Make, e.Model, e.UnitNo
+            """
+            
+            results = db.execute_query(query)
+            
+            units_detail = []
+            for row in results:
+                units_detail.append({
+                    'customer_name': row['CustomerName'] or 'Unknown Customer',
+                    'customer_no': row['CustomerNo'] or '',
+                    'unit_no': row['UnitNo'],
+                    'serial_no': row['SerialNo'],
+                    'make': row['Make'],
+                    'model': row['Model'],
+                    'model_year': row['ModelYear'],
+                    'location': row['Location'],
+                    'days_rented': row['DaysRented'],
+                    'rent_amount': float(row['RentAmount'] or 0),
+                    'day_rent': float(row['DayRent'] or 0),
+                    'week_rent': float(row['WeekRent'] or 0),
+                    'month_rent': float(row['MonthRent'] or 0)
+                })
+            
+            return jsonify({
+                'units': units_detail,
+                'count': len(units_detail)
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'units_on_rent_detail_error'
+            }), 500
+
     @reports_bp.route('/departments/rental/available-forklifts', methods=['GET'])
     @jwt_required()
     def get_available_forklifts():

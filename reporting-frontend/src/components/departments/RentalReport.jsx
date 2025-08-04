@@ -49,6 +49,7 @@ const RentalReport = ({ user }) => {
   const [monthlyRevenueData, setMonthlyRevenueData] = useState(null)
   const [topCustomers, setTopCustomers] = useState(null)
   const [downloadingForklifts, setDownloadingForklifts] = useState(false)
+  const [downloadingUnitsOnRent, setDownloadingUnitsOnRent] = useState(false)
   const [unitsOnRent, setUnitsOnRent] = useState(0)
 
   useEffect(() => {
@@ -230,6 +231,60 @@ const RentalReport = ({ user }) => {
     }
   }
 
+  const handleDownloadUnitsOnRent = async () => {
+    setDownloadingUnitsOnRent(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-rent-detail'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Convert to CSV
+        const headers = ['Customer Name', 'Customer No', 'Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Location', 'Days Rented', 'Rent Amount', 'Day Rate', 'Week Rate', 'Month Rate']
+        const rows = data.units.map(unit => [
+          unit.customer_name,
+          unit.customer_no,
+          unit.unit_no,
+          unit.serial_no,
+          unit.make,
+          unit.model,
+          unit.model_year || '',
+          unit.location || '',
+          unit.days_rented,
+          unit.rent_amount,
+          unit.day_rent || 0,
+          unit.week_rent || 0,
+          unit.month_rent || 0
+        ])
+        
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n')
+        
+        // Download file
+        const blob = new Blob([csvContent], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `units_on_rent_${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('Error downloading units on rent data:', error)
+    } finally {
+      setDownloadingUnitsOnRent(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -337,9 +392,19 @@ const RentalReport = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{unitsOnRent}</div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mb-3">
                   Currently rented out
                 </p>
+                <Button 
+                  onClick={handleDownloadUnitsOnRent}
+                  disabled={downloadingUnitsOnRent}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadingUnitsOnRent ? 'Downloading...' : 'Download Rental Details'}
+                </Button>
               </CardContent>
             </Card>
           </div>
