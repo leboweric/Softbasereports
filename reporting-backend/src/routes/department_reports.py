@@ -4554,8 +4554,8 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as NewEquipmentSales
             FROM ben002.InvoiceReg ir
-            WHERE ir.InvoiceDate >= ?
-                AND ir.InvoiceDate <= ?
+            WHERE ir.InvoiceDate >= %s
+                AND ir.InvoiceDate <= %s
                 AND ir.Salesman1 IS NOT NULL
                 AND ir.Salesman1 != ''
             GROUP BY ir.Salesman1
