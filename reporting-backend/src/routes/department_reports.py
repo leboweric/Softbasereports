@@ -2116,7 +2116,7 @@ def register_department_routes(reports_bp):
             
             ap_results = db.execute_query(ap_detail_query)
             
-            # Get aging summary
+            # Get aging summary - need to handle negative AP amounts properly
             aging_query = """
             WITH APInvoices AS (
                 SELECT 
@@ -2140,7 +2140,8 @@ def register_department_routes(reports_bp):
             SELECT 
                 AgingBucket,
                 COUNT(*) as InvoiceCount,
-                SUM(ABS(InvoiceAmount)) as TotalAmount
+                -- Use absolute value of the sum to handle negative AP amounts correctly
+                ABS(SUM(InvoiceAmount)) as TotalAmount
             FROM APInvoices
             GROUP BY AgingBucket
             """
@@ -2167,8 +2168,21 @@ def register_department_routes(reports_bp):
             
             vendor_results = db.execute_query(vendor_query)
             
-            # Calculate summary metrics
-            total_ap = sum(row['TotalAmount'] for row in aging_results) if aging_results else 0
+            # Calculate summary metrics - get the real total from raw sum like ap-total endpoint
+            total_query = """
+            SELECT SUM(Amount) as raw_total
+            FROM ben002.APDetail
+            WHERE (CheckNo IS NULL OR CheckNo = 0)
+                AND (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            """
+            total_result = db.execute_query(total_query)
+            raw_total = float(total_result[0]['raw_total']) if total_result and total_result[0]['raw_total'] else 0
+            
+            # Convert to positive if negative (AP is a liability)
+            total_ap = abs(raw_total)
+            
+            # Calculate overdue from aging results
             overdue_amount = sum(row['TotalAmount'] for row in aging_results 
                                if row['AgingBucket'] not in ['Not Due', 'No Due Date']) if aging_results else 0
             overdue_percentage = (overdue_amount / total_ap * 100) if total_ap > 0 else 0
