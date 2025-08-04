@@ -142,8 +142,8 @@ const AccountingReport = ({ user }) => {
                   <CardTitle className="text-sm font-medium">AR Over 90 Days</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-red-600">${(arData.over_90_amount / 1000).toFixed(0)}k</div>
-                  <p className="text-xs text-muted-foreground mt-1">{arData.over_90_percentage}% of total</p>
+                  <div className="text-2xl font-bold text-red-600">{arData.over_90_percentage}%</div>
+                  <p className="text-xs text-muted-foreground mt-1">${(arData.over_90_amount / 1000).toFixed(0)}k of total AR</p>
                 </CardContent>
               </Card>
             )}
