@@ -2479,6 +2479,99 @@ def register_department_routes(reports_bp):
                 'type': 'units_on_rent_detail_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/units-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_units_diagnostic():
+        """Diagnostic to find where the 400 units on rent are tracked"""
+        try:
+            db = get_db()
+            
+            diagnostics = {}
+            
+            # 1. Check Equipment table RentalStatus values
+            status_query = """
+            SELECT RentalStatus, COUNT(*) as count
+            FROM ben002.Equipment
+            GROUP BY RentalStatus
+            ORDER BY count DESC
+            """
+            diagnostics['equipment_rental_status'] = db.execute_query(status_query)
+            
+            # 2. Check Equipment table for units with CustomerNo
+            customer_query = """
+            SELECT 
+                CASE 
+                    WHEN CustomerNo IS NULL OR CustomerNo = '' THEN 'No Customer'
+                    WHEN Customer = 1 THEN 'Has Customer Flag'
+                    ELSE 'Has CustomerNo Only'
+                END as status,
+                COUNT(*) as count
+            FROM ben002.Equipment
+            GROUP BY 
+                CASE 
+                    WHEN CustomerNo IS NULL OR CustomerNo = '' THEN 'No Customer'
+                    WHEN Customer = 1 THEN 'Has Customer Flag'
+                    ELSE 'Has CustomerNo Only'
+                END
+            """
+            diagnostics['equipment_customer_status'] = db.execute_query(customer_query)
+            
+            # 3. Count Equipment with CustomerNo that are likely on rent
+            on_rent_query = """
+            SELECT COUNT(*) as count
+            FROM ben002.Equipment
+            WHERE CustomerNo IS NOT NULL 
+                AND CustomerNo != ''
+                AND CustomerNo != '0'
+            """
+            diagnostics['equipment_with_customer'] = db.execute_query(on_rent_query)
+            
+            # 4. Sample of equipment with customers
+            sample_query = """
+            SELECT TOP 10
+                e.UnitNo,
+                e.SerialNo,
+                e.Make,
+                e.Model,
+                e.RentalStatus,
+                e.CustomerNo,
+                e.Customer as CustomerFlag,
+                c.Name as CustomerName
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE e.CustomerNo IS NOT NULL 
+                AND e.CustomerNo != ''
+                AND e.CustomerNo != '0'
+            ORDER BY e.UnitNo
+            """
+            diagnostics['sample_equipment_with_customer'] = db.execute_query(sample_query)
+            
+            # 5. Check RentalContract table
+            contract_query = """
+            SELECT COUNT(*) as active_contracts
+            FROM ben002.RentalContract
+            WHERE DeletionTime IS NULL
+            """
+            diagnostics['rental_contracts'] = db.execute_query(contract_query)
+            
+            # 6. Check RentalHistory current month total
+            history_query = """
+            SELECT 
+                COUNT(DISTINCT SerialNo) as unique_units,
+                COUNT(*) as total_records
+            FROM ben002.RentalHistory
+            WHERE Year = YEAR(GETDATE()) AND Month = MONTH(GETDATE())
+            """
+            diagnostics['rental_history_current_month'] = db.execute_query(history_query)
+            
+            return jsonify(diagnostics)
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'units_diagnostic_error'
+            }), 500
+
     @reports_bp.route('/departments/rental/available-forklifts', methods=['GET'])
     @jwt_required()
     def get_available_forklifts():
