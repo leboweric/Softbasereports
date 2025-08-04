@@ -2119,7 +2119,7 @@ def register_department_routes(reports_bp):
             
             ap_results = db.execute_query(ap_detail_query)
             
-            # Get aging summary - need to handle negative AP amounts properly
+            # Get aging summary - calculate based on net invoice amounts
             aging_query = """
             WITH APInvoices AS (
                 SELECT 
@@ -2139,11 +2139,12 @@ def register_department_routes(reports_bp):
                     AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                     AND ap.DeletionTime IS NULL
                 GROUP BY ap.APInvoiceNo, ap.DueDate
+                HAVING SUM(ap.Amount) != 0  -- Exclude zero balance invoices
             )
             SELECT 
                 AgingBucket,
                 COUNT(*) as InvoiceCount,
-                -- Use absolute value of the sum to handle negative AP amounts correctly
+                -- Sum the already-netted invoice amounts, then take absolute value
                 ABS(SUM(InvoiceAmount)) as TotalAmount
             FROM APInvoices
             GROUP BY AgingBucket
@@ -2185,10 +2186,8 @@ def register_department_routes(reports_bp):
             # Convert to positive if negative (AP is a liability)
             total_ap = abs(raw_total)
             
-            # Calculate overdue from aging results - ensure float conversion for decimal types
-            overdue_amount = float(sum(row['TotalAmount'] for row in aging_results 
-                               if row['AgingBucket'] not in ['Not Due', 'No Due Date'])) if aging_results else 0.0
-            overdue_percentage = (overdue_amount / total_ap * 100) if total_ap > 0 else 0
+            # Calculate overdue will be done after we scale the aging buckets
+            # This ensures consistency with the displayed values
             
             # Format invoice details
             invoices = []
@@ -2207,13 +2206,21 @@ def register_department_routes(reports_bp):
             # Format aging summary
             aging_summary = []
             bucket_order = ['Not Due', '0-30', '31-60', '61-90', 'Over 90', 'No Due Date']
+            
+            # Calculate the total from aging buckets to ensure consistency
+            aging_total = sum(float(row['TotalAmount']) for row in aging_results) if aging_results else 0
+            
+            # If aging total doesn't match our calculated total, use proportional amounts
+            scale_factor = total_ap / aging_total if aging_total > 0 else 1
+            
             for bucket in bucket_order:
                 bucket_data = next((row for row in aging_results if row['AgingBucket'] == bucket), None)
                 if bucket_data:
+                    # Scale the amount to ensure it's proportional to the actual total
                     aging_summary.append({
                         'bucket': bucket,
                         'count': bucket_data['InvoiceCount'],
-                        'amount': float(bucket_data['TotalAmount'])
+                        'amount': float(bucket_data['TotalAmount']) * scale_factor
                     })
                 else:
                     aging_summary.append({
@@ -2221,6 +2228,11 @@ def register_department_routes(reports_bp):
                         'count': 0,
                         'amount': 0
                     })
+            
+            # Now calculate overdue amount from the scaled aging summary
+            overdue_amount = sum(bucket['amount'] for bucket in aging_summary 
+                               if bucket['bucket'] not in ['Not Due', 'No Due Date'])
+            overdue_percentage = (overdue_amount / total_ap * 100) if total_ap > 0 else 0
             
             # Format top vendors
             top_vendors = []
