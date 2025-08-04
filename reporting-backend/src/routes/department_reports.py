@@ -2577,6 +2577,101 @@ def register_department_routes(reports_bp):
                 'type': 'units_on_hold_detail_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/rental-vs-sales-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_rental_vs_sales_diagnostic():
+        """Diagnostic to determine if CustomerNo means rental or sale"""
+        try:
+            db = get_db()
+            
+            diagnostics = {}
+            
+            # 1. Check Equipment with CustomerNo and their Customer flag
+            query1 = """
+            SELECT 
+                CASE 
+                    WHEN Customer = 1 THEN 'Customer Flag = 1'
+                    WHEN Customer = 0 THEN 'Customer Flag = 0'
+                    ELSE 'Customer Flag NULL'
+                END as customer_flag_status,
+                COUNT(*) as count,
+                COUNT(CASE WHEN CustomerNo IS NOT NULL AND CustomerNo != '' THEN 1 END) as has_customer_no
+            FROM ben002.Equipment
+            GROUP BY Customer
+            """
+            diagnostics['customer_flag_analysis'] = db.execute_query(query1)
+            
+            # 2. Sample equipment with CustomerNo to see patterns
+            query2 = """
+            SELECT TOP 20
+                e.UnitNo,
+                e.SerialNo,
+                e.Make,
+                e.Model,
+                e.Customer as CustomerFlag,
+                e.CustomerNo,
+                c.Name as CustomerName,
+                e.RentalStatus,
+                e.DayRent,
+                e.WeekRent,
+                e.MonthRent,
+                -- Check if this equipment has rental history
+                CASE WHEN rh.SerialNo IS NOT NULL THEN 'Has Rental History' ELSE 'No Rental History' END as rental_history_status,
+                -- Check if sold through invoice
+                CASE WHEN inv.SerialNo IS NOT NULL THEN 'Found in Invoice' ELSE 'Not in Invoice' END as invoice_status
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            LEFT JOIN (
+                SELECT DISTINCT SerialNo 
+                FROM ben002.RentalHistory 
+                WHERE Year >= 2024
+            ) rh ON e.SerialNo = rh.SerialNo
+            LEFT JOIN (
+                SELECT DISTINCT SerialNo 
+                FROM ben002.InvoiceReg 
+                WHERE SerialNo IS NOT NULL
+            ) inv ON e.SerialNo = inv.SerialNo
+            WHERE e.CustomerNo IS NOT NULL 
+                AND e.CustomerNo != ''
+                AND e.CustomerNo != '0'
+            ORDER BY e.UnitNo
+            """
+            diagnostics['sample_equipment_with_customer'] = db.execute_query(query2)
+            
+            # 3. Check RentalContract to see if it links to Equipment
+            query3 = """
+            SELECT TOP 10
+                rc.RentalContractNo,
+                rc.CustomerNo,
+                c.Name as CustomerName,
+                rc.StartDate,
+                rc.EndDate,
+                rc.DeliveryCharge,
+                rc.PickupCharge
+            FROM ben002.RentalContract rc
+            LEFT JOIN ben002.Customer c ON rc.CustomerNo = c.Number
+            WHERE rc.DeletionTime IS NULL
+            ORDER BY rc.RentalContractNo DESC
+            """
+            diagnostics['rental_contracts_sample'] = db.execute_query(query3)
+            
+            # 4. Check if there's a RentalContractEquipment table
+            query4 = """
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'ben002'
+            AND TABLE_NAME LIKE '%Rental%Equipment%'
+            """
+            diagnostics['rental_equipment_tables'] = db.execute_query(query4)
+            
+            return jsonify(diagnostics)
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_vs_sales_diagnostic_error'
+            }), 500
+
     @reports_bp.route('/departments/rental/units-diagnostic', methods=['GET'])
     @jwt_required()
     def get_units_diagnostic():
