@@ -1987,6 +1987,114 @@ def register_department_routes(reports_bp):
                 'type': 'ar_report_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/ar-debug', methods=['GET'])
+    @jwt_required()
+    def get_ar_debug():
+        """Debug endpoint to analyze AR calculations"""
+        try:
+            db = get_db()
+            
+            # Get raw AR totals
+            raw_query = """
+            SELECT 
+                COUNT(*) as total_records,
+                SUM(Amount) as raw_total,
+                SUM(CASE WHEN EntryType = 'I' THEN Amount ELSE 0 END) as invoice_total,
+                SUM(CASE WHEN EntryType = 'P' THEN Amount ELSE 0 END) as payment_total,
+                SUM(CASE WHEN EntryType = 'C' THEN Amount ELSE 0 END) as credit_total,
+                SUM(CASE WHEN EntryType = 'D' THEN Amount ELSE 0 END) as debit_total,
+                SUM(CASE WHEN EntryType = 'A' THEN Amount ELSE 0 END) as adjustment_total,
+                COUNT(DISTINCT InvoiceNo) as unique_invoices
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            """
+            
+            raw_results = db.execute_query(raw_query)
+            raw_data = dict(raw_results[0]) if raw_results else {}
+            
+            # Get net AR using the same logic as the main query
+            net_query = """
+            WITH InvoiceBalances AS (
+                SELECT 
+                    ar.CustomerNo,
+                    ar.InvoiceNo,
+                    ar.Due,
+                    SUM(CASE 
+                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
+                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                        ELSE ar.Amount 
+                    END) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
+                    AND ar.DeletionTime IS NULL
+                GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
+                HAVING SUM(CASE 
+                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
+                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    ELSE ar.Amount 
+                END) > 0.01
+            )
+            SELECT 
+                COUNT(*) as open_invoices,
+                SUM(NetBalance) as total_ar
+            FROM InvoiceBalances
+            """
+            
+            net_results = db.execute_query(net_query)
+            net_data = dict(net_results[0]) if net_results else {}
+            
+            # Get sample of largest open balances
+            sample_query = """
+            WITH InvoiceBalances AS (
+                SELECT 
+                    ar.CustomerNo,
+                    ar.InvoiceNo,
+                    ar.Due,
+                    SUM(CASE 
+                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
+                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                        ELSE ar.Amount 
+                    END) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
+                    AND ar.DeletionTime IS NULL
+                GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
+                HAVING SUM(CASE 
+                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
+                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    ELSE ar.Amount 
+                END) > 0.01
+            )
+            SELECT TOP 10
+                ib.CustomerNo,
+                c.Name as CustomerName,
+                ib.InvoiceNo,
+                ib.NetBalance,
+                ib.Due
+            FROM InvoiceBalances ib
+            LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            ORDER BY ib.NetBalance DESC
+            """
+            
+            sample_results = db.execute_query(sample_query)
+            
+            return jsonify({
+                'raw_totals': raw_data,
+                'net_ar': net_data,
+                'calculated_net': float(raw_data.get('invoice_total', 0) + raw_data.get('debit_total', 0) - 
+                                      raw_data.get('payment_total', 0) - raw_data.get('credit_total', 0) - 
+                                      raw_data.get('adjustment_total', 0)),
+                'largest_open_balances': [dict(row) for row in sample_results],
+                'message': 'AR Debug Information'
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'ar_debug_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/expense-debug', methods=['GET'])
     @jwt_required()
     def get_expense_debug():
