@@ -1790,13 +1790,17 @@ def register_department_routes(reports_bp):
                     'amount': float(cat['amount'] or 0)
                 } for cat in category_data]
             
-            # Pad missing months
+            # Pad missing months and extend through February of next year
             current_date = datetime.now()
             start_date = datetime(2025, 3, 1)
+            # Calculate end date as February of next year
+            end_year = current_date.year + 1 if current_date.month >= 3 else current_date.year
+            end_date = datetime(end_year, 2, 1)
+            
             all_months = []
             date = start_date
             
-            while date <= current_date:
+            while date <= end_date:
                 all_months.append(date.strftime("%b"))
                 if date.month == 12:
                     date = date.replace(year=date.year + 1, month=1)
