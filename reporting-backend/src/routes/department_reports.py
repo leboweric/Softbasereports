@@ -1911,7 +1911,7 @@ def register_department_routes(reports_bp):
             ar_results = db.execute_query(ar_query)
             
             # Calculate percentages using the already calculated total_ar
-            over_90_amount = next((row['TotalAmount'] for row in ar_results if row['AgingBucket'] == 'Over 90'), 0)
+            over_90_amount = next((float(row['TotalAmount']) for row in ar_results if row['AgingBucket'] == 'Over 90'), 0)
             over_90_percentage = (over_90_amount / total_ar * 100) if total_ar > 0 else 0
             
             # Get specific customer AR over 90 days
