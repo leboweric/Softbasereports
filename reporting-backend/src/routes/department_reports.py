@@ -2267,10 +2267,15 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get top 10 rental customers by total revenue with current rental count
+            # Combine POLARIS INDUSTRIES and POLARIS as one customer
             query = """
             WITH RentalRevenue AS (
                 SELECT 
-                    BillToName as customer_name,
+                    CASE 
+                        WHEN BillToName = 'POLARIS INDUSTRIES' OR BillToName = 'POLARIS' 
+                        THEN 'POLARIS INDUSTRIES'
+                        ELSE BillToName
+                    END as customer_name,
                     COUNT(DISTINCT InvoiceNo) as invoice_count,
                     SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue,
                     MAX(InvoiceDate) as last_invoice_date
@@ -2281,7 +2286,11 @@ def register_department_routes(reports_bp):
                     AND BillToName NOT LIKE '%RENTAL FLEET%'
                     AND BillToName NOT LIKE '%EXPENSE%'
                     AND BillToName NOT LIKE '%INTERNAL%'
-                GROUP BY BillToName
+                GROUP BY CASE 
+                    WHEN BillToName = 'POLARIS INDUSTRIES' OR BillToName = 'POLARIS' 
+                    THEN 'POLARIS INDUSTRIES'
+                    ELSE BillToName
+                END
             ),
             RankedCustomers AS (
                 SELECT 
@@ -2296,7 +2305,11 @@ def register_department_routes(reports_bp):
             -- Get current rental counts from RentalHistory for current month
             CurrentRentals AS (
                 SELECT 
-                    c.Name as customer_name,
+                    CASE 
+                        WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' 
+                        THEN 'POLARIS INDUSTRIES'
+                        ELSE c.Name
+                    END as customer_name,
                     COUNT(DISTINCT rh.SerialNo) as units_on_rent
                 FROM ben002.RentalHistory rh
                 INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
@@ -2306,7 +2319,11 @@ def register_department_routes(reports_bp):
                     AND rh.DaysRented > 0
                     AND e.CustomerNo IS NOT NULL
                     AND e.CustomerNo != ''
-                GROUP BY c.Name
+                GROUP BY CASE 
+                    WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' 
+                    THEN 'POLARIS INDUSTRIES'
+                    ELSE c.Name
+                END
             )
             SELECT TOP 10
                 rc.rank,
@@ -2366,24 +2383,20 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/units-on-rent', methods=['GET'])
     @jwt_required()
     def get_units_on_rent():
-        """Get count of units currently on rent to actual customers"""
+        """Get count of units currently on rent based on RentalHistory"""
         try:
             db = get_db()
             
-            # The rental fleet is owned by CustomerNo 900006 (RENTAL FLEET - EXPENSE)
-            # Units on rent are those from RentalHistory excluding the owner
+            # Count distinct units with rental activity in current month
+            # This directly shows what's on rent regardless of ownership
             query = """
-            SELECT COUNT(DISTINCT rh.SerialNo) as units_on_rent
-            FROM ben002.RentalHistory rh
-            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            WHERE rh.Year = YEAR(GETDATE()) 
-                AND rh.Month = MONTH(GETDATE())
-                AND rh.DaysRented > 0
-                -- Exclude the rental fleet owner records
-                AND (e.CustomerNo != '900006' OR e.CustomerNo IS NULL)
-                -- Only count actual customer rentals
-                AND rh.RentAmount > 0
+            SELECT COUNT(DISTINCT SerialNo) as units_on_rent
+            FROM ben002.RentalHistory
+            WHERE Year = YEAR(GETDATE()) 
+                AND Month = MONTH(GETDATE())
+                AND DaysRented > 0
+                AND RentAmount > 0
+                AND DeletionTime IS NULL
             """
             
             result = db.execute_query(query)
@@ -2406,14 +2419,13 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get units on rent by looking at Equipment with CustomerNo
-            # This is where the actual rental assignments are stored!
+            # Get units on rent from RentalHistory with equipment details
             query = """
             SELECT 
-                c.Name as CustomerName,
-                e.CustomerNo,
+                rh.SerialNo,
+                rh.DaysRented,
+                rh.RentAmount,
                 e.UnitNo,
-                e.SerialNo,
                 e.Make,
                 e.Model,
                 e.ModelYear,
@@ -2421,30 +2433,16 @@ def register_department_routes(reports_bp):
                 e.DayRent,
                 e.WeekRent,
                 e.MonthRent,
-                -- Get rental amount from RentalHistory if available
-                rh.DaysRented,
-                rh.RentAmount
-            FROM ben002.Equipment e
+                e.CustomerNo,
+                c.Name as CustomerName
+            FROM ben002.RentalHistory rh
+            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
-                AND rh.Year = YEAR(GETDATE()) 
+            WHERE rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
-            WHERE e.CustomerNo IS NOT NULL 
-                AND e.CustomerNo != ''
-                AND e.CustomerNo != '0'
-                -- Exclude internal accounts
-                AND (c.Name NOT LIKE '%RENTAL FLEET%' OR c.Name IS NULL)
-                AND (c.Name NOT LIKE '%EXPENSE%' OR c.Name IS NULL)
-                AND (c.Name NOT LIKE '%INTERNAL%' OR c.Name IS NULL)
-                -- Exclude specific internal customer numbers
-                AND e.CustomerNo NOT IN ('900006', '900007', '900008', '900009')
-                -- Only include equipment that can be rented (has rental rates or is typical rental equipment)
-                AND (
-                    e.DayRent > 0 
-                    OR e.WeekRent > 0 
-                    OR e.MonthRent > 0
-                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL', 'JLG', 'GENIE', 'SKYJACK', 'TEREX')
-                )
+                AND rh.DaysRented > 0
+                AND rh.RentAmount > 0
+                AND rh.DeletionTime IS NULL
             ORDER BY c.Name, e.Make, e.Model, e.UnitNo
             """
             
@@ -2452,8 +2450,13 @@ def register_department_routes(reports_bp):
             
             units_detail = []
             for row in results:
+                # Handle customer info - could be from Equipment owner or from rental activity
+                customer_name = row['CustomerName']
+                if not customer_name or customer_name == 'RENTAL FLEET - EXPENSE':
+                    customer_name = 'Rental Customer'
+                    
                 units_detail.append({
-                    'customer_name': row['CustomerName'] or 'Unknown Customer',
+                    'customer_name': customer_name,
                     'customer_no': row['CustomerNo'] or '',
                     'unit_no': row['UnitNo'],
                     'serial_no': row['SerialNo'],
