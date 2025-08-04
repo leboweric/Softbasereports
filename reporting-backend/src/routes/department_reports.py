@@ -4532,7 +4532,7 @@ def register_department_routes(reports_bp):
             # This will depend on how these are categorized in the database
             sales_query = """
             SELECT 
-                COALESCE(ir.Salesman1, 'Unassigned') as SalesRep,
+                COALESCE(c.Salesman1, 'Unassigned') as SalesRep,
                 SUM(CASE 
                     WHEN ir.SaleCode IN ('RENT', 'RENTR', 'RENTRS') 
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
@@ -4554,12 +4554,13 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as NewEquipmentSales
             FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND ir.Salesman1 IS NOT NULL
-                AND ir.Salesman1 != ''
-            GROUP BY ir.Salesman1
-            ORDER BY (
+                AND c.Salesman1 IS NOT NULL
+                AND c.Salesman1 != ''
+            GROUP BY c.Salesman1
+            ORDER BY SUM(
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) +
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
             ) DESC
