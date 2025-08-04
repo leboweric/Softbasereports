@@ -157,6 +157,20 @@ const AccountingReport = ({ user }) => {
                 </CardContent>
               </Card>
             )}
+            
+            {arData && arData.specific_customers && arData.specific_customers.length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Key Customers Over 90</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">
+                    ${(arData.specific_customers.reduce((sum, c) => sum + c.amount, 0) / 1000).toFixed(0)}k
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Polaris, Grede, Owens</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* G&A Expenses Over Time */}
