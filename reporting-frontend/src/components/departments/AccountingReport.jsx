@@ -16,6 +16,7 @@ import {
   Cell
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
+import ARAgingDebug from '@/components/ARAgingDebug'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -378,6 +379,9 @@ const AccountingReport = ({ user }) => {
           </Card>
         </div>
       )}
+
+      {/* AR Aging Debug Component */}
+      <ARAgingDebug />
 
     </div>
   )
