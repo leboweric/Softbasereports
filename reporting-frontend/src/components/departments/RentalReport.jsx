@@ -191,7 +191,7 @@ const RentalReport = ({ user }) => {
         const data = await response.json()
         
         // Convert to CSV
-        const headers = ['Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Cost', 'List Price', 'Rental Status']
+        const headers = ['Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Cost', 'List Price', 'Location', 'Day Rate', 'Week Rate', 'Month Rate', 'Rental Status']
         const rows = data.forklifts.map(forklift => [
           forklift.unit_no,
           forklift.serial_no,
@@ -200,6 +200,10 @@ const RentalReport = ({ user }) => {
           forklift.model_year || '',
           forklift.cost,
           forklift.list_price,
+          forklift.location || '',
+          forklift.day_rent || 0,
+          forklift.week_rent || 0,
+          forklift.month_rent || 0,
           forklift.rental_status
         ])
         
@@ -213,7 +217,7 @@ const RentalReport = ({ user }) => {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `available_forklifts_${new Date().toISOString().split('T')[0]}.csv`
+        a.download = `available_rental_equipment_${new Date().toISOString().split('T')[0]}.csv`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
@@ -321,6 +325,36 @@ const RentalReport = ({ user }) => {
           >
             Customer Units Diagnostic
           </Button>
+          <Button 
+            onClick={async () => {
+              const token = localStorage.getItem('token')
+              const response = await fetch(apiUrl('/api/reports/departments/rental/available-forklifts'), {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              const data = await response.json()
+              console.log('FORKLIFT DATA DEBUG:', data)
+              alert(`Found ${data.count} forklifts. Check console for details.`)
+            }}
+            variant="outline"
+            size="sm"
+          >
+            Debug Forklift Data
+          </Button>
+          <Button 
+            onClick={async () => {
+              const token = localStorage.getItem('token')
+              const response = await fetch(apiUrl('/api/reports/departments/rental/forklift-query-diagnostic'), {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              const data = await response.json()
+              console.log('FORKLIFT QUERY DIAGNOSTIC:', data)
+              alert(`Detailed forklift diagnostic complete. Check console for full analysis.`)
+            }}
+            variant="outline"
+            size="sm"
+          >
+            Deep Forklift Analysis
+          </Button>
         </div>
       </div>
 
@@ -352,7 +386,7 @@ const RentalReport = ({ user }) => {
                   className="w-full"
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  {downloadingForklifts ? 'Downloading...' : 'Download All Forklifts'}
+                  {downloadingForklifts ? 'Downloading...' : 'Download Available Equipment'}
                 </Button>
               </CardContent>
             </Card>

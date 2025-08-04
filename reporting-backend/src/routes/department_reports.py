@@ -2400,11 +2400,11 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/available-forklifts', methods=['GET'])
     @jwt_required()
     def get_available_forklifts():
-        """Get list of available forklifts for download"""
+        """Get list of all available rental equipment (Ready To Rent status)"""
         try:
             db = get_db()
             
-            # Get all forklifts regardless of rental status (only 5 exist)
+            # Get ALL equipment that is Ready To Rent (matches the inventory count logic)
             query = """
             SELECT 
                 UnitNo,
@@ -2414,9 +2414,13 @@ def register_department_routes(reports_bp):
                 ModelYear,
                 Cost,
                 Sell as ListPrice,
-                COALESCE(RentalStatus, 'On Rent') as RentalStatus
+                RentalStatus,
+                Location,
+                DayRent,
+                WeekRent,
+                MonthRent
             FROM ben002.Equipment
-            WHERE UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%'
+            WHERE RentalStatus = 'Ready To Rent'
             ORDER BY Make, Model, UnitNo
             """
             
@@ -2432,7 +2436,11 @@ def register_department_routes(reports_bp):
                     'model_year': row['ModelYear'],
                     'cost': float(row['Cost'] or 0),
                     'list_price': float(row['ListPrice'] or 0),
-                    'rental_status': row['RentalStatus']
+                    'rental_status': row['RentalStatus'],
+                    'location': row['Location'],
+                    'day_rent': float(row['DayRent'] or 0),
+                    'week_rent': float(row['WeekRent'] or 0),
+                    'month_rent': float(row['MonthRent'] or 0)
                 })
             
             return jsonify({
@@ -2444,6 +2452,105 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'error': str(e),
                 'type': 'available_forklifts_error'
+            }), 500
+
+    @reports_bp.route('/departments/rental/forklift-query-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_forklift_query_diagnostic():
+        """Diagnostic to understand what the forklift query actually returns"""
+        try:
+            db = get_db()
+            
+            # Test the exact query from available-forklifts endpoint
+            query = """
+            SELECT 
+                UnitNo,
+                SerialNo,
+                Make,
+                Model,
+                ModelYear,
+                Cost,
+                Sell as ListPrice,
+                COALESCE(RentalStatus, 'On Rent') as RentalStatus,
+                -- Additional debug fields
+                UPPER(Make) as UpperMake,
+                UPPER(Model) as UpperModel,
+                CASE 
+                    WHEN UPPER(Model) LIKE '%FORK%' THEN 'Model contains FORK'
+                    WHEN UPPER(Make) LIKE '%FORK%' THEN 'Make contains FORK'
+                    ELSE 'No match'
+                END as MatchReason
+            FROM ben002.Equipment
+            WHERE UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%'
+            ORDER BY Make, Model, UnitNo
+            """
+            
+            results = db.execute_query(query)
+            
+            # Count total equipment
+            count_query = "SELECT COUNT(*) as total_equipment FROM ben002.Equipment"
+            count_result = db.execute_query(count_query)
+            total_equipment = count_result[0]['total_equipment'] if count_result else 0
+            
+            # Get some sample equipment records to understand the data better
+            sample_query = """
+            SELECT TOP 10
+                UnitNo,
+                SerialNo,
+                Make,
+                Model,
+                UPPER(Make) as UpperMake,
+                UPPER(Model) as UpperModel
+            FROM ben002.Equipment
+            WHERE Make IS NOT NULL AND Model IS NOT NULL
+            ORDER BY UnitNo
+            """
+            
+            sample_results = db.execute_query(sample_query)
+            
+            # Test alternative forklift queries
+            alt_queries = {}
+            
+            # Query 1: More specific forklift matching
+            alt1_query = """
+            SELECT COUNT(*) as count FROM ben002.Equipment
+            WHERE (UPPER(Model) LIKE '%FORKLIFT%' 
+                   OR UPPER(Model) LIKE 'FORK%'
+                   OR UPPER(Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE')
+                   OR UPPER(Model) LIKE '%LIFT TRUCK%')
+            """
+            alt1_result = db.execute_query(alt1_query)
+            alt_queries['specific_forklift_terms'] = alt1_result[0]['count'] if alt1_result else 0
+            
+            # Query 2: Just looking for FORKLIFT in model
+            alt2_query = """
+            SELECT COUNT(*) as count FROM ben002.Equipment
+            WHERE UPPER(Model) LIKE '%FORKLIFT%'
+            """
+            alt2_result = db.execute_query(alt2_query)
+            alt_queries['model_contains_forklift'] = alt2_result[0]['count'] if alt2_result else 0
+            
+            # Query 3: Common forklift manufacturers
+            alt3_query = """
+            SELECT COUNT(*) as count FROM ben002.Equipment
+            WHERE UPPER(Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'CATERPILLAR', 'KOMATSU')
+            """
+            alt3_result = db.execute_query(alt3_query)
+            alt_queries['known_forklift_makes'] = alt3_result[0]['count'] if alt3_result else 0
+            
+            return jsonify({
+                'forklift_results': results,
+                'forklift_count': len(results),
+                'total_equipment_count': total_equipment,
+                'sample_equipment': sample_results,
+                'alternative_queries': alt_queries,
+                'query_used': query
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'forklift_diagnostic_error'
             }), 500
     
     @reports_bp.route('/departments/rental/customer-units-diagnostic', methods=['GET'])
