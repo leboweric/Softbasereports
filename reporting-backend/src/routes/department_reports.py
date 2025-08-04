@@ -1864,8 +1864,9 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     ar.Due,
                     SUM(CASE 
-                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount  -- Invoices and Debits are positive
-                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount  -- Payments, Credits, Adjustments are negative
+                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount  -- Invoices are positive
+                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount  -- Payments and Vouchers are negative
+                        WHEN ar.EntryType = 'Journal' THEN ar.Amount  -- Journal entries keep their sign
                         ELSE ar.Amount 
                     END) as NetBalance
                 FROM ben002.ARDetail ar
@@ -1873,8 +1874,9 @@ def register_department_routes(reports_bp):
                     AND ar.DeletionTime IS NULL  -- Exclude deleted records
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
                 HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
-                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
+                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
+                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
                     ELSE ar.Amount 
                 END) > 0.01  -- Only invoices with outstanding balance
             ),
@@ -1920,8 +1922,9 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     ar.Due,
                     SUM(CASE 
-                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
-                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
+                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
+                        WHEN ar.EntryType = 'Journal' THEN ar.Amount
                         ELSE ar.Amount 
                     END) as NetBalance
                 FROM ben002.ARDetail ar
@@ -1929,8 +1932,9 @@ def register_department_routes(reports_bp):
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
                 HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
-                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
+                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
+                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
                     ELSE ar.Amount 
                 END) > 0.01
             )
@@ -1999,11 +2003,11 @@ def register_department_routes(reports_bp):
             SELECT 
                 COUNT(*) as total_records,
                 SUM(Amount) as raw_total,
-                SUM(CASE WHEN EntryType = 'I' THEN Amount ELSE 0 END) as invoice_total,
-                SUM(CASE WHEN EntryType = 'P' THEN Amount ELSE 0 END) as payment_total,
-                SUM(CASE WHEN EntryType = 'C' THEN Amount ELSE 0 END) as credit_total,
-                SUM(CASE WHEN EntryType = 'D' THEN Amount ELSE 0 END) as debit_total,
-                SUM(CASE WHEN EntryType = 'A' THEN Amount ELSE 0 END) as adjustment_total,
+                SUM(CASE WHEN EntryType = 'Invoice' THEN Amount ELSE 0 END) as invoice_total,
+                SUM(CASE WHEN EntryType = 'Payment' THEN Amount ELSE 0 END) as payment_total,
+                SUM(CASE WHEN EntryType = 'Voucher' THEN Amount ELSE 0 END) as voucher_total,
+                SUM(CASE WHEN EntryType = 'Journal' THEN Amount ELSE 0 END) as journal_total,
+                SUM(CASE WHEN EntryType = 'AR Journal' THEN Amount ELSE 0 END) as ar_journal_total,
                 COUNT(DISTINCT InvoiceNo) as unique_invoices
             FROM ben002.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
@@ -2037,8 +2041,9 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     ar.Due,
                     SUM(CASE 
-                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
-                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
+                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
+                        WHEN ar.EntryType = 'Journal' THEN ar.Amount
                         ELSE ar.Amount 
                     END) as NetBalance
                 FROM ben002.ARDetail ar
@@ -2046,8 +2051,9 @@ def register_department_routes(reports_bp):
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
                 HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
-                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
+                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
+                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
                     ELSE ar.Amount 
                 END) > 0.01
             )
@@ -2068,8 +2074,9 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     ar.Due,
                     SUM(CASE 
-                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
-                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
+                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
+                        WHEN ar.EntryType = 'Journal' THEN ar.Amount
                         ELSE ar.Amount 
                     END) as NetBalance
                 FROM ben002.ARDetail ar
@@ -2077,8 +2084,9 @@ def register_department_routes(reports_bp):
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
                 HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
-                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
+                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
+                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
                     ELSE ar.Amount 
                 END) > 0.01
             )
@@ -2099,9 +2107,9 @@ def register_department_routes(reports_bp):
                 'raw_totals': raw_data,
                 'entry_types': entry_types,
                 'net_ar': net_data,
-                'calculated_net': float(raw_data.get('invoice_total', 0) + raw_data.get('debit_total', 0) - 
-                                      raw_data.get('payment_total', 0) - raw_data.get('credit_total', 0) - 
-                                      raw_data.get('adjustment_total', 0)),
+                'calculated_net': float(raw_data.get('invoice_total', 0) + raw_data.get('ar_journal_total', 0) + 
+                                      raw_data.get('journal_total', 0) - raw_data.get('payment_total', 0) - 
+                                      raw_data.get('voucher_total', 0)),
                 'largest_open_balances': [dict(row) for row in sample_results],
                 'message': 'AR Debug Information'
             })

@@ -406,8 +406,9 @@ const AccountingReport = ({ user }) => {
                   <div>Raw Total: ${(arDebugData.raw_totals?.raw_total / 1000).toFixed(0)}k</div>
                   <div>Invoice Total: ${(arDebugData.raw_totals?.invoice_total / 1000).toFixed(0)}k</div>
                   <div>Payment Total: ${(arDebugData.raw_totals?.payment_total / 1000).toFixed(0)}k</div>
-                  <div>Credit Total: ${(arDebugData.raw_totals?.credit_total / 1000).toFixed(0)}k</div>
-                  <div>Debit Total: ${(arDebugData.raw_totals?.debit_total / 1000).toFixed(0)}k</div>
+                  <div>Voucher Total: ${(arDebugData.raw_totals?.voucher_total / 1000).toFixed(0)}k</div>
+                  <div>Journal Total: ${(arDebugData.raw_totals?.journal_total / 1000).toFixed(0)}k</div>
+                  <div>AR Journal Total: ${(arDebugData.raw_totals?.ar_journal_total / 1000).toFixed(0)}k</div>
                 </div>
               </div>
               <div>
