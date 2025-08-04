@@ -110,6 +110,32 @@ const APReport = ({ user }) => {
     XLSX.writeFile(workbook, `AP_Report_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
+  const downloadOver90Excel = () => {
+    if (!apData?.invoices) return
+
+    // Filter for invoices over 90 days overdue
+    const over90Invoices = apData.invoices.filter(inv => inv.days_overdue > 90)
+
+    if (over90Invoices.length === 0) {
+      console.log('No invoices over 90 days found')
+      return
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(over90Invoices.map(inv => ({
+      'Invoice #': inv.invoice_no,
+      'Vendor': inv.vendor_name,
+      'Invoice Date': inv.invoice_date,
+      'Due Date': inv.due_date,
+      'Days Overdue': inv.days_overdue,
+      'Amount': inv.amount,
+      'Aging Bucket': inv.aging_bucket
+    })))
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Over 90 Days AP')
+    XLSX.writeFile(workbook, `AP_Over_90_Days_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
   if (loading) {
     return (
       <LoadingSpinner 
@@ -183,7 +209,16 @@ const APReport = ({ user }) => {
             <div className="text-2xl font-bold text-red-600">
               ${((apData.aging_summary.find(b => b.bucket === 'Over 90')?.amount || 0) / 1000).toFixed(0)}k
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Requires immediate attention</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-3">Requires immediate attention</p>
+            <Button 
+              onClick={() => downloadOver90Excel()}
+              size="sm"
+              variant="outline"
+              className="w-full"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download Over 90
+            </Button>
           </CardContent>
         </Card>
       </div>
