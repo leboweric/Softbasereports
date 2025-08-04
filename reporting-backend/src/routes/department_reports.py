@@ -5216,4 +5216,95 @@ def register_department_routes(reports_bp):
             logger.error(f"Error in equipment sales diagnostic: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/find-linde-invoice', methods=['GET'])
+    @jwt_required()
+    def find_linde_invoice():
+        """Find specific LINDE invoice around $113K"""
+        try:
+            db = get_db()
+            
+            # Search for LINDE invoices in March 2025 around $113K
+            query = """
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName,
+                c.Salesman1,
+                c.Salesman2,
+                c.Salesman3,
+                ir.SaleCode,
+                ir.SaleDept,
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
+                ir.GrandTotal,
+                ir.Comments
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceDate >= '2025-03-01' 
+                AND ir.InvoiceDate < '2025-04-01'
+                AND ir.SaleCode = 'LINDE'
+                AND ir.GrandTotal > 100000  -- Looking for invoices over $100K
+            ORDER BY ir.GrandTotal DESC
+            """
+            
+            results = db.execute_query(query)
+            
+            # Also search for any equipment invoice around $113K in March
+            broad_query = """
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName,
+                c.Salesman1,
+                c.Salesman2,
+                c.Salesman3,
+                ir.SaleCode,
+                ir.SaleDept,
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
+                ir.GrandTotal,
+                ir.Comments
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceDate >= '2025-03-01' 
+                AND ir.InvoiceDate < '2025-04-01'
+                AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
+                AND ir.GrandTotal BETWEEN 110000 AND 115000  -- Looking around $113K
+            ORDER BY ir.GrandTotal DESC
+            """
+            
+            broad_results = db.execute_query(broad_query)
+            
+            # Get ALL LINDE invoices for March to see what we have
+            all_linde_query = """
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName,
+                c.Salesman1,
+                ir.SaleCode,
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
+                ir.GrandTotal
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceDate >= '2025-03-01' 
+                AND ir.InvoiceDate < '2025-04-01'
+                AND ir.SaleCode = 'LINDE'
+            ORDER BY ir.GrandTotal DESC
+            """
+            
+            all_linde = db.execute_query(all_linde_query)
+            
+            return jsonify({
+                'linde_over_100k': [dict(row) for row in results],
+                'equipment_around_113k': [dict(row) for row in broad_results],
+                'all_linde_march': [dict(row) for row in all_linde],
+                'total_linde_march': sum(row['EquipmentAmount'] for row in all_linde)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error finding LINDE invoice: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
 
