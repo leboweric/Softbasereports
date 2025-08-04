@@ -1855,22 +1855,12 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # First get the total AR amount from outstanding invoices only
+            # First get the total AR amount
             total_ar_query = """
-            WITH InvoiceBalances AS (
-                SELECT 
-                    ar.CustomerNo,
-                    ar.InvoiceNo,
-                    ar.Due,
-                    SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
-                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
-                    AND ar.DeletionTime IS NULL
-                GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
-                HAVING SUM(ar.Amount) > 0.01  -- Only invoices with outstanding balance
-            )
-            SELECT SUM(NetBalance) as total_ar
-            FROM InvoiceBalances
+            SELECT SUM(Amount) as total_ar
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
             """
             
             total_ar_result = db.execute_query(total_ar_query)
@@ -1902,10 +1892,10 @@ def register_department_routes(reports_bp):
                     CASE 
                         WHEN ib.Due IS NULL THEN 'No Due Date'
                         WHEN DATEDIFF(day, ib.Due, GETDATE()) > 120 THEN '120+'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) >= 91 THEN '90-120'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) >= 61 THEN '60-90'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) >= 31 THEN '30-60'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) >= 1 THEN '1-30'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 90 THEN '90-120'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 60 THEN '60-90'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 30 THEN '30-60'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 0 THEN '1-30'
                         ELSE 'Current'
                     END as AgingBucket
                 FROM InvoiceBalances ib
@@ -1953,7 +1943,7 @@ def register_department_routes(reports_bp):
                 MAX(DATEDIFF(day, ib.Due, GETDATE())) as MaxDaysOverdue
             FROM InvoiceBalances ib
             INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
-            WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 91  -- Over 90 days
+            WHERE DATEDIFF(day, ib.Due, GETDATE()) > 90  -- Over 90 days
                 AND (
                     UPPER(c.Name) LIKE '%POLARIS%' OR
                     UPPER(c.Name) LIKE '%GREDE%' OR
