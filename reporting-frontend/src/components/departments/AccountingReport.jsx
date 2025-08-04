@@ -98,14 +98,11 @@ const AccountingReport = ({ user }) => {
                 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                 const currentMonthName = monthNames[currentMonthIndex]
                 
-                // Find current month in data and get historical months
-                const currentMonthDataIndex = monthlyExpenses.findIndex(item => item.month === currentMonthName)
-                const historicalMonths = currentMonthDataIndex > 0 
-                  ? monthlyExpenses.slice(0, currentMonthDataIndex).filter(item => item.expenses > 0)
-                  : monthlyExpenses.filter((item, index) => {
-                      const monthIndex = monthNames.indexOf(item.month)
-                      return monthIndex < currentMonthIndex && item.expenses > 0
-                    })
+                // Get all months except current month for average calculation
+                const historicalMonths = monthlyExpenses.filter(item => {
+                  // Exclude current month (July in this case)
+                  return item.month !== currentMonthName && item.expenses > 0
+                })
                 
                 if (historicalMonths.length === 0) return null
                 
@@ -134,13 +131,11 @@ const AccountingReport = ({ user }) => {
                   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                   const currentMonthName = monthNames[currentMonthIndex]
                   
-                  const currentMonthDataIndex = data.findIndex(item => item.month === currentMonthName)
-                  const historicalMonths = currentMonthDataIndex > 0 
-                    ? data.slice(0, currentMonthDataIndex).filter(item => item.expenses > 0)
-                    : data.filter((item, index) => {
-                        const monthIndex = monthNames.indexOf(item.month)
-                        return monthIndex < currentMonthIndex && item.expenses > 0
-                      })
+                  // Get all months except current month for average calculation
+                  const historicalMonths = data.filter(item => {
+                    // Exclude current month
+                    return item.month !== currentMonthName && item.expenses > 0
+                  })
                   
                   const avgExpenses = historicalMonths.length > 0 
                     ? historicalMonths.reduce((sum, item) => sum + item.expenses, 0) / historicalMonths.length 
@@ -219,13 +214,11 @@ const AccountingReport = ({ user }) => {
                   const currentMonthIndex = currentDate.getMonth()
                   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                   const currentMonthName = monthNames[currentMonthIndex]
-                  const currentMonthDataIndex = monthlyExpenses.findIndex(item => item.month === currentMonthName)
-                  const historicalMonths = currentMonthDataIndex > 0 
-                    ? monthlyExpenses.slice(0, currentMonthDataIndex).filter(item => item.expenses > 0)
-                    : monthlyExpenses.filter((item, index) => {
-                        const monthIndex = monthNames.indexOf(item.month)
-                        return monthIndex < currentMonthIndex && item.expenses > 0
-                      })
+                  // Get all months except current month for average calculation
+                  const historicalMonths = monthlyExpenses.filter(item => {
+                    // Exclude current month
+                    return item.month !== currentMonthName && item.expenses > 0
+                  })
                   const avgExpenses = historicalMonths.length > 0 
                     ? historicalMonths.reduce((sum, item) => sum + item.expenses, 0) / historicalMonths.length 
                     : 0
