@@ -1888,8 +1888,8 @@ def register_department_routes(reports_bp):
                     WHEN DATEDIFF(day, Due, GETDATE()) < 30 THEN 'Current'
                     WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 59 THEN '30-60'
                     WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 60 AND 89 THEN '60-90'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 90 AND 119 THEN '90-120'
-                    WHEN DATEDIFF(day, Due, GETDATE()) >= 120 THEN '120+'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 90 AND 120 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
                 END as AgingBucket,
                 COUNT(*) as RecordCount,
                 SUM(NetBalance) as TotalAmount
@@ -1900,8 +1900,8 @@ def register_department_routes(reports_bp):
                     WHEN DATEDIFF(day, Due, GETDATE()) < 30 THEN 'Current'
                     WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 59 THEN '30-60'
                     WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 60 AND 89 THEN '60-90'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 90 AND 119 THEN '90-120'
-                    WHEN DATEDIFF(day, Due, GETDATE()) >= 120 THEN '120+'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 90 AND 120 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
                 END
             """
             
