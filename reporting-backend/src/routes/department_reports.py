@@ -2223,6 +2223,76 @@ def register_department_routes(reports_bp):
                 'type': 'customer_ar_debug_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/over90-debug', methods=['GET'])
+    @jwt_required()
+    def get_over90_debug():
+        """Debug over 90 days AR calculation"""
+        try:
+            db = get_db()
+            
+            # Get all invoices over 90 days with details
+            query = """
+            WITH InvoiceBalances AS (
+                SELECT 
+                    ar.InvoiceNo,
+                    ar.CustomerNo,
+                    MIN(ar.Due) as Due,
+                    SUM(ar.Amount) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                    AND ar.DeletionTime IS NULL
+                    AND ar.InvoiceNo IS NOT NULL
+                GROUP BY ar.InvoiceNo, ar.CustomerNo
+                HAVING SUM(ar.Amount) > 0.01
+            )
+            SELECT 
+                ib.InvoiceNo,
+                ib.CustomerNo,
+                c.Name as CustomerName,
+                ib.Due,
+                DATEDIFF(day, ib.Due, GETDATE()) as DaysOld,
+                ib.NetBalance
+            FROM InvoiceBalances ib
+            LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 90
+            ORDER BY ib.NetBalance DESC
+            """
+            
+            results = db.execute_query(query)
+            
+            # Calculate totals by days old ranges
+            totals = {
+                '90-119': 0,
+                '120+': 0,
+                'total': 0
+            }
+            
+            invoices = []
+            for row in results:
+                invoice = dict(row)
+                amount = float(invoice.get('NetBalance', 0))
+                days = int(invoice.get('DaysOld', 0))
+                
+                if 90 <= days < 120:
+                    totals['90-119'] += amount
+                elif days >= 120:
+                    totals['120+'] += amount
+                totals['total'] += amount
+                
+                invoices.append(invoice)
+            
+            return jsonify({
+                'invoices': invoices[:100],  # Return top 100
+                'totals': totals,
+                'total_count': len(results)
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'over90_debug_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/ar-aging-debug', methods=['GET'])
     @jwt_required()
     def get_ar_aging_debug():
