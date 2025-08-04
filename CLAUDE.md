@@ -59,6 +59,38 @@ To get the complete database schema:
 8. Filtered consumables (oil, grease, coolant, anti-freeze) from Top 10 Parts
 9. Fixed decimal displays to show whole numbers for stock quantities
 
+## CRITICAL: AR Aging Report Implementation (2025-08-04)
+
+### Important Discovery About AR Calculations
+The AR aging report was showing incorrect totals ($4,404k instead of the correct $1,697k). After investigation:
+
+1. **Total AR Calculation**: The total AR should be calculated directly from ARDetail WITHOUT grouping by invoice:
+   - CORRECT: `SELECT SUM(Amount) FROM ARDetail WHERE HistoryFlag IS NULL OR HistoryFlag = 0 AND DeletionTime IS NULL`
+   - This gives the true total AR of ~$1,697k
+   - The Amount field in ARDetail already has correct signs (positive for invoices, negative for payments)
+
+2. **Aging Bucket Issues**: 
+   - The aging buckets need to use proper date ranges
+   - Current implementation groups by invoice which may be causing discrepancies
+   - Need to verify the exact bucket logic matches the source system
+
+3. **ARDetail Table Structure**:
+   - Amount field contains both positive (invoices) and negative (payments) values
+   - No need for complex calculations - just SUM(Amount)
+   - EntryType field indicates transaction type (Invoice, Payment, etc.)
+   - Due field is used for aging calculations
+
+### Debug Information from User's Direct Database Pull:
+- Total AR: $1,697,050.59
+- Current: $389,448.08
+- 1-30 days: $312,764.25
+- 31-60 days: $173,548.60
+- 61-90 days: $27,931.75
+- Over 90 days: (derived from remaining amount)
+
+### Key Learning:
+DO NOT overcomplicate AR calculations. The ARDetail table is designed to be summed directly - the Amount field already accounts for invoices (positive) and payments (negative).
+
 ## Deployment URLs
 - **Frontend**: https://softbasereports.netlify.app
 - **Backend**: https://softbasereports-production.up.railway.app
