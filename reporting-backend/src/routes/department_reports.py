@@ -2078,7 +2078,7 @@ def register_department_routes(reports_bp):
                 SELECT 
                     ap.APInvoiceNo,
                     ap.VendorNo,
-                    ap.VendorNo as VendorName,  -- Use VendorNo as name for now
+                    v.Name as VendorName,
                     ap.APInvoiceDate,
                     ap.DueDate,
                     SUM(ap.Amount) as InvoiceAmount,
@@ -2093,10 +2093,11 @@ def register_department_routes(reports_bp):
                         WHEN DATEDIFF(day, ap.DueDate, GETDATE()) > 90 THEN 'Over 90'
                     END as AgingBucket
                 FROM ben002.APDetail ap
+                LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
                 WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                     AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                     AND ap.DeletionTime IS NULL
-                GROUP BY ap.APInvoiceNo, ap.VendorNo, ap.APInvoiceDate, ap.DueDate
+                GROUP BY ap.APInvoiceNo, ap.VendorNo, v.Name, ap.APInvoiceDate, ap.DueDate
             )
             SELECT 
                 APInvoiceNo,
@@ -2150,16 +2151,17 @@ def register_department_routes(reports_bp):
             vendor_query = """
             SELECT TOP 10
                 ap.VendorNo,
-                ap.VendorNo as VendorName,  -- Use VendorNo as name for now
+                v.Name as VendorName,
                 COUNT(DISTINCT ap.APInvoiceNo) as InvoiceCount,
                 SUM(ABS(ap.Amount)) as TotalOwed,
                 MIN(ap.DueDate) as OldestDueDate,
                 DATEDIFF(day, MIN(ap.DueDate), GETDATE()) as OldestDaysOverdue
             FROM ben002.APDetail ap
+            LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
             WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                 AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                 AND ap.DeletionTime IS NULL
-            GROUP BY ap.VendorNo
+            GROUP BY ap.VendorNo, v.Name
             ORDER BY SUM(ABS(ap.Amount)) DESC
             """
             
@@ -2226,6 +2228,81 @@ def register_department_routes(reports_bp):
             
         except Exception as e:
             logger.error(f"Error fetching AP report: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
+    @reports_bp.route('/departments/accounting/ap-validation', methods=['GET'])
+    @jwt_required()
+    def get_ap_validation():
+        """Get AP validation data to verify accuracy"""
+        try:
+            db = get_db()
+            
+            # Get total AP by different methods to cross-check
+            validation_queries = {
+                'total_unpaid_ap': """
+                    SELECT COUNT(DISTINCT APInvoiceNo) as invoice_count,
+                           SUM(Amount) as total_amount_raw,
+                           SUM(ABS(Amount)) as total_amount_abs
+                    FROM ben002.APDetail
+                    WHERE (CheckNo IS NULL OR CheckNo = 0)
+                        AND (HistoryFlag IS NULL OR HistoryFlag = 0)
+                        AND DeletionTime IS NULL
+                """,
+                
+                'by_entry_type': """
+                    SELECT EntryType, 
+                           COUNT(*) as record_count,
+                           SUM(Amount) as total_amount
+                    FROM ben002.APDetail
+                    WHERE (CheckNo IS NULL OR CheckNo = 0)
+                        AND (HistoryFlag IS NULL OR HistoryFlag = 0)
+                        AND DeletionTime IS NULL
+                    GROUP BY EntryType
+                """,
+                
+                'sample_invoices': """
+                    SELECT TOP 10 
+                        ap.APInvoiceNo,
+                        ap.VendorNo,
+                        v.Name as VendorName,
+                        ap.APInvoiceDate,
+                        ap.DueDate,
+                        ap.Amount,
+                        ap.EntryType,
+                        ap.Comments
+                    FROM ben002.APDetail ap
+                    LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
+                    WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
+                        AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
+                        AND ap.DeletionTime IS NULL
+                    ORDER BY ABS(ap.Amount) DESC
+                """,
+                
+                'vendors_with_balances': """
+                    SELECT COUNT(DISTINCT ap.VendorNo) as vendor_count
+                    FROM ben002.APDetail ap
+                    WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
+                        AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
+                        AND ap.DeletionTime IS NULL
+                """
+            }
+            
+            results = {}
+            for key, query in validation_queries.items():
+                results[key] = db.execute_query(query)
+            
+            return jsonify({
+                'validation_results': results,
+                'summary': {
+                    'total_ap_raw': float(results['total_unpaid_ap'][0]['total_amount_raw']) if results['total_unpaid_ap'] else 0,
+                    'total_ap_absolute': float(results['total_unpaid_ap'][0]['total_amount_abs']) if results['total_unpaid_ap'] else 0,
+                    'invoice_count': results['total_unpaid_ap'][0]['invoice_count'] if results['total_unpaid_ap'] else 0,
+                    'vendor_count': results['vendors_with_balances'][0]['vendor_count'] if results['vendors_with_balances'] else 0
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in AP validation: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/accounting/ar-report', methods=['GET'])
