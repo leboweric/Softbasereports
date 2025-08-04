@@ -52,7 +52,6 @@ const RentalReport = ({ user }) => {
   const [downloadingUnitsOnRent, setDownloadingUnitsOnRent] = useState(false)
   const [unitsOnRent, setUnitsOnRent] = useState(0)
   
-  console.log('RentalReport render - unitsOnRent:', unitsOnRent, 'downloadingUnitsOnRent:', downloadingUnitsOnRent)
 
   useEffect(() => {
     fetchRentalData()
@@ -351,22 +350,6 @@ const RentalReport = ({ user }) => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
         <p className="text-muted-foreground">Fleet management and rental analytics</p>
-        <Button 
-          onClick={async () => {
-            const token = localStorage.getItem('token')
-            const response = await fetch(apiUrl('/api/reports/departments/rental/units-diagnostic'), {
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
-            const data = await response.json()
-            console.log('UNITS DIAGNOSTIC:', data)
-            alert('Check console for units diagnostic data')
-          }}
-          variant="outline"
-          size="sm"
-          className="mt-2"
-        >
-          Run Units Diagnostic
-        </Button>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">

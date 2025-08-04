@@ -2370,37 +2370,40 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Count units on rent from RentalHistory for current month
-            # Exclude internal/expense entries like "RENTAL FLEET - EXPENSE"
+            # Count units on rent by looking at Equipment with CustomerNo
+            # Focus on forklifts and material handling equipment
             query = """
-            SELECT COUNT(DISTINCT rh.SerialNo) as units_on_rent
-            FROM ben002.RentalHistory rh
-            LEFT JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            SELECT COUNT(*) as units_on_rent
+            FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            WHERE rh.Year = YEAR(GETDATE()) 
-                AND rh.Month = MONTH(GETDATE())
-                AND rh.DaysRented > 0
+            WHERE e.CustomerNo IS NOT NULL 
+                AND e.CustomerNo != ''
+                AND e.CustomerNo != '0'
+                -- Exclude internal accounts
                 AND (c.Name IS NULL OR c.Name NOT LIKE '%RENTAL FLEET%')
                 AND (c.Name IS NULL OR c.Name NOT LIKE '%EXPENSE%')
                 AND (c.Name IS NULL OR c.Name NOT LIKE '%INTERNAL%')
+                -- Focus on forklifts and material handling equipment
+                AND (
+                    UPPER(e.Model) LIKE '%FORK%' 
+                    OR UPPER(e.Make) LIKE '%FORK%'
+                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL')
+                    OR UPPER(e.Model) LIKE '%LIFT%'
+                    OR UPPER(e.Model) LIKE 'RC%'
+                    OR UPPER(e.Model) LIKE 'GC%'
+                    OR UPPER(e.Model) LIKE 'GP%'
+                    OR UPPER(e.Model) LIKE 'FG%'
+                    OR UPPER(e.Model) LIKE 'FD%'
+                    OR UPPER(e.Make) LIKE '%JIG%'
+                    OR UPPER(e.Make) LIKE '%GENIE%'
+                    OR UPPER(e.Make) LIKE '%JLG%'
+                    OR UPPER(e.Make) LIKE '%SCISSOR%'
+                    OR UPPER(e.Make) LIKE '%BOOM%'
+                )
             """
             
             result = db.execute_query(query)
             units_on_rent = result[0]['units_on_rent'] if result else 0
-            
-            # Also try RentalContract as fallback
-            contract_query = """
-            SELECT COUNT(*) as contract_count
-            FROM ben002.RentalContract
-            WHERE DeletionTime IS NULL
-                AND (EndDate IS NULL OR EndDate >= GETDATE() OR OpenEndedContract = 1)
-            """
-            
-            contract_result = db.execute_query(contract_query)
-            contract_count = contract_result[0]['contract_count'] if contract_result else 0
-            
-            # Use the higher of the two values (contracts might not capture all rentals)
-            units_on_rent = max(units_on_rent, contract_count)
             
             return jsonify({
                 'units_on_rent': units_on_rent
@@ -2419,32 +2422,53 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get detailed rental information from RentalHistory for current month
-            # Exclude internal/expense entries
+            # Get units on rent by looking at Equipment with CustomerNo
+            # This is where the actual rental assignments are stored!
             query = """
-            SELECT DISTINCT
+            SELECT 
                 c.Name as CustomerName,
-                c.Number as CustomerNo,
+                e.CustomerNo,
                 e.UnitNo,
                 e.SerialNo,
                 e.Make,
                 e.Model,
                 e.ModelYear,
                 e.Location,
-                rh.DaysRented,
-                rh.RentAmount,
                 e.DayRent,
                 e.WeekRent,
-                e.MonthRent
-            FROM ben002.RentalHistory rh
-            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+                e.MonthRent,
+                -- Get rental amount from RentalHistory if available
+                rh.DaysRented,
+                rh.RentAmount
+            FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            WHERE rh.Year = YEAR(GETDATE()) 
+            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
-                AND rh.DaysRented > 0
+            WHERE e.CustomerNo IS NOT NULL 
+                AND e.CustomerNo != ''
+                AND e.CustomerNo != '0'
+                -- Exclude internal accounts
                 AND (c.Name IS NULL OR c.Name NOT LIKE '%RENTAL FLEET%')
                 AND (c.Name IS NULL OR c.Name NOT LIKE '%EXPENSE%')
                 AND (c.Name IS NULL OR c.Name NOT LIKE '%INTERNAL%')
+                -- Focus on forklifts and material handling equipment
+                AND (
+                    UPPER(e.Model) LIKE '%FORK%' 
+                    OR UPPER(e.Make) LIKE '%FORK%'
+                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL')
+                    OR UPPER(e.Model) LIKE '%LIFT%'
+                    OR UPPER(e.Model) LIKE 'RC%'
+                    OR UPPER(e.Model) LIKE 'GC%'
+                    OR UPPER(e.Model) LIKE 'GP%'
+                    OR UPPER(e.Model) LIKE 'FG%'
+                    OR UPPER(e.Model) LIKE 'FD%'
+                    OR UPPER(e.Make) LIKE '%JIG%'
+                    OR UPPER(e.Make) LIKE '%GENIE%'
+                    OR UPPER(e.Make) LIKE '%JLG%'
+                    OR UPPER(e.Make) LIKE '%SCISSOR%'
+                    OR UPPER(e.Make) LIKE '%BOOM%'
+                )
             ORDER BY c.Name, e.Make, e.Model, e.UnitNo
             """
             
