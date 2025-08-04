@@ -4883,7 +4883,7 @@ def register_department_routes(reports_bp):
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as NewTotal,
-                COUNT(CASE WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 1 ELSE NULL END) as NewCount
+                COUNT(CASE WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 1 ELSE NULL END) as NewCount
             FROM ben002.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
             """
@@ -4901,12 +4901,76 @@ def register_department_routes(reports_bp):
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
-                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'ALLIED', 'LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
             GROUP BY ir.SaleCode
             ORDER BY SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) DESC
             """
             
             unmapped = db.execute_query(unmapped_query, [start_date, end_date])
+            
+            # Get ALL OTHER invoices that don't fall into our defined categories
+            all_other_query = """
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName,
+                c.Salesman1,
+                ir.SaleCode,
+                ir.SaleDept,
+                ir.Department,
+                ir.Comments,
+                COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) as RentalAmount,
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
+                COALESCE(ir.PartsTaxable, 0) + COALESCE(ir.PartsNonTax, 0) as PartsAmount,
+                COALESCE(ir.LaborTaxable, 0) + COALESCE(ir.LaborNonTax, 0) as LaborAmount,
+                COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0) as MiscAmount,
+                ir.GrandTotal
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceDate >= %s 
+                AND ir.InvoiceDate <= %s
+                AND NOT (
+                    -- Exclude invoices that fall into our defined categories
+                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
+                    OR
+                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') 
+                     AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
+                )
+                AND ir.GrandTotal > 0  -- Only show invoices with actual amounts
+            ORDER BY ir.GrandTotal DESC
+            """
+            
+            all_other_invoices = db.execute_query(all_other_query, [start_date, end_date])
+            
+            # Format all other invoices for display
+            all_other_bucket = {
+                'name': 'All Other Invoices',
+                'sale_codes': ['Various'],
+                'field': 'Mixed',
+                'sample_invoices': [{
+                    'InvoiceNo': row['InvoiceNo'],
+                    'InvoiceDate': row['InvoiceDate'],
+                    'BillTo': row['BillTo'],
+                    'BillToName': row['BillToName'],
+                    'Salesman1': row['Salesman1'],
+                    'SaleCode': row['SaleCode'],
+                    'SaleDept': row['SaleDept'],
+                    'Department': row['Department'],
+                    'Comments': row['Comments'],
+                    'RentalAmount': float(row['RentalAmount'] or 0),
+                    'EquipmentAmount': float(row['EquipmentAmount'] or 0),
+                    'PartsAmount': float(row['PartsAmount'] or 0),
+                    'LaborAmount': float(row['LaborAmount'] or 0),
+                    'MiscAmount': float(row['MiscAmount'] or 0),
+                    'CategoryAmount': float(row['GrandTotal'] or 0),  # Use GrandTotal for consistency
+                    'GrandTotal': float(row['GrandTotal'] or 0)
+                } for row in all_other_invoices]
+            }
+            
+            # Add to buckets
+            buckets['all_other'] = all_other_bucket
             
             return jsonify({
                 'month': month_param,

@@ -589,7 +589,15 @@ const SalesCommissionReport = ({ user }) => {
                                       <th className="text-left p-2">Customer</th>
                                       <th className="text-left p-2">Salesman</th>
                                       <th className="text-left p-2">Sale Code</th>
-                                      <th className="text-right p-2">Category Amount</th>
+                                      {key === 'all_other' && (
+                                        <>
+                                          <th className="text-right p-2">Rental</th>
+                                          <th className="text-right p-2">Equipment</th>
+                                          <th className="text-right p-2">Parts</th>
+                                          <th className="text-right p-2">Labor</th>
+                                          <th className="text-right p-2">Misc</th>
+                                        </>
+                                      )}
                                       <th className="text-right p-2">Total</th>
                                       <th className="text-center p-2">Commissionable</th>
                                     </tr>
@@ -612,7 +620,18 @@ const SalesCommissionReport = ({ user }) => {
                                             {inv.SaleCode}
                                           </Badge>
                                         </td>
-                                        <td className="text-right p-2">{formatCurrency(inv.CategoryAmount)}</td>
+                                        {key === 'all_other' && (
+                                          <>
+                                            <td className="text-right p-2">{inv.RentalAmount > 0 ? formatCurrency(inv.RentalAmount) : '-'}</td>
+                                            <td className="text-right p-2">{inv.EquipmentAmount > 0 ? formatCurrency(inv.EquipmentAmount) : '-'}</td>
+                                            <td className="text-right p-2">{inv.PartsAmount > 0 ? formatCurrency(inv.PartsAmount) : '-'}</td>
+                                            <td className="text-right p-2">{inv.LaborAmount > 0 ? formatCurrency(inv.LaborAmount) : '-'}</td>
+                                            <td className="text-right p-2">{inv.MiscAmount > 0 ? formatCurrency(inv.MiscAmount) : '-'}</td>
+                                          </>
+                                        )}
+                                        {key !== 'all_other' && (
+                                          <td className="text-right p-2">{formatCurrency(inv.CategoryAmount)}</td>
+                                        )}
                                         <td className="text-right p-2">{formatCurrency(inv.GrandTotal)}</td>
                                         <td className="text-center p-2">
                                           {inv.Salesman1 ? (
@@ -627,20 +646,34 @@ const SalesCommissionReport = ({ user }) => {
                                 </table>
                               </div>
                               {/* Summary for this category */}
-                              <div className="mt-3 pt-3 border-t">
-                                <div className="flex justify-between text-sm">
-                                  <span>Commissionable ({bucket.sample_invoices.filter(inv => inv.Salesman1).length} invoices):</span>
-                                  <span className="font-semibold text-green-600">
-                                    {formatCurrency(bucket.sample_invoices.filter(inv => inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
-                                  </span>
+                              {key !== 'all_other' ? (
+                                <div className="mt-3 pt-3 border-t">
+                                  <div className="flex justify-between text-sm">
+                                    <span>Commissionable ({bucket.sample_invoices.filter(inv => inv.Salesman1).length} invoices):</span>
+                                    <span className="font-semibold text-green-600">
+                                      {formatCurrency(bucket.sample_invoices.filter(inv => inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm mt-1">
+                                    <span>Non-Commissionable ({bucket.sample_invoices.filter(inv => !inv.Salesman1).length} invoices):</span>
+                                    <span className="font-semibold text-red-600">
+                                      {formatCurrency(bucket.sample_invoices.filter(inv => !inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between text-sm mt-1">
-                                  <span>Non-Commissionable ({bucket.sample_invoices.filter(inv => !inv.Salesman1).length} invoices):</span>
-                                  <span className="font-semibold text-red-600">
-                                    {formatCurrency(bucket.sample_invoices.filter(inv => !inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
-                                  </span>
+                              ) : (
+                                <div className="mt-3 pt-3 border-t">
+                                  <div className="flex justify-between text-sm">
+                                    <span>Total ({bucket.sample_invoices.length} invoices):</span>
+                                    <span className="font-semibold">
+                                      {formatCurrency(bucket.sample_invoices.reduce((sum, inv) => sum + inv.GrandTotal, 0))}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    These invoices do not fall into any commission category
+                                  </p>
                                 </div>
-                              </div>
+                              )}
                               </>
                             ) : (
                               <p className="text-sm text-muted-foreground">No invoices found for this category in {new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
