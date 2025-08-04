@@ -18,6 +18,7 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 import AROver90Report from '@/components/AROver90Report'
+import APReport from '@/components/APReport'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -378,15 +379,7 @@ const AccountingReport = ({ user }) => {
         </TabsContent>
 
         <TabsContent value="ap" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Accounts Payable</CardTitle>
-              <CardDescription>Coming soon - AP reports and analytics</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">AP functionality will be added here.</p>
-            </CardContent>
-          </Card>
+          <APReport user={user} />
         </TabsContent>
       </Tabs>
 

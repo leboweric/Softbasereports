@@ -1882,6 +1882,169 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching AP total: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/ap-report', methods=['GET'])
+    @jwt_required()
+    def get_ap_report():
+        """Get comprehensive accounts payable report with aging and details"""
+        try:
+            db = get_db()
+            
+            # Get all unpaid AP invoices with vendor info
+            ap_detail_query = """
+            WITH APInvoices AS (
+                SELECT 
+                    ap.APInvoiceNo,
+                    ap.VendorNo,
+                    ap.VendorNo as VendorName,  -- Use VendorNo as name for now
+                    ap.APInvoiceDate,
+                    ap.DueDate,
+                    SUM(ap.Amount) as InvoiceAmount,
+                    COUNT(*) as LineItems,
+                    DATEDIFF(day, ap.DueDate, GETDATE()) as DaysOverdue,
+                    CASE 
+                        WHEN ap.DueDate IS NULL THEN 'No Due Date'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) < 0 THEN 'Not Due'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 0 AND 30 THEN '0-30'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 31 AND 60 THEN '31-60'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 61 AND 90 THEN '61-90'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) > 90 THEN 'Over 90'
+                    END as AgingBucket
+                FROM ben002.APDetail ap
+                WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
+                    AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
+                    AND ap.DeletionTime IS NULL
+                GROUP BY ap.APInvoiceNo, ap.VendorNo, ap.APInvoiceDate, ap.DueDate
+            )
+            SELECT 
+                APInvoiceNo,
+                VendorNo,
+                VendorName,
+                APInvoiceDate,
+                DueDate,
+                -- Convert negative amounts to positive for display
+                ABS(InvoiceAmount) as InvoiceAmount,
+                LineItems,
+                DaysOverdue,
+                AgingBucket
+            FROM APInvoices
+            ORDER BY DaysOverdue DESC, InvoiceAmount DESC
+            """
+            
+            ap_results = db.execute_query(ap_detail_query)
+            
+            # Get aging summary
+            aging_query = """
+            WITH APInvoices AS (
+                SELECT 
+                    ap.APInvoiceNo,
+                    ap.DueDate,
+                    SUM(ap.Amount) as InvoiceAmount,
+                    CASE 
+                        WHEN ap.DueDate IS NULL THEN 'No Due Date'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) < 0 THEN 'Not Due'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 0 AND 30 THEN '0-30'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 31 AND 60 THEN '31-60'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 61 AND 90 THEN '61-90'
+                        WHEN DATEDIFF(day, ap.DueDate, GETDATE()) > 90 THEN 'Over 90'
+                    END as AgingBucket
+                FROM ben002.APDetail ap
+                WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
+                    AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
+                    AND ap.DeletionTime IS NULL
+                GROUP BY ap.APInvoiceNo, ap.DueDate
+            )
+            SELECT 
+                AgingBucket,
+                COUNT(*) as InvoiceCount,
+                SUM(ABS(InvoiceAmount)) as TotalAmount
+            FROM APInvoices
+            GROUP BY AgingBucket
+            """
+            
+            aging_results = db.execute_query(aging_query)
+            
+            # Get top vendors by amount owed
+            vendor_query = """
+            SELECT TOP 10
+                ap.VendorNo,
+                ap.VendorNo as VendorName,  -- Use VendorNo as name for now
+                COUNT(DISTINCT ap.APInvoiceNo) as InvoiceCount,
+                SUM(ABS(ap.Amount)) as TotalOwed,
+                MIN(ap.DueDate) as OldestDueDate,
+                DATEDIFF(day, MIN(ap.DueDate), GETDATE()) as OldestDaysOverdue
+            FROM ben002.APDetail ap
+            WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
+                AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
+                AND ap.DeletionTime IS NULL
+            GROUP BY ap.VendorNo
+            ORDER BY SUM(ABS(ap.Amount)) DESC
+            """
+            
+            vendor_results = db.execute_query(vendor_query)
+            
+            # Calculate summary metrics
+            total_ap = sum(row['TotalAmount'] for row in aging_results) if aging_results else 0
+            overdue_amount = sum(row['TotalAmount'] for row in aging_results 
+                               if row['AgingBucket'] not in ['Not Due', 'No Due Date']) if aging_results else 0
+            overdue_percentage = (overdue_amount / total_ap * 100) if total_ap > 0 else 0
+            
+            # Format invoice details
+            invoices = []
+            for row in ap_results:
+                invoices.append({
+                    'invoice_no': row['APInvoiceNo'],
+                    'vendor_no': row['VendorNo'],
+                    'vendor_name': row['VendorName'] or 'Unknown Vendor',
+                    'invoice_date': row['APInvoiceDate'].strftime('%Y-%m-%d') if row['APInvoiceDate'] else None,
+                    'due_date': row['DueDate'].strftime('%Y-%m-%d') if row['DueDate'] else None,
+                    'amount': float(row['InvoiceAmount']),
+                    'days_overdue': row['DaysOverdue'] if row['DaysOverdue'] and row['DaysOverdue'] >= 0 else 0,
+                    'aging_bucket': row['AgingBucket']
+                })
+            
+            # Format aging summary
+            aging_summary = []
+            bucket_order = ['Not Due', '0-30', '31-60', '61-90', 'Over 90', 'No Due Date']
+            for bucket in bucket_order:
+                bucket_data = next((row for row in aging_results if row['AgingBucket'] == bucket), None)
+                if bucket_data:
+                    aging_summary.append({
+                        'bucket': bucket,
+                        'count': bucket_data['InvoiceCount'],
+                        'amount': float(bucket_data['TotalAmount'])
+                    })
+                else:
+                    aging_summary.append({
+                        'bucket': bucket,
+                        'count': 0,
+                        'amount': 0
+                    })
+            
+            # Format top vendors
+            top_vendors = []
+            for row in vendor_results:
+                top_vendors.append({
+                    'vendor_no': row['VendorNo'],
+                    'vendor_name': row['VendorName'] or 'Unknown Vendor',
+                    'invoice_count': row['InvoiceCount'],
+                    'total_owed': float(row['TotalOwed']),
+                    'oldest_days_overdue': row['OldestDaysOverdue'] if row['OldestDaysOverdue'] and row['OldestDaysOverdue'] >= 0 else 0
+                })
+            
+            return jsonify({
+                'total_ap': total_ap,
+                'overdue_amount': overdue_amount,
+                'overdue_percentage': round(overdue_percentage, 1),
+                'aging_summary': aging_summary,
+                'top_vendors': top_vendors,
+                'invoices': invoices,
+                'invoice_count': len(invoices)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching AP report: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/accounting/ar-report', methods=['GET'])
     @jwt_required()
     def get_ar_report():
