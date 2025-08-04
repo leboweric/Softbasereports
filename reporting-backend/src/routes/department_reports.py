@@ -1911,22 +1911,12 @@ def register_department_routes(reports_bp):
                     ar.CustomerNo,
                     ar.InvoiceNo,
                     ar.Due,
-                    SUM(CASE 
-                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
-                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
-                        WHEN ar.EntryType = 'Journal' THEN ar.Amount
-                        ELSE ar.Amount 
-                    END) as NetBalance
+                    SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
                 FROM ben002.ARDetail ar
                 WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
-                HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
-                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
-                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
-                    ELSE ar.Amount 
-                END) > 0.01
+                HAVING SUM(ar.Amount) > 0.01
             )
             SELECT 
                 c.Name as CustomerName,
@@ -2030,22 +2020,12 @@ def register_department_routes(reports_bp):
                     ar.CustomerNo,
                     ar.InvoiceNo,
                     ar.Due,
-                    SUM(CASE 
-                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
-                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
-                        WHEN ar.EntryType = 'Journal' THEN ar.Amount
-                        ELSE ar.Amount 
-                    END) as NetBalance
+                    SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
                 FROM ben002.ARDetail ar
                 WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
-                HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
-                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
-                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
-                    ELSE ar.Amount 
-                END) > 0.01
+                HAVING SUM(ar.Amount) > 0.01
             )
             SELECT 
                 COUNT(*) as open_invoices,
@@ -2063,22 +2043,12 @@ def register_department_routes(reports_bp):
                     ar.CustomerNo,
                     ar.InvoiceNo,
                     ar.Due,
-                    SUM(CASE 
-                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
-                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
-                        WHEN ar.EntryType = 'Journal' THEN ar.Amount
-                        ELSE ar.Amount 
-                    END) as NetBalance
+                    SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
                 FROM ben002.ARDetail ar
                 WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
-                HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
-                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
-                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
-                    ELSE ar.Amount 
-                END) > 0.01
+                HAVING SUM(ar.Amount) > 0.01
             )
             SELECT TOP 10
                 ib.CustomerNo,

@@ -20,13 +20,11 @@ import { apiUrl } from '@/lib/api'
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [arData, setArData] = useState(null)
-  const [arDebugData, setArDebugData] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchAccountingData()
     fetchARData()
-    fetchARDebugData()
   }, [])
 
   const fetchAccountingData = async () => {
@@ -64,25 +62,6 @@ const AccountingReport = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching AR data:', error)
-    }
-  }
-
-  const fetchARDebugData = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/departments/accounting/ar-debug'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setArDebugData(data)
-        console.log('AR Debug Data:', data)
-      }
-    } catch (error) {
-      console.error('Error fetching AR debug data:', error)
     }
   }
 
@@ -390,61 +369,6 @@ const AccountingReport = ({ user }) => {
         </div>
       )}
 
-      {/* AR Debug Info - Temporary */}
-      {arDebugData && (
-        <Card>
-          <CardHeader>
-            <CardTitle>AR Debug Information</CardTitle>
-            <CardDescription>Temporary debug info to diagnose AR calculation</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-semibold mb-2">Raw Totals from ARDetail:</h4>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>Total Records: {arDebugData.raw_totals?.total_records}</div>
-                  <div>Raw Total: ${(arDebugData.raw_totals?.raw_total / 1000).toFixed(0)}k</div>
-                  <div>Invoice Total: ${(arDebugData.raw_totals?.invoice_total / 1000).toFixed(0)}k</div>
-                  <div>Payment Total: ${(arDebugData.raw_totals?.payment_total / 1000).toFixed(0)}k</div>
-                  <div>Voucher Total: ${(arDebugData.raw_totals?.voucher_total / 1000).toFixed(0)}k</div>
-                  <div>Journal Total: ${(arDebugData.raw_totals?.journal_total / 1000).toFixed(0)}k</div>
-                  <div>AR Journal Total: ${(arDebugData.raw_totals?.ar_journal_total / 1000).toFixed(0)}k</div>
-                </div>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">Net AR Calculation:</h4>
-                <div className="text-sm space-y-1">
-                  <div>Open Invoices: {arDebugData.net_ar?.open_invoices}</div>
-                  <div className="font-bold">Total AR (from query): ${(parseFloat(arDebugData.net_ar?.total_ar || 0) / 1000).toFixed(0)}k</div>
-                  <div>Calculated Net: ${(arDebugData.calculated_net / 1000).toFixed(0)}k</div>
-                </div>
-              </div>
-              {arDebugData.entry_types && (
-                <div>
-                  <h4 className="font-semibold mb-2">Entry Types in ARDetail:</h4>
-                  <div className="text-sm space-y-1">
-                    {arDebugData.entry_types.map((et, i) => (
-                      <div key={i}>
-                        Type '{et.EntryType || 'NULL'}': {et.count} records, ${(parseFloat(et.total_amount || 0) / 1000).toFixed(0)}k
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <h4 className="font-semibold mb-2">Largest Open Balances:</h4>
-                <div className="text-sm space-y-1">
-                  {arDebugData.largest_open_balances?.slice(0, 5).map((inv, i) => (
-                    <div key={i}>
-                      Invoice {inv.InvoiceNo}: ${parseFloat(inv.NetBalance).toFixed(2)} - {inv.CustomerName || 'Unknown'}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }
