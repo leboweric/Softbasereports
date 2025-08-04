@@ -491,13 +491,14 @@ const SalesCommissionReport = ({ user }) => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
-                <p>• <strong>Rental Equipment:</strong> Commissionable at standard rate</p>
-                <p>• <strong>Used Equipment:</strong> Commissionable at standard rate</p>
-                <p>• <strong>Allied Equipment:</strong> Commissionable at standard rate</p>
-                <p>• <strong>New Equipment:</strong> Commissionable at standard rate</p>
+                <p>• <strong>Rental (RENTAL):</strong> 10% of sales revenue</p>
+                <p>• <strong>New Equipment (LINDEN, NEWEQ):</strong> 20% of gross profit</p>
+                <p>• <strong>Allied Equipment (ALLIED):</strong> 20% of gross profit</p>
+                <p>• <strong>Used Equipment (USEDEQ, USED K/L/SL, USEDCAP):</strong> 5% of gross profit</p>
+                <p>• <strong>Rental Sale (RNTSALE):</strong> 5% of gross profit</p>
                 <p className="text-muted-foreground mt-4">
-                  Note: Commission rates may vary by sales rep based on their agreement. 
-                  Contact management to update commission structures.
+                  <strong>Note:</strong> Gross profit calculations use estimated margins until actual cost data is available:
+                  New/Allied: 20%, Used: 30%, Rental Sale: 25%
                 </p>
               </div>
             </CardContent>
