@@ -1856,26 +1856,46 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get all AR details with aging
+            # First get net balances by invoice to handle payments
             ar_query = """
-            WITH ARDetails AS (
+            WITH InvoiceBalances AS (
                 SELECT 
                     ar.CustomerNo,
-                    c.Name as CustomerName,
                     ar.InvoiceNo,
-                    ar.Amount,
-                    ar.Due as DueDate,
-                    DATEDIFF(day, ar.Due, GETDATE()) as DaysOverdue,
+                    ar.Due,
+                    SUM(CASE 
+                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount  -- Invoices and Debits are positive
+                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount  -- Payments, Credits, Adjustments are negative
+                        ELSE ar.Amount 
+                    END) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0  -- Exclude historical records
+                    AND ar.DeletionTime IS NULL  -- Exclude deleted records
+                GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
+                HAVING SUM(CASE 
+                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
+                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    ELSE ar.Amount 
+                END) > 0.01  -- Only invoices with outstanding balance
+            ),
+            ARDetails AS (
+                SELECT 
+                    ib.CustomerNo,
+                    c.Name as CustomerName,
+                    ib.InvoiceNo,
+                    ib.NetBalance as Amount,
+                    ib.Due as DueDate,
+                    DATEDIFF(day, ib.Due, GETDATE()) as DaysOverdue,
                     CASE 
-                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 90 THEN 'Over 90'
-                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 60 THEN '61-90'
-                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 30 THEN '31-60'
-                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 0 THEN '1-30'
+                        WHEN ib.Due IS NULL THEN 'No Due Date'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 90 THEN 'Over 90'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 60 THEN '61-90'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 30 THEN '31-60'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 0 THEN '1-30'
                         ELSE 'Current'
                     END as AgingBucket
-                FROM ben002.ARDetail ar
-                INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
-                WHERE ar.Amount > 0  -- Only outstanding amounts
-                    AND ar.EntryType IN ('I', 'D')  -- Invoices and Debits
+                FROM InvoiceBalances ib
+                INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
             )
             SELECT 
                 AgingBucket,
@@ -1894,24 +1914,42 @@ def register_department_routes(reports_bp):
             
             # Get specific customer AR over 90 days
             customer_query = """
+            WITH InvoiceBalances AS (
+                SELECT 
+                    ar.CustomerNo,
+                    ar.InvoiceNo,
+                    ar.Due,
+                    SUM(CASE 
+                        WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
+                        WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                        ELSE ar.Amount 
+                    END) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
+                    AND ar.DeletionTime IS NULL
+                GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
+                HAVING SUM(CASE 
+                    WHEN ar.EntryType IN ('I', 'D') THEN ar.Amount
+                    WHEN ar.EntryType IN ('P', 'C', 'A') THEN -ar.Amount
+                    ELSE ar.Amount 
+                END) > 0.01
+            )
             SELECT 
                 c.Name as CustomerName,
-                COUNT(ar.InvoiceNo) as InvoiceCount,
-                SUM(ar.Amount) as TotalAmount,
-                MIN(ar.Due) as OldestDueDate,
-                MAX(DATEDIFF(day, ar.Due, GETDATE())) as MaxDaysOverdue
-            FROM ben002.ARDetail ar
-            INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
-            WHERE ar.Amount > 0  -- Only outstanding amounts
-                AND ar.EntryType IN ('I', 'D')  -- Invoices and Debits
-                AND DATEDIFF(day, ar.Due, GETDATE()) > 90  -- Over 90 days
+                COUNT(ib.InvoiceNo) as InvoiceCount,
+                SUM(ib.NetBalance) as TotalAmount,
+                MIN(ib.Due) as OldestDueDate,
+                MAX(DATEDIFF(day, ib.Due, GETDATE())) as MaxDaysOverdue
+            FROM InvoiceBalances ib
+            INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            WHERE DATEDIFF(day, ib.Due, GETDATE()) > 90  -- Over 90 days
                 AND (
                     UPPER(c.Name) LIKE '%POLARIS%' OR
                     UPPER(c.Name) LIKE '%GREDE%' OR
                     UPPER(c.Name) LIKE '%OWENS%'
                 )
             GROUP BY c.Name
-            ORDER BY SUM(ar.Amount) DESC
+            ORDER BY SUM(ib.NetBalance) DESC
             """
             
             customer_results = db.execute_query(customer_query)
