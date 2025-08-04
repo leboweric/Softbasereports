@@ -4823,8 +4823,9 @@ def register_department_routes(reports_bp):
                 else:  # Equipment
                     amount_condition = "(ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)"
                 
+                # Get ALL invoices, not just samples
                 sample_query = f"""
-                SELECT TOP 5
+                SELECT 
                     ir.InvoiceNo,
                     ir.InvoiceDate,
                     ir.SaleCode,
