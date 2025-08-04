@@ -1957,7 +1957,7 @@ def register_department_routes(reports_bp):
                 MAX(DATEDIFF(day, ib.Due, GETDATE())) as MaxDaysOverdue
             FROM InvoiceBalances ib
             INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
-            WHERE DATEDIFF(day, ib.Due, GETDATE()) > 90  -- Over 90 days
+            WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 90  -- 90 days and over
                 AND (
                     UPPER(c.Name) LIKE '%POLARIS%' OR
                     UPPER(c.Name) LIKE '%GREDE%' OR
@@ -2165,8 +2165,8 @@ def register_department_routes(reports_bp):
             )
             SELECT 
                 c.Name as CustomerName,
-                COUNT(CASE WHEN DATEDIFF(day, ib.Due, GETDATE()) > 90 THEN 1 END) as InvoicesOver90,
-                SUM(CASE WHEN DATEDIFF(day, ib.Due, GETDATE()) > 90 THEN ib.NetBalance ELSE 0 END) as AmountOver90,
+                COUNT(CASE WHEN DATEDIFF(day, ib.Due, GETDATE()) >= 90 THEN 1 END) as InvoicesOver90,
+                SUM(CASE WHEN DATEDIFF(day, ib.Due, GETDATE()) >= 90 THEN ib.NetBalance ELSE 0 END) as AmountOver90,
                 COUNT(*) as TotalOpenInvoices,
                 SUM(ib.NetBalance) as TotalARBalance
             FROM InvoiceBalances ib
@@ -2202,7 +2202,7 @@ def register_department_routes(reports_bp):
                 ib.NetBalance
             FROM InvoiceBalances ib
             INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
-            WHERE DATEDIFF(day, ib.Due, GETDATE()) > 90
+            WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 90
                 AND (UPPER(c.Name) LIKE '%POLARIS%' 
                      OR UPPER(c.Name) LIKE '%GREDE%' 
                      OR UPPER(c.Name) LIKE '%OWENS%')
