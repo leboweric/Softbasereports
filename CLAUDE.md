@@ -61,44 +61,88 @@ To get the complete database schema:
 
 ## CRITICAL: AR Aging Report Implementation (2025-08-04)
 
-### FINAL CORRECT AR AGING BUCKET STRUCTURE
-After extensive debugging with the user, here is the CORRECT aging structure from their source system:
+### AR AGING ISSUES AND CURRENT STATUS
 
-**Total AR**: $1,697,050.59
+**Current Problem**: AR aging buckets are showing incorrect values compared to source system. The calculations are complex and still being debugged.
 
-**Aging Buckets** (THERE IS NO 1-30 BUCKET!):
-- **Current**: $389,448.08 (Due date has not passed, <= 0 days past due)
-- **30-60 Days**: $312,764.25 (30-60 days past due)
-- **60-90 Days**: $173,548.60 (60-90 days past due)  
-- **90-120 Days**: $27,931.75 (90-120 days past due)
-- **120+ Days**: $793,357.91 (Over 120 days past due)
-- **Over 90 Days Total**: $821,289.66 ($27,931.75 + $793,357.91)
+**User's Expected Values from Direct Database Pull**:
+- **Total AR**: $1,697,050.59 ✓ (matches)
+- **Current**: $389,448.08
+- **30-60 Days**: $312,764.25  
+- **60-90 Days**: $173,548.60
+- **90-120 Days**: $27,931.75
+- **120+ Days**: Unknown (user provided conflicting info)
+- **Over 90 Days Total**: $201,480.35 (this is 60-90 + 90-120, which seems wrong)
 
-### CRITICAL IMPLEMENTATION NOTES:
+**What We're Currently Getting**:
+- Buckets are calculating different amounts than expected
+- Over 90 is showing ~$91K instead of expected $201K
+- The bucket boundaries may be off
 
-1. **NO 1-30 BUCKET**: The source system skips from Current directly to 30-60 days. This is NOT a mistake.
+### CRITICAL DISCOVERIES:
 
-2. **Bucket Ranges**:
-   ```sql
-   CASE 
-       WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
-       WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 60 THEN '30-60'
-       WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
-       WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
-       WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
-   END
-   ```
+1. **Invoice-Level Grouping Required**: 
+   - Must group ARDetail by invoice first, then age the invoice balance
+   - Individual ARDetail records include payments (negative amounts) that shouldn't be aged separately
 
-3. **What happens to 1-29 days?**: These are included in the Current bucket based on the source system logic.
+2. **Over 90 Days Calculation Confusion**:
+   - User says it should be $201,479 but this equals 60-90 + 90-120 buckets
+   - This suggests their "over 90" might actually mean "over 60" or there's a labeling issue
 
-4. **Total AR Calculation**: 
-   - Simple sum of ARDetail.Amount where HistoryFlag IS NULL OR = 0 AND DeletionTime IS NULL
-   - Must use invoice-level grouping for aging buckets to match source system
+3. **Customer AR Debug Findings** (Grede example):
+   - Total AR: $241,297.06 ✓ (matches)
+   - Our Over 90: $22,073.89 (too low)
+   - Expected: $47,320.42 ($22,073.89 + $25,246.53)
+   - Fixed by using >= 90 instead of > 90 in queries
 
-5. **Over 90 Days Calculation**: Sum of 90-120 and 120+ buckets
+4. **Bucket Structure Issues**:
+   - Source system appears to have non-standard buckets
+   - Current implementation uses: Current (0-29), 30-60, 60-90, 90-120, 120+
+   - But the math still doesn't add up correctly
 
-### Key Learning:
-Always verify the exact bucket structure with the source system. Standard AR aging often uses 1-30, 31-60, etc., but this system uses a custom structure that skips the 1-30 bucket entirely.
+### CURRENT IMPLEMENTATION:
+
+```sql
+-- Invoice grouping CTE
+WITH InvoiceBalances AS (
+    SELECT 
+        ar.InvoiceNo,
+        ar.CustomerNo,
+        MIN(ar.Due) as Due,
+        SUM(ar.Amount) as NetBalance
+    FROM ben002.ARDetail ar
+    WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+        AND ar.DeletionTime IS NULL
+        AND ar.InvoiceNo IS NOT NULL
+    GROUP BY ar.InvoiceNo, ar.CustomerNo
+    HAVING SUM(ar.Amount) > 0.01
+)
+-- Then age by Due date
+```
+
+### DEBUG TOOLS CREATED:
+
+1. **ARAgingDebug Component** (`/components/ARAgingDebug.jsx`):
+   - Shows calculated vs expected values
+   - Displays all buckets with counts
+   - Added to AccountingReport page
+
+2. **CustomerARDebug Component** (`/components/CustomerARDebug.jsx`):
+   - Shows specific customer balances for Polaris, Grede, Owens
+   - Lists individual invoices over 90 days
+   - Helps verify customer-level calculations
+
+3. **Debug Endpoints**:
+   - `/api/reports/departments/accounting/ar-aging-debug`
+   - `/api/reports/departments/accounting/customer-ar-debug`
+
+### IMPORTANT NOTES:
+
+- **NEVER access endpoints directly** - always use UI components due to firewall
+- User is very frustrated with repeated mistakes and crashes
+- Document EVERYTHING in CLAUDE.md immediately
+- The bucket labels and boundaries are still unclear
+- Need to determine if "over 90" includes the 60-90 bucket in their system
 
 ## Deployment URLs
 - **Frontend**: https://softbasereports.netlify.app
