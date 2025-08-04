@@ -4540,9 +4540,9 @@ def register_department_routes(reports_bp):
                 END) as RentalSales,
                 SUM(CASE 
                     -- USEDEQ is used equipment, RNTSALE is selling used rental units
-                    -- USED K, USED L, USED SL, USEDCAP are additional used equipment codes
-                    -- Note: USEDEQP is equipment prep, not sales
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP')
+                    -- USED K, USED L, USED SL are additional used equipment codes
+                    -- Note: USEDEQP is equipment prep, not sales; USEDCAP is not commissionable
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedEquipmentSales,
@@ -4791,7 +4791,7 @@ def register_department_routes(reports_bp):
                 },
                 'used_equipment': {
                     'name': 'Used Equipment', 
-                    'sale_codes': ['USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP'],
+                    'sale_codes': ['USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL'],
                     'field': 'Equipment',
                     'sample_invoices': []
                 },
@@ -4864,11 +4864,11 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN ir.SaleCode = 'RENTAL' THEN 1 ELSE NULL END) as RentalCount,
                 
                 SUM(CASE 
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedTotal,
-                COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP') THEN 1 ELSE NULL END) as UsedCount,
+                COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 1 ELSE NULL END) as UsedCount,
                 
                 SUM(CASE 
                     WHEN ir.SaleCode = 'ALLIED'
@@ -4900,7 +4900,7 @@ def register_department_routes(reports_bp):
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
-                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP', 'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
             GROUP BY ir.SaleCode
             ORDER BY SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) DESC
             """
@@ -4966,7 +4966,7 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP') THEN 'Used Equipment'
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
                     WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
                     WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
                     ELSE 'Other'
@@ -4984,7 +4984,7 @@ def register_department_routes(reports_bp):
                     WHEN ir.SaleCode = 'RENTAL' THEN 0.10  -- 10% of sales
                     WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED') THEN 0.04  -- 20% of 20% GP = 4% effective
                     WHEN ir.SaleCode = 'RNTSALE' THEN 0.0125  -- 5% of 25% GP = 1.25% effective
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL', 'USEDCAP') THEN 0.05  -- 5% of selling price
+                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL') THEN 0.05  -- 5% of selling price
                     ELSE 0
                 END as EffectiveRate,
                 -- Calculate commission with proper rates
@@ -4995,7 +4995,7 @@ def register_department_routes(reports_bp):
                     THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.04
                     WHEN ir.SaleCode = 'RNTSALE'
                     THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.0125
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL', 'USEDCAP')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL')
                     THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.05
                     ELSE 0
                 END as Commission
@@ -5005,12 +5005,12 @@ def register_department_routes(reports_bp):
                 AND ir.InvoiceDate <= %s
                 AND c.Salesman1 IS NOT NULL
                 AND c.Salesman1 != ''
-                AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP',
+                AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                 AND (
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
                     OR
-                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP', 
+                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
                                      'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') 
                      AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
                 )
