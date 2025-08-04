@@ -17,6 +17,7 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 import ARAgingDebug from '@/components/ARAgingDebug'
+import CustomerARDebug from '@/components/CustomerARDebug'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -382,6 +383,9 @@ const AccountingReport = ({ user }) => {
 
       {/* AR Aging Debug Component */}
       <ARAgingDebug />
+      
+      {/* Customer AR Debug Component */}
+      <CustomerARDebug />
 
     </div>
   )
