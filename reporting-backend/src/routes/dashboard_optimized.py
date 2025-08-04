@@ -1213,7 +1213,7 @@ def analyze_customer_risk():
                 
                 # Determine risk factors
                 risk_factors = []
-                risk_level = 'low'
+                risk_level = 'none'  # Default to no risk
                 
                 if days_since_last_invoice > 90:
                     risk_factors.append(f"No activity for {days_since_last_invoice} days")
@@ -1221,14 +1221,10 @@ def analyze_customer_risk():
                 elif days_since_last_invoice > 60:
                     risk_factors.append(f"No activity for {days_since_last_invoice} days")
                     risk_level = 'medium'
-                elif days_since_last_invoice > 30:
-                    risk_factors.append(f"No activity for {days_since_last_invoice} days")
-                    if risk_level == 'low':
-                        risk_level = 'medium'
                 
                 if recent_30_invoices == 0 and expected_monthly_invoices > 1:
                     risk_factors.append("No invoices in last 30 days (usually active monthly)")
-                    if risk_level == 'low':
+                    if risk_level == 'none':
                         risk_level = 'medium'
                 
                 if recent_30_sales < (expected_monthly_sales * 0.5) and expected_monthly_sales > 1000:
@@ -1239,7 +1235,7 @@ def analyze_customer_risk():
                 
                 if recent_90_invoices < (expected_monthly_invoices * 2) and expected_monthly_invoices > 0.5:
                     risk_factors.append("Invoice frequency has decreased significantly")
-                    if risk_level == 'low':
+                    if risk_level == 'none':
                         risk_level = 'medium'
                 
                 # Calculate trends
