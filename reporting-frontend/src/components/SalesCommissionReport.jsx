@@ -494,11 +494,11 @@ const SalesCommissionReport = ({ user }) => {
                 <p>• <strong>Rental (RENTAL):</strong> 10% of sales revenue</p>
                 <p>• <strong>New Equipment (LINDEN, NEWEQ, KOM):</strong> 20% of gross profit</p>
                 <p>• <strong>Allied Equipment (ALLIED):</strong> 20% of gross profit</p>
-                <p>• <strong>Used Equipment (USEDEQ, USED K/L/SL, USEDCAP):</strong> 5% of gross profit</p>
+                <p>• <strong>Used Equipment (USEDEQ, USED K/L/SL, USEDCAP):</strong> 5% of selling price</p>
                 <p>• <strong>Rental Sale (RNTSALE):</strong> 5% of gross profit</p>
                 <p className="text-muted-foreground mt-4">
                   <strong>Note:</strong> Gross profit calculations use estimated margins until actual cost data is available:
-                  New/Allied: 20%, Used: 30%, Rental Sale: 25%
+                  New/Allied: 20%, Rental Sale: 25%
                 </p>
               </div>
             </CardContent>

@@ -4576,12 +4576,11 @@ def register_department_routes(reports_bp):
             # Commission structure:
             # - Rental: 10% of top line sales
             # - New Equipment: 20% of gross profit
-            # - Used Equipment (except RNTSALE): 5% of gross profit
+            # - Used Equipment (except RNTSALE): 5% of selling price
             # - RNTSALE: 5% of gross profit
             # For now, using estimated GP margins until we find actual cost data
             estimated_gp_margins = {
                 'new': 0.20,  # 20% GP margin on new equipment
-                'used': 0.30,  # 30% GP margin on used equipment
                 'rntsale': 0.25  # 25% GP margin on rental sales
             }
             
@@ -4614,10 +4613,9 @@ def register_department_routes(reports_bp):
                 allied_gp = allied * estimated_gp_margins['new']
                 allied_commission = allied_gp * 0.20
                 
-                # Used Equipment: 5% of gross profit
-                # Note: This includes RNTSALE which should be separated later
-                used_gp = used * estimated_gp_margins['used']
-                used_commission = used_gp * 0.05
+                # Used Equipment: 5% of selling price (includes RNTSALE for now)
+                # TODO: Separate RNTSALE (5% of GP) from other used equipment (5% of sales)
+                used_commission = used * 0.05
                 
                 commission_amount = rental_commission + new_commission + allied_commission + used_commission
                 
@@ -4986,7 +4984,7 @@ def register_department_routes(reports_bp):
                     WHEN ir.SaleCode = 'RENTAL' THEN 0.10  -- 10% of sales
                     WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED') THEN 0.04  -- 20% of 20% GP = 4% effective
                     WHEN ir.SaleCode = 'RNTSALE' THEN 0.0125  -- 5% of 25% GP = 1.25% effective
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL', 'USEDCAP') THEN 0.015  -- 5% of 30% GP = 1.5% effective
+                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL', 'USEDCAP') THEN 0.05  -- 5% of selling price
                     ELSE 0
                 END as EffectiveRate,
                 -- Calculate commission with proper rates
@@ -4998,7 +4996,7 @@ def register_department_routes(reports_bp):
                     WHEN ir.SaleCode = 'RNTSALE'
                     THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.0125
                     WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL', 'USEDCAP')
-                    THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.015
+                    THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.05
                     ELSE 0
                 END as Commission
             FROM ben002.InvoiceReg ir
@@ -5067,7 +5065,7 @@ def register_department_routes(reports_bp):
                     'rental': '10% of sales',
                     'new_equipment': '20% of gross profit (est. 20% margin)',
                     'allied_equipment': '20% of gross profit (est. 20% margin)',
-                    'used_equipment': '5% of gross profit (est. 30% margin)',
+                    'used_equipment': '5% of selling price',
                     'rental_sale': '5% of gross profit (est. 25% margin)'
                 }
             })
