@@ -2278,6 +2278,9 @@ def register_department_routes(reports_bp):
                 WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
                     AND BillToName IS NOT NULL
                     AND BillToName != ''
+                    AND BillToName NOT LIKE '%RENTAL FLEET%'
+                    AND BillToName NOT LIKE '%EXPENSE%'
+                    AND BillToName NOT LIKE '%INTERNAL%'
                 GROUP BY BillToName
             ),
             RankedCustomers AS (
@@ -2325,6 +2328,9 @@ def register_department_routes(reports_bp):
             SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total
             FROM ben002.InvoiceReg
             WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
+                AND BillToName NOT LIKE '%RENTAL FLEET%'
+                AND BillToName NOT LIKE '%EXPENSE%'
+                AND BillToName NOT LIKE '%INTERNAL%'
             """
             
             total_result = db.execute_query(total_query)
@@ -2360,35 +2366,44 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/units-on-rent', methods=['GET'])
     @jwt_required()
     def get_units_on_rent():
-        """Get count of units currently on rent"""
+        """Get count of units currently on rent to actual customers"""
         try:
             db = get_db()
             
-            # First, let's check what RentalStatus values exist
-            status_query = """
-            SELECT DISTINCT RentalStatus, COUNT(*) as count
-            FROM ben002.Equipment
-            WHERE RentalStatus IS NOT NULL
-            GROUP BY RentalStatus
-            ORDER BY count DESC
-            """
-            
-            status_results = db.execute_query(status_query)
-            
-            # Count active rental contracts (the proper way!)
+            # Count units on rent from RentalHistory for current month
+            # Exclude internal/expense entries like "RENTAL FLEET - EXPENSE"
             query = """
-            SELECT COUNT(*) as units_on_rent
-            FROM ben002.RentalContract
-            WHERE DeletionTime IS NULL
-                AND (EndDate IS NULL OR EndDate >= GETDATE() OR OpenEndedContract = 1)
+            SELECT COUNT(DISTINCT rh.SerialNo) as units_on_rent
+            FROM ben002.RentalHistory rh
+            LEFT JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
+                AND (c.Name IS NULL OR c.Name NOT LIKE '%RENTAL FLEET%')
+                AND (c.Name IS NULL OR c.Name NOT LIKE '%EXPENSE%')
+                AND (c.Name IS NULL OR c.Name NOT LIKE '%INTERNAL%')
             """
             
             result = db.execute_query(query)
             units_on_rent = result[0]['units_on_rent'] if result else 0
             
+            # Also try RentalContract as fallback
+            contract_query = """
+            SELECT COUNT(*) as contract_count
+            FROM ben002.RentalContract
+            WHERE DeletionTime IS NULL
+                AND (EndDate IS NULL OR EndDate >= GETDATE() OR OpenEndedContract = 1)
+            """
+            
+            contract_result = db.execute_query(contract_query)
+            contract_count = contract_result[0]['contract_count'] if contract_result else 0
+            
+            # Use the higher of the two values (contracts might not capture all rentals)
+            units_on_rent = max(units_on_rent, contract_count)
+            
             return jsonify({
-                'units_on_rent': units_on_rent,
-                'rental_statuses': [{'status': row['RentalStatus'], 'count': row['count']} for row in status_results] if status_results else []
+                'units_on_rent': units_on_rent
             })
             
         except Exception as e:

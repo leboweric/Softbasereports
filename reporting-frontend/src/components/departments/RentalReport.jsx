@@ -294,68 +294,6 @@ const RentalReport = ({ user }) => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
         <p className="text-muted-foreground">Fleet management and rental analytics</p>
-        <div className="flex gap-2 mt-2">
-          <Button 
-            onClick={async () => {
-              const token = localStorage.getItem('token')
-              const response = await fetch(apiUrl('/api/reports/departments/rental/rental-status-diagnostic'), {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-              const data = await response.json()
-              console.log('RENTAL STATUS DIAGNOSTIC V2:', data)
-              alert('Check console for rental status diagnostic data')
-            }}
-            variant="outline"
-            size="sm"
-          >
-            Run Diagnostic V2
-          </Button>
-          <Button 
-            onClick={async () => {
-              const token = localStorage.getItem('token')
-              const response = await fetch(apiUrl('/api/reports/departments/rental/customer-units-diagnostic'), {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-              const data = await response.json()
-              console.log('CUSTOMER UNITS DIAGNOSTIC:', data)
-              alert('Check console for customer units diagnostic')
-            }}
-            variant="outline"
-            size="sm"
-          >
-            Customer Units Diagnostic
-          </Button>
-          <Button 
-            onClick={async () => {
-              const token = localStorage.getItem('token')
-              const response = await fetch(apiUrl('/api/reports/departments/rental/available-forklifts'), {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-              const data = await response.json()
-              console.log('FORKLIFT DATA DEBUG:', data)
-              alert(`Found ${data.count} forklifts. Check console for details.`)
-            }}
-            variant="outline"
-            size="sm"
-          >
-            Debug Forklift Data
-          </Button>
-          <Button 
-            onClick={async () => {
-              const token = localStorage.getItem('token')
-              const response = await fetch(apiUrl('/api/reports/departments/rental/forklift-query-diagnostic'), {
-                headers: { 'Authorization': `Bearer ${token}` }
-              })
-              const data = await response.json()
-              console.log('FORKLIFT QUERY DIAGNOSTIC:', data)
-              alert(`Detailed forklift diagnostic complete. Check console for full analysis.`)
-            }}
-            variant="outline"
-            size="sm"
-          >
-            Deep Forklift Analysis
-          </Button>
-        </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
