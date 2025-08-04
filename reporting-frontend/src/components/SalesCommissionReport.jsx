@@ -566,6 +566,89 @@ const SalesCommissionReport = ({ user }) => {
                       </div>
                     </div>
 
+                    {/* Commission Category Invoices */}
+                    <div>
+                      <h4 className="font-semibold mb-3">Commission Category Invoices</h4>
+                      <div className="space-y-4">
+                        {Object.entries(bucketData.buckets).filter(([key]) => key !== 'all_other').map(([key, bucket]) => (
+                          <div key={key} className="border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <h5 className="font-medium">{bucket.name}</h5>
+                              <span className="text-sm text-muted-foreground">
+                                {bucket.sample_invoices.length} invoice{bucket.sample_invoices.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                            {bucket.sample_invoices.length > 0 ? (
+                              <>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b">
+                                      <th className="text-left p-2">Invoice #</th>
+                                      <th className="text-left p-2">Date</th>
+                                      <th className="text-left p-2">Customer</th>
+                                      <th className="text-left p-2">Salesman</th>
+                                      <th className="text-left p-2">Sale Code</th>
+                                      <th className="text-right p-2">Amount</th>
+                                      <th className="text-right p-2">Total</th>
+                                      <th className="text-center p-2">Commissionable</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {bucket.sample_invoices.map((inv, idx) => (
+                                      <tr key={idx} className="border-b">
+                                        <td className="p-2">{inv.InvoiceNo}</td>
+                                        <td className="p-2">{new Date(inv.InvoiceDate).toLocaleDateString()}</td>
+                                        <td className="p-2">{inv.BillToName}</td>
+                                        <td className="p-2">
+                                          {inv.Salesman1 ? (
+                                            inv.Salesman1
+                                          ) : (
+                                            <span className="text-red-600 font-medium">N/A</span>
+                                          )}
+                                        </td>
+                                        <td className="p-2">
+                                          <Badge variant="outline" className="font-mono">
+                                            {inv.SaleCode}
+                                          </Badge>
+                                        </td>
+                                        <td className="text-right p-2">{formatCurrency(inv.CategoryAmount)}</td>
+                                        <td className="text-right p-2">{formatCurrency(inv.GrandTotal)}</td>
+                                        <td className="text-center p-2">
+                                          {inv.Salesman1 ? (
+                                            <Badge variant="default" className="bg-green-600">Yes</Badge>
+                                          ) : (
+                                            <Badge variant="destructive">No - Unassigned</Badge>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              <div className="mt-3 pt-3 border-t">
+                                <div className="flex justify-between text-sm">
+                                  <span>Commissionable ({bucket.sample_invoices.filter(inv => inv.Salesman1).length} invoices):</span>
+                                  <span className="font-semibold text-green-600">
+                                    {formatCurrency(bucket.sample_invoices.filter(inv => inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-sm mt-1">
+                                  <span>Non-Commissionable ({bucket.sample_invoices.filter(inv => !inv.Salesman1).length} invoices):</span>
+                                  <span className="font-semibold text-red-600">
+                                    {formatCurrency(bucket.sample_invoices.filter(inv => !inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
+                                  </span>
+                                </div>
+                              </div>
+                              </>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No invoices found for this category in {new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* Unmapped Equipment Codes */}
                     {bucketData.unmapped_equipment_codes && bucketData.unmapped_equipment_codes.length > 0 && (
                       <div className="border rounded-lg p-4 bg-yellow-50">
