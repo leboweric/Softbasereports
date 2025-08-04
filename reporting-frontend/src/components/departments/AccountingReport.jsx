@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { 
   ComposedChart,
@@ -16,6 +17,7 @@ import {
   Cell
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
+import AROver90Report from '@/components/AROver90Report'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -92,20 +94,28 @@ const AccountingReport = ({ user }) => {
         <p className="text-muted-foreground">Financial overview and accounting metrics</p>
       </div>
 
-      {/* Total AR Card */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Accounts Receivable</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$1.697M</div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="ar">Accounts Receivable</TabsTrigger>
+          <TabsTrigger value="ap">Accounts Payable</TabsTrigger>
+        </TabsList>
 
-      {/* G&A Expenses Over Time */}
-      <Card>
+        <TabsContent value="overview" className="space-y-6">
+          {/* Total AR Card */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Total Accounts Receivable</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">$1.697M</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* G&A Expenses Over Time */}
+          <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
@@ -389,6 +399,24 @@ const AccountingReport = ({ user }) => {
           </Card>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="ar" className="space-y-6">
+          <AROver90Report user={user} />
+        </TabsContent>
+
+        <TabsContent value="ap" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Accounts Payable</CardTitle>
+              <CardDescription>Coming soon - AP reports and analytics</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">AP functionality will be added here.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
     </div>
   )
