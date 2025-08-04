@@ -1867,6 +1867,7 @@ def register_department_routes(reports_bp):
             total_ar = float(total_ar_result[0]['total_ar']) if total_ar_result and total_ar_result[0]['total_ar'] else 0
             
             # Get AR aging buckets by invoice balance (not individual records)
+            # Using source system bucket structure: Current (0-29), 30-60, 60-90, 90-120, 120+
             ar_query = """
             WITH InvoiceBalances AS (
                 SELECT 
@@ -1884,12 +1885,11 @@ def register_department_routes(reports_bp):
             SELECT 
                 CASE 
                     WHEN Due IS NULL THEN 'No Due Date'
-                    WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 1 AND 30 THEN '1-30'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 31 AND 60 THEN '30-60'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
-                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
+                    WHEN DATEDIFF(day, Due, GETDATE()) < 30 THEN 'Current'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 59 THEN '30-60'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 60 AND 89 THEN '60-90'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 90 AND 119 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) >= 120 THEN '120+'
                 END as AgingBucket,
                 COUNT(*) as RecordCount,
                 SUM(NetBalance) as TotalAmount
@@ -1897,12 +1897,11 @@ def register_department_routes(reports_bp):
             GROUP BY 
                 CASE 
                     WHEN Due IS NULL THEN 'No Due Date'
-                    WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 1 AND 30 THEN '1-30'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 31 AND 60 THEN '30-60'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
-                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
-                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
+                    WHEN DATEDIFF(day, Due, GETDATE()) < 30 THEN 'Current'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 59 THEN '30-60'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 60 AND 89 THEN '60-90'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 90 AND 119 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) >= 120 THEN '120+'
                 END
             """
             

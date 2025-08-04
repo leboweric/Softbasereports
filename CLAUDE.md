@@ -61,35 +61,44 @@ To get the complete database schema:
 
 ## CRITICAL: AR Aging Report Implementation (2025-08-04)
 
-### Important Discovery About AR Calculations
-The AR aging report was showing incorrect totals ($4,404k instead of the correct $1,697k). After investigation:
+### FINAL CORRECT AR AGING BUCKET STRUCTURE
+After extensive debugging with the user, here is the CORRECT aging structure from their source system:
 
-1. **Total AR Calculation**: The total AR should be calculated directly from ARDetail WITHOUT grouping by invoice:
-   - CORRECT: `SELECT SUM(Amount) FROM ARDetail WHERE HistoryFlag IS NULL OR HistoryFlag = 0 AND DeletionTime IS NULL`
-   - This gives the true total AR of ~$1,697k
-   - The Amount field in ARDetail already has correct signs (positive for invoices, negative for payments)
+**Total AR**: $1,697,050.59
 
-2. **Aging Bucket Issues**: 
-   - The aging buckets need to use proper date ranges
-   - Current implementation groups by invoice which may be causing discrepancies
-   - Need to verify the exact bucket logic matches the source system
+**Aging Buckets** (THERE IS NO 1-30 BUCKET!):
+- **Current**: $389,448.08 (Due date has not passed, <= 0 days past due)
+- **30-60 Days**: $312,764.25 (30-60 days past due)
+- **60-90 Days**: $173,548.60 (60-90 days past due)  
+- **90-120 Days**: $27,931.75 (90-120 days past due)
+- **120+ Days**: $793,357.91 (Over 120 days past due)
+- **Over 90 Days Total**: $821,289.66 ($27,931.75 + $793,357.91)
 
-3. **ARDetail Table Structure**:
-   - Amount field contains both positive (invoices) and negative (payments) values
-   - No need for complex calculations - just SUM(Amount)
-   - EntryType field indicates transaction type (Invoice, Payment, etc.)
-   - Due field is used for aging calculations
+### CRITICAL IMPLEMENTATION NOTES:
 
-### Debug Information from User's Direct Database Pull:
-- Total AR: $1,697,050.59
-- Current: $389,448.08
-- 1-30 days: $312,764.25
-- 31-60 days: $173,548.60
-- 61-90 days: $27,931.75
-- Over 90 days: (derived from remaining amount)
+1. **NO 1-30 BUCKET**: The source system skips from Current directly to 30-60 days. This is NOT a mistake.
+
+2. **Bucket Ranges**:
+   ```sql
+   CASE 
+       WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
+       WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 60 THEN '30-60'
+       WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
+       WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
+       WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
+   END
+   ```
+
+3. **What happens to 1-29 days?**: These are included in the Current bucket based on the source system logic.
+
+4. **Total AR Calculation**: 
+   - Simple sum of ARDetail.Amount where HistoryFlag IS NULL OR = 0 AND DeletionTime IS NULL
+   - Must use invoice-level grouping for aging buckets to match source system
+
+5. **Over 90 Days Calculation**: Sum of 90-120 and 120+ buckets
 
 ### Key Learning:
-DO NOT overcomplicate AR calculations. The ARDetail table is designed to be summed directly - the Amount field already accounts for invoices (positive) and payments (negative).
+Always verify the exact bucket structure with the source system. Standard AR aging often uses 1-30, 31-60, etc., but this system uses a custom structure that skips the 1-30 bucket entirely.
 
 ## Deployment URLs
 - **Frontend**: https://softbasereports.netlify.app
