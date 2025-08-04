@@ -5125,4 +5125,94 @@ def register_department_routes(reports_bp):
             logger.error(f"Error in invoice sales diagnostic: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/equipment-sales-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_equipment_sales_diagnostic():
+        """Diagnostic to find all equipment sale codes for a specific month"""
+        try:
+            db = get_db()
+            
+            month_param = request.args.get('month', '2025-03')
+            year, month = map(int, month_param.split('-'))
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            # Find all sale codes with equipment revenue
+            equipment_codes_query = """
+            SELECT 
+                ir.SaleCode,
+                COUNT(*) as InvoiceCount,
+                SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) as EquipmentRevenue,
+                SUM(ir.GrandTotal) as TotalRevenue,
+                MIN(ir.InvoiceDate) as FirstInvoice,
+                MAX(ir.InvoiceDate) as LastInvoice
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s 
+                AND ir.InvoiceDate <= %s
+                AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
+            GROUP BY ir.SaleCode
+            ORDER BY SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) DESC
+            """
+            
+            equipment_codes = db.execute_query(equipment_codes_query, [start_date, end_date])
+            
+            # Check specific codes that might be new equipment
+            new_equipment_check_query = """
+            SELECT 
+                ir.SaleCode,
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillToName,
+                ir.Comments,
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
+                ir.GrandTotal
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s 
+                AND ir.InvoiceDate <= %s
+                AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
+                AND ir.SaleCode IN ('NEW', 'NEWEQ', 'NEWEQP', 'LINDE', 'LINDEN', 'KOM', 'KOMATSU', 'ALLIED')
+            ORDER BY ir.InvoiceDate DESC
+            """
+            
+            new_equipment_invoices = db.execute_query(new_equipment_check_query, [start_date, end_date])
+            
+            # Look for codes containing 'NEW' or 'LINDE'
+            pattern_check_query = """
+            SELECT DISTINCT 
+                ir.SaleCode,
+                COUNT(*) as InvoiceCount,
+                SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) as EquipmentRevenue
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s 
+                AND ir.InvoiceDate <= %s
+                AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
+                AND (ir.SaleCode LIKE '%NEW%' OR ir.SaleCode LIKE '%LIND%' OR ir.SaleCode LIKE '%KOM%')
+            GROUP BY ir.SaleCode
+            ORDER BY ir.SaleCode
+            """
+            
+            pattern_matches = db.execute_query(pattern_check_query, [start_date, end_date])
+            
+            # Summary of configured vs actual
+            configured_new = ['LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
+            
+            return jsonify({
+                'month': month_param,
+                'all_equipment_codes': [dict(row) for row in equipment_codes],
+                'new_equipment_invoices': [dict(row) for row in new_equipment_invoices],
+                'pattern_matches': [dict(row) for row in pattern_matches],
+                'configured_new_codes': configured_new,
+                'summary': {
+                    'total_equipment_codes': len(equipment_codes),
+                    'codes_with_new_pattern': len(pattern_matches)
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in equipment sales diagnostic: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
 
