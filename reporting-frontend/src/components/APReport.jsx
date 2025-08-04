@@ -95,15 +95,38 @@ const APReport = ({ user }) => {
   const downloadExcel = () => {
     if (!apData?.invoices) return
 
-    const worksheet = XLSX.utils.json_to_sheet(filteredAndSortedInvoices.map(inv => ({
+    // Create worksheet data with proper formatting
+    const worksheetData = filteredAndSortedInvoices.map(inv => ({
       'Invoice #': inv.invoice_no,
       'Vendor': inv.vendor_name,
       'Invoice Date': inv.invoice_date,
       'Due Date': inv.due_date,
       'Days Overdue': inv.days_overdue > 0 ? inv.days_overdue : 'Not Due',
-      'Amount': inv.amount,
+      'Amount': parseFloat(inv.amount || 0), // Ensure it's a number for Excel formatting
       'Aging Bucket': inv.aging_bucket
-    })))
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData)
+
+    // Apply currency formatting to the Amount column (column F, 0-indexed = 5)
+    const range = XLSX.utils.decode_range(worksheet['!ref'])
+    for (let row = 1; row <= range.e.r; row++) { // Start from row 1 (skip header)
+      const cellAddress = XLSX.utils.encode_cell({ c: 5, r: row }) // Column F (Amount)
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].z = '$#,##0.00' // Excel currency format
+      }
+    }
+
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 15 }, // Invoice #
+      { wch: 25 }, // Vendor
+      { wch: 12 }, // Invoice Date
+      { wch: 12 }, // Due Date
+      { wch: 12 }, // Days Overdue
+      { wch: 15 }, // Amount
+      { wch: 15 }  // Aging Bucket
+    ]
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'AP Report')
@@ -121,15 +144,38 @@ const APReport = ({ user }) => {
       return
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(over90Invoices.map(inv => ({
+    // Create worksheet data with proper formatting
+    const worksheetData = over90Invoices.map(inv => ({
       'Invoice #': inv.invoice_no,
       'Vendor': inv.vendor_name,
       'Invoice Date': inv.invoice_date,
       'Due Date': inv.due_date,
       'Days Overdue': inv.days_overdue,
-      'Amount': inv.amount,
+      'Amount': parseFloat(inv.amount || 0), // Ensure it's a number for Excel formatting
       'Aging Bucket': inv.aging_bucket
-    })))
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData)
+
+    // Apply currency formatting to the Amount column (column F, 0-indexed = 5)
+    const range = XLSX.utils.decode_range(worksheet['!ref'])
+    for (let row = 1; row <= range.e.r; row++) { // Start from row 1 (skip header)
+      const cellAddress = XLSX.utils.encode_cell({ c: 5, r: row }) // Column F (Amount)
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].z = '$#,##0.00' // Excel currency format
+      }
+    }
+
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 15 }, // Invoice #
+      { wch: 25 }, // Vendor
+      { wch: 12 }, // Invoice Date
+      { wch: 12 }, // Due Date
+      { wch: 12 }, // Days Overdue
+      { wch: 15 }, // Amount
+      { wch: 15 }  // Aging Bucket
+    ]
 
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Over 90 Days AP')

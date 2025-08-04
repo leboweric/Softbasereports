@@ -88,26 +88,66 @@ export default function AROver90Report() {
   const downloadExcel = () => {
     if (!filteredData.length) return;
 
-    const worksheet = XLSX.utils.json_to_sheet(filteredData.map(inv => ({
+    // Create worksheet data with proper formatting
+    const worksheetData = filteredData.map(inv => ({
       'Invoice #': inv.InvoiceNo,
       'Customer #': inv.CustomerNo,
       'Customer Name': inv.CustomerName || '',
       'Due Date': inv.Due ? new Date(inv.Due).toLocaleDateString() : '',
       'Days Overdue': inv.DaysOld,
-      'Balance': inv.NetBalance,
+      'Balance': parseFloat(inv.NetBalance || 0), // Ensure it's a number for Excel formatting
       'Aging Bucket': inv.DaysOld <= 120 ? '90-120 Days' : '120+ Days'
-    })));
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+
+    // Apply currency formatting to the Balance column (column F, 0-indexed = 5)
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    for (let row = 1; row <= range.e.r; row++) { // Start from row 1 (skip header)
+      const cellAddress = XLSX.utils.encode_cell({ c: 5, r: row }); // Column F (Balance)
+      if (worksheet[cellAddress]) {
+        worksheet[cellAddress].z = '$#,##0.00'; // Excel currency format
+      }
+    }
+
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 12 }, // Invoice #
+      { wch: 12 }, // Customer #
+      { wch: 25 }, // Customer Name
+      { wch: 12 }, // Due Date
+      { wch: 12 }, // Days Overdue
+      { wch: 15 }, // Balance
+      { wch: 15 }  // Aging Bucket
+    ];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'AR Over 90 Days');
     
-    // Add summary sheet
+    // Add summary sheet with proper formatting
     const summaryData = [
-      { 'Category': '90-120 Days', 'Amount': data.totals['90-120'], 'Invoice Count': filteredData.filter(i => i.DaysOld >= 90 && i.DaysOld <= 120).length },
-      { 'Category': '120+ Days', 'Amount': data.totals['120+'], 'Invoice Count': filteredData.filter(i => i.DaysOld > 120).length },
-      { 'Category': 'Total Over 90', 'Amount': data.totals.total, 'Invoice Count': filteredData.length }
+      { 'Category': '90-120 Days', 'Amount': parseFloat(data.totals['90-120'] || 0), 'Invoice Count': filteredData.filter(i => i.DaysOld >= 90 && i.DaysOld <= 120).length },
+      { 'Category': '120+ Days', 'Amount': parseFloat(data.totals['120+'] || 0), 'Invoice Count': filteredData.filter(i => i.DaysOld > 120).length },
+      { 'Category': 'Total Over 90', 'Amount': parseFloat(data.totals.total || 0), 'Invoice Count': filteredData.length }
     ];
     const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+
+    // Apply currency formatting to Amount column in summary (column B, 0-indexed = 1)
+    const summaryRange = XLSX.utils.decode_range(summarySheet['!ref']);
+    for (let row = 1; row <= summaryRange.e.r; row++) { // Start from row 1 (skip header)
+      const cellAddress = XLSX.utils.encode_cell({ c: 1, r: row }); // Column B (Amount)
+      if (summarySheet[cellAddress]) {
+        summarySheet[cellAddress].z = '$#,##0.00'; // Excel currency format
+      }
+    }
+
+    // Set column widths for summary sheet
+    summarySheet['!cols'] = [
+      { wch: 15 }, // Category
+      { wch: 15 }, // Amount
+      { wch: 15 }  // Invoice Count
+    ];
+
     XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
 
     XLSX.writeFile(workbook, `AR_Over_90_Days_${new Date().toISOString().split('T')[0]}.xlsx`);
