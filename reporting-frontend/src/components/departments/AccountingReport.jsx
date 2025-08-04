@@ -59,6 +59,11 @@ const AccountingReport = ({ user }) => {
       if (response.ok) {
         const data = await response.json()
         setArData(data)
+        // Debug: log what buckets we're getting
+        if (data.debug_buckets) {
+          console.log('AR Debug - Buckets:', data.debug_buckets)
+          console.log('AR Debug - Over 90 calculation:', data.over_90_amount)
+        }
       } else {
         console.error('AR report error:', response.status, response.statusText)
         const errorText = await response.text()

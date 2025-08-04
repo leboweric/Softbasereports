@@ -1969,11 +1969,17 @@ def register_department_routes(reports_bp):
                     'count': row['InvoiceCount'] if row else 0
                 })
             
+            # Add debug info to see what's in ar_results
+            debug_buckets = {}
+            for row in ar_results:
+                debug_buckets[row['AgingBucket']] = float(row['TotalAmount'])
+            
             return jsonify({
                 'total_ar': float(total_ar),
                 'over_90_amount': float(over_90_amount),
                 'over_90_percentage': round(over_90_percentage, 1),
                 'aging_summary': aging_summary,
+                'debug_buckets': debug_buckets,  # Temporary debug info
                 'specific_customers': [
                     {
                         'name': row['CustomerName'],
