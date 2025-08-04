@@ -414,16 +414,28 @@ const AccountingReport = ({ user }) => {
                 <h4 className="font-semibold mb-2">Net AR Calculation:</h4>
                 <div className="text-sm space-y-1">
                   <div>Open Invoices: {arDebugData.net_ar?.open_invoices}</div>
-                  <div className="font-bold">Total AR (from query): ${(arDebugData.net_ar?.total_ar / 1000).toFixed(0)}k</div>
+                  <div className="font-bold">Total AR (from query): ${(parseFloat(arDebugData.net_ar?.total_ar || 0) / 1000).toFixed(0)}k</div>
                   <div>Calculated Net: ${(arDebugData.calculated_net / 1000).toFixed(0)}k</div>
                 </div>
               </div>
+              {arDebugData.entry_types && (
+                <div>
+                  <h4 className="font-semibold mb-2">Entry Types in ARDetail:</h4>
+                  <div className="text-sm space-y-1">
+                    {arDebugData.entry_types.map((et, i) => (
+                      <div key={i}>
+                        Type '{et.EntryType || 'NULL'}': {et.count} records, ${(parseFloat(et.total_amount || 0) / 1000).toFixed(0)}k
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <h4 className="font-semibold mb-2">Largest Open Balances:</h4>
                 <div className="text-sm space-y-1">
                   {arDebugData.largest_open_balances?.slice(0, 5).map((inv, i) => (
                     <div key={i}>
-                      Invoice {inv.InvoiceNo}: ${inv.NetBalance.toFixed(2)} - {inv.CustomerName}
+                      Invoice {inv.InvoiceNo}: ${parseFloat(inv.NetBalance).toFixed(2)} - {inv.CustomerName || 'Unknown'}
                     </div>
                   ))}
                 </div>

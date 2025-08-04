@@ -1994,7 +1994,7 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Get raw AR totals
+            # Get raw AR totals and check EntryType values
             raw_query = """
             SELECT 
                 COUNT(*) as total_records,
@@ -2010,8 +2010,24 @@ def register_department_routes(reports_bp):
                 AND DeletionTime IS NULL
             """
             
+            # Get EntryType distribution
+            entry_type_query = """
+            SELECT 
+                EntryType,
+                COUNT(*) as count,
+                SUM(Amount) as total_amount
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            GROUP BY EntryType
+            ORDER BY COUNT(*) DESC
+            """
+            
             raw_results = db.execute_query(raw_query)
             raw_data = dict(raw_results[0]) if raw_results else {}
+            
+            entry_type_results = db.execute_query(entry_type_query)
+            entry_types = [dict(row) for row in entry_type_results]
             
             # Get net AR using the same logic as the main query
             net_query = """
@@ -2081,6 +2097,7 @@ def register_department_routes(reports_bp):
             
             return jsonify({
                 'raw_totals': raw_data,
+                'entry_types': entry_types,
                 'net_ar': net_data,
                 'calculated_net': float(raw_data.get('invoice_total', 0) + raw_data.get('debit_total', 0) - 
                                       raw_data.get('payment_total', 0) - raw_data.get('credit_total', 0) - 
