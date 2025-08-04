@@ -71,12 +71,12 @@ To get the complete database schema:
 - **30-60 Days**: $312,764.25  
 - **60-90 Days**: $173,548.60
 - **90-120 Days**: $27,931.75
-- **120+ Days**: Unknown (user provided conflicting info)
-- **Over 90 Days Total**: $201,480.35 (this is 60-90 + 90-120, which seems wrong)
+- **120+ Days**: Unknown
+- **Over 90 Days Total**: $55,718 (confirmed correct value)
 
 **What We're Currently Getting**:
 - Buckets are calculating different amounts than expected
-- Over 90 is showing ~$91K instead of expected $201K
+- Over 90 is showing ~$91K instead of expected $55,718 (we're $35K too high)
 - The bucket boundaries may be off
 
 ### CRITICAL DISCOVERIES:
@@ -84,21 +84,26 @@ To get the complete database schema:
 1. **Invoice-Level Grouping Required**: 
    - Must group ARDetail by invoice first, then age the invoice balance
    - Individual ARDetail records include payments (negative amounts) that shouldn't be aged separately
+   - **CRITICAL**: When grouping, use `GROUP BY ar.CustomerNo, ar.InvoiceNo` ONLY
+   - Do NOT include `ar.Due` in the GROUP BY - this creates duplicates!
 
-2. **Over 90 Days Calculation Confusion**:
-   - User says it should be $201,479 but this equals 60-90 + 90-120 buckets
-   - This suggests their "over 90" might actually mean "over 60" or there's a labeling issue
+2. **The Due Date Grouping Bug** (SOLVED):
+   - **Problem**: Grouping by `CustomerNo, InvoiceNo, Due` was creating duplicate invoice entries
+   - **Why**: ARDetail can have multiple due dates per invoice (from payment applications, adjustments, etc.)
+   - **Solution**: Group by `CustomerNo, InvoiceNo` only and use `MIN(ar.Due)` to get single due date
+   - **Impact**: This was causing 2x inflation in customer balances (e.g., Grede showing $99K instead of $47K)
 
-3. **Customer AR Debug Findings** (Grede example):
-   - Total AR: $241,297.06 ✓ (matches)
-   - Our Over 90: $22,073.89 (too low)
-   - Expected: $47,320.42 ($22,073.89 + $25,246.53)
-   - Fixed by using >= 90 instead of > 90 in queries
+3. **Customer AR Debug Validation** (CONFIRMED WORKING):
+   - Grede: Expected $47,320.42 ✓ (now matches exactly)
+   - Polaris: Numbers now match exactly ✓
+   - Owens: Numbers now match exactly ✓
+   - Fixed by removing Due from GROUP BY clause
 
-4. **Bucket Structure Issues**:
-   - Source system appears to have non-standard buckets
-   - Current implementation uses: Current (0-29), 30-60, 60-90, 90-120, 120+
-   - But the math still doesn't add up correctly
+4. **Over 90 Days Total Issues**:
+   - **Current Status**: Showing $91K but should be $55,718
+   - User initially said $201,479 but that included 60-90 bucket
+   - Actual over 90 is much lower than originally stated
+   - Still investigating why we're ~$35K too high
 
 ### CURRENT IMPLEMENTATION:
 
