@@ -4624,4 +4624,112 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching sales commissions: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/sales-commission-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_sales_commission_diagnostic():
+        """Diagnostic endpoint to understand sales data structure"""
+        try:
+            db = get_db()
+            
+            # Get month parameter
+            month_param = request.args.get('month')
+            if not month_param:
+                today = datetime.today()
+                prev_month = today.replace(day=1) - timedelta(days=1)
+                month_param = prev_month.strftime('%Y-%m')
+            
+            year, month = map(int, month_param.split('-'))
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            # 1. Check what SaleCodes exist
+            sale_codes_query = """
+            SELECT 
+                ir.SaleCode,
+                COUNT(*) as InvoiceCount,
+                SUM(COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)) as RentalRevenue,
+                SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) as EquipmentRevenue,
+                SUM(ir.GrandTotal) as TotalRevenue
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
+            GROUP BY ir.SaleCode
+            ORDER BY COUNT(*) DESC
+            """
+            
+            sale_codes = db.execute_query(sale_codes_query, [start_date, end_date])
+            
+            # 2. Check sample invoices with equipment sales
+            equipment_sample_query = """
+            SELECT TOP 20
+                ir.InvoiceNo,
+                ir.SaleCode,
+                ir.BillToName,
+                c.Salesman1,
+                ir.Comments,
+                ir.EquipmentTaxable,
+                ir.EquipmentNonTax,
+                ir.RentalTaxable,
+                ir.RentalNonTax
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
+                AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
+            ORDER BY ir.InvoiceDate DESC
+            """
+            
+            equipment_samples = db.execute_query(equipment_sample_query, [start_date, end_date])
+            
+            # 3. Check salesmen distribution
+            salesmen_query = """
+            SELECT 
+                c.Salesman1,
+                COUNT(DISTINCT ir.InvoiceNo) as InvoiceCount,
+                SUM(ir.GrandTotal) as TotalSales
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
+                AND c.Salesman1 IS NOT NULL
+            GROUP BY c.Salesman1
+            ORDER BY SUM(ir.GrandTotal) DESC
+            """
+            
+            salesmen = db.execute_query(salesmen_query, [start_date, end_date])
+            
+            # 4. Check rental invoices
+            rental_check_query = """
+            SELECT 
+                COUNT(*) as RentalInvoiceCount,
+                SUM(ir.RentalTaxable + ir.RentalNonTax) as TotalRentalRevenue
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
+                AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
+            """
+            
+            rental_check = db.execute_query(rental_check_query, [start_date, end_date])
+            
+            return jsonify({
+                'month': month_param,
+                'date_range': {
+                    'start': start_date.isoformat(),
+                    'end': end_date.isoformat()
+                },
+                'sale_codes': [dict(row) for row in sale_codes],
+                'equipment_samples': [dict(row) for row in equipment_samples],
+                'salesmen_summary': [dict(row) for row in salesmen],
+                'rental_summary': dict(rental_check[0]) if rental_check else {},
+                'diagnostic_info': {
+                    'total_sale_codes': len(sale_codes),
+                    'total_salesmen': len(salesmen),
+                    'has_equipment_sales': any(row['EquipmentRevenue'] > 0 for row in sale_codes) if sale_codes else False,
+                    'has_rental_sales': rental_check[0]['TotalRentalRevenue'] > 0 if rental_check and rental_check[0]['TotalRentalRevenue'] else False
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in sales commission diagnostic: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
 
