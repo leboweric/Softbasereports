@@ -4539,8 +4539,10 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as RentalSales,
                 SUM(CASE 
-                    -- USEDEQ/USEDEQP are used equipment, RNTSALE is selling used rental units
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP', 'RNTSALE')
+                    -- USEDEQ is used equipment, RNTSALE is selling used rental units
+                    -- USED K, USED L, USED SL, USEDCAP are additional used equipment codes
+                    -- Note: USEDEQP is equipment prep, not sales
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedEquipmentSales,
@@ -4765,7 +4767,7 @@ def register_department_routes(reports_bp):
                 },
                 'used_equipment': {
                     'name': 'Used Equipment', 
-                    'sale_codes': ['USEDEQ', 'USEDEQP', 'RNTSALE'],
+                    'sale_codes': ['USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP'],
                     'field': 'Equipment',
                     'sample_invoices': []
                 },
@@ -4838,11 +4840,11 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN ir.SaleCode = 'RENTAL' THEN 1 ELSE NULL END) as RentalCount,
                 
                 SUM(CASE 
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP', 'RNTSALE')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedTotal,
-                COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP', 'RNTSALE') THEN 1 ELSE NULL END) as UsedCount,
+                COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP') THEN 1 ELSE NULL END) as UsedCount,
                 
                 SUM(CASE 
                     WHEN ir.SaleCode = 'ALLIED'
@@ -4874,7 +4876,7 @@ def register_department_routes(reports_bp):
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
-                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
+                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP', 'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
             GROUP BY ir.SaleCode
             ORDER BY SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) DESC
             """
