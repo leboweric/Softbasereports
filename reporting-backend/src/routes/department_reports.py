@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 from flask import request
 from src.services.azure_sql_service import AzureSQLService
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_db():
     """Get database connection"""
@@ -2182,9 +2185,9 @@ def register_department_routes(reports_bp):
             # Convert to positive if negative (AP is a liability)
             total_ap = abs(raw_total)
             
-            # Calculate overdue from aging results
-            overdue_amount = sum(row['TotalAmount'] for row in aging_results 
-                               if row['AgingBucket'] not in ['Not Due', 'No Due Date']) if aging_results else 0
+            # Calculate overdue from aging results - ensure float conversion for decimal types
+            overdue_amount = float(sum(row['TotalAmount'] for row in aging_results 
+                               if row['AgingBucket'] not in ['Not Due', 'No Due Date'])) if aging_results else 0.0
             overdue_percentage = (overdue_amount / total_ap * 100) if total_ap > 0 else 0
             
             # Format invoice details
