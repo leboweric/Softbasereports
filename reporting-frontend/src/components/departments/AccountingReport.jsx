@@ -332,7 +332,7 @@ const AccountingReport = ({ user }) => {
                         </div>
                         <div className="flex justify-between text-xs text-muted-foreground">
                           <span>{customer.invoice_count} invoices</span>
-                          <span>{customer.max_days_overdue} days overdue</span>
+                          <span>Oldest: {customer.max_days_overdue} days</span>
                         </div>
                       </div>
                     ))}
