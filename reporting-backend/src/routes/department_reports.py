@@ -2102,6 +2102,151 @@ def register_department_routes(reports_bp):
                 'type': 'ar_debug_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/ar-aging-debug', methods=['GET'])
+    @jwt_required()
+    def get_ar_aging_debug():
+        """Comprehensive AR aging debug endpoint"""
+        try:
+            db = get_db()
+            
+            # 1. Get total AR same way as main report
+            total_query = """
+            SELECT SUM(Amount) as total_ar
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            """
+            total_result = db.execute_query(total_query)
+            total_ar = float(total_result[0]['total_ar']) if total_result and total_result[0]['total_ar'] else 0
+            
+            # 2. Get aging buckets same way as main report
+            buckets_query = """
+            SELECT 
+                CASE 
+                    WHEN Due IS NULL THEN 'No Due Date'
+                    WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 1 AND 30 THEN '1-30'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 31 AND 60 THEN '30-60'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
+                END as AgingBucket,
+                COUNT(*) as RecordCount,
+                SUM(Amount) as TotalAmount
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            GROUP BY 
+                CASE 
+                    WHEN Due IS NULL THEN 'No Due Date'
+                    WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 1 AND 30 THEN '1-30'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 31 AND 60 THEN '30-60'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
+                END
+            """
+            bucket_results = db.execute_query(buckets_query)
+            
+            # Calculate bucket totals
+            buckets = {}
+            bucket_sum = 0
+            for row in bucket_results:
+                buckets[row['AgingBucket']] = {
+                    'amount': float(row['TotalAmount']),
+                    'count': row['RecordCount']
+                }
+                bucket_sum += float(row['TotalAmount'])
+            
+            # Calculate over 90 days
+            over_90 = sum(buckets.get(b, {}).get('amount', 0) for b in ['90-120', '120+'])
+            
+            # 3. Check for NULL due dates
+            null_due_query = """
+            SELECT COUNT(*) as count, SUM(Amount) as amount
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+                AND Due IS NULL
+            """
+            null_due_result = db.execute_query(null_due_query)
+            null_due_data = dict(null_due_result[0]) if null_due_result else {}
+            
+            # 4. Get EntryType breakdown
+            entry_type_query = """
+            SELECT EntryType, COUNT(*) as count, SUM(Amount) as amount
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            GROUP BY EntryType
+            ORDER BY ABS(SUM(Amount)) DESC
+            """
+            entry_type_results = db.execute_query(entry_type_query)
+            entry_types = [dict(row) for row in entry_type_results]
+            
+            # 5. Sample records around 90 days
+            sample_90_query = """
+            SELECT TOP 20
+                InvoiceNo,
+                CustomerNo,
+                EntryType,
+                Amount,
+                Due,
+                DATEDIFF(day, Due, GETDATE()) as DaysOld
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+                AND DATEDIFF(day, Due, GETDATE()) BETWEEN 85 AND 95
+            ORDER BY Amount DESC
+            """
+            sample_90_results = db.execute_query(sample_90_query)
+            
+            # 6. Your expected values
+            expected_total = 1697050.59
+            expected_current = 389448.08
+            expected_1_30 = 312764.25
+            expected_31_60 = 173548.60
+            expected_61_90 = 27931.75
+            expected_over_90 = expected_total - expected_current - expected_1_30 - expected_31_60 - expected_61_90
+            
+            return jsonify({
+                'calculated': {
+                    'total_ar': total_ar,
+                    'bucket_sum': bucket_sum,
+                    'difference': total_ar - bucket_sum,
+                    'over_90_amount': over_90,
+                    'over_90_percentage': round((over_90 / total_ar * 100), 1) if total_ar > 0 else 0
+                },
+                'buckets': buckets,
+                'null_due_dates': null_due_data,
+                'entry_types': entry_types,
+                'sample_90_days': [dict(row) for row in sample_90_results],
+                'expected': {
+                    'total_ar': expected_total,
+                    'current': expected_current,
+                    '1-30': expected_1_30,
+                    '31-60': expected_31_60,
+                    '61-90': expected_61_90,
+                    'over_90': expected_over_90,
+                    'over_90_percentage': round((expected_over_90 / expected_total * 100), 1)
+                },
+                'differences': {
+                    'total_ar_diff': total_ar - expected_total,
+                    'current_diff': buckets.get('Current', {}).get('amount', 0) - expected_current,
+                    '1-30_diff': buckets.get('1-30', {}).get('amount', 0) - expected_1_30,
+                    '30-60_diff': buckets.get('30-60', {}).get('amount', 0) - expected_31_60,
+                    '60-90_diff': buckets.get('60-90', {}).get('amount', 0) - expected_61_90,
+                    'over_90_diff': over_90 - expected_over_90
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'ar_aging_debug_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/expense-debug', methods=['GET'])
     @jwt_required()
     def get_expense_debug():
