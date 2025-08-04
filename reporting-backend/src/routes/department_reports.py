@@ -1973,9 +1973,9 @@ def register_department_routes(reports_bp):
             
             customer_results = db.execute_query(customer_query)
             
-            # Get aging breakdown for visualization
+            # Get aging breakdown for visualization - matching our actual buckets
             aging_summary = []
-            for bucket in ['Current', '1-30', '30-60', '60-90', '90-120', '120+']:
+            for bucket in ['Current', '30-60', '60-90', '90-120', '120+']:
                 row = next((r for r in ar_results if r['AgingBucket'] == bucket), None)
                 aging_summary.append({
                     'bucket': bucket,
