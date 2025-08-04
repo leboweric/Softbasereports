@@ -42,6 +42,7 @@ import {
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
+import RentalEquipmentReport from './RentalEquipmentReport'
 
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
@@ -50,7 +51,9 @@ const RentalReport = ({ user }) => {
   const [monthlyRevenueData, setMonthlyRevenueData] = useState(null)
   const [topCustomers, setTopCustomers] = useState(null)
   const [downloadingForklifts, setDownloadingForklifts] = useState(false)
+  const [downloadingUnitsOnRent, setDownloadingUnitsOnRent] = useState(false)
   const [downloadingUnitsOnHold, setDownloadingUnitsOnHold] = useState(false)
+  const [unitsOnRent, setUnitsOnRent] = useState(0)
   const [unitsOnHold, setUnitsOnHold] = useState(0)
   
 
@@ -59,6 +62,7 @@ const RentalReport = ({ user }) => {
     fetchInventoryCount()
     fetchMonthlyRevenueData()
     fetchTopCustomers()
+    fetchUnitsOnRent()
     fetchUnitsOnHold()
   }, [])
 
@@ -135,6 +139,24 @@ const RentalReport = ({ user }) => {
     } catch (error) {
       console.error('Error fetching top customers:', error)
       setTopCustomers(null)
+    }
+  }
+
+  const fetchUnitsOnRent = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-rent'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setUnitsOnRent(data.units_on_rent || 0)
+      }
+    } catch (error) {
+      console.error('Error fetching units on rent:', error)
     }
   }
 
@@ -230,6 +252,60 @@ const RentalReport = ({ user }) => {
       console.error('Error downloading forklift data:', error)
     } finally {
       setDownloadingForklifts(false)
+    }
+  }
+
+  const handleDownloadUnitsOnRent = async () => {
+    setDownloadingUnitsOnRent(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-rent-detail'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Convert to CSV
+        const headers = ['Customer Name', 'Customer No', 'Unit No', 'Serial No', 'Make', 'Model', 'Model Year', 'Location', 'Days Rented', 'Rent Amount', 'Day Rate', 'Week Rate', 'Month Rate']
+        const rows = data.units.map(unit => [
+          unit.customer_name,
+          unit.customer_no,
+          unit.unit_no,
+          unit.serial_no,
+          unit.make,
+          unit.model,
+          unit.model_year || '',
+          unit.location || '',
+          unit.days_rented,
+          unit.rent_amount,
+          unit.day_rent || 0,
+          unit.week_rent || 0,
+          unit.month_rent || 0
+        ])
+        
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n')
+        
+        // Download file
+        const blob = new Blob([csvContent], { type: 'text/csv' })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `units_on_rent_${new Date().toISOString().split('T')[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      }
+    } catch (error) {
+      console.error('Error downloading units on rent data:', error)
+    } finally {
+      setDownloadingUnitsOnRent(false)
     }
   }
 
@@ -357,6 +433,7 @@ const RentalReport = ({ user }) => {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="equipment-report">Equipment Report</TabsTrigger>
           <TabsTrigger value="service-report">Service Report</TabsTrigger>
         </TabsList>
 
@@ -408,6 +485,30 @@ const RentalReport = ({ user }) => {
                 >
                   <Download className="mr-2 h-4 w-4" />
                   {downloadingUnitsOnHold ? 'Downloading...' : 'Download On Hold Equipment'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Number of Units on Rent Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Number of Units on Rent</CardTitle>
+                <Truck className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{unitsOnRent}</div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Currently rented out
+                </p>
+                <Button 
+                  onClick={handleDownloadUnitsOnRent}
+                  disabled={downloadingUnitsOnRent}
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadingUnitsOnRent ? 'Downloading...' : 'Download Rental Details'}
                 </Button>
               </CardContent>
             </Card>
@@ -560,7 +661,7 @@ const RentalReport = ({ user }) => {
       <Card>
         <CardHeader>
           <CardTitle>Top 10 Rental Customers</CardTitle>
-          <CardDescription>By total rental revenue</CardDescription>
+          <CardDescription>By YTD rental revenue</CardDescription>
         </CardHeader>
         <CardContent>
           {topCustomers?.top_customers ? (
@@ -604,6 +705,10 @@ const RentalReport = ({ user }) => {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="equipment-report">
+          <RentalEquipmentReport />
         </TabsContent>
 
         <TabsContent value="service-report">

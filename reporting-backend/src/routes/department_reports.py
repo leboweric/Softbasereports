@@ -2286,6 +2286,7 @@ def register_department_routes(reports_bp):
                     AND BillToName NOT LIKE '%RENTAL FLEET%'
                     AND BillToName NOT LIKE '%EXPENSE%'
                     AND BillToName NOT LIKE '%INTERNAL%'
+                    AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- YTD filter
                 GROUP BY CASE 
                     WHEN BillToName = 'POLARIS INDUSTRIES' OR BillToName = 'POLARIS' 
                     THEN 'POLARIS INDUSTRIES'
@@ -2340,7 +2341,7 @@ def register_department_routes(reports_bp):
             
             results = db.execute_query(query)
             
-            # Calculate total revenue for percentage calculation
+            # Calculate total YTD revenue for percentage calculation
             total_query = """
             SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total
             FROM ben002.InvoiceReg
@@ -2348,6 +2349,7 @@ def register_department_routes(reports_bp):
                 AND BillToName NOT LIKE '%RENTAL FLEET%'
                 AND BillToName NOT LIKE '%EXPENSE%'
                 AND BillToName NOT LIKE '%INTERNAL%'
+                AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- YTD filter
             """
             
             total_result = db.execute_query(total_query)
@@ -2570,6 +2572,149 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'error': str(e),
                 'type': 'units_on_hold_detail_error'
+            }), 500
+    
+    @reports_bp.route('/departments/rental/equipment-report', methods=['GET'])
+    @jwt_required()
+    def get_rental_equipment_report():
+        """Get all equipment associated with the rental department"""
+        try:
+            db = get_db()
+            
+            # Get equipment owned by rental department (900006)
+            query = """
+            WITH RentalEquipment AS (
+                SELECT 
+                    e.UnitNo,
+                    e.SerialNo,
+                    e.Make,
+                    e.Model,
+                    e.ModelYear,
+                    e.RentalStatus,
+                    e.Location,
+                    e.Cost,
+                    e.Retail as ListPrice,
+                    e.DayRent,
+                    e.WeekRent,
+                    e.MonthRent,
+                    e.CustomerNo,
+                    e.Customer as CustomerFlag,
+                    e.LastHourMeter,
+                    e.LastHourMeterDate,
+                    e.RentalYTD,
+                    e.RentalITD,
+                    c.Name as CurrentCustomer,
+                    -- Check if currently on rent
+                    CASE 
+                        WHEN rh.SerialNo IS NOT NULL THEN 'On Rent'
+                        WHEN e.RentalStatus = 'On Hold' THEN 'On Hold'
+                        WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
+                        ELSE COALESCE(e.RentalStatus, 'Unknown')
+                    END as CurrentStatus,
+                    rh.DaysRented as CurrentMonthDays,
+                    rh.RentAmount as CurrentMonthRevenue
+                FROM ben002.Equipment e
+                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                    AND rh.Year = YEAR(GETDATE()) 
+                    AND rh.Month = MONTH(GETDATE())
+                    AND rh.DaysRented > 0
+                    AND rh.DeletionTime IS NULL
+                WHERE e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
+                    OR e.InventoryDept = 40  -- Rental department
+                    OR e.RentalStatus IS NOT NULL
+            )
+            SELECT 
+                UnitNo,
+                SerialNo,
+                Make,
+                Model,
+                ModelYear,
+                CurrentStatus,
+                RentalStatus,
+                Location,
+                Cost,
+                ListPrice,
+                DayRent,
+                WeekRent,
+                MonthRent,
+                CustomerNo,
+                CurrentCustomer,
+                LastHourMeter,
+                LastHourMeterDate,
+                RentalYTD,
+                RentalITD,
+                CurrentMonthDays,
+                CurrentMonthRevenue,
+                -- Calculate utilization
+                CASE 
+                    WHEN CurrentStatus = 'On Rent' THEN 100
+                    WHEN CurrentStatus = 'Available' THEN 0
+                    ELSE NULL
+                END as UtilizationPercent
+            FROM RentalEquipment
+            ORDER BY CurrentStatus DESC, UnitNo
+            """
+            
+            results = db.execute_query(query)
+            
+            # Get summary statistics
+            summary_query = """
+            SELECT 
+                COUNT(*) as total_units,
+                COUNT(CASE WHEN e.CustomerNo = '900006' THEN 1 END) as fleet_owned_units,
+                COUNT(CASE WHEN rh.SerialNo IS NOT NULL THEN 1 END) as units_on_rent,
+                COUNT(CASE WHEN e.RentalStatus = 'Ready To Rent' THEN 1 END) as available_units,
+                COUNT(CASE WHEN e.RentalStatus = 'On Hold' THEN 1 END) as on_hold_units,
+                SUM(e.Cost) as total_fleet_value,
+                SUM(e.RentalYTD) as total_ytd_revenue,
+                SUM(rh.RentAmount) as current_month_revenue
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                AND rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
+                AND rh.DeletionTime IS NULL
+            WHERE e.CustomerNo = '900006'
+                OR e.InventoryDept = 40
+                OR e.RentalStatus IS NOT NULL
+            """
+            
+            summary_result = db.execute_query(summary_query)
+            summary = summary_result[0] if summary_result else {}
+            
+            # Get breakdown by make
+            make_breakdown_query = """
+            SELECT 
+                e.Make,
+                COUNT(*) as unit_count,
+                COUNT(CASE WHEN rh.SerialNo IS NOT NULL THEN 1 END) as on_rent_count,
+                SUM(e.Cost) as total_value,
+                SUM(e.RentalYTD) as ytd_revenue
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                AND rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
+                AND rh.DeletionTime IS NULL
+            WHERE (e.CustomerNo = '900006' OR e.InventoryDept = 40 OR e.RentalStatus IS NOT NULL)
+                AND e.Make IS NOT NULL
+            GROUP BY e.Make
+            ORDER BY unit_count DESC
+            """
+            
+            make_breakdown = db.execute_query(make_breakdown_query)
+            
+            return jsonify({
+                'equipment': results,
+                'summary': summary,
+                'make_breakdown': make_breakdown
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_equipment_report_error'
             }), 500
 
     @reports_bp.route('/departments/rental/rental-fleet-diagnostic', methods=['GET'])
