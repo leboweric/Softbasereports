@@ -2627,9 +2627,7 @@ def register_department_routes(reports_bp):
             # 4. Check RentalContract structure
             query4 = """
             SELECT 
-                COUNT(*) as total_contracts,
-                COUNT(DISTINCT CustomerNo) as unique_customers,
-                COUNT(CASE WHEN CustomerNo = '900006' THEN 1 END) as contracts_to_fleet_owner
+                COUNT(*) as total_contracts
             FROM ben002.RentalContract
             WHERE DeletionTime IS NULL
             """
