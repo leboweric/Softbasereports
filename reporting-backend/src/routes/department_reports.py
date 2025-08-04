@@ -1848,6 +1848,35 @@ def register_department_routes(reports_bp):
                 'type': 'accounting_report_error'
             }), 500
     
+    @reports_bp.route('/departments/accounting/ap-total', methods=['GET'])
+    @jwt_required()
+    def get_ap_total():
+        """Get total accounts payable balance"""
+        try:
+            db = get_db()
+            
+            # Get total AP balance - sum all unpaid AP amounts
+            query = """
+            SELECT 
+                SUM(Amount) as total_ap
+            FROM ben002.APDetail
+            WHERE (CheckNo IS NULL OR CheckNo = 0)
+                AND (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            """
+            
+            result = db.execute_query(query)
+            total_ap = float(result[0]['total_ap']) if result and result[0]['total_ap'] else 0
+            
+            return jsonify({
+                'total_ap': total_ap,
+                'formatted': f"${total_ap/1000000:.3f}M" if total_ap >= 1000000 else f"${total_ap/1000:.0f}k"
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching AP total: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/accounting/ar-report', methods=['GET'])
     @jwt_required()
     def get_ar_report():

@@ -22,11 +22,13 @@ import AROver90Report from '@/components/AROver90Report'
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [arData, setArData] = useState(null)
+  const [apTotal, setApTotal] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchAccountingData()
     fetchARData()
+    fetchAPTotal()
   }, [])
 
   const fetchAccountingData = async () => {
@@ -76,6 +78,26 @@ const AccountingReport = ({ user }) => {
     }
   }
 
+  const fetchAPTotal = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/accounting/ap-total'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setApTotal(data)
+      } else {
+        console.error('AP total error:', response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error('Error fetching AP total:', error)
+    }
+  }
+
   if (loading) {
     return (
       <LoadingSpinner 
@@ -102,7 +124,7 @@ const AccountingReport = ({ user }) => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Total AR Card */}
+          {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="pb-3">
@@ -112,6 +134,29 @@ const AccountingReport = ({ user }) => {
                 <div className="text-2xl font-bold">$1.697M</div>
               </CardContent>
             </Card>
+            
+            {arData && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">AR Over 90 Days</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">${(arData.over_90_amount / 1000).toFixed(0)}k</div>
+                  <p className="text-xs text-muted-foreground mt-1">{arData.over_90_percentage}% of total</p>
+                </CardContent>
+              </Card>
+            )}
+            
+            {apTotal && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Total Accounts Payable</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{apTotal.formatted}</div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* G&A Expenses Over Time */}
@@ -297,32 +342,6 @@ const AccountingReport = ({ user }) => {
           <h2 className="text-2xl font-semibold">Accounts Receivable Report</h2>
           
           <div className="grid gap-4 md:grid-cols-2">
-            {/* AR Over 90 Days Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>AR Over 90 Days</CardTitle>
-                <CardDescription>Percentage of total accounts receivable</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="text-5xl font-bold text-red-600">{arData.over_90_percentage}%</div>
-                    <p className="text-sm text-muted-foreground mt-1">of total AR is over 90 days</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Total AR:</span>
-                      <span className="font-medium">${(arData.total_ar / 1000).toFixed(0)}k</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Over 90 Days:</span>
-                      <span className="font-medium text-red-600">${(arData.over_90_amount / 1000).toFixed(0)}k</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Specific Customers Over 90 Days Card */}
             <Card>
               <CardHeader>
@@ -361,42 +380,6 @@ const AccountingReport = ({ user }) => {
               </CardContent>
             </Card>
           </div>
-
-          {/* AR Aging Breakdown */}
-          <Card>
-            <CardHeader>
-              <CardTitle>AR Aging Breakdown</CardTitle>
-              <CardDescription>Distribution of accounts receivable by age</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={arData.aging_summary}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="bucket" />
-                  <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                  <Tooltip 
-                    formatter={(value) => `$${value.toLocaleString()}`}
-                    labelFormatter={(label) => `${label} days`}
-                  />
-                  <Bar dataKey="amount">
-                    {arData.aging_summary.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={
-                          entry.bucket === 'Current' ? '#10b981' :
-                          entry.bucket === '30-60' ? '#3b82f6' :
-                          entry.bucket === '60-90' ? '#f59e0b' :
-                          entry.bucket === '90-120' ? '#ef4444' :
-                          entry.bucket === '120+' ? '#991b1b' :
-                          '#6b7280'
-                        }
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
         </div>
       )}
         </TabsContent>
