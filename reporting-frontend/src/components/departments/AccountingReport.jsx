@@ -92,21 +92,28 @@ const AccountingReport = ({ user }) => {
                 <CardDescription>General & Administrative expenses through February {new Date().getFullYear() + 1}</CardDescription>
               </div>
               {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
-                // Only include historical months (before current month)
+                // Exclude current month and incomplete months
                 const currentDate = new Date()
                 const currentMonthIndex = currentDate.getMonth()
                 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                 const currentMonthName = monthNames[currentMonthIndex]
                 
-                // Get all months except current month for average calculation
-                const historicalMonths = monthlyExpenses.filter(item => {
-                  // Exclude current month (July in this case)
-                  return item.month !== currentMonthName && item.expenses > 0
+                // First pass: calculate a rough average to identify incomplete months
+                const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
+                if (monthsWithData.length === 0) return null
+                
+                const roughAverage = monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+                
+                // Second pass: exclude current month and months with less than 50% of rough average (likely incomplete)
+                const completeMonths = monthlyExpenses.filter(item => {
+                  return item.month !== currentMonthName && 
+                         item.expenses > 0 && 
+                         item.expenses > (roughAverage * 0.5)
                 })
                 
-                if (historicalMonths.length === 0) return null
+                if (completeMonths.length === 0) return null
                 
-                const avgExpenses = historicalMonths.reduce((sum, item) => sum + item.expenses, 0) / historicalMonths.length
+                const avgExpenses = completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length
                 
                 return (
                   <div className="text-right">
@@ -131,14 +138,20 @@ const AccountingReport = ({ user }) => {
                   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                   const currentMonthName = monthNames[currentMonthIndex]
                   
-                  // Get all months except current month for average calculation
-                  const historicalMonths = data.filter(item => {
-                    // Exclude current month
-                    return item.month !== currentMonthName && item.expenses > 0
+                  // Calculate average excluding current month and incomplete months
+                  const monthsWithData = data.filter(item => item.expenses > 0)
+                  const roughAverage = monthsWithData.length > 0 
+                    ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length 
+                    : 0
+                  
+                  const completeMonths = data.filter(item => {
+                    return item.month !== currentMonthName && 
+                           item.expenses > 0 && 
+                           item.expenses > (roughAverage * 0.5)
                   })
                   
-                  const avgExpenses = historicalMonths.length > 0 
-                    ? historicalMonths.reduce((sum, item) => sum + item.expenses, 0) / historicalMonths.length 
+                  const avgExpenses = completeMonths.length > 0 
+                    ? completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length 
                     : 0
                   
                   // Add average to each data point for reference line rendering
@@ -214,13 +227,21 @@ const AccountingReport = ({ user }) => {
                   const currentMonthIndex = currentDate.getMonth()
                   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
                   const currentMonthName = monthNames[currentMonthIndex]
-                  // Get all months except current month for average calculation
-                  const historicalMonths = monthlyExpenses.filter(item => {
-                    // Exclude current month
-                    return item.month !== currentMonthName && item.expenses > 0
+                  
+                  // Calculate average excluding current month and incomplete months
+                  const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
+                  const roughAverage = monthsWithData.length > 0 
+                    ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length 
+                    : 0
+                  
+                  const completeMonths = monthlyExpenses.filter(item => {
+                    return item.month !== currentMonthName && 
+                           item.expenses > 0 && 
+                           item.expenses > (roughAverage * 0.5)
                   })
-                  const avgExpenses = historicalMonths.length > 0 
-                    ? historicalMonths.reduce((sum, item) => sum + item.expenses, 0) / historicalMonths.length 
+                  
+                  const avgExpenses = completeMonths.length > 0 
+                    ? completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length 
                     : 0
                   
                   if (avgExpenses > 0) {
