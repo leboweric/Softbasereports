@@ -492,7 +492,7 @@ const SalesCommissionReport = ({ user }) => {
             <CardContent>
               <div className="space-y-2 text-sm">
                 <p>• <strong>Rental (RENTAL):</strong> 10% of sales revenue</p>
-                <p>• <strong>New Equipment (LINDEN, NEWEQ, KOM):</strong> 20% of gross profit</p>
+                <p>• <strong>New Equipment (LINDE, NEWEQ, KOM):</strong> 20% of gross profit</p>
                 <p>• <strong>Allied Equipment (ALLIED):</strong> 20% of gross profit</p>
                 <p>• <strong>Used Equipment (USEDEQ, USED K/L/SL):</strong> 5% of selling price</p>
                 <p>• <strong>Rental Sale (RNTSALE):</strong> 5% of gross profit</p>
