@@ -22,6 +22,9 @@ const SalesCommissionReport = ({ user }) => {
   const [bucketData, setBucketData] = useState(null)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const [loadingBuckets, setLoadingBuckets] = useState(false)
+  const [detailsData, setDetailsData] = useState(null)
+  const [showDetails, setShowDetails] = useState(false)
+  const [loadingDetails, setLoadingDetails] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
     // Default to previous month since commissions are usually calculated for completed months
@@ -33,6 +36,9 @@ const SalesCommissionReport = ({ user }) => {
     fetchCommissionData()
     if (showDiagnostics) {
       fetchBucketData()
+    }
+    if (showDetails) {
+      fetchDetailsData()
     }
   }, [selectedMonth])
 
@@ -83,6 +89,31 @@ const SalesCommissionReport = ({ user }) => {
       setBucketData(null)
     } finally {
       setLoadingBuckets(false)
+    }
+  }
+
+  const fetchDetailsData = async () => {
+    try {
+      setLoadingDetails(true)
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/reports/departments/accounting/sales-commission-details?month=${selectedMonth}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDetailsData(data)
+      } else {
+        console.error('Failed to fetch details data')
+        setDetailsData(null)
+      }
+    } catch (error) {
+      console.error('Error fetching details data:', error)
+      setDetailsData(null)
+    } finally {
+      setLoadingDetails(false)
     }
   }
 
@@ -336,6 +367,120 @@ const SalesCommissionReport = ({ user }) => {
                 </TableBody>
               </Table>
             </CardContent>
+          </Card>
+
+          {/* Detailed Invoice Breakdown */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Detailed Invoice Breakdown</CardTitle>
+                  <CardDescription>Individual invoices by sales rep with commission calculations</CardDescription>
+                </div>
+                <Button
+                  onClick={() => {
+                    setShowDetails(!showDetails)
+                    if (!showDetails && !detailsData) {
+                      fetchDetailsData()
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {showDetails ? 'Hide' : 'Show'} Details
+                </Button>
+              </div>
+            </CardHeader>
+            {showDetails && (
+              <CardContent>
+                {loadingDetails ? (
+                  <div className="py-8 text-center">
+                    <LoadingSpinner size="small" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading invoice details...</p>
+                  </div>
+                ) : detailsData ? (
+                  <div className="space-y-6">
+                    {detailsData.salesmen.map((salesman, idx) => (
+                      <div key={idx} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-semibold">{salesman.name}</h4>
+                          <div className="text-sm text-muted-foreground">
+                            {salesman.invoices.length} invoices • 
+                            Total Sales: {formatCurrency(salesman.total_sales)} • 
+                            Commission: <span className="font-semibold text-green-600">{formatCurrency(salesman.total_commission)}</span>
+                          </div>
+                        </div>
+                        {salesman.invoices.length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b">
+                                  <th className="text-left p-2">Invoice #</th>
+                                  <th className="text-left p-2">Date</th>
+                                  <th className="text-left p-2">Customer</th>
+                                  <th className="text-left p-2">Sale Code</th>
+                                  <th className="text-left p-2">Category</th>
+                                  <th className="text-right p-2">Amount</th>
+                                  <th className="text-right p-2">Commission</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {salesman.invoices.map((inv, invIdx) => (
+                                  <tr key={invIdx} className="border-b hover:bg-gray-50">
+                                    <td className="p-2">{inv.invoice_no}</td>
+                                    <td className="p-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                                    <td className="p-2">{inv.customer_name}</td>
+                                    <td className="p-2">
+                                      <Badge variant="outline" className="font-mono text-xs">
+                                        {inv.sale_code}
+                                      </Badge>
+                                    </td>
+                                    <td className="p-2">
+                                      <Badge variant="secondary" className="text-xs">
+                                        {inv.category}
+                                      </Badge>
+                                    </td>
+                                    <td className="text-right p-2">{formatCurrency(inv.category_amount)}</td>
+                                    <td className="text-right p-2 font-medium text-green-600">
+                                      {formatCurrency(inv.commission)}
+                                    </td>
+                                  </tr>
+                                ))}
+                                <tr className="font-semibold bg-gray-50">
+                                  <td colSpan="5" className="p-2 text-right">Subtotal:</td>
+                                  <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
+                                  <td className="text-right p-2 text-green-600">{formatCurrency(salesman.total_commission)}</td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">No commission-eligible invoices found.</p>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {/* Grand Total */}
+                    {detailsData.salesmen.length > 0 && (
+                      <div className="border-t-2 pt-4">
+                        <div className="flex items-center justify-between font-bold text-lg">
+                          <span>Grand Total</span>
+                          <div>
+                            <span className="mr-8">Sales: {formatCurrency(detailsData.grand_totals.sales)}</span>
+                            <span className="text-green-600">Commission: {formatCurrency(detailsData.grand_totals.commission)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Failed to load invoice details
+                  </div>
+                )}
+              </CardContent>
+            )}
           </Card>
 
           {/* Commission Rules */}

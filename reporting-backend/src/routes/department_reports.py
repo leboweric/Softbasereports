@@ -4575,7 +4575,7 @@ def register_department_routes(reports_bp):
             
             # Get commission rates (this would normally come from a commission table)
             # For now, using a default rate - this should be customizable per sales rep
-            default_commission_rate = 0.02  # 2% default
+            default_commission_rate = 0.10  # 10% default
             
             salespeople = []
             totals = {
@@ -4909,6 +4909,127 @@ def register_department_routes(reports_bp):
             
         except Exception as e:
             logger.error(f"Error in sales commission buckets: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
+    @reports_bp.route('/departments/accounting/sales-commission-details', methods=['GET'])
+    @jwt_required()
+    def get_sales_commission_details():
+        """Get detailed commission invoices by salesman"""
+        try:
+            db = get_db()
+            
+            # Get month parameter
+            month_param = request.args.get('month')
+            if not month_param:
+                today = datetime.today()
+                prev_month = today.replace(day=1) - timedelta(days=1)
+                month_param = prev_month.strftime('%Y-%m')
+            
+            year, month = map(int, month_param.split('-'))
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            # Query to get all commission-eligible invoices with details
+            details_query = """
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillToName as CustomerName,
+                c.Salesman1,
+                ir.SaleCode,
+                CASE
+                    WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP') THEN 'Used Equipment'
+                    WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
+                    WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R') THEN 'New Equipment'
+                    ELSE 'Other'
+                END as Category,
+                CASE 
+                    WHEN ir.SaleCode = 'RENTAL'
+                    THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP', 
+                                         'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0
+                END as CategoryAmount,
+                0.10 as CommissionRate,  -- 10% across all categories
+                CASE 
+                    WHEN ir.SaleCode = 'RENTAL'
+                    THEN (COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)) * 0.10
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP', 
+                                         'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
+                    THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.10
+                    ELSE 0
+                END as Commission
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceDate >= %s
+                AND ir.InvoiceDate <= %s
+                AND c.Salesman1 IS NOT NULL
+                AND c.Salesman1 != ''
+                AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP',
+                                    'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
+                AND (
+                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
+                    OR
+                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP', 
+                                     'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R') 
+                     AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
+                )
+            ORDER BY c.Salesman1, ir.InvoiceDate, ir.InvoiceNo
+            """
+            
+            results = db.execute_query(details_query, [start_date, end_date])
+            
+            # Group by salesman
+            salesmen_details = {}
+            for row in results:
+                salesman = row['Salesman1']
+                if salesman not in salesmen_details:
+                    salesmen_details[salesman] = {
+                        'name': salesman,
+                        'invoices': [],
+                        'total_sales': 0,
+                        'total_commission': 0
+                    }
+                
+                invoice = {
+                    'invoice_no': row['InvoiceNo'],
+                    'invoice_date': row['InvoiceDate'].isoformat() if row['InvoiceDate'] else None,
+                    'customer_name': row['CustomerName'],
+                    'sale_code': row['SaleCode'],
+                    'category': row['Category'],
+                    'category_amount': float(row['CategoryAmount'] or 0),
+                    'commission': float(row['Commission'] or 0)
+                }
+                
+                salesmen_details[salesman]['invoices'].append(invoice)
+                salesmen_details[salesman]['total_sales'] += invoice['category_amount']
+                salesmen_details[salesman]['total_commission'] += invoice['commission']
+            
+            # Convert to list and sort by total sales
+            salesmen_list = list(salesmen_details.values())
+            salesmen_list.sort(key=lambda x: x['total_sales'], reverse=True)
+            
+            # Calculate grand totals
+            grand_total_sales = sum(s['total_sales'] for s in salesmen_list)
+            grand_total_commission = sum(s['total_commission'] for s in salesmen_list)
+            
+            return jsonify({
+                'month': month_param,
+                'salesmen': salesmen_list,
+                'grand_totals': {
+                    'sales': grand_total_sales,
+                    'commission': grand_total_commission
+                },
+                'commission_rate': 0.10
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching commission details: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
 
