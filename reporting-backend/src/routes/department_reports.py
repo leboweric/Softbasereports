@@ -1856,6 +1856,7 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get total AP balance - sum all unpaid AP amounts
+            # AP amounts are stored as negative values, so we need to negate them
             query = """
             SELECT 
                 SUM(Amount) as total_ap
@@ -1867,6 +1868,10 @@ def register_department_routes(reports_bp):
             
             result = db.execute_query(query)
             total_ap = float(result[0]['total_ap']) if result and result[0]['total_ap'] else 0
+            
+            # If AP is negative, make it positive (AP is a liability, should show as positive)
+            if total_ap < 0:
+                total_ap = -total_ap
             
             return jsonify({
                 'total_ap': total_ap,
