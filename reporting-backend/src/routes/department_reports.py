@@ -1930,7 +1930,7 @@ def register_department_routes(reports_bp):
             )
             SELECT 
                 CASE 
-                    WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' 
+                    WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' OR c.Name = 'POLARIS INJECT MOLDING'
                     THEN 'POLARIS INDUSTRIES'
                     ELSE c.Name
                 END as CustomerName,
@@ -1947,7 +1947,7 @@ def register_department_routes(reports_bp):
                     UPPER(c.Name) LIKE '%OWENS%'
                 )
             GROUP BY CASE 
-                WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' 
+                WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' OR c.Name = 'POLARIS INJECT MOLDING'
                 THEN 'POLARIS INDUSTRIES'
                 ELSE c.Name
             END
