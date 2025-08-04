@@ -1979,6 +1979,17 @@ def register_department_routes(reports_bp):
                 'type': 'ar_report_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/version', methods=['GET'])
+    @jwt_required()
+    def get_version():
+        """Get version info to verify deployment"""
+        return jsonify({
+            'version': '2024-12-04-fix-ar-calculations',
+            'ar_calculation': 'using SUM(Amount) directly',
+            'polaris_merge': 'enabled',
+            'timestamp': datetime.utcnow().isoformat()
+        })
+    
     @reports_bp.route('/departments/accounting/ar-debug', methods=['GET'])
     @jwt_required()
     def get_ar_debug():
