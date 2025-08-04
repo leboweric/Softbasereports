@@ -2620,9 +2620,10 @@ def register_department_routes(reports_bp):
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
-                WHERE e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
+                WHERE (e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
                     OR e.InventoryDept = 40  -- Rental department
-                    OR e.RentalStatus IS NOT NULL
+                    OR e.RentalStatus IS NOT NULL)
+                    AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
             )
             SELECT 
                 UnitNo,
@@ -2675,9 +2676,10 @@ def register_department_routes(reports_bp):
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
                 AND rh.DeletionTime IS NULL
-            WHERE e.CustomerNo = '900006'
+            WHERE (e.CustomerNo = '900006'
                 OR e.InventoryDept = 40
-                OR e.RentalStatus IS NOT NULL
+                OR e.RentalStatus IS NOT NULL)
+                AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
             """
             
             summary_result = db.execute_query(summary_query)
@@ -2698,7 +2700,7 @@ def register_department_routes(reports_bp):
                 AND rh.DaysRented > 0
                 AND rh.DeletionTime IS NULL
             WHERE (e.CustomerNo = '900006' OR e.InventoryDept = 40 OR e.RentalStatus IS NOT NULL)
-                AND e.Make IS NOT NULL
+                AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
             GROUP BY e.Make
             ORDER BY unit_count DESC
             """
