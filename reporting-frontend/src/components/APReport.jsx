@@ -149,27 +149,29 @@ const APReport = ({ user }) => {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Overdue Amount</CardTitle>
+            <CardTitle className="text-sm font-medium">Not Yet Due</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              ${(apData.overdue_amount / 1000).toFixed(0)}k
+            <div className="text-2xl font-bold">
+              ${((apData.aging_summary.find(b => b.bucket === 'Not Due')?.amount || 0) / 1000).toFixed(0)}k
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {apData.overdue_percentage}% of total
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Not overdue</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Current Due</CardTitle>
+            <CardTitle className="text-sm font-medium">0-90 Days Overdue</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ${((apData.aging_summary.find(b => b.bucket === '0-30')?.amount || 0) / 1000).toFixed(0)}k
+            <div className="text-2xl font-bold text-orange-600">
+              ${(((apData.aging_summary.find(b => b.bucket === '0-30')?.amount || 0) + 
+                  (apData.aging_summary.find(b => b.bucket === '31-60')?.amount || 0) + 
+                  (apData.aging_summary.find(b => b.bucket === '61-90')?.amount || 0)) / 1000).toFixed(0)}k
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Due within 30 days</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Standard overdue amounts
+            </p>
           </CardContent>
         </Card>
 
