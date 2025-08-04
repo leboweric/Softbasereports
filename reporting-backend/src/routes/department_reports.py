@@ -2371,7 +2371,7 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Count units on rent by looking at Equipment with CustomerNo
-            # Focus on forklifts and material handling equipment
+            # Exclude internal accounts and non-rental equipment
             query = """
             SELECT COUNT(*) as units_on_rent
             FROM ben002.Equipment e
@@ -2380,25 +2380,17 @@ def register_department_routes(reports_bp):
                 AND e.CustomerNo != ''
                 AND e.CustomerNo != '0'
                 -- Exclude internal accounts
-                AND (c.Name IS NULL OR c.Name NOT LIKE '%RENTAL FLEET%')
-                AND (c.Name IS NULL OR c.Name NOT LIKE '%EXPENSE%')
-                AND (c.Name IS NULL OR c.Name NOT LIKE '%INTERNAL%')
-                -- Focus on forklifts and material handling equipment
+                AND (c.Name NOT LIKE '%RENTAL FLEET%' OR c.Name IS NULL)
+                AND (c.Name NOT LIKE '%EXPENSE%' OR c.Name IS NULL)
+                AND (c.Name NOT LIKE '%INTERNAL%' OR c.Name IS NULL)
+                -- Exclude specific internal customer numbers
+                AND e.CustomerNo NOT IN ('900006', '900007', '900008', '900009')
+                -- Only include equipment that can be rented (has rental rates or is typical rental equipment)
                 AND (
-                    UPPER(e.Model) LIKE '%FORK%' 
-                    OR UPPER(e.Make) LIKE '%FORK%'
-                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL')
-                    OR UPPER(e.Model) LIKE '%LIFT%'
-                    OR UPPER(e.Model) LIKE 'RC%'
-                    OR UPPER(e.Model) LIKE 'GC%'
-                    OR UPPER(e.Model) LIKE 'GP%'
-                    OR UPPER(e.Model) LIKE 'FG%'
-                    OR UPPER(e.Model) LIKE 'FD%'
-                    OR UPPER(e.Make) LIKE '%JIG%'
-                    OR UPPER(e.Make) LIKE '%GENIE%'
-                    OR UPPER(e.Make) LIKE '%JLG%'
-                    OR UPPER(e.Make) LIKE '%SCISSOR%'
-                    OR UPPER(e.Make) LIKE '%BOOM%'
+                    e.DayRent > 0 
+                    OR e.WeekRent > 0 
+                    OR e.MonthRent > 0
+                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL', 'JLG', 'GENIE', 'SKYJACK', 'TEREX')
                 )
             """
             
@@ -2449,25 +2441,17 @@ def register_department_routes(reports_bp):
                 AND e.CustomerNo != ''
                 AND e.CustomerNo != '0'
                 -- Exclude internal accounts
-                AND (c.Name IS NULL OR c.Name NOT LIKE '%RENTAL FLEET%')
-                AND (c.Name IS NULL OR c.Name NOT LIKE '%EXPENSE%')
-                AND (c.Name IS NULL OR c.Name NOT LIKE '%INTERNAL%')
-                -- Focus on forklifts and material handling equipment
+                AND (c.Name NOT LIKE '%RENTAL FLEET%' OR c.Name IS NULL)
+                AND (c.Name NOT LIKE '%EXPENSE%' OR c.Name IS NULL)
+                AND (c.Name NOT LIKE '%INTERNAL%' OR c.Name IS NULL)
+                -- Exclude specific internal customer numbers
+                AND e.CustomerNo NOT IN ('900006', '900007', '900008', '900009')
+                -- Only include equipment that can be rented (has rental rates or is typical rental equipment)
                 AND (
-                    UPPER(e.Model) LIKE '%FORK%' 
-                    OR UPPER(e.Make) LIKE '%FORK%'
-                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL')
-                    OR UPPER(e.Model) LIKE '%LIFT%'
-                    OR UPPER(e.Model) LIKE 'RC%'
-                    OR UPPER(e.Model) LIKE 'GC%'
-                    OR UPPER(e.Model) LIKE 'GP%'
-                    OR UPPER(e.Model) LIKE 'FG%'
-                    OR UPPER(e.Model) LIKE 'FD%'
-                    OR UPPER(e.Make) LIKE '%JIG%'
-                    OR UPPER(e.Make) LIKE '%GENIE%'
-                    OR UPPER(e.Make) LIKE '%JLG%'
-                    OR UPPER(e.Make) LIKE '%SCISSOR%'
-                    OR UPPER(e.Make) LIKE '%BOOM%'
+                    e.DayRent > 0 
+                    OR e.WeekRent > 0 
+                    OR e.MonthRent > 0
+                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL', 'JLG', 'GENIE', 'SKYJACK', 'TEREX')
                 )
             ORDER BY c.Name, e.Make, e.Model, e.UnitNo
             """
