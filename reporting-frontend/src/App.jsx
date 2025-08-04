@@ -10,6 +10,7 @@ import ServiceReport from './components/departments/ServiceReport'
 import PartsReport from './components/departments/PartsReport'
 import RentalReport from './components/departments/RentalReport'
 import AccountingReport from './components/departments/AccountingReport'
+import AROver90Report from './components/AROver90Report'
 import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import AIQueryTester from './components/AIQueryTester'
 import TableDiscovery from './components/TableDiscovery'
@@ -91,6 +92,8 @@ function App() {
         return <RentalReport user={user} organization={organization} />
       case 'accounting':
         return <AccountingReport user={user} organization={organization} />
+      case 'ar-over90':
+        return <AROver90Report user={user} organization={organization} />
       case 'invoice-explorer':
         return <InvoiceExplorer user={user} organization={organization} />
       case 'ai-query-tester':

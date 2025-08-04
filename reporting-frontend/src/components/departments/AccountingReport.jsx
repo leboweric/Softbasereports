@@ -16,7 +16,6 @@ import {
   Cell
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
-import Over90Debug from '@/components/Over90Debug'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -391,9 +390,6 @@ const AccountingReport = ({ user }) => {
           </Card>
         </div>
       )}
-
-      {/* Over 90 Days Debug Component */}
-      <Over90Debug />
 
     </div>
   )

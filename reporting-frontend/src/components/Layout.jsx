@@ -13,6 +13,7 @@ import {
   Database,
   Wrench,
   Package,
+  AlertCircle,
   Truck,
   Calculator,
   Search
@@ -27,6 +28,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
     { name: 'Parts', icon: Package, id: 'parts' },
     { name: 'Rental', icon: Truck, id: 'rental' },
     { name: 'Accounting', icon: Calculator, id: 'accounting' },
+    { name: 'AR Over 90', icon: AlertCircle, id: 'ar-over90' },
     { name: 'AI Query', icon: Sparkles, id: 'ai-query' },
     { name: 'AI Query Tester', icon: BarChart3, id: 'ai-query-tester' },
     { name: 'Report Creator', icon: FileText, id: 'report-creator' },
