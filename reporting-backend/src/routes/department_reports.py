@@ -2601,7 +2601,7 @@ def register_department_routes(reports_bp):
                 FROM ben002.RentalHistory 
                 WHERE Year = YEAR(GETDATE()) 
                 AND Month = MONTH(GETDATE())
-                AND CustomerNo != '900006'  -- Not to the fleet owner
+                AND DaysRented > 0
             ) rh ON e.SerialNo = rh.SerialNo
             WHERE e.CustomerNo = '900006'
             """
@@ -2617,15 +2617,8 @@ def register_department_routes(reports_bp):
                 e.RentalStatus,
                 e.DayRent,
                 e.WeekRent,
-                e.MonthRent,
-                CASE WHEN rc.SerialNo IS NOT NULL THEN 'On Active Contract' ELSE 'No Active Contract' END as contract_status
+                e.MonthRent
             FROM ben002.Equipment e
-            LEFT JOIN (
-                SELECT DISTINCT SerialNo 
-                FROM ben002.RentalContract rc
-                WHERE rc.DeletionTime IS NULL
-                AND (rc.EndDate IS NULL OR rc.EndDate >= GETDATE())
-            ) rc ON e.SerialNo = rc.SerialNo
             WHERE e.CustomerNo = '900006'
             ORDER BY e.UnitNo
             """
@@ -2641,6 +2634,20 @@ def register_department_routes(reports_bp):
             WHERE DeletionTime IS NULL
             """
             diagnostics['rental_contract_summary'] = db.execute_query(query4)
+            
+            # 5. Get count of all equipment by CustomerNo to see the big picture
+            query5 = """
+            SELECT 
+                CustomerNo,
+                c.Name as CustomerName,
+                COUNT(*) as equipment_count
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE CustomerNo IN ('900006', '900007', '900008', '900009')
+            GROUP BY CustomerNo, c.Name
+            ORDER BY equipment_count DESC
+            """
+            diagnostics['internal_customer_equipment'] = db.execute_query(query5)
             
             return jsonify(diagnostics)
             
