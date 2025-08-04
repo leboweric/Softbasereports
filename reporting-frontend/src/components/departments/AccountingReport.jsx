@@ -94,14 +94,16 @@ const AccountingReport = ({ user }) => {
       </div>
 
       {/* Total AR Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Total Accounts Receivable</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold">$1.697M</div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Total Accounts Receivable</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">$1.697M</div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* G&A Expenses Over Time */}
       <Card>
