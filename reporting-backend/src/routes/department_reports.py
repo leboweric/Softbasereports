@@ -1863,22 +1863,12 @@ def register_department_routes(reports_bp):
                     ar.CustomerNo,
                     ar.InvoiceNo,
                     ar.Due,
-                    SUM(CASE 
-                        WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount  -- Invoices are positive
-                        WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount  -- Payments and Vouchers are negative
-                        WHEN ar.EntryType = 'Journal' THEN ar.Amount  -- Journal entries keep their sign
-                        ELSE ar.Amount 
-                    END) as NetBalance
+                    SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
                 FROM ben002.ARDetail ar
                 WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0  -- Exclude historical records
                     AND ar.DeletionTime IS NULL  -- Exclude deleted records
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
-                HAVING SUM(CASE 
-                    WHEN ar.EntryType IN ('Invoice', 'AR Journal') THEN ar.Amount
-                    WHEN ar.EntryType IN ('Payment', 'Voucher') THEN -ar.Amount
-                    WHEN ar.EntryType = 'Journal' THEN ar.Amount
-                    ELSE ar.Amount 
-                END) > 0.01  -- Only invoices with outstanding balance
+                HAVING SUM(ar.Amount) > 0.01  -- Only invoices with outstanding balance
             ),
             ARDetails AS (
                 SELECT 
@@ -2107,9 +2097,7 @@ def register_department_routes(reports_bp):
                 'raw_totals': raw_data,
                 'entry_types': entry_types,
                 'net_ar': net_data,
-                'calculated_net': float(raw_data.get('invoice_total', 0) + raw_data.get('ar_journal_total', 0) + 
-                                      raw_data.get('journal_total', 0) - raw_data.get('payment_total', 0) - 
-                                      raw_data.get('voucher_total', 0)),
+                'calculated_net': float(raw_data.get('raw_total', 0)),  # Just use the raw total since amounts have correct signs
                 'largest_open_balances': [dict(row) for row in sample_results],
                 'message': 'AR Debug Information'
             })
