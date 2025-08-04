@@ -1866,47 +1866,33 @@ def register_department_routes(reports_bp):
             total_ar_result = db.execute_query(total_ar_query)
             total_ar = float(total_ar_result[0]['total_ar']) if total_ar_result and total_ar_result[0]['total_ar'] else 0
             
-            # Get all AR details with aging
-            # First get net balances by invoice to handle payments
+            # Get AR aging buckets directly from ARDetail records
             ar_query = """
-            WITH InvoiceBalances AS (
-                SELECT 
-                    ar.CustomerNo,
-                    ar.InvoiceNo,
-                    ar.Due,
-                    SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
-                FROM ben002.ARDetail ar
-                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0  -- Exclude historical records
-                    AND ar.DeletionTime IS NULL  -- Exclude deleted records
-                GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
-                HAVING SUM(ar.Amount) > 0.01  -- Only invoices with outstanding balance
-            ),
-            ARDetails AS (
-                SELECT 
-                    ib.CustomerNo,
-                    c.Name as CustomerName,
-                    ib.InvoiceNo,
-                    ib.NetBalance as Amount,
-                    ib.Due as DueDate,
-                    DATEDIFF(day, ib.Due, GETDATE()) as DaysOverdue,
-                    CASE 
-                        WHEN ib.Due IS NULL THEN 'No Due Date'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 120 THEN '120+'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 90 THEN '90-120'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 60 THEN '60-90'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 30 THEN '30-60'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 0 THEN '1-30'
-                        ELSE 'Current'
-                    END as AgingBucket
-                FROM InvoiceBalances ib
-                INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
-            )
             SELECT 
-                AgingBucket,
-                COUNT(*) as InvoiceCount,
+                CASE 
+                    WHEN Due IS NULL THEN 'No Due Date'
+                    WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 1 AND 30 THEN '1-30'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 31 AND 60 THEN '30-60'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
+                END as AgingBucket,
+                COUNT(*) as RecordCount,
                 SUM(Amount) as TotalAmount
-            FROM ARDetails
-            GROUP BY AgingBucket
+            FROM ben002.ARDetail
+            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+                AND DeletionTime IS NULL
+            GROUP BY 
+                CASE 
+                    WHEN Due IS NULL THEN 'No Due Date'
+                    WHEN DATEDIFF(day, Due, GETDATE()) <= 0 THEN 'Current'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 1 AND 30 THEN '1-30'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 31 AND 60 THEN '30-60'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 61 AND 90 THEN '60-90'
+                    WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 91 AND 120 THEN '90-120'
+                    WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
+                END
             """
             
             ar_results = db.execute_query(ar_query)
@@ -1966,7 +1952,7 @@ def register_department_routes(reports_bp):
                 aging_summary.append({
                     'bucket': bucket,
                     'amount': float(row['TotalAmount']) if row else 0,
-                    'count': row['InvoiceCount'] if row else 0
+                    'count': row['RecordCount'] if row else 0
                 })
             
             # Add debug info to see what's in ar_results
