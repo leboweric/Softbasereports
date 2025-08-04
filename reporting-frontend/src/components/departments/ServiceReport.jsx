@@ -19,6 +19,7 @@ import { apiUrl } from '@/lib/api'
 const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [paceData, setPaceData] = useState(null)
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -46,6 +47,7 @@ const ServiceReport = ({ user, onNavigate }) => {
 
   useEffect(() => {
     fetchServiceData()
+    fetchPaceData()
   }, [])
 
   const fetchServiceData = async () => {
@@ -76,6 +78,78 @@ const ServiceReport = ({ user, onNavigate }) => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchPaceData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/service/pace'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setPaceData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching service pace data:', error)
+    }
+  }
+
+  // Custom bar shape with pace indicator
+  const CustomBar = (props) => {
+    const { fill, x, y, width, height, payload } = props
+    const currentMonth = new Date().getMonth() + 1
+    const currentYear = new Date().getFullYear()
+    
+    // Check if this is the current month
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const isCurrentMonth = payload && 
+      payload.month === monthNames[currentMonth - 1] && 
+      paceData && paceData.pace_percentage !== undefined
+    
+    return (
+      <g>
+        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        {isCurrentMonth && (
+          <g>
+            {/* Pace indicator */}
+            <rect 
+              x={x} 
+              y={y - 20} 
+              width={width} 
+              height={18} 
+              fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
+              rx={4}
+            />
+            <text 
+              x={x + width / 2} 
+              y={y - 6} 
+              textAnchor="middle" 
+              fill="white" 
+              fontSize="11" 
+              fontWeight="bold"
+            >
+              {paceData.pace_percentage > 0 ? '+' : ''}{paceData.pace_percentage}%
+            </text>
+            {/* Arrow icon */}
+            {paceData.pace_percentage !== 0 && (
+              <text 
+                x={x + width / 2} 
+                y={y - 25} 
+                textAnchor="middle" 
+                fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
+                fontSize="16"
+              >
+                {paceData.pace_percentage > 0 ? '↑' : '↓'}
+              </text>
+            )}
+          </g>
+        )}
+      </g>
+    )
   }
 
   if (loading) {
@@ -220,7 +294,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                 }}
               />
               <Legend />
-              <Bar yAxisId="revenue" dataKey="amount" fill="#3b82f6" name="Revenue" />
+              <Bar yAxisId="revenue" dataKey="amount" fill="#3b82f6" name="Revenue" shape={<CustomBar />} />
               {/* Average Revenue Line */}
               <Line 
                 yAxisId="revenue"

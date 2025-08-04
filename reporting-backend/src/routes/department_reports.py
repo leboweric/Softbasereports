@@ -14,6 +14,67 @@ def get_db():
 def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
     
+    @reports_bp.route('/departments/service/pace', methods=['GET'])
+    @jwt_required()
+    def get_service_pace():
+        """Get service department revenue pace comparing current month to previous month"""
+        try:
+            db = get_db()
+            
+            # Get current date info
+            now = datetime.now()
+            current_year = now.year
+            current_month = now.month
+            current_day = now.day
+            
+            # Calculate previous month
+            if current_month == 1:
+                prev_month = 12
+                prev_year = current_year - 1
+            else:
+                prev_month = current_month - 1
+                prev_year = current_year
+            
+            # Get service revenue through same day for current and previous month
+            current_query = f"""
+            SELECT SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {current_year}
+                AND MONTH(InvoiceDate) = {current_month}
+                AND DAY(InvoiceDate) <= {current_day}
+                AND SaleCode IN ('SVE', 'SVP', 'SVM', 'SVR', 'SVW')
+            """
+            
+            prev_query = f"""
+            SELECT SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {prev_year}
+                AND MONTH(InvoiceDate) = {prev_month}
+                AND DAY(InvoiceDate) <= {current_day}
+                AND SaleCode IN ('SVE', 'SVP', 'SVM', 'SVR', 'SVW')
+            """
+            
+            current_result = db.execute_query(current_query)
+            prev_result = db.execute_query(prev_query)
+            
+            current_revenue = float(current_result[0]['total_revenue'] or 0) if current_result else 0
+            previous_revenue = float(prev_result[0]['total_revenue'] or 0) if prev_result else 0
+            
+            # Calculate pace percentage
+            pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
+            
+            return jsonify({
+                'pace_percentage': pace_percentage,
+                'current_revenue': current_revenue,
+                'previous_revenue': previous_revenue,
+                'current_month': current_month,
+                'current_day': current_day
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching service pace: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/service', methods=['GET'])
     @jwt_required()
     def get_service_department_report():
@@ -87,6 +148,67 @@ def register_department_routes(reports_bp):
                 'type': 'service_report_error'
             }), 500
 
+
+    @reports_bp.route('/departments/parts/pace', methods=['GET'])
+    @jwt_required()
+    def get_parts_pace():
+        """Get parts department sales pace comparing current month to previous month"""
+        try:
+            db = get_db()
+            
+            # Get current date info
+            now = datetime.now()
+            current_year = now.year
+            current_month = now.month
+            current_day = now.day
+            
+            # Calculate previous month
+            if current_month == 1:
+                prev_month = 12
+                prev_year = current_year - 1
+            else:
+                prev_month = current_month - 1
+                prev_year = current_year
+            
+            # Get parts sales through same day for current and previous month
+            current_query = f"""
+            SELECT SUM(GrandTotal) as total_sales
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {current_year}
+                AND MONTH(InvoiceDate) = {current_month}
+                AND DAY(InvoiceDate) <= {current_day}
+                AND SaleCode IN ('PRT', 'PCR', 'PAG', 'PIN', 'PRB')
+            """
+            
+            prev_query = f"""
+            SELECT SUM(GrandTotal) as total_sales
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {prev_year}
+                AND MONTH(InvoiceDate) = {prev_month}
+                AND DAY(InvoiceDate) <= {current_day}
+                AND SaleCode IN ('PRT', 'PCR', 'PAG', 'PIN', 'PRB')
+            """
+            
+            current_result = db.execute_query(current_query)
+            prev_result = db.execute_query(prev_query)
+            
+            current_sales = float(current_result[0]['total_sales'] or 0) if current_result else 0
+            previous_sales = float(prev_result[0]['total_sales'] or 0) if prev_result else 0
+            
+            # Calculate pace percentage
+            pace_percentage = round(((current_sales / previous_sales) - 1) * 100, 1) if previous_sales > 0 else 0
+            
+            return jsonify({
+                'pace_percentage': pace_percentage,
+                'current_sales': current_sales,
+                'previous_sales': previous_sales,
+                'current_month': current_month,
+                'current_day': current_day
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching parts pace: {str(e)}")
+            return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/parts', methods=['GET'])
     @jwt_required()
@@ -1055,6 +1177,67 @@ def register_department_routes(reports_bp):
                 'type': 'parts_fill_rate_error'
             }), 500
 
+
+    @reports_bp.route('/departments/rental/pace', methods=['GET'])
+    @jwt_required()
+    def get_rental_pace():
+        """Get rental department revenue pace comparing current month to previous month"""
+        try:
+            db = get_db()
+            
+            # Get current date info
+            now = datetime.now()
+            current_year = now.year
+            current_month = now.month
+            current_day = now.day
+            
+            # Calculate previous month
+            if current_month == 1:
+                prev_month = 12
+                prev_year = current_year - 1
+            else:
+                prev_month = current_month - 1
+                prev_year = current_year
+            
+            # Get rental revenue through same day for current and previous month
+            current_query = f"""
+            SELECT SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {current_year}
+                AND MONTH(InvoiceDate) = {current_month}
+                AND DAY(InvoiceDate) <= {current_day}
+                AND SaleCode IN ('RENT', 'RENTR', 'RENTE', 'RENTM', 'RENTS', 'RENTRS')
+            """
+            
+            prev_query = f"""
+            SELECT SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {prev_year}
+                AND MONTH(InvoiceDate) = {prev_month}
+                AND DAY(InvoiceDate) <= {current_day}
+                AND SaleCode IN ('RENT', 'RENTR', 'RENTE', 'RENTM', 'RENTS', 'RENTRS')
+            """
+            
+            current_result = db.execute_query(current_query)
+            prev_result = db.execute_query(prev_query)
+            
+            current_revenue = float(current_result[0]['total_revenue'] or 0) if current_result else 0
+            previous_revenue = float(prev_result[0]['total_revenue'] or 0) if prev_result else 0
+            
+            # Calculate pace percentage
+            pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
+            
+            return jsonify({
+                'pace_percentage': pace_percentage,
+                'current_revenue': current_revenue,
+                'previous_revenue': previous_revenue,
+                'current_month': current_month,
+                'current_day': current_day
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching rental pace: {str(e)}")
+            return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/rental', methods=['GET'])
     @jwt_required()
