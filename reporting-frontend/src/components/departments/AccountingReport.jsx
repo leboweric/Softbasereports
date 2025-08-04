@@ -335,53 +335,6 @@ const AccountingReport = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-
-      {/* AR Report Section */}
-      {arData && (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-semibold">Accounts Receivable Report</h2>
-          
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Specific Customers Over 90 Days Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Key Customers Over 90 Days</CardTitle>
-                <CardDescription>Polaris, Grede, and Owens accounts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {arData.specific_customers && arData.specific_customers.length > 0 ? (
-                  <div className="space-y-3">
-                    {arData.specific_customers.map((customer, index) => (
-                      <div key={index} className="space-y-1">
-                        <div className="flex justify-between items-start">
-                          <span className="font-medium">{customer.name}</span>
-                          <span className="font-bold text-red-600">
-                            ${customer.amount.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{customer.invoice_count} invoices</span>
-                          <span>Oldest: {customer.max_days_overdue} days</span>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="pt-3 mt-3 border-t">
-                      <div className="flex justify-between font-bold">
-                        <span>Total</span>
-                        <span className="text-red-600">
-                          ${arData.specific_customers.reduce((sum, c) => sum + c.amount, 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No overdue accounts for these customers</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
         </TabsContent>
 
         <TabsContent value="ar" className="space-y-6">
