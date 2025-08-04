@@ -59,6 +59,10 @@ const AccountingReport = ({ user }) => {
       if (response.ok) {
         const data = await response.json()
         setArData(data)
+      } else {
+        console.error('AR report error:', response.status, response.statusText)
+        const errorText = await response.text()
+        console.error('Error details:', errorText)
       }
     } catch (error) {
       console.error('Error fetching AR data:', error)
