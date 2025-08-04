@@ -579,8 +579,9 @@ const SalesCommissionReport = ({ user }) => {
                               </span>
                             </div>
                             {bucket.sample_invoices.length > 0 ? (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
+                              <>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm">
                                   <thead>
                                     <tr className="border-b">
                                       <th className="text-left p-2">Invoice #</th>
@@ -640,6 +641,7 @@ const SalesCommissionReport = ({ user }) => {
                                   </span>
                                 </div>
                               </div>
+                              </>
                             ) : (
                               <p className="text-sm text-muted-foreground">No invoices found for this category in {new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
                             )}
