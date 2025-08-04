@@ -4545,8 +4545,8 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as UsedEquipmentSales,
                 SUM(CASE 
-                    -- Allied equipment - placeholder for now, no specific codes identified yet
-                    WHEN 1=0  -- No codes currently mapped to Allied
+                    -- Allied equipment sales
+                    WHEN ir.SaleCode = 'ALLIED'
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as AlliedEquipmentSales,
@@ -4771,7 +4771,7 @@ def register_department_routes(reports_bp):
                 },
                 'allied_equipment': {
                     'name': 'Allied Equipment',
-                    'sale_codes': [],  # No codes currently mapped
+                    'sale_codes': ['ALLIED'],
                     'field': 'Equipment',
                     'sample_invoices': []
                 },
@@ -4845,11 +4845,11 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP', 'RNTSALE') THEN 1 ELSE NULL END) as UsedCount,
                 
                 SUM(CASE 
-                    WHEN 1=0  -- No codes currently mapped to Allied
+                    WHEN ir.SaleCode = 'ALLIED'
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as AlliedTotal,
-                COUNT(CASE WHEN 1=0 THEN 1 ELSE NULL END) as AlliedCount,
+                COUNT(CASE WHEN ir.SaleCode = 'ALLIED' THEN 1 ELSE NULL END) as AlliedCount,
                 
                 SUM(CASE 
                     WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R')
@@ -4874,7 +4874,7 @@ def register_department_routes(reports_bp):
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
-                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
+                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
             GROUP BY ir.SaleCode
             ORDER BY SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) DESC
             """
