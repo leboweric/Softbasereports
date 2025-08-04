@@ -2301,6 +2301,8 @@ def register_department_routes(reports_bp):
                 WHERE rh.Year = YEAR(GETDATE()) 
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
+                    AND e.CustomerNo IS NOT NULL
+                    AND e.CustomerNo != ''
                 GROUP BY c.Name
             )
             SELECT TOP 10
@@ -2442,6 +2444,80 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'error': str(e),
                 'type': 'available_forklifts_error'
+            }), 500
+    
+    @reports_bp.route('/departments/rental/customer-units-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_customer_units_diagnostic():
+        """Diagnostic to understand customer rental units"""
+        try:
+            db = get_db()
+            
+            # Check RentalHistory for current month
+            query = """
+            SELECT 
+                COUNT(*) as total_records,
+                COUNT(DISTINCT SerialNo) as unique_units,
+                MIN(Year) as min_year,
+                MAX(Year) as max_year,
+                MIN(Month) as min_month,
+                MAX(Month) as max_month
+            FROM ben002.RentalHistory
+            WHERE Year = YEAR(GETDATE()) AND Month = MONTH(GETDATE())
+            """
+            
+            results = db.execute_query(query)
+            
+            # Get sample rental history with customer info
+            sample_query = """
+            SELECT TOP 10
+                rh.SerialNo,
+                rh.Year,
+                rh.Month,
+                rh.DaysRented,
+                rh.RentAmount,
+                e.UnitNo,
+                e.CustomerNo,
+                c.Name as CustomerName
+            FROM ben002.RentalHistory rh
+            LEFT JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
+            ORDER BY rh.RentAmount DESC
+            """
+            
+            sample_results = db.execute_query(sample_query)
+            
+            # Count by customer
+            customer_query = """
+            SELECT 
+                COALESCE(c.Name, 'No Customer') as customer_name,
+                COUNT(DISTINCT rh.SerialNo) as units_on_rent,
+                SUM(rh.RentAmount) as total_rent
+            FROM ben002.RentalHistory rh
+            LEFT JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
+            GROUP BY c.Name
+            ORDER BY COUNT(DISTINCT rh.SerialNo) DESC
+            """
+            
+            customer_results = db.execute_query(customer_query)
+            
+            return jsonify({
+                'current_month_summary': results[0] if results else {},
+                'sample_rentals': [dict(row) for row in sample_results] if sample_results else [],
+                'customers_with_units': [dict(row) for row in customer_results] if customer_results else []
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'customer_units_diagnostic_error'
             }), 500
     
     @reports_bp.route('/departments/rental/rental-status-diagnostic', methods=['GET'])
