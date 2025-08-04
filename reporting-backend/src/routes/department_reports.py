@@ -1907,10 +1907,28 @@ def register_department_routes(reports_bp):
             
             ar_results = db.execute_query(ar_query)
             
-            # Calculate percentages using the already calculated total_ar
-            # Sum both 90-120 and 120+ buckets for over 90 days
-            over_90_amount = sum(float(row['TotalAmount']) for row in ar_results 
-                               if row['AgingBucket'] in ['90-120', '120+'])
+            # Calculate over 90 days directly from the data
+            # Get a direct calculation of invoices over 90 days
+            over_90_query = """
+            WITH InvoiceBalances AS (
+                SELECT 
+                    ar.InvoiceNo,
+                    MIN(ar.Due) as Due,
+                    SUM(ar.Amount) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                    AND ar.DeletionTime IS NULL
+                    AND ar.InvoiceNo IS NOT NULL
+                GROUP BY ar.InvoiceNo
+                HAVING SUM(ar.Amount) > 0.01
+            )
+            SELECT SUM(NetBalance) as total_over_90
+            FROM InvoiceBalances
+            WHERE DATEDIFF(day, Due, GETDATE()) >= 90
+            """
+            
+            over_90_result = db.execute_query(over_90_query)
+            over_90_amount = float(over_90_result[0]['total_over_90']) if over_90_result and over_90_result[0]['total_over_90'] else 0
             over_90_percentage = (over_90_amount / total_ar * 100) if total_ar > 0 else 0
             
             # Get specific customer AR over 90 days
