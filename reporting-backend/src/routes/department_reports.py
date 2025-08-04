@@ -4539,20 +4539,20 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as RentalSales,
                 SUM(CASE 
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP')
+                    -- USEDEQ/USEDEQP are used equipment, RNTSALE is selling used rental units
+                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP', 'RNTSALE')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedEquipmentSales,
                 SUM(CASE 
-                    -- Allied equipment might be included in RNTSALE or other codes
-                    -- For now, we'll assign RNTSALE to Allied as it's rental equipment being sold
-                    WHEN ir.SaleCode = 'RNTSALE'
+                    -- Allied equipment - placeholder for now, no specific codes identified yet
+                    WHEN 1=0  -- No codes currently mapped to Allied
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as AlliedEquipmentSales,
                 SUM(CASE 
-                    -- LINDE is new Linde equipment, NEWEQ/NEWEQP-R are other new equipment
-                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R')
+                    -- LINDEN is new Linde equipment, NEWEQ/NEWEQP-R are other new equipment
+                    WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as NewEquipmentSales
@@ -4765,19 +4765,19 @@ def register_department_routes(reports_bp):
                 },
                 'used_equipment': {
                     'name': 'Used Equipment', 
-                    'sale_codes': ['USEDEQ', 'USEDEQP'],
+                    'sale_codes': ['USEDEQ', 'USEDEQP', 'RNTSALE'],
                     'field': 'Equipment',
                     'sample_invoices': []
                 },
                 'allied_equipment': {
                     'name': 'Allied Equipment',
-                    'sale_codes': ['RNTSALE'],
+                    'sale_codes': [],  # No codes currently mapped
                     'field': 'Equipment',
                     'sample_invoices': []
                 },
                 'new_equipment': {
                     'name': 'New Equipment',
-                    'sale_codes': ['LINDE', 'NEWEQ', 'NEWEQP-R'],
+                    'sale_codes': ['LINDEN', 'NEWEQ', 'NEWEQP-R'],
                     'field': 'Equipment',
                     'sample_invoices': []
                 }
@@ -4785,6 +4785,11 @@ def register_department_routes(reports_bp):
             
             # Get sample invoices for each bucket
             for bucket_key, bucket_info in buckets.items():
+                # Skip buckets with no sale codes
+                if not bucket_info['sale_codes']:
+                    bucket_info['sample_invoices'] = []
+                    continue
+                    
                 sale_codes_str = "','".join(bucket_info['sale_codes'])
                 
                 if bucket_info['field'] == 'Rental':
@@ -4833,25 +4838,25 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN ir.SaleCode = 'RENTAL' THEN 1 ELSE NULL END) as RentalCount,
                 
                 SUM(CASE 
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP', 'RNTSALE')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedTotal,
-                COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP') THEN 1 ELSE NULL END) as UsedCount,
+                COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP', 'RNTSALE') THEN 1 ELSE NULL END) as UsedCount,
                 
                 SUM(CASE 
-                    WHEN ir.SaleCode = 'RNTSALE'
+                    WHEN 1=0  -- No codes currently mapped to Allied
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as AlliedTotal,
-                COUNT(CASE WHEN ir.SaleCode = 'RNTSALE' THEN 1 ELSE NULL END) as AlliedCount,
+                COUNT(CASE WHEN 1=0 THEN 1 ELSE NULL END) as AlliedCount,
                 
                 SUM(CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R')
+                    WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as NewTotal,
-                COUNT(CASE WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R') THEN 1 ELSE NULL END) as NewCount
+                COUNT(CASE WHEN ir.SaleCode IN ('LINDEN', 'NEWEQ', 'NEWEQP-R') THEN 1 ELSE NULL END) as NewCount
             FROM ben002.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
             """
@@ -4869,7 +4874,7 @@ def register_department_routes(reports_bp):
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
-                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'LINDE', 'NEWEQ', 'NEWEQP-R')
+                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
             GROUP BY ir.SaleCode
             ORDER BY SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) DESC
             """

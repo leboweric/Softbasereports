@@ -403,7 +403,9 @@ const SalesCommissionReport = ({ user }) => {
                             <h5 className="font-medium mb-2">{bucket.name}</h5>
                             <div className="space-y-1">
                               <p className="text-sm text-muted-foreground">
-                                Sale Codes: <span className="font-mono">{bucket.sale_codes.join(', ')}</span>
+                                Sale Codes: <span className="font-mono">
+                                  {bucket.sale_codes.length > 0 ? bucket.sale_codes.join(', ') : '(None assigned)'}
+                                </span>
                               </p>
                               <p className="text-sm text-muted-foreground">
                                 Revenue Field: <span className="font-mono">{bucket.field}Taxable + {bucket.field}NonTax</span>
