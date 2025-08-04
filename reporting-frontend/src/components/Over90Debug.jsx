@@ -53,8 +53,8 @@ export default function Over90Debug() {
         <CardContent>
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span>90-119 Days:</span>
-              <span className="font-bold">{formatCurrency(data.totals['90-119'])}</span>
+              <span>90-120 Days:</span>
+              <span className="font-bold">{formatCurrency(data.totals['90-120'] || data.totals['90-119'] || 0)}</span>
             </div>
             <div className="flex justify-between">
               <span>120+ Days:</span>

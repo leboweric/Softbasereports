@@ -2262,7 +2262,7 @@ def register_department_routes(reports_bp):
             
             # Calculate totals by days old ranges
             totals = {
-                '90-119': 0,
+                '90-120': 0,
                 '120+': 0,
                 'total': 0
             }
@@ -2273,9 +2273,9 @@ def register_department_routes(reports_bp):
                 amount = float(invoice.get('NetBalance', 0))
                 days = int(invoice.get('DaysOld', 0))
                 
-                if 90 <= days < 120:
-                    totals['90-119'] += amount
-                elif days >= 120:
+                if 90 <= days <= 120:
+                    totals['90-120'] += amount
+                elif days > 120:
                     totals['120+'] += amount
                 totals['total'] += amount
                 
