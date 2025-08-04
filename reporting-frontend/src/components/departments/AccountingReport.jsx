@@ -94,8 +94,8 @@ const AccountingReport = ({ user }) => {
         <p className="text-muted-foreground">Financial overview and accounting metrics</p>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="ar">Accounts Receivable</TabsTrigger>
           <TabsTrigger value="ap">Accounts Payable</TabsTrigger>
