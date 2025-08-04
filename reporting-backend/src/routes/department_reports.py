@@ -2152,13 +2152,13 @@ def register_department_routes(reports_bp):
             
             aging_results = db.execute_query(aging_query)
             
-            # Get top vendors by amount owed
+            # Get top vendors by amount owed - calculate net amounts per vendor like main total
             vendor_query = """
             SELECT TOP 10
                 ap.VendorNo,
                 v.Name as VendorName,
                 COUNT(DISTINCT ap.APInvoiceNo) as InvoiceCount,
-                SUM(ABS(ap.Amount)) as TotalOwed,
+                ABS(SUM(ap.Amount)) as TotalOwed,
                 MIN(ap.DueDate) as OldestDueDate,
                 DATEDIFF(day, MIN(ap.DueDate), GETDATE()) as OldestDaysOverdue
             FROM ben002.APDetail ap
@@ -2167,7 +2167,7 @@ def register_department_routes(reports_bp):
                 AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                 AND ap.DeletionTime IS NULL
             GROUP BY ap.VendorNo, v.Name
-            ORDER BY SUM(ABS(ap.Amount)) DESC
+            ORDER BY ABS(SUM(ap.Amount)) DESC
             """
             
             vendor_results = db.execute_query(vendor_query)
