@@ -358,9 +358,10 @@ const AccountingReport = ({ user }) => {
                         fill={
                           entry.bucket === 'Current' ? '#10b981' :
                           entry.bucket === '1-30' ? '#3b82f6' :
-                          entry.bucket === '31-60' ? '#f59e0b' :
-                          entry.bucket === '61-90' ? '#ef4444' :
-                          entry.bucket === 'Over 90' ? '#991b1b' :
+                          entry.bucket === '30-60' ? '#f59e0b' :
+                          entry.bucket === '60-90' ? '#ef4444' :
+                          entry.bucket === '90-120' ? '#dc2626' :
+                          entry.bucket === '120+' ? '#991b1b' :
                           '#6b7280'
                         }
                       />

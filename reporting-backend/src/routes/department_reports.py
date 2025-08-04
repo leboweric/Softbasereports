@@ -1891,9 +1891,10 @@ def register_department_routes(reports_bp):
                     DATEDIFF(day, ib.Due, GETDATE()) as DaysOverdue,
                     CASE 
                         WHEN ib.Due IS NULL THEN 'No Due Date'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 90 THEN 'Over 90'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 60 THEN '61-90'
-                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 30 THEN '31-60'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 120 THEN '120+'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 90 THEN '90-120'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 60 THEN '60-90'
+                        WHEN DATEDIFF(day, ib.Due, GETDATE()) > 30 THEN '30-60'
                         WHEN DATEDIFF(day, ib.Due, GETDATE()) > 0 THEN '1-30'
                         ELSE 'Current'
                     END as AgingBucket
@@ -1911,7 +1912,9 @@ def register_department_routes(reports_bp):
             ar_results = db.execute_query(ar_query)
             
             # Calculate percentages using the already calculated total_ar
-            over_90_amount = next((float(row['TotalAmount']) for row in ar_results if row['AgingBucket'] == 'Over 90'), 0)
+            # Sum both 90-120 and 120+ buckets for over 90 days
+            over_90_amount = sum(float(row['TotalAmount']) for row in ar_results 
+                               if row['AgingBucket'] in ['90-120', '120+'])
             over_90_percentage = (over_90_amount / total_ar * 100) if total_ar > 0 else 0
             
             # Get specific customer AR over 90 days
@@ -1958,7 +1961,7 @@ def register_department_routes(reports_bp):
             
             # Get aging breakdown for visualization
             aging_summary = []
-            for bucket in ['Current', '1-30', '31-60', '61-90', 'Over 90']:
+            for bucket in ['Current', '1-30', '30-60', '60-90', '90-120', '120+']:
                 row = next((r for r in ar_results if r['AgingBucket'] == bucket), None)
                 aging_summary.append({
                     'bucket': bucket,
