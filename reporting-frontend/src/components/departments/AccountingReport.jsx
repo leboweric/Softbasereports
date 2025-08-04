@@ -157,20 +157,6 @@ const AccountingReport = ({ user }) => {
                 </CardContent>
               </Card>
             )}
-            
-            {arData && arData.specific_customers && arData.specific_customers.length > 0 && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Key Customers Over 90</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-600">
-                    ${(arData.specific_customers.reduce((sum, c) => sum + c.amount, 0) / 1000).toFixed(0)}k
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Polaris, Grede, Owens</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
 
           {/* G&A Expenses Over Time */}
@@ -349,6 +335,42 @@ const AccountingReport = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+      {/* Key Customers Over 90 Days */}
+      {arData && arData.specific_customers && arData.specific_customers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Key Customers Over 90 Days</CardTitle>
+            <CardDescription>Polaris, Grede, and Owens accounts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {arData.specific_customers.map((customer, index) => (
+                <div key={index} className="space-y-1">
+                  <div className="flex justify-between items-start">
+                    <span className="font-medium">{customer.name}</span>
+                    <span className="font-bold text-red-600">
+                      ${customer.amount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{customer.invoice_count} invoices</span>
+                    <span>Oldest: {customer.max_days_overdue} days</span>
+                  </div>
+                </div>
+              ))}
+              <div className="pt-3 mt-3 border-t">
+                <div className="flex justify-between font-bold">
+                  <span>Total</span>
+                  <span className="text-red-600">
+                    ${arData.specific_customers.reduce((sum, c) => sum + c.amount, 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
         </TabsContent>
 
         <TabsContent value="ar" className="space-y-6">
