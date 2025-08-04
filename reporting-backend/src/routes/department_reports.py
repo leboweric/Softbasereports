@@ -4534,22 +4534,25 @@ def register_department_routes(reports_bp):
             SELECT 
                 COALESCE(c.Salesman1, 'Unassigned') as SalesRep,
                 SUM(CASE 
-                    WHEN ir.SaleCode IN ('RENT', 'RENTR', 'RENTRS') 
+                    WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
                     ELSE 0 
                 END) as RentalSales,
                 SUM(CASE 
-                    WHEN ir.SaleCode = 'USED' OR (ir.SaleCode = 'EQP' AND ir.Comments LIKE '%USED%')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedEquipmentSales,
                 SUM(CASE 
-                    WHEN ir.SaleCode = 'ALLIED' OR (ir.SaleCode = 'EQP' AND ir.Comments LIKE '%ALLIED%')
+                    -- Allied equipment might be included in RNTSALE or other codes
+                    -- For now, we'll assign RNTSALE to Allied as it's rental equipment being sold
+                    WHEN ir.SaleCode = 'RNTSALE'
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as AlliedEquipmentSales,
                 SUM(CASE 
-                    WHEN ir.SaleCode = 'NEW' OR (ir.SaleCode = 'EQP' AND ir.Comments LIKE '%NEW%' AND ir.Comments NOT LIKE '%USED%')
+                    -- LINDE is new Linde equipment, NEWEQ/NEWEQP-R are other new equipment
+                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as NewEquipmentSales
