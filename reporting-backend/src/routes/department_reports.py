@@ -4504,4 +4504,123 @@ def register_department_routes(reports_bp):
                 'type': 'rental_status_diagnostic_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/sales-commissions', methods=['GET'])
+    @jwt_required()
+    def get_sales_commissions():
+        """Get sales commission report for a specific month"""
+        try:
+            db = get_db()
+            
+            # Get month parameter (format: YYYY-MM)
+            month_param = request.args.get('month')
+            if not month_param:
+                # Default to previous month
+                today = datetime.today()
+                prev_month = today.replace(day=1) - timedelta(days=1)
+                month_param = prev_month.strftime('%Y-%m')
+            
+            # Parse month parameter
+            year, month = map(int, month_param.split('-'))
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            # Query to get sales by salesman and category
+            # Note: We need to identify which invoices are for Rental, Used, Allied, and New Equipment
+            # This will depend on how these are categorized in the database
+            sales_query = """
+            SELECT 
+                COALESCE(ir.Salesman1, 'Unassigned') as SalesRep,
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('RENT', 'RENTR', 'RENTRS') 
+                    THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
+                    ELSE 0 
+                END) as RentalSales,
+                SUM(CASE 
+                    WHEN ir.SaleCode = 'USED' OR (ir.SaleCode = 'EQP' AND ir.Comments LIKE '%USED%')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0 
+                END) as UsedEquipmentSales,
+                SUM(CASE 
+                    WHEN ir.SaleCode = 'ALLIED' OR (ir.SaleCode = 'EQP' AND ir.Comments LIKE '%ALLIED%')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0 
+                END) as AlliedEquipmentSales,
+                SUM(CASE 
+                    WHEN ir.SaleCode = 'NEW' OR (ir.SaleCode = 'EQP' AND ir.Comments LIKE '%NEW%' AND ir.Comments NOT LIKE '%USED%')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0 
+                END) as NewEquipmentSales
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= ?
+                AND ir.InvoiceDate <= ?
+                AND ir.Salesman1 IS NOT NULL
+                AND ir.Salesman1 != ''
+            GROUP BY ir.Salesman1
+            ORDER BY (
+                COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) +
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+            ) DESC
+            """
+            
+            results = db.execute_query(sales_query, [start_date, end_date])
+            
+            # Get commission rates (this would normally come from a commission table)
+            # For now, using a default rate - this should be customizable per sales rep
+            default_commission_rate = 0.02  # 2% default
+            
+            salespeople = []
+            totals = {
+                'rental': 0,
+                'used_equipment': 0,
+                'allied_equipment': 0,
+                'new_equipment': 0,
+                'total_sales': 0,
+                'total_commissions': 0
+            }
+            
+            for row in results:
+                rental = float(row['RentalSales'] or 0)
+                used = float(row['UsedEquipmentSales'] or 0)
+                allied = float(row['AlliedEquipmentSales'] or 0)
+                new = float(row['NewEquipmentSales'] or 0)
+                total_sales = rental + used + allied + new
+                
+                # Calculate commission (in real implementation, rates would vary by rep and category)
+                commission_rate = default_commission_rate
+                commission_amount = total_sales * commission_rate
+                
+                salespeople.append({
+                    'name': row['SalesRep'],
+                    'rental': rental,
+                    'used_equipment': used,
+                    'allied_equipment': allied,
+                    'new_equipment': new,
+                    'total_sales': total_sales,
+                    'commission_rate': commission_rate,
+                    'commission_amount': commission_amount
+                })
+                
+                # Update totals
+                totals['rental'] += rental
+                totals['used_equipment'] += used
+                totals['allied_equipment'] += allied
+                totals['new_equipment'] += new
+                totals['total_sales'] += total_sales
+                totals['total_commissions'] += commission_amount
+            
+            return jsonify({
+                'month': month_param,
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'salespeople': salespeople,
+                'totals': totals
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching sales commissions: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
 
