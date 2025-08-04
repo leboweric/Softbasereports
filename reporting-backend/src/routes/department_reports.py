@@ -1847,6 +1847,107 @@ def register_department_routes(reports_bp):
                 'error': str(e),
                 'type': 'accounting_report_error'
             }), 500
+    
+    @reports_bp.route('/departments/accounting/ar-report', methods=['GET'])
+    @jwt_required()
+    def get_ar_report():
+        """Get accounts receivable aging report"""
+        try:
+            db = get_db()
+            
+            # Get all AR details with aging
+            ar_query = """
+            WITH ARDetails AS (
+                SELECT 
+                    ar.CustomerNo,
+                    c.Name as CustomerName,
+                    ar.InvoiceNo,
+                    ar.Amount,
+                    ar.Due as DueDate,
+                    DATEDIFF(day, ar.Due, GETDATE()) as DaysOverdue,
+                    CASE 
+                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 90 THEN 'Over 90'
+                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 60 THEN '61-90'
+                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 30 THEN '31-60'
+                        WHEN DATEDIFF(day, ar.Due, GETDATE()) > 0 THEN '1-30'
+                        ELSE 'Current'
+                    END as AgingBucket
+                FROM ben002.ARDetail ar
+                INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
+                WHERE ar.Amount > 0  -- Only outstanding amounts
+                    AND ar.EntryType IN ('I', 'D')  -- Invoices and Debits
+            )
+            SELECT 
+                AgingBucket,
+                COUNT(*) as InvoiceCount,
+                SUM(Amount) as TotalAmount
+            FROM ARDetails
+            GROUP BY AgingBucket
+            """
+            
+            ar_results = db.execute_query(ar_query)
+            
+            # Calculate totals and percentages
+            total_ar = sum(row['TotalAmount'] for row in ar_results if row['TotalAmount'])
+            over_90_amount = next((row['TotalAmount'] for row in ar_results if row['AgingBucket'] == 'Over 90'), 0)
+            over_90_percentage = (over_90_amount / total_ar * 100) if total_ar > 0 else 0
+            
+            # Get specific customer AR over 90 days
+            customer_query = """
+            SELECT 
+                c.Name as CustomerName,
+                COUNT(ar.InvoiceNo) as InvoiceCount,
+                SUM(ar.Amount) as TotalAmount,
+                MIN(ar.Due) as OldestDueDate,
+                MAX(DATEDIFF(day, ar.Due, GETDATE())) as MaxDaysOverdue
+            FROM ben002.ARDetail ar
+            INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
+            WHERE ar.Amount > 0  -- Only outstanding amounts
+                AND ar.EntryType IN ('I', 'D')  -- Invoices and Debits
+                AND DATEDIFF(day, ar.Due, GETDATE()) > 90  -- Over 90 days
+                AND (
+                    UPPER(c.Name) LIKE '%POLARIS%' OR
+                    UPPER(c.Name) LIKE '%GREDE%' OR
+                    UPPER(c.Name) LIKE '%OWENS%'
+                )
+            GROUP BY c.Name
+            ORDER BY SUM(ar.Amount) DESC
+            """
+            
+            customer_results = db.execute_query(customer_query)
+            
+            # Get aging breakdown for visualization
+            aging_summary = []
+            for bucket in ['Current', '1-30', '31-60', '61-90', 'Over 90']:
+                row = next((r for r in ar_results if r['AgingBucket'] == bucket), None)
+                aging_summary.append({
+                    'bucket': bucket,
+                    'amount': float(row['TotalAmount']) if row else 0,
+                    'count': row['InvoiceCount'] if row else 0
+                })
+            
+            return jsonify({
+                'total_ar': float(total_ar),
+                'over_90_amount': float(over_90_amount),
+                'over_90_percentage': round(over_90_percentage, 1),
+                'aging_summary': aging_summary,
+                'specific_customers': [
+                    {
+                        'name': row['CustomerName'],
+                        'amount': float(row['TotalAmount']),
+                        'invoice_count': row['InvoiceCount'],
+                        'oldest_due_date': row['OldestDueDate'].isoformat() if row['OldestDueDate'] else None,
+                        'max_days_overdue': row['MaxDaysOverdue']
+                    }
+                    for row in customer_results
+                ]
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'ar_report_error'
+            }), 500
 
     @reports_bp.route('/departments/accounting/expense-debug', methods=['GET'])
     @jwt_required()

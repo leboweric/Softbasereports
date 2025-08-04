@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { 
   ComposedChart,
+  BarChart,
   Bar, 
   Line,
   XAxis, 
@@ -11,16 +12,19 @@ import {
   Tooltip, 
   ResponsiveContainer,
   ReferenceLine,
-  Legend
+  Legend,
+  Cell
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
+  const [arData, setArData] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchAccountingData()
+    fetchARData()
   }, [])
 
   const fetchAccountingData = async () => {
@@ -40,6 +44,24 @@ const AccountingReport = ({ user }) => {
       console.error('Error fetching accounting data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchARData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/accounting/ar-report'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setArData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching AR data:', error)
     }
   }
 
@@ -223,6 +245,115 @@ const AccountingReport = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+      {/* AR Report Section */}
+      {arData && (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-semibold">Accounts Receivable Report</h2>
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* AR Over 90 Days Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>AR Over 90 Days</CardTitle>
+                <CardDescription>Percentage of total accounts receivable</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="text-5xl font-bold text-red-600">{arData.over_90_percentage}%</div>
+                    <p className="text-sm text-muted-foreground mt-1">of total AR is over 90 days</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Total AR:</span>
+                      <span className="font-medium">${(arData.total_ar / 1000).toFixed(0)}k</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Over 90 Days:</span>
+                      <span className="font-medium text-red-600">${(arData.over_90_amount / 1000).toFixed(0)}k</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Specific Customers Over 90 Days Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Key Customers Over 90 Days</CardTitle>
+                <CardDescription>Polaris, Grede, and Owens accounts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {arData.specific_customers && arData.specific_customers.length > 0 ? (
+                  <div className="space-y-3">
+                    {arData.specific_customers.map((customer, index) => (
+                      <div key={index} className="space-y-1">
+                        <div className="flex justify-between items-start">
+                          <span className="font-medium">{customer.name}</span>
+                          <span className="font-bold text-red-600">
+                            ${customer.amount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>{customer.invoice_count} invoices</span>
+                          <span>{customer.max_days_overdue} days overdue</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="pt-3 mt-3 border-t">
+                      <div className="flex justify-between font-bold">
+                        <span>Total</span>
+                        <span className="text-red-600">
+                          ${arData.specific_customers.reduce((sum, c) => sum + c.amount, 0).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No overdue accounts for these customers</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* AR Aging Breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle>AR Aging Breakdown</CardTitle>
+              <CardDescription>Distribution of accounts receivable by age</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={arData.aging_summary}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="bucket" />
+                  <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                  <Tooltip 
+                    formatter={(value) => `$${value.toLocaleString()}`}
+                    labelFormatter={(label) => `${label} days`}
+                  />
+                  <Bar dataKey="amount">
+                    {arData.aging_summary.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={
+                          entry.bucket === 'Current' ? '#10b981' :
+                          entry.bucket === '1-30' ? '#3b82f6' :
+                          entry.bucket === '31-60' ? '#f59e0b' :
+                          entry.bucket === '61-90' ? '#ef4444' :
+                          entry.bucket === 'Over 90' ? '#991b1b' :
+                          '#6b7280'
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }
