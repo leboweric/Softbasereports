@@ -1866,8 +1866,21 @@ def register_department_routes(reports_bp):
             total_ar_result = db.execute_query(total_ar_query)
             total_ar = float(total_ar_result[0]['total_ar']) if total_ar_result and total_ar_result[0]['total_ar'] else 0
             
-            # Get AR aging buckets directly from ARDetail records
+            # Get AR aging buckets by invoice balance (not individual records)
             ar_query = """
+            WITH InvoiceBalances AS (
+                SELECT 
+                    ar.InvoiceNo,
+                    ar.CustomerNo,
+                    MIN(ar.Due) as Due,  -- Use earliest due date for the invoice
+                    SUM(ar.Amount) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                    AND ar.DeletionTime IS NULL
+                    AND ar.InvoiceNo IS NOT NULL  -- Exclude non-invoice transactions
+                GROUP BY ar.InvoiceNo, ar.CustomerNo
+                HAVING SUM(ar.Amount) > 0.01  -- Only invoices with outstanding balance
+            )
             SELECT 
                 CASE 
                     WHEN Due IS NULL THEN 'No Due Date'
@@ -1879,10 +1892,8 @@ def register_department_routes(reports_bp):
                     WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
                 END as AgingBucket,
                 COUNT(*) as RecordCount,
-                SUM(Amount) as TotalAmount
-            FROM ben002.ARDetail
-            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
-                AND DeletionTime IS NULL
+                SUM(NetBalance) as TotalAmount
+            FROM InvoiceBalances
             GROUP BY 
                 CASE 
                     WHEN Due IS NULL THEN 'No Due Date'
@@ -2119,8 +2130,21 @@ def register_department_routes(reports_bp):
             total_result = db.execute_query(total_query)
             total_ar = float(total_result[0]['total_ar']) if total_result and total_result[0]['total_ar'] else 0
             
-            # 2. Get aging buckets same way as main report
+            # 2. Get aging buckets by invoice balance (matching main report)
             buckets_query = """
+            WITH InvoiceBalances AS (
+                SELECT 
+                    ar.InvoiceNo,
+                    ar.CustomerNo,
+                    MIN(ar.Due) as Due,  -- Use earliest due date for the invoice
+                    SUM(ar.Amount) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                    AND ar.DeletionTime IS NULL
+                    AND ar.InvoiceNo IS NOT NULL  -- Exclude non-invoice transactions
+                GROUP BY ar.InvoiceNo, ar.CustomerNo
+                HAVING SUM(ar.Amount) > 0.01  -- Only invoices with outstanding balance
+            )
             SELECT 
                 CASE 
                     WHEN Due IS NULL THEN 'No Due Date'
@@ -2132,10 +2156,8 @@ def register_department_routes(reports_bp):
                     WHEN DATEDIFF(day, Due, GETDATE()) > 120 THEN '120+'
                 END as AgingBucket,
                 COUNT(*) as RecordCount,
-                SUM(Amount) as TotalAmount
-            FROM ben002.ARDetail
-            WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
-                AND DeletionTime IS NULL
+                SUM(NetBalance) as TotalAmount
+            FROM InvoiceBalances
             GROUP BY 
                 CASE 
                     WHEN Due IS NULL THEN 'No Due Date'
@@ -2202,13 +2224,13 @@ def register_department_routes(reports_bp):
             """
             sample_90_results = db.execute_query(sample_90_query)
             
-            # 6. Your expected values
+            # 6. Your expected values from database pull
             expected_total = 1697050.59
             expected_current = 389448.08
             expected_1_30 = 312764.25
             expected_31_60 = 173548.60
             expected_61_90 = 27931.75
-            expected_over_90 = expected_total - expected_current - expected_1_30 - expected_31_60 - expected_61_90
+            expected_over_90 = 201479.00  # Your actual database pull value
             
             return jsonify({
                 'calculated': {
