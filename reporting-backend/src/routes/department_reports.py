@@ -1919,7 +1919,11 @@ def register_department_routes(reports_bp):
                 HAVING SUM(ar.Amount) > 0.01
             )
             SELECT 
-                c.Name as CustomerName,
+                CASE 
+                    WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' 
+                    THEN 'POLARIS INDUSTRIES'
+                    ELSE c.Name
+                END as CustomerName,
                 COUNT(ib.InvoiceNo) as InvoiceCount,
                 SUM(ib.NetBalance) as TotalAmount,
                 MIN(ib.Due) as OldestDueDate,
@@ -1932,7 +1936,11 @@ def register_department_routes(reports_bp):
                     UPPER(c.Name) LIKE '%GREDE%' OR
                     UPPER(c.Name) LIKE '%OWENS%'
                 )
-            GROUP BY c.Name
+            GROUP BY CASE 
+                WHEN c.Name = 'POLARIS INDUSTRIES' OR c.Name = 'POLARIS' 
+                THEN 'POLARIS INDUSTRIES'
+                ELSE c.Name
+            END
             ORDER BY SUM(ib.NetBalance) DESC
             """
             
