@@ -427,22 +427,38 @@ const RentalReport = ({ user }) => {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
         <p className="text-muted-foreground">Fleet management and rental analytics</p>
-        <Button 
-          onClick={async () => {
-            const token = localStorage.getItem('token')
-            const response = await fetch(apiUrl('/api/reports/departments/rental/rental-vs-sales-diagnostic'), {
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
-            const data = await response.json()
-            console.log('RENTAL VS SALES DIAGNOSTIC:', data)
-            alert('Check console for rental vs sales diagnostic')
-          }}
-          variant="outline"
-          size="sm"
-          className="mt-2"
-        >
-          Rental vs Sales Diagnostic
-        </Button>
+        <div className="flex gap-2 mt-2">
+          <Button 
+            onClick={async () => {
+              const token = localStorage.getItem('token')
+              const response = await fetch(apiUrl('/api/reports/departments/rental/rental-fleet-diagnostic'), {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              const data = await response.json()
+              console.log('RENTAL FLEET DIAGNOSTIC:', data)
+              alert('Check console for rental fleet diagnostic')
+            }}
+            variant="outline"
+            size="sm"
+          >
+            Rental Fleet Diagnostic
+          </Button>
+          <Button 
+            onClick={async () => {
+              const token = localStorage.getItem('token')
+              const response = await fetch(apiUrl('/api/reports/departments/rental/rental-vs-sales-diagnostic'), {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              const data = await response.json()
+              console.log('RENTAL VS SALES DIAGNOSTIC:', data)
+              alert('Check console for rental vs sales diagnostic')
+            }}
+            variant="outline"
+            size="sm"
+          >
+            Rental vs Sales Diagnostic
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">

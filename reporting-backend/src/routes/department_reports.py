@@ -2370,28 +2370,20 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            # Count units on rent by looking at Equipment with CustomerNo
-            # Exclude internal accounts and non-rental equipment
+            # The rental fleet is owned by CustomerNo 900006 (RENTAL FLEET - EXPENSE)
+            # Units on rent are those from RentalHistory excluding the owner
             query = """
-            SELECT COUNT(*) as units_on_rent
-            FROM ben002.Equipment e
+            SELECT COUNT(DISTINCT rh.SerialNo) as units_on_rent
+            FROM ben002.RentalHistory rh
+            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            WHERE e.CustomerNo IS NOT NULL 
-                AND e.CustomerNo != ''
-                AND e.CustomerNo != '0'
-                -- Exclude internal accounts
-                AND (c.Name NOT LIKE '%RENTAL FLEET%' OR c.Name IS NULL)
-                AND (c.Name NOT LIKE '%EXPENSE%' OR c.Name IS NULL)
-                AND (c.Name NOT LIKE '%INTERNAL%' OR c.Name IS NULL)
-                -- Exclude specific internal customer numbers
-                AND e.CustomerNo NOT IN ('900006', '900007', '900008', '900009')
-                -- Only include equipment that can be rented (has rental rates or is typical rental equipment)
-                AND (
-                    e.DayRent > 0 
-                    OR e.WeekRent > 0 
-                    OR e.MonthRent > 0
-                    OR UPPER(e.Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'NISSAN', 'MITSUBISHI', 'CAT', 'CATERPILLAR', 'KOMATSU', 'DOOSAN', 'JUNGHEINRICH', 'STILL', 'JLG', 'GENIE', 'SKYJACK', 'TEREX')
-                )
+            WHERE rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
+                -- Exclude the rental fleet owner records
+                AND (e.CustomerNo != '900006' OR e.CustomerNo IS NULL)
+                -- Only count actual customer rentals
+                AND rh.RentAmount > 0
             """
             
             result = db.execute_query(query)
@@ -2575,6 +2567,87 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'error': str(e),
                 'type': 'units_on_hold_detail_error'
+            }), 500
+
+    @reports_bp.route('/departments/rental/rental-fleet-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_rental_fleet_diagnostic():
+        """Diagnostic to understand the rental fleet ownership"""
+        try:
+            db = get_db()
+            
+            diagnostics = {}
+            
+            # 1. Count total equipment owned by RENTAL FLEET (900006)
+            query1 = """
+            SELECT 
+                COUNT(*) as total_fleet_units,
+                COUNT(CASE WHEN RentalStatus = 'Ready To Rent' THEN 1 END) as ready_to_rent,
+                COUNT(CASE WHEN RentalStatus = 'Hold' THEN 1 END) as on_hold,
+                COUNT(CASE WHEN RentalStatus IS NULL THEN 1 END) as null_status
+            FROM ben002.Equipment
+            WHERE CustomerNo = '900006'
+            """
+            diagnostics['rental_fleet_owned'] = db.execute_query(query1)
+            
+            # 2. Get rental activity for fleet equipment
+            query2 = """
+            SELECT 
+                COUNT(DISTINCT e.SerialNo) as units_with_activity,
+                COUNT(DISTINCT CASE WHEN rh.SerialNo IS NOT NULL THEN e.SerialNo END) as units_in_rental_history
+            FROM ben002.Equipment e
+            LEFT JOIN (
+                SELECT DISTINCT SerialNo 
+                FROM ben002.RentalHistory 
+                WHERE Year = YEAR(GETDATE()) 
+                AND Month = MONTH(GETDATE())
+                AND CustomerNo != '900006'  -- Not to the fleet owner
+            ) rh ON e.SerialNo = rh.SerialNo
+            WHERE e.CustomerNo = '900006'
+            """
+            diagnostics['fleet_rental_activity'] = db.execute_query(query2)
+            
+            # 3. Sample of rental fleet equipment
+            query3 = """
+            SELECT TOP 10
+                e.UnitNo,
+                e.SerialNo,
+                e.Make,
+                e.Model,
+                e.RentalStatus,
+                e.DayRent,
+                e.WeekRent,
+                e.MonthRent,
+                CASE WHEN rc.SerialNo IS NOT NULL THEN 'On Active Contract' ELSE 'No Active Contract' END as contract_status
+            FROM ben002.Equipment e
+            LEFT JOIN (
+                SELECT DISTINCT SerialNo 
+                FROM ben002.RentalContract rc
+                WHERE rc.DeletionTime IS NULL
+                AND (rc.EndDate IS NULL OR rc.EndDate >= GETDATE())
+            ) rc ON e.SerialNo = rc.SerialNo
+            WHERE e.CustomerNo = '900006'
+            ORDER BY e.UnitNo
+            """
+            diagnostics['fleet_sample'] = db.execute_query(query3)
+            
+            # 4. Check RentalContract structure
+            query4 = """
+            SELECT 
+                COUNT(*) as total_contracts,
+                COUNT(DISTINCT CustomerNo) as unique_customers,
+                COUNT(CASE WHEN CustomerNo = '900006' THEN 1 END) as contracts_to_fleet_owner
+            FROM ben002.RentalContract
+            WHERE DeletionTime IS NULL
+            """
+            diagnostics['rental_contract_summary'] = db.execute_query(query4)
+            
+            return jsonify(diagnostics)
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_fleet_diagnostic_error'
             }), 500
 
     @reports_bp.route('/departments/rental/rental-vs-sales-diagnostic', methods=['GET'])
