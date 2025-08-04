@@ -1937,12 +1937,12 @@ def register_department_routes(reports_bp):
                 SELECT 
                     ar.CustomerNo,
                     ar.InvoiceNo,
-                    ar.Due,
+                    MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
                 FROM ben002.ARDetail ar
-                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
-                GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
+                GROUP BY ar.CustomerNo, ar.InvoiceNo
                 HAVING SUM(ar.Amount) > 0.01
             )
             SELECT 
@@ -2074,7 +2074,7 @@ def register_department_routes(reports_bp):
                     ar.Due,
                     SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
                 FROM ben002.ARDetail ar
-                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
                 HAVING SUM(ar.Amount) > 0.01
@@ -2097,7 +2097,7 @@ def register_department_routes(reports_bp):
                     ar.Due,
                     SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
                 FROM ben002.ARDetail ar
-                WHERE ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
                 HAVING SUM(ar.Amount) > 0.01
