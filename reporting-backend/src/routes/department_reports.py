@@ -4554,7 +4554,7 @@ def register_department_routes(reports_bp):
                 END) as AlliedEquipmentSales,
                 SUM(CASE 
                     -- LINDE is new Linde equipment, NEWEQ/NEWEQP-R are other new equipment, KOM is Komatsu
-                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as NewEquipmentSales
@@ -4803,7 +4803,7 @@ def register_department_routes(reports_bp):
                 },
                 'new_equipment': {
                     'name': 'New Equipment',
-                    'sale_codes': ['LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM'],
+                    'sale_codes': ['LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM'],
                     'field': 'Equipment',
                     'sample_invoices': []
                 }
@@ -4879,7 +4879,7 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN ir.SaleCode = 'ALLIED' THEN 1 ELSE NULL END) as AlliedCount,
                 
                 SUM(CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as NewTotal,
@@ -4969,7 +4969,7 @@ def register_department_routes(reports_bp):
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
                     WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
                     WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
-                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
                     ELSE 'Other'
                 END as Category,
                 CASE 
@@ -4983,7 +4983,7 @@ def register_department_routes(reports_bp):
                 -- Commission rates vary by category
                 CASE 
                     WHEN ir.SaleCode = 'RENTAL' THEN 0.10  -- 10% of sales
-                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED') THEN 0.04  -- 20% of 20% GP = 4% effective
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED') THEN 0.04  -- 20% of 20% GP = 4% effective
                     WHEN ir.SaleCode = 'RNTSALE' THEN 0.0125  -- 5% of 25% GP = 1.25% effective
                     WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL') THEN 0.05  -- 5% of selling price
                     ELSE 0
@@ -4992,7 +4992,7 @@ def register_department_routes(reports_bp):
                 CASE 
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN (COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)) * 0.10
-                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED')
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED')
                     THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.04
                     WHEN ir.SaleCode = 'RNTSALE'
                     THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.0125
