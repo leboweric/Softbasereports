@@ -51,6 +51,8 @@ const RentalReport = ({ user }) => {
   const [downloadingForklifts, setDownloadingForklifts] = useState(false)
   const [downloadingUnitsOnRent, setDownloadingUnitsOnRent] = useState(false)
   const [unitsOnRent, setUnitsOnRent] = useState(0)
+  
+  console.log('RentalReport render - unitsOnRent:', unitsOnRent, 'downloadingUnitsOnRent:', downloadingUnitsOnRent)
 
   useEffect(() => {
     fetchRentalData()
