@@ -4735,4 +4735,173 @@ def register_department_routes(reports_bp):
             logger.error(f"Error in sales commission diagnostic: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/sales-commission-buckets', methods=['GET'])
+    @jwt_required()
+    def get_sales_commission_buckets():
+        """Get detailed bucket diagnostics with sample invoices for each category"""
+        try:
+            db = get_db()
+            
+            # Get month parameter
+            month_param = request.args.get('month')
+            if not month_param:
+                today = datetime.today()
+                prev_month = today.replace(day=1) - timedelta(days=1)
+                month_param = prev_month.strftime('%Y-%m')
+            
+            year, month = map(int, month_param.split('-'))
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            buckets = {
+                'rental': {
+                    'name': 'Rental',
+                    'sale_codes': ['RENTAL'],
+                    'field': 'Rental',
+                    'sample_invoices': []
+                },
+                'used_equipment': {
+                    'name': 'Used Equipment', 
+                    'sale_codes': ['USEDEQ', 'USEDEQP'],
+                    'field': 'Equipment',
+                    'sample_invoices': []
+                },
+                'allied_equipment': {
+                    'name': 'Allied Equipment',
+                    'sale_codes': ['RNTSALE'],
+                    'field': 'Equipment',
+                    'sample_invoices': []
+                },
+                'new_equipment': {
+                    'name': 'New Equipment',
+                    'sale_codes': ['LINDE', 'NEWEQ', 'NEWEQP-R'],
+                    'field': 'Equipment',
+                    'sample_invoices': []
+                }
+            }
+            
+            # Get sample invoices for each bucket
+            for bucket_key, bucket_info in buckets.items():
+                sale_codes_str = "','".join(bucket_info['sale_codes'])
+                
+                if bucket_info['field'] == 'Rental':
+                    amount_condition = "(ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)"
+                else:  # Equipment
+                    amount_condition = "(ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)"
+                
+                sample_query = f"""
+                SELECT TOP 5
+                    ir.InvoiceNo,
+                    ir.InvoiceDate,
+                    ir.SaleCode,
+                    ir.BillToName,
+                    c.Salesman1,
+                    ir.Comments,
+                    ir.RentalTaxable,
+                    ir.RentalNonTax,
+                    ir.EquipmentTaxable,
+                    ir.EquipmentNonTax,
+                    ir.GrandTotal,
+                    CASE 
+                        WHEN '{bucket_info['field']}' = 'Rental'
+                        THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
+                        ELSE COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    END as CategoryAmount
+                FROM ben002.InvoiceReg ir
+                LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+                WHERE ir.InvoiceDate >= %s 
+                    AND ir.InvoiceDate <= %s
+                    AND ir.SaleCode IN ('{sale_codes_str}')
+                    AND {amount_condition}
+                ORDER BY ir.InvoiceDate DESC
+                """
+                
+                samples = db.execute_query(sample_query, [start_date, end_date])
+                bucket_info['sample_invoices'] = [dict(row) for row in samples]
+            
+            # Get summary statistics for each bucket
+            summary_query = """
+            SELECT 
+                SUM(CASE 
+                    WHEN ir.SaleCode = 'RENTAL'
+                    THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
+                    ELSE 0 
+                END) as RentalTotal,
+                COUNT(CASE WHEN ir.SaleCode = 'RENTAL' THEN 1 ELSE NULL END) as RentalCount,
+                
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0 
+                END) as UsedTotal,
+                COUNT(CASE WHEN ir.SaleCode IN ('USEDEQ', 'USEDEQP') THEN 1 ELSE NULL END) as UsedCount,
+                
+                SUM(CASE 
+                    WHEN ir.SaleCode = 'RNTSALE'
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0 
+                END) as AlliedTotal,
+                COUNT(CASE WHEN ir.SaleCode = 'RNTSALE' THEN 1 ELSE NULL END) as AlliedCount,
+                
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0 
+                END) as NewTotal,
+                COUNT(CASE WHEN ir.SaleCode IN ('LINDE', 'NEWEQ', 'NEWEQP-R') THEN 1 ELSE NULL END) as NewCount
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
+            """
+            
+            summary = db.execute_query(summary_query, [start_date, end_date])
+            summary_data = dict(summary[0]) if summary else {}
+            
+            # Check all SaleCodes that have equipment revenue but aren't mapped
+            unmapped_query = """
+            SELECT 
+                ir.SaleCode,
+                COUNT(*) as InvoiceCount,
+                SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) as EquipmentRevenue
+            FROM ben002.InvoiceReg ir
+            WHERE ir.InvoiceDate >= %s 
+                AND ir.InvoiceDate <= %s
+                AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
+                AND ir.SaleCode NOT IN ('USEDEQ', 'USEDEQP', 'RNTSALE', 'LINDE', 'NEWEQ', 'NEWEQP-R')
+            GROUP BY ir.SaleCode
+            ORDER BY SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) DESC
+            """
+            
+            unmapped = db.execute_query(unmapped_query, [start_date, end_date])
+            
+            return jsonify({
+                'month': month_param,
+                'buckets': buckets,
+                'summary': {
+                    'rental': {
+                        'total': float(summary_data.get('RentalTotal', 0)),
+                        'count': int(summary_data.get('RentalCount', 0))
+                    },
+                    'used_equipment': {
+                        'total': float(summary_data.get('UsedTotal', 0)),
+                        'count': int(summary_data.get('UsedCount', 0))
+                    },
+                    'allied_equipment': {
+                        'total': float(summary_data.get('AlliedTotal', 0)),
+                        'count': int(summary_data.get('AlliedCount', 0))
+                    },
+                    'new_equipment': {
+                        'total': float(summary_data.get('NewTotal', 0)),
+                        'count': int(summary_data.get('NewCount', 0))
+                    }
+                },
+                'unmapped_equipment_codes': [dict(row) for row in unmapped] if unmapped else []
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in sales commission buckets: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
 
