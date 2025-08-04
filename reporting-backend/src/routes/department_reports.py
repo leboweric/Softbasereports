@@ -5032,4 +5032,55 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching commission details: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/invoice-sales-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_invoice_sales_diagnostic():
+        """Diagnostic endpoint to explore InvoiceSales table for cost data"""
+        try:
+            db = get_db()
+            
+            # First, get column info
+            columns_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                CHARACTER_MAXIMUM_LENGTH,
+                IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+                AND TABLE_NAME = 'InvoiceSales'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            columns = db.execute_query(columns_query)
+            
+            # Get sample data
+            sample_query = """
+            SELECT TOP 10 *
+            FROM ben002.InvoiceSales
+            WHERE InvoiceNo IN (
+                SELECT TOP 10 InvoiceNo 
+                FROM ben002.InvoiceReg
+                WHERE SaleCode IN ('LINDEN', 'NEWEQ', 'USEDEQ', 'RNTSALE')
+                AND InvoiceDate >= '2025-01-01'
+                ORDER BY InvoiceDate DESC
+            )
+            """
+            
+            samples = db.execute_query(sample_query)
+            
+            # Check if we have cost-related columns
+            cost_columns = [col for col in columns if 'cost' in col['COLUMN_NAME'].lower() or 'cos' in col['COLUMN_NAME'].lower()]
+            
+            return jsonify({
+                'columns': [dict(col) for col in columns],
+                'cost_columns': [dict(col) for col in cost_columns],
+                'sample_data': [dict(row) for row in samples] if samples else [],
+                'table_exists': len(columns) > 0
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in invoice sales diagnostic: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
 
