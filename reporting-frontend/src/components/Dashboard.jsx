@@ -1153,7 +1153,7 @@ const Dashboard = ({ user }) => {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg">Awaiting Invoice</CardTitle>
+                    <CardTitle className="text-lg">Service Work Orders Awaiting Invoice</CardTitle>
                     {dashboardData.awaiting_invoice_over_three > 0 && (
                       <AlertTriangle className="h-5 w-5 text-orange-600" />
                     )}
@@ -1251,86 +1251,100 @@ const Dashboard = ({ user }) => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle>Total Open Work Orders Over Time</CardTitle>
+                    <CardTitle>Average Days Waiting for Invoice</CardTitle>
                     <CardDescription>
-                      Total value of open work orders at month end since March 2025
+                      Service work orders: Average days between completion and invoice since March 2025
                     </CardDescription>
                   </div>
-                  {dashboardData?.monthly_open_work_orders && dashboardData.monthly_open_work_orders.length > 1 && (() => {
-                    const data = dashboardData.monthly_open_work_orders;
-                    let increasingMonths = 0;
-                    for (let i = 1; i < data.length; i++) {
-                      if (data[i].value > data[i-1].value) increasingMonths++;
-                    }
-                    const percentIncreasing = (increasingMonths / (data.length - 1)) * 100;
-                    
-                    if (percentIncreasing >= 75) {
-                      return (
-                        <div className="flex items-center space-x-1 text-red-600">
-                          <TrendingUp className="h-4 w-4" />
-                          <span className="text-sm font-medium">Increasing Trend</span>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">Target</p>
+                    <p className="text-lg font-semibold text-green-600">3 days</p>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={dashboardData?.monthly_open_work_orders || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <LineChart data={dashboardData?.monthly_invoice_delays || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
-                    <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <YAxis domain={[0, 'dataMax + 5']} />
                     <Tooltip content={({ active, payload, label }) => {
-                      if (active && payload && payload.length) {
+                      if (active && payload && payload.length && dashboardData?.monthly_invoice_delays) {
+                        const data = dashboardData.monthly_invoice_delays.find(item => item.month === label);
                         return (
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                            <p className="font-semibold mb-1">{label}</p>
-                            <p className="text-orange-600">
-                              {formatCurrency(payload[0].value)} in open work orders
-                            </p>
+                            <p className="font-semibold mb-2">{label}</p>
+                            <div className="space-y-1">
+                              <p className={`font-bold ${payload[0].value > 3 ? 'text-red-600' : 'text-green-600'}`}>
+                                Average: {payload[0].value} days
+                              </p>
+                              {data && (
+                                <>
+                                  <p className="text-sm text-gray-600">
+                                    Completed WOs: {data.completed_count}
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    Over 3 days: {data.over_three_days} ({Math.round((data.over_three_days / data.completed_count) * 100)}%)
+                                  </p>
+                                  <p className="text-sm text-gray-600">
+                                    Over 7 days: {data.over_seven_days} ({Math.round((data.over_seven_days / data.completed_count) * 100)}%)
+                                  </p>
+                                </>
+                              )}
+                            </div>
                           </div>
                         )
                       }
                       return null
                     }} />
+                    {/* Target line at 3 days */}
+                    <ReferenceLine 
+                      y={3} 
+                      stroke="#22c55e" 
+                      strokeDasharray="5 5"
+                      strokeWidth={2}
+                      label={{ value: "Target: 3 days", position: "left", style: { fill: '#22c55e', fontWeight: 'bold' } }}
+                    />
                     <Line 
                       type="monotone" 
-                      dataKey="value" 
+                      dataKey="avg_days" 
                       stroke="#f97316" 
-                      strokeWidth={2}
-                      name="Open Work Orders Value"
+                      strokeWidth={3}
+                      name="Average Days"
                       dot={(props) => {
-                        const { cx, cy, index, payload } = props;
-                        const data = dashboardData?.monthly_open_work_orders || [];
-                        const prevValue = index > 0 ? data[index - 1].value : null;
-                        const isIncreasing = prevValue !== null && payload.value > prevValue;
+                        const { cx, cy, payload } = props;
+                        const isAboveTarget = payload.avg_days > 3;
                         
                         return (
                           <g>
-                            <circle cx={cx} cy={cy} r={4} fill="#f97316" />
-                            {isIncreasing && (
+                            <circle 
+                              cx={cx} 
+                              cy={cy} 
+                              r={6} 
+                              fill={isAboveTarget ? "#dc2626" : "#22c55e"} 
+                              stroke="#fff"
+                              strokeWidth={2}
+                            />
+                            {/* Show warning icon if way above target */}
+                            {payload.avg_days > 7 && (
                               <>
-                                {/* Red warning background */}
                                 <rect 
-                                  x={cx - 12} 
-                                  y={cy - 25} 
-                                  width={24} 
-                                  height={18} 
+                                  x={cx - 15} 
+                                  y={cy - 30} 
+                                  width={30} 
+                                  height={20} 
                                   fill="#dc2626" 
-                                  rx={2}
+                                  rx={3}
                                 />
-                                {/* Up arrow */}
                                 <text 
                                   x={cx} 
-                                  y={cy - 11} 
+                                  y={cy - 16} 
                                   textAnchor="middle" 
                                   fill="white" 
-                                  fontSize="14" 
+                                  fontSize="12" 
                                   fontWeight="bold"
                                 >
-                                  ↑
+                                  {payload.avg_days}d
                                 </text>
                               </>
                             )}

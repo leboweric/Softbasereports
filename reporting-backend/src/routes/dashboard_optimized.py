@@ -567,7 +567,7 @@ class DashboardQueries:
             return {'types': [], 'total_value': 0, 'total_count': 0, 'previous_value': 0, 'change': 0, 'change_percent': 0}
     
     def get_awaiting_invoice_work_orders(self):
-        """Get completed work orders awaiting invoice across all departments"""
+        """Get completed SERVICE work orders awaiting invoice"""
         try:
             query = """
             WITH CompletedWOs AS (
@@ -607,6 +607,7 @@ class DashboardQueries:
                   AND w.ClosedDate IS NULL
                   AND w.InvoiceDate IS NULL
                   AND w.DeletionTime IS NULL
+                  AND w.Type = 'S'  -- Service work orders only
             )
             SELECT 
                 COUNT(*) as count,
@@ -648,6 +649,74 @@ class DashboardQueries:
                 'over_five_days': 0,
                 'over_seven_days': 0
             }
+    
+    def get_monthly_invoice_delay_avg(self):
+        """Get average days waiting for invoice at month end for Service work orders"""
+        try:
+            query = """
+            WITH MonthEnds AS (
+                SELECT DISTINCT 
+                    YEAR(CompletedDate) as year,
+                    MONTH(CompletedDate) as month,
+                    EOMONTH(CompletedDate) as month_end
+                FROM ben002.WO
+                WHERE CompletedDate >= '2025-03-01'
+                    AND CompletedDate <= GETDATE()
+                    AND Type = 'S'  -- Service work orders only
+            ),
+            MonthlyDelays AS (
+                SELECT 
+                    me.year,
+                    me.month,
+                    me.month_end,
+                    w.WONo,
+                    w.CompletedDate,
+                    COALESCE(w.InvoiceDate, w.ClosedDate) as InvoicedDate,
+                    CASE 
+                        -- If invoiced in same month or before month end, calculate actual days
+                        WHEN COALESCE(w.InvoiceDate, w.ClosedDate) <= me.month_end 
+                        THEN DATEDIFF(day, w.CompletedDate, COALESCE(w.InvoiceDate, w.ClosedDate))
+                        -- If not invoiced by month end, calculate days to month end
+                        ELSE DATEDIFF(day, w.CompletedDate, me.month_end)
+                    END as DaysWaiting
+                FROM MonthEnds me
+                INNER JOIN ben002.WO w 
+                    ON YEAR(w.CompletedDate) = me.year 
+                    AND MONTH(w.CompletedDate) = me.month
+                WHERE w.CompletedDate IS NOT NULL
+                    AND w.Type = 'S'  -- Service work orders only
+            )
+            SELECT 
+                year,
+                month,
+                COUNT(*) as completed_count,
+                AVG(CAST(DaysWaiting as FLOAT)) as avg_days_waiting,
+                COUNT(CASE WHEN DaysWaiting > 3 THEN 1 END) as over_three_days,
+                COUNT(CASE WHEN DaysWaiting > 7 THEN 1 END) as over_seven_days
+            FROM MonthlyDelays
+            GROUP BY year, month
+            ORDER BY year, month
+            """
+            
+            results = self.db.execute_query(query)
+            monthly_delays = []
+            
+            if results:
+                for row in results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    monthly_delays.append({
+                        'month': month_date.strftime("%b"),
+                        'year': row['year'],
+                        'avg_days': round(float(row['avg_days_waiting']), 1),
+                        'completed_count': int(row['completed_count']),
+                        'over_three_days': int(row['over_three_days']),
+                        'over_seven_days': int(row['over_seven_days'])
+                    })
+            
+            return monthly_delays
+        except Exception as e:
+            logger.error(f"Monthly invoice delay query failed: {str(e)}")
+            return []
     
     def get_top_customers(self):
         """Get top 10 customers by fiscal YTD sales"""
@@ -1065,7 +1134,8 @@ def get_dashboard_summary_optimized():
             'department_margins': lambda: cached_query('department_margins', queries.get_department_margins, cache_ttl['department_margins']),
             'monthly_active_customers': lambda: cached_query('monthly_active_customers', queries.get_monthly_active_customers, cache_ttl['active_customers']),
             'monthly_open_work_orders': lambda: cached_query('monthly_open_work_orders', queries.get_monthly_open_work_orders, cache_ttl['work_order_types']),
-            'awaiting_invoice': lambda: cached_query('awaiting_invoice', queries.get_awaiting_invoice_work_orders, cache_ttl['uninvoiced'])
+            'awaiting_invoice': lambda: cached_query('awaiting_invoice', queries.get_awaiting_invoice_work_orders, cache_ttl['uninvoiced']),
+            'monthly_invoice_delays': lambda: cached_query('monthly_invoice_delays', queries.get_monthly_invoice_delay_avg, cache_ttl['work_order_types'])
         }
         
         # Execute queries in parallel
@@ -1142,6 +1212,8 @@ def get_dashboard_summary_optimized():
             'awaiting_invoice_over_three': awaiting_invoice_data['over_three_days'],
             'awaiting_invoice_over_five': awaiting_invoice_data['over_five_days'],
             'awaiting_invoice_over_seven': awaiting_invoice_data['over_seven_days'],
+            # Monthly invoice delay trends
+            'monthly_invoice_delays': results.get('monthly_invoice_delays', []),
             'period': datetime.now().strftime('%B %Y'),
             'last_updated': datetime.now().isoformat(),
             'query_time': round(time.time() - start_time, 2),
