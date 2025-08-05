@@ -1761,6 +1761,19 @@ def register_department_routes(reports_bp):
             """
             labor_details = db.execute_query(labor_query, [wo_number])
             
+            # Debug: Let's also check if there's any labor data in other fields
+            # Check the WO table itself for labor totals
+            wo_labor_check_query = """
+            SELECT 
+                LaborCost,
+                LaborSell,
+                FlatRateLabor,
+                FlatRateLaborCost
+            FROM ben002.WO
+            WHERE WONo = %s
+            """
+            wo_labor_data = db.execute_query(wo_labor_check_query, [wo_number])
+            
             # Get parts details
             parts_query = """
             SELECT 
@@ -1831,7 +1844,9 @@ def register_department_routes(reports_bp):
                     'status': wo_data.get('Status'),
                     'type': wo_data.get('Type'),
                     'saleCode': wo_data.get('SaleCode'),
-                    'saleDept': wo_data.get('SaleDept')
+                    'saleDept': wo_data.get('SaleDept'),
+                    # Debug info for labor
+                    'laborDebug': dict(wo_labor_data[0]) if wo_labor_data else None
                 },
                 'labor': {
                     'details': [dict(row) for row in labor_details],

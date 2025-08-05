@@ -459,6 +459,16 @@ const RentalServiceReport = () => {
                       <div>Make/Model: {woDetail.workOrder.make} {woDetail.workOrder.model}</div>
                       <div>Sale Code: {woDetail.workOrder.saleCode}</div>
                     </div>
+                    {/* Debug labor info */}
+                    {woDetail.workOrder.laborDebug && (
+                      <div className="mt-2 p-2 bg-yellow-100 rounded text-xs">
+                        <strong>Labor Debug Info:</strong>
+                        <div>LaborCost: {formatCurrency(woDetail.workOrder.laborDebug.LaborCost || 0)}</div>
+                        <div>LaborSell: {formatCurrency(woDetail.workOrder.laborDebug.LaborSell || 0)}</div>
+                        <div>FlatRateLabor: {formatCurrency(woDetail.workOrder.laborDebug.FlatRateLabor || 0)}</div>
+                        <div>FlatRateLaborCost: {formatCurrency(woDetail.workOrder.laborDebug.FlatRateLaborCost || 0)}</div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Cost Breakdown */}
