@@ -5278,6 +5278,124 @@ def register_department_routes(reports_bp):
             logger.error(f"Error in equipment sales diagnostic: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/sales-commission-invoice-debug', methods=['GET'])
+    @jwt_required()
+    def sales_commission_invoice_debug():
+        """Debug specific invoices to check salesman assignment"""
+        try:
+            db = get_db()
+            
+            # Check specific invoices mentioned by user
+            invoice_numbers = ['110000007', '110000008', '110000009', '110000010']
+            
+            # First, check if InvoiceReg has any salesman fields directly
+            columns_query = """
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+                AND TABLE_NAME = 'InvoiceReg'
+                AND (COLUMN_NAME LIKE '%Sales%' OR COLUMN_NAME LIKE '%sales%' OR COLUMN_NAME LIKE '%rep%')
+            ORDER BY COLUMN_NAME
+            """
+            
+            columns = db.execute_query(columns_query)
+            salesman_columns = [col['COLUMN_NAME'] for col in columns]
+            
+            # Check the invoice details with multiple join approaches
+            debug_query = """
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName,
+                ir.SaleCode,
+                ir.Comments,
+                -- Customer based on BillTo
+                c1.Number as Customer1_Number,
+                c1.Name as Customer1_Name,
+                c1.Salesman1 as Customer1_Salesman1,
+                c1.Salesman2 as Customer1_Salesman2,
+                c1.Salesman3 as Customer1_Salesman3,
+                -- Customer based on name match
+                c2.Number as Customer2_Number,
+                c2.Name as Customer2_Name,
+                c2.Salesman1 as Customer2_Salesman1,
+                -- Equipment info
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
+                ir.GrandTotal
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+            LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name
+            WHERE ir.InvoiceNo IN (110000007, 110000008, 110000009, 110000010)
+            """
+            
+            invoice_details = db.execute_query(debug_query)
+            
+            # Check Customer table for the specific customer
+            customer_check_query = """
+            SELECT TOP 10
+                Number,
+                Name,
+                Salesman1,
+                Salesman2,
+                Salesman3
+            FROM ben002.Customer
+            WHERE Name LIKE '%SCHIFFLER%'
+                OR Name LIKE '%SIMONSON%'
+                OR Name LIKE '%COLD SPRING%'
+                OR Name LIKE '%CKC GOOD FOOD%'
+            ORDER BY Name
+            """
+            
+            customer_details = db.execute_query(customer_check_query)
+            
+            # Check if there's a separate salesman assignment table
+            salesman_table_query = """
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'ben002'
+                AND (TABLE_NAME LIKE '%Sales%' OR TABLE_NAME LIKE '%Commission%')
+                AND TABLE_TYPE = 'BASE TABLE'
+            """
+            
+            salesman_tables = db.execute_query(salesman_table_query)
+            
+            # Check InvoiceSales table for salesman info
+            invoice_sales_check = """
+            SELECT TOP 10 *
+            FROM ben002.InvoiceSales
+            WHERE InvoiceNo IN (110000007, 110000008, 110000009, 110000010)
+            """
+            
+            try:
+                invoice_sales_data = db.execute_query(invoice_sales_check)
+                has_invoice_sales = True
+            except:
+                invoice_sales_data = []
+                has_invoice_sales = False
+            
+            return jsonify({
+                'invoices': [dict(row) for row in invoice_details],
+                'salesman_columns_in_invoice': salesman_columns,
+                'customer_details': [dict(row) for row in customer_details],
+                'potential_salesman_tables': [dict(row) for row in salesman_tables],
+                'invoice_sales_data': [dict(row) for row in invoice_sales_data] if has_invoice_sales else [],
+                'has_invoice_sales_table': has_invoice_sales,
+                'debug_notes': {
+                    'issue': 'Salesman shown on physical invoice but not in database join',
+                    'example': 'Invoice 110000007 shows Rod Hauer but query returns NULL',
+                    'possible_causes': [
+                        'BillTo field may not match Customer.Number',
+                        'Salesman might be stored elsewhere (not in Customer table)',
+                        'Customer record might be missing salesman assignment'
+                    ]
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in sales commission invoice debug: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/accounting/find-linde-invoice', methods=['GET'])
     @jwt_required()
     def find_linde_invoice():

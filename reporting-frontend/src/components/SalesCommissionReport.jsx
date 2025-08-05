@@ -12,9 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, AlertCircle, Bug } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
+import SalesCommissionInvoiceDebug from './SalesCommissionInvoiceDebug'
 
 const SalesCommissionReport = ({ user }) => {
   const [loading, setLoading] = useState(true)
@@ -25,6 +26,7 @@ const SalesCommissionReport = ({ user }) => {
   const [detailsData, setDetailsData] = useState(null)
   const [showDetails, setShowDetails] = useState(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
+  const [showInvoiceDebug, setShowInvoiceDebug] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
     // Default to previous month since commissions are usually calculated for completed months
@@ -688,6 +690,35 @@ const SalesCommissionReport = ({ user }) => {
                     Failed to load diagnostic data
                   </div>
                 )}
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Invoice Debug Tool */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CardTitle>Invoice Salesman Debug</CardTitle>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <Bug className="h-3 w-3" />
+                    Debug Tool
+                  </Badge>
+                </div>
+                <Button
+                  onClick={() => setShowInvoiceDebug(!showInvoiceDebug)}
+                  variant="outline"
+                  size="sm"
+                >
+                  {showInvoiceDebug ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {showInvoiceDebug ? 'Hide' : 'Show'} Debug Tool
+                </Button>
+              </div>
+              <CardDescription>Investigate missing salesman assignments for specific invoices</CardDescription>
+            </CardHeader>
+            {showInvoiceDebug && (
+              <CardContent>
+                <SalesCommissionInvoiceDebug user={user} />
               </CardContent>
             )}
           </Card>
