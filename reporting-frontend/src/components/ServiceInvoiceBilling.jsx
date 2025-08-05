@@ -471,7 +471,7 @@ const ServiceInvoiceBilling = () => {
                       </TableRow>
                     ))}
                     <TableRow className="font-bold bg-gray-50">
-                      <TableCell colSpan={10} className="text-right sticky left-0 bg-gray-50">
+                      <TableCell colSpan={10} className="text-right">
                         TOTALS:
                       </TableCell>
                       <TableCell className="text-right">
