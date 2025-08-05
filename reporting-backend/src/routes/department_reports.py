@@ -1574,18 +1574,31 @@ def register_department_routes(reports_bp):
                 AND w.WONo NOT IN ('140001773', '140001780')  -- Exclude corrupt work orders
                 ORDER BY w.OpenDate DESC
             ),
+            -- Get sell prices (what customer pays) instead of costs
             LaborCosts AS (
                 SELECT 
                     WONo,
-                    SUM(Cost) as LaborCost
+                    SUM(Cost) as LaborCost,
+                    SUM(Sell) as LaborSell
                 FROM ben002.WOLabor
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
+                GROUP BY WONo
+            ),
+            -- Include labor quotes (flat rate labor)
+            LaborQuotes AS (
+                SELECT 
+                    WONo,
+                    SUM(Amount) as QuoteAmount
+                FROM ben002.WOQuote
+                WHERE WONo IN (SELECT WONo FROM RentalWOs)
+                  AND Type = 'L'
                 GROUP BY WONo
             ),
             PartsCosts AS (
                 SELECT 
                     WONo,
-                    SUM(Cost) as PartsCost
+                    SUM(Cost) as PartsCost,
+                    SUM(Sell) as PartsSell
                 FROM ben002.WOParts
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
@@ -1593,7 +1606,8 @@ def register_department_routes(reports_bp):
             MiscCosts AS (
                 SELECT 
                     WONo,
-                    SUM(Cost) as MiscCost
+                    SUM(Cost) as MiscCost,
+                    SUM(Sell) as MiscSell
                 FROM ben002.WOMisc
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
@@ -1603,12 +1617,20 @@ def register_department_routes(reports_bp):
                 COALESCE(l.LaborCost, 0) as LaborCost,
                 COALESCE(p.PartsCost, 0) as PartsCost,
                 COALESCE(m.MiscCost, 0) as MiscCost,
-                COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost
+                COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost,
+                -- New fields for invoice totals (sell prices)
+                COALESCE(l.LaborSell, 0) as LaborSell,
+                COALESCE(lq.QuoteAmount, 0) as LaborQuote,
+                COALESCE(p.PartsSell, 0) as PartsSell,
+                COALESCE(m.MiscSell, 0) as MiscSell,
+                -- Total invoice amount (what customer pays)
+                COALESCE(l.LaborSell, 0) + COALESCE(lq.QuoteAmount, 0) + COALESCE(p.PartsSell, 0) + COALESCE(m.MiscSell, 0) as InvoiceTotal
             FROM RentalWOs r
             LEFT JOIN LaborCosts l ON r.WONo = l.WONo
+            LEFT JOIN LaborQuotes lq ON r.WONo = lq.WONo
             LEFT JOIN PartsCosts p ON r.WONo = p.WONo
             LEFT JOIN MiscCosts m ON r.WONo = m.WONo
-            ORDER BY TotalCost DESC, r.OpenDate DESC
+            ORDER BY InvoiceTotal DESC, r.OpenDate DESC
             """
             
             results = db.execute_query(optimized_query)
@@ -1616,6 +1638,7 @@ def register_department_routes(reports_bp):
             # Process the results
             work_orders = []
             total_cost = 0
+            total_invoice = 0
             
             for wo in results:
                 labor_cost = float(wo.get('LaborCost', 0) or 0)
@@ -1623,7 +1646,15 @@ def register_department_routes(reports_bp):
                 misc_cost = float(wo.get('MiscCost', 0) or 0)
                 total_wo_cost = float(wo.get('TotalCost', 0) or 0)
                 
+                # Invoice totals (sell prices)
+                labor_sell = float(wo.get('LaborSell', 0) or 0)
+                labor_quote = float(wo.get('LaborQuote', 0) or 0)
+                parts_sell = float(wo.get('PartsSell', 0) or 0)
+                misc_sell = float(wo.get('MiscSell', 0) or 0)
+                invoice_total = float(wo.get('InvoiceTotal', 0) or 0)
+                
                 total_cost += total_wo_cost
+                total_invoice += invoice_total
                 
                 work_orders.append({
                     'woNumber': wo.get('WONo'),
@@ -1639,20 +1670,18 @@ def register_department_routes(reports_bp):
                     'laborCost': labor_cost,
                     'partsCost': parts_cost,
                     'miscCost': misc_cost,
-                    'totalCost': total_wo_cost
+                    'totalCost': invoice_total  # Use invoice total instead of cost
                 })
             
             
-            # Calculate totals
-            total_cost = sum(wo['totalCost'] for wo in work_orders)
-            
+            # Calculate totals - now using invoice amounts
             summary = {
                 'totalWorkOrders': len(work_orders),
                 'totalLaborCost': sum(wo['laborCost'] for wo in work_orders),
                 'totalPartsCost': sum(wo['partsCost'] for wo in work_orders),
                 'totalMiscCost': sum(wo['miscCost'] for wo in work_orders),
-                'totalCost': total_cost,
-                'averageCostPerWO': total_cost / len(work_orders) if work_orders else 0
+                'totalCost': total_invoice,  # Use invoice total
+                'averageCostPerWO': total_invoice / len(work_orders) if work_orders else 0
             }
             
             # Monthly trend query for rental work orders

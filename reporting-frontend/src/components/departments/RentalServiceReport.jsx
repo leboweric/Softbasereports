@@ -193,11 +193,11 @@ const RentalServiceReport = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Invoice Amount</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${(summary?.totalCost || 0) > 0 ? 'text-red-600' : ''}`}>
+            <div className={`text-2xl font-bold ${(summary?.totalCost || 0) > 0 ? 'text-green-600' : ''}`}>
               {formatCurrency(summary?.totalCost || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -244,14 +244,14 @@ const RentalServiceReport = () => {
                   <TableHead>Make/Model</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date Opened</TableHead>
-                  <TableHead className="text-right">Total Cost</TableHead>
+                  <TableHead className="text-right">Invoice Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {workOrders.map((wo) => (
                   <TableRow 
                     key={wo.woNumber}
-                    className={wo.totalCost > 0 ? "bg-blue-50" : ""}
+                    className={wo.totalCost > 0 ? "bg-green-50" : ""}
                   >
                     <TableCell className="font-medium">{wo.woNumber}</TableCell>
                     <TableCell>{wo.billTo || 'N/A'}</TableCell>
@@ -260,7 +260,7 @@ const RentalServiceReport = () => {
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
                     <TableCell>{wo.openDate || 'N/A'}</TableCell>
-                    <TableCell className={`text-right font-medium ${wo.totalCost > 0 ? 'text-red-600' : ''}`}>
+                    <TableCell className={`text-right font-medium ${wo.totalCost > 0 ? 'text-green-600' : ''}`}>
                       {formatCurrency(wo.totalCost)}
                     </TableCell>
                   </TableRow>
@@ -268,7 +268,7 @@ const RentalServiceReport = () => {
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
                 <TableCell colSpan={7}>Total</TableCell>
-                <TableCell className={`text-right ${(summary?.totalCost || 0) > 0 ? 'text-red-600' : ''}`}>
+                <TableCell className={`text-right ${(summary?.totalCost || 0) > 0 ? 'text-green-600' : ''}`}>
                   {formatCurrency(summary?.totalCost || 0)}
                 </TableCell>
               </TableRow>
