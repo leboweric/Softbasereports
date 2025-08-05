@@ -105,15 +105,24 @@ const ServiceInvoiceBilling = () => {
   }
 
   useEffect(() => {
-    fetchCustomers()
-  }, [])
+    // Fetch customers when both dates are selected
+    if (startDate && endDate) {
+      fetchCustomers()
+    } else {
+      // Clear customers if dates are not selected
+      setCustomers([{ value: 'ALL', label: 'All Customers' }])
+      setSelectedCustomer('ALL')
+    }
+  }, [startDate, endDate])
 
   const fetchCustomers = async () => {
+    if (!startDate || !endDate) return
+    
     setCustomersLoading(true)
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(
-        apiUrl('/api/reports/departments/service/customers'),
+        apiUrl(`/api/reports/departments/service/customers?start_date=${startDate}&end_date=${endDate}`),
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -124,11 +133,17 @@ const ServiceInvoiceBilling = () => {
       if (response.ok) {
         const data = await response.json()
         setCustomers(data)
+        // Reset to 'ALL' if current selection is not in the new list
+        if (!data.find(c => c.value === selectedCustomer)) {
+          setSelectedCustomer('ALL')
+        }
       } else {
         console.error('Failed to fetch customers')
+        setCustomers([{ value: 'ALL', label: 'All Customers' }])
       }
     } catch (error) {
       console.error('Error fetching customers:', error)
+      setCustomers([{ value: 'ALL', label: 'All Customers' }])
     } finally {
       setCustomersLoading(false)
     }
@@ -249,7 +264,7 @@ const ServiceInvoiceBilling = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-4 gap-4 items-end">
+          <div className={`grid ${startDate && endDate ? 'grid-cols-4' : 'grid-cols-3'} gap-4 items-end`}>
             <div>
               <Label htmlFor="start-date">Start Date</Label>
               <Input
@@ -270,31 +285,33 @@ const ServiceInvoiceBilling = () => {
                 className="mt-1"
               />
             </div>
-            <div>
-              <Label htmlFor="customer">Bill To</Label>
-              <Select
-                value={selectedCustomer}
-                onValueChange={setSelectedCustomer}
-                disabled={customersLoading}
-              >
-                <SelectTrigger id="customer" className="mt-1">
-                  <SelectValue placeholder={customersLoading ? "Loading..." : "All Customers"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.value} value={customer.value}>
-                      {customer.label}
-                      {customer.value && (
-                        <span className="text-xs text-gray-500 ml-2">
-                          ({customer.invoiceCount} invoices)
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button onClick={fetchReport} disabled={loading}>
+            {startDate && endDate && (
+              <div>
+                <Label htmlFor="customer">Bill To</Label>
+                <Select
+                  value={selectedCustomer}
+                  onValueChange={setSelectedCustomer}
+                  disabled={customersLoading}
+                >
+                  <SelectTrigger id="customer" className="mt-1">
+                    <SelectValue placeholder={customersLoading ? "Loading customers..." : "All Customers"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((customer) => (
+                      <SelectItem key={customer.value} value={customer.value}>
+                        {customer.label}
+                        {customer.value !== 'ALL' && (
+                          <span className="text-xs text-gray-500 ml-2">
+                            ({customer.invoiceCount} invoices)
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <Button onClick={fetchReport} disabled={loading || !startDate || !endDate}>
               <Calendar className="h-4 w-4 mr-2" />
               Generate Report
             </Button>

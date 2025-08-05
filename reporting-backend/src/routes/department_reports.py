@@ -6398,11 +6398,17 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/service/customers', methods=['GET'])
     @jwt_required()
     def get_service_customers():
-        """Get list of customers with service invoices"""
+        """Get list of customers with service invoices in date range"""
         try:
-            # Get customers with recent service invoices (last 2 years for performance)
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            
+            if not start_date or not end_date:
+                return jsonify({'error': 'Start date and end date are required'}), 400
+            
+            # Get customers with service invoices in the specified date range
             query = """
-            SELECT TOP 500
+            SELECT 
                 c.Number as CustomerNo,
                 c.Name as CustomerName,
                 COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
@@ -6410,16 +6416,18 @@ def register_department_routes(reports_bp):
             FROM ben002.Customer c
             INNER JOIN ben002.InvoiceReg i ON c.Number = i.BillTo
             WHERE i.DeletionTime IS NULL
-              AND i.InvoiceDate >= DATEADD(YEAR, -2, GETDATE())
+              AND i.InvoiceDate >= %s
+              AND i.InvoiceDate <= %s
               AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
                    OR i.SaleDept IN (20, 25, 29))
               AND i.GrandTotal > 0
             GROUP BY c.Number, c.Name
-            ORDER BY COUNT(DISTINCT i.InvoiceNo) DESC, c.Name
+            HAVING COUNT(DISTINCT i.InvoiceNo) > 0
+            ORDER BY c.Name
             """
             
             db = get_db()
-            customers = db.execute_query(query)
+            customers = db.execute_query(query, [start_date, end_date])
             
             # Format the response
             customer_list = [
