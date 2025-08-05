@@ -49,6 +49,8 @@ const PartsReport = ({ user, onNavigate }) => {
   const [velocityData, setVelocityData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [openWorkOrdersData, setOpenWorkOrdersData] = useState(null)
+  const [openWorkOrdersDetails, setOpenWorkOrdersDetails] = useState(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
   const [paceData, setPaceData] = useState(null)
   const [fillRateLoading, setFillRateLoading] = useState(true)
   const [reorderAlertLoading, setReorderAlertLoading] = useState(true)
@@ -59,6 +61,7 @@ const PartsReport = ({ user, onNavigate }) => {
   const [top10Loading, setTop10Loading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState('overview')
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -94,6 +97,13 @@ const PartsReport = ({ user, onNavigate }) => {
     fetchPaceData()
     fetchOpenWorkOrdersData()
   }, [])
+
+  useEffect(() => {
+    // Fetch work order details when switching to work orders tab
+    if (activeTab === 'work-orders' && !openWorkOrdersDetails) {
+      fetchOpenWorkOrdersDetails()
+    }
+  }, [activeTab])
 
   const fetchPartsData = async () => {
     try {
@@ -279,6 +289,69 @@ const PartsReport = ({ user, onNavigate }) => {
     } catch (error) {
       console.error('Error fetching open parts work orders data:', error)
     }
+  }
+
+  const fetchOpenWorkOrdersDetails = async () => {
+    try {
+      setDetailsLoading(true)
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/parts/open-work-orders-details'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setOpenWorkOrdersDetails(data)
+      }
+    } catch (error) {
+      console.error('Error fetching open work order details:', error)
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const exportToCSV = () => {
+    if (!openWorkOrdersDetails) return
+    
+    const headers = ['WO#', 'Opened', 'Days Open', 'Customer', 'Unit', 'Make/Model', 'Technician', 'Parts', 'Misc', 'Total']
+    const rows = openWorkOrdersDetails.work_orders.map(wo => [
+      wo.wo_number,
+      wo.open_date,
+      wo.days_open,
+      wo.customer_name,
+      wo.unit_no || '',
+      wo.make && wo.model ? `${wo.make} ${wo.model}` : '',
+      wo.technician || '',
+      wo.parts_total.toFixed(2),
+      wo.misc_total.toFixed(2),
+      wo.total_value.toFixed(2)
+    ])
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => {
+        const cellStr = String(cell)
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`
+        }
+        return cellStr
+      }).join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    const today = new Date().toISOString().split('T')[0]
+    link.setAttribute('href', url)
+    link.setAttribute('download', `parts_open_work_orders_${today}.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
 
@@ -474,51 +547,10 @@ const PartsReport = ({ user, onNavigate }) => {
         <p className="text-muted-foreground">Monitor parts sales and inventory performance</p>
       </div>
 
-      {/* Open Parts Work Orders */}
-      {openWorkOrdersData && openWorkOrdersData.count > 0 && (
-        <Card className="border-2 border-blue-400 bg-blue-50">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-lg">Open Parts Work Orders</CardTitle>
-                <Package className="h-5 w-5 text-blue-600" />
-              </div>
-              <Badge variant="default" className="bg-blue-600">
-                {openWorkOrdersData.count} work orders
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Value</p>
-                <p className="text-2xl font-bold text-blue-900">{formatCurrency(openWorkOrdersData.total_value)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Days Open</p>
-                <p className="text-2xl font-bold flex items-center gap-1 text-blue-900">
-                  <Clock className="h-5 w-5" />
-                  {openWorkOrdersData.avg_days_open.toFixed(0)} days
-                </p>
-              </div>
-            </div>
-            {openWorkOrdersData.avg_days_open > 7 && (
-              <div className="pt-3 border-t">
-                <div className="flex items-center gap-2 text-sm">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span className="text-amber-700">
-                    Average work order has been open for over a week
-                  </span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="work-orders">Work Orders</TabsTrigger>
           <TabsTrigger value="stock-alerts">Stock Alerts</TabsTrigger>
           <TabsTrigger value="velocity">Velocity</TabsTrigger>
           <TabsTrigger value="forecast">Forecast</TabsTrigger>
@@ -768,6 +800,159 @@ const PartsReport = ({ user, onNavigate }) => {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   No parts data available for this period
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="work-orders" className="space-y-6">
+          {/* Open Parts Work Orders Card */}
+          {openWorkOrdersData && openWorkOrdersData.count > 0 && (
+            <Card className="border-2 border-blue-400 bg-blue-50">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg">Open Parts Work Orders</CardTitle>
+                    <Package className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <Badge variant="default" className="bg-blue-600">
+                    {openWorkOrdersData.count} work orders
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Value</p>
+                    <p className="text-2xl font-bold text-blue-900">{formatCurrency(openWorkOrdersData.total_value)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Avg Days Open</p>
+                    <p className="text-2xl font-bold flex items-center gap-1 text-blue-900">
+                      <Clock className="h-5 w-5" />
+                      {openWorkOrdersData.avg_days_open.toFixed(0)} days
+                    </p>
+                  </div>
+                </div>
+                {openWorkOrdersData.avg_days_open > 7 && (
+                  <div className="pt-3 border-t">
+                    <div className="flex items-center gap-2 text-sm">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <span className="text-amber-700">
+                        Average work order has been open for over a week
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Open Work Orders Details Report */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Open Work Orders Details</CardTitle>
+                  <CardDescription>Detailed list of all open Parts work orders</CardDescription>
+                </div>
+                {openWorkOrdersDetails && (
+                  <Button onClick={exportToCSV} size="sm" variant="outline">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export to CSV
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {detailsLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <LoadingSpinner />
+                </div>
+              ) : openWorkOrdersDetails ? (
+                <div className="space-y-4">
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Total WOs</p>
+                      <p className="text-xl font-bold">{openWorkOrdersDetails.summary.count}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Total Value</p>
+                      <p className="text-xl font-bold">{formatCurrency(openWorkOrdersDetails.summary.total_value)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Avg Days</p>
+                      <p className="text-xl font-bold text-amber-600">{openWorkOrdersDetails.summary.avg_days_open}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">>7 Days</p>
+                      <p className="text-xl font-bold text-orange-600">{openWorkOrdersDetails.summary.over_7_days}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">>14 Days</p>
+                      <p className="text-xl font-bold text-red-600">{openWorkOrdersDetails.summary.over_14_days}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">>30 Days</p>
+                      <p className="text-xl font-bold text-red-900">{openWorkOrdersDetails.summary.over_30_days}</p>
+                    </div>
+                  </div>
+
+                  {/* Table */}
+                  <div className="overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>WO#</TableHead>
+                          <TableHead>Opened</TableHead>
+                          <TableHead className="text-center">Days Open</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Unit</TableHead>
+                          <TableHead>Make/Model</TableHead>
+                          <TableHead>Technician</TableHead>
+                          <TableHead className="text-right">Parts</TableHead>
+                          <TableHead className="text-right">Misc</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {openWorkOrdersDetails.work_orders.map((wo) => (
+                          <TableRow 
+                            key={wo.wo_number}
+                            className={wo.days_open > 30 ? 'bg-red-50' : wo.days_open > 14 ? 'bg-orange-50' : wo.days_open > 7 ? 'bg-yellow-50' : ''}
+                          >
+                            <TableCell className="font-medium">{wo.wo_number}</TableCell>
+                            <TableCell>{wo.open_date}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                variant={wo.days_open > 30 ? "destructive" : wo.days_open > 14 ? "warning" : wo.days_open > 7 ? "secondary" : "outline"}
+                                className="font-mono"
+                              >
+                                {wo.days_open}d
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
+                              {wo.customer_name}
+                            </TableCell>
+                            <TableCell>{wo.unit_no || '-'}</TableCell>
+                            <TableCell className="max-w-[150px] truncate" title={wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}>
+                              {wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}
+                            </TableCell>
+                            <TableCell>{wo.technician || '-'}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(wo.parts_total)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(wo.misc_total)}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(wo.total_value)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading work order details...
                 </div>
               )}
             </CardContent>

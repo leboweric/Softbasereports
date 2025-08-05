@@ -94,6 +94,92 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching open parts work orders: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/parts/open-work-orders-details', methods=['GET'])
+    @jwt_required()
+    def get_parts_open_work_orders_details():
+        """Get detailed list of open Parts work orders"""
+        try:
+            db = get_db()
+            
+            query = """
+            SELECT 
+                w.WONo,
+                w.Type,
+                w.OpenDate,
+                w.BillTo,
+                c.Name as CustomerName,
+                w.UnitNo,
+                e.Make,
+                e.Model,
+                w.Technician,
+                DATEDIFF(day, w.OpenDate, GETDATE()) as DaysSinceOpened,
+                COALESCE(p.parts_total, 0) as parts_total,
+                COALESCE(m.misc_total, 0) as misc_total,
+                COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0) as total_value
+            FROM ben002.WO w
+            LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+            LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ) p ON w.WONo = p.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as misc_total 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            ) m ON w.WONo = m.WONo
+            WHERE w.ClosedDate IS NULL
+              AND w.DeletionTime IS NULL
+              AND w.Type = 'P'
+            ORDER BY w.OpenDate ASC
+            """
+            
+            results = db.execute_query(query)
+            
+            work_orders = []
+            if results:
+                for row in results:
+                    work_orders.append({
+                        'wo_number': row['WONo'],
+                        'type': row['Type'],
+                        'open_date': row['OpenDate'].strftime('%Y-%m-%d') if row['OpenDate'] else None,
+                        'bill_to': row['BillTo'],
+                        'customer_name': row['CustomerName'] or 'Unknown',
+                        'unit_no': row['UnitNo'],
+                        'make': row['Make'],
+                        'model': row['Model'],
+                        'technician': row['Technician'],
+                        'days_open': int(row['DaysSinceOpened']),
+                        'parts_total': float(row['parts_total'] or 0),
+                        'misc_total': float(row['misc_total'] or 0),
+                        'total_value': float(row['total_value'] or 0)
+                    })
+            
+            # Calculate summary stats
+            total_count = len(work_orders)
+            total_value = sum(wo['total_value'] for wo in work_orders)
+            avg_days_open = sum(wo['days_open'] for wo in work_orders) / total_count if total_count > 0 else 0
+            over_seven_days = sum(1 for wo in work_orders if wo['days_open'] > 7)
+            over_fourteen_days = sum(1 for wo in work_orders if wo['days_open'] > 14)
+            over_thirty_days = sum(1 for wo in work_orders if wo['days_open'] > 30)
+            
+            return jsonify({
+                'summary': {
+                    'count': total_count,
+                    'total_value': total_value,
+                    'avg_days_open': int(avg_days_open),
+                    'over_7_days': over_seven_days,
+                    'over_14_days': over_fourteen_days,
+                    'over_30_days': over_thirty_days
+                },
+                'work_orders': work_orders
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching open parts work order details: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/parts/work-order-status', methods=['GET'])
     @jwt_required()
     def get_parts_wo_status():
