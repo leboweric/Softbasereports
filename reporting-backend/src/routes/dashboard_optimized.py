@@ -566,6 +566,90 @@ class DashboardQueries:
             logger.error(f"Work order types query failed: {str(e)}")
             return {'types': [], 'total_value': 0, 'total_count': 0, 'previous_value': 0, 'change': 0, 'change_percent': 0}
     
+    def get_awaiting_invoice_work_orders(self):
+        """Get completed work orders awaiting invoice across all departments"""
+        try:
+            query = """
+            WITH CompletedWOs AS (
+                SELECT 
+                    w.WONo,
+                    w.Type,
+                    w.CompletedDate,
+                    w.BillTo,
+                    DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysSinceCompleted,
+                    -- Include labor quotes for flat rate labor
+                    COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) as labor_total,
+                    COALESCE(p.parts_sell, 0) as parts_total,
+                    COALESCE(m.misc_sell, 0) as misc_total
+                FROM ben002.WO w
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as labor_sell 
+                    FROM ben002.WOLabor 
+                    GROUP BY WONo
+                ) l ON w.WONo = l.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Amount) as quote_amount 
+                    FROM ben002.WOQuote 
+                    WHERE Type = 'L'
+                    GROUP BY WONo
+                ) lq ON w.WONo = lq.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell * Qty) as parts_sell 
+                    FROM ben002.WOParts 
+                    GROUP BY WONo
+                ) p ON w.WONo = p.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as misc_sell 
+                    FROM ben002.WOMisc 
+                    GROUP BY WONo
+                ) m ON w.WONo = m.WONo
+                WHERE w.CompletedDate IS NOT NULL
+                  AND w.ClosedDate IS NULL
+                  AND w.InvoiceDate IS NULL
+                  AND w.CancelledDate IS NULL
+                  AND w.DeletionTime IS NULL
+            )
+            SELECT 
+                COUNT(*) as count,
+                SUM(labor_total + parts_total + misc_total) as total_value,
+                AVG(DaysSinceCompleted) as avg_days_waiting,
+                COUNT(CASE WHEN DaysSinceCompleted > 3 THEN 1 END) as over_three_days,
+                COUNT(CASE WHEN DaysSinceCompleted > 5 THEN 1 END) as over_five_days,
+                COUNT(CASE WHEN DaysSinceCompleted > 7 THEN 1 END) as over_seven_days
+            FROM CompletedWOs
+            """
+            
+            result = self.db.execute_query(query)
+            
+            if result and result[0]['count']:
+                return {
+                    'count': int(result[0]['count']) if result[0]['count'] else 0,
+                    'total_value': float(result[0]['total_value']) if result[0]['total_value'] else 0,
+                    'avg_days_waiting': float(result[0]['avg_days_waiting']) if result[0]['avg_days_waiting'] else 0,
+                    'over_three_days': int(result[0]['over_three_days']) if result[0]['over_three_days'] else 0,
+                    'over_five_days': int(result[0]['over_five_days']) if result[0]['over_five_days'] else 0,
+                    'over_seven_days': int(result[0]['over_seven_days']) if result[0]['over_seven_days'] else 0
+                }
+            else:
+                return {
+                    'count': 0,
+                    'total_value': 0,
+                    'avg_days_waiting': 0,
+                    'over_three_days': 0,
+                    'over_five_days': 0,
+                    'over_seven_days': 0
+                }
+        except Exception as e:
+            logger.error(f"Awaiting invoice work orders query failed: {str(e)}")
+            return {
+                'count': 0,
+                'total_value': 0,
+                'avg_days_waiting': 0,
+                'over_three_days': 0,
+                'over_five_days': 0,
+                'over_seven_days': 0
+            }
+    
     def get_top_customers(self):
         """Get top 10 customers by fiscal YTD sales"""
         try:
@@ -981,7 +1065,8 @@ def get_dashboard_summary_optimized():
             'monthly_work_orders': lambda: cached_query('monthly_work_orders', queries.get_monthly_work_orders_by_type, cache_ttl['monthly_work_orders']),
             'department_margins': lambda: cached_query('department_margins', queries.get_department_margins, cache_ttl['department_margins']),
             'monthly_active_customers': lambda: cached_query('monthly_active_customers', queries.get_monthly_active_customers, cache_ttl['active_customers']),
-            'monthly_open_work_orders': lambda: cached_query('monthly_open_work_orders', queries.get_monthly_open_work_orders, cache_ttl['work_order_types'])
+            'monthly_open_work_orders': lambda: cached_query('monthly_open_work_orders', queries.get_monthly_open_work_orders, cache_ttl['work_order_types']),
+            'awaiting_invoice': lambda: cached_query('awaiting_invoice', queries.get_awaiting_invoice_work_orders, cache_ttl['uninvoiced'])
         }
         
         # Execute queries in parallel
@@ -1003,6 +1088,14 @@ def get_dashboard_summary_optimized():
         # Process results
         uninvoiced_data = results.get('uninvoiced', {'value': 0, 'count': 0})
         wo_types_data = results.get('work_order_types', {'types': [], 'total_value': 0, 'total_count': 0, 'previous_value': 0, 'change': 0, 'change_percent': 0})
+        awaiting_invoice_data = results.get('awaiting_invoice', {
+            'count': 0,
+            'total_value': 0,
+            'avg_days_waiting': 0,
+            'over_three_days': 0,
+            'over_five_days': 0,
+            'over_seven_days': 0
+        })
         
         # Handle active customers data (could be int or dict)
         active_customers_data = results.get('active_customers', 0)
@@ -1043,6 +1136,13 @@ def get_dashboard_summary_optimized():
             'department_margins': results.get('department_margins', []),
             'monthly_active_customers': results.get('monthly_active_customers', []),
             'monthly_open_work_orders': results.get('monthly_open_work_orders', []),
+            # Awaiting invoice data
+            'awaiting_invoice_count': awaiting_invoice_data['count'],
+            'awaiting_invoice_value': int(awaiting_invoice_data['total_value']),
+            'awaiting_invoice_avg_days': awaiting_invoice_data['avg_days_waiting'],
+            'awaiting_invoice_over_three': awaiting_invoice_data['over_three_days'],
+            'awaiting_invoice_over_five': awaiting_invoice_data['over_five_days'],
+            'awaiting_invoice_over_seven': awaiting_invoice_data['over_seven_days'],
             'period': datetime.now().strftime('%B %Y'),
             'last_updated': datetime.now().isoformat(),
             'query_time': round(time.time() - start_time, 2),
