@@ -4966,7 +4966,13 @@ def register_department_routes(reports_bp):
                 """
                 
                 samples = db.execute_query(sample_query, [start_date, end_date, start_date, end_date])
-                bucket_info['sample_invoices'] = [dict(row) for row in samples]
+                # Convert to dict and ensure CategoryAmount is float
+                bucket_info['sample_invoices'] = []
+                for row in samples:
+                    invoice = dict(row)
+                    # Ensure CategoryAmount is a float
+                    invoice['CategoryAmount'] = float(invoice.get('CategoryAmount', 0) or 0)
+                    bucket_info['sample_invoices'].append(invoice)
             
             # Get summary statistics for each bucket
             summary_query = """
@@ -5204,8 +5210,8 @@ def register_department_routes(reports_bp):
                 CASE 
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'USEDCAP', 
-                                         'ALLIED', 'LINDEN', 'NEWEQ', 'NEWEQP-R')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0
                 END as CategoryAmount,
