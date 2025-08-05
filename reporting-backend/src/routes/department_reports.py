@@ -134,7 +134,7 @@ def register_department_routes(reports_bp):
               AND w.InvoiceDate IS NULL
               AND w.DeletionTime IS NULL
               AND w.Type = 'P'
-            ORDER BY w.CompletedDate DESC
+            ORDER BY w.CompletedDate ASC
             """
             
             results = db.execute_query(query)
@@ -279,7 +279,7 @@ def register_department_routes(reports_bp):
               AND w.InvoiceDate IS NULL
               AND w.DeletionTime IS NULL
               AND w.Type IN ('S', 'SH', 'PM')
-            ORDER BY w.CompletedDate DESC
+            ORDER BY w.CompletedDate ASC
             """
             
             results = db.execute_query(query)
