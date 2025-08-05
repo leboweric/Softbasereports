@@ -1801,6 +1801,7 @@ def register_department_routes(reports_bp):
             misc_sell_total = sum(float(row.get('Sell', 0) or 0) for row in misc_details)
             
             # Check invoice if exists
+            # Note: InvoiceSales table doesn't exist, so we'll just search by Comments field
             invoice_query = """
             SELECT 
                 InvoiceNo,
@@ -1813,14 +1814,9 @@ def register_department_routes(reports_bp):
                 TotalTax
             FROM ben002.InvoiceReg
             WHERE Comments LIKE %s
-               OR InvoiceNo IN (
-                   SELECT DISTINCT InvoiceNo 
-                   FROM ben002.InvoiceSales 
-                   WHERE WONo = %s
-               )
             """
             
-            invoice_data = db.execute_query(invoice_query, [f'%{wo_number}%', wo_number])
+            invoice_data = db.execute_query(invoice_query, [f'%{wo_number}%'])
             
             return jsonify({
                 'workOrder': {
