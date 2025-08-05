@@ -78,6 +78,52 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching service pace: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/work-order-types', methods=['GET'])
+    @jwt_required()
+    def get_all_work_order_types():
+        """Get all unique work order types from the database"""
+        try:
+            db = get_db()
+            
+            query = """
+            SELECT DISTINCT 
+                Type,
+                COUNT(*) as count
+            FROM ben002.WO
+            WHERE Type IS NOT NULL
+            GROUP BY Type
+            ORDER BY COUNT(*) DESC
+            """
+            
+            results = db.execute_query(query)
+            
+            types_list = []
+            if results:
+                for row in results:
+                    types_list.append({
+                        'type': row['Type'],
+                        'count': int(row['count']),
+                        'description': {
+                            'S': 'Service',
+                            'R': 'Rental',
+                            'P': 'Parts',
+                            'PM': 'Preventive Maintenance',
+                            'SH': 'Shop',
+                            'E': 'Equipment',
+                            'I': 'Internal',
+                            'W': 'Warranty'
+                        }.get(row['Type'], f'Unknown ({row["Type"]})')
+                    })
+            
+            return jsonify({
+                'work_order_types': types_list,
+                'total_types': len(types_list)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching work order types: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/service', methods=['GET'])
     @jwt_required()
     def get_service_department_report():

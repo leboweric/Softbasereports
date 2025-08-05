@@ -51,6 +51,7 @@ import {
   Clock
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+import WorkOrderTypes from './WorkOrderTypes'
 
 const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
@@ -1181,8 +1182,8 @@ const Dashboard = ({ user }) => {
 
     {/* Work Orders Tab */}
     <TabsContent value="workorders" className="space-y-4">
-
-
+          {/* Temporary: Show all work order types */}
+          <WorkOrderTypes />
 
           {/* Invoice Delay Analysis Report */}
           {invoiceDelayLoading ? (
