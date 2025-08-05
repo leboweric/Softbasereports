@@ -4532,40 +4532,62 @@ def register_department_routes(reports_bp):
             sales_query = """
             WITH SalesmanLookup AS (
                 -- Find the salesman for each invoice by checking all customer records with matching name
-                SELECT DISTINCT
-                    ir.InvoiceNo,
-                    ir.BillTo,
-                    ir.BillToName,
-                    -- Get the first non-null salesman from any customer record
-                    COALESCE(
-                        c1.Salesman1,  -- First try direct BillTo match
-                        c2.Salesman1,  -- Then try exact name match
-                        c3.Salesman1,  -- Then try partial name match (first word)
-                        'Unassigned'
-                    ) as Salesman
-                FROM ben002.InvoiceReg ir
-                LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
-                LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
-                -- Try matching on first word of company name (e.g., SIMONSON)
-                LEFT JOIN ben002.Customer c3 ON 
-                    c3.Salesman1 IS NOT NULL
-                    AND LEN(ir.BillToName) >= 4
-                    AND LEN(c3.Name) >= 4
-                    AND UPPER(
-                        CASE 
-                            WHEN CHARINDEX(' ', ir.BillToName) > 0 
-                            THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
-                            ELSE ir.BillToName
-                        END
-                    ) = UPPER(
-                        CASE 
-                            WHEN CHARINDEX(' ', c3.Name) > 0 
-                            THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
-                            ELSE c3.Name
-                        END
-                    )
-                WHERE ir.InvoiceDate >= %s
-                    AND ir.InvoiceDate <= %s
+                -- Use ROW_NUMBER to ensure one record per invoice
+                SELECT 
+                    InvoiceNo,
+                    BillTo,
+                    BillToName,
+                    Salesman
+                FROM (
+                    SELECT 
+                        InvoiceNo,
+                        BillTo,
+                        BillToName,
+                        Salesman,
+                        ROW_NUMBER() OVER (PARTITION BY InvoiceNo ORDER BY Priority) as rn
+                    FROM (
+                        SELECT DISTINCT
+                            ir.InvoiceNo,
+                            ir.BillTo,
+                            ir.BillToName,
+                            CASE 
+                                WHEN c1.Salesman1 IS NOT NULL THEN c1.Salesman1
+                                WHEN c2.Salesman1 IS NOT NULL THEN c2.Salesman1
+                                WHEN c3.Salesman1 IS NOT NULL THEN c3.Salesman1
+                                ELSE 'Unassigned'
+                            END as Salesman,
+                            CASE 
+                                WHEN c1.Salesman1 IS NOT NULL THEN 1  -- Direct match highest priority
+                                WHEN c2.Salesman1 IS NOT NULL THEN 2  -- Exact name match
+                                WHEN c3.Salesman1 IS NOT NULL THEN 3  -- First word match
+                                ELSE 4
+                            END as Priority
+                        FROM ben002.InvoiceReg ir
+                        LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+                        LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                        -- Try matching on first word of company name (e.g., SIMONSON)
+                        LEFT JOIN ben002.Customer c3 ON 
+                            c3.Salesman1 IS NOT NULL
+                            AND LEN(ir.BillToName) >= 4
+                            AND LEN(c3.Name) >= 4
+                            AND UPPER(
+                                CASE 
+                                    WHEN CHARINDEX(' ', ir.BillToName) > 0 
+                                    THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
+                                    ELSE ir.BillToName
+                                END
+                            ) = UPPER(
+                                CASE 
+                                    WHEN CHARINDEX(' ', c3.Name) > 0 
+                                    THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
+                                    ELSE c3.Name
+                                END
+                            )
+                        WHERE ir.InvoiceDate >= %s
+                            AND ir.InvoiceDate <= %s
+                    ) AS SalesmanMatches
+                ) AS RankedMatches
+                WHERE rn = 1  -- Only take the best match per invoice
             )
             SELECT 
                 sl.Salesman as SalesRep,
@@ -4864,38 +4886,58 @@ def register_department_routes(reports_bp):
                 # Updated to find salesman from ANY customer record with matching name
                 sample_query = f"""
                 WITH SalesmanLookup AS (
-                    SELECT DISTINCT
-                        ir.InvoiceNo,
-                        ir.BillToName,
-                        COALESCE(
-                            c1.Salesman1,  -- First try direct BillTo match
-                            c2.Salesman1,  -- Then try exact name match
-                            c3.Salesman1,  -- Then try partial name match (first word)
-                            NULL
-                        ) as Salesman1
-                    FROM ben002.InvoiceReg ir
-                    LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
-                    LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
-                    -- Try matching on first word of company name (e.g., SIMONSON)
-                    LEFT JOIN ben002.Customer c3 ON 
-                        c3.Salesman1 IS NOT NULL
-                        AND LEN(ir.BillToName) >= 4
-                        AND LEN(c3.Name) >= 4
-                        AND UPPER(
-                            CASE 
-                                WHEN CHARINDEX(' ', ir.BillToName) > 0 
-                                THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
-                                ELSE ir.BillToName
-                            END
-                        ) = UPPER(
-                            CASE 
-                                WHEN CHARINDEX(' ', c3.Name) > 0 
-                                THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
-                                ELSE c3.Name
-                            END
-                        )
-                    WHERE ir.InvoiceDate >= %s 
-                        AND ir.InvoiceDate <= %s
+                    SELECT 
+                        InvoiceNo,
+                        BillToName,
+                        Salesman1
+                    FROM (
+                        SELECT 
+                            InvoiceNo,
+                            BillToName,
+                            Salesman1,
+                            ROW_NUMBER() OVER (PARTITION BY InvoiceNo ORDER BY Priority) as rn
+                        FROM (
+                            SELECT DISTINCT
+                                ir.InvoiceNo,
+                                ir.BillToName,
+                                CASE 
+                                    WHEN c1.Salesman1 IS NOT NULL THEN c1.Salesman1
+                                    WHEN c2.Salesman1 IS NOT NULL THEN c2.Salesman1
+                                    WHEN c3.Salesman1 IS NOT NULL THEN c3.Salesman1
+                                    ELSE NULL
+                                END as Salesman1,
+                                CASE 
+                                    WHEN c1.Salesman1 IS NOT NULL THEN 1
+                                    WHEN c2.Salesman1 IS NOT NULL THEN 2
+                                    WHEN c3.Salesman1 IS NOT NULL THEN 3
+                                    ELSE 4
+                                END as Priority
+                            FROM ben002.InvoiceReg ir
+                            LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+                            LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                            -- Try matching on first word of company name (e.g., SIMONSON)
+                            LEFT JOIN ben002.Customer c3 ON 
+                                c3.Salesman1 IS NOT NULL
+                                AND LEN(ir.BillToName) >= 4
+                                AND LEN(c3.Name) >= 4
+                                AND UPPER(
+                                    CASE 
+                                        WHEN CHARINDEX(' ', ir.BillToName) > 0 
+                                        THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
+                                        ELSE ir.BillToName
+                                    END
+                                ) = UPPER(
+                                    CASE 
+                                        WHEN CHARINDEX(' ', c3.Name) > 0 
+                                        THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
+                                        ELSE c3.Name
+                                    END
+                                )
+                            WHERE ir.InvoiceDate >= %s 
+                                AND ir.InvoiceDate <= %s
+                        ) AS SalesmanMatches
+                    ) AS RankedMatches
+                    WHERE rn = 1
                 )
                 SELECT 
                     ir.InvoiceNo,
@@ -5096,24 +5138,55 @@ def register_department_routes(reports_bp):
             details_query = """
             WITH SalesmanLookup AS (
                 -- Find the salesman for each invoice by checking all customer records with matching name
-                SELECT DISTINCT
-                    ir.InvoiceNo,
-                    COALESCE(
-                        c1.Salesman1,  -- First try direct BillTo match
-                        c2.Salesman1,  -- Then try exact name match
-                        c3.Salesman1   -- Then try partial name match (first word)
-                    ) as Salesman1
-                FROM ben002.InvoiceReg ir
-                LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
-                LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
-                -- Try matching on first word of company name (e.g., SIMONSON)
-                LEFT JOIN ben002.Customer c3 ON 
-                    CHARINDEX(' ', ir.BillToName) > 0 
-                    AND LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1) = LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1)
-                    AND c3.Salesman1 IS NOT NULL
-                    AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4
-                WHERE ir.InvoiceDate >= %s
-                    AND ir.InvoiceDate <= %s
+                SELECT 
+                    InvoiceNo,
+                    Salesman1
+                FROM (
+                    SELECT 
+                        InvoiceNo,
+                        Salesman1,
+                        ROW_NUMBER() OVER (PARTITION BY InvoiceNo ORDER BY Priority) as rn
+                    FROM (
+                        SELECT DISTINCT
+                            ir.InvoiceNo,
+                            CASE 
+                                WHEN c1.Salesman1 IS NOT NULL THEN c1.Salesman1
+                                WHEN c2.Salesman1 IS NOT NULL THEN c2.Salesman1
+                                WHEN c3.Salesman1 IS NOT NULL THEN c3.Salesman1
+                                ELSE NULL
+                            END as Salesman1,
+                            CASE 
+                                WHEN c1.Salesman1 IS NOT NULL THEN 1
+                                WHEN c2.Salesman1 IS NOT NULL THEN 2
+                                WHEN c3.Salesman1 IS NOT NULL THEN 3
+                                ELSE 4
+                            END as Priority
+                        FROM ben002.InvoiceReg ir
+                        LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+                        LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                        -- Try matching on first word of company name (e.g., SIMONSON)
+                        LEFT JOIN ben002.Customer c3 ON 
+                            c3.Salesman1 IS NOT NULL
+                            AND LEN(ir.BillToName) >= 4
+                            AND LEN(c3.Name) >= 4
+                            AND UPPER(
+                                CASE 
+                                    WHEN CHARINDEX(' ', ir.BillToName) > 0 
+                                    THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
+                                    ELSE ir.BillToName
+                                END
+                            ) = UPPER(
+                                CASE 
+                                    WHEN CHARINDEX(' ', c3.Name) > 0 
+                                    THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
+                                    ELSE c3.Name
+                                END
+                            )
+                        WHERE ir.InvoiceDate >= %s
+                            AND ir.InvoiceDate <= %s
+                    ) AS SalesmanMatches
+                ) AS RankedMatches
+                WHERE rn = 1
             )
             SELECT 
                 ir.InvoiceNo,
