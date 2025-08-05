@@ -1441,6 +1441,201 @@ def analyze_customer_risk():
         }), 500
 
 
+@dashboard_optimized_bp.route('/api/dashboard/invoice-delay-analysis', methods=['GET'])
+@jwt_required()
+def analyze_invoice_delays():
+    """Analyze invoice delays by department type"""
+    try:
+        db = AzureSQLService()
+        
+        # Get breakdown by work order type
+        query = """
+        WITH CompletedWOs AS (
+            SELECT 
+                w.WONo,
+                w.Type,
+                CASE 
+                    WHEN w.Type = 'S' THEN 'Service'
+                    WHEN w.Type = 'R' THEN 'Rental'
+                    WHEN w.Type = 'P' THEN 'Parts'
+                    WHEN w.Type = 'PM' THEN 'Preventive Maintenance'
+                    WHEN w.Type = 'I' THEN 'Internal'
+                    WHEN w.Type = 'E' THEN 'Equipment'
+                    WHEN w.Type IS NULL THEN 'Unspecified'
+                    ELSE w.Type
+                END as TypeName,
+                w.CompletedDate,
+                w.BillTo,
+                DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysSinceCompleted,
+                -- Include labor quotes for flat rate labor
+                COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) as labor_total,
+                COALESCE(p.parts_sell, 0) as parts_total,
+                COALESCE(m.misc_sell, 0) as misc_total
+            FROM ben002.WO w
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as labor_sell 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ) l ON w.WONo = l.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Amount) as quote_amount 
+                FROM ben002.WOQuote 
+                WHERE Type = 'L'
+                GROUP BY WONo
+            ) lq ON w.WONo = lq.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell * Qty) as parts_sell 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ) p ON w.WONo = p.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as misc_sell 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            ) m ON w.WONo = m.WONo
+            WHERE w.CompletedDate IS NOT NULL
+              AND w.ClosedDate IS NULL
+              AND w.InvoiceDate IS NULL
+              AND w.DeletionTime IS NULL
+        )
+        SELECT 
+            TypeName,
+            COUNT(*) as count,
+            SUM(labor_total + parts_total + misc_total) as total_value,
+            AVG(CAST(DaysSinceCompleted as FLOAT)) as avg_days_waiting,
+            MIN(DaysSinceCompleted) as min_days,
+            MAX(DaysSinceCompleted) as max_days,
+            COUNT(CASE WHEN DaysSinceCompleted <= 3 THEN 1 END) as within_target,
+            COUNT(CASE WHEN DaysSinceCompleted > 3 THEN 1 END) as over_three_days,
+            COUNT(CASE WHEN DaysSinceCompleted > 7 THEN 1 END) as over_seven_days,
+            COUNT(CASE WHEN DaysSinceCompleted > 14 THEN 1 END) as over_fourteen_days,
+            COUNT(CASE WHEN DaysSinceCompleted > 30 THEN 1 END) as over_thirty_days
+        FROM CompletedWOs
+        GROUP BY TypeName
+        ORDER BY total_value DESC
+        """
+        
+        results = db.execute_query(query)
+        
+        departments = []
+        total_all = {
+            'count': 0,
+            'value': 0,
+            'within_target': 0,
+            'over_three': 0,
+            'over_seven': 0,
+            'over_fourteen': 0,
+            'over_thirty': 0
+        }
+        
+        if results:
+            for row in results:
+                dept_data = {
+                    'department': row['TypeName'],
+                    'count': int(row['count']),
+                    'value': float(row['total_value']),
+                    'avg_days': round(float(row['avg_days_waiting']), 1),
+                    'min_days': int(row['min_days']),
+                    'max_days': int(row['max_days']),
+                    'within_target': int(row['within_target']),
+                    'within_target_pct': round((int(row['within_target']) / int(row['count'])) * 100, 1),
+                    'over_three': int(row['over_three_days']),
+                    'over_three_pct': round((int(row['over_three_days']) / int(row['count'])) * 100, 1),
+                    'over_seven': int(row['over_seven_days']),
+                    'over_seven_pct': round((int(row['over_seven_days']) / int(row['count'])) * 100, 1),
+                    'over_fourteen': int(row['over_fourteen_days']),
+                    'over_fourteen_pct': round((int(row['over_fourteen_days']) / int(row['count'])) * 100, 1),
+                    'over_thirty': int(row['over_thirty_days']),
+                    'over_thirty_pct': round((int(row['over_thirty_days']) / int(row['count'])) * 100, 1)
+                }
+                departments.append(dept_data)
+                
+                # Add to totals
+                total_all['count'] += dept_data['count']
+                total_all['value'] += dept_data['value']
+                total_all['within_target'] += dept_data['within_target']
+                total_all['over_three'] += dept_data['over_three']
+                total_all['over_seven'] += dept_data['over_seven']
+                total_all['over_fourteen'] += dept_data['over_fourteen']
+                total_all['over_thirty'] += dept_data['over_thirty']
+        
+        # Get detailed work orders for worst performers
+        detail_query = """
+        SELECT TOP 20
+            w.WONo,
+            CASE 
+                WHEN w.Type = 'S' THEN 'Service'
+                WHEN w.Type = 'R' THEN 'Rental'
+                WHEN w.Type = 'P' THEN 'Parts'
+                WHEN w.Type = 'PM' THEN 'Preventive Maintenance'
+                WHEN w.Type = 'I' THEN 'Internal'
+                WHEN w.Type = 'E' THEN 'Equipment'
+                ELSE COALESCE(w.Type, 'Unspecified')
+            END as TypeName,
+            w.BillTo,
+            c.Name as CustomerName,
+            w.CompletedDate,
+            DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysWaiting,
+            COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) + 
+            COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as TotalValue
+        FROM ben002.WO w
+        LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+        LEFT JOIN (
+            SELECT WONo, SUM(Sell) as labor_sell FROM ben002.WOLabor GROUP BY WONo
+        ) l ON w.WONo = l.WONo
+        LEFT JOIN (
+            SELECT WONo, SUM(Amount) as quote_amount FROM ben002.WOQuote WHERE Type = 'L' GROUP BY WONo
+        ) lq ON w.WONo = lq.WONo
+        LEFT JOIN (
+            SELECT WONo, SUM(Sell * Qty) as parts_sell FROM ben002.WOParts GROUP BY WONo
+        ) p ON w.WONo = p.WONo
+        LEFT JOIN (
+            SELECT WONo, SUM(Sell) as misc_sell FROM ben002.WOMisc GROUP BY WONo
+        ) m ON w.WONo = m.WONo
+        WHERE w.CompletedDate IS NOT NULL
+          AND w.ClosedDate IS NULL
+          AND w.InvoiceDate IS NULL
+          AND w.DeletionTime IS NULL
+        ORDER BY DATEDIFF(day, w.CompletedDate, GETDATE()) DESC
+        """
+        
+        detail_results = db.execute_query(detail_query)
+        worst_offenders = []
+        
+        if detail_results:
+            for row in detail_results:
+                worst_offenders.append({
+                    'wo_number': row['WONo'],
+                    'type': row['TypeName'],
+                    'customer': row['CustomerName'] or row['BillTo'],
+                    'completed_date': row['CompletedDate'].strftime('%Y-%m-%d') if row['CompletedDate'] else None,
+                    'days_waiting': int(row['DaysWaiting']),
+                    'value': float(row['TotalValue'])
+                })
+        
+        return jsonify({
+            'departments': departments,
+            'totals': {
+                'count': total_all['count'],
+                'value': total_all['value'],
+                'avg_days': round(sum(d['avg_days'] * d['count'] for d in departments) / total_all['count'], 1) if total_all['count'] > 0 else 0,
+                'within_target_pct': round((total_all['within_target'] / total_all['count']) * 100, 1) if total_all['count'] > 0 else 0,
+                'over_three_pct': round((total_all['over_three'] / total_all['count']) * 100, 1) if total_all['count'] > 0 else 0,
+                'over_seven_pct': round((total_all['over_seven'] / total_all['count']) * 100, 1) if total_all['count'] > 0 else 0,
+                'over_fourteen_pct': round((total_all['over_fourteen'] / total_all['count']) * 100, 1) if total_all['count'] > 0 else 0,
+                'over_thirty_pct': round((total_all['over_thirty'] / total_all['count']) * 100, 1) if total_all['count'] > 0 else 0
+            },
+            'worst_offenders': worst_offenders,
+            'analysis_date': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in invoice delay analysis: {str(e)}")
+        return jsonify({
+            'error': 'Failed to analyze invoice delays',
+            'message': str(e)
+        }), 500
+
 @dashboard_optimized_bp.route('/api/reports/dashboard/invalidate-cache', methods=['POST'])
 @jwt_required()
 def invalidate_dashboard_cache():
