@@ -12,6 +12,9 @@ const RentalServiceReport = () => {
   const [summary, setSummary] = useState(null)
   const [workOrders, setWorkOrders] = useState([])
   const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [woLookup, setWoLookup] = useState('140001897')
+  const [woDetail, setWoDetail] = useState(null)
+  const [loadingWoDetail, setLoadingWoDetail] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -40,6 +43,36 @@ const RentalServiceReport = () => {
       setError(err.message || 'An error occurred')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const lookupWorkOrder = async () => {
+    if (!woLookup.trim()) return
+    
+    try {
+      setLoadingWoDetail(true)
+      const token = localStorage.getItem('token')
+      
+      const response = await fetch(apiUrl(`/api/reports/departments/rental/wo-detail/${woLookup.trim()}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setWoDetail({ error: 'Work order not found' })
+        } else {
+          throw new Error('Failed to fetch work order details')
+        }
+      } else {
+        const data = await response.json()
+        setWoDetail(data)
+      }
+    } catch (err) {
+      setWoDetail({ error: err.message || 'An error occurred' })
+    } finally {
+      setLoadingWoDetail(false)
     }
   }
 
@@ -383,6 +416,203 @@ const RentalServiceReport = () => {
             </div>
           </CardContent>
         )}
+      </Card>
+
+      {/* Work Order Lookup */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Work Order Detail Lookup</CardTitle>
+          <CardDescription>
+            Look up specific work order details to compare with invoices
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              placeholder="Enter Work Order Number (e.g. 140001897)"
+              value={woLookup}
+              onChange={(e) => setWoLookup(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && lookupWorkOrder()}
+              className="flex-1 px-3 py-2 border rounded-md"
+            />
+            <Button 
+              onClick={lookupWorkOrder}
+              disabled={loadingWoDetail || !woLookup.trim()}
+            >
+              {loadingWoDetail ? 'Loading...' : 'Look Up'}
+            </Button>
+          </div>
+
+          {woDetail && (
+            <div className="space-y-4">
+              {woDetail.error ? (
+                <div className="text-red-600">{woDetail.error}</div>
+              ) : (
+                <>
+                  {/* Work Order Header */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2">Work Order: {woDetail.workOrder.number}</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>Bill To: {woDetail.workOrder.billTo} - {woDetail.workOrder.customerName}</div>
+                      <div>Unit: {woDetail.workOrder.unitNo || 'N/A'}</div>
+                      <div>Make/Model: {woDetail.workOrder.make} {woDetail.workOrder.model}</div>
+                      <div>Sale Code: {woDetail.workOrder.saleCode}</div>
+                    </div>
+                  </div>
+
+                  {/* Cost Breakdown */}
+                  <div className="space-y-4">
+                    {/* Labor */}
+                    <div>
+                      <h5 className="font-semibold mb-2">Labor Details</h5>
+                      {woDetail.labor.details.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Mechanic</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right">Hours</TableHead>
+                              <TableHead className="text-right">Cost</TableHead>
+                              <TableHead className="text-right">Sell</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {woDetail.labor.details.map((item, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell>{item.MechanicName}</TableCell>
+                                <TableCell>{item.Description || 'N/A'}</TableCell>
+                                <TableCell className="text-right">{item.Hours || 0}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="font-semibold">
+                              <TableCell colSpan={3}>Total Labor</TableCell>
+                              <TableCell className="text-right">{formatCurrency(woDetail.labor.costTotal)}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(woDetail.labor.sellTotal)}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-gray-500">No labor charges</p>
+                      )}
+                    </div>
+
+                    {/* Parts */}
+                    <div>
+                      <h5 className="font-semibold mb-2">Parts Details</h5>
+                      {woDetail.parts.details.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Part #</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right">Qty</TableHead>
+                              <TableHead className="text-right">Cost Each</TableHead>
+                              <TableHead className="text-right">Sell Each</TableHead>
+                              <TableHead className="text-right">Extended Sell</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {woDetail.parts.details.map((item, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell>{item.PartNo}</TableCell>
+                                <TableCell>{item.Description}</TableCell>
+                                <TableCell className="text-right">{item.Qty || 0}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.ExtendedSell || 0)}</TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="font-semibold">
+                              <TableCell colSpan={5}>Total Parts</TableCell>
+                              <TableCell className="text-right">{formatCurrency(woDetail.parts.sellTotal)}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-gray-500">No parts charges</p>
+                      )}
+                    </div>
+
+                    {/* Misc */}
+                    <div>
+                      <h5 className="font-semibold mb-2">Misc/Freight Details</h5>
+                      {woDetail.misc.details.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Description</TableHead>
+                              <TableHead className="text-right">Cost</TableHead>
+                              <TableHead className="text-right">Sell</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {woDetail.misc.details.map((item, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell>{item.Description}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="font-semibold">
+                              <TableCell>Total Misc</TableCell>
+                              <TableCell className="text-right">{formatCurrency(woDetail.misc.costTotal)}</TableCell>
+                              <TableCell className="text-right">{formatCurrency(woDetail.misc.sellTotal)}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-gray-500">No misc charges</p>
+                      )}
+                    </div>
+
+                    {/* Summary */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <h5 className="font-semibold mb-2">Cost vs Sell Comparison</h5>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span>Total Cost (what we show in report):</span>
+                          <span className="font-semibold">{formatCurrency(woDetail.totals.totalCost)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Sell Price (what customer is charged):</span>
+                          <span className="font-semibold">{formatCurrency(woDetail.totals.totalSell)}</span>
+                        </div>
+                        <div className="flex justify-between text-red-600">
+                          <span>Difference:</span>
+                          <span className="font-semibold">
+                            {formatCurrency(woDetail.totals.totalSell - woDetail.totals.totalCost)}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm mt-3 text-yellow-800">
+                        <strong>Note:</strong> Our report shows internal COST, not the SELL price charged to customers. 
+                        This explains why the invoice total ({formatCurrency(woDetail.totals.totalSell)}) 
+                        differs from our report total ({formatCurrency(woDetail.totals.totalCost)}).
+                      </p>
+                    </div>
+
+                    {/* Invoice Data if Available */}
+                    {woDetail.invoice && woDetail.invoice.length > 0 && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h5 className="font-semibold mb-2">Associated Invoice</h5>
+                        {woDetail.invoice.map((inv, idx) => (
+                          <div key={idx} className="text-sm space-y-1">
+                            <p>Invoice #: {inv.InvoiceNo}</p>
+                            <p>Date: {new Date(inv.InvoiceDate).toLocaleDateString()}</p>
+                            <p>Grand Total: {formatCurrency(inv.GrandTotal)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
     </div>

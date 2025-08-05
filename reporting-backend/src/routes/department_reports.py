@@ -1724,6 +1724,148 @@ def register_department_routes(reports_bp):
                 'type': 'rental_service_report_error'
             }), 500
 
+    @reports_bp.route('/departments/rental/wo-detail/<wo_number>', methods=['GET'])
+    @jwt_required()
+    def get_rental_wo_detail(wo_number):
+        """Get detailed breakdown of a specific work order"""
+        try:
+            db = get_db()
+            
+            # Get work order header
+            wo_query = """
+            SELECT 
+                w.*,
+                c.Name as CustomerName
+            FROM ben002.WO w
+            LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+            WHERE w.WONo = %s
+            """
+            
+            wo_result = db.execute_query(wo_query, [wo_number])
+            if not wo_result:
+                return jsonify({'error': 'Work order not found'}), 404
+            
+            wo_data = dict(wo_result[0])
+            
+            # Get labor details
+            labor_query = """
+            SELECT 
+                MechanicName,
+                DateOfLabor,
+                Hours,
+                Cost,
+                Sell,
+                Description
+            FROM ben002.WOLabor
+            WHERE WONo = %s
+            ORDER BY DateOfLabor
+            """
+            labor_details = db.execute_query(labor_query, [wo_number])
+            
+            # Get parts details
+            parts_query = """
+            SELECT 
+                PartNo,
+                Description,
+                Qty,
+                Cost,
+                Sell,
+                Cost * Qty as ExtendedCost,
+                Sell * Qty as ExtendedSell
+            FROM ben002.WOParts
+            WHERE WONo = %s
+            ORDER BY PartNo
+            """
+            parts_details = db.execute_query(parts_query, [wo_number])
+            
+            # Get misc details
+            misc_query = """
+            SELECT 
+                Description,
+                Cost,
+                Sell,
+                Taxable
+            FROM ben002.WOMisc
+            WHERE WONo = %s
+            ORDER BY Description
+            """
+            misc_details = db.execute_query(misc_query, [wo_number])
+            
+            # Calculate totals
+            labor_cost_total = sum(float(row.get('Cost', 0) or 0) for row in labor_details)
+            labor_sell_total = sum(float(row.get('Sell', 0) or 0) for row in labor_details)
+            
+            parts_cost_total = sum(float(row.get('ExtendedCost', 0) or 0) for row in parts_details)
+            parts_sell_total = sum(float(row.get('ExtendedSell', 0) or 0) for row in parts_details)
+            
+            misc_cost_total = sum(float(row.get('Cost', 0) or 0) for row in misc_details)
+            misc_sell_total = sum(float(row.get('Sell', 0) or 0) for row in misc_details)
+            
+            # Check invoice if exists
+            invoice_query = """
+            SELECT 
+                InvoiceNo,
+                InvoiceDate,
+                GrandTotal,
+                LaborTaxable + LaborNonTax as LaborTotal,
+                PartsTaxable + PartsNonTax as PartsTotal,
+                MiscTaxable + MiscNonTax as MiscTotal,
+                EquipmentTaxable + EquipmentNonTax as EquipmentTotal,
+                TotalTax
+            FROM ben002.InvoiceReg
+            WHERE Comments LIKE %s
+               OR InvoiceNo IN (
+                   SELECT DISTINCT InvoiceNo 
+                   FROM ben002.InvoiceSales 
+                   WHERE WONo = %s
+               )
+            """
+            
+            invoice_data = db.execute_query(invoice_query, [f'%{wo_number}%', wo_number])
+            
+            return jsonify({
+                'workOrder': {
+                    'number': wo_number,
+                    'billTo': wo_data.get('BillTo'),
+                    'customerName': wo_data.get('CustomerName'),
+                    'unitNo': wo_data.get('UnitNo'),
+                    'serialNo': wo_data.get('SerialNo'),
+                    'make': wo_data.get('Make'),
+                    'model': wo_data.get('Model'),
+                    'openDate': wo_data.get('OpenDate').isoformat() if wo_data.get('OpenDate') else None,
+                    'status': wo_data.get('Status'),
+                    'type': wo_data.get('Type'),
+                    'saleCode': wo_data.get('SaleCode'),
+                    'saleDept': wo_data.get('SaleDept')
+                },
+                'labor': {
+                    'details': [dict(row) for row in labor_details],
+                    'costTotal': labor_cost_total,
+                    'sellTotal': labor_sell_total
+                },
+                'parts': {
+                    'details': [dict(row) for row in parts_details],
+                    'costTotal': parts_cost_total,
+                    'sellTotal': parts_sell_total
+                },
+                'misc': {
+                    'details': [dict(row) for row in misc_details],
+                    'costTotal': misc_cost_total,
+                    'sellTotal': misc_sell_total
+                },
+                'totals': {
+                    'totalCost': labor_cost_total + parts_cost_total + misc_cost_total,
+                    'totalSell': labor_sell_total + parts_sell_total + misc_sell_total
+                },
+                'invoice': [dict(row) for row in invoice_data] if invoice_data else None
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'wo_detail_error'
+            }), 500
+
 
     @reports_bp.route('/departments/accounting-old', methods=['GET'])
     @jwt_required()
