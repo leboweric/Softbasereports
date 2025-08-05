@@ -180,6 +180,76 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching open parts work order details: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/parts/wo-parts-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_parts_wo_diagnostic():
+        """Diagnostic to understand Parts work order structure"""
+        try:
+            db = get_db()
+            
+            # Check if Parts WOs have entries in WOParts
+            query1 = """
+            SELECT TOP 20
+                w.WONo,
+                w.Type,
+                w.OpenDate,
+                w.ClosedDate,
+                COUNT(DISTINCT wp.PartNo) as parts_in_woparts,
+                COUNT(DISTINCT wq.QuoteLine) as quote_lines
+            FROM ben002.WO w
+            LEFT JOIN ben002.WOParts wp ON w.WONo = wp.WONo
+            LEFT JOIN ben002.WOQuote wq ON w.WONo = wq.WONo
+            WHERE w.Type = 'P'
+            AND w.DeletionTime IS NULL
+            GROUP BY w.WONo, w.Type, w.OpenDate, w.ClosedDate
+            ORDER BY w.WONo DESC
+            """
+            
+            # Sample WOParts data
+            query2 = """
+            SELECT TOP 10 
+                wp.WONo,
+                w.Type as WOType,
+                wp.PartNo,
+                wp.Description,
+                wp.Qty,
+                wp.Sell,
+                wp.Cost
+            FROM ben002.WOParts wp
+            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            WHERE w.Type = 'P'
+            ORDER BY wp.Id DESC
+            """
+            
+            # Sample WOQuote data for Parts
+            query3 = """
+            SELECT TOP 10
+                wq.WONo,
+                w.Type as WOType,
+                wq.Type as QuoteType,
+                wq.QuoteLine,
+                wq.Description,
+                wq.Amount
+            FROM ben002.WOQuote wq
+            INNER JOIN ben002.WO w ON wq.WONo = w.WONo
+            WHERE w.Type = 'P'
+            ORDER BY wq.Id DESC
+            """
+            
+            results1 = db.execute_query(query1)
+            results2 = db.execute_query(query2)
+            results3 = db.execute_query(query3)
+            
+            return jsonify({
+                'parts_wo_summary': results1 if results1 else [],
+                'sample_woparts': results2 if results2 else [],
+                'sample_woquote': results3 if results3 else []
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in parts WO diagnostic: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/parts/work-order-status', methods=['GET'])
     @jwt_required()
     def get_parts_wo_status():

@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import PartsWOStructureDiagnostic from '../PartsWOStructureDiagnostic'
 
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
@@ -806,6 +807,9 @@ const PartsReport = ({ user, onNavigate }) => {
         </TabsContent>
 
         <TabsContent value="work-orders" className="space-y-6">
+          {/* Temporary diagnostic */}
+          <PartsWOStructureDiagnostic />
+          
           {/* Open Parts Work Orders Card */}
           {openWorkOrdersData && openWorkOrdersData.count > 0 && (
             <Card className="border-2 border-blue-400 bg-blue-50">
