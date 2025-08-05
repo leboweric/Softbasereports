@@ -200,13 +200,13 @@ const ServiceReport = ({ user, onNavigate }) => {
         <p className="text-muted-foreground">Monitor service operations</p>
       </div>
 
-      {/* Service Work Orders Awaiting Invoice */}
+      {/* Service & Shop Work Orders Awaiting Invoice */}
       {awaitingInvoiceData && awaitingInvoiceData.count > 0 && (
         <Card className={`border-2 ${awaitingInvoiceData.over_three > 0 ? 'border-orange-400 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}`}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CardTitle className="text-lg">Service Work Orders Awaiting Invoice</CardTitle>
+                <CardTitle className="text-lg">Service & Shop Work Orders Awaiting Invoice</CardTitle>
                 {awaitingInvoiceData.over_three > 0 && (
                   <AlertTriangle className="h-5 w-5 text-orange-600" />
                 )}

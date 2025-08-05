@@ -1187,7 +1187,7 @@ const Dashboard = ({ user }) => {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg">Service Work Orders Awaiting Invoice</CardTitle>
+                    <CardTitle className="text-lg">Service & Shop Work Orders Awaiting Invoice</CardTitle>
                     {dashboardData.awaiting_invoice_over_three > 0 && (
                       <AlertTriangle className="h-5 w-5 text-orange-600" />
                     )}
