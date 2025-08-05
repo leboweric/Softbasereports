@@ -1834,6 +1834,9 @@ def register_department_routes(reports_bp):
             labor_cost_total = sum(float(row.get('Cost', 0) or 0) for row in labor_details)
             labor_sell_total = sum(float(row.get('Sell', 0) or 0) for row in labor_details)
             
+            # Add labor quotes to the labor sell total
+            labor_quote_total = sum(float(row.get('Amount', 0) or 0) for row in quote_details if row.get('Type') == 'L')
+            
             parts_cost_total = sum(float(row.get('ExtendedCost', 0) or 0) for row in parts_details)
             parts_sell_total = sum(float(row.get('ExtendedSell', 0) or 0) for row in parts_details)
             
@@ -1871,17 +1874,14 @@ def register_department_routes(reports_bp):
                     'status': wo_data.get('Status'),
                     'type': wo_data.get('Type'),
                     'saleCode': wo_data.get('SaleCode'),
-                    'saleDept': wo_data.get('SaleDept'),
-                    # Debug info for labor
-                    'flatRateMiscItems': [dict(row) for row in flat_rate_misc] if flat_rate_misc else [],
-                    'woAllFields': list(wo_full_data[0].keys()) if wo_full_data else [],
-                    'quoteItems': [dict(row) for row in quote_details] if quote_details else [],
-                    'laborFields': labor_fields
+                    'saleDept': wo_data.get('SaleDept')
                 },
                 'labor': {
                     'details': [dict(row) for row in labor_details],
+                    'quoteItems': [dict(row) for row in quote_details if row.get('Type') == 'L'],
                     'costTotal': labor_cost_total,
-                    'sellTotal': labor_sell_total
+                    'sellTotal': labor_sell_total + labor_quote_total,
+                    'quoteTotal': labor_quote_total
                 },
                 'parts': {
                     'details': [dict(row) for row in parts_details],
@@ -1895,7 +1895,7 @@ def register_department_routes(reports_bp):
                 },
                 'totals': {
                     'totalCost': labor_cost_total + parts_cost_total + misc_cost_total,
-                    'totalSell': labor_sell_total + parts_sell_total + misc_sell_total
+                    'totalSell': labor_sell_total + labor_quote_total + parts_sell_total + misc_sell_total
                 },
                 'invoice': [dict(row) for row in invoice_data] if invoice_data else None
             })

@@ -459,49 +459,6 @@ const RentalServiceReport = () => {
                       <div>Make/Model: {woDetail.workOrder.make} {woDetail.workOrder.model}</div>
                       <div>Sale Code: {woDetail.workOrder.saleCode}</div>
                     </div>
-                    {/* Debug labor info */}
-                    {(woDetail.workOrder.flatRateMiscItems?.length > 0 || woDetail.workOrder.woAllFields?.length > 0 || woDetail.workOrder.quoteItems?.length > 0) && (
-                      <div className="mt-2 p-2 bg-yellow-100 rounded text-xs">
-                        <strong>Debug Info:</strong>
-                        {woDetail.workOrder.flatRateMiscItems?.length > 0 && (
-                          <div>
-                            <div className="font-semibold">Found potential flat rate labor in WOMisc:</div>
-                            {woDetail.workOrder.flatRateMiscItems.map((item, idx) => (
-                              <div key={idx}>
-                                - {item.Description}: Cost={formatCurrency(item.Cost || 0)}, Sell={formatCurrency(item.Sell || 0)}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {woDetail.workOrder.quoteItems?.length > 0 && (
-                          <div className="mt-1">
-                            <div className="font-semibold">WOQuote items:</div>
-                            {woDetail.workOrder.quoteItems.map((item, idx) => (
-                              <div key={idx}>
-                                Line {item.QuoteLine} ({item.Type}): {item.Description} - {formatCurrency(item.Amount || 0)}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {woDetail.workOrder.laborFields && Object.keys(woDetail.workOrder.laborFields).length > 0 && (
-                          <div className="mt-1">
-                            <div className="font-semibold">Labor-related WO fields:</div>
-                            {Object.entries(woDetail.workOrder.laborFields).map(([key, value]) => (
-                              <div key={key}>
-                                {key}: {value !== null && value !== undefined ? 
-                                  (typeof value === 'number' ? formatCurrency(value) : String(value)) : 'null'}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {woDetail.workOrder.woAllFields?.length > 0 && (
-                          <details className="mt-1">
-                            <summary className="cursor-pointer font-semibold">WO table columns ({woDetail.workOrder.woAllFields.length} fields)</summary>
-                            <div className="mt-1 text-xs">{woDetail.workOrder.woAllFields.join(', ')}</div>
-                          </details>
-                        )}
-                      </div>
-                    )}
                   </div>
 
                   {/* Cost Breakdown */}
@@ -509,7 +466,7 @@ const RentalServiceReport = () => {
                     {/* Labor */}
                     <div>
                       <h5 className="font-semibold mb-2">Labor Details</h5>
-                      {woDetail.labor.details.length > 0 ? (
+                      {(woDetail.labor.details.length > 0 || woDetail.labor.quoteItems?.length > 0) ? (
                         <Table>
                           <TableHeader>
                             <TableRow>
@@ -528,6 +485,16 @@ const RentalServiceReport = () => {
                                 <TableCell className="text-right">{item.Hours || 0}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                              </TableRow>
+                            ))}
+                            {/* Show flat rate labor from quotes */}
+                            {woDetail.labor.quoteItems?.map((item, idx) => (
+                              <TableRow key={`quote-${idx}`} className="bg-yellow-50">
+                                <TableCell>Flat Rate Labor</TableCell>
+                                <TableCell>Quote</TableCell>
+                                <TableCell className="text-right">-</TableCell>
+                                <TableCell className="text-right">-</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.Amount || 0)}</TableCell>
                               </TableRow>
                             ))}
                             <TableRow className="font-semibold">
