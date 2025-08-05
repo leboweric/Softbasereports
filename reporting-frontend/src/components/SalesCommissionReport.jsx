@@ -110,7 +110,9 @@ const SalesCommissionReport = ({ user }) => {
         const data = await response.json()
         setDetailsData(data)
       } else {
-        console.error('Failed to fetch details data')
+        console.error('Failed to fetch details data:', response.status, response.statusText)
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
         setDetailsData(null)
       }
     } catch (error) {
@@ -403,7 +405,7 @@ const SalesCommissionReport = ({ user }) => {
                     <LoadingSpinner size="small" />
                     <p className="text-sm text-muted-foreground mt-2">Loading invoice details...</p>
                   </div>
-                ) : detailsData ? (
+                ) : detailsData && detailsData.salesmen ? (
                   <div className="space-y-6">
                     {detailsData.salesmen.map((salesman, idx) => (
                       <div key={idx} className="border rounded-lg p-4">
@@ -466,13 +468,13 @@ const SalesCommissionReport = ({ user }) => {
                     ))}
                     
                     {/* Grand Total */}
-                    {detailsData.salesmen.length > 0 && (
+                    {detailsData.salesmen.length > 0 && detailsData.grand_totals && (
                       <div className="border-t-2 pt-4">
                         <div className="flex items-center justify-between font-bold text-lg">
                           <span>Grand Total</span>
                           <div>
-                            <span className="mr-8">Sales: {formatCurrency(detailsData.grand_totals.sales)}</span>
-                            <span className="text-green-600">Commission: {formatCurrency(detailsData.grand_totals.commission)}</span>
+                            <span className="mr-8">Sales: {formatCurrency(detailsData.grand_totals.sales || 0)}</span>
+                            <span className="text-green-600">Commission: {formatCurrency(detailsData.grand_totals.commission || 0)}</span>
                           </div>
                         </div>
                       </div>
@@ -634,13 +636,13 @@ const SalesCommissionReport = ({ user }) => {
                                 <div className="flex justify-between text-sm">
                                   <span>Commissionable ({bucket.sample_invoices.filter(inv => inv.Salesman1).length} invoices):</span>
                                   <span className="font-semibold text-green-600">
-                                    {formatCurrency(bucket.sample_invoices.filter(inv => inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
+                                    {formatCurrency(bucket.sample_invoices.filter(inv => inv.Salesman1).reduce((sum, inv) => sum + (inv.CategoryAmount || 0), 0))}
                                   </span>
                                 </div>
                                 <div className="flex justify-between text-sm mt-1">
                                   <span>Non-Commissionable ({bucket.sample_invoices.filter(inv => !inv.Salesman1).length} invoices):</span>
                                   <span className="font-semibold text-red-600">
-                                    {formatCurrency(bucket.sample_invoices.filter(inv => !inv.Salesman1).reduce((sum, inv) => sum + inv.CategoryAmount, 0))}
+                                    {formatCurrency(bucket.sample_invoices.filter(inv => !inv.Salesman1).reduce((sum, inv) => sum + (inv.CategoryAmount || 0), 0))}
                                   </span>
                                 </div>
                               </div>
