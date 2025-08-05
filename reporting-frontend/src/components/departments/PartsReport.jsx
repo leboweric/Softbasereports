@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import PartsWODiagnostic from '../PartsWODiagnostic'
 
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
@@ -596,6 +597,9 @@ const PartsReport = ({ user, onNavigate }) => {
           </CardContent>
         </Card>
       )}
+
+      {/* Temporary diagnostic */}
+      <PartsWODiagnostic />
 
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>

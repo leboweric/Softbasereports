@@ -94,6 +94,58 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching parts awaiting invoice: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/parts/work-order-status', methods=['GET'])
+    @jwt_required()
+    def get_parts_wo_status():
+        """Diagnostic endpoint to check Parts work order status"""
+        try:
+            db = get_db()
+            
+            query = """
+            SELECT 
+                COUNT(*) as total_count,
+                COUNT(CASE WHEN Type = 'P' THEN 1 END) as parts_count,
+                COUNT(CASE WHEN Type = 'P' AND CompletedDate IS NOT NULL THEN 1 END) as parts_completed,
+                COUNT(CASE WHEN Type = 'P' AND ClosedDate IS NOT NULL THEN 1 END) as parts_closed,
+                COUNT(CASE WHEN Type = 'P' AND InvoiceDate IS NOT NULL THEN 1 END) as parts_invoiced,
+                COUNT(CASE WHEN Type = 'P' AND CompletedDate IS NOT NULL AND ClosedDate IS NULL THEN 1 END) as parts_awaiting_invoice
+            FROM ben002.WO
+            WHERE DeletionTime IS NULL
+            """
+            
+            result = db.execute_query(query)
+            
+            # Also get a sample of Parts work orders
+            sample_query = """
+            SELECT TOP 10 
+                WONo,
+                Type,
+                OpenDate,
+                CompletedDate,
+                ClosedDate,
+                InvoiceDate,
+                BillTo,
+                CASE 
+                    WHEN CompletedDate IS NULL THEN 'Open'
+                    WHEN ClosedDate IS NULL THEN 'Awaiting Invoice'
+                    ELSE 'Closed/Invoiced'
+                END as Status
+            FROM ben002.WO
+            WHERE Type = 'P' AND DeletionTime IS NULL
+            ORDER BY WONo DESC
+            """
+            
+            samples = db.execute_query(sample_query)
+            
+            return jsonify({
+                'summary': result[0] if result else {},
+                'sample_work_orders': samples if samples else []
+            })
+            
+        except Exception as e:
+            logger.error(f"Error checking parts work order status: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/parts/awaiting-invoice-details', methods=['GET'])
     @jwt_required()
     def get_parts_awaiting_invoice_details():
