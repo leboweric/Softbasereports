@@ -78,20 +78,20 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching service pace: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
-    @reports_bp.route('/departments/parts/awaiting-invoice', methods=['GET'])
+    @reports_bp.route('/departments/parts/open-work-orders', methods=['GET'])
     @jwt_required()
-    def get_parts_awaiting_invoice():
-        """Get Parts work orders awaiting invoice summary"""
+    def get_parts_open_work_orders():
+        """Get open Parts work orders summary"""
         try:
             from src.routes.dashboard_optimized import DashboardQueries
             db = get_db()
             queries = DashboardQueries(db)
             
-            result = queries.get_parts_awaiting_invoice_work_orders()
+            result = queries.get_open_parts_work_orders()
             return jsonify(result)
             
         except Exception as e:
-            logger.error(f"Error fetching parts awaiting invoice: {str(e)}")
+            logger.error(f"Error fetching open parts work orders: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/parts/work-order-status', methods=['GET'])

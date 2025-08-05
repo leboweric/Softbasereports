@@ -650,6 +650,62 @@ class DashboardQueries:
                 'over_seven_days': 0
             }
     
+    def get_open_parts_work_orders(self):
+        """Get open PARTS work orders (not yet invoiced)"""
+        try:
+            query = """
+            WITH OpenPartsWOs AS (
+                SELECT 
+                    w.WONo,
+                    w.OpenDate,
+                    DATEDIFF(day, w.OpenDate, GETDATE()) as DaysSinceOpened,
+                    COALESCE(p.parts_total, 0) as parts_total,
+                    COALESCE(m.misc_total, 0) as misc_total
+                FROM ben002.WO w
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell * Qty) as parts_total 
+                    FROM ben002.WOParts 
+                    GROUP BY WONo
+                ) p ON w.WONo = p.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as misc_total 
+                    FROM ben002.WOMisc 
+                    GROUP BY WONo
+                ) m ON w.WONo = m.WONo
+                WHERE w.ClosedDate IS NULL
+                  AND w.DeletionTime IS NULL
+                  AND w.Type = 'P'  -- Parts work orders only
+            )
+            SELECT 
+                COUNT(*) as count,
+                SUM(parts_total + misc_total) as total_value,
+                AVG(DaysSinceOpened) as avg_days_open
+            FROM OpenPartsWOs
+            """
+            
+            result = self.db.execute_query(query)
+            
+            if result and result[0]['count']:
+                return {
+                    'count': int(result[0]['count']) if result[0]['count'] else 0,
+                    'total_value': float(result[0]['total_value']) if result[0]['total_value'] else 0,
+                    'avg_days_open': float(result[0]['avg_days_open']) if result[0]['avg_days_open'] else 0
+                }
+            
+            return {
+                'count': 0,
+                'total_value': 0,
+                'avg_days_open': 0
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in get_open_parts_work_orders: {str(e)}")
+            return {
+                'count': 0,
+                'total_value': 0,
+                'avg_days_open': 0
+            }
+    
     def get_parts_awaiting_invoice_work_orders(self):
         """Get completed PARTS work orders awaiting invoice"""
         try:
