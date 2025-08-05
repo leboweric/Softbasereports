@@ -5443,6 +5443,133 @@ def register_department_routes(reports_bp):
             logger.error(f"Error in sales commission invoice debug: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/customer-salesman-cleanup', methods=['GET'])
+    @jwt_required()
+    def get_customer_salesman_cleanup():
+        """Get customer records with missing salesmen and potential duplicates"""
+        try:
+            db = get_db()
+            
+            # Get all customers with sales activity info
+            customers_query = """
+            WITH CustomerActivity AS (
+                SELECT 
+                    c.Number,
+                    c.Name,
+                    c.Salesman1,
+                    c.Salesman2,
+                    c.Salesman3,
+                    -- Get YTD sales from invoices
+                    COALESCE(SUM(CASE 
+                        WHEN YEAR(ir.InvoiceDate) = YEAR(GETDATE()) 
+                        THEN ir.GrandTotal 
+                        ELSE 0 
+                    END), 0) as ytd_sales,
+                    -- Get invoice count
+                    COUNT(DISTINCT ir.InvoiceNo) as invoice_count,
+                    -- Get last invoice date
+                    MAX(ir.InvoiceDate) as last_invoice_date
+                FROM ben002.Customer c
+                LEFT JOIN ben002.InvoiceReg ir ON c.Number = ir.BillTo
+                GROUP BY c.Number, c.Name, c.Salesman1, c.Salesman2, c.Salesman3
+            )
+            SELECT 
+                ca.*,
+                CASE 
+                    WHEN ca.last_invoice_date >= DATEADD(month, -12, GETDATE()) THEN 'Active'
+                    WHEN ca.last_invoice_date IS NOT NULL THEN 'Inactive'
+                    ELSE 'Never Used'
+                END as active_status
+            FROM CustomerActivity ca
+            ORDER BY ca.Name
+            """
+            
+            customers = db.execute_query(customers_query)
+            
+            # Process results
+            all_customers = []
+            missing_assignments = []
+            
+            for row in customers:
+                customer_data = {
+                    'Number': row['Number'],
+                    'Name': row['Name'],
+                    'Salesman1': row['Salesman1'],
+                    'Salesman2': row['Salesman2'],
+                    'Salesman3': row['Salesman3'],
+                    'ytd_sales': float(row['ytd_sales'] or 0),
+                    'invoice_count': int(row['invoice_count'] or 0),
+                    'last_invoice_date': row['last_invoice_date'].isoformat() if row['last_invoice_date'] else None,
+                    'active_status': row['active_status']
+                }
+                
+                all_customers.append(customer_data)
+                
+                # Check if missing salesman
+                if not row['Salesman1']:
+                    missing_assignments.append(customer_data)
+            
+            # Find potential duplicates by analyzing customer names
+            name_groups = {}
+            for customer in all_customers:
+                # Clean up name for grouping (remove special chars, normalize)
+                base_name = customer['Name'].upper()
+                # Remove common suffixes
+                for suffix in [' INC', ' LLC', ' CORP', ' CO', ' COMPANY', ' LTD', '.', ',', '/', '-']:
+                    base_name = base_name.replace(suffix, '')
+                base_name = ' '.join(base_name.split())  # Normalize whitespace
+                
+                # Skip very short names
+                if len(base_name) < 3:
+                    continue
+                
+                # Group by base name
+                if base_name not in name_groups:
+                    name_groups[base_name] = []
+                name_groups[base_name].append(customer)
+            
+            # Find groups with multiple customers
+            potential_duplicates = []
+            for base_name, customers in name_groups.items():
+                if len(customers) > 1:
+                    # Sort by YTD sales descending
+                    customers.sort(key=lambda x: x['ytd_sales'], reverse=True)
+                    potential_duplicates.append({
+                        'base_name': base_name,
+                        'count': len(customers),
+                        'customers': customers
+                    })
+            
+            # Sort duplicate groups by count descending
+            potential_duplicates.sort(key=lambda x: x['count'], reverse=True)
+            
+            # Calculate summary statistics
+            total_customers = len(all_customers)
+            with_salesman = len([c for c in all_customers if c['Salesman1']])
+            missing_salesman = len(missing_assignments)
+            active_missing = len([c for c in missing_assignments if c['active_status'] == 'Active'])
+            
+            # Sort missing assignments by YTD sales descending
+            missing_assignments.sort(key=lambda x: x['ytd_sales'], reverse=True)
+            
+            return jsonify({
+                'summary': {
+                    'total_customers': total_customers,
+                    'with_salesman': with_salesman,
+                    'missing_salesman': missing_salesman,
+                    'active_missing_salesman': active_missing,
+                    'duplicate_groups': len(potential_duplicates),
+                    'total_duplicate_records': sum(group['count'] for group in potential_duplicates)
+                },
+                'missing_assignments': missing_assignments[:200],  # Limit to top 200
+                'potential_duplicates': potential_duplicates[:100],  # Limit to top 100 groups
+                'timestamp': datetime.utcnow().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in customer salesman cleanup: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/accounting/find-linde-invoice', methods=['GET'])
     @jwt_required()
     def find_linde_invoice():

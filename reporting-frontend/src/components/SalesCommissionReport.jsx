@@ -12,10 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, AlertCircle, Bug } from 'lucide-react'
+import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, AlertCircle, Bug, UserX } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
 import SalesCommissionInvoiceDebug from './SalesCommissionInvoiceDebug'
+import CustomerSalesmanCleanupReport from './CustomerSalesmanCleanupReport'
 
 const SalesCommissionReport = ({ user }) => {
   const [loading, setLoading] = useState(true)
@@ -27,6 +28,7 @@ const SalesCommissionReport = ({ user }) => {
   const [showDetails, setShowDetails] = useState(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [showInvoiceDebug, setShowInvoiceDebug] = useState(false)
+  const [showCleanupReport, setShowCleanupReport] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
     // Default to previous month since commissions are usually calculated for completed months
@@ -719,6 +721,35 @@ const SalesCommissionReport = ({ user }) => {
             {showInvoiceDebug && (
               <CardContent>
                 <SalesCommissionInvoiceDebug user={user} />
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Customer Cleanup Report */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CardTitle>Customer Salesman Cleanup</CardTitle>
+                  <Badge variant="outline" className="flex items-center gap-1">
+                    <UserX className="h-3 w-3" />
+                    Data Quality
+                  </Badge>
+                </div>
+                <Button
+                  onClick={() => setShowCleanupReport(!showCleanupReport)}
+                  variant="outline"
+                  size="sm"
+                >
+                  {showCleanupReport ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  {showCleanupReport ? 'Hide' : 'Show'} Cleanup Report
+                </Button>
+              </div>
+              <CardDescription>Identify customers with missing salesman assignments and potential duplicates</CardDescription>
+            </CardHeader>
+            {showCleanupReport && (
+              <CardContent>
+                <CustomerSalesmanCleanupReport user={user} />
               </CardContent>
             )}
           </Card>
