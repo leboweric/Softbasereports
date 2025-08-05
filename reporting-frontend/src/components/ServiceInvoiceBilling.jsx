@@ -27,7 +27,7 @@ const ServiceInvoiceBilling = () => {
   const [reportData, setReportData] = useState(null)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [selectedCustomer, setSelectedCustomer] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState('ALL')
   const [customers, setCustomers] = useState([])
   const [customersLoading, setCustomersLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -147,7 +147,7 @@ const ServiceInvoiceBilling = () => {
       const token = localStorage.getItem('token')
       let url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}`)
       
-      if (selectedCustomer) {
+      if (selectedCustomer && selectedCustomer !== 'ALL') {
         url += `&customer_no=${encodeURIComponent(selectedCustomer)}`
       }
       
@@ -323,9 +323,7 @@ const ServiceInvoiceBilling = () => {
                   <div>
                     <span className="text-gray-600">Customer:</span>
                     <span className="ml-2 font-medium">
-                      {selectedCustomer 
-                        ? customers.find(c => c.value === selectedCustomer)?.label || 'Unknown'
-                        : 'All Customers'}
+                      {customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}
                     </span>
                   </div>
                   <div>

@@ -6362,7 +6362,7 @@ def register_department_routes(reports_bp):
             
             # Add customer filter if specified
             params = [start_date, end_date]
-            if customer_no:
+            if customer_no and customer_no != 'ALL':
                 query += " AND i.BillTo = %s"
                 params.append(customer_no)
                 
@@ -6400,8 +6400,9 @@ def register_department_routes(reports_bp):
     def get_service_customers():
         """Get list of customers with service invoices"""
         try:
+            # Get customers with recent service invoices (last 2 years for performance)
             query = """
-            SELECT DISTINCT
+            SELECT TOP 500
                 c.Number as CustomerNo,
                 c.Name as CustomerName,
                 COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
@@ -6409,11 +6410,12 @@ def register_department_routes(reports_bp):
             FROM ben002.Customer c
             INNER JOIN ben002.InvoiceReg i ON c.Number = i.BillTo
             WHERE i.DeletionTime IS NULL
+              AND i.InvoiceDate >= DATEADD(YEAR, -2, GETDATE())
               AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
                    OR i.SaleDept IN (20, 25, 29))
               AND i.GrandTotal > 0
             GROUP BY c.Number, c.Name
-            ORDER BY c.Name
+            ORDER BY COUNT(DISTINCT i.InvoiceNo) DESC, c.Name
             """
             
             db = get_db()
@@ -6422,7 +6424,7 @@ def register_department_routes(reports_bp):
             # Format the response
             customer_list = [
                 {
-                    'value': '',
+                    'value': 'ALL',
                     'label': 'All Customers',
                     'invoiceCount': sum(c['InvoiceCount'] for c in customers),
                     'totalRevenue': sum(c['TotalRevenue'] for c in customers)
