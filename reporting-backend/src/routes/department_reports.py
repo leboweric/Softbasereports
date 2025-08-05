@@ -5660,6 +5660,10 @@ def register_department_routes(reports_bp):
             # Find potential duplicates by analyzing customer names
             name_groups = {}
             for customer in all_customers:
+                # Skip customers with no name
+                if not customer['Name']:
+                    continue
+                    
                 # Clean up name for grouping (remove special chars, normalize)
                 base_name = customer['Name'].upper()
                 # Remove common suffixes
