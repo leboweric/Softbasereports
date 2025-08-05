@@ -6333,16 +6333,16 @@ def register_department_routes(reports_bp):
                 i.InvoiceNo,
                 i.InvoiceDate,
                 
-                -- Equipment info from invoice
-                COALESCE(i.UnitNo, '') as UnitNo,
+                -- Equipment info (InvoiceReg doesn't have these fields)
+                '' as UnitNo,
                 '' as AssociatedWONo,
                 '' as Make,
                 '' as Model,
-                COALESCE(i.SerialNo, '') as SerialNo,
-                COALESCE(i.HourMeter, 0) as HourMeter,
+                '' as SerialNo,
+                0 as HourMeter,
                 
                 -- PO and other fields
-                COALESCE(i.PONo, '') as PONo,
+                '' as PONo,
                 i.PartsTaxable,
                 i.LaborTaxable,
                 i.LaborNonTax,
