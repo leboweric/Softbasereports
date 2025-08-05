@@ -460,7 +460,7 @@ const RentalServiceReport = () => {
                       <div>Sale Code: {woDetail.workOrder.saleCode}</div>
                     </div>
                     {/* Debug labor info */}
-                    {(woDetail.workOrder.flatRateMiscItems?.length > 0 || woDetail.workOrder.woAllFields?.length > 0) && (
+                    {(woDetail.workOrder.flatRateMiscItems?.length > 0 || woDetail.workOrder.woAllFields?.length > 0 || woDetail.workOrder.quoteItems?.length > 0) && (
                       <div className="mt-2 p-2 bg-yellow-100 rounded text-xs">
                         <strong>Debug Info:</strong>
                         {woDetail.workOrder.flatRateMiscItems?.length > 0 && (
@@ -469,6 +469,27 @@ const RentalServiceReport = () => {
                             {woDetail.workOrder.flatRateMiscItems.map((item, idx) => (
                               <div key={idx}>
                                 - {item.Description}: Cost={formatCurrency(item.Cost || 0)}, Sell={formatCurrency(item.Sell || 0)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {woDetail.workOrder.quoteItems?.length > 0 && (
+                          <div className="mt-1">
+                            <div className="font-semibold">WOQuote items:</div>
+                            {woDetail.workOrder.quoteItems.map((item, idx) => (
+                              <div key={idx}>
+                                Line {item.QuoteLine} ({item.Type}): {item.Description} - {formatCurrency(item.Amount || 0)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {woDetail.workOrder.laborFields && Object.keys(woDetail.workOrder.laborFields).length > 0 && (
+                          <div className="mt-1">
+                            <div className="font-semibold">Labor-related WO fields:</div>
+                            {Object.entries(woDetail.workOrder.laborFields).map(([key, value]) => (
+                              <div key={key}>
+                                {key}: {value !== null && value !== undefined ? 
+                                  (typeof value === 'number' ? formatCurrency(value) : String(value)) : 'null'}
                               </div>
                             ))}
                           </div>

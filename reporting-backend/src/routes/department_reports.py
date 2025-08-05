@@ -1768,6 +1768,14 @@ def register_department_routes(reports_bp):
             """
             wo_full_data = db.execute_query(wo_columns_query, [wo_number])
             
+            # Extract any labor-related fields from WO table
+            labor_fields = {}
+            if wo_full_data:
+                wo_dict = dict(wo_full_data[0])
+                for key, value in wo_dict.items():
+                    if key and isinstance(key, str) and ('labor' in key.lower() or 'flat' in key.lower() or 'rate' in key.lower()):
+                        labor_fields[key] = value
+            
             # Also check if flat rate labor might be stored as a misc charge
             flat_rate_check_query = """
             SELECT * FROM ben002.WOMisc 
@@ -1795,7 +1803,7 @@ def register_department_routes(reports_bp):
             """
             parts_details = db.execute_query(parts_query, [wo_number])
             
-            # Get misc details
+            # Get misc details - let's see ALL misc items
             misc_query = """
             SELECT 
                 Description,
@@ -1807,6 +1815,20 @@ def register_department_routes(reports_bp):
             ORDER BY Description
             """
             misc_details = db.execute_query(misc_query, [wo_number])
+            
+            # Let's also check if there's a separate labor estimate or quote table
+            # Check WOQuote for labor items
+            quote_query = """
+            SELECT 
+                QuoteLine,
+                Type,
+                Description,
+                Amount
+            FROM ben002.WOQuote
+            WHERE WONo = %s
+            ORDER BY QuoteLine
+            """
+            quote_details = db.execute_query(quote_query, [wo_number])
             
             # Calculate totals
             labor_cost_total = sum(float(row.get('Cost', 0) or 0) for row in labor_details)
@@ -1852,7 +1874,9 @@ def register_department_routes(reports_bp):
                     'saleDept': wo_data.get('SaleDept'),
                     # Debug info for labor
                     'flatRateMiscItems': [dict(row) for row in flat_rate_misc] if flat_rate_misc else [],
-                    'woAllFields': list(wo_full_data[0].keys()) if wo_full_data else []
+                    'woAllFields': list(wo_full_data[0].keys()) if wo_full_data else [],
+                    'quoteItems': [dict(row) for row in quote_details] if quote_details else [],
+                    'laborFields': labor_fields
                 },
                 'labor': {
                     'details': [dict(row) for row in labor_details],
