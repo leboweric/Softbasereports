@@ -6369,10 +6369,10 @@ def register_department_routes(reports_bp):
             # Add customer filter if specified
             params = [start_date, end_date]
             if customer_no and customer_no != 'ALL':
-                query += " WHERE BillTo = %s"
+                query += " AND i.BillTo = %s"
                 params.append(customer_no)
                 
-            query += " ORDER BY InvoiceDate, InvoiceNo"
+            query += " ORDER BY i.InvoiceDate, i.InvoiceNo"
             
             db = get_db()
             invoices = db.execute_query(query, params)
