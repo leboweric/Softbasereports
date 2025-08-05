@@ -1630,6 +1630,7 @@ def register_department_routes(reports_bp):
                     'billTo': wo.get('BillTo') or '',
                     'customer': wo.get('CustomerName') or wo.get('BillTo') or 'Unknown',
                     'shipToCustomer': wo.get('ShipToCustomer') or '',
+                    'unitNumber': wo.get('Equipment') or '',  # This is UnitNo from the query
                     'serialNumber': wo.get('SerialNumber') or '',
                     'make': wo.get('Make') or '',
                     'model': wo.get('Model') or '',
