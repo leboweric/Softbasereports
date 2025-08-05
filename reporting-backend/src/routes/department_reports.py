@@ -124,6 +124,106 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching work order types: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/service/awaiting-invoice-details', methods=['GET'])
+    @jwt_required()
+    def get_service_awaiting_invoice_details():
+        """Get detailed list of Service, Shop, and PM work orders awaiting invoice"""
+        try:
+            db = get_db()
+            
+            query = """
+            SELECT 
+                w.WONo,
+                w.Type,
+                w.CompletedDate,
+                w.BillTo,
+                c.Name as CustomerName,
+                w.UnitNo,
+                e.Make,
+                e.Model,
+                w.Technician,
+                DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysSinceCompleted,
+                -- Include labor quotes for flat rate labor
+                COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) as labor_total,
+                COALESCE(p.parts_sell, 0) as parts_total,
+                COALESCE(m.misc_sell, 0) as misc_total,
+                COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) + 
+                COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as total_value
+            FROM ben002.WO w
+            LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+            LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as labor_sell 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ) l ON w.WONo = l.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Amount) as quote_amount 
+                FROM ben002.WOQuote 
+                WHERE Type = 'L'
+                GROUP BY WONo
+            ) lq ON w.WONo = lq.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell * Qty) as parts_sell 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ) p ON w.WONo = p.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as misc_sell 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            ) m ON w.WONo = m.WONo
+            WHERE w.CompletedDate IS NOT NULL
+              AND w.ClosedDate IS NULL
+              AND w.InvoiceDate IS NULL
+              AND w.DeletionTime IS NULL
+              AND w.Type IN ('S', 'SH', 'PM')
+            ORDER BY w.CompletedDate DESC
+            """
+            
+            results = db.execute_query(query)
+            
+            work_orders = []
+            if results:
+                for row in results:
+                    work_orders.append({
+                        'wo_number': row['WONo'],
+                        'type': row['Type'],
+                        'completed_date': row['CompletedDate'].strftime('%Y-%m-%d') if row['CompletedDate'] else None,
+                        'bill_to': row['BillTo'],
+                        'customer_name': row['CustomerName'] or 'Unknown',
+                        'unit_no': row['UnitNo'],
+                        'make': row['Make'],
+                        'model': row['Model'],
+                        'technician': row['Technician'],
+                        'days_waiting': int(row['DaysSinceCompleted']),
+                        'labor_total': float(row['labor_total'] or 0),
+                        'parts_total': float(row['parts_total'] or 0),
+                        'misc_total': float(row['misc_total'] or 0),
+                        'total_value': float(row['total_value'] or 0)
+                    })
+            
+            # Calculate summary stats
+            total_count = len(work_orders)
+            total_value = sum(wo['total_value'] for wo in work_orders)
+            avg_days = sum(wo['days_waiting'] for wo in work_orders) / total_count if total_count > 0 else 0
+            
+            return jsonify({
+                'work_orders': work_orders,
+                'summary': {
+                    'count': total_count,
+                    'total_value': total_value,
+                    'avg_days_waiting': round(avg_days, 1),
+                    'over_3_days': len([wo for wo in work_orders if wo['days_waiting'] > 3]),
+                    'over_5_days': len([wo for wo in work_orders if wo['days_waiting'] > 5]),
+                    'over_7_days': len([wo for wo in work_orders if wo['days_waiting'] > 7])
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error fetching service awaiting invoice details: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/service', methods=['GET'])
     @jwt_required()
     def get_service_department_report():

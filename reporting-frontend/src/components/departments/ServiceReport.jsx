@@ -2,7 +2,23 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Clock } from 'lucide-react'
+import { AlertTriangle, Clock, Download } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
 import { 
   BarChart, 
   Bar, 
@@ -23,6 +39,9 @@ const ServiceReport = ({ user, onNavigate }) => {
   const [loading, setLoading] = useState(true)
   const [paceData, setPaceData] = useState(null)
   const [awaitingInvoiceData, setAwaitingInvoiceData] = useState(null)
+  const [showAwaitingInvoiceModal, setShowAwaitingInvoiceModal] = useState(false)
+  const [awaitingInvoiceDetails, setAwaitingInvoiceDetails] = useState(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -129,6 +148,78 @@ const ServiceReport = ({ user, onNavigate }) => {
     }
   }
 
+  const fetchAwaitingInvoiceDetails = async () => {
+    try {
+      setDetailsLoading(true)
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/service/awaiting-invoice-details'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setAwaitingInvoiceDetails(data)
+      }
+    } catch (error) {
+      console.error('Error fetching awaiting invoice details:', error)
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const handleCardClick = () => {
+    setShowAwaitingInvoiceModal(true)
+    if (!awaitingInvoiceDetails) {
+      fetchAwaitingInvoiceDetails()
+    }
+  }
+
+  const exportToCSV = () => {
+    if (!awaitingInvoiceDetails) return
+    
+    const headers = ['WO#', 'Type', 'Customer', 'Unit', 'Make/Model', 'Technician', 'Completed', 'Days Waiting', 'Labor', 'Parts', 'Misc', 'Total']
+    const rows = awaitingInvoiceDetails.work_orders.map(wo => [
+      wo.wo_number,
+      wo.type,
+      wo.customer_name,
+      wo.unit_no || '',
+      wo.make && wo.model ? `${wo.make} ${wo.model}` : '',
+      wo.technician || '',
+      wo.completed_date,
+      wo.days_waiting,
+      wo.labor_total.toFixed(2),
+      wo.parts_total.toFixed(2),
+      wo.misc_total.toFixed(2),
+      wo.total_value.toFixed(2)
+    ])
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => {
+        const cellStr = String(cell)
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`
+        }
+        return cellStr
+      }).join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    const today = new Date().toISOString().split('T')[0]
+    link.setAttribute('href', url)
+    link.setAttribute('download', `service_awaiting_invoice_${today}.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   // Custom bar shape with pace indicator
   const CustomBar = (props) => {
     const { fill, x, y, width, height, payload } = props
@@ -202,7 +293,10 @@ const ServiceReport = ({ user, onNavigate }) => {
 
       {/* Service, Shop & PM Work Orders Awaiting Invoice */}
       {awaitingInvoiceData && awaitingInvoiceData.count > 0 && (
-        <Card className={`border-2 ${awaitingInvoiceData.over_three > 0 ? 'border-orange-400 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}`}>
+        <Card 
+          className={`border-2 cursor-pointer transition-all hover:shadow-lg ${awaitingInvoiceData.over_three > 0 ? 'border-orange-400 bg-orange-50 hover:border-orange-500' : 'border-yellow-400 bg-yellow-50 hover:border-yellow-500'}`}
+          onClick={handleCardClick}
+        >
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -431,6 +525,120 @@ const ServiceReport = ({ user, onNavigate }) => {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Awaiting Invoice Details Modal */}
+      <Dialog open={showAwaitingInvoiceModal} onOpenChange={setShowAwaitingInvoiceModal}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Service, Shop & PM Work Orders Awaiting Invoice</DialogTitle>
+            <DialogDescription>
+              Detailed list of all completed work orders that have not been invoiced
+            </DialogDescription>
+          </DialogHeader>
+          
+          {detailsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <LoadingSpinner />
+            </div>
+          ) : awaitingInvoiceDetails ? (
+            <div className="flex-1 overflow-hidden flex flex-col">
+              {/* Summary Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Total WOs</p>
+                  <p className="text-xl font-bold">{awaitingInvoiceDetails.summary.count}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Total Value</p>
+                  <p className="text-xl font-bold">{formatCurrency(awaitingInvoiceDetails.summary.total_value)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">Avg Days</p>
+                  <p className="text-xl font-bold text-red-600">{awaitingInvoiceDetails.summary.avg_days_waiting}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">>3 Days</p>
+                  <p className="text-xl font-bold text-orange-600">{awaitingInvoiceDetails.summary.over_3_days}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">>5 Days</p>
+                  <p className="text-xl font-bold text-red-600">{awaitingInvoiceDetails.summary.over_5_days}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">>7 Days</p>
+                  <p className="text-xl font-bold text-red-900">{awaitingInvoiceDetails.summary.over_7_days}</p>
+                </div>
+              </div>
+
+              {/* Export Button */}
+              <div className="flex justify-end mb-4">
+                <Button onClick={exportToCSV} size="sm" variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export to CSV
+                </Button>
+              </div>
+
+              {/* Table */}
+              <div className="flex-1 overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-white z-10">
+                    <TableRow>
+                      <TableHead>WO#</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Unit</TableHead>
+                      <TableHead>Make/Model</TableHead>
+                      <TableHead>Technician</TableHead>
+                      <TableHead>Completed</TableHead>
+                      <TableHead className="text-center">Days</TableHead>
+                      <TableHead className="text-right">Labor</TableHead>
+                      <TableHead className="text-right">Parts</TableHead>
+                      <TableHead className="text-right">Misc</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {awaitingInvoiceDetails.work_orders.map((wo) => (
+                      <TableRow 
+                        key={wo.wo_number}
+                        className={wo.days_waiting > 7 ? 'bg-red-50' : wo.days_waiting > 3 ? 'bg-orange-50' : ''}
+                      >
+                        <TableCell className="font-medium">{wo.wo_number}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {wo.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
+                          {wo.customer_name}
+                        </TableCell>
+                        <TableCell>{wo.unit_no || '-'}</TableCell>
+                        <TableCell className="max-w-[150px] truncate" title={wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}>
+                          {wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}
+                        </TableCell>
+                        <TableCell>{wo.technician || '-'}</TableCell>
+                        <TableCell>{wo.completed_date}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge 
+                            variant={wo.days_waiting > 7 ? "destructive" : wo.days_waiting > 3 ? "warning" : "secondary"}
+                            className="font-mono"
+                          >
+                            {wo.days_waiting}d
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(wo.labor_total)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(wo.parts_total)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(wo.misc_total)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(wo.total_value)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
