@@ -4528,11 +4528,28 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Query to get sales by salesman and category
-            # Note: We need to identify which invoices are for Rental, Used, Allied, and New Equipment
-            # This will depend on how these are categorized in the database
+            # Updated to find salesman from ANY customer record with matching name
             sales_query = """
+            WITH SalesmanLookup AS (
+                -- Find the salesman for each invoice by checking all customer records with matching name
+                SELECT DISTINCT
+                    ir.InvoiceNo,
+                    ir.BillTo,
+                    ir.BillToName,
+                    -- Get the first non-null salesman from any customer record with matching name
+                    COALESCE(
+                        c1.Salesman1,  -- First try direct BillTo match
+                        c2.Salesman1,  -- Then try any customer with same name
+                        'Unassigned'
+                    ) as Salesman
+                FROM ben002.InvoiceReg ir
+                LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+                LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                WHERE ir.InvoiceDate >= %s
+                    AND ir.InvoiceDate <= %s
+            )
             SELECT 
-                COALESCE(c.Salesman1, 'Unassigned') as SalesRep,
+                sl.Salesman as SalesRep,
                 SUM(CASE 
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
@@ -4559,19 +4576,18 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as NewEquipmentSales
             FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            INNER JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND c.Salesman1 IS NOT NULL
-                AND c.Salesman1 != ''
-            GROUP BY c.Salesman1
+                AND sl.Salesman != 'Unassigned'
+            GROUP BY sl.Salesman
             ORDER BY SUM(
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) +
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
             ) DESC
             """
             
-            results = db.execute_query(sales_query, [start_date, end_date])
+            results = db.execute_query(sales_query, [start_date, end_date, start_date, end_date])
             
             # Commission structure:
             # - Rental: 10% of top line sales
@@ -4824,13 +4840,29 @@ def register_department_routes(reports_bp):
                     amount_condition = "(ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)"
                 
                 # Get ALL invoices, not just samples
+                # Updated to find salesman from ANY customer record with matching name
                 sample_query = f"""
+                WITH SalesmanLookup AS (
+                    SELECT DISTINCT
+                        ir.InvoiceNo,
+                        ir.BillToName,
+                        COALESCE(
+                            c1.Salesman1,  -- First try direct BillTo match
+                            c2.Salesman1,  -- Then try any customer with same name
+                            NULL
+                        ) as Salesman1
+                    FROM ben002.InvoiceReg ir
+                    LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+                    LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                    WHERE ir.InvoiceDate >= %s 
+                        AND ir.InvoiceDate <= %s
+                )
                 SELECT 
                     ir.InvoiceNo,
                     ir.InvoiceDate,
                     ir.SaleCode,
                     ir.BillToName,
-                    c.Salesman1,
+                    sl.Salesman1,
                     ir.Comments,
                     ir.RentalTaxable,
                     ir.RentalNonTax,
@@ -4843,7 +4875,7 @@ def register_department_routes(reports_bp):
                         ELSE COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     END as CategoryAmount
                 FROM ben002.InvoiceReg ir
-                LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+                LEFT JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
                 WHERE ir.InvoiceDate >= %s 
                     AND ir.InvoiceDate <= %s
                     AND ir.SaleCode IN ('{sale_codes_str}')
@@ -4851,7 +4883,7 @@ def register_department_routes(reports_bp):
                 ORDER BY ir.InvoiceDate DESC
                 """
                 
-                samples = db.execute_query(sample_query, [start_date, end_date])
+                samples = db.execute_query(sample_query, [start_date, end_date, start_date, end_date])
                 bucket_info['sample_invoices'] = [dict(row) for row in samples]
             
             # Get summary statistics for each bucket
@@ -5020,12 +5052,27 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Query to get all commission-eligible invoices with details
+            # Updated to find salesman from ANY customer record with matching name
             details_query = """
+            WITH SalesmanLookup AS (
+                -- Find the salesman for each invoice by checking all customer records with matching name
+                SELECT DISTINCT
+                    ir.InvoiceNo,
+                    COALESCE(
+                        c1.Salesman1,  -- First try direct BillTo match
+                        c2.Salesman1   -- Then try any customer with same name
+                    ) as Salesman1
+                FROM ben002.InvoiceReg ir
+                LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+                LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                WHERE ir.InvoiceDate >= %s
+                    AND ir.InvoiceDate <= %s
+            )
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
                 ir.BillToName as CustomerName,
-                c.Salesman1,
+                sl.Salesman1,
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
@@ -5063,11 +5110,11 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END as Commission
             FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            INNER JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND c.Salesman1 IS NOT NULL
-                AND c.Salesman1 != ''
+                AND sl.Salesman1 IS NOT NULL
+                AND sl.Salesman1 != ''
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM')
                 AND (
@@ -5077,10 +5124,10 @@ def register_department_routes(reports_bp):
                                      'ALLIED', 'LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM') 
                      AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
                 )
-            ORDER BY c.Salesman1, ir.InvoiceDate, ir.InvoiceNo
+            ORDER BY sl.Salesman1, ir.InvoiceDate, ir.InvoiceNo
             """
             
-            results = db.execute_query(details_query, [start_date, end_date])
+            results = db.execute_query(details_query, [start_date, end_date, start_date, end_date])
             
             # Group by salesman
             salesmen_details = {}
