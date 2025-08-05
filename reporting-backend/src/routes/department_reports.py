@@ -4548,10 +4548,22 @@ def register_department_routes(reports_bp):
                 LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
                 -- Try matching on first word of company name (e.g., SIMONSON)
                 LEFT JOIN ben002.Customer c3 ON 
-                    CHARINDEX(' ', ir.BillToName) > 0 
-                    AND UPPER(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) = UPPER(LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1))
-                    AND c3.Salesman1 IS NOT NULL
-                    AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4  -- First word must be at least 4 chars
+                    c3.Salesman1 IS NOT NULL
+                    AND LEN(ir.BillToName) >= 4
+                    AND LEN(c3.Name) >= 4
+                    AND UPPER(
+                        CASE 
+                            WHEN CHARINDEX(' ', ir.BillToName) > 0 
+                            THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
+                            ELSE ir.BillToName
+                        END
+                    ) = UPPER(
+                        CASE 
+                            WHEN CHARINDEX(' ', c3.Name) > 0 
+                            THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
+                            ELSE c3.Name
+                        END
+                    )
                 WHERE ir.InvoiceDate >= %s
                     AND ir.InvoiceDate <= %s
             )
@@ -4866,10 +4878,22 @@ def register_department_routes(reports_bp):
                     LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
                     -- Try matching on first word of company name (e.g., SIMONSON)
                     LEFT JOIN ben002.Customer c3 ON 
-                        CHARINDEX(' ', ir.BillToName) > 0 
-                        AND UPPER(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) = UPPER(LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1))
-                        AND c3.Salesman1 IS NOT NULL
-                        AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4
+                        c3.Salesman1 IS NOT NULL
+                        AND LEN(ir.BillToName) >= 4
+                        AND LEN(c3.Name) >= 4
+                        AND UPPER(
+                            CASE 
+                                WHEN CHARINDEX(' ', ir.BillToName) > 0 
+                                THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
+                                ELSE ir.BillToName
+                            END
+                        ) = UPPER(
+                            CASE 
+                                WHEN CHARINDEX(' ', c3.Name) > 0 
+                                THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
+                                ELSE c3.Name
+                            END
+                        )
                     WHERE ir.InvoiceDate >= %s 
                         AND ir.InvoiceDate <= %s
                 )
@@ -5402,10 +5426,22 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name
             -- Try matching on first word of company name
             LEFT JOIN ben002.Customer c3 ON 
-                CHARINDEX(' ', ir.BillToName) > 0 
-                AND UPPER(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) = UPPER(LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1))
-                AND c3.Salesman1 IS NOT NULL
-                AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4
+                c3.Salesman1 IS NOT NULL
+                AND LEN(ir.BillToName) >= 4
+                AND LEN(c3.Name) >= 4
+                AND UPPER(
+                    CASE 
+                        WHEN CHARINDEX(' ', ir.BillToName) > 0 
+                        THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
+                        ELSE ir.BillToName
+                    END
+                ) = UPPER(
+                    CASE 
+                        WHEN CHARINDEX(' ', c3.Name) > 0 
+                        THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
+                        ELSE c3.Name
+                    END
+                )
             WHERE ir.InvoiceNo IN (110000007, 110000008, 110000009, 110000010)
             """
             
