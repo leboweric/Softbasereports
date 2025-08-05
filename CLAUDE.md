@@ -78,6 +78,21 @@ To get the complete database schema:
 8. Filtered consumables (oil, grease, coolant, anti-freeze) from Top 10 Parts
 9. Fixed decimal displays to show whole numbers for stock quantities
 
+## Known Issues to Fix
+
+### Parts Quantity Calculation in Work Order Queries
+**Issue**: Some queries are using `SUM(Sell)` instead of `SUM(Sell * Qty)` for parts calculations
+**Impact**: Parts totals may be understated when quantity > 1
+**Files to Check**:
+- `/api/reports/dashboard/summary-optimized` endpoint
+- Any work order cost calculation queries
+**Correct Pattern**:
+```sql
+SELECT WONo, SUM(Sell * Qty) as parts_sell 
+FROM ben002.WOParts 
+GROUP BY WONo
+```
+
 ## CRITICAL: AR Aging Report Implementation (2025-08-04)
 
 ### AR AGING ISSUES AND CURRENT STATUS
@@ -223,6 +238,52 @@ Backend requires:
 6. Report Creator for custom reports
 
 ## Recent Features Added
+
+### Work Orders Awaiting Invoice Tracking (2025-08-05)
+
+Created comprehensive invoice delay tracking system across all departments to identify work orders completed but not yet invoiced.
+
+**Key Discoveries:**
+1. **Work Order Types**:
+   - S = Service
+   - SH = Shop (part of Service department)
+   - PM = Preventive Maintenance (part of Service department)
+   - P = Parts
+   - R = Rental
+   - E = Equipment
+   - I = Internal
+
+2. **Invoice Delay Analysis**:
+   - Added awaiting invoice tracking to Dashboard > Work Orders for ALL departments
+   - Service department has worst delays: 19.4 days average (vs 16 overall)
+   - Only 19.5% of Service work orders meet 3-day invoicing target
+   - Over $142K in Service work orders awaiting invoice
+
+**Implementation Details:**
+1. **Backend Changes**:
+   - Updated `/api/reports/dashboard/summary-optimized` to include awaiting invoice metrics
+   - Created `/api/reports/departments/service/awaiting-invoice-details` endpoint
+   - Created `/api/reports/departments/parts/awaiting-invoice-details` endpoint
+   - Fixed SQL error: Removed non-existent CancelledDate column check
+   - **IMPORTANT**: Parts queries must use `SUM(Sell * Qty)` not just `SUM(Sell)`
+
+2. **Frontend Changes**:
+   - Added comprehensive invoice delay breakdown report to Dashboard > Work Orders
+   - Moved Service awaiting invoice card to Service department page
+   - Created tabbed interface on Service page (Overview and Work Orders tabs)
+   - Added Parts awaiting invoice card to Parts department page
+   - Removed redundant cards from Dashboard (Open WOs, Uninvoiced WOs, Average Days chart)
+
+3. **UI/UX Improvements**:
+   - Work orders sorted by oldest first (ASC) to prioritize longest delays
+   - Color coding: Orange for >3 days, Red for >7 days
+   - Export to CSV functionality for all awaiting invoice reports
+   - Avoided modal width issues by displaying reports directly on page
+
+**Technical Notes:**
+- Work order lifecycle: Open → Completed (CompletedDate set) → Closed/Invoiced (ClosedDate set)
+- Awaiting Invoice = CompletedDate IS NOT NULL AND ClosedDate IS NULL
+- Labor costs include both WOLabor entries AND WOQuote entries where Type='L'
 
 ### Rental Service Report (2025-07-30)
 Created a comprehensive Service Report for the Rental Department showing service work orders billed to rental.
