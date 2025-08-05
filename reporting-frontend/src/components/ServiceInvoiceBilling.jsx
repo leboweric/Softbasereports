@@ -223,13 +223,13 @@ const ServiceInvoiceBilling = () => {
     if (reportData?.totals) {
       rows.push([
         'TOTALS', '', '', '', '', '', '', '', '', '', '',
-        (reportData.totals.parts_taxable || 0).toFixed(2),
-        (reportData.totals.labor_taxable || 0).toFixed(2),
-        (reportData.totals.labor_non_tax || 0).toFixed(2),
-        (reportData.totals.misc_taxable || 0).toFixed(2),
-        (reportData.totals.freight || 0).toFixed(2),
-        (reportData.totals.total_tax || 0).toFixed(2),
-        (reportData.totals.grand_total || 0).toFixed(2),
+        Number(reportData.totals.parts_taxable || 0).toFixed(2),
+        Number(reportData.totals.labor_taxable || 0).toFixed(2),
+        Number(reportData.totals.labor_non_tax || 0).toFixed(2),
+        Number(reportData.totals.misc_taxable || 0).toFixed(2),
+        Number(reportData.totals.freight || 0).toFixed(2),
+        Number(reportData.totals.total_tax || 0).toFixed(2),
+        Number(reportData.totals.grand_total || 0).toFixed(2),
         ''
       ])
     }
