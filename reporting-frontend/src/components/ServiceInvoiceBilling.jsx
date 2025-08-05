@@ -202,7 +202,7 @@ const ServiceInvoiceBilling = () => {
       'Make': inv.Make || '',
       'Model': inv.Model || '',
       'Serial No': inv.SerialNo || '',
-      'Hour Meter': inv.HourMeter || '',
+      'Hour Meter': inv.HourMeter ? Math.round(Number(inv.HourMeter)) : '',
       'PO No': inv.PONo || '',
       'Parts Taxable': Number(inv.PartsTaxable || 0),
       'Labor Taxable': Number(inv.LaborTaxable || 0),
@@ -497,7 +497,9 @@ const ServiceInvoiceBilling = () => {
                             : '-'}
                         </TableCell>
                         <TableCell>{invoice.SerialNo || '-'}</TableCell>
-                        <TableCell>{invoice.HourMeter || '-'}</TableCell>
+                        <TableCell>
+                          {invoice.HourMeter ? Number(invoice.HourMeter).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '-'}
+                        </TableCell>
                         <TableCell>{invoice.PONo || '-'}</TableCell>
                         <TableCell className="text-right">
                           {invoice.PartsTaxable ? formatCurrency(invoice.PartsTaxable) : '-'}
