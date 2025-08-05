@@ -101,7 +101,8 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             
-            query = """
+            # First query for counts
+            count_query = """
             SELECT 
                 COUNT(*) as total_count,
                 COUNT(CASE WHEN Type = 'P' THEN 1 END) as parts_count,
@@ -113,7 +114,35 @@ def register_department_routes(reports_bp):
             WHERE DeletionTime IS NULL
             """
             
-            result = db.execute_query(query)
+            # Second query for open parts value
+            value_query = """
+            SELECT 
+                SUM(COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0)) as open_parts_value
+            FROM ben002.WO w
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell * Qty) as parts_total
+                FROM ben002.WOParts
+                GROUP BY WONo
+            ) p ON w.WONo = p.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(Sell) as misc_total
+                FROM ben002.WOMisc
+                GROUP BY WONo
+            ) m ON w.WONo = m.WONo
+            WHERE w.Type = 'P' 
+            AND w.ClosedDate IS NULL
+            AND w.DeletionTime IS NULL
+            """
+            
+            count_result = db.execute_query(count_query)
+            value_result = db.execute_query(value_query)
+            
+            # Combine results
+            result = count_result[0] if count_result else {}
+            if value_result and value_result[0]:
+                result['open_parts_value'] = value_result[0]['open_parts_value'] or 0
+            else:
+                result['open_parts_value'] = 0
             
             # Also get a sample of Parts work orders
             sample_query = """
@@ -138,7 +167,7 @@ def register_department_routes(reports_bp):
             samples = db.execute_query(sample_query)
             
             return jsonify({
-                'summary': result[0] if result else {},
+                'summary': result,
                 'sample_work_orders': samples if samples else []
             })
             

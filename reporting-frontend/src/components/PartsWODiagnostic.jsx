@@ -67,6 +67,12 @@ const PartsWODiagnostic = () => {
               <p className="text-sm text-muted-foreground">Parts Awaiting Invoice</p>
               <p className="text-lg font-semibold text-orange-600">{data.summary.parts_awaiting_invoice}</p>
             </div>
+            <div className="col-span-2 border-t pt-4">
+              <p className="text-sm text-muted-foreground">Total Value of Open Parts Work Orders</p>
+              <p className="text-2xl font-bold text-blue-600">
+                ${(data.summary.open_parts_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
           </div>
         )}
         
