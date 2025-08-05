@@ -12,16 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
 const SalesCommissionReport = ({ user }) => {
   const [loading, setLoading] = useState(true)
   const [commissionData, setCommissionData] = useState(null)
-  const [bucketData, setBucketData] = useState(null)
-  const [showDiagnostics, setShowDiagnostics] = useState(false)
-  const [loadingBuckets, setLoadingBuckets] = useState(false)
   const [detailsData, setDetailsData] = useState(null)
   const [showDetails, setShowDetails] = useState(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
@@ -34,9 +31,6 @@ const SalesCommissionReport = ({ user }) => {
 
   useEffect(() => {
     fetchCommissionData()
-    if (showDiagnostics) {
-      fetchBucketData()
-    }
     if (showDetails) {
       fetchDetailsData()
     }
@@ -67,30 +61,6 @@ const SalesCommissionReport = ({ user }) => {
     }
   }
 
-  const fetchBucketData = async () => {
-    try {
-      setLoadingBuckets(true)
-      const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl(`/api/reports/departments/accounting/sales-commission-buckets?month=${selectedMonth}`), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setBucketData(data)
-      } else {
-        console.error('Failed to fetch bucket data')
-        setBucketData(null)
-      }
-    } catch (error) {
-      console.error('Error fetching bucket data:', error)
-      setBucketData(null)
-    } finally {
-      setLoadingBuckets(false)
-    }
-  }
 
   const fetchDetailsData = async () => {
     try {
@@ -562,194 +532,6 @@ const SalesCommissionReport = ({ user }) => {
                 </p>
               </div>
             </CardContent>
-          </Card>
-
-          {/* Diagnostic Window */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CardTitle>Commission Bucket Diagnostics</CardTitle>
-                  <Badge variant="outline" className="flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" />
-                    Debug Mode
-                  </Badge>
-                </div>
-                <Button
-                  onClick={() => {
-                    setShowDiagnostics(!showDiagnostics)
-                    if (!showDiagnostics && !bucketData) {
-                      fetchBucketData()
-                    }
-                  }}
-                  variant="outline"
-                  size="sm"
-                >
-                  {showDiagnostics ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {showDiagnostics ? 'Hide' : 'Show'} Diagnostics
-                </Button>
-              </div>
-              <CardDescription>View which Sale Codes map to each commission bucket and sample invoices</CardDescription>
-            </CardHeader>
-            {showDiagnostics && (
-              <CardContent>
-                {loadingBuckets ? (
-                  <div className="py-8 text-center">
-                    <LoadingSpinner size="small" />
-                    <p className="text-sm text-muted-foreground mt-2">Loading bucket diagnostics...</p>
-                  </div>
-                ) : bucketData ? (
-                  <div className="space-y-6">
-                    {/* Sale Code Mappings */}
-                    <div>
-                      <h4 className="font-semibold mb-3">Sale Code Mappings</h4>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {Object.entries(bucketData.buckets).map(([key, bucket]) => (
-                          <div key={key} className="border rounded-lg p-4">
-                            <h5 className="font-medium mb-2">{bucket.name}</h5>
-                            <div className="space-y-1">
-                              <p className="text-sm text-muted-foreground">
-                                Sale Codes: <span className="font-mono">
-                                  {bucket.sale_codes.length > 0 ? bucket.sale_codes.join(', ') : '(None assigned)'}
-                                </span>
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                Revenue Field: <span className="font-mono">{bucket.field}Taxable + {bucket.field}NonTax</span>
-                              </p>
-                              <p className="text-sm">
-                                Total: <span className="font-semibold">{formatCurrency(bucketData.summary[key]?.total || 0)}</span>
-                                {' '}({bucketData.summary[key]?.count || 0} invoices)
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Commission Category Invoices */}
-                    <div>
-                      <h4 className="font-semibold mb-3">Commission Category Invoices</h4>
-                      <div className="space-y-4">
-                        {Object.entries(bucketData.buckets).filter(([key]) => key !== 'all_other').map(([key, bucket]) => (
-                          <div key={key} className="border rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-2">
-                              <h5 className="font-medium">{bucket.name}</h5>
-                              <span className="text-sm text-muted-foreground">
-                                {bucket.sample_invoices.length} invoice{bucket.sample_invoices.length !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                            {bucket.sample_invoices.length > 0 ? (
-                              <>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-sm">
-                                  <thead>
-                                    <tr className="border-b">
-                                      <th className="text-left p-2">Invoice #</th>
-                                      <th className="text-left p-2">Date</th>
-                                      <th className="text-left p-2">Customer</th>
-                                      <th className="text-left p-2">Salesman</th>
-                                      <th className="text-left p-2">Sale Code</th>
-                                      <th className="text-right p-2">Amount</th>
-                                      <th className="text-right p-2">Total</th>
-                                      <th className="text-center p-2">Commissionable</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {bucket.sample_invoices.map((inv, idx) => (
-                                      <tr key={idx} className="border-b">
-                                        <td className="p-2">{inv.InvoiceNo}</td>
-                                        <td className="p-2">{new Date(inv.InvoiceDate).toLocaleDateString()}</td>
-                                        <td className="p-2">{inv.BillToName}</td>
-                                        <td className="p-2">
-                                          {inv.Salesman1 ? (
-                                            inv.Salesman1
-                                          ) : (
-                                            <span className="text-red-600 font-medium">N/A</span>
-                                          )}
-                                        </td>
-                                        <td className="p-2">
-                                          <Badge variant="outline" className="font-mono">
-                                            {inv.SaleCode}
-                                          </Badge>
-                                        </td>
-                                        <td className="text-right p-2">{formatCurrency(inv.CategoryAmount)}</td>
-                                        <td className="text-right p-2">{formatCurrency(inv.GrandTotal)}</td>
-                                        <td className="text-center p-2">
-                                          {inv.Salesman1 ? (
-                                            <Badge variant="default" className="bg-green-600">Yes</Badge>
-                                          ) : (
-                                            <Badge variant="destructive">No - Unassigned</Badge>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                              <div className="mt-3 pt-3 border-t">
-                                <div className="flex justify-between text-sm">
-                                  <span>Commissionable ({bucket.sample_invoices.filter(inv => inv.Salesman1).length} invoices):</span>
-                                  <span className="font-semibold text-green-600">
-                                    {formatCurrency(bucket.sample_invoices.filter(inv => inv.Salesman1).reduce((sum, inv) => sum + (inv.CategoryAmount || 0), 0))}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm mt-1">
-                                  <span>Non-Commissionable ({bucket.sample_invoices.filter(inv => !inv.Salesman1).length} invoices):</span>
-                                  <span className="font-semibold text-red-600">
-                                    {formatCurrency(bucket.sample_invoices.filter(inv => !inv.Salesman1).reduce((sum, inv) => sum + (inv.CategoryAmount || 0), 0))}
-                                  </span>
-                                </div>
-                              </div>
-                              </>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">No invoices found for this category in {new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Unmapped Equipment Codes */}
-                    {bucketData.unmapped_equipment_codes && bucketData.unmapped_equipment_codes.length > 0 && (
-                      <div className="border rounded-lg p-4 bg-yellow-50">
-                        <h4 className="font-semibold mb-2 text-yellow-900">Unmapped Equipment Sale Codes</h4>
-                        <p className="text-sm text-yellow-800 mb-3">
-                          These Sale Codes have equipment revenue but are not currently mapped to any commission bucket:
-                        </p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="border-b">
-                                <th className="text-left p-2">Sale Code</th>
-                                <th className="text-right p-2">Invoice Count</th>
-                                <th className="text-right p-2">Equipment Revenue</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {bucketData.unmapped_equipment_codes.map((code, idx) => (
-                                <tr key={idx} className="border-b">
-                                  <td className="p-2">
-                                    <Badge variant="outline" className="font-mono">
-                                      {code.SaleCode}
-                                    </Badge>
-                                  </td>
-                                  <td className="text-right p-2">{code.InvoiceCount}</td>
-                                  <td className="text-right p-2">{formatCurrency(code.EquipmentRevenue)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Failed to load diagnostic data
-                  </div>
-                )}
-              </CardContent>
-            )}
           </Card>
         </>
       ) : (
