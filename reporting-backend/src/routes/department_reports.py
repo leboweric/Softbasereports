@@ -6332,7 +6332,6 @@ def register_department_routes(reports_bp):
                     w.WONo,
                     w.UnitNo,
                     w.HourMeter as WOHourMeter,
-                    w.WorkPerformed,
                     e.Make,
                     e.Model,
                     e.SerialNo as EquipmentSerialNo,
@@ -6391,8 +6390,8 @@ def register_department_routes(reports_bp):
                 TotalTax,
                 GrandTotal,
                 
-                -- Comments (work performed)
-                COALESCE(WorkPerformed, Comments) as Comments
+                -- Comments from invoice
+                Comments
                 
             FROM InvoiceWO
             """
