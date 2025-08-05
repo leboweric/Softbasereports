@@ -6327,7 +6327,7 @@ def register_department_routes(reports_bp):
                 -- Customer info
                 i.BillTo,
                 i.BillToName,
-                i.Salesman1 as Salesman,
+                c.Salesman1 as Salesman,
                 
                 -- Invoice info
                 i.InvoiceNo,
@@ -6351,6 +6351,7 @@ def register_department_routes(reports_bp):
                 i.SaleDept
                 
             FROM ben002.InvoiceReg i
+            LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
