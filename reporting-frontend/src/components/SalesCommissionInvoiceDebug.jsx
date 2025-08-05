@@ -100,6 +100,9 @@ const SalesCommissionInvoiceDebug = ({ user }) => {
                         <th className="text-left p-2">C1 Salesman</th>
                         <th className="text-left p-2">C2 Number</th>
                         <th className="text-left p-2">C2 Salesman</th>
+                        <th className="text-left p-2">C3 Number</th>
+                        <th className="text-left p-2">C3 Name</th>
+                        <th className="text-left p-2">C3 Salesman</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -125,6 +128,15 @@ const SalesCommissionInvoiceDebug = ({ user }) => {
                           <td className="p-2">
                             {inv.Customer2_Salesman1 ? (
                               <Badge variant="default">{inv.Customer2_Salesman1}</Badge>
+                            ) : (
+                              <Badge variant="destructive">NULL</Badge>
+                            )}
+                          </td>
+                          <td className="p-2 font-mono text-xs">{inv.Customer3_Number || 'NULL'}</td>
+                          <td className="p-2 text-xs">{inv.Customer3_Name || '-'}</td>
+                          <td className="p-2">
+                            {inv.Customer3_Salesman1 ? (
+                              <Badge variant="success" className="bg-green-600">{inv.Customer3_Salesman1}</Badge>
                             ) : (
                               <Badge variant="destructive">NULL</Badge>
                             )}
@@ -248,6 +260,12 @@ const SalesCommissionInvoiceDebug = ({ user }) => {
                     {debugData.invoices.some(inv => inv.Customer2_Number) 
                       ? ' Found customer records using BillToName = Customer.Name join'
                       : ' No customer records found using BillToName = Customer.Name join'}
+                  </p>
+                  <p>
+                    <strong>First Word Match:</strong> 
+                    {debugData.invoices.some(inv => inv.Customer3_Number) 
+                      ? ' Found customer records using first word match (e.g., SIMONSON)'
+                      : ' No customer records found using first word match'}
                   </p>
                 </div>
               </div>

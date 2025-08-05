@@ -4536,15 +4536,22 @@ def register_department_routes(reports_bp):
                     ir.InvoiceNo,
                     ir.BillTo,
                     ir.BillToName,
-                    -- Get the first non-null salesman from any customer record with matching name
+                    -- Get the first non-null salesman from any customer record
                     COALESCE(
                         c1.Salesman1,  -- First try direct BillTo match
-                        c2.Salesman1,  -- Then try any customer with same name
+                        c2.Salesman1,  -- Then try exact name match
+                        c3.Salesman1,  -- Then try partial name match (first word)
                         'Unassigned'
                     ) as Salesman
                 FROM ben002.InvoiceReg ir
                 LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
                 LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                -- Try matching on first word of company name (e.g., SIMONSON)
+                LEFT JOIN ben002.Customer c3 ON 
+                    CHARINDEX(' ', ir.BillToName) > 0 
+                    AND UPPER(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) = UPPER(LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1))
+                    AND c3.Salesman1 IS NOT NULL
+                    AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4  -- First word must be at least 4 chars
                 WHERE ir.InvoiceDate >= %s
                     AND ir.InvoiceDate <= %s
             )
@@ -4580,6 +4587,8 @@ def register_department_routes(reports_bp):
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
                 AND sl.Salesman != 'Unassigned'
+                AND sl.Salesman IS NOT NULL
+                AND sl.Salesman != ''
             GROUP BY sl.Salesman
             ORDER BY SUM(
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) +
@@ -4848,12 +4857,19 @@ def register_department_routes(reports_bp):
                         ir.BillToName,
                         COALESCE(
                             c1.Salesman1,  -- First try direct BillTo match
-                            c2.Salesman1,  -- Then try any customer with same name
+                            c2.Salesman1,  -- Then try exact name match
+                            c3.Salesman1,  -- Then try partial name match (first word)
                             NULL
                         ) as Salesman1
                     FROM ben002.InvoiceReg ir
                     LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
                     LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                    -- Try matching on first word of company name (e.g., SIMONSON)
+                    LEFT JOIN ben002.Customer c3 ON 
+                        CHARINDEX(' ', ir.BillToName) > 0 
+                        AND UPPER(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) = UPPER(LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1))
+                        AND c3.Salesman1 IS NOT NULL
+                        AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4
                     WHERE ir.InvoiceDate >= %s 
                         AND ir.InvoiceDate <= %s
                 )
@@ -5060,11 +5076,18 @@ def register_department_routes(reports_bp):
                     ir.InvoiceNo,
                     COALESCE(
                         c1.Salesman1,  -- First try direct BillTo match
-                        c2.Salesman1   -- Then try any customer with same name
+                        c2.Salesman1,  -- Then try exact name match
+                        c3.Salesman1   -- Then try partial name match (first word)
                     ) as Salesman1
                 FROM ben002.InvoiceReg ir
                 LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
                 LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                -- Try matching on first word of company name (e.g., SIMONSON)
+                LEFT JOIN ben002.Customer c3 ON 
+                    CHARINDEX(' ', ir.BillToName) > 0 
+                    AND LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1) = LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1)
+                    AND c3.Salesman1 IS NOT NULL
+                    AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4
                 WHERE ir.InvoiceDate >= %s
                     AND ir.InvoiceDate <= %s
             )
@@ -5367,12 +5390,22 @@ def register_department_routes(reports_bp):
                 c2.Number as Customer2_Number,
                 c2.Name as Customer2_Name,
                 c2.Salesman1 as Customer2_Salesman1,
+                -- Customer based on first word match
+                c3.Number as Customer3_Number,
+                c3.Name as Customer3_Name,
+                c3.Salesman1 as Customer3_Salesman1,
                 -- Equipment info
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 ir.GrandTotal
             FROM ben002.InvoiceReg ir
             LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
             LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name
+            -- Try matching on first word of company name
+            LEFT JOIN ben002.Customer c3 ON 
+                CHARINDEX(' ', ir.BillToName) > 0 
+                AND UPPER(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) = UPPER(LEFT(c3.Name, CHARINDEX(' ', c3.Name + ' ') - 1))
+                AND c3.Salesman1 IS NOT NULL
+                AND LEN(LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)) >= 4
             WHERE ir.InvoiceNo IN (110000007, 110000008, 110000009, 110000010)
             """
             
