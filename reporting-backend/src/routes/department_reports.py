@@ -6332,8 +6332,13 @@ def register_department_routes(reports_bp):
                     w.WONo,
                     w.UnitNo,
                     w.HourMeter as WOHourMeter,
-                    e.Make,
-                    e.Model,
+                    w.PONo as WOPONo,
+                    w.Comments as WOComments,
+                    w.Make as WOMake,
+                    w.Model as WOModel,
+                    w.SerialNo as WOSerialNo,
+                    e.Make as EquipmentMake,
+                    e.Model as EquipmentModel,
                     e.SerialNo as EquipmentSerialNo,
                     -- Get freight from WOMisc
                     COALESCE(freight.FreightCharge, 0) as Freight
@@ -6372,16 +6377,16 @@ def register_department_routes(reports_bp):
                 InvoiceNo,
                 InvoiceDate,
                 
-                -- Equipment info from work order
-                UnitNo,
+                -- Equipment info from work order or invoice
+                COALESCE(UnitNo, '') as UnitNo,
                 WONo as AssociatedWONo,
-                Make,
-                Model,
-                COALESCE(EquipmentSerialNo, SerialNo) as SerialNo,
-                COALESCE(WOHourMeter, HourMeter) as HourMeter,
+                COALESCE(EquipmentMake, WOMake, '') as Make,
+                COALESCE(EquipmentModel, WOModel, '') as Model,
+                COALESCE(EquipmentSerialNo, WOSerialNo, SerialNo, '') as SerialNo,
+                COALESCE(WOHourMeter, HourMeter, 0) as HourMeter,
                 
-                -- PO and charges
-                PONo,
+                -- PO from work order or invoice
+                COALESCE(WOPONo, PONo, '') as PONo,
                 PartsTaxable,
                 LaborTaxable,
                 LaborNonTax,
