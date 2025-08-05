@@ -6493,6 +6493,102 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching service customers: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/service/invoice-diagnostic', methods=['GET'])
+    @jwt_required()
+    def get_invoice_diagnostic():
+        """Diagnostic endpoint to check invoice counts by department"""
+        try:
+            start_date = request.args.get('start_date', '2025-07-29')
+            end_date = request.args.get('end_date', '2025-08-01')
+            
+            db = get_db()
+            
+            # Check total invoices in date range
+            total_query = """
+            SELECT 
+                COUNT(*) as total_invoices,
+                COUNT(DISTINCT BillTo) as unique_customers,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= %s
+              AND InvoiceDate <= %s
+              AND DeletionTime IS NULL
+              AND GrandTotal > 0
+            """
+            
+            total_results = db.execute_query(total_query, [start_date, end_date])
+            
+            # Check service department invoices
+            service_query = """
+            SELECT 
+                COUNT(*) as service_invoices,
+                COUNT(DISTINCT BillTo) as service_customers,
+                SUM(GrandTotal) as service_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= %s
+              AND InvoiceDate <= %s
+              AND DeletionTime IS NULL
+              AND (SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
+                   OR SaleDept IN (20, 25, 29))
+              AND GrandTotal > 0
+            """
+            
+            service_results = db.execute_query(service_query, [start_date, end_date])
+            
+            # Get breakdown by SaleCode
+            breakdown_query = """
+            SELECT 
+                SaleCode,
+                SaleDept,
+                COUNT(*) as invoice_count,
+                COUNT(DISTINCT BillTo) as customer_count,
+                SUM(GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= %s
+              AND InvoiceDate <= %s
+              AND DeletionTime IS NULL
+              AND GrandTotal > 0
+            GROUP BY SaleCode, SaleDept
+            ORDER BY invoice_count DESC
+            """
+            
+            breakdown_results = db.execute_query(breakdown_query, [start_date, end_date])
+            
+            # Get list of Service customers with their invoices
+            service_customers_query = """
+            SELECT 
+                i.BillTo,
+                i.BillToName,
+                COUNT(*) as invoice_count,
+                MIN(i.InvoiceNo) as first_invoice,
+                MAX(i.InvoiceNo) as last_invoice,
+                SUM(i.GrandTotal) as total_revenue
+            FROM ben002.InvoiceReg i
+            WHERE i.InvoiceDate >= %s
+              AND i.InvoiceDate <= %s
+              AND i.DeletionTime IS NULL
+              AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
+                   OR i.SaleDept IN (20, 25, 29))
+              AND i.GrandTotal > 0
+            GROUP BY i.BillTo, i.BillToName
+            ORDER BY total_revenue DESC
+            """
+            
+            service_customers = db.execute_query(service_customers_query, [start_date, end_date])
+            
+            return jsonify({
+                'date_range': {'start': start_date, 'end': end_date},
+                'total_all_departments': total_results[0] if total_results else None,
+                'total_service_only': service_results[0] if service_results else None,
+                'breakdown_by_sale_code': breakdown_results,
+                'service_customers_list': service_customers,
+                'service_customer_count': len(service_customers)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in invoice diagnostic: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/service/invoice-schema', methods=['GET'])
     @jwt_required()
     def get_invoice_schema():
