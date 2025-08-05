@@ -6321,85 +6321,49 @@ def register_department_routes(reports_bp):
             if not start_date or not end_date:
                 return jsonify({'error': 'Start date and end date are required'}), 400
                 
-            # Build comprehensive query joining invoices with work orders
-            # The key is that work orders get invoiced when closed, so we match by date and customer
+            # Simplified query without work order joins to avoid duplication
             query = """
-            WITH InvoiceWO AS (
-                -- First, get invoices with their potential work order matches
-                SELECT 
-                    i.*,
-                    c.Salesman1 as Salesman,
-                    w.WONo,
-                    w.UnitNo,
-                    w.HourMeter as WOHourMeter,
-                    w.PONo as WOPONo,
-                    w.Comments as WOComments,
-                    w.Make as WOMake,
-                    w.Model as WOModel,
-                    w.SerialNo as WOSerialNo,
-                    e.Make as EquipmentMake,
-                    e.Model as EquipmentModel,
-                    e.SerialNo as EquipmentSerialNo,
-                    -- Get freight from WOMisc
-                    COALESCE(freight.FreightCharge, 0) as Freight
-                FROM ben002.InvoiceReg i
-                LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
-                -- Match work orders by customer and close date near invoice date
-                LEFT JOIN ben002.WO w ON i.BillTo = w.BillTo 
-                    AND w.ClosedDate IS NOT NULL
-                    AND ABS(DATEDIFF(day, i.InvoiceDate, w.ClosedDate)) <= 7
-                    AND w.Type = 'S'
-                LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
-                -- Get freight charges from WOMisc
-                LEFT JOIN (
-                    SELECT 
-                        WONo,
-                        SUM(Sell) as FreightCharge
-                    FROM ben002.WOMisc
-                    WHERE UPPER(Description) = 'FREIGHT'
-                    GROUP BY WONo
-                ) freight ON w.WONo = freight.WONo
-                WHERE i.InvoiceDate >= %s
-                  AND i.InvoiceDate <= %s
-                  AND i.DeletionTime IS NULL
-                  -- Include all invoices with service-related revenue
-                  AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
-                       OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
-                       OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
-                  AND i.GrandTotal > 0
-            )
-            SELECT DISTINCT
+            SELECT 
                 -- Customer info
-                BillTo,
-                BillToName,
-                Salesman,
+                i.BillTo,
+                i.BillToName,
+                c.Salesman1 as Salesman,
                 
                 -- Invoice info
-                InvoiceNo,
-                InvoiceDate,
+                i.InvoiceNo,
+                i.InvoiceDate,
                 
-                -- Equipment info from work order or invoice
-                COALESCE(UnitNo, '') as UnitNo,
-                WONo as AssociatedWONo,
-                COALESCE(EquipmentMake, WOMake, '') as Make,
-                COALESCE(EquipmentModel, WOModel, '') as Model,
-                COALESCE(EquipmentSerialNo, WOSerialNo, SerialNo, '') as SerialNo,
-                COALESCE(WOHourMeter, HourMeter, 0) as HourMeter,
+                -- Equipment info from invoice
+                COALESCE(i.UnitNo, '') as UnitNo,
+                '' as AssociatedWONo,
+                '' as Make,
+                '' as Model,
+                COALESCE(i.SerialNo, '') as SerialNo,
+                COALESCE(i.HourMeter, 0) as HourMeter,
                 
-                -- PO from work order or invoice
-                COALESCE(WOPONo, PONo, '') as PONo,
-                PartsTaxable,
-                LaborTaxable,
-                LaborNonTax,
-                MiscTaxable,
-                Freight,
-                TotalTax,
-                GrandTotal,
+                -- PO and other fields
+                COALESCE(i.PONo, '') as PONo,
+                i.PartsTaxable,
+                i.LaborTaxable,
+                i.LaborNonTax,
+                i.MiscTaxable,
+                COALESCE(i.MiscNonTax, 0) as Freight,  -- Using MiscNonTax as Freight proxy
+                i.TotalTax,
+                i.GrandTotal,
                 
-                -- Comments from invoice
-                Comments
+                -- Comments
+                i.Comments
                 
-            FROM InvoiceWO
+            FROM ben002.InvoiceReg i
+            LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
+            WHERE i.InvoiceDate >= %s
+              AND i.InvoiceDate <= %s
+              AND i.DeletionTime IS NULL
+              -- Include all invoices with service-related revenue
+              AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
+                   OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
+                   OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
+              AND i.GrandTotal > 0
             """
             
             # Add customer filter if specified
