@@ -1761,18 +1761,23 @@ def register_department_routes(reports_bp):
             """
             labor_details = db.execute_query(labor_query, [wo_number])
             
-            # Debug: Let's also check if there's any labor data in other fields
-            # Check the WO table itself for labor totals
-            wo_labor_check_query = """
-            SELECT 
-                LaborCost,
-                LaborSell,
-                FlatRateLabor,
-                FlatRateLaborCost
-            FROM ben002.WO
-            WHERE WONo = %s
+            # Debug: Check if flat rate labor might be in WOMisc or other tables
+            # First, let's get all columns from WO to see what's available
+            wo_columns_query = """
+            SELECT TOP 1 * FROM ben002.WO WHERE WONo = %s
             """
-            wo_labor_data = db.execute_query(wo_labor_check_query, [wo_number])
+            wo_full_data = db.execute_query(wo_columns_query, [wo_number])
+            
+            # Also check if flat rate labor might be stored as a misc charge
+            flat_rate_check_query = """
+            SELECT * FROM ben002.WOMisc 
+            WHERE WONo = %s 
+            AND (UPPER(Description) LIKE '%LABOR%' 
+                 OR UPPER(Description) LIKE '%FLAT%' 
+                 OR UPPER(Description) LIKE '%RATE%'
+                 OR Sell = 270)  -- Look for the exact $270 amount
+            """
+            flat_rate_misc = db.execute_query(flat_rate_check_query, [wo_number])
             
             # Get parts details
             parts_query = """
@@ -1846,7 +1851,8 @@ def register_department_routes(reports_bp):
                     'saleCode': wo_data.get('SaleCode'),
                     'saleDept': wo_data.get('SaleDept'),
                     # Debug info for labor
-                    'laborDebug': dict(wo_labor_data[0]) if wo_labor_data else None
+                    'flatRateMiscItems': [dict(row) for row in flat_rate_misc] if flat_rate_misc else [],
+                    'woAllFields': list(wo_full_data[0].keys()) if wo_full_data else []
                 },
                 'labor': {
                     'details': [dict(row) for row in labor_details],

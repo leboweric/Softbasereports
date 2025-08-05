@@ -460,13 +460,25 @@ const RentalServiceReport = () => {
                       <div>Sale Code: {woDetail.workOrder.saleCode}</div>
                     </div>
                     {/* Debug labor info */}
-                    {woDetail.workOrder.laborDebug && (
+                    {(woDetail.workOrder.flatRateMiscItems?.length > 0 || woDetail.workOrder.woAllFields?.length > 0) && (
                       <div className="mt-2 p-2 bg-yellow-100 rounded text-xs">
-                        <strong>Labor Debug Info:</strong>
-                        <div>LaborCost: {formatCurrency(woDetail.workOrder.laborDebug.LaborCost || 0)}</div>
-                        <div>LaborSell: {formatCurrency(woDetail.workOrder.laborDebug.LaborSell || 0)}</div>
-                        <div>FlatRateLabor: {formatCurrency(woDetail.workOrder.laborDebug.FlatRateLabor || 0)}</div>
-                        <div>FlatRateLaborCost: {formatCurrency(woDetail.workOrder.laborDebug.FlatRateLaborCost || 0)}</div>
+                        <strong>Debug Info:</strong>
+                        {woDetail.workOrder.flatRateMiscItems?.length > 0 && (
+                          <div>
+                            <div className="font-semibold">Found potential flat rate labor in WOMisc:</div>
+                            {woDetail.workOrder.flatRateMiscItems.map((item, idx) => (
+                              <div key={idx}>
+                                - {item.Description}: Cost={formatCurrency(item.Cost || 0)}, Sell={formatCurrency(item.Sell || 0)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {woDetail.workOrder.woAllFields?.length > 0 && (
+                          <details className="mt-1">
+                            <summary className="cursor-pointer font-semibold">WO table columns ({woDetail.workOrder.woAllFields.length} fields)</summary>
+                            <div className="mt-1 text-xs">{woDetail.workOrder.woAllFields.join(', ')}</div>
+                          </details>
+                        )}
                       </div>
                     )}
                   </div>
