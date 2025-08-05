@@ -115,15 +115,6 @@ const Dashboard = ({ user }) => {
           const cacheStatus = data.from_cache ? 'from cache' : 'fresh data'
           console.log(`Dashboard loaded in ${data.query_time} seconds (${cacheStatus})`)
         }
-        // Debug: Log awaiting invoice data
-        console.log('Awaiting Invoice Data:', {
-          count: data.awaiting_invoice_count,
-          value: data.awaiting_invoice_value,
-          avg_days: data.awaiting_invoice_avg_days,
-          over_three: data.awaiting_invoice_over_three,
-          over_five: data.awaiting_invoice_over_five,
-          over_seven: data.awaiting_invoice_over_seven
-        })
         
         // Fetch pace data
         fetchPaceData()
@@ -1156,9 +1147,6 @@ const Dashboard = ({ user }) => {
 
     {/* Work Orders Tab */}
     <TabsContent value="workorders" className="space-y-4">
-          {/* Debug log */}
-          {console.log('Work Orders Tab - Awaiting Invoice Count:', dashboardData?.awaiting_invoice_count)}
-          
           {/* Awaiting Invoice Alert */}
           {dashboardData?.awaiting_invoice_count > 0 && (
             <Card className={`border-2 ${dashboardData.awaiting_invoice_over_three > 0 ? 'border-orange-400 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}`}>

@@ -606,7 +606,6 @@ class DashboardQueries:
                 WHERE w.CompletedDate IS NOT NULL
                   AND w.ClosedDate IS NULL
                   AND w.InvoiceDate IS NULL
-                  AND w.CancelledDate IS NULL
                   AND w.DeletionTime IS NULL
             )
             SELECT 
