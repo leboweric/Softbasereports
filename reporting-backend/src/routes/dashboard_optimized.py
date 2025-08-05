@@ -327,7 +327,7 @@ class DashboardQueries:
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
-                SELECT WONo, SUM(Sell) as parts_total 
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
                 FROM ben002.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
@@ -483,7 +483,7 @@ class DashboardQueries:
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
-                SELECT WONo, SUM(Sell) as parts_total 
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
                 FROM ben002.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
@@ -512,7 +512,7 @@ class DashboardQueries:
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
-                SELECT WONo, SUM(Sell) as parts_total 
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
                 FROM ben002.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
@@ -926,7 +926,7 @@ class DashboardQueries:
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
-                SELECT WONo, SUM(Sell) as parts_total 
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
                 FROM ben002.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
@@ -1158,7 +1158,7 @@ class DashboardQueries:
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
-                SELECT WONo, SUM(Sell) as parts_total 
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
                 FROM ben002.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo

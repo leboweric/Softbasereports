@@ -27,6 +27,7 @@ import {
   Legend
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
+import ServiceInvoiceBilling from '../ServiceInvoiceBilling'
 
 const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
@@ -289,6 +290,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="work-orders">Work Orders</TabsTrigger>
+          <TabsTrigger value="invoice-billing">Invoice Billing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -644,6 +646,10 @@ const ServiceReport = ({ user, onNavigate }) => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        <TabsContent value="invoice-billing" className="space-y-6">
+          <ServiceInvoiceBilling />
         </TabsContent>
       </Tabs>
     </div>

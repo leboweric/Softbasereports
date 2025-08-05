@@ -714,7 +714,7 @@ def register_department_routes(reports_bp):
                 MAX(wp.Description) as Description,
                 COUNT(DISTINCT wp.WONo) as OrderCount,
                 SUM(wp.Qty) as TotalQuantity,
-                SUM(wp.Sell) as TotalRevenue,
+                SUM(wp.Sell * wp.Qty) as TotalRevenue,
                 AVG(wp.Sell / NULLIF(wp.Qty, 0)) as AvgUnitPrice,
                 MAX(p.OnHand) as CurrentStock,
                 MAX(p.Cost) as UnitCost,
@@ -6308,5 +6308,93 @@ def register_department_routes(reports_bp):
         except Exception as e:
             logger.error(f"Error finding LINDE invoice: {str(e)}")
             return jsonify({'error': str(e)}), 500
+
+@department_reports_bp.route('/departments/service/invoice-billing', methods=['GET'])
+@jwt_required()
+def get_service_invoice_billing():
+    """Get invoice billing report for Service department"""
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        if not start_date or not end_date:
+            return jsonify({'error': 'Start date and end date are required'}), 400
+            
+        # Get invoices with all details for the date range
+        query = """
+        SELECT 
+            -- Customer info
+            i.BillTo,
+            i.BillToName,
+            i.Salesman1 as Salesman,
+            
+            -- Invoice info
+            i.InvoiceNo,
+            i.InvoiceDate,
+            
+            -- Equipment info from work order
+            w.UnitNo,
+            w.WONo as AssociatedWONo,
+            e.Make,
+            e.Model,
+            e.SerialNo,
+            CAST(w.HourMeter AS INT) as HourMeter,
+            
+            -- PO and amounts
+            i.PONo,
+            i.PartsTaxable,
+            i.LaborTaxable,
+            i.LaborNonTax,
+            i.MiscTaxable,
+            i.Freight,
+            i.TotalTax,
+            i.GrandTotal,
+            
+            -- Comments (work performed)
+            w.WorkPerformed as Comments,
+            
+            -- Additional info for filtering
+            i.SaleCode,
+            i.SaleDept
+            
+        FROM ben002.InvoiceReg i
+        LEFT JOIN ben002.WO w ON i.InvoiceNo = w.InvoiceNo
+        LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
+        WHERE i.InvoiceDate >= ?
+          AND i.InvoiceDate <= ?
+          AND i.DeletionTime IS NULL
+          -- Filter for Service department invoices
+          AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
+               OR i.SaleDept IN (20, 25, 29))
+          AND i.GrandTotal > 0
+        ORDER BY i.InvoiceDate, i.InvoiceNo
+        """
+        
+        with DatabaseService() as db:
+            invoices = db.execute_query(query, (start_date, end_date))
+            
+            # Calculate totals
+            totals = {
+                'parts_taxable': sum(inv['PartsTaxable'] or 0 for inv in invoices),
+                'labor_taxable': sum(inv['LaborTaxable'] or 0 for inv in invoices),
+                'labor_non_tax': sum(inv['LaborNonTax'] or 0 for inv in invoices),
+                'misc_taxable': sum(inv['MiscTaxable'] or 0 for inv in invoices),
+                'freight': sum(inv['Freight'] or 0 for inv in invoices),
+                'total_tax': sum(inv['TotalTax'] or 0 for inv in invoices),
+                'grand_total': sum(inv['GrandTotal'] or 0 for inv in invoices),
+                'invoice_count': len(invoices)
+            }
+            
+            result = {
+                'invoices': invoices,
+                'totals': totals,
+                'start_date': start_date,
+                'end_date': end_date
+            }
+            
+        return jsonify(result)
+    except Exception as e:
+        current_app.logger.error(f"Error in service invoice billing: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
