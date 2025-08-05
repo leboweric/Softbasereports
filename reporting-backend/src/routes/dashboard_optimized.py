@@ -650,6 +650,77 @@ class DashboardQueries:
                 'over_seven_days': 0
             }
     
+    def get_parts_awaiting_invoice_work_orders(self):
+        """Get completed PARTS work orders awaiting invoice"""
+        try:
+            query = """
+            WITH CompletedWOs AS (
+                SELECT 
+                    w.WONo,
+                    w.Type,
+                    w.CompletedDate,
+                    w.BillTo,
+                    DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysSinceCompleted,
+                    COALESCE(p.parts_sell, 0) as parts_total,
+                    COALESCE(m.misc_sell, 0) as misc_total
+                FROM ben002.WO w
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell * Qty) as parts_sell 
+                    FROM ben002.WOParts 
+                    GROUP BY WONo
+                ) p ON w.WONo = p.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as misc_sell 
+                    FROM ben002.WOMisc 
+                    GROUP BY WONo
+                ) m ON w.WONo = m.WONo
+                WHERE w.CompletedDate IS NOT NULL
+                  AND w.ClosedDate IS NULL
+                  AND w.InvoiceDate IS NULL
+                  AND w.DeletionTime IS NULL
+                  AND w.Type = 'P'  -- Parts work orders only
+            )
+            SELECT 
+                COUNT(*) as count,
+                SUM(parts_total + misc_total) as total_value,
+                AVG(DaysSinceCompleted) as avg_days_waiting,
+                COUNT(CASE WHEN DaysSinceCompleted > 3 THEN 1 END) as over_three_days,
+                COUNT(CASE WHEN DaysSinceCompleted > 5 THEN 1 END) as over_five_days,
+                COUNT(CASE WHEN DaysSinceCompleted > 7 THEN 1 END) as over_seven_days
+            FROM CompletedWOs
+            """
+            
+            result = self.db.execute_query(query)
+            
+            if result and result[0]['count']:
+                return {
+                    'count': int(result[0]['count']) if result[0]['count'] else 0,
+                    'total_value': float(result[0]['total_value']) if result[0]['total_value'] else 0,
+                    'avg_days_waiting': float(result[0]['avg_days_waiting']) if result[0]['avg_days_waiting'] else 0,
+                    'over_three_days': int(result[0]['over_three_days']) if result[0]['over_three_days'] else 0,
+                    'over_five_days': int(result[0]['over_five_days']) if result[0]['over_five_days'] else 0,
+                    'over_seven_days': int(result[0]['over_seven_days']) if result[0]['over_seven_days'] else 0
+                }
+            else:
+                return {
+                    'count': 0,
+                    'total_value': 0,
+                    'avg_days_waiting': 0,
+                    'over_three_days': 0,
+                    'over_five_days': 0,
+                    'over_seven_days': 0
+                }
+        except Exception as e:
+            logger.error(f"Parts awaiting invoice work orders query failed: {str(e)}")
+            return {
+                'count': 0,
+                'total_value': 0,
+                'avg_days_waiting': 0,
+                'over_three_days': 0,
+                'over_five_days': 0,
+                'over_seven_days': 0
+            }
+    
     def get_monthly_invoice_delay_avg(self):
         """Get average days waiting for invoice at month end for Service, Shop, and PM work orders"""
         try:
