@@ -528,7 +528,7 @@ const ServiceReport = ({ user, onNavigate }) => {
 
       {/* Awaiting Invoice Details Modal */}
       <Dialog open={showAwaitingInvoiceModal} onOpenChange={setShowAwaitingInvoiceModal}>
-        <DialogContent className="max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-[90vw] w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-xl">Service, Shop & PM Work Orders Awaiting Invoice</DialogTitle>
             <DialogDescription>
@@ -541,7 +541,7 @@ const ServiceReport = ({ user, onNavigate }) => {
               <LoadingSpinner />
             </div>
           ) : awaitingInvoiceDetails ? (
-            <div className="flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 overflow-hidden flex flex-col" style={{ width: '100%' }}>
               {/* Summary Stats */}
               <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">
                 <div className="text-center">
@@ -579,22 +579,22 @@ const ServiceReport = ({ user, onNavigate }) => {
               </div>
 
               {/* Table */}
-              <div className="flex-1 overflow-auto">
-                <Table>
+              <div className="flex-1 overflow-auto" style={{ width: '100%' }}>
+                <Table style={{ minWidth: '1200px' }}>
                   <TableHeader className="sticky top-0 bg-white z-10">
                     <TableRow>
-                      <TableHead>WO#</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Make/Model</TableHead>
-                      <TableHead>Technician</TableHead>
-                      <TableHead>Completed</TableHead>
-                      <TableHead className="text-center">Days</TableHead>
-                      <TableHead className="text-right">Labor</TableHead>
-                      <TableHead className="text-right">Parts</TableHead>
-                      <TableHead className="text-right">Misc</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead style={{ minWidth: '80px' }}>WO#</TableHead>
+                      <TableHead style={{ minWidth: '60px' }}>Type</TableHead>
+                      <TableHead style={{ minWidth: '200px' }}>Customer</TableHead>
+                      <TableHead style={{ minWidth: '80px' }}>Unit</TableHead>
+                      <TableHead style={{ minWidth: '150px' }}>Make/Model</TableHead>
+                      <TableHead style={{ minWidth: '120px' }}>Technician</TableHead>
+                      <TableHead style={{ minWidth: '100px' }}>Completed</TableHead>
+                      <TableHead className="text-center" style={{ minWidth: '60px' }}>Days</TableHead>
+                      <TableHead className="text-right" style={{ minWidth: '80px' }}>Labor</TableHead>
+                      <TableHead className="text-right" style={{ minWidth: '80px' }}>Parts</TableHead>
+                      <TableHead className="text-right" style={{ minWidth: '80px' }}>Misc</TableHead>
+                      <TableHead className="text-right" style={{ minWidth: '100px' }}>Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -609,11 +609,11 @@ const ServiceReport = ({ user, onNavigate }) => {
                             {wo.type}
                           </Badge>
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
+                        <TableCell className="truncate" title={wo.customer_name}>
                           {wo.customer_name}
                         </TableCell>
                         <TableCell>{wo.unit_no || '-'}</TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}>
+                        <TableCell className="truncate" title={wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}>
                           {wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}
                         </TableCell>
                         <TableCell>{wo.technician || '-'}</TableCell>
