@@ -108,19 +108,21 @@ def register_department_routes(reports_bp):
                 w.OpenDate,
                 w.BillTo,
                 c.Name as CustomerName,
-                w.UnitNo,
-                e.Make,
-                e.Model,
-                w.Technician,
                 DATEDIFF(day, w.OpenDate, GETDATE()) as DaysSinceOpened,
+                COALESCE(p.parts_count, 0) as parts_count,
+                COALESCE(p.parts_list, '') as parts_list,
                 COALESCE(p.parts_total, 0) as parts_total,
                 COALESCE(m.misc_total, 0) as misc_total,
                 COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0) as total_value
             FROM ben002.WO w
             LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
-            LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
             LEFT JOIN (
-                SELECT WONo, SUM(Sell * Qty) as parts_total 
+                SELECT 
+                    WONo, 
+                    COUNT(DISTINCT PartNo) as parts_count,
+                    STRING_AGG(CAST(PartNo + ' (' + CAST(CAST(Qty AS INT) AS VARCHAR) + ')' AS VARCHAR(MAX)), ', ') 
+                        WITHIN GROUP (ORDER BY PartNo) as parts_list,
+                    SUM(Sell * Qty) as parts_total 
                 FROM ben002.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
@@ -146,10 +148,8 @@ def register_department_routes(reports_bp):
                         'open_date': row['OpenDate'].strftime('%Y-%m-%d') if row['OpenDate'] else None,
                         'bill_to': row['BillTo'],
                         'customer_name': row['CustomerName'] or 'Unknown',
-                        'unit_no': row['UnitNo'],
-                        'make': row['Make'],
-                        'model': row['Model'],
-                        'technician': row['Technician'],
+                        'parts_count': int(row['parts_count']),
+                        'parts_list': row['parts_list'] or 'No parts',
                         'days_open': int(row['DaysSinceOpened']),
                         'parts_total': float(row['parts_total'] or 0),
                         'misc_total': float(row['misc_total'] or 0),

@@ -315,15 +315,14 @@ const PartsReport = ({ user, onNavigate }) => {
   const exportToCSV = () => {
     if (!openWorkOrdersDetails) return
     
-    const headers = ['WO#', 'Opened', 'Days Open', 'Customer', 'Unit', 'Make/Model', 'Technician', 'Parts', 'Misc', 'Total']
+    const headers = ['WO#', 'Opened', 'Days Open', 'Customer', 'Parts Count', 'Part Numbers', 'Parts Value', 'Misc', 'Total']
     const rows = openWorkOrdersDetails.work_orders.map(wo => [
       wo.wo_number,
       wo.open_date,
       wo.days_open,
       wo.customer_name,
-      wo.unit_no || '',
-      wo.make && wo.model ? `${wo.make} ${wo.model}` : '',
-      wo.technician || '',
+      wo.parts_count,
+      wo.parts_list,
       wo.parts_total.toFixed(2),
       wo.misc_total.toFixed(2),
       wo.total_value.toFixed(2)
@@ -909,10 +908,9 @@ const PartsReport = ({ user, onNavigate }) => {
                           <TableHead>Opened</TableHead>
                           <TableHead className="text-center">Days Open</TableHead>
                           <TableHead>Customer</TableHead>
-                          <TableHead>Unit</TableHead>
-                          <TableHead>Make/Model</TableHead>
-                          <TableHead>Technician</TableHead>
-                          <TableHead className="text-right">Parts</TableHead>
+                          <TableHead className="text-center">Parts Count</TableHead>
+                          <TableHead>Part Numbers</TableHead>
+                          <TableHead className="text-right">Parts Value</TableHead>
                           <TableHead className="text-right">Misc</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                         </TableRow>
@@ -936,11 +934,14 @@ const PartsReport = ({ user, onNavigate }) => {
                             <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
                               {wo.customer_name}
                             </TableCell>
-                            <TableCell>{wo.unit_no || '-'}</TableCell>
-                            <TableCell className="max-w-[150px] truncate" title={wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}>
-                              {wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}
+                            <TableCell className="text-center">
+                              <Badge variant="outline">
+                                {wo.parts_count}
+                              </Badge>
                             </TableCell>
-                            <TableCell>{wo.technician || '-'}</TableCell>
+                            <TableCell className="max-w-[300px] truncate" title={wo.parts_list}>
+                              {wo.parts_list}
+                            </TableCell>
                             <TableCell className="text-right">{formatCurrency(wo.parts_total)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(wo.misc_total)}</TableCell>
                             <TableCell className="text-right font-medium">{formatCurrency(wo.total_value)}</TableCell>
