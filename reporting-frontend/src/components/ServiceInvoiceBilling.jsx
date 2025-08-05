@@ -420,6 +420,7 @@ const ServiceInvoiceBilling = () => {
                           {getSortIcon('GrandTotal')}
                         </Button>
                       </TableHead>
+                      <TableHead>Comments</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -462,6 +463,9 @@ const ServiceInvoiceBilling = () => {
                         <TableCell className="text-right font-medium">
                           {formatCurrency(invoice.GrandTotal)}
                         </TableCell>
+                        <TableCell className="max-w-xs truncate" title={invoice.Comments || ''}>
+                          {invoice.Comments || '-'}
+                        </TableCell>
                       </TableRow>
                     ))}
                     <TableRow className="font-bold bg-gray-50">
@@ -489,6 +493,7 @@ const ServiceInvoiceBilling = () => {
                       <TableCell className="text-right">
                         {formatCurrency(reportData.totals.grand_total)}
                       </TableCell>
+                      <TableCell></TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
