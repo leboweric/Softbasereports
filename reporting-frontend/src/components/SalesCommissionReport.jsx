@@ -475,6 +475,64 @@ const SalesCommissionReport = ({ user }) => {
                         </div>
                       </div>
                     )}
+                    
+                    {/* Unassigned Invoices */}
+                    {detailsData.unassigned && detailsData.unassigned.count > 0 && (
+                      <div className="border rounded-lg p-4 bg-yellow-50 border-yellow-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-yellow-900">Unassigned Invoices</h4>
+                            <Badge variant="destructive">{detailsData.unassigned.count} invoices</Badge>
+                          </div>
+                          <div className="text-sm text-yellow-800">
+                            Total Value: <span className="font-semibold">{formatCurrency(detailsData.unassigned.total)}</span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-yellow-700 mb-3">
+                          These invoices have commission-eligible revenue but no salesman assigned. They need customer records updated.
+                        </p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-yellow-300">
+                                <th className="text-left p-2">Invoice #</th>
+                                <th className="text-left p-2">Date</th>
+                                <th className="text-left p-2">Bill To</th>
+                                <th className="text-left p-2">Customer</th>
+                                <th className="text-left p-2">Sale Code</th>
+                                <th className="text-left p-2">Category</th>
+                                <th className="text-right p-2">Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {detailsData.unassigned.invoices.map((inv, idx) => (
+                                <tr key={idx} className="border-b border-yellow-200 hover:bg-yellow-100">
+                                  <td className="p-2">{inv.invoice_no}</td>
+                                  <td className="p-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                                  <td className="p-2 font-mono text-xs">{inv.bill_to || '-'}</td>
+                                  <td className="p-2">{inv.customer_name}</td>
+                                  <td className="p-2">
+                                    <Badge variant="outline" className="font-mono text-xs">
+                                      {inv.sale_code}
+                                    </Badge>
+                                  </td>
+                                  <td className="p-2">
+                                    <Badge variant="secondary" className="text-xs">
+                                      {inv.category}
+                                    </Badge>
+                                  </td>
+                                  <td className="text-right p-2 font-medium">{formatCurrency(inv.category_amount)}</td>
+                                </tr>
+                              ))}
+                              <tr className="font-semibold bg-yellow-100">
+                                <td colSpan="6" className="p-2 text-right">Total Unassigned:</td>
+                                <td className="text-right p-2">{formatCurrency(detailsData.unassigned.total)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">

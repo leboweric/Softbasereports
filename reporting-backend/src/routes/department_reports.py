@@ -5290,12 +5290,129 @@ def register_department_routes(reports_bp):
             grand_total_sales = sum(s['total_sales'] for s in salesmen_list)
             grand_total_commission = sum(s['total_commission'] for s in salesmen_list)
             
+            # Query for unassigned invoices
+            unassigned_query = """
+            WITH SalesmanLookup AS (
+                -- Find the salesman for each invoice by checking all customer records with matching name
+                SELECT 
+                    InvoiceNo,
+                    Salesman1
+                FROM (
+                    SELECT 
+                        InvoiceNo,
+                        Salesman1,
+                        ROW_NUMBER() OVER (PARTITION BY InvoiceNo ORDER BY Priority) as rn
+                    FROM (
+                        SELECT DISTINCT
+                            ir.InvoiceNo,
+                            CASE 
+                                WHEN c1.Salesman1 IS NOT NULL THEN c1.Salesman1
+                                WHEN c2.Salesman1 IS NOT NULL THEN c2.Salesman1
+                                WHEN c3.Salesman1 IS NOT NULL THEN c3.Salesman1
+                                ELSE NULL
+                            END as Salesman1,
+                            CASE 
+                                WHEN c1.Salesman1 IS NOT NULL THEN 1
+                                WHEN c2.Salesman1 IS NOT NULL THEN 2
+                                WHEN c3.Salesman1 IS NOT NULL THEN 3
+                                ELSE 4
+                            END as Priority
+                        FROM ben002.InvoiceReg ir
+                        LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
+                        LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                        -- Try matching on first word of company name (e.g., SIMONSON)
+                        LEFT JOIN ben002.Customer c3 ON 
+                            c3.Salesman1 IS NOT NULL
+                            AND LEN(ir.BillToName) >= 4
+                            AND LEN(c3.Name) >= 4
+                            AND UPPER(
+                                CASE 
+                                    WHEN CHARINDEX(' ', ir.BillToName) > 0 
+                                    THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
+                                    ELSE ir.BillToName
+                                END
+                            ) = UPPER(
+                                CASE 
+                                    WHEN CHARINDEX(' ', c3.Name) > 0 
+                                    THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
+                                    ELSE c3.Name
+                                END
+                            )
+                        WHERE ir.InvoiceDate >= %s
+                            AND ir.InvoiceDate <= %s
+                    ) AS SalesmanMatches
+                ) AS RankedMatches
+                WHERE rn = 1
+            )
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName as CustomerName,
+                ir.SaleCode,
+                CASE
+                    WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
+                    WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
+                    ELSE 'Other'
+                END as Category,
+                CASE 
+                    WHEN ir.SaleCode = 'RENTAL'
+                    THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0
+                END as CategoryAmount,
+                ir.GrandTotal
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
+            WHERE ir.InvoiceDate >= %s
+                AND ir.InvoiceDate <= %s
+                AND (sl.Salesman1 IS NULL OR sl.Salesman1 = '')
+                AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                AND (
+                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
+                    OR
+                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') 
+                     AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
+                )
+            ORDER BY ir.InvoiceDate, ir.InvoiceNo
+            """
+            
+            unassigned_results = db.execute_query(unassigned_query, [start_date, end_date, start_date, end_date])
+            
+            # Format unassigned invoices
+            unassigned_invoices = []
+            unassigned_total = 0
+            for row in unassigned_results:
+                invoice = {
+                    'invoice_no': row['InvoiceNo'],
+                    'invoice_date': row['InvoiceDate'].isoformat() if row['InvoiceDate'] else None,
+                    'bill_to': row['BillTo'],
+                    'customer_name': row['CustomerName'],
+                    'sale_code': row['SaleCode'],
+                    'category': row['Category'],
+                    'category_amount': float(row['CategoryAmount'] or 0),
+                    'grand_total': float(row['GrandTotal'] or 0)
+                }
+                unassigned_invoices.append(invoice)
+                unassigned_total += invoice['category_amount']
+            
             return jsonify({
                 'month': month_param,
                 'salesmen': salesmen_list,
                 'grand_totals': {
                     'sales': grand_total_sales,
                     'commission': grand_total_commission
+                },
+                'unassigned': {
+                    'invoices': unassigned_invoices,
+                    'total': unassigned_total,
+                    'count': len(unassigned_invoices)
                 },
                 'commission_structure': {
                     'rental': '10% of sales',
