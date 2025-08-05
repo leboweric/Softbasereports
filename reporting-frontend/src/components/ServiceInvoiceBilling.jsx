@@ -188,7 +188,7 @@ const ServiceInvoiceBilling = () => {
   }
 
   const downloadCSV = () => {
-    if (!reportData?.invoices) return
+    if (!sortedInvoices || sortedInvoices.length === 0) return
 
     const headers = [
       'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No',
@@ -197,7 +197,7 @@ const ServiceInvoiceBilling = () => {
       'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
     ]
 
-    const rows = reportData.invoices.map(inv => [
+    const rows = sortedInvoices.map(inv => [
       inv.BillToName || inv.BillTo || '',
       inv.Salesman || '',
       inv.InvoiceNo || '',
@@ -220,17 +220,19 @@ const ServiceInvoiceBilling = () => {
     ])
 
     // Add totals row
-    rows.push([
-      'TOTALS', '', '', '', '', '', '', '', '', '', '',
-      reportData.totals.parts_taxable.toFixed(2),
-      reportData.totals.labor_taxable.toFixed(2),
-      reportData.totals.labor_non_tax.toFixed(2),
-      reportData.totals.misc_taxable.toFixed(2),
-      reportData.totals.freight.toFixed(2),
-      reportData.totals.total_tax.toFixed(2),
-      reportData.totals.grand_total.toFixed(2),
-      ''
-    ])
+    if (reportData?.totals) {
+      rows.push([
+        'TOTALS', '', '', '', '', '', '', '', '', '', '',
+        (reportData.totals.parts_taxable || 0).toFixed(2),
+        (reportData.totals.labor_taxable || 0).toFixed(2),
+        (reportData.totals.labor_non_tax || 0).toFixed(2),
+        (reportData.totals.misc_taxable || 0).toFixed(2),
+        (reportData.totals.freight || 0).toFixed(2),
+        (reportData.totals.total_tax || 0).toFixed(2),
+        (reportData.totals.grand_total || 0).toFixed(2),
+        ''
+      ])
+    }
 
     const csvContent = [
       `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`,
