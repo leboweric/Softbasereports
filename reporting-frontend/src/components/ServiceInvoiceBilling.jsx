@@ -193,7 +193,7 @@ const ServiceInvoiceBilling = () => {
     const headers = [
       'Bill To', 'Salesman', 'Invoice No', 'Invoice Date',
       'PO No', 'Parts Taxable', 'Labor Taxable', 'Labor Non Tax',
-      'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
+      'Misc Taxable', 'Misc Non Tax', 'Total Tax', 'Grand Total', 'Comments'
     ]
 
     const rows = reportData.invoices.map(inv => [
@@ -206,7 +206,7 @@ const ServiceInvoiceBilling = () => {
       inv.LaborTaxable || 0,
       inv.LaborNonTax || 0,
       inv.MiscTaxable || 0,
-      inv.Freight || 0,
+      inv.MiscNonTax || 0,
       inv.TotalTax || 0,
       inv.GrandTotal || 0,
       (inv.Comments || '').replace(/[\n\r,]/g, ' ')
@@ -219,7 +219,7 @@ const ServiceInvoiceBilling = () => {
       reportData.totals.labor_taxable.toFixed(2),
       reportData.totals.labor_non_tax.toFixed(2),
       reportData.totals.misc_taxable.toFixed(2),
-      reportData.totals.freight.toFixed(2),
+      reportData.totals.misc_non_tax.toFixed(2),
       reportData.totals.total_tax.toFixed(2),
       reportData.totals.grand_total.toFixed(2),
       ''
@@ -422,8 +422,8 @@ const ServiceInvoiceBilling = () => {
                         </Button>
                       </TableHead>
                       <TableHead className="text-right">Labor NT</TableHead>
-                      <TableHead className="text-right">Misc</TableHead>
-                      <TableHead className="text-right">Freight</TableHead>
+                      <TableHead className="text-right">Misc Tax</TableHead>
+                      <TableHead className="text-right">Misc NT</TableHead>
                       <TableHead className="text-right">Tax</TableHead>
                       <TableHead className="text-right">
                         <Button
@@ -460,7 +460,7 @@ const ServiceInvoiceBilling = () => {
                           {invoice.MiscTaxable ? formatCurrency(invoice.MiscTaxable) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {invoice.Freight ? formatCurrency(invoice.Freight) : '-'}
+                          {invoice.MiscNonTax ? formatCurrency(invoice.MiscNonTax) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           {invoice.TotalTax ? formatCurrency(invoice.TotalTax) : '-'}
@@ -487,7 +487,7 @@ const ServiceInvoiceBilling = () => {
                         {formatCurrency(reportData.totals.misc_taxable)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(reportData.totals.freight)}
+                        {formatCurrency(reportData.totals.misc_non_tax)}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatCurrency(reportData.totals.total_tax)}

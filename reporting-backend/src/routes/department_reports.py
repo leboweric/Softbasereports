@@ -6339,7 +6339,7 @@ def register_department_routes(reports_bp):
                 i.LaborTaxable,
                 i.LaborNonTax,
                 i.MiscTaxable,
-                i.Freight,
+                i.MiscNonTax,
                 i.TotalTax,
                 i.GrandTotal,
                 
@@ -6378,7 +6378,7 @@ def register_department_routes(reports_bp):
                 'labor_taxable': sum(inv['LaborTaxable'] or 0 for inv in invoices),
                 'labor_non_tax': sum(inv['LaborNonTax'] or 0 for inv in invoices),
                 'misc_taxable': sum(inv['MiscTaxable'] or 0 for inv in invoices),
-                'freight': sum(inv['Freight'] or 0 for inv in invoices),
+                'misc_non_tax': sum(inv['MiscNonTax'] or 0 for inv in invoices),
                 'total_tax': sum(inv['TotalTax'] or 0 for inv in invoices),
                 'grand_total': sum(inv['GrandTotal'] or 0 for inv in invoices),
                 'invoice_count': len(invoices)
