@@ -6362,9 +6362,10 @@ def register_department_routes(reports_bp):
                 WHERE i.InvoiceDate >= %s
                   AND i.InvoiceDate <= %s
                   AND i.DeletionTime IS NULL
-                  -- Filter for Service department invoices
-                  AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
-                       OR i.SaleDept IN (20, 25, 29))
+                  -- Include all invoices with service-related revenue
+                  AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
+                       OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
+                       OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
                   AND i.GrandTotal > 0
             )
             SELECT DISTINCT
@@ -6459,8 +6460,10 @@ def register_department_routes(reports_bp):
             WHERE i.DeletionTime IS NULL
               AND i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
-              AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
-                   OR i.SaleDept IN (20, 25, 29))
+              -- Include all invoices with service-related revenue
+              AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
+                   OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
+                   OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
               AND i.GrandTotal > 0
             GROUP BY c.Number, c.Name
             HAVING COUNT(DISTINCT i.InvoiceNo) > 0
@@ -6518,7 +6521,8 @@ def register_department_routes(reports_bp):
             
             total_results = db.execute_query(total_query, [start_date, end_date])
             
-            # Check service department invoices
+            # Check service department invoices (using broader criteria)
+            # The third-party appears to include all service-related work regardless of SaleCode
             service_query = """
             SELECT 
                 COUNT(*) as service_invoices,
@@ -6528,9 +6532,11 @@ def register_department_routes(reports_bp):
             WHERE InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND DeletionTime IS NULL
-              AND (SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
-                   OR SaleDept IN (20, 25, 29))
               AND GrandTotal > 0
+              -- Include all invoices that have service components
+              AND (LaborTaxable > 0 OR LaborNonTax > 0 
+                   OR MiscTaxable > 0 OR MiscNonTax > 0
+                   OR PartsTaxable > 0 OR PartsNonTax > 0)
             """
             
             service_results = db.execute_query(service_query, [start_date, end_date])
@@ -6567,8 +6573,10 @@ def register_department_routes(reports_bp):
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
-              AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
-                   OR i.SaleDept IN (20, 25, 29))
+              -- Include all invoices with service-related revenue
+              AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
+                   OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
+                   OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
               AND i.GrandTotal > 0
             GROUP BY i.BillTo, i.BillToName
             ORDER BY total_revenue DESC
