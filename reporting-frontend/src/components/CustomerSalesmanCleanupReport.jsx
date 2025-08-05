@@ -51,6 +51,7 @@ const CustomerSalesmanCleanupReport = ({ user }) => {
     const missingData = cleanupData.missing_assignments.map(customer => ({
       'Customer Number': customer.Number,
       'Customer Name': customer.Name,
+      'Zip Code': customer.ZipCode || '',
       'Active': customer.active_status,
       'YTD Sales': customer.ytd_sales || 0,
       'Last Invoice': customer.last_invoice_date || 'Never',
@@ -80,6 +81,7 @@ const CustomerSalesmanCleanupReport = ({ user }) => {
           'Group': '',
           'Customer Number': customer.Number,
           'Customer Name': customer.Name,
+          'Zip Code': customer.ZipCode || '',
           'Salesman1': customer.Salesman1 || '',
           'Salesman2': customer.Salesman2 || '',
           'Salesman3': customer.Salesman3 || '',
@@ -216,6 +218,7 @@ const CustomerSalesmanCleanupReport = ({ user }) => {
                     <tr className="border-b">
                       <th className="text-left p-2">Number</th>
                       <th className="text-left p-2">Name</th>
+                      <th className="text-left p-2">Zip Code</th>
                       <th className="text-right p-2">YTD Sales</th>
                       <th className="text-center p-2">Invoices</th>
                       <th className="text-left p-2">Last Invoice</th>
@@ -230,6 +233,7 @@ const CustomerSalesmanCleanupReport = ({ user }) => {
                         <tr key={idx} className="border-b hover:bg-gray-50">
                           <td className="p-2 font-mono">{customer.Number}</td>
                           <td className="p-2">{customer.Name}</td>
+                          <td className="p-2">{customer.ZipCode || '-'}</td>
                           <td className="text-right p-2">
                             ${(customer.ytd_sales || 0).toLocaleString()}
                           </td>
@@ -280,6 +284,7 @@ const CustomerSalesmanCleanupReport = ({ user }) => {
                           <tr className="border-b">
                             <th className="text-left p-2">Number</th>
                             <th className="text-left p-2">Full Name</th>
+                            <th className="text-left p-2">Zip Code</th>
                             <th className="text-left p-2">Salesman</th>
                             <th className="text-right p-2">YTD Sales</th>
                             <th className="text-center p-2">Status</th>
@@ -290,6 +295,7 @@ const CustomerSalesmanCleanupReport = ({ user }) => {
                             <tr key={cidx} className="border-b">
                               <td className="p-2 font-mono">{customer.Number}</td>
                               <td className="p-2">{customer.Name}</td>
+                              <td className="p-2">{customer.ZipCode || '-'}</td>
                               <td className="p-2">
                                 {customer.Salesman1 ? (
                                   <Badge variant="default">{customer.Salesman1}</Badge>

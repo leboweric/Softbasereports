@@ -5607,6 +5607,7 @@ def register_department_routes(reports_bp):
                     c.Salesman1,
                     c.Salesman2,
                     c.Salesman3,
+                    c.ZipCode,
                     -- Get YTD sales from invoices
                     COALESCE(SUM(CASE 
                         WHEN YEAR(ir.InvoiceDate) = YEAR(GETDATE()) 
@@ -5619,7 +5620,7 @@ def register_department_routes(reports_bp):
                     MAX(ir.InvoiceDate) as last_invoice_date
                 FROM ben002.Customer c
                 LEFT JOIN ben002.InvoiceReg ir ON c.Number = ir.BillTo
-                GROUP BY c.Number, c.Name, c.Salesman1, c.Salesman2, c.Salesman3
+                GROUP BY c.Number, c.Name, c.Salesman1, c.Salesman2, c.Salesman3, c.ZipCode
             )
             SELECT 
                 ca.*,
@@ -5645,6 +5646,7 @@ def register_department_routes(reports_bp):
                     'Salesman1': row['Salesman1'],
                     'Salesman2': row['Salesman2'],
                     'Salesman3': row['Salesman3'],
+                    'ZipCode': row['ZipCode'],
                     'ytd_sales': float(row['ytd_sales'] or 0),
                     'invoice_count': int(row['invoice_count'] or 0),
                     'last_invoice_date': row['last_invoice_date'].isoformat() if row['last_invoice_date'] else None,
