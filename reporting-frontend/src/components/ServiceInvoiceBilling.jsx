@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar, Download, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import * as XLSX from 'xlsx'
 import {
   Select,
   SelectContent,
@@ -187,69 +188,123 @@ const ServiceInvoiceBilling = () => {
     }
   }
 
-  const downloadCSV = () => {
+  const downloadExcel = () => {
     if (!sortedInvoices || sortedInvoices.length === 0) return
 
-    const headers = [
-      'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No',
-      'Associated WONo', 'Make', 'Model', 'Serial No', 'Hour Meter',
-      'PO No', 'Parts Taxable', 'Labor Taxable', 'Labor Non Tax',
-      'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
-    ]
-
-    const rows = sortedInvoices.map(inv => [
-      inv.BillToName || inv.BillTo || '',
-      inv.Salesman || '',
-      inv.InvoiceNo || '',
-      formatDate(inv.InvoiceDate),
-      inv.UnitNo || '',
-      inv.AssociatedWONo || '',
-      inv.Make || '',
-      inv.Model || '',
-      inv.SerialNo || '',
-      inv.HourMeter || '',
-      inv.PONo || '',
-      inv.PartsTaxable || 0,
-      inv.LaborTaxable || 0,
-      inv.LaborNonTax || 0,
-      inv.MiscTaxable || 0,
-      inv.Freight || 0,
-      inv.TotalTax || 0,
-      inv.GrandTotal || 0,
-      (inv.Comments || '').replace(/[\n\r,]/g, ' ')
-    ])
+    // Prepare data for Excel
+    const data = sortedInvoices.map(inv => ({
+      'Bill To': inv.BillToName || inv.BillTo || '',
+      'Salesman': inv.Salesman || '',
+      'Invoice No': inv.InvoiceNo || '',
+      'Invoice Date': formatDate(inv.InvoiceDate),
+      'Unit No': inv.UnitNo || '',
+      'Associated WONo': inv.AssociatedWONo || '',
+      'Make': inv.Make || '',
+      'Model': inv.Model || '',
+      'Serial No': inv.SerialNo || '',
+      'Hour Meter': inv.HourMeter || '',
+      'PO No': inv.PONo || '',
+      'Parts Taxable': Number(inv.PartsTaxable || 0),
+      'Labor Taxable': Number(inv.LaborTaxable || 0),
+      'Labor Non Tax': Number(inv.LaborNonTax || 0),
+      'Misc Taxable': Number(inv.MiscTaxable || 0),
+      'Freight': Number(inv.Freight || 0),
+      'Total Tax': Number(inv.TotalTax || 0),
+      'Grand Total': Number(inv.GrandTotal || 0),
+      'Comments': (inv.Comments || '').replace(/[\n\r]/g, ' ')
+    }))
 
     // Add totals row
     if (reportData?.totals) {
-      rows.push([
-        'TOTALS', '', '', '', '', '', '', '', '', '', '',
-        Number(reportData.totals.parts_taxable || 0).toFixed(2),
-        Number(reportData.totals.labor_taxable || 0).toFixed(2),
-        Number(reportData.totals.labor_non_tax || 0).toFixed(2),
-        Number(reportData.totals.misc_taxable || 0).toFixed(2),
-        Number(reportData.totals.freight || 0).toFixed(2),
-        Number(reportData.totals.total_tax || 0).toFixed(2),
-        Number(reportData.totals.grand_total || 0).toFixed(2),
-        ''
-      ])
+      data.push({
+        'Bill To': 'TOTALS',
+        'Salesman': '',
+        'Invoice No': '',
+        'Invoice Date': '',
+        'Unit No': '',
+        'Associated WONo': '',
+        'Make': '',
+        'Model': '',
+        'Serial No': '',
+        'Hour Meter': '',
+        'PO No': '',
+        'Parts Taxable': Number(reportData.totals.parts_taxable || 0),
+        'Labor Taxable': Number(reportData.totals.labor_taxable || 0),
+        'Labor Non Tax': Number(reportData.totals.labor_non_tax || 0),
+        'Misc Taxable': Number(reportData.totals.misc_taxable || 0),
+        'Freight': Number(reportData.totals.freight || 0),
+        'Total Tax': Number(reportData.totals.total_tax || 0),
+        'Grand Total': Number(reportData.totals.grand_total || 0),
+        'Comments': ''
+      })
     }
 
-    const csvContent = [
-      `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`,
-      '',
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `invoice_billing_${startDate}_${endDate}.csv`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(data)
+    const wb = XLSX.utils.book_new()
+    
+    // Add title row at the top
+    const title = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
+    const customerName = customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'
+    XLSX.utils.sheet_add_aoa(ws, [[title], [`Customer: ${customerName}`], []], { origin: 'A1' })
+    
+    // Shift data down by 4 rows to make room for title
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    for (let R = range.e.r; R >= 0; --R) {
+      for (let C = range.e.c; C >= 0; --C) {
+        const cell_address = XLSX.utils.encode_cell({ r: R, c: C })
+        if (ws[cell_address]) {
+          const new_address = XLSX.utils.encode_cell({ r: R + 4, c: C })
+          ws[new_address] = ws[cell_address]
+          if (R < 3) delete ws[cell_address]
+        }
+      }
+    }
+    
+    // Update range
+    range.e.r += 4
+    ws['!ref'] = XLSX.utils.encode_range(range)
+    
+    // Format currency columns (columns L through S - indices 11-18)
+    const currencyColumns = [11, 12, 13, 14, 15, 16, 17] // Parts through Grand Total
+    for (let col of currencyColumns) {
+      for (let row = 5; row <= range.e.r; row++) { // Start from row 5 (after headers)
+        const cell_address = XLSX.utils.encode_cell({ r: row, c: col })
+        if (ws[cell_address] && typeof ws[cell_address].v === 'number') {
+          ws[cell_address].z = '$#,##0.00'
+        }
+      }
+    }
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 30 }, // Bill To
+      { wch: 15 }, // Salesman
+      { wch: 12 }, // Invoice No
+      { wch: 12 }, // Invoice Date
+      { wch: 10 }, // Unit No
+      { wch: 12 }, // Associated WONo
+      { wch: 15 }, // Make
+      { wch: 15 }, // Model
+      { wch: 15 }, // Serial No
+      { wch: 10 }, // Hour Meter
+      { wch: 15 }, // PO No
+      { wch: 12 }, // Parts Taxable
+      { wch: 12 }, // Labor Taxable
+      { wch: 12 }, // Labor Non Tax
+      { wch: 12 }, // Misc Taxable
+      { wch: 10 }, // Freight
+      { wch: 10 }, // Total Tax
+      { wch: 12 }, // Grand Total
+      { wch: 40 }  // Comments
+    ]
+    ws['!cols'] = colWidths
+    
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Invoice Billing')
+    
+    // Write file
+    XLSX.writeFile(wb, `invoice_billing_${startDate}_${endDate}.xlsx`)
   }
 
   return (
@@ -262,9 +317,9 @@ const ServiceInvoiceBilling = () => {
               <FileText className="h-5 w-5 text-gray-500" />
             </div>
             {reportData && (
-              <Button onClick={downloadCSV} size="sm" variant="outline">
+              <Button onClick={downloadExcel} size="sm" variant="outline">
                 <Download className="h-4 w-4 mr-2" />
-                Export CSV
+                Export Excel
               </Button>
             )}
           </div>
