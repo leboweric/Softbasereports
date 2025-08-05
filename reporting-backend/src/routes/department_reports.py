@@ -6321,66 +6321,80 @@ def register_department_routes(reports_bp):
             if not start_date or not end_date:
                 return jsonify({'error': 'Start date and end date are required'}), 400
                 
-            # Build query with all available fields matching third-party report
+            # Build comprehensive query joining invoices with work orders
+            # The key is that work orders get invoiced when closed, so we match by date and customer
             query = """
-            SELECT 
+            WITH InvoiceWO AS (
+                -- First, get invoices with their potential work order matches
+                SELECT 
+                    i.*,
+                    c.Salesman1 as Salesman,
+                    w.WONo,
+                    w.UnitNo,
+                    w.HourMeter as WOHourMeter,
+                    w.WorkPerformed,
+                    e.Make,
+                    e.Model,
+                    e.SerialNo as EquipmentSerialNo,
+                    -- Get freight from WOMisc
+                    COALESCE(freight.FreightCharge, 0) as Freight
+                FROM ben002.InvoiceReg i
+                LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
+                -- Match work orders by customer and close date near invoice date
+                LEFT JOIN ben002.WO w ON i.BillTo = w.BillTo 
+                    AND w.ClosedDate IS NOT NULL
+                    AND ABS(DATEDIFF(day, i.InvoiceDate, w.ClosedDate)) <= 7
+                    AND w.Type = 'S'
+                LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
+                -- Get freight charges from WOMisc
+                LEFT JOIN (
+                    SELECT 
+                        WONo,
+                        SUM(Sell) as FreightCharge
+                    FROM ben002.WOMisc
+                    WHERE UPPER(Description) = 'FREIGHT'
+                    GROUP BY WONo
+                ) freight ON w.WONo = freight.WONo
+                WHERE i.InvoiceDate >= %s
+                  AND i.InvoiceDate <= %s
+                  AND i.DeletionTime IS NULL
+                  -- Filter for Service department invoices
+                  AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
+                       OR i.SaleDept IN (20, 25, 29))
+                  AND i.GrandTotal > 0
+            )
+            SELECT DISTINCT
                 -- Customer info
-                i.BillTo,
-                i.BillToName,
-                c.Salesman1 as Salesman,
+                BillTo,
+                BillToName,
+                Salesman,
                 
                 -- Invoice info
-                i.InvoiceNo,
-                i.InvoiceDate,
-                i.SerialNo,
-                i.HourMeter,
+                InvoiceNo,
+                InvoiceDate,
                 
-                -- PO and shipping info
-                i.PONo,
-                i.ShipTo,
-                i.ShipToName,
+                -- Equipment info from work order
+                UnitNo,
+                WONo as AssociatedWONo,
+                Make,
+                Model,
+                COALESCE(EquipmentSerialNo, SerialNo) as SerialNo,
+                COALESCE(WOHourMeter, HourMeter) as HourMeter,
                 
-                -- Financial breakdown
-                i.PartsTaxable,
-                i.PartsNonTax,
-                i.LaborTaxable,
-                i.LaborNonTax,
-                i.MiscTaxable,
-                i.MiscNonTax,
-                i.EquipmentTaxable,
-                i.EquipmentNonTax,
-                i.RentalTaxable,
-                i.RentalNonTax,
+                -- PO and charges
+                PONo,
+                PartsTaxable,
+                LaborTaxable,
+                LaborNonTax,
+                MiscTaxable,
+                Freight,
+                TotalTax,
+                GrandTotal,
                 
-                -- Tax breakdown
-                i.StateTax,
-                i.CityTax,
-                i.CountyTax,
-                i.LocalTax,
-                i.TotalTax,
-                i.GrandTotal,
+                -- Comments (work performed)
+                COALESCE(WorkPerformed, Comments) as Comments
                 
-                -- Comments
-                i.Comments,
-                
-                -- Additional info for work order lookup
-                i.ControlNo,
-                i.ClosedDate,
-                i.OpenDate,
-                
-                -- Department info
-                i.SaleCode,
-                i.SaleDept
-                
-            FROM ben002.InvoiceReg i
-            LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
-            WHERE i.InvoiceDate >= %s
-              AND i.InvoiceDate <= %s
-              AND i.DeletionTime IS NULL
-              -- Filter for Service department invoices
-              AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
-                   OR i.SaleDept IN (20, 25, 29))
-              AND i.GrandTotal > 0
+            FROM InvoiceWO
             """
             
             # Add customer filter if specified
@@ -6400,7 +6414,7 @@ def register_department_routes(reports_bp):
                 'labor_taxable': sum(inv['LaborTaxable'] or 0 for inv in invoices),
                 'labor_non_tax': sum(inv['LaborNonTax'] or 0 for inv in invoices),
                 'misc_taxable': sum(inv['MiscTaxable'] or 0 for inv in invoices),
-                'misc_non_tax': sum(inv['MiscNonTax'] or 0 for inv in invoices),
+                'freight': sum(inv['Freight'] or 0 for inv in invoices),
                 'total_tax': sum(inv['TotalTax'] or 0 for inv in invoices),
                 'grand_total': sum(inv['GrandTotal'] or 0 for inv in invoices),
                 'invoice_count': len(invoices)

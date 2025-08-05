@@ -191,9 +191,10 @@ const ServiceInvoiceBilling = () => {
     if (!reportData?.invoices) return
 
     const headers = [
-      'Bill To', 'Salesman', 'Invoice No', 'Invoice Date',
+      'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No',
+      'Associated WONo', 'Make', 'Model', 'Serial No', 'Hour Meter',
       'PO No', 'Parts Taxable', 'Labor Taxable', 'Labor Non Tax',
-      'Misc Taxable', 'Misc Non Tax', 'Total Tax', 'Grand Total', 'Comments'
+      'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
     ]
 
     const rows = reportData.invoices.map(inv => [
@@ -201,12 +202,18 @@ const ServiceInvoiceBilling = () => {
       inv.Salesman || '',
       inv.InvoiceNo || '',
       formatDate(inv.InvoiceDate),
+      inv.UnitNo || '',
+      inv.AssociatedWONo || '',
+      inv.Make || '',
+      inv.Model || '',
+      inv.SerialNo || '',
+      inv.HourMeter || '',
       inv.PONo || '',
       inv.PartsTaxable || 0,
       inv.LaborTaxable || 0,
       inv.LaborNonTax || 0,
       inv.MiscTaxable || 0,
-      inv.MiscNonTax || 0,
+      inv.Freight || 0,
       inv.TotalTax || 0,
       inv.GrandTotal || 0,
       (inv.Comments || '').replace(/[\n\r,]/g, ' ')
@@ -214,12 +221,12 @@ const ServiceInvoiceBilling = () => {
 
     // Add totals row
     rows.push([
-      'TOTALS', '', '', '', '',
+      'TOTALS', '', '', '', '', '', '', '', '', '', '',
       reportData.totals.parts_taxable.toFixed(2),
       reportData.totals.labor_taxable.toFixed(2),
       reportData.totals.labor_non_tax.toFixed(2),
       reportData.totals.misc_taxable.toFixed(2),
-      reportData.totals.misc_non_tax.toFixed(2),
+      reportData.totals.freight.toFixed(2),
       reportData.totals.total_tax.toFixed(2),
       reportData.totals.grand_total.toFixed(2),
       ''
@@ -356,11 +363,11 @@ const ServiceInvoiceBilling = () => {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto max-w-full">
+                <Table className="min-w-[1800px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>
+                      <TableHead className="sticky left-0 bg-white z-10">
                         <Button
                           variant="ghost"
                           onClick={() => handleSort('BillTo')}
@@ -370,16 +377,7 @@ const ServiceInvoiceBilling = () => {
                           {getSortIcon('BillTo')}
                         </Button>
                       </TableHead>
-                      <TableHead>
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort('Salesman1')}
-                          className="h-auto p-0 font-medium hover:bg-transparent"
-                        >
-                          Salesman
-                          {getSortIcon('Salesman1')}
-                        </Button>
-                      </TableHead>
+                      <TableHead>Salesman</TableHead>
                       <TableHead>
                         <Button
                           variant="ghost"
@@ -400,30 +398,17 @@ const ServiceInvoiceBilling = () => {
                           {getSortIcon('InvoiceDate')}
                         </Button>
                       </TableHead>
+                      <TableHead>Unit</TableHead>
+                      <TableHead>WO#</TableHead>
+                      <TableHead>Make/Model</TableHead>
+                      <TableHead>Serial</TableHead>
+                      <TableHead>Hours</TableHead>
                       <TableHead>PO#</TableHead>
-                      <TableHead className="text-right">
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort('PartsTaxable')}
-                          className="h-auto p-0 font-medium hover:bg-transparent justify-end w-full"
-                        >
-                          Parts
-                          {getSortIcon('PartsTaxable')}
-                        </Button>
-                      </TableHead>
-                      <TableHead className="text-right">
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort('LaborTaxable')}
-                          className="h-auto p-0 font-medium hover:bg-transparent justify-end w-full"
-                        >
-                          Labor Tax
-                          {getSortIcon('LaborTaxable')}
-                        </Button>
-                      </TableHead>
+                      <TableHead className="text-right">Parts</TableHead>
+                      <TableHead className="text-right">Labor Tax</TableHead>
                       <TableHead className="text-right">Labor NT</TableHead>
-                      <TableHead className="text-right">Misc Tax</TableHead>
-                      <TableHead className="text-right">Misc NT</TableHead>
+                      <TableHead className="text-right">Misc</TableHead>
+                      <TableHead className="text-right">Freight</TableHead>
                       <TableHead className="text-right">Tax</TableHead>
                       <TableHead className="text-right">
                         <Button
@@ -440,12 +425,21 @@ const ServiceInvoiceBilling = () => {
                   <TableBody>
                     {sortedInvoices.map((invoice) => (
                       <TableRow key={invoice.InvoiceNo}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium sticky left-0 bg-white">
                           {invoice.BillToName || invoice.BillTo}
                         </TableCell>
                         <TableCell>{invoice.Salesman || '-'}</TableCell>
                         <TableCell>{invoice.InvoiceNo}</TableCell>
                         <TableCell>{formatDate(invoice.InvoiceDate)}</TableCell>
+                        <TableCell>{invoice.UnitNo || '-'}</TableCell>
+                        <TableCell>{invoice.AssociatedWONo || '-'}</TableCell>
+                        <TableCell>
+                          {invoice.Make && invoice.Model 
+                            ? `${invoice.Make} ${invoice.Model}` 
+                            : '-'}
+                        </TableCell>
+                        <TableCell>{invoice.SerialNo || '-'}</TableCell>
+                        <TableCell>{invoice.HourMeter || '-'}</TableCell>
                         <TableCell>{invoice.PONo || '-'}</TableCell>
                         <TableCell className="text-right">
                           {invoice.PartsTaxable ? formatCurrency(invoice.PartsTaxable) : '-'}
@@ -460,7 +454,7 @@ const ServiceInvoiceBilling = () => {
                           {invoice.MiscTaxable ? formatCurrency(invoice.MiscTaxable) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {invoice.MiscNonTax ? formatCurrency(invoice.MiscNonTax) : '-'}
+                          {invoice.Freight ? formatCurrency(invoice.Freight) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           {invoice.TotalTax ? formatCurrency(invoice.TotalTax) : '-'}
@@ -471,7 +465,7 @@ const ServiceInvoiceBilling = () => {
                       </TableRow>
                     ))}
                     <TableRow className="font-bold bg-gray-50">
-                      <TableCell colSpan={5} className="text-right">
+                      <TableCell colSpan={10} className="text-right sticky left-0 bg-gray-50">
                         TOTALS:
                       </TableCell>
                       <TableCell className="text-right">
@@ -487,7 +481,7 @@ const ServiceInvoiceBilling = () => {
                         {formatCurrency(reportData.totals.misc_taxable)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(reportData.totals.misc_non_tax)}
+                        {formatCurrency(reportData.totals.freight)}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatCurrency(reportData.totals.total_tax)}
