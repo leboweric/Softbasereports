@@ -1552,6 +1552,14 @@ def register_department_routes(reports_bp):
                         WHEN w.CompletedDate IS NOT NULL THEN 'Completed'
                         ELSE 'Open'
                     END as Status,
+                    -- Calculate days since completion for completed but not invoiced WOs
+                    CASE 
+                        WHEN w.CompletedDate IS NOT NULL 
+                             AND w.ClosedDate IS NULL 
+                             AND w.InvoiceDate IS NULL 
+                        THEN DATEDIFF(day, w.CompletedDate, GETDATE())
+                        ELSE NULL
+                    END as DaysSinceCompleted,
                     w.SaleCode,
                     w.SaleDept
                 FROM ben002.WO w
@@ -1666,13 +1674,27 @@ def register_department_routes(reports_bp):
                     'make': wo.get('Make') or '',
                     'model': wo.get('Model') or '',
                     'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
+                    'completedDate': wo.get('CompletedDate').strftime('%Y-%m-%d') if wo.get('CompletedDate') else None,
                     'status': wo.get('Status'),
+                    'daysSinceCompleted': wo.get('DaysSinceCompleted'),
                     'laborCost': labor_cost,
                     'partsCost': parts_cost,
                     'miscCost': misc_cost,
                     'totalCost': invoice_total  # Use invoice total instead of cost
                 })
             
+            
+            # Calculate awaiting invoice metrics
+            awaiting_invoice = [wo for wo in work_orders if wo['status'] == 'Completed']
+            days_waiting = [wo['daysSinceCompleted'] for wo in awaiting_invoice if wo['daysSinceCompleted'] is not None]
+            
+            awaiting_invoice_metrics = {
+                'count': len(awaiting_invoice),
+                'totalValue': sum(wo['totalCost'] for wo in awaiting_invoice),
+                'avgDaysWaiting': sum(days_waiting) / len(days_waiting) if days_waiting else 0,
+                'overThreeDays': len([d for d in days_waiting if d > 3]),
+                'overFiveDays': len([d for d in days_waiting if d > 5])
+            }
             
             # Calculate totals - now using invoice amounts
             summary = {
@@ -1681,7 +1703,8 @@ def register_department_routes(reports_bp):
                 'totalPartsCost': sum(wo['partsCost'] for wo in work_orders),
                 'totalMiscCost': sum(wo['miscCost'] for wo in work_orders),
                 'totalCost': total_invoice,  # Use invoice total
-                'averageCostPerWO': total_invoice / len(work_orders) if work_orders else 0
+                'averageCostPerWO': total_invoice / len(work_orders) if work_orders else 0,
+                'awaitingInvoice': awaiting_invoice_metrics
             }
             
             # Monthly trend query for rental work orders

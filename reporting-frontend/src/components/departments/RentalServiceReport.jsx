@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { DollarSign, Wrench, Download, RefreshCw } from 'lucide-react'
+import { DollarSign, Wrench, Download, RefreshCw, Clock, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { apiUrl } from '@/lib/api'
 
@@ -175,6 +175,53 @@ const RentalServiceReport = () => {
 
   return (
     <div className="space-y-6">
+      {/* Awaiting Invoice Alert */}
+      {summary?.awaitingInvoice?.count > 0 && (
+        <Card className={`border-2 ${summary.awaitingInvoice.overThreeDays > 0 ? 'border-orange-400 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}`}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">Awaiting Invoice</CardTitle>
+                {summary.awaitingInvoice.overThreeDays > 0 && (
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                )}
+              </div>
+              <Badge variant={summary.awaitingInvoice.overThreeDays > 0 ? "destructive" : "warning"}>
+                {summary.awaitingInvoice.count} work orders
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Total Value</p>
+                <p className="font-semibold text-lg">{formatCurrency(summary.awaitingInvoice.totalValue)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Avg Days Waiting</p>
+                <p className="font-semibold text-lg flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  {summary.awaitingInvoice.avgDaysWaiting.toFixed(1)} days
+                </p>
+              </div>
+            </div>
+            {summary.awaitingInvoice.overThreeDays > 0 && (
+              <div className="pt-2 border-t">
+                <div className="flex items-center gap-2 text-sm">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <span className="text-orange-700">
+                    <strong>{summary.awaitingInvoice.overThreeDays}</strong> orders waiting >3 days
+                    {summary.awaitingInvoice.overFiveDays > 0 && (
+                      <span> ({summary.awaitingInvoice.overFiveDays} over 5 days)</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
@@ -243,6 +290,7 @@ const RentalServiceReport = () => {
                   <TableHead>Make/Model</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date Opened</TableHead>
+                  <TableHead className="text-center">Days Waiting</TableHead>
                   <TableHead className="text-right">Invoice Total</TableHead>
                 </TableRow>
               </TableHeader>
@@ -259,6 +307,16 @@ const RentalServiceReport = () => {
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
                     <TableCell>{wo.openDate || 'N/A'}</TableCell>
+                    <TableCell className="text-center">
+                      {wo.status === 'Completed' && wo.daysSinceCompleted !== null && (
+                        <Badge 
+                          variant={wo.daysSinceCompleted > 5 ? "destructive" : wo.daysSinceCompleted > 3 ? "warning" : "secondary"}
+                          className="font-mono"
+                        >
+                          {wo.daysSinceCompleted}d
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className={`text-right font-medium ${wo.totalCost > 0 ? 'text-red-600' : ''}`}>
                       {formatCurrency(wo.totalCost)}
                     </TableCell>
@@ -266,7 +324,7 @@ const RentalServiceReport = () => {
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
-                <TableCell colSpan={7}>Total</TableCell>
+                <TableCell colSpan={8}>Total</TableCell>
                 <TableCell className={`text-right ${(summary?.totalCost || 0) > 0 ? 'text-red-600' : ''}`}>
                   {formatCurrency(summary?.totalCost || 0)}
                 </TableCell>
