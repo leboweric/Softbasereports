@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Button } from '@/components/ui/button'
-import { Calendar, Download, FileText } from 'lucide-react'
+import { Calendar, Download, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -21,6 +21,7 @@ const ServiceInvoiceBilling = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [error, setError] = useState(null)
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -39,6 +40,58 @@ const ServiceInvoiceBilling = () => {
       day: '2-digit', 
       year: 'numeric' 
     })
+  }
+
+  const handleSort = (key) => {
+    setSortConfig({
+      key,
+      direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+    })
+  }
+
+  const sortedInvoices = useMemo(() => {
+    if (!reportData?.invoices || !sortConfig.key) return reportData?.invoices || []
+    
+    return [...reportData.invoices].sort((a, b) => {
+      let aValue = a[sortConfig.key]
+      let bValue = b[sortConfig.key]
+      
+      // Handle customer name sorting
+      if (sortConfig.key === 'BillTo') {
+        aValue = a.BillToName || a.BillTo || ''
+        bValue = b.BillToName || b.BillTo || ''
+      }
+      
+      // Handle null/undefined values
+      if (aValue == null) aValue = ''
+      if (bValue == null) bValue = ''
+      
+      // Handle numeric values
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
+      }
+      
+      // Handle dates
+      if (sortConfig.key === 'InvoiceDate') {
+        const dateA = new Date(aValue)
+        const dateB = new Date(bValue)
+        return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA
+      }
+      
+      // Handle strings
+      return sortConfig.direction === 'asc' 
+        ? String(aValue).localeCompare(String(bValue))
+        : String(bValue).localeCompare(String(aValue))
+    })
+  }, [reportData?.invoices, sortConfig])
+
+  const getSortIcon = (column) => {
+    if (sortConfig.key !== column) {
+      return <ArrowUpDown className="h-4 w-4 text-gray-400" />
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="h-4 w-4" />
+      : <ArrowDown className="h-4 w-4" />
   }
 
   const fetchReport = async () => {
@@ -217,22 +270,85 @@ const ServiceInvoiceBilling = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Bill To</TableHead>
-                      <TableHead>Salesman</TableHead>
-                      <TableHead>Invoice No</TableHead>
-                      <TableHead>Date</TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('BillTo')}
+                          className="h-auto p-0 font-medium hover:bg-transparent"
+                        >
+                          Bill To
+                          {getSortIcon('BillTo')}
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('Salesman1')}
+                          className="h-auto p-0 font-medium hover:bg-transparent"
+                        >
+                          Salesman
+                          {getSortIcon('Salesman1')}
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('InvoiceNo')}
+                          className="h-auto p-0 font-medium hover:bg-transparent"
+                        >
+                          Invoice No
+                          {getSortIcon('InvoiceNo')}
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('InvoiceDate')}
+                          className="h-auto p-0 font-medium hover:bg-transparent"
+                        >
+                          Date
+                          {getSortIcon('InvoiceDate')}
+                        </Button>
+                      </TableHead>
                       <TableHead>PO#</TableHead>
-                      <TableHead className="text-right">Parts</TableHead>
-                      <TableHead className="text-right">Labor Tax</TableHead>
+                      <TableHead className="text-right">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('PartsTaxable')}
+                          className="h-auto p-0 font-medium hover:bg-transparent justify-end w-full"
+                        >
+                          Parts
+                          {getSortIcon('PartsTaxable')}
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('LaborTaxable')}
+                          className="h-auto p-0 font-medium hover:bg-transparent justify-end w-full"
+                        >
+                          Labor Tax
+                          {getSortIcon('LaborTaxable')}
+                        </Button>
+                      </TableHead>
                       <TableHead className="text-right">Labor NT</TableHead>
                       <TableHead className="text-right">Misc</TableHead>
                       <TableHead className="text-right">Freight</TableHead>
                       <TableHead className="text-right">Tax</TableHead>
-                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('GrandTotal')}
+                          className="h-auto p-0 font-medium hover:bg-transparent justify-end w-full"
+                        >
+                          Total
+                          {getSortIcon('GrandTotal')}
+                        </Button>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {reportData.invoices.map((invoice) => (
+                    {sortedInvoices.map((invoice) => (
                       <TableRow key={invoice.InvoiceNo}>
                         <TableCell className="font-medium">
                           {invoice.BillToName || invoice.BillTo}
