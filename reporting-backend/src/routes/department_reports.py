@@ -6321,7 +6321,7 @@ def register_department_routes(reports_bp):
             if not start_date or not end_date:
                 return jsonify({'error': 'Start date and end date are required'}), 400
                 
-            # Build query with optional customer filter
+            # Build query with all available fields matching third-party report
             query = """
             SELECT 
                 -- Customer info
@@ -6332,21 +6332,43 @@ def register_department_routes(reports_bp):
                 -- Invoice info
                 i.InvoiceNo,
                 i.InvoiceDate,
+                i.SerialNo,
+                i.HourMeter,
                 
-                -- PO and amounts
+                -- PO and shipping info
                 i.PONo,
+                i.ShipTo,
+                i.ShipToName,
+                
+                -- Financial breakdown
                 i.PartsTaxable,
+                i.PartsNonTax,
                 i.LaborTaxable,
                 i.LaborNonTax,
                 i.MiscTaxable,
                 i.MiscNonTax,
+                i.EquipmentTaxable,
+                i.EquipmentNonTax,
+                i.RentalTaxable,
+                i.RentalNonTax,
+                
+                -- Tax breakdown
+                i.StateTax,
+                i.CityTax,
+                i.CountyTax,
+                i.LocalTax,
                 i.TotalTax,
                 i.GrandTotal,
                 
-                -- Comments from invoice
+                -- Comments
                 i.Comments,
                 
-                -- Additional info for filtering
+                -- Additional info for work order lookup
+                i.ControlNo,
+                i.ClosedDate,
+                i.OpenDate,
+                
+                -- Department info
                 i.SaleCode,
                 i.SaleDept
                 
@@ -6451,6 +6473,184 @@ def register_department_routes(reports_bp):
             return jsonify(customer_list)
         except Exception as e:
             logger.error(f"Error fetching service customers: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+    
+    @reports_bp.route('/departments/service/invoice-schema', methods=['GET'])
+    @jwt_required()
+    def get_invoice_schema():
+        """Diagnostic endpoint to explore InvoiceReg table structure"""
+        try:
+            db = get_db()
+            
+            # Get column information
+            schema_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                CHARACTER_MAXIMUM_LENGTH,
+                IS_NULLABLE,
+                COLUMN_DEFAULT
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME = 'InvoiceReg'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            columns = db.execute_query(schema_query)
+            
+            # Get a sample invoice with all fields
+            sample_query = """
+            SELECT TOP 1 * 
+            FROM ben002.InvoiceReg 
+            WHERE InvoiceDate >= '2025-07-01'
+                AND GrandTotal > 1000
+                AND (SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
+                     OR SaleDept IN (20, 25, 29))
+            ORDER BY InvoiceDate DESC
+            """
+            
+            sample = db.execute_query(sample_query)
+            
+            # Look for any freight-related or PO-related fields
+            search_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME = 'InvoiceReg'
+                AND (COLUMN_NAME LIKE '%freight%' 
+                     OR COLUMN_NAME LIKE '%ship%'
+                     OR COLUMN_NAME LIKE '%PO%'
+                     OR COLUMN_NAME LIKE '%purchase%'
+                     OR COLUMN_NAME LIKE '%order%'
+                     OR COLUMN_NAME LIKE '%comment%'
+                     OR COLUMN_NAME LIKE '%note%'
+                     OR COLUMN_NAME LIKE '%salesman%'
+                     OR COLUMN_NAME LIKE '%sales%')
+            """
+            
+            related_fields = db.execute_query(search_query)
+            
+            # Check for invoice-related tables that might have work order links
+            related_tables_query = """
+            SELECT DISTINCT 
+                t.TABLE_NAME,
+                c.COLUMN_NAME
+            FROM INFORMATION_SCHEMA.TABLES t
+            JOIN INFORMATION_SCHEMA.COLUMNS c 
+                ON t.TABLE_SCHEMA = c.TABLE_SCHEMA 
+                AND t.TABLE_NAME = c.TABLE_NAME
+            WHERE t.TABLE_SCHEMA = 'ben002'
+                AND (t.TABLE_NAME LIKE '%Invoice%' OR c.COLUMN_NAME LIKE '%Invoice%')
+                AND c.COLUMN_NAME IN ('InvoiceNo', 'WONo', 'WorkOrderNo', 'Freight', 'ShipCharge')
+            ORDER BY t.TABLE_NAME, c.COLUMN_NAME
+            """
+            
+            related_tables = db.execute_query(related_tables_query)
+            
+            # Look for InvoiceSales or InvoiceDetail table
+            invoice_detail_query = """
+            SELECT 
+                TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME IN ('InvoiceSales', 'InvoiceDetail', 'InvoiceLines', 'InvoiceArchive')
+            """
+            
+            detail_tables = db.execute_query(invoice_detail_query)
+            
+            return jsonify({
+                'all_columns': columns,
+                'sample_invoice': sample[0] if sample else None,
+                'freight_po_related_fields': related_fields,
+                'total_columns': len(columns),
+                'related_tables': related_tables,
+                'detail_tables': detail_tables
+            })
+            
+        except Exception as e:
+            logger.error(f"Error exploring invoice schema: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+    
+    @reports_bp.route('/departments/service/wo-invoice-link', methods=['GET'])
+    @jwt_required()
+    def find_wo_invoice_link():
+        """Find how work orders are linked to invoices"""
+        try:
+            db = get_db()
+            
+            # Check WO table for invoice fields
+            wo_invoice_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME = 'WO'
+                AND COLUMN_NAME LIKE '%Invoice%'
+            """
+            
+            wo_invoice_fields = db.execute_query(wo_invoice_query)
+            
+            # Get a sample of closed work orders with their invoice info
+            sample_query = """
+            SELECT TOP 10
+                w.WONo,
+                w.Type,
+                w.ClosedDate,
+                w.BillTo,
+                w.UnitNo,
+                w.WorkPerformed,
+                w.*
+            FROM ben002.WO w
+            WHERE w.ClosedDate IS NOT NULL
+                AND w.ClosedDate >= '2025-07-01'
+                AND w.Type = 'S'
+            ORDER BY w.ClosedDate DESC
+            """
+            
+            closed_wos = db.execute_query(sample_query)
+            
+            # Check if there's a freight field in WOMisc
+            misc_query = """
+            SELECT TOP 10
+                m.*,
+                w.WONo,
+                w.ClosedDate
+            FROM ben002.WOMisc m
+            JOIN ben002.WO w ON m.WONo = w.WONo
+            WHERE w.ClosedDate >= '2025-07-01'
+                AND (UPPER(m.Description) LIKE '%FREIGHT%' 
+                     OR UPPER(m.Description) LIKE '%SHIP%'
+                     OR UPPER(m.Description) LIKE '%DELIVERY%')
+            ORDER BY w.ClosedDate DESC
+            """
+            
+            freight_charges = db.execute_query(misc_query)
+            
+            # Check all WO columns
+            wo_columns_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002'
+                AND TABLE_NAME = 'WO'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            wo_columns = db.execute_query(wo_columns_query)
+            
+            return jsonify({
+                'wo_invoice_fields': wo_invoice_fields,
+                'closed_work_orders_sample': closed_wos,
+                'freight_misc_charges': freight_charges,
+                'all_wo_columns': wo_columns
+            })
+            
+        except Exception as e:
+            logger.error(f"Error finding WO-Invoice link: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
 
 

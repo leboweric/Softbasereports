@@ -28,6 +28,7 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 import ServiceInvoiceBilling from '../ServiceInvoiceBilling'
+import InvoiceSchemaExplorer from '../InvoiceSchemaExplorer'
 
 const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
