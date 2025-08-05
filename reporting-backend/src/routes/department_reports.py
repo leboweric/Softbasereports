@@ -6321,6 +6321,7 @@ def register_department_routes(reports_bp):
                 return jsonify({'error': 'Start date and end date are required'}), 400
                 
             # Get invoices with all details for the date range
+            # Note: There's no direct link between invoices and work orders in the schema
             query = """
             SELECT 
                 -- Customer info
@@ -6332,14 +6333,6 @@ def register_department_routes(reports_bp):
                 i.InvoiceNo,
                 i.InvoiceDate,
                 
-                -- Equipment info from work order
-                w.UnitNo,
-                w.WONo as AssociatedWONo,
-                e.Make,
-                e.Model,
-                e.SerialNo,
-                CAST(w.HourMeter AS INT) as HourMeter,
-                
                 -- PO and amounts
                 i.PONo,
                 i.PartsTaxable,
@@ -6350,16 +6343,14 @@ def register_department_routes(reports_bp):
                 i.TotalTax,
                 i.GrandTotal,
                 
-                -- Comments (work performed)
-                w.WorkPerformed as Comments,
+                -- Comments from invoice
+                i.Comments,
                 
                 -- Additional info for filtering
                 i.SaleCode,
                 i.SaleDept
                 
             FROM ben002.InvoiceReg i
-            LEFT JOIN ben002.WO w ON i.InvoiceNo = w.InvoiceNo
-            LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL

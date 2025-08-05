@@ -80,8 +80,7 @@ const ServiceInvoiceBilling = () => {
     if (!reportData?.invoices) return
 
     const headers = [
-      'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No',
-      'Associated WONo', 'Make', 'Model', 'Serial No', 'Hour Meter',
+      'Bill To', 'Salesman', 'Invoice No', 'Invoice Date',
       'PO No', 'Parts Taxable', 'Labor Taxable', 'Labor Non Tax',
       'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
     ]
@@ -91,12 +90,6 @@ const ServiceInvoiceBilling = () => {
       inv.Salesman || '',
       inv.InvoiceNo || '',
       formatDate(inv.InvoiceDate),
-      inv.UnitNo || '',
-      inv.AssociatedWONo || '',
-      inv.Make || '',
-      inv.Model || '',
-      inv.SerialNo || '',
-      inv.HourMeter || '',
       inv.PONo || '',
       inv.PartsTaxable || 0,
       inv.LaborTaxable || 0,
@@ -110,7 +103,7 @@ const ServiceInvoiceBilling = () => {
 
     // Add totals row
     rows.push([
-      'TOTALS', '', '', '', '', '', '', '', '', '', '',
+      'TOTALS', '', '', '', '',
       reportData.totals.parts_taxable.toFixed(2),
       reportData.totals.labor_taxable.toFixed(2),
       reportData.totals.labor_non_tax.toFixed(2),
@@ -228,11 +221,6 @@ const ServiceInvoiceBilling = () => {
                       <TableHead>Salesman</TableHead>
                       <TableHead>Invoice No</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>WO#</TableHead>
-                      <TableHead>Make/Model</TableHead>
-                      <TableHead>Serial</TableHead>
-                      <TableHead>Hours</TableHead>
                       <TableHead>PO#</TableHead>
                       <TableHead className="text-right">Parts</TableHead>
                       <TableHead className="text-right">Labor Tax</TableHead>
@@ -252,15 +240,6 @@ const ServiceInvoiceBilling = () => {
                         <TableCell>{invoice.Salesman || '-'}</TableCell>
                         <TableCell>{invoice.InvoiceNo}</TableCell>
                         <TableCell>{formatDate(invoice.InvoiceDate)}</TableCell>
-                        <TableCell>{invoice.UnitNo || '-'}</TableCell>
-                        <TableCell>{invoice.AssociatedWONo || '-'}</TableCell>
-                        <TableCell>
-                          {invoice.Make && invoice.Model 
-                            ? `${invoice.Make} ${invoice.Model}` 
-                            : '-'}
-                        </TableCell>
-                        <TableCell>{invoice.SerialNo || '-'}</TableCell>
-                        <TableCell>{invoice.HourMeter || '-'}</TableCell>
                         <TableCell>{invoice.PONo || '-'}</TableCell>
                         <TableCell className="text-right">
                           {invoice.PartsTaxable ? formatCurrency(invoice.PartsTaxable) : '-'}
@@ -286,7 +265,7 @@ const ServiceInvoiceBilling = () => {
                       </TableRow>
                     ))}
                     <TableRow className="font-bold bg-gray-50">
-                      <TableCell colSpan={10} className="text-right">
+                      <TableCell colSpan={5} className="text-right">
                         TOTALS:
                       </TableCell>
                       <TableCell className="text-right">
@@ -315,21 +294,6 @@ const ServiceInvoiceBilling = () => {
                 </Table>
               </div>
 
-              {reportData.invoices.length > 0 && reportData.invoices[0].Comments && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-medium mb-2">Work Performed Details</h3>
-                  <div className="space-y-2">
-                    {reportData.invoices.map((invoice) => 
-                      invoice.Comments && (
-                        <div key={invoice.InvoiceNo} className="text-sm bg-gray-50 p-3 rounded">
-                          <span className="font-medium">Invoice #{invoice.InvoiceNo}:</span>
-                          <p className="mt-1 text-gray-700 whitespace-pre-wrap">{invoice.Comments}</p>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
             </>
           )}
         </CardContent>
