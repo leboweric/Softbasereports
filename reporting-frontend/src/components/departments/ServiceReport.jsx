@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { Badge } from '@/components/ui/badge'
+import { AlertTriangle, Clock } from 'lucide-react'
 import { 
   BarChart, 
   Bar, 
@@ -20,6 +22,7 @@ const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [paceData, setPaceData] = useState(null)
+  const [awaitingInvoiceData, setAwaitingInvoiceData] = useState(null)
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -48,6 +51,7 @@ const ServiceReport = ({ user, onNavigate }) => {
   useEffect(() => {
     fetchServiceData()
     fetchPaceData()
+    fetchAwaitingInvoiceData()
   }, [])
 
   const fetchServiceData = async () => {
@@ -95,6 +99,33 @@ const ServiceReport = ({ user, onNavigate }) => {
       }
     } catch (error) {
       console.error('Error fetching service pace data:', error)
+    }
+  }
+
+  const fetchAwaitingInvoiceData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      // Fetch the optimized dashboard data to get awaiting invoice info
+      const response = await fetch(apiUrl('/api/reports/dashboard/summary-optimized'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        // Extract just the awaiting invoice data (already filtered for Service in the backend)
+        setAwaitingInvoiceData({
+          count: data.awaiting_invoice_count,
+          value: data.awaiting_invoice_value,
+          avg_days: data.awaiting_invoice_avg_days,
+          over_three: data.awaiting_invoice_over_three,
+          over_five: data.awaiting_invoice_over_five,
+          over_seven: data.awaiting_invoice_over_seven
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching awaiting invoice data:', error)
     }
   }
 
@@ -168,6 +199,53 @@ const ServiceReport = ({ user, onNavigate }) => {
         <h1 className="text-3xl font-bold tracking-tight">Service Department</h1>
         <p className="text-muted-foreground">Monitor service operations</p>
       </div>
+
+      {/* Service Work Orders Awaiting Invoice */}
+      {awaitingInvoiceData && awaitingInvoiceData.count > 0 && (
+        <Card className={`border-2 ${awaitingInvoiceData.over_three > 0 ? 'border-orange-400 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}`}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-lg">Service Work Orders Awaiting Invoice</CardTitle>
+                {awaitingInvoiceData.over_three > 0 && (
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                )}
+              </div>
+              <Badge variant={awaitingInvoiceData.over_three > 0 ? "destructive" : "warning"}>
+                {awaitingInvoiceData.count} work orders
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Total Value</p>
+                <p className="font-semibold text-lg">{formatCurrency(awaitingInvoiceData.value)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Avg Days Waiting</p>
+                <p className="font-semibold text-lg flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  {awaitingInvoiceData.avg_days.toFixed(1)} days
+                </p>
+              </div>
+            </div>
+            {awaitingInvoiceData.over_three > 0 && (
+              <div className="pt-2 border-t">
+                <div className="flex items-center gap-2 text-sm">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <span className="text-orange-700">
+                    <strong>{awaitingInvoiceData.over_three}</strong> orders waiting >3 days
+                    {awaitingInvoiceData.over_five > 0 && (
+                      <span> ({awaitingInvoiceData.over_five} over 5 days)</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Monthly Labor Revenue */}
       <Card>
