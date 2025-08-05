@@ -471,7 +471,7 @@ const RentalServiceReport = () => {
                           <TableHeader>
                             <TableRow>
                               <TableHead>Mechanic</TableHead>
-                              <TableHead>Description</TableHead>
+                              <TableHead>Date</TableHead>
                               <TableHead className="text-right">Hours</TableHead>
                               <TableHead className="text-right">Cost</TableHead>
                               <TableHead className="text-right">Sell</TableHead>
@@ -481,7 +481,7 @@ const RentalServiceReport = () => {
                             {woDetail.labor.details.map((item, idx) => (
                               <TableRow key={idx}>
                                 <TableCell>{item.MechanicName}</TableCell>
-                                <TableCell>{item.Description || 'N/A'}</TableCell>
+                                <TableCell>{item.DateOfLabor ? new Date(item.DateOfLabor).toLocaleDateString() : 'N/A'}</TableCell>
                                 <TableCell className="text-right">{item.Hours || 0}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>

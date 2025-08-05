@@ -1754,8 +1754,7 @@ def register_department_routes(reports_bp):
                 DateOfLabor,
                 Hours,
                 Cost,
-                Sell,
-                Description
+                Sell
             FROM ben002.WOLabor
             WHERE WONo = %s
             ORDER BY DateOfLabor
