@@ -69,9 +69,9 @@ const Dashboard = ({ user }) => {
   const [partsDemandPrediction, setPartsDemandPrediction] = useState(null)
   const [partsDemandLoading, setPartsDemandLoading] = useState(false)
   // Invoice delay analysis
-  const [showInvoiceDelayAnalysis, setShowInvoiceDelayAnalysis] = useState(false)
   const [invoiceDelayData, setInvoiceDelayData] = useState(null)
   const [invoiceDelayLoading, setInvoiceDelayLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('sales')
 
   useEffect(() => {
     fetchDashboardData()
@@ -83,6 +83,13 @@ const Dashboard = ({ user }) => {
     
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    // Fetch invoice delay analysis when Work Orders tab is selected
+    if (activeTab === 'workorders' && !invoiceDelayData) {
+      fetchInvoiceDelayAnalysis()
+    }
+  }, [activeTab])
 
   const fetchDashboardData = async (forceRefresh = false) => {
     const startTime = Date.now()
@@ -734,7 +741,7 @@ const Dashboard = ({ user }) => {
       </div>
 
       {/* Tabbed Interface */}
-      <Tabs defaultValue="sales" className="space-y-4">
+      <Tabs defaultValue="sales" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full max-w-lg grid-cols-4">
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
@@ -1176,13 +1183,7 @@ const Dashboard = ({ user }) => {
     <TabsContent value="workorders" className="space-y-4">
           {/* Awaiting Invoice Alert */}
           {dashboardData?.awaiting_invoice_count > 0 && (
-            <Card 
-              className={`border-2 cursor-pointer hover:shadow-lg transition-shadow ${dashboardData.awaiting_invoice_over_three > 0 ? 'border-orange-400 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}`}
-              onClick={() => {
-                setShowInvoiceDelayAnalysis(true)
-                fetchInvoiceDelayAnalysis()
-              }}
-            >
+            <Card className={`border-2 ${dashboardData.awaiting_invoice_over_three > 0 ? 'border-orange-400 bg-orange-50' : 'border-yellow-400 bg-yellow-50'}`}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1191,12 +1192,9 @@ const Dashboard = ({ user }) => {
                       <AlertTriangle className="h-5 w-5 text-orange-600" />
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={dashboardData.awaiting_invoice_over_three > 0 ? "destructive" : "warning"}>
-                      {dashboardData.awaiting_invoice_count} work orders
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">Click for details</span>
-                  </div>
+                  <Badge variant={dashboardData.awaiting_invoice_over_three > 0 ? "destructive" : "warning"}>
+                    {dashboardData.awaiting_invoice_count} work orders
+                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -1393,6 +1391,172 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Invoice Delay Analysis Report */}
+          {invoiceDelayLoading ? (
+            <Card>
+              <CardContent className="flex items-center justify-center h-64">
+                <LoadingSpinner />
+              </CardContent>
+            </Card>
+          ) : invoiceDelayData ? (
+            <div className="space-y-6">
+              {/* Summary Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Invoice Delay Analysis - All Departments</CardTitle>
+                  <CardDescription>Breakdown of completed work orders awaiting invoice</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Total WOs</p>
+                      <p className="text-2xl font-bold">{invoiceDelayData.totals.count}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Total Value</p>
+                      <p className="text-2xl font-bold">{formatCurrency(invoiceDelayData.totals.value)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Avg Days</p>
+                      <p className="text-2xl font-bold text-red-600">{invoiceDelayData.totals.avg_days} days</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-muted-foreground">Within Target (≤3 days)</p>
+                      <p className="text-2xl font-bold text-green-600">{invoiceDelayData.totals.within_target_pct}%</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Department Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Department Performance</CardTitle>
+                  <CardDescription>Invoice delay breakdown by department type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Department</TableHead>
+                          <TableHead className="text-right">Count</TableHead>
+                          <TableHead className="text-right">Value</TableHead>
+                          <TableHead className="text-right">Avg Days</TableHead>
+                          <TableHead className="text-center">≤3 days</TableHead>
+                          <TableHead className="text-center">>3 days</TableHead>
+                          <TableHead className="text-center">>7 days</TableHead>
+                          <TableHead className="text-center">>14 days</TableHead>
+                          <TableHead className="text-center">>30 days</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {invoiceDelayData.departments.map((dept) => (
+                          <TableRow key={dept.department}>
+                            <TableCell className="font-medium">{dept.department}</TableCell>
+                            <TableCell className="text-right">{dept.count}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(dept.value)}</TableCell>
+                            <TableCell className={`text-right font-bold ${dept.avg_days > 3 ? 'text-red-600' : 'text-green-600'}`}>
+                              {dept.avg_days}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={dept.within_target_pct > 50 ? "success" : "secondary"}>
+                                {dept.within_target} ({dept.within_target_pct}%)
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={dept.over_three_pct > 50 ? "warning" : "secondary"}>
+                                {dept.over_three} ({dept.over_three_pct}%)
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant={dept.over_seven_pct > 25 ? "destructive" : "secondary"}>
+                                {dept.over_seven} ({dept.over_seven_pct}%)
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {dept.over_fourteen} ({dept.over_fourteen_pct}%)
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {dept.over_thirty} ({dept.over_thirty_pct}%)
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Delay Distribution Chart */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Delay Distribution</CardTitle>
+                    <CardDescription>Percentage of work orders by delay period</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={[
+                          { range: '≤3 days', percentage: invoiceDelayData.totals.within_target_pct },
+                          { range: '4-7 days', percentage: invoiceDelayData.totals.over_three_pct - invoiceDelayData.totals.over_seven_pct },
+                          { range: '8-14 days', percentage: invoiceDelayData.totals.over_seven_pct - invoiceDelayData.totals.over_fourteen_pct },
+                          { range: '15-30 days', percentage: invoiceDelayData.totals.over_fourteen_pct - invoiceDelayData.totals.over_thirty_pct },
+                          { range: '>30 days', percentage: invoiceDelayData.totals.over_thirty_pct }
+                        ]}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="range" />
+                          <YAxis tickFormatter={(value) => `${value}%`} />
+                          <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
+                          <Bar dataKey="percentage" fill="#8884d8">
+                            <Cell fill="#22c55e" />
+                            <Cell fill="#fbbf24" />
+                            <Cell fill="#f97316" />
+                            <Cell fill="#ef4444" />
+                            <Cell fill="#991b1b" />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Worst Offenders */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Longest Waiting Work Orders</CardTitle>
+                    <CardDescription>Top 10 work orders with longest delays</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {invoiceDelayData.worst_offenders.slice(0, 10).map((wo) => (
+                        <div key={wo.wo_number} className={`p-2 rounded-lg border ${wo.days_waiting > 30 ? 'bg-red-50 border-red-200' : 'bg-gray-50'}`}>
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{wo.wo_number}</span>
+                                <Badge variant="outline" className="text-xs">{wo.type}</Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground">{wo.customer}</p>
+                              <p className="text-xs text-muted-foreground">Completed: {wo.completed_date}</p>
+                            </div>
+                            <div className="text-right">
+                              <Badge variant={wo.days_waiting > 30 ? "destructive" : wo.days_waiting > 7 ? "warning" : "secondary"}>
+                                {wo.days_waiting} days
+                              </Badge>
+                              <p className="text-sm font-medium mt-1">{formatCurrency(wo.value)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          ) : null}
     </TabsContent>
 
         {/* AI Forecasts Tab */}
@@ -1832,169 +1996,6 @@ const Dashboard = ({ user }) => {
           </div>
         </TabsContent>
   </Tabs>
-
-      {/* Invoice Delay Analysis Modal */}
-      <Dialog open={showInvoiceDelayAnalysis} onOpenChange={setShowInvoiceDelayAnalysis}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Invoice Delay Analysis by Department</DialogTitle>
-            <DialogDescription>
-              Breakdown of completed work orders awaiting invoice across all departments
-            </DialogDescription>
-          </DialogHeader>
-          
-          {invoiceDelayLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <LoadingSpinner />
-            </div>
-          ) : invoiceDelayData ? (
-            <div className="space-y-6">
-              {/* Summary */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Overall Summary</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Total WOs</p>
-                    <p className="text-xl font-bold">{invoiceDelayData.totals.count}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Total Value</p>
-                    <p className="text-xl font-bold">{formatCurrency(invoiceDelayData.totals.value)}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Avg Days</p>
-                    <p className="text-xl font-bold text-red-600">{invoiceDelayData.totals.avg_days} days</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Within Target (≤3 days)</p>
-                    <p className="text-xl font-bold text-green-600">{invoiceDelayData.totals.within_target_pct}%</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Department Breakdown */}
-              <div>
-                <h3 className="font-semibold mb-3">Department Breakdown</h3>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Department</TableHead>
-                        <TableHead className="text-right">Count</TableHead>
-                        <TableHead className="text-right">Value</TableHead>
-                        <TableHead className="text-right">Avg Days</TableHead>
-                        <TableHead className="text-center">≤3 days</TableHead>
-                        <TableHead className="text-center">>3 days</TableHead>
-                        <TableHead className="text-center">>7 days</TableHead>
-                        <TableHead className="text-center">>14 days</TableHead>
-                        <TableHead className="text-center">>30 days</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {invoiceDelayData.departments.map((dept) => (
-                        <TableRow key={dept.department}>
-                          <TableCell className="font-medium">{dept.department}</TableCell>
-                          <TableCell className="text-right">{dept.count}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(dept.value)}</TableCell>
-                          <TableCell className={`text-right font-bold ${dept.avg_days > 3 ? 'text-red-600' : 'text-green-600'}`}>
-                            {dept.avg_days}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant={dept.within_target_pct > 50 ? "success" : "secondary"}>
-                              {dept.within_target} ({dept.within_target_pct}%)
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant={dept.over_three_pct > 50 ? "warning" : "secondary"}>
-                              {dept.over_three} ({dept.over_three_pct}%)
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant={dept.over_seven_pct > 25 ? "destructive" : "secondary"}>
-                              {dept.over_seven} ({dept.over_seven_pct}%)
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {dept.over_fourteen} ({dept.over_fourteen_pct}%)
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {dept.over_thirty} ({dept.over_thirty_pct}%)
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              {/* Worst Offenders */}
-              <div>
-                <h3 className="font-semibold mb-3">Longest Waiting Work Orders (Top 20)</h3>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>WO#</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Completed</TableHead>
-                        <TableHead className="text-right">Days Waiting</TableHead>
-                        <TableHead className="text-right">Value</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {invoiceDelayData.worst_offenders.map((wo) => (
-                        <TableRow key={wo.wo_number} className={wo.days_waiting > 30 ? 'bg-red-50' : ''}>
-                          <TableCell className="font-medium">{wo.wo_number}</TableCell>
-                          <TableCell>{wo.type}</TableCell>
-                          <TableCell>{wo.customer}</TableCell>
-                          <TableCell>{wo.completed_date}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={wo.days_waiting > 30 ? "destructive" : wo.days_waiting > 7 ? "warning" : "secondary"}>
-                              {wo.days_waiting} days
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">{formatCurrency(wo.value)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              {/* Delay Distribution Chart */}
-              <div>
-                <h3 className="font-semibold mb-3">Delay Distribution</h3>
-                <div className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={[
-                      { range: '≤3 days', percentage: invoiceDelayData.totals.within_target_pct },
-                      { range: '4-7 days', percentage: invoiceDelayData.totals.over_three_pct - invoiceDelayData.totals.over_seven_pct },
-                      { range: '8-14 days', percentage: invoiceDelayData.totals.over_seven_pct - invoiceDelayData.totals.over_fourteen_pct },
-                      { range: '15-30 days', percentage: invoiceDelayData.totals.over_fourteen_pct - invoiceDelayData.totals.over_thirty_pct },
-                      { range: '>30 days', percentage: invoiceDelayData.totals.over_thirty_pct }
-                    ]}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="range" />
-                      <YAxis tickFormatter={(value) => `${value}%`} />
-                      <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
-                      <Bar dataKey="percentage" fill="#8884d8">
-                        <Cell fill="#22c55e" />
-                        <Cell fill="#fbbf24" />
-                        <Cell fill="#f97316" />
-                        <Cell fill="#ef4444" />
-                        <Cell fill="#991b1b" />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p className="text-center text-muted-foreground">No data available</p>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
