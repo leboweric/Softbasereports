@@ -567,7 +567,7 @@ class DashboardQueries:
             return {'types': [], 'total_value': 0, 'total_count': 0, 'previous_value': 0, 'change': 0, 'change_percent': 0}
     
     def get_awaiting_invoice_work_orders(self):
-        """Get completed SERVICE and SHOP work orders awaiting invoice"""
+        """Get completed SERVICE, SHOP, and PM work orders awaiting invoice"""
         try:
             query = """
             WITH CompletedWOs AS (
@@ -607,7 +607,7 @@ class DashboardQueries:
                   AND w.ClosedDate IS NULL
                   AND w.InvoiceDate IS NULL
                   AND w.DeletionTime IS NULL
-                  AND w.Type IN ('S', 'SH')  -- Service and Shop work orders
+                  AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, and PM work orders
             )
             SELECT 
                 COUNT(*) as count,
@@ -651,7 +651,7 @@ class DashboardQueries:
             }
     
     def get_monthly_invoice_delay_avg(self):
-        """Get average days waiting for invoice at month end for Service and Shop work orders"""
+        """Get average days waiting for invoice at month end for Service, Shop, and PM work orders"""
         try:
             query = """
             WITH MonthEnds AS (
@@ -662,7 +662,7 @@ class DashboardQueries:
                 FROM ben002.WO
                 WHERE CompletedDate >= '2025-03-01'
                     AND CompletedDate <= GETDATE()
-                    AND Type IN ('S', 'SH')  -- Service and Shop work orders
+                    AND Type IN ('S', 'SH', 'PM')  -- Service, Shop, and PM work orders
             ),
             MonthlyDelays AS (
                 SELECT 
@@ -684,7 +684,7 @@ class DashboardQueries:
                     ON YEAR(w.CompletedDate) = me.year 
                     AND MONTH(w.CompletedDate) = me.month
                 WHERE w.CompletedDate IS NOT NULL
-                    AND w.Type IN ('S', 'SH')  -- Service and Shop work orders
+                    AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, and PM work orders
             )
             SELECT 
                 year,
