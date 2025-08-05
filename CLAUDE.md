@@ -1,5 +1,24 @@
 # Softbase Reports Project Context
 
+## Sales Commission Report - Unassigned Invoices (2025-08-05)
+
+### Current Status:
+The following invoices remain unassigned because the customer records exist but have no salesman assigned:
+- Invoice 110000007: B.D. SCHIFFLER INC /TANI (Customer #78700) - No salesman in Customer table
+- Invoice 110000009: CKC GOOD FOOD (Customer #90960, #90961) - No salesman in Customer table
+
+### Solution:
+These need to be fixed in the source data by assigning salesmen to these customer records. The matching logic is working correctly - it's finding the customer records, but they don't have salesmen assigned.
+
+### Commission Report Improvements Made:
+1. Added ROW_NUMBER() to prevent duplicate invoices
+2. Enhanced matching with three levels:
+   - Direct BillTo number match
+   - Exact name match
+   - First word match (e.g., SIMONSON matches SIMONSON LUMBER)
+3. Fixed NaN values in totals
+4. Improved error handling
+
 ## Overview
 This is a comprehensive reporting system for Softbase Evolution, a heavy equipment management system. The project consists of a React frontend and Flask backend that connects to an Azure SQL Server database.
 
