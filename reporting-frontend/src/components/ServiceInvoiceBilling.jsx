@@ -1,10 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Button } from '@/components/ui/button'
 import { Calendar, Download, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -20,6 +27,9 @@ const ServiceInvoiceBilling = () => {
   const [reportData, setReportData] = useState(null)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState('')
+  const [customers, setCustomers] = useState([])
+  const [customersLoading, setCustomersLoading] = useState(false)
   const [error, setError] = useState(null)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
@@ -94,6 +104,36 @@ const ServiceInvoiceBilling = () => {
       : <ArrowDown className="h-4 w-4" />
   }
 
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  const fetchCustomers = async () => {
+    setCustomersLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(
+        apiUrl('/api/reports/departments/service/customers'),
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        }
+      )
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCustomers(data)
+      } else {
+        console.error('Failed to fetch customers')
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error)
+    } finally {
+      setCustomersLoading(false)
+    }
+  }
+
   const fetchReport = async () => {
     if (!startDate || !endDate) {
       setError('Please select both start and end dates')
@@ -105,14 +145,17 @@ const ServiceInvoiceBilling = () => {
     
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(
-        apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}`),
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      )
+      let url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}`)
+      
+      if (selectedCustomer) {
+        url += `&customer_no=${encodeURIComponent(selectedCustomer)}`
+      }
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
       
       if (response.ok) {
         const data = await response.json()
@@ -206,8 +249,8 @@ const ServiceInvoiceBilling = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-4 items-end">
-            <div className="flex-1">
+          <div className="grid grid-cols-4 gap-4 items-end">
+            <div>
               <Label htmlFor="start-date">Start Date</Label>
               <Input
                 id="start-date"
@@ -217,7 +260,7 @@ const ServiceInvoiceBilling = () => {
                 className="mt-1"
               />
             </div>
-            <div className="flex-1">
+            <div>
               <Label htmlFor="end-date">End Date</Label>
               <Input
                 id="end-date"
@@ -226,6 +269,30 @@ const ServiceInvoiceBilling = () => {
                 onChange={(e) => setEndDate(e.target.value)}
                 className="mt-1"
               />
+            </div>
+            <div>
+              <Label htmlFor="customer">Bill To</Label>
+              <Select
+                value={selectedCustomer}
+                onValueChange={setSelectedCustomer}
+                disabled={customersLoading}
+              >
+                <SelectTrigger id="customer" className="mt-1">
+                  <SelectValue placeholder={customersLoading ? "Loading..." : "All Customers"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map((customer) => (
+                    <SelectItem key={customer.value} value={customer.value}>
+                      {customer.label}
+                      {customer.value && (
+                        <span className="text-xs text-gray-500 ml-2">
+                          ({customer.invoiceCount} invoices)
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={fetchReport} disabled={loading}>
               <Calendar className="h-4 w-4 mr-2" />
@@ -251,6 +318,14 @@ const ServiceInvoiceBilling = () => {
                     <span className="text-gray-600">Date Range:</span>
                     <span className="ml-2 font-medium">
                       {formatDate(reportData.start_date)} - {formatDate(reportData.end_date)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Customer:</span>
+                    <span className="ml-2 font-medium">
+                      {selectedCustomer 
+                        ? customers.find(c => c.value === selectedCustomer)?.label || 'Unknown'
+                        : 'All Customers'}
                     </span>
                   </div>
                   <div>

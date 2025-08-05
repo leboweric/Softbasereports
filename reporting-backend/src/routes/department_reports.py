@@ -6316,12 +6316,12 @@ def register_department_routes(reports_bp):
         try:
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
+            customer_no = request.args.get('customer_no', '')
             
             if not start_date or not end_date:
                 return jsonify({'error': 'Start date and end date are required'}), 400
                 
-            # Get invoices with all details for the date range
-            # Note: There's no direct link between invoices and work orders in the schema
+            # Build query with optional customer filter
             query = """
             SELECT 
                 -- Customer info
@@ -6358,11 +6358,18 @@ def register_department_routes(reports_bp):
               AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
                    OR i.SaleDept IN (20, 25, 29))
               AND i.GrandTotal > 0
-            ORDER BY i.InvoiceDate, i.InvoiceNo
             """
             
+            # Add customer filter if specified
+            params = [start_date, end_date]
+            if customer_no:
+                query += " AND i.BillTo = %s"
+                params.append(customer_no)
+                
+            query += " ORDER BY i.InvoiceDate, i.InvoiceNo"
+            
             db = get_db()
-            invoices = db.execute_query(query, [start_date, end_date])
+            invoices = db.execute_query(query, params)
                 
             # Calculate totals
             totals = {
@@ -6386,6 +6393,53 @@ def register_department_routes(reports_bp):
             return jsonify(result)
         except Exception as e:
             logger.error(f"Error in service invoice billing: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+    
+    @reports_bp.route('/departments/service/customers', methods=['GET'])
+    @jwt_required()
+    def get_service_customers():
+        """Get list of customers with service invoices"""
+        try:
+            query = """
+            SELECT DISTINCT
+                c.Number as CustomerNo,
+                c.Name as CustomerName,
+                COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
+                SUM(i.GrandTotal) as TotalRevenue
+            FROM ben002.Customer c
+            INNER JOIN ben002.InvoiceReg i ON c.Number = i.BillTo
+            WHERE i.DeletionTime IS NULL
+              AND (i.SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
+                   OR i.SaleDept IN (20, 25, 29))
+              AND i.GrandTotal > 0
+            GROUP BY c.Number, c.Name
+            ORDER BY c.Name
+            """
+            
+            db = get_db()
+            customers = db.execute_query(query)
+            
+            # Format the response
+            customer_list = [
+                {
+                    'value': '',
+                    'label': 'All Customers',
+                    'invoiceCount': sum(c['InvoiceCount'] for c in customers),
+                    'totalRevenue': sum(c['TotalRevenue'] for c in customers)
+                }
+            ]
+            
+            for customer in customers:
+                customer_list.append({
+                    'value': customer['CustomerNo'],
+                    'label': customer['CustomerName'] or f"Customer {customer['CustomerNo']}",
+                    'invoiceCount': customer['InvoiceCount'],
+                    'totalRevenue': float(customer['TotalRevenue'])
+                })
+            
+            return jsonify(customer_list)
+        except Exception as e:
+            logger.error(f"Error fetching service customers: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
 
 
