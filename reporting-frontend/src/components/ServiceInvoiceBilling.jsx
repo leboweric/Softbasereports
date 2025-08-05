@@ -239,36 +239,45 @@ const ServiceInvoiceBilling = () => {
       })
     }
 
-    // Create workbook and worksheet
+    // Create worksheet from data
     const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
     
-    // Add title row at the top
+    // Get the range before modifications
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    
+    // Add title rows at the top (this will shift everything down)
     const title = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
     const customerName = customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'
-    XLSX.utils.sheet_add_aoa(ws, [[title], [`Customer: ${customerName}`], []], { origin: 'A1' })
+    XLSX.utils.sheet_add_aoa(ws, [
+      [title],
+      [`Customer: ${customerName}`],
+      [] // Empty row for spacing
+    ], { origin: 'A1' })
     
-    // Shift data down by 4 rows to make room for title
-    const range = XLSX.utils.decode_range(ws['!ref'])
-    for (let R = range.e.r; R >= 0; --R) {
-      for (let C = range.e.c; C >= 0; --C) {
-        const cell_address = XLSX.utils.encode_cell({ r: R, c: C })
-        if (ws[cell_address]) {
-          const new_address = XLSX.utils.encode_cell({ r: R + 4, c: C })
-          ws[new_address] = ws[cell_address]
-          if (R < 3) delete ws[cell_address]
-        }
+    // Bold the header row (now at row 4, index 3)
+    for (let C = 0; C <= range.e.c; C++) {
+      const header_address = XLSX.utils.encode_cell({ r: 3, c: C })
+      if (ws[header_address]) {
+        if (!ws[header_address].s) ws[header_address].s = {}
+        ws[header_address].s.font = { bold: true }
       }
     }
     
-    // Update range
-    range.e.r += 4
-    ws['!ref'] = XLSX.utils.encode_range(range)
+    // Bold the totals row (last row)
+    const totalsRow = range.e.r + 3 // Adjusted for the 3 title rows
+    for (let C = 0; C <= range.e.c; C++) {
+      const totals_address = XLSX.utils.encode_cell({ r: totalsRow, c: C })
+      if (ws[totals_address]) {
+        if (!ws[totals_address].s) ws[totals_address].s = {}
+        ws[totals_address].s.font = { bold: true }
+      }
+    }
     
     // Format currency columns (columns L through S - indices 11-18)
     const currencyColumns = [11, 12, 13, 14, 15, 16, 17] // Parts through Grand Total
     for (let col of currencyColumns) {
-      for (let row = 5; row <= range.e.r; row++) { // Start from row 5 (after headers)
+      for (let row = 4; row <= totalsRow; row++) { // Start from row 4 (after headers) to totals row
         const cell_address = XLSX.utils.encode_cell({ r: row, c: col })
         if (ws[cell_address] && typeof ws[cell_address].v === 'number') {
           ws[cell_address].z = '$#,##0.00'
