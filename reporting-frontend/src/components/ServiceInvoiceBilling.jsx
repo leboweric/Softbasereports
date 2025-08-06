@@ -125,8 +125,8 @@ const ServiceInvoiceBilling = () => {
     
     try {
       const token = localStorage.getItem('token')
-      // Always filter for Grede LLC
-      const url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}&customer_no=10210`)
+      // Always filter for Grede LLC - using name instead of number
+      const url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}&customer_no=GREDE%20LLC`)
       
       const response = await fetch(url, {
         headers: {
