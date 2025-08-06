@@ -74,12 +74,6 @@ const ServiceInvoiceBilling = () => {
       let aValue = a[sortConfig.key]
       let bValue = b[sortConfig.key]
       
-      // Handle customer name sorting
-      if (sortConfig.key === 'BillTo') {
-        aValue = a.BillToName || a.BillTo || ''
-        bValue = b.BillToName || b.BillTo || ''
-      }
-      
       // Handle null/undefined values
       if (aValue == null) aValue = ''
       if (bValue == null) bValue = ''
@@ -171,7 +165,7 @@ const ServiceInvoiceBilling = () => {
 
     // Add headers
     const headers = [
-      'Bill To', 'Invoice No', 'Invoice Date', 'Unit No', 
+      'Invoice No', 'Invoice Date', 'Unit No', 
       'Make', 'Model', 'Serial No', 'Hour Meter', 
       'PO No', 'Parts', 'Labor', 
       'Misc', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
@@ -191,7 +185,6 @@ const ServiceInvoiceBilling = () => {
     // Add data rows (sortedInvoices already filters out parts invoices)
     sortedInvoices.forEach(inv => {
       worksheet.addRow([
-        inv.BillToName || inv.BillTo || '',
         inv.InvoiceNo || '',
         formatDate(inv.InvoiceDate),
         inv.UnitNo || '',
@@ -214,7 +207,7 @@ const ServiceInvoiceBilling = () => {
     if (reportData?.totals) {
       const totalsRow = worksheet.addRow([
         'TOTALS',
-        '', '', '', '', '', '', '', '',
+        '', '', '', '', '', '', '',
         Number(reportData.totals.parts_taxable || 0),
         parseFloat(reportData.totals.labor_taxable || 0) + parseFloat(reportData.totals.labor_non_tax || 0),
         Number(reportData.totals.misc_taxable || 0),
@@ -259,7 +252,6 @@ const ServiceInvoiceBilling = () => {
 
     // Set column widths
     worksheet.columns = [
-      { width: columnAWidth }, // Bill To - sized to fit title/customer text
       { width: 12 }, // Invoice No
       { width: 12 }, // Invoice Date
       { width: 10 }, // Unit No
@@ -392,16 +384,6 @@ const ServiceInvoiceBilling = () => {
                 <Table className="min-w-[1800px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 bg-white z-10">
-                        <Button
-                          variant="ghost"
-                          onClick={() => handleSort('BillTo')}
-                          className="h-auto p-0 font-medium hover:bg-transparent"
-                        >
-                          Bill To
-                          {getSortIcon('BillTo')}
-                        </Button>
-                      </TableHead>
                       <TableHead>
                         <Button
                           variant="ghost"
@@ -448,16 +430,13 @@ const ServiceInvoiceBilling = () => {
                   <TableBody>
                     {sortedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={16} className="text-center text-muted-foreground py-4">
+                        <TableCell colSpan={15} className="text-center text-muted-foreground py-4">
                           No service invoices found for this date range
                         </TableCell>
                       </TableRow>
                     ) : sortedInvoices.map((invoice) => (
                       <TableRow key={invoice.InvoiceNo}>
-                        <TableCell className="font-medium sticky left-0 bg-white">
-                          {invoice.BillToName || invoice.BillTo}
-                        </TableCell>
-                        <TableCell>{invoice.InvoiceNo}</TableCell>
+                        <TableCell className="font-medium">{invoice.InvoiceNo}</TableCell>
                         <TableCell>{formatDate(invoice.InvoiceDate)}</TableCell>
                         <TableCell>{invoice.UnitNo || '-'}</TableCell>
                         <TableCell>
@@ -500,7 +479,7 @@ const ServiceInvoiceBilling = () => {
                     ))}
                     {sortedInvoices.length > 0 && (
                     <TableRow className="font-bold bg-gray-50">
-                      <TableCell colSpan={9} className="text-right">
+                      <TableCell colSpan={8} className="text-right">
                         TOTALS:
                       </TableCell>
                       <TableCell className="text-right">
