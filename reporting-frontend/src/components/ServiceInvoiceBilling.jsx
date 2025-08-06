@@ -219,8 +219,8 @@ const ServiceInvoiceBilling = () => {
     const headers = [
       'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No', 
       'Associated WONo', 'Make', 'Model', 'Serial No', 'Hour Meter', 
-      'PO No', 'Parts Taxable', 'Labor', 
-      'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
+      'PO No', 'Parts', 'Labor', 
+      'Misc', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
     ]
     const headerRow = worksheet.addRow(headers)
     
@@ -318,9 +318,9 @@ const ServiceInvoiceBilling = () => {
       { width: 15 }, // Serial No
       { width: 10 }, // Hour Meter
       { width: 15 }, // PO No
-      { width: 12 }, // Parts Taxable
+      { width: 12 }, // Parts
       { width: 12 }, // Labor (combined)
-      { width: 12 }, // Misc Taxable
+      { width: 12 }, // Misc
       { width: 10 }, // Freight
       { width: 10 }, // Total Tax
       { width: 12 }, // Grand Total
