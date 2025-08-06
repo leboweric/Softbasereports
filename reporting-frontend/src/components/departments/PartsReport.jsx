@@ -885,15 +885,15 @@ const PartsReport = ({ user, onNavigate }) => {
                       <p className="text-xl font-bold text-amber-600">{openWorkOrdersDetails.summary.avg_days_open}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-muted-foreground">>7 Days</p>
+                      <p className="text-sm text-muted-foreground">&gt;7 Days</p>
                       <p className="text-xl font-bold text-orange-600">{openWorkOrdersDetails.summary.over_7_days}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-muted-foreground">>14 Days</p>
+                      <p className="text-sm text-muted-foreground">&gt;14 Days</p>
                       <p className="text-xl font-bold text-red-600">{openWorkOrdersDetails.summary.over_14_days}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-muted-foreground">>30 Days</p>
+                      <p className="text-sm text-muted-foreground">&gt;30 Days</p>
                       <p className="text-xl font-bold text-red-900">{openWorkOrdersDetails.summary.over_30_days}</p>
                     </div>
                   </div>

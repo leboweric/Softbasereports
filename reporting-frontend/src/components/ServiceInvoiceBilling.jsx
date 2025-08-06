@@ -565,7 +565,8 @@ const ServiceInvoiceBilling = () => {
                           {invoice.Comments || '-'}
                         </TableCell>
                       </TableRow>
-                    )))}
+                    ))}
+                    {sortedInvoices.length > 0 && (
                     <TableRow className="font-bold bg-gray-50">
                       <TableCell colSpan={9} className="text-right">
                         TOTALS:
@@ -590,6 +591,7 @@ const ServiceInvoiceBilling = () => {
                       </TableCell>
                       <TableCell></TableCell>
                     </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
