@@ -218,7 +218,7 @@ const ServiceInvoiceBilling = () => {
     // Add headers
     const headers = [
       'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No', 
-      'Associated WONo', 'Make', 'Model', 'Serial No', 'Hour Meter', 
+      'Make', 'Model', 'Serial No', 'Hour Meter', 
       'PO No', 'Parts', 'Labor', 
       'Misc', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
     ]
@@ -242,7 +242,6 @@ const ServiceInvoiceBilling = () => {
         inv.InvoiceNo || '',
         formatDate(inv.InvoiceDate),
         inv.UnitNo || '',
-        inv.AssociatedWONo || '',
         inv.Make || '',
         inv.Model || '',
         inv.SerialNo || '',
@@ -262,7 +261,7 @@ const ServiceInvoiceBilling = () => {
     if (reportData?.totals) {
       const totalsRow = worksheet.addRow([
         'TOTALS',
-        '', '', '', '', '', '', '', '', '', '',
+        '', '', '', '', '', '', '', '', '',
         Number(reportData.totals.parts_taxable || 0),
         parseFloat(reportData.totals.labor_taxable || 0) + parseFloat(reportData.totals.labor_non_tax || 0),
         Number(reportData.totals.misc_taxable || 0),
@@ -312,7 +311,6 @@ const ServiceInvoiceBilling = () => {
       { width: 12 }, // Invoice No
       { width: 12 }, // Invoice Date
       { width: 10 }, // Unit No
-      { width: 12 }, // Associated WONo
       { width: 15 }, // Make
       { width: 15 }, // Model
       { width: 15 }, // Serial No
@@ -496,7 +494,6 @@ const ServiceInvoiceBilling = () => {
                         </Button>
                       </TableHead>
                       <TableHead>Unit</TableHead>
-                      <TableHead>WO#</TableHead>
                       <TableHead>Make/Model</TableHead>
                       <TableHead>Serial</TableHead>
                       <TableHead>Hours</TableHead>
@@ -529,7 +526,6 @@ const ServiceInvoiceBilling = () => {
                         <TableCell>{invoice.InvoiceNo}</TableCell>
                         <TableCell>{formatDate(invoice.InvoiceDate)}</TableCell>
                         <TableCell>{invoice.UnitNo || '-'}</TableCell>
-                        <TableCell>{invoice.AssociatedWONo || '-'}</TableCell>
                         <TableCell>
                           {invoice.Make && invoice.Model 
                             ? `${invoice.Make} ${invoice.Model}` 
