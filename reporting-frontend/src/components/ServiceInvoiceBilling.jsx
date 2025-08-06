@@ -285,6 +285,17 @@ const ServiceInvoiceBilling = () => {
       worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
     })
 
+    // Calculate max width for comments column
+    let maxCommentLength = 40 // minimum width
+    sortedInvoices.forEach(inv => {
+      const commentLength = (inv.Comments || '').length
+      if (commentLength > maxCommentLength) {
+        maxCommentLength = commentLength
+      }
+    })
+    // Cap at reasonable maximum and add some padding
+    const commentWidth = Math.min(Math.max(40, maxCommentLength * 0.8), 100)
+
     // Set column widths
     worksheet.columns = [
       { width: 30 }, // Bill To
@@ -305,7 +316,7 @@ const ServiceInvoiceBilling = () => {
       { width: 10 }, // Freight
       { width: 10 }, // Total Tax
       { width: 12 }, // Grand Total
-      { width: 40 }  // Comments
+      { width: commentWidth }  // Comments - auto-sized
     ]
 
     // Add borders to all cells with data
