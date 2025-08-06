@@ -219,7 +219,7 @@ const ServiceInvoiceBilling = () => {
     const headers = [
       'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No', 
       'Associated WONo', 'Make', 'Model', 'Serial No', 'Hour Meter', 
-      'PO No', 'Parts Taxable', 'Labor Taxable', 'Labor Non Tax', 
+      'PO No', 'Parts Taxable', 'Labor', 
       'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
     ]
     const headerRow = worksheet.addRow(headers)
@@ -249,8 +249,7 @@ const ServiceInvoiceBilling = () => {
         inv.HourMeter ? Math.round(Number(inv.HourMeter)) : '',
         inv.PONo || '',
         Number(inv.PartsTaxable || 0),
-        Number(inv.LaborTaxable || 0),
-        Number(inv.LaborNonTax || 0),
+        Number((inv.LaborTaxable || 0) + (inv.LaborNonTax || 0)),
         Number(inv.MiscTaxable || 0),
         Number(inv.Freight || 0),
         Number(inv.TotalTax || 0),
@@ -265,8 +264,7 @@ const ServiceInvoiceBilling = () => {
         'TOTALS',
         '', '', '', '', '', '', '', '', '', '',
         Number(reportData.totals.parts_taxable || 0),
-        Number(reportData.totals.labor_taxable || 0),
-        Number(reportData.totals.labor_non_tax || 0),
+        Number((reportData.totals.labor_taxable || 0) + (reportData.totals.labor_non_tax || 0)),
         Number(reportData.totals.misc_taxable || 0),
         Number(reportData.totals.freight || 0),
         Number(reportData.totals.total_tax || 0),
@@ -283,8 +281,8 @@ const ServiceInvoiceBilling = () => {
       }
     }
 
-    // Format currency columns (columns L through R - columns 12-18)
-    const currencyColumns = [12, 13, 14, 15, 16, 17, 18]
+    // Format currency columns (columns L through Q - columns 12-17)
+    const currencyColumns = [12, 13, 14, 15, 16, 17]
     currencyColumns.forEach(colNum => {
       worksheet.getColumn(colNum).numFmt = '$#,##0.00'
       worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
@@ -321,8 +319,7 @@ const ServiceInvoiceBilling = () => {
       { width: 10 }, // Hour Meter
       { width: 15 }, // PO No
       { width: 12 }, // Parts Taxable
-      { width: 12 }, // Labor Taxable
-      { width: 12 }, // Labor Non Tax
+      { width: 12 }, // Labor (combined)
       { width: 12 }, // Misc Taxable
       { width: 10 }, // Freight
       { width: 10 }, // Total Tax
@@ -505,8 +502,7 @@ const ServiceInvoiceBilling = () => {
                       <TableHead>Hours</TableHead>
                       <TableHead>PO#</TableHead>
                       <TableHead className="text-right">Parts</TableHead>
-                      <TableHead className="text-right">Labor Tax</TableHead>
-                      <TableHead className="text-right">Labor NT</TableHead>
+                      <TableHead className="text-right">Labor</TableHead>
                       <TableHead className="text-right">Misc</TableHead>
                       <TableHead className="text-right">Freight</TableHead>
                       <TableHead className="text-right">Tax</TableHead>
@@ -548,10 +544,7 @@ const ServiceInvoiceBilling = () => {
                           {invoice.PartsTaxable ? formatCurrency(invoice.PartsTaxable) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {invoice.LaborTaxable ? formatCurrency(invoice.LaborTaxable) : '-'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {invoice.LaborNonTax ? formatCurrency(invoice.LaborNonTax) : '-'}
+                          {(invoice.LaborTaxable || invoice.LaborNonTax) ? formatCurrency((invoice.LaborTaxable || 0) + (invoice.LaborNonTax || 0)) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
                           {invoice.MiscTaxable ? formatCurrency(invoice.MiscTaxable) : '-'}
@@ -578,10 +571,7 @@ const ServiceInvoiceBilling = () => {
                         {formatCurrency(reportData.totals.parts_taxable)}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(reportData.totals.labor_taxable)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(reportData.totals.labor_non_tax)}
+                        {formatCurrency((reportData.totals.labor_taxable || 0) + (reportData.totals.labor_non_tax || 0))}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatCurrency(reportData.totals.misc_taxable)}
