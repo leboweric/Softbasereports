@@ -89,6 +89,44 @@ const SalesCommissionReport = ({ user }) => {
     }
   }
 
+  const downloadUnassignedInvoices = () => {
+    if (!detailsData?.unassigned?.invoices) return
+
+    // Create worksheet data
+    const worksheetData = detailsData.unassigned.invoices.map(inv => ({
+      'Invoice #': inv.invoice_no,
+      'Date': new Date(inv.invoice_date).toLocaleDateString(),
+      'Bill To': inv.bill_to || '-',
+      'Customer': inv.customer_name,
+      'Sale Code': inv.sale_code,
+      'Category': inv.category,
+      'Amount': inv.category_amount
+    }))
+
+    // Add total row
+    worksheetData.push({
+      'Invoice #': '',
+      'Date': '',
+      'Bill To': '',
+      'Customer': '',
+      'Sale Code': '',
+      'Category': 'TOTAL',
+      'Amount': detailsData.unassigned.total
+    })
+
+    // Create worksheet
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Unassigned Invoices')
+
+    // Generate filename with date
+    const monthYear = selectedMonth.replace('-', '_')
+    const filename = `unassigned_invoices_${monthYear}.xlsx`
+
+    // Write file
+    XLSX.writeFile(workbook, filename)
+  }
+
   const downloadExcel = () => {
     if (!commissionData) return
 
@@ -454,8 +492,19 @@ const SalesCommissionReport = ({ user }) => {
                             <h4 className="font-semibold text-yellow-900">Unassigned Invoices</h4>
                             <Badge variant="destructive">{detailsData.unassigned.count} invoices</Badge>
                           </div>
-                          <div className="text-sm text-yellow-800">
-                            Total Value: <span className="font-semibold">{formatCurrency(detailsData.unassigned.total)}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="text-sm text-yellow-800">
+                              Total Value: <span className="font-semibold">{formatCurrency(detailsData.unassigned.total)}</span>
+                            </div>
+                            <Button 
+                              onClick={downloadUnassignedInvoices} 
+                              size="sm" 
+                              variant="outline"
+                              className="border-yellow-400 hover:bg-yellow-100"
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              Export
+                            </Button>
                           </div>
                         </div>
                         <p className="text-sm text-yellow-700 mb-3">
