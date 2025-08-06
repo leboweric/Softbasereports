@@ -5890,6 +5890,7 @@ def register_department_routes(reports_bp):
                 AND ir.InvoiceDate <= %s
                 AND sl.Salesman1 IS NOT NULL
                 AND sl.Salesman1 != ''
+                AND UPPER(sl.Salesman1) != 'HOUSE'
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM')
                 AND (
@@ -5998,6 +5999,7 @@ def register_department_routes(reports_bp):
                 ir.InvoiceDate,
                 ir.BillTo,
                 ir.BillToName as CustomerName,
+                COALESCE(sl.Salesman1, 'Unassigned') as Salesman,
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
@@ -6019,7 +6021,7 @@ def register_department_routes(reports_bp):
             LEFT JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND (sl.Salesman1 IS NULL OR sl.Salesman1 = '')
+                AND (sl.Salesman1 IS NULL OR sl.Salesman1 = '' OR UPPER(sl.Salesman1) = 'HOUSE')
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                 AND (
@@ -6043,6 +6045,7 @@ def register_department_routes(reports_bp):
                     'invoice_date': row['InvoiceDate'].isoformat() if row['InvoiceDate'] else None,
                     'bill_to': row['BillTo'],
                     'customer_name': row['CustomerName'],
+                    'salesman': row['Salesman'],
                     'sale_code': row['SaleCode'],
                     'category': row['Category'],
                     'category_amount': float(row['CategoryAmount'] or 0),
