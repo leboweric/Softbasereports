@@ -200,12 +200,12 @@ const ServiceInvoiceBilling = () => {
     worksheet.mergeCells('A1:S1')
     worksheet.getCell('A1').value = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
     worksheet.getCell('A1').font = { size: 14, bold: true }
-    worksheet.getCell('A1').alignment = { horizontal: 'center' }
+    worksheet.getCell('A1').alignment = { horizontal: 'left' }
 
     worksheet.mergeCells('A2:S2')
     worksheet.getCell('A2').value = `Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`
     worksheet.getCell('A2').font = { size: 12 }
-    worksheet.getCell('A2').alignment = { horizontal: 'center' }
+    worksheet.getCell('A2').alignment = { horizontal: 'left' }
 
     // Add empty row for spacing
     worksheet.addRow([])
