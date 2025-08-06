@@ -6338,7 +6338,7 @@ def register_department_routes(reports_bp):
                 
                 -- Equipment info from Equipment table via SerialNo
                 COALESCE(e.UnitNo, '') as UnitNo,
-                '' as AssociatedWONo,  -- No reliable way to match WO
+                CAST(i.InvoiceNo AS VARCHAR(20)) as AssociatedWONo,  -- Use InvoiceNo as WO#
                 COALESCE(e.Make, '') as Make,
                 COALESCE(e.Model, '') as Model,
                 COALESCE(i.SerialNo, e.SerialNo, '') as SerialNo,
