@@ -197,17 +197,19 @@ const ServiceInvoiceBilling = () => {
     const worksheet = workbook.addWorksheet('Invoice Billing')
 
     // Add title rows
+    const titleRow = worksheet.addRow([`Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`])
     worksheet.mergeCells('A1:S1')
-    const titleCell = worksheet.getCell('A1')
-    titleCell.value = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
-    titleCell.font = { size: 14, bold: true }
-    titleCell.alignment = { horizontal: 'left', vertical: 'middle' }
+    titleRow.font = { size: 14, bold: true }
+    titleRow.alignment = { horizontal: 'left', vertical: 'middle' }
+    // Ensure first cell specifically has left alignment
+    worksheet.getCell('A1').alignment = { horizontal: 'left', vertical: 'middle' }
     
+    const customerRow = worksheet.addRow([`Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`])
     worksheet.mergeCells('A2:S2')
-    const customerCell = worksheet.getCell('A2')
-    customerCell.value = `Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`
-    customerCell.font = { size: 12 }
-    customerCell.alignment = { horizontal: 'left', vertical: 'middle' }
+    customerRow.font = { size: 12 }
+    customerRow.alignment = { horizontal: 'left', vertical: 'middle' }
+    // Ensure first cell specifically has left alignment
+    worksheet.getCell('A2').alignment = { horizontal: 'left', vertical: 'middle' }
 
     // Add empty row for spacing
     worksheet.addRow([])
