@@ -435,7 +435,7 @@ const ServiceInvoiceBilling = () => {
                   <div>
                     <span className="text-gray-600">Date Range:</span>
                     <span className="ml-2 font-medium">
-                      {formatDate(reportData.start_date)} - {formatDate(reportData.end_date)}
+                      {formatDate(startDate)} - {formatDate(endDate)}
                     </span>
                   </div>
                   <div>
