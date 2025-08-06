@@ -295,9 +295,15 @@ const ServiceInvoiceBilling = () => {
     // Cap at reasonable maximum and add some padding
     const commentWidth = Math.min(Math.max(40, maxCommentLength * 0.8), 100)
 
+    // Calculate width needed for title and customer text in column A
+    const titleText = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
+    const customerText = `Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`
+    const maxHeaderLength = Math.max(titleText.length, customerText.length, 30)
+    const columnAWidth = Math.min(Math.max(30, maxHeaderLength * 0.9), 80) // Scale factor and cap at 80
+
     // Set column widths
     worksheet.columns = [
-      { width: 30 }, // Bill To
+      { width: columnAWidth }, // Bill To - sized to fit title/customer text
       { width: 15 }, // Salesman
       { width: 12 }, // Invoice No
       { width: 12 }, // Invoice Date
