@@ -545,10 +545,10 @@ const ServiceInvoiceBilling = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           {(() => {
-                            const laborTax = invoice.LaborTaxable || 0;
-                            const laborNonTax = invoice.LaborNonTax || 0;
+                            const laborTax = Number(invoice.LaborTaxable) || 0;
+                            const laborNonTax = Number(invoice.LaborNonTax) || 0;
                             const totalLabor = laborTax + laborNonTax;
-                            return totalLabor > 0 ? formatCurrency(totalLabor) : '-';
+                            return totalLabor !== 0 ? formatCurrency(totalLabor) : '-';
                           })()}
                         </TableCell>
                         <TableCell className="text-right">
