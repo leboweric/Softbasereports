@@ -197,26 +197,14 @@ const ServiceInvoiceBilling = () => {
     const worksheet = workbook.addWorksheet('Invoice Billing')
 
     // Add title row
-    worksheet.addRow([])
-    worksheet.mergeCells('A1:S1')
-    const titleCell = worksheet.getCell('A1')
-    titleCell.value = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
-    titleCell.font = { size: 14, bold: true }
-    // Set alignment for all cells in the merged range
-    for (let col = 1; col <= 19; col++) { // A=1 through S=19
-      worksheet.getRow(1).getCell(col).alignment = { horizontal: 'left', vertical: 'middle' }
-    }
+    const titleRow = worksheet.addRow([`Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`])
+    titleRow.font = { size: 14, bold: true }
+    titleRow.alignment = { horizontal: 'left', vertical: 'middle' }
     
     // Add customer row
-    worksheet.addRow([])
-    worksheet.mergeCells('A2:S2')
-    const customerCell = worksheet.getCell('A2')
-    customerCell.value = `Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`
-    customerCell.font = { size: 12 }
-    // Set alignment for all cells in the merged range
-    for (let col = 1; col <= 19; col++) { // A=1 through S=19
-      worksheet.getRow(2).getCell(col).alignment = { horizontal: 'left', vertical: 'middle' }
-    }
+    const customerRow = worksheet.addRow([`Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`])
+    customerRow.font = { size: 12 }
+    customerRow.alignment = { horizontal: 'left', vertical: 'middle' }
 
     // Add empty row for spacing
     worksheet.addRow([])
