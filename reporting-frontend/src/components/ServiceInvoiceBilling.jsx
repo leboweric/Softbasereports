@@ -217,7 +217,7 @@ const ServiceInvoiceBilling = () => {
 
     // Add headers
     const headers = [
-      'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No', 
+      'Bill To', 'Invoice No', 'Invoice Date', 'Unit No', 
       'Make', 'Model', 'Serial No', 'Hour Meter', 
       'PO No', 'Parts', 'Labor', 
       'Misc', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
@@ -238,7 +238,6 @@ const ServiceInvoiceBilling = () => {
     sortedInvoices.forEach(inv => {
       worksheet.addRow([
         inv.BillToName || inv.BillTo || '',
-        inv.Salesman || '',
         inv.InvoiceNo || '',
         formatDate(inv.InvoiceDate),
         inv.UnitNo || '',
@@ -261,7 +260,7 @@ const ServiceInvoiceBilling = () => {
     if (reportData?.totals) {
       const totalsRow = worksheet.addRow([
         'TOTALS',
-        '', '', '', '', '', '', '', '', '',
+        '', '', '', '', '', '', '', '',
         Number(reportData.totals.parts_taxable || 0),
         parseFloat(reportData.totals.labor_taxable || 0) + parseFloat(reportData.totals.labor_non_tax || 0),
         Number(reportData.totals.misc_taxable || 0),
@@ -307,7 +306,6 @@ const ServiceInvoiceBilling = () => {
     // Set column widths
     worksheet.columns = [
       { width: columnAWidth }, // Bill To - sized to fit title/customer text
-      { width: 15 }, // Salesman
       { width: 12 }, // Invoice No
       { width: 12 }, // Invoice Date
       { width: 10 }, // Unit No
@@ -472,7 +470,6 @@ const ServiceInvoiceBilling = () => {
                           {getSortIcon('BillTo')}
                         </Button>
                       </TableHead>
-                      <TableHead>Salesman</TableHead>
                       <TableHead>
                         <Button
                           variant="ghost"
@@ -522,7 +519,6 @@ const ServiceInvoiceBilling = () => {
                         <TableCell className="font-medium sticky left-0 bg-white">
                           {invoice.BillToName || invoice.BillTo}
                         </TableCell>
-                        <TableCell>{invoice.Salesman || '-'}</TableCell>
                         <TableCell>{invoice.InvoiceNo}</TableCell>
                         <TableCell>{formatDate(invoice.InvoiceDate)}</TableCell>
                         <TableCell>{invoice.UnitNo || '-'}</TableCell>
@@ -565,7 +561,7 @@ const ServiceInvoiceBilling = () => {
                       </TableRow>
                     ))}
                     <TableRow className="font-bold bg-gray-50">
-                      <TableCell colSpan={10} className="text-right">
+                      <TableCell colSpan={9} className="text-right">
                         TOTALS:
                       </TableCell>
                       <TableCell className="text-right">
