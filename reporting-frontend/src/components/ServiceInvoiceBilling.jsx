@@ -279,8 +279,8 @@ const ServiceInvoiceBilling = () => {
       }
     }
 
-    // Format currency columns (columns L through Q - columns 12-17)
-    const currencyColumns = [12, 13, 14, 15, 16, 17]
+    // Format currency columns - Parts (10), Labor (11), Misc (12), Freight (13), Tax (14), Total (15)
+    const currencyColumns = [10, 11, 12, 13, 14, 15]
     currencyColumns.forEach(colNum => {
       worksheet.getColumn(colNum).numFmt = '$#,##0.00'
       worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
