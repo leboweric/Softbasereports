@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Calendar, Download, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { saveAs } from 'file-saver'
 import {
   Select,
   SelectContent,
@@ -188,149 +189,143 @@ const ServiceInvoiceBilling = () => {
     }
   }
 
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
     if (!sortedInvoices || sortedInvoices.length === 0) return
 
-    // Prepare data for Excel
-    const data = sortedInvoices.map(inv => ({
-      'Bill To': inv.BillToName || inv.BillTo || '',
-      'Salesman': inv.Salesman || '',
-      'Invoice No': inv.InvoiceNo || '',
-      'Invoice Date': formatDate(inv.InvoiceDate),
-      'Unit No': inv.UnitNo || '',
-      'Associated WONo': inv.AssociatedWONo || '',
-      'Make': inv.Make || '',
-      'Model': inv.Model || '',
-      'Serial No': inv.SerialNo || '',
-      'Hour Meter': inv.HourMeter ? Math.round(Number(inv.HourMeter)) : '',
-      'PO No': inv.PONo || '',
-      'Parts Taxable': Number(inv.PartsTaxable || 0),
-      'Labor Taxable': Number(inv.LaborTaxable || 0),
-      'Labor Non Tax': Number(inv.LaborNonTax || 0),
-      'Misc Taxable': Number(inv.MiscTaxable || 0),
-      'Freight': Number(inv.Freight || 0),
-      'Total Tax': Number(inv.TotalTax || 0),
-      'Grand Total': Number(inv.GrandTotal || 0),
-      'Comments': (inv.Comments || '').replace(/[\n\r]/g, ' ')
-    }))
+    // Create new workbook
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Invoice Billing')
+
+    // Add title rows
+    worksheet.mergeCells('A1:S1')
+    worksheet.getCell('A1').value = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
+    worksheet.getCell('A1').font = { size: 14, bold: true }
+    worksheet.getCell('A1').alignment = { horizontal: 'center' }
+
+    worksheet.mergeCells('A2:S2')
+    worksheet.getCell('A2').value = `Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`
+    worksheet.getCell('A2').font = { size: 12 }
+    worksheet.getCell('A2').alignment = { horizontal: 'center' }
+
+    // Add empty row for spacing
+    worksheet.addRow([])
+
+    // Add headers
+    const headers = [
+      'Bill To', 'Salesman', 'Invoice No', 'Invoice Date', 'Unit No', 
+      'Associated WONo', 'Make', 'Model', 'Serial No', 'Hour Meter', 
+      'PO No', 'Parts Taxable', 'Labor Taxable', 'Labor Non Tax', 
+      'Misc Taxable', 'Freight', 'Total Tax', 'Grand Total', 'Comments'
+    ]
+    const headerRow = worksheet.addRow(headers)
+    
+    // Style header row
+    headerRow.font = { bold: true }
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFF5F5F5' }
+    }
+    headerRow.alignment = { horizontal: 'center', vertical: 'middle' }
+    headerRow.height = 20
+
+    // Add data rows
+    sortedInvoices.forEach(inv => {
+      worksheet.addRow([
+        inv.BillToName || inv.BillTo || '',
+        inv.Salesman || '',
+        inv.InvoiceNo || '',
+        formatDate(inv.InvoiceDate),
+        inv.UnitNo || '',
+        inv.AssociatedWONo || '',
+        inv.Make || '',
+        inv.Model || '',
+        inv.SerialNo || '',
+        inv.HourMeter ? Math.round(Number(inv.HourMeter)) : '',
+        inv.PONo || '',
+        Number(inv.PartsTaxable || 0),
+        Number(inv.LaborTaxable || 0),
+        Number(inv.LaborNonTax || 0),
+        Number(inv.MiscTaxable || 0),
+        Number(inv.Freight || 0),
+        Number(inv.TotalTax || 0),
+        Number(inv.GrandTotal || 0),
+        (inv.Comments || '').replace(/[\n\r]/g, ' ')
+      ])
+    })
 
     // Add totals row
     if (reportData?.totals) {
-      data.push({
-        'Bill To': 'TOTALS',
-        'Salesman': '',
-        'Invoice No': '',
-        'Invoice Date': '',
-        'Unit No': '',
-        'Associated WONo': '',
-        'Make': '',
-        'Model': '',
-        'Serial No': '',
-        'Hour Meter': '',
-        'PO No': '',
-        'Parts Taxable': Number(reportData.totals.parts_taxable || 0),
-        'Labor Taxable': Number(reportData.totals.labor_taxable || 0),
-        'Labor Non Tax': Number(reportData.totals.labor_non_tax || 0),
-        'Misc Taxable': Number(reportData.totals.misc_taxable || 0),
-        'Freight': Number(reportData.totals.freight || 0),
-        'Total Tax': Number(reportData.totals.total_tax || 0),
-        'Grand Total': Number(reportData.totals.grand_total || 0),
-        'Comments': ''
+      const totalsRow = worksheet.addRow([
+        'TOTALS',
+        '', '', '', '', '', '', '', '', '', '',
+        Number(reportData.totals.parts_taxable || 0),
+        Number(reportData.totals.labor_taxable || 0),
+        Number(reportData.totals.labor_non_tax || 0),
+        Number(reportData.totals.misc_taxable || 0),
+        Number(reportData.totals.freight || 0),
+        Number(reportData.totals.total_tax || 0),
+        Number(reportData.totals.grand_total || 0),
+        ''
+      ])
+      
+      // Style totals row
+      totalsRow.font = { bold: true }
+      totalsRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFFFFACD' }
+      }
+    }
+
+    // Format currency columns (columns L through R - columns 12-18)
+    const currencyColumns = [12, 13, 14, 15, 16, 17, 18]
+    currencyColumns.forEach(colNum => {
+      worksheet.getColumn(colNum).numFmt = '$#,##0.00'
+      worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
+    })
+
+    // Set column widths
+    worksheet.columns = [
+      { width: 30 }, // Bill To
+      { width: 15 }, // Salesman
+      { width: 12 }, // Invoice No
+      { width: 12 }, // Invoice Date
+      { width: 10 }, // Unit No
+      { width: 12 }, // Associated WONo
+      { width: 15 }, // Make
+      { width: 15 }, // Model
+      { width: 15 }, // Serial No
+      { width: 10 }, // Hour Meter
+      { width: 15 }, // PO No
+      { width: 12 }, // Parts Taxable
+      { width: 12 }, // Labor Taxable
+      { width: 12 }, // Labor Non Tax
+      { width: 12 }, // Misc Taxable
+      { width: 10 }, // Freight
+      { width: 10 }, // Total Tax
+      { width: 12 }, // Grand Total
+      { width: 40 }  // Comments
+    ]
+
+    // Add borders to all cells with data
+    const lastRow = worksheet.rowCount
+    for (let i = 4; i <= lastRow; i++) {
+      const row = worksheet.getRow(i)
+      row.eachCell({ includeEmpty: false }, (cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        }
       })
     }
 
-    // Prepare the data with title rows
-    const titleData = [
-      [`Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`],
-      [`Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`],
-      [], // Empty row for spacing
-    ]
-    
-    // Combine title rows with data
-    const headers = Object.keys(data[0] || {})
-    const dataRows = data.map(row => headers.map(key => row[key]))
-    const allData = [
-      ...titleData,
-      headers,
-      ...dataRows
-    ]
-    
-    // Create worksheet from array of arrays
-    const ws = XLSX.utils.aoa_to_sheet(allData)
-    const wb = XLSX.utils.book_new()
-    
-    // Get the range
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
-    
-    // Apply bold formatting to headers (row 4, index 3)
-    for (let C = 0; C <= range.e.c; C++) {
-      const header_address = XLSX.utils.encode_cell({ r: 3, c: C })
-      if (!ws[header_address]) continue
-      if (!ws[header_address].s) ws[header_address].s = {}
-      ws[header_address].s.font = { bold: true, sz: 11 }
-      ws[header_address].s.fill = { fgColor: { rgb: "F5F5F5" } }
-      ws[header_address].s.alignment = { horizontal: "center", vertical: "center" }
-    }
-    
-    // Apply bold formatting to totals row (last data row)
-    const totalsRowIndex = allData.length - 1
-    for (let C = 0; C <= range.e.c; C++) {
-      const totals_address = XLSX.utils.encode_cell({ r: totalsRowIndex, c: C })
-      if (!ws[totals_address]) continue
-      if (!ws[totals_address].s) ws[totals_address].s = {}
-      ws[totals_address].s.font = { bold: true, sz: 11 }
-      ws[totals_address].s.fill = { fgColor: { rgb: "FFFACD" } }
-    }
-    
-    // Format currency columns (columns L through S - indices 11-18)
-    const currencyColumns = [11, 12, 13, 14, 15, 16, 17] // Parts through Grand Total
-    for (let col of currencyColumns) {
-      for (let row = 4; row <= range.e.r; row++) { // Start from row 4 (after headers)
-        const cell_address = XLSX.utils.encode_cell({ r: row, c: col })
-        if (ws[cell_address]) {
-          // Convert to number if it's a string number
-          if (typeof ws[cell_address].v === 'string' && !isNaN(ws[cell_address].v)) {
-            ws[cell_address].v = Number(ws[cell_address].v)
-            ws[cell_address].t = 'n'
-          }
-          // Apply currency format to all numbers in these columns
-          if (typeof ws[cell_address].v === 'number') {
-            ws[cell_address].z = '$#,##0.00'
-            ws[cell_address].t = 'n'
-          }
-        }
-      }
-    }
-    
-    // Set column widths
-    const colWidths = [
-      { wch: 30 }, // Bill To
-      { wch: 15 }, // Salesman
-      { wch: 12 }, // Invoice No
-      { wch: 12 }, // Invoice Date
-      { wch: 10 }, // Unit No
-      { wch: 12 }, // Associated WONo
-      { wch: 15 }, // Make
-      { wch: 15 }, // Model
-      { wch: 15 }, // Serial No
-      { wch: 10 }, // Hour Meter
-      { wch: 15 }, // PO No
-      { wch: 12 }, // Parts Taxable
-      { wch: 12 }, // Labor Taxable
-      { wch: 12 }, // Labor Non Tax
-      { wch: 12 }, // Misc Taxable
-      { wch: 10 }, // Freight
-      { wch: 10 }, // Total Tax
-      { wch: 12 }, // Grand Total
-      { wch: 40 }  // Comments
-    ]
-    ws['!cols'] = colWidths
-    
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Invoice Billing')
-    
-    // Write file
-    XLSX.writeFile(wb, `invoice_billing_${startDate}_${endDate}.xlsx`)
+    // Generate Excel file
+    const buffer = await workbook.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    saveAs(blob, `invoice_billing_${startDate}_${endDate}.xlsx`)
   }
 
   return (
