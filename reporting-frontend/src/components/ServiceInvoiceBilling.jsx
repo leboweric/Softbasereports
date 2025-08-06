@@ -226,16 +226,16 @@ const ServiceInvoiceBilling = () => {
       }
     }
 
-    // Format currency columns - Parts (10), Labor (11), Misc (12), Freight (13), Tax (14), Total (15)
-    const currencyColumns = [10, 11, 12, 13, 14, 15]
+    // Format currency columns - Parts (9), Labor (10), Misc (11), Freight (12), Tax (13), Total (14)
+    const currencyColumns = [9, 10, 11, 12, 13, 14]
     currencyColumns.forEach(colNum => {
       worksheet.getColumn(colNum).numFmt = '$#,##0.00'
       worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
     })
     
-    // Format Unit No (3) and PO No (9) as text to suppress number warnings
+    // Format Unit No (3) and PO No (8) as text to suppress number warnings
     worksheet.getColumn(3).numFmt = '@'  // Unit No - @ means text format
-    worksheet.getColumn(9).numFmt = '@'  // PO No - @ means text format
+    worksheet.getColumn(8).numFmt = '@'  // PO No - @ means text format
 
     // Calculate max width for comments column
     let maxCommentLength = 40 // minimum width
