@@ -6336,8 +6336,8 @@ def register_department_routes(reports_bp):
                 i.InvoiceNo,
                 i.InvoiceDate,
                 
-                -- Equipment info directly from invoice and equipment table
-                COALESCE(i.UnitNo, '') as UnitNo,
+                -- Equipment info from Equipment table via SerialNo
+                COALESCE(e.UnitNo, '') as UnitNo,
                 '' as AssociatedWONo,  -- No reliable way to match WO
                 COALESCE(e.Make, '') as Make,
                 COALESCE(e.Model, '') as Model,
@@ -6359,7 +6359,7 @@ def register_department_routes(reports_bp):
                 
             FROM ben002.InvoiceReg i
             LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
-            LEFT JOIN ben002.Equipment e ON i.UnitNo = e.UnitNo
+            LEFT JOIN ben002.Equipment e ON i.SerialNo = e.SerialNo
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
