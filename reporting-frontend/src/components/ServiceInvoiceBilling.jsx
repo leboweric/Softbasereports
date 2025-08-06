@@ -187,12 +187,12 @@ const ServiceInvoiceBilling = () => {
       worksheet.addRow([
         inv.InvoiceNo || '',
         formatDate(inv.InvoiceDate),
-        inv.UnitNo || '',
+        String(inv.UnitNo || ''),  // Convert to string to prevent green triangle
         inv.Make || '',
         inv.Model || '',
         inv.SerialNo || '',
         inv.HourMeter ? Math.round(Number(inv.HourMeter)) : '',
-        inv.PONo || '',
+        String(inv.PONo || ''),  // Convert to string to prevent green triangle
         Number(inv.PartsTaxable || 0),
         parseFloat(inv.LaborTaxable || 0) + parseFloat(inv.LaborNonTax || 0),
         Number(inv.MiscTaxable || 0),
@@ -233,9 +233,7 @@ const ServiceInvoiceBilling = () => {
       worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
     })
     
-    // Format Unit No (3) and PO No (8) as text to suppress number warnings
-    worksheet.getColumn(3).numFmt = '@'  // Unit No - @ means text format
-    worksheet.getColumn(8).numFmt = '@'  // PO No - @ means text format
+    // Note: Unit No (3) and PO No (8) are already strings, no format needed
 
     // Calculate max width for comments column
     let maxCommentLength = 40 // minimum width
