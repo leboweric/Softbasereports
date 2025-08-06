@@ -239,48 +239,65 @@ const ServiceInvoiceBilling = () => {
       })
     }
 
-    // Create worksheet from data
-    const ws = XLSX.utils.json_to_sheet(data)
+    // Prepare the data with title rows
+    const titleData = [
+      [`Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`],
+      [`Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`],
+      [], // Empty row for spacing
+    ]
+    
+    // Combine title rows with data
+    const headers = Object.keys(data[0] || {})
+    const dataRows = data.map(row => headers.map(key => row[key]))
+    const allData = [
+      ...titleData,
+      headers,
+      ...dataRows
+    ]
+    
+    // Create worksheet from array of arrays
+    const ws = XLSX.utils.aoa_to_sheet(allData)
     const wb = XLSX.utils.book_new()
     
-    // Get the range before modifications
-    const range = XLSX.utils.decode_range(ws['!ref'])
+    // Get the range
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
     
-    // Add title rows at the top (this will shift everything down)
-    const title = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
-    const customerName = customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'
-    XLSX.utils.sheet_add_aoa(ws, [
-      [title],
-      [`Customer: ${customerName}`],
-      [] // Empty row for spacing
-    ], { origin: 'A1' })
-    
-    // Bold the header row (now at row 4, index 3)
+    // Apply bold formatting to headers (row 4, index 3)
     for (let C = 0; C <= range.e.c; C++) {
       const header_address = XLSX.utils.encode_cell({ r: 3, c: C })
-      if (ws[header_address]) {
-        if (!ws[header_address].s) ws[header_address].s = {}
-        ws[header_address].s.font = { bold: true }
-      }
+      if (!ws[header_address]) continue
+      if (!ws[header_address].s) ws[header_address].s = {}
+      ws[header_address].s.font = { bold: true, sz: 11 }
+      ws[header_address].s.fill = { fgColor: { rgb: "F5F5F5" } }
+      ws[header_address].s.alignment = { horizontal: "center", vertical: "center" }
     }
     
-    // Bold the totals row (last row)
-    const totalsRow = range.e.r + 3 // Adjusted for the 3 title rows
+    // Apply bold formatting to totals row (last data row)
+    const totalsRowIndex = allData.length - 1
     for (let C = 0; C <= range.e.c; C++) {
-      const totals_address = XLSX.utils.encode_cell({ r: totalsRow, c: C })
-      if (ws[totals_address]) {
-        if (!ws[totals_address].s) ws[totals_address].s = {}
-        ws[totals_address].s.font = { bold: true }
-      }
+      const totals_address = XLSX.utils.encode_cell({ r: totalsRowIndex, c: C })
+      if (!ws[totals_address]) continue
+      if (!ws[totals_address].s) ws[totals_address].s = {}
+      ws[totals_address].s.font = { bold: true, sz: 11 }
+      ws[totals_address].s.fill = { fgColor: { rgb: "FFFACD" } }
     }
     
     // Format currency columns (columns L through S - indices 11-18)
     const currencyColumns = [11, 12, 13, 14, 15, 16, 17] // Parts through Grand Total
     for (let col of currencyColumns) {
-      for (let row = 4; row <= totalsRow; row++) { // Start from row 4 (after headers) to totals row
+      for (let row = 4; row <= range.e.r; row++) { // Start from row 4 (after headers)
         const cell_address = XLSX.utils.encode_cell({ r: row, c: col })
-        if (ws[cell_address] && typeof ws[cell_address].v === 'number') {
-          ws[cell_address].z = '$#,##0.00'
+        if (ws[cell_address]) {
+          // Convert to number if it's a string number
+          if (typeof ws[cell_address].v === 'string' && !isNaN(ws[cell_address].v)) {
+            ws[cell_address].v = Number(ws[cell_address].v)
+            ws[cell_address].t = 'n'
+          }
+          // Apply currency format to all numbers in these columns
+          if (typeof ws[cell_address].v === 'number') {
+            ws[cell_address].z = '$#,##0.00'
+            ws[cell_address].t = 'n'
+          }
         }
       }
     }
