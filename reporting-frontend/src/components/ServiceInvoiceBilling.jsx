@@ -29,9 +29,9 @@ const ServiceInvoiceBilling = () => {
   const [reportData, setReportData] = useState(null)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [selectedCustomer, setSelectedCustomer] = useState('ALL')
-  const [customers, setCustomers] = useState([])
-  const [customersLoading, setCustomersLoading] = useState(false)
+  // Hardcoded to Grede LLC only
+  const selectedCustomer = 'GREDE LLC'
+  const customerNumber = '10210' // Grede LLC's customer number
   const [error, setError] = useState(null)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
@@ -112,50 +112,7 @@ const ServiceInvoiceBilling = () => {
       : <ArrowDown className="h-4 w-4" />
   }
 
-  useEffect(() => {
-    // Fetch customers when both dates are selected
-    if (startDate && endDate) {
-      fetchCustomers()
-    } else {
-      // Clear customers if dates are not selected
-      setCustomers([{ value: 'ALL', label: 'All Customers' }])
-      setSelectedCustomer('ALL')
-    }
-  }, [startDate, endDate])
-
-  const fetchCustomers = async () => {
-    if (!startDate || !endDate) return
-    
-    setCustomersLoading(true)
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(
-        apiUrl(`/api/reports/departments/service/customers?start_date=${startDate}&end_date=${endDate}`),
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      )
-      
-      if (response.ok) {
-        const data = await response.json()
-        setCustomers(data)
-        // Reset to 'ALL' if current selection is not in the new list
-        if (!data.find(c => c.value === selectedCustomer)) {
-          setSelectedCustomer('ALL')
-        }
-      } else {
-        console.error('Failed to fetch customers')
-        setCustomers([{ value: 'ALL', label: 'All Customers' }])
-      }
-    } catch (error) {
-      console.error('Error fetching customers:', error)
-      setCustomers([{ value: 'ALL', label: 'All Customers' }])
-    } finally {
-      setCustomersLoading(false)
-    }
-  }
+  // No need for customer fetching - hardcoded to Grede LLC
 
   const fetchReport = async () => {
     if (!startDate || !endDate) {
@@ -168,11 +125,8 @@ const ServiceInvoiceBilling = () => {
     
     try {
       const token = localStorage.getItem('token')
-      let url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}`)
-      
-      if (selectedCustomer && selectedCustomer !== 'ALL') {
-        url += `&customer_no=${encodeURIComponent(selectedCustomer)}`
-      }
+      // Always filter for Grede LLC
+      const url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}&customer_no=10210`)
       
       const response = await fetch(url, {
         headers: {
@@ -200,15 +154,15 @@ const ServiceInvoiceBilling = () => {
 
     // Create new workbook
     const workbook = new ExcelJS.Workbook()
-    const worksheet = workbook.addWorksheet('Invoice Billing')
+    const worksheet = workbook.addWorksheet('Grede Billing')
 
     // Add title row
-    const titleRow = worksheet.addRow([`Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`])
+    const titleRow = worksheet.addRow([`Grede Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`])
     titleRow.font = { size: 14, bold: true }
     titleRow.alignment = { horizontal: 'left', vertical: 'middle' }
     
     // Add customer row
-    const customerRow = worksheet.addRow([`Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`])
+    const customerRow = worksheet.addRow([`Customer: Grede LLC`])
     customerRow.font = { size: 12 }
     customerRow.alignment = { horizontal: 'left', vertical: 'middle' }
 
@@ -298,8 +252,8 @@ const ServiceInvoiceBilling = () => {
     const commentWidth = Math.min(Math.max(40, maxCommentLength * 0.8), 100)
 
     // Calculate width needed for title and customer text in column A
-    const titleText = `Invoice Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
-    const customerText = `Customer: ${customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}`
+    const titleText = `Grede Billing Report - ${formatDate(startDate)} to ${formatDate(endDate)}`
+    const customerText = `Customer: Grede LLC`
     const maxHeaderLength = Math.max(titleText.length, customerText.length, 30)
     const columnAWidth = Math.min(Math.max(30, maxHeaderLength * 0.9), 80) // Scale factor and cap at 80
 
@@ -340,7 +294,7 @@ const ServiceInvoiceBilling = () => {
     // Generate Excel file
     const buffer = await workbook.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-    saveAs(blob, `invoice_billing_${startDate}_${endDate}.xlsx`)
+    saveAs(blob, `grede_billing_${startDate}_${endDate}.xlsx`)
   }
 
   return (
@@ -349,7 +303,7 @@ const ServiceInvoiceBilling = () => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CardTitle>Invoice Billing Report</CardTitle>
+              <CardTitle>Grede Billing Report</CardTitle>
               <FileText className="h-5 w-5 text-gray-500" />
             </div>
             {reportData && (
@@ -360,11 +314,11 @@ const ServiceInvoiceBilling = () => {
             )}
           </div>
           <CardDescription>
-            View all service invoices for a selected date range with complete details
+            View all Grede LLC service invoices for a selected date range
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className={`grid ${startDate && endDate ? 'grid-cols-4' : 'grid-cols-3'} gap-4 items-end`}>
+          <div className="grid grid-cols-3 gap-4 items-end">
             <div>
               <Label htmlFor="start-date">Start Date</Label>
               <Input
@@ -385,32 +339,12 @@ const ServiceInvoiceBilling = () => {
                 className="mt-1"
               />
             </div>
-            {startDate && endDate && (
-              <div>
-                <Label htmlFor="customer">Bill To</Label>
-                <Select
-                  value={selectedCustomer}
-                  onValueChange={setSelectedCustomer}
-                  disabled={customersLoading}
-                >
-                  <SelectTrigger id="customer" className="mt-1">
-                    <SelectValue placeholder={customersLoading ? "Loading customers..." : "All Customers"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.value} value={customer.value}>
-                        {customer.label}
-                        {customer.value !== 'ALL' && (
-                          <span className="text-xs text-gray-500 ml-2">
-                            ({customer.invoiceCount} invoices)
-                          </span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div>
+              <Label>Customer</Label>
+              <div className="mt-1 px-3 py-2 border rounded-md bg-gray-50">
+                Grede LLC
               </div>
-            )}
+            </div>
             <Button onClick={fetchReport} disabled={loading || !startDate || !endDate}>
               <Calendar className="h-4 w-4 mr-2" />
               Generate Report
@@ -439,9 +373,7 @@ const ServiceInvoiceBilling = () => {
                   </div>
                   <div>
                     <span className="text-gray-600">Customer:</span>
-                    <span className="ml-2 font-medium">
-                      {customers.find(c => c.value === selectedCustomer)?.label || 'All Customers'}
-                    </span>
+                    <span className="ml-2 font-medium">Grede LLC</span>
                   </div>
                   <div>
                     <span className="text-gray-600">Total Invoices:</span>
