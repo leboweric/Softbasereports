@@ -184,15 +184,15 @@ const ServiceInvoiceBilling = () => {
 
     // Add data rows (sortedInvoices already filters out parts invoices)
     sortedInvoices.forEach(inv => {
-      worksheet.addRow([
+      const row = worksheet.addRow([
         inv.InvoiceNo || '',
         formatDate(inv.InvoiceDate),
-        String(inv.UnitNo || ''),  // Convert to string to prevent green triangle
+        inv.UnitNo || '',
         inv.Make || '',
         inv.Model || '',
         inv.SerialNo || '',
         inv.HourMeter ? Math.round(Number(inv.HourMeter)) : '',
-        String(inv.PONo || ''),  // Convert to string to prevent green triangle
+        inv.PONo || '',
         Number(inv.PartsTaxable || 0),
         parseFloat(inv.LaborTaxable || 0) + parseFloat(inv.LaborNonTax || 0),
         Number(inv.MiscTaxable || 0),
@@ -201,6 +201,16 @@ const ServiceInvoiceBilling = () => {
         Number(inv.GrandTotal || 0),
         (inv.Comments || '').replace(/[\n\r]/g, ' ')
       ])
+      
+      // Force Unit No and PO No to be treated as text
+      if (inv.UnitNo) {
+        row.getCell(3).dataType = 'string'
+        row.getCell(3).value = String(inv.UnitNo)
+      }
+      if (inv.PONo) {
+        row.getCell(8).dataType = 'string'
+        row.getCell(8).value = String(inv.PONo)
+      }
     })
 
     // Add totals row
@@ -233,7 +243,9 @@ const ServiceInvoiceBilling = () => {
       worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
     })
     
-    // Note: Unit No (3) and PO No (8) are already strings, no format needed
+    // Apply text format to Unit No and PO No columns
+    worksheet.getColumn(3).numFmt = '@'  // Unit No
+    worksheet.getColumn(8).numFmt = '@'  // PO No
 
     // Calculate max width for comments column
     let maxCommentLength = 40 // minimum width
