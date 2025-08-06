@@ -31,7 +31,7 @@ const ServiceInvoiceBilling = () => {
   const [endDate, setEndDate] = useState('')
   // Hardcoded to Grede LLC only
   const selectedCustomer = 'GREDE LLC'
-  const customerNumber = '10210' // Grede LLC's customer number
+  const customerNumber = '55760' // Grede LLC's actual BillTo number
   const [error, setError] = useState(null)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
@@ -125,8 +125,8 @@ const ServiceInvoiceBilling = () => {
     
     try {
       const token = localStorage.getItem('token')
-      // Always filter for Grede LLC - using name instead of number
-      const url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}&customer_no=GREDE%20LLC`)
+      // Always filter for Grede LLC using BillTo number
+      const url = apiUrl(`/api/reports/departments/service/invoice-billing?start_date=${startDate}&end_date=${endDate}&customer_no=55760`)
       
       const response = await fetch(url, {
         headers: {
