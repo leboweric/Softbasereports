@@ -232,6 +232,10 @@ const ServiceInvoiceBilling = () => {
       worksheet.getColumn(colNum).numFmt = '$#,##0.00'
       worksheet.getColumn(colNum).alignment = { horizontal: 'right' }
     })
+    
+    // Format Unit No (3) and PO No (9) as text to suppress number warnings
+    worksheet.getColumn(3).numFmt = '@'  // Unit No - @ means text format
+    worksheet.getColumn(9).numFmt = '@'  // PO No - @ means text format
 
     // Calculate max width for comments column
     let maxCommentLength = 40 // minimum width
