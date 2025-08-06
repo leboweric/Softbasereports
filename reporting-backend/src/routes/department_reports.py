@@ -6324,30 +6324,8 @@ def register_department_routes(reports_bp):
             if not start_date or not end_date:
                 return jsonify({'error': 'Start date and end date are required'}), 400
                 
-            # Query with work order info using subquery to avoid duplication
+            # Query - removed unreliable work order matching since there's no direct link
             query = """
-            WITH InvoiceWOMatch AS (
-                -- Get the most recent work order for each invoice based on close date
-                SELECT 
-                    i.InvoiceNo,
-                    i.InvoiceDate,
-                    (
-                        SELECT TOP 1 w.WONo
-                        FROM ben002.WO w
-                        WHERE w.BillTo = i.BillTo
-                          AND w.ClosedDate IS NOT NULL
-                          AND ABS(DATEDIFF(day, i.InvoiceDate, w.ClosedDate)) <= 7
-                        ORDER BY ABS(DATEDIFF(day, i.InvoiceDate, w.ClosedDate)), w.WONo DESC
-                    ) as WONo
-                FROM ben002.InvoiceReg i
-                WHERE i.InvoiceDate >= %s
-                  AND i.InvoiceDate <= %s
-                  AND i.DeletionTime IS NULL
-                  AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
-                       OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
-                       OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
-                  AND i.GrandTotal > 0
-            )
             SELECT 
                 -- Customer info
                 i.BillTo,
@@ -6358,16 +6336,16 @@ def register_department_routes(reports_bp):
                 i.InvoiceNo,
                 i.InvoiceDate,
                 
-                -- Equipment info from work order and equipment table
-                COALESCE(w.UnitNo, '') as UnitNo,
-                COALESCE(iw.WONo, '') as AssociatedWONo,
-                COALESCE(e.Make, w.Make, '') as Make,
-                COALESCE(e.Model, w.Model, '') as Model,
-                COALESCE(i.SerialNo, e.SerialNo, w.SerialNo, '') as SerialNo,
+                -- Equipment info directly from invoice and equipment table
+                COALESCE(i.UnitNo, '') as UnitNo,
+                '' as AssociatedWONo,  -- No reliable way to match WO
+                COALESCE(e.Make, '') as Make,
+                COALESCE(e.Model, '') as Model,
+                COALESCE(i.SerialNo, e.SerialNo, '') as SerialNo,
                 COALESCE(i.HourMeter, 0) as HourMeter,
                 
                 -- PO and other fields
-                COALESCE(i.PONo, w.PONo, '') as PONo,
+                COALESCE(i.PONo, '') as PONo,
                 i.PartsTaxable,
                 i.LaborTaxable,
                 i.LaborNonTax,
@@ -6381,9 +6359,7 @@ def register_department_routes(reports_bp):
                 
             FROM ben002.InvoiceReg i
             LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
-            LEFT JOIN InvoiceWOMatch iw ON i.InvoiceNo = iw.InvoiceNo
-            LEFT JOIN ben002.WO w ON iw.WONo = w.WONo
-            LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
+            LEFT JOIN ben002.Equipment e ON i.UnitNo = e.UnitNo
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
@@ -6395,8 +6371,7 @@ def register_department_routes(reports_bp):
             """
             
             # Add customer filter if specified
-            # Need date range twice - once for CTE, once for main query
-            params = [start_date, end_date, start_date, end_date]
+            params = [start_date, end_date]
             if customer_no and customer_no != 'ALL':
                 query += " AND i.BillTo = %s"
                 params.append(customer_no)
