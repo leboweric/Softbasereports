@@ -46,6 +46,12 @@ const ServiceInvoiceBilling = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return ''
+    // Handle YYYY-MM-DD format from HTML date inputs
+    if (dateString.includes('-') && dateString.length === 10) {
+      const [year, month, day] = dateString.split('-')
+      return `${month}/${day}/${year}`
+    }
+    // Handle other date formats
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { 
       month: '2-digit', 
