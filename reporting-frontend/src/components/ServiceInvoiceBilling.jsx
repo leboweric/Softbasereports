@@ -544,12 +544,7 @@ const ServiceInvoiceBilling = () => {
                           {invoice.PartsTaxable ? formatCurrency(invoice.PartsTaxable) : '-'}
                         </TableCell>
                         <TableCell className="text-right">
-                          {(() => {
-                            const laborTax = Number(invoice.LaborTaxable) || 0;
-                            const laborNonTax = Number(invoice.LaborNonTax) || 0;
-                            const totalLabor = laborTax + laborNonTax;
-                            return totalLabor !== 0 ? formatCurrency(totalLabor) : '-';
-                          })()}
+                          {formatCurrency((invoice.LaborTaxable || 0) + (invoice.LaborNonTax || 0))}
                         </TableCell>
                         <TableCell className="text-right">
                           {invoice.MiscTaxable ? formatCurrency(invoice.MiscTaxable) : '-'}
