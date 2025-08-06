@@ -234,7 +234,7 @@ const ServiceInvoiceBilling = () => {
     headerRow.alignment = { horizontal: 'center', vertical: 'middle' }
     headerRow.height = 20
 
-    // Add data rows
+    // Add data rows (sortedInvoices already filters out parts invoices)
     sortedInvoices.forEach(inv => {
       worksheet.addRow([
         inv.BillToName || inv.BillTo || '',
@@ -514,7 +514,13 @@ const ServiceInvoiceBilling = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedInvoices.map((invoice) => (
+                    {sortedInvoices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={16} className="text-center text-muted-foreground py-4">
+                          No service invoices found for this date range
+                        </TableCell>
+                      </TableRow>
+                    ) : sortedInvoices.map((invoice) => (
                       <TableRow key={invoice.InvoiceNo}>
                         <TableCell className="font-medium sticky left-0 bg-white">
                           {invoice.BillToName || invoice.BillTo}
@@ -559,7 +565,7 @@ const ServiceInvoiceBilling = () => {
                           {invoice.Comments || '-'}
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )))}
                     <TableRow className="font-bold bg-gray-50">
                       <TableCell colSpan={9} className="text-right">
                         TOTALS:

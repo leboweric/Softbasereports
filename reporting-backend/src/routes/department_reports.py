@@ -6363,6 +6363,8 @@ def register_department_routes(reports_bp):
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
+              -- Exclude parts invoices (those starting with 130)
+              AND CAST(i.InvoiceNo AS VARCHAR(20)) NOT LIKE '130%'
               -- Include all invoices with service-related revenue
               AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
                    OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
@@ -6541,6 +6543,8 @@ def register_department_routes(reports_bp):
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
+              -- Exclude parts invoices (those starting with 130)
+              AND CAST(i.InvoiceNo AS VARCHAR(20)) NOT LIKE '130%'
               -- Include all invoices with service-related revenue
               AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
                    OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
