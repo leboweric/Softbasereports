@@ -41,6 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import PartsEmployeePerformance from './PartsEmployeePerformance'
 const PartsReport = ({ user, onNavigate }) => {
   const [partsData, setPartsData] = useState(null)
   const [fillRateData, setFillRateData] = useState(null)
@@ -549,6 +550,7 @@ const PartsReport = ({ user, onNavigate }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="work-orders">Work Orders</TabsTrigger>
+          <TabsTrigger value="employee-performance">Employee Performance</TabsTrigger>
           <TabsTrigger value="stock-alerts">Stock Alerts</TabsTrigger>
           <TabsTrigger value="velocity">Velocity</TabsTrigger>
           <TabsTrigger value="forecast">Forecast</TabsTrigger>
@@ -1569,6 +1571,10 @@ const PartsReport = ({ user, onNavigate }) => {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="employee-performance" className="space-y-6">
+          <PartsEmployeePerformance />
         </TabsContent>
       </Tabs>
 

@@ -1595,6 +1595,150 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/employee-performance', methods=['GET'])
+    @jwt_required()
+    def get_parts_employee_performance():
+        """Get parts sales performance by employee using CreatorUserId from invoices"""
+        try:
+            db = get_db()
+            
+            # Get date range from query params
+            days_back = request.args.get('days', 30, type=int)
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            
+            # Build date filter
+            if start_date and end_date:
+                date_filter = f"InvoiceDate BETWEEN '{start_date}' AND '{end_date}'"
+            else:
+                date_filter = f"InvoiceDate >= DATEADD(day, -{days_back}, GETDATE())"
+            
+            # Main query to get parts sales by employee
+            query = f"""
+            WITH PartsSales AS (
+                SELECT 
+                    ISNULL(CreatorUserId, 'Unknown') as EmployeeId,
+                    COUNT(DISTINCT InvoiceNo) as TotalInvoices,
+                    COUNT(DISTINCT CAST(InvoiceDate AS DATE)) as DaysWorked,
+                    SUM(PartsTaxable + PartsNonTax) as TotalPartsSales,
+                    AVG(PartsTaxable + PartsNonTax) as AvgInvoiceValue,
+                    MAX(InvoiceDate) as LastSaleDate,
+                    MIN(InvoiceDate) as FirstSaleDate
+                FROM ben002.InvoiceReg
+                WHERE (PartsTaxable > 0 OR PartsNonTax > 0)
+                    AND {date_filter}
+                GROUP BY CreatorUserId
+            ),
+            DailyAverages AS (
+                SELECT 
+                    EmployeeId,
+                    TotalInvoices,
+                    DaysWorked,
+                    TotalPartsSales,
+                    AvgInvoiceValue,
+                    CASE 
+                        WHEN DaysWorked > 0 THEN TotalPartsSales / DaysWorked 
+                        ELSE 0 
+                    END as AvgDailySales,
+                    CASE 
+                        WHEN DaysWorked > 0 THEN CAST(TotalInvoices AS FLOAT) / DaysWorked 
+                        ELSE 0 
+                    END as AvgDailyInvoices,
+                    LastSaleDate,
+                    FirstSaleDate
+                FROM PartsSales
+            )
+            SELECT 
+                EmployeeId,
+                TotalInvoices,
+                DaysWorked,
+                CAST(TotalPartsSales AS DECIMAL(10,2)) as TotalPartsSales,
+                CAST(AvgInvoiceValue AS DECIMAL(10,2)) as AvgInvoiceValue,
+                CAST(AvgDailySales AS DECIMAL(10,2)) as AvgDailySales,
+                CAST(AvgDailyInvoices AS DECIMAL(5,1)) as AvgDailyInvoices,
+                LastSaleDate,
+                FirstSaleDate,
+                DATEDIFF(day, LastSaleDate, GETDATE()) as DaysSinceLastSale
+            FROM DailyAverages
+            ORDER BY TotalPartsSales DESC
+            """
+            
+            result = db.execute_query(query)
+            
+            # Parse results
+            employees = []
+            total_sales = 0
+            
+            if result:
+                for row in result:
+                    employee_data = {
+                        'employeeId': row.get('EmployeeId', 'Unknown'),
+                        'totalInvoices': row.get('TotalInvoices', 0),
+                        'daysWorked': row.get('DaysWorked', 0),
+                        'totalSales': float(row.get('TotalPartsSales', 0)),
+                        'avgInvoiceValue': float(row.get('AvgInvoiceValue', 0)),
+                        'avgDailySales': float(row.get('AvgDailySales', 0)),
+                        'avgDailyInvoices': float(row.get('AvgDailyInvoices', 0)),
+                        'lastSaleDate': row.get('LastSaleDate').strftime('%Y-%m-%d') if row.get('LastSaleDate') else None,
+                        'firstSaleDate': row.get('FirstSaleDate').strftime('%Y-%m-%d') if row.get('FirstSaleDate') else None,
+                        'daysSinceLastSale': row.get('DaysSinceLastSale', 0)
+                    }
+                    employees.append(employee_data)
+                    total_sales += employee_data['totalSales']
+            
+            # Calculate percentages
+            for emp in employees:
+                emp['percentOfTotal'] = round((emp['totalSales'] / total_sales * 100), 1) if total_sales > 0 else 0
+            
+            # Get top selling parts by employee (optional detail)
+            if request.args.get('include_details', 'false').lower() == 'true':
+                for emp in employees:
+                    detail_query = f"""
+                    SELECT TOP 10
+                        wp.PartNo,
+                        wp.Description,
+                        COUNT(*) as TimesSold,
+                        SUM(wp.Qty) as TotalQty,
+                        SUM(wp.Sell * wp.Qty) as TotalRevenue
+                    FROM ben002.WOParts wp
+                    INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                    INNER JOIN ben002.InvoiceReg i ON w.WONo = i.InvoiceNo
+                    WHERE i.CreatorUserId = '{emp['employeeId']}'
+                        AND i.{date_filter}
+                        AND (i.PartsTaxable > 0 OR i.PartsNonTax > 0)
+                    GROUP BY wp.PartNo, wp.Description
+                    ORDER BY TotalRevenue DESC
+                    """
+                    
+                    parts_result = db.execute_query(detail_query)
+                    emp['topParts'] = []
+                    if parts_result:
+                        for part in parts_result:
+                            emp['topParts'].append({
+                                'partNo': part.get('PartNo', ''),
+                                'description': part.get('Description', ''),
+                                'timesSold': part.get('TimesSold', 0),
+                                'totalQty': part.get('TotalQty', 0),
+                                'totalRevenue': float(part.get('TotalRevenue', 0))
+                            })
+            
+            return jsonify({
+                'employees': employees,
+                'summary': {
+                    'totalEmployees': len(employees),
+                    'totalSales': total_sales,
+                    'topPerformer': employees[0] if employees else None,
+                    'period': f'Last {days_back} days' if not start_date else f'{start_date} to {end_date}'
+                }
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'parts_employee_performance_error'
+            }), 500
+
+
     @reports_bp.route('/departments/rental/pace', methods=['GET'])
     @jwt_required()
     def get_rental_pace():
