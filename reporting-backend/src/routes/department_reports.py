@@ -1690,37 +1690,9 @@ def register_department_routes(reports_bp):
             for emp in employees:
                 emp['percentOfTotal'] = round((emp['totalSales'] / total_sales * 100), 1) if total_sales > 0 else 0
             
-            # Get top selling parts by employee (optional detail)
-            if request.args.get('include_details', 'false').lower() == 'true':
-                for emp in employees:
-                    detail_query = f"""
-                    SELECT TOP 10
-                        wp.PartNo,
-                        wp.Description,
-                        COUNT(*) as TimesSold,
-                        SUM(wp.Qty) as TotalQty,
-                        SUM(wp.Sell * wp.Qty) as TotalRevenue
-                    FROM ben002.WOParts wp
-                    INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                    INNER JOIN ben002.InvoiceReg i ON w.WONo = i.InvoiceNo
-                    WHERE i.CreatorUserId = '{emp['employeeId']}'
-                        AND i.{date_filter}
-                        AND (i.PartsTaxable > 0 OR i.PartsNonTax > 0)
-                    GROUP BY wp.PartNo, wp.Description
-                    ORDER BY TotalRevenue DESC
-                    """
-                    
-                    parts_result = db.execute_query(detail_query)
-                    emp['topParts'] = []
-                    if parts_result:
-                        for part in parts_result:
-                            emp['topParts'].append({
-                                'partNo': part.get('PartNo', ''),
-                                'description': part.get('Description', ''),
-                                'timesSold': part.get('TimesSold', 0),
-                                'totalQty': part.get('TotalQty', 0),
-                                'totalRevenue': float(part.get('TotalRevenue', 0))
-                            })
+            # Note: Detailed parts breakdown by employee removed due to data model constraints
+            # InvoiceReg doesn't directly link to WOParts, would need InvoiceSales table
+            # or different approach to get part-level details per employee
             
             return jsonify({
                 'employees': employees,
