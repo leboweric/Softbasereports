@@ -7,17 +7,31 @@ const PartsEmployeePerformance = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [dateRange, setDateRange] = useState(30);
+  const [dateRange, setDateRange] = useState('contest');
+  const [customStartDate, setCustomStartDate] = useState('2024-08-07');
+  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showCustomDates, setShowCustomDates] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
 
   useEffect(() => {
     fetchData();
-  }, [dateRange]);
+  }, [dateRange, customStartDate, customEndDate]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(apiUrl(`/api/reports/departments/parts/employee-performance?days=${dateRange}`), {
+      let url;
+      
+      if (dateRange === 'contest') {
+        // Contest period: August 7, 2024 to today
+        url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=2024-08-07&end_date=${new Date().toISOString().split('T')[0]}`);
+      } else if (dateRange === 'custom') {
+        url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=${customStartDate}&end_date=${customEndDate}`);
+      } else {
+        url = apiUrl(`/api/reports/departments/parts/employee-performance?days=${dateRange}`);
+      }
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -92,6 +106,49 @@ const PartsEmployeePerformance = () => {
 
   return (
     <div className="space-y-6">
+      {/* Contest Leaderboard Banner - Only show for contest period */}
+      {dateRange === 'contest' && data && data.employees.length > 0 && (
+        <Card className="bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-300">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <span className="text-2xl">🏆</span>
+              Parts Sales Contest Leaderboard
+              <span className="text-sm font-normal text-gray-600 ml-2">
+                (Aug 7 - Today)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {data.employees.slice(0, 3).map((emp, index) => (
+                <div
+                  key={emp.employeeId}
+                  className={`p-4 rounded-lg text-center ${
+                    index === 0 ? 'bg-yellow-100 border-2 border-yellow-400' :
+                    index === 1 ? 'bg-gray-100 border-2 border-gray-400' :
+                    'bg-orange-100 border-2 border-orange-400'
+                  }`}
+                >
+                  <div className="text-3xl mb-2">
+                    {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
+                  </div>
+                  <div className="font-bold text-lg">{emp.employeeId}</div>
+                  <div className="text-2xl font-bold mt-2">
+                    ${emp.totalSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    {emp.totalInvoices} sales • {emp.percentOfTotal}% of total
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    Avg/Day: ${emp.avgDailySales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
@@ -147,19 +204,50 @@ const PartsEmployeePerformance = () => {
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Employee Performance Details</CardTitle>
-            <div className="flex gap-2">
+            <div>
+              <CardTitle>Employee Performance Details</CardTitle>
+              {dateRange === 'contest' && (
+                <p className="text-sm text-amber-600 font-semibold mt-1">
+                  🏆 Contest Period: August 7, 2024 - Today
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 items-center">
               <select
                 value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
+                onChange={(e) => {
+                  setDateRange(e.target.value);
+                  setShowCustomDates(e.target.value === 'custom');
+                }}
                 className="px-3 py-1 border rounded-md text-sm"
               >
+                <option value="contest">🏆 Contest (Aug 7 - Today)</option>
                 <option value="7">Last 7 Days</option>
                 <option value="30">Last 30 Days</option>
                 <option value="60">Last 60 Days</option>
                 <option value="90">Last 90 Days</option>
                 <option value="365">Last Year</option>
+                <option value="custom">Custom Dates</option>
               </select>
+              
+              {showCustomDates && (
+                <>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="px-2 py-1 border rounded-md text-sm"
+                  />
+                  <span className="text-sm">to</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="px-2 py-1 border rounded-md text-sm"
+                  />
+                </>
+              )}
+              
               <button
                 onClick={exportToCSV}
                 className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm"
