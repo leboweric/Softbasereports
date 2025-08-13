@@ -1617,15 +1617,15 @@ def register_department_routes(reports_bp):
             query = f"""
             WITH PartsSales AS (
                 SELECT 
-                    ISNULL(CreatorUserId, 'Unknown') as EmployeeId,
+                    ISNULL(CAST(CreatorUserId AS NVARCHAR(100)), 'Unknown') as EmployeeId,
                     COUNT(DISTINCT InvoiceNo) as TotalInvoices,
                     COUNT(DISTINCT CAST(InvoiceDate AS DATE)) as DaysWorked,
-                    SUM(PartsTaxable + PartsNonTax) as TotalPartsSales,
-                    AVG(PartsTaxable + PartsNonTax) as AvgInvoiceValue,
+                    SUM(ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) as TotalPartsSales,
+                    AVG(ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) as AvgInvoiceValue,
                     MAX(InvoiceDate) as LastSaleDate,
                     MIN(InvoiceDate) as FirstSaleDate
                 FROM ben002.InvoiceReg
-                WHERE (PartsTaxable > 0 OR PartsNonTax > 0)
+                WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
                     AND {date_filter}
                 GROUP BY CreatorUserId
             ),
