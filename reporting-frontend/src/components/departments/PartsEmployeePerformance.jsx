@@ -53,8 +53,9 @@ const PartsEmployeePerformance = () => {
   const exportToCSV = () => {
     if (!data || !data.employees) return;
 
-    const headers = ['Employee ID', 'Total Invoices', 'Days Worked', 'Total Sales', 'Avg Invoice Value', 'Avg Daily Sales', 'Avg Daily Invoices', '% of Total', 'Last Sale Date', 'Days Since Last Sale'];
+    const headers = ['Employee Name', 'Employee ID', 'Total Invoices', 'Days Worked', 'Total Sales', 'Avg Invoice Value', 'Avg Daily Sales', 'Avg Daily Invoices', '% of Total', 'Last Sale Date', 'Days Since Last Sale'];
     const rows = data.employees.map(emp => [
+      emp.employeeName || `Employee ${emp.employeeId}`,
       emp.employeeId,
       emp.totalInvoices,
       emp.daysWorked,
@@ -132,7 +133,10 @@ const PartsEmployeePerformance = () => {
                   <div className="text-3xl mb-2">
                     {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
                   </div>
-                  <div className="font-bold text-lg">{emp.employeeId}</div>
+                  <div className="font-bold text-lg">
+                    {emp.employeeName || `Employee ${emp.employeeId}`}
+                  </div>
+                  <div className="text-xs text-gray-500">ID: {emp.employeeId}</div>
                   <div className="text-2xl font-bold mt-2">
                     ${emp.totalSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
@@ -179,8 +183,13 @@ const PartsEmployeePerformance = () => {
             <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{summary.topPerformer?.employeeId || 'N/A'}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-xl font-bold">
+              {summary.topPerformer?.employeeName || summary.topPerformer?.employeeId || 'N/A'}
+            </div>
+            {summary.topPerformer?.employeeName && (
+              <p className="text-xs text-gray-500">ID: {summary.topPerformer?.employeeId}</p>
+            )}
+            <p className="text-xs text-muted-foreground mt-1">
               ${summary.topPerformer?.totalSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} in sales
             </p>
           </CardContent>
@@ -263,7 +272,7 @@ const PartsEmployeePerformance = () => {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-2">Rank</th>
-                  <th className="text-left p-2">Employee ID</th>
+                  <th className="text-left p-2">Employee</th>
                   <th className="text-right p-2">Total Sales</th>
                   <th className="text-right p-2">% of Total</th>
                   <th className="text-right p-2">Invoices</th>
@@ -287,7 +296,12 @@ const PartsEmployeePerformance = () => {
                       {index === 2 && <span className="text-xl">🥉</span>}
                       {index > 2 && <span className="text-gray-500">{index + 1}</span>}
                     </td>
-                    <td className="p-2 font-medium">{emp.employeeId}</td>
+                    <td className="p-2 font-medium">
+                      <div>
+                        <div className="font-semibold">{emp.employeeName || `Employee ${emp.employeeId}`}</div>
+                        <div className="text-xs text-gray-500">ID: {emp.employeeId}</div>
+                      </div>
+                    </td>
                     <td className="p-2 text-right font-semibold">
                       ${emp.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>

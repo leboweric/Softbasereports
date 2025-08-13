@@ -1665,14 +1665,67 @@ def register_department_routes(reports_bp):
             
             result = db.execute_query(query)
             
+            # Try to get employee names lookup
+            employee_names = {}
+            try:
+                # Try to query for employee names from User table
+                names_query = """
+                IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'User' AND TABLE_SCHEMA = 'ben002')
+                BEGIN
+                    SELECT 
+                        CAST(Id AS NVARCHAR(50)) as EmployeeId,
+                        ISNULL(FirstName, '') as FirstName,
+                        ISNULL(LastName, '') as LastName,
+                        ISNULL(FirstName + ' ' + LastName, '') as FullName
+                    FROM ben002.[User]
+                END
+                ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Users' AND TABLE_SCHEMA = 'ben002')
+                BEGIN
+                    SELECT 
+                        CAST(Id AS NVARCHAR(50)) as EmployeeId,
+                        ISNULL(FirstName, '') as FirstName,
+                        ISNULL(LastName, '') as LastName,
+                        ISNULL(FirstName + ' ' + LastName, '') as FullName
+                    FROM ben002.Users
+                END
+                ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'AbpUsers' AND TABLE_SCHEMA = 'ben002')
+                BEGIN
+                    SELECT 
+                        CAST(Id AS NVARCHAR(50)) as EmployeeId,
+                        ISNULL(Name, '') as FirstName,
+                        ISNULL(Surname, '') as LastName,
+                        ISNULL(Name + ' ' + Surname, '') as FullName
+                    FROM ben002.AbpUsers
+                END
+                """
+                
+                names_result = db.execute_query(names_query)
+                if names_result:
+                    for row in names_result:
+                        if row.get('EmployeeId'):
+                            employee_names[str(row['EmployeeId'])] = {
+                                'firstName': row.get('FirstName', ''),
+                                'lastName': row.get('LastName', ''),
+                                'fullName': row.get('FullName', '').strip()
+                            }
+            except:
+                # If name lookup fails, continue without names
+                pass
+            
             # Parse results
             employees = []
             total_sales = 0
             
             if result:
                 for row in result:
+                    emp_id = str(row.get('EmployeeId', 'Unknown'))
+                    name_info = employee_names.get(emp_id, {})
+                    
                     employee_data = {
-                        'employeeId': row.get('EmployeeId', 'Unknown'),
+                        'employeeId': emp_id,
+                        'employeeName': name_info.get('fullName', ''),
+                        'firstName': name_info.get('firstName', ''),
+                        'lastName': name_info.get('lastName', ''),
                         'totalInvoices': row.get('TotalInvoices', 0),
                         'daysWorked': row.get('DaysWorked', 0),
                         'totalSales': float(row.get('TotalPartsSales', 0)),
@@ -1694,12 +1747,20 @@ def register_department_routes(reports_bp):
             # InvoiceReg doesn't directly link to WOParts, would need InvoiceSales table
             # or different approach to get part-level details per employee
             
+            # Prepare top performer with name
+            top_performer = None
+            if employees:
+                top_performer = employees[0].copy()
+                # Ensure the top performer has the name fields
+                if not top_performer.get('employeeName'):
+                    top_performer['employeeName'] = ''
+            
             return jsonify({
                 'employees': employees,
                 'summary': {
                     'totalEmployees': len(employees),
                     'totalSales': total_sales,
-                    'topPerformer': employees[0] if employees else None,
+                    'topPerformer': top_performer,
                     'period': f'Last {days_back} days' if not start_date else f'{start_date} to {end_date}'
                 }
             })
