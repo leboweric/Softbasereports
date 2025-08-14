@@ -1,6 +1,10 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import get_db
+from src.services.azure_sql_service import AzureSQLService
+
+def get_db():
+    """Get database connection"""
+    return AzureSQLService()
 
 employee_bp = Blueprint('employee', __name__)
 
