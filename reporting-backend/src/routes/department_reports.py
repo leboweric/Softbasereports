@@ -134,6 +134,7 @@ def register_department_routes(reports_bp):
             WHERE w.ClosedDate IS NULL
               AND w.DeletionTime IS NULL
               AND w.Type = 'P'
+              AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
             ORDER BY w.OpenDate ASC
             """
             
@@ -218,6 +219,7 @@ def register_department_routes(reports_bp):
             WHERE w.Type = 'P' 
             AND w.ClosedDate IS NULL
             AND w.DeletionTime IS NULL
+            AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
             """
             
             count_result = db.execute_query(count_query)
@@ -247,6 +249,7 @@ def register_department_routes(reports_bp):
                 END as Status
             FROM ben002.WO
             WHERE Type = 'P' AND DeletionTime IS NULL
+            AND WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
             ORDER BY WONo DESC
             """
             
@@ -301,6 +304,7 @@ def register_department_routes(reports_bp):
               AND w.InvoiceDate IS NULL
               AND w.DeletionTime IS NULL
               AND w.Type = 'P'
+              AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
             ORDER BY w.CompletedDate ASC
             """
             

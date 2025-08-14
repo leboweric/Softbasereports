@@ -675,6 +675,7 @@ class DashboardQueries:
                 WHERE w.ClosedDate IS NULL
                   AND w.DeletionTime IS NULL
                   AND w.Type = 'P'  -- Parts work orders only
+                  AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
             )
             SELECT 
                 COUNT(*) as count,
@@ -735,6 +736,7 @@ class DashboardQueries:
                   AND w.InvoiceDate IS NULL
                   AND w.DeletionTime IS NULL
                   AND w.Type = 'P'  -- Parts work orders only
+                  AND w.WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
             )
             SELECT 
                 COUNT(*) as count,
