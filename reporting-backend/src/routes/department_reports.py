@@ -1619,7 +1619,7 @@ def register_department_routes(reports_bp):
             else:
                 employee_filter = ""
             
-            # Get invoice details
+            # Get invoice details - ONLY CSTPRT sale code
             query = f"""
             SELECT 
                 InvoiceNo,
@@ -1637,6 +1637,7 @@ def register_department_routes(reports_bp):
                 ISNULL(LastModifierUserId, CreatorUserId) as LastModifierUserId
             FROM ben002.InvoiceReg
             WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
+                AND SaleCode = 'CSTPRT'
                 AND {date_filter}
                 {employee_filter}
             ORDER BY InvoiceDate DESC, InvoiceNo DESC
@@ -1694,7 +1695,7 @@ def register_department_routes(reports_bp):
             else:
                 date_filter = f"InvoiceDate >= DATEADD(day, -{days_back}, GETDATE())"
             
-            # Main query to get parts sales by employee
+            # Main query to get parts sales by employee - ONLY CSTPRT sale code
             query = f"""
             WITH PartsSales AS (
                 SELECT 
@@ -1707,6 +1708,7 @@ def register_department_routes(reports_bp):
                     MIN(InvoiceDate) as FirstSaleDate
                 FROM ben002.InvoiceReg
                 WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
+                    AND SaleCode = 'CSTPRT'
                     AND {date_filter}
                 GROUP BY CreatorUserId
             ),

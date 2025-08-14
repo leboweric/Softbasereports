@@ -17,14 +17,16 @@ def diagnose_employee_mapping():
         
         results = {}
         
-        # 1. Check what CreatorUserId values look like
+        # 1. Check what CreatorUserId values look like for CSTPRT sale code
         try:
             creator_query = """
             SELECT TOP 20
                 CreatorUserId,
-                COUNT(*) as InvoiceCount
+                COUNT(*) as InvoiceCount,
+                SUM(ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) as TotalPartsSales
             FROM ben002.InvoiceReg
             WHERE CreatorUserId IS NOT NULL
+                AND SaleCode = 'CSTPRT'
             GROUP BY CreatorUserId
             ORDER BY COUNT(*) DESC
             """
@@ -35,7 +37,8 @@ def diagnose_employee_mapping():
                 for row in creator_result:
                     results['top_creator_ids'].append({
                         'id': str(row.get('CreatorUserId', '')),
-                        'count': row.get('InvoiceCount', 0)
+                        'count': row.get('InvoiceCount', 0),
+                        'totalSales': float(row.get('TotalPartsSales', 0))
                     })
         except Exception as e:
             results['top_creator_ids'] = f"Error: {str(e)}"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
+import { getEmployeeName, getEmployeeDetails } from '@/lib/employeeMapping';
 import { Users, TrendingUp, Calendar, DollarSign, Package, Award, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 const PartsEmployeePerformance = () => {
@@ -44,6 +45,31 @@ const PartsEmployeePerformance = () => {
       }
 
       const result = await response.json();
+      
+      // Enhance employee data with names from mapping
+      if (result.employees) {
+        result.employees = result.employees.map(emp => {
+          const details = getEmployeeDetails(emp.employeeId);
+          return {
+            ...emp,
+            employeeName: details.fullName,
+            firstName: details.firstName,
+            lastName: details.lastName
+          };
+        });
+        
+        // Update top performer
+        if (result.summary && result.summary.topPerformer) {
+          const topDetails = getEmployeeDetails(result.summary.topPerformer.employeeId);
+          result.summary.topPerformer = {
+            ...result.summary.topPerformer,
+            employeeName: topDetails.fullName,
+            firstName: topDetails.firstName,
+            lastName: topDetails.lastName
+          };
+        }
+      }
+      
       setData(result);
     } catch (err) {
       setError(err.message);
@@ -162,7 +188,7 @@ const PartsEmployeePerformance = () => {
           <CardHeader>
             <CardTitle className="text-xl flex items-center gap-2">
               <span className="text-2xl">🏆</span>
-              Parts Sales Contest Leaderboard
+              Parts Counter Sales Contest (CSTPRT Only)
               <span className="text-sm font-normal text-gray-600 ml-2">
                 (Aug 7 - Today)
               </span>
@@ -263,10 +289,10 @@ const PartsEmployeePerformance = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle>Employee Performance Details</CardTitle>
+              <CardTitle>Parts Counter Performance (CSTPRT Sale Code)</CardTitle>
               {dateRange === 'contest' && (
                 <p className="text-sm text-amber-600 font-semibold mt-1">
-                  🏆 Contest Period: August 7, 2025 - Today
+                  🏆 Contest Period: August 7, 2025 - Today (Counter Sales Only)
                 </p>
               )}
             </div>
