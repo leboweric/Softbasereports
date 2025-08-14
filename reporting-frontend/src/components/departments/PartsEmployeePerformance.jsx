@@ -8,7 +8,7 @@ const PartsEmployeePerformance = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState('contest');
-  const [customStartDate, setCustomStartDate] = useState('2024-08-07');
+  const [customStartDate, setCustomStartDate] = useState('2025-08-07');
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showCustomDates, setShowCustomDates] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -23,8 +23,8 @@ const PartsEmployeePerformance = () => {
       let url;
       
       if (dateRange === 'contest') {
-        // Contest period: August 7, 2024 to today
-        url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=2024-08-07&end_date=${new Date().toISOString().split('T')[0]}`);
+        // Contest period: August 7, 2025 to today
+        url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=2025-08-07&end_date=${new Date().toISOString().split('T')[0]}`);
       } else if (dateRange === 'custom') {
         url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=${customStartDate}&end_date=${customEndDate}`);
       } else {
@@ -217,7 +217,7 @@ const PartsEmployeePerformance = () => {
               <CardTitle>Employee Performance Details</CardTitle>
               {dateRange === 'contest' && (
                 <p className="text-sm text-amber-600 font-semibold mt-1">
-                  🏆 Contest Period: August 7, 2024 - Today
+                  🏆 Contest Period: August 7, 2025 - Today
                 </p>
               )}
             </div>
