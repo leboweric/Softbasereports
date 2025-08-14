@@ -312,6 +312,31 @@ const PartsEmployeePerformance = () => {
               >
                 Export CSV
               </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(apiUrl('/api/diagnostic/employee-mapping'), {
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                      }
+                    });
+                    const data = await response.json();
+                    console.log('=== EMPLOYEE DIAGNOSTIC RESULTS ===');
+                    console.log('Top Creator IDs:', data.top_creator_ids);
+                    console.log('User Tables Found:', data.user_tables);
+                    console.log('Schemas:', data.schemas);
+                    console.log('Potential ID Columns:', data.potential_id_columns);
+                    console.log('Full Results:', data);
+                    alert('Diagnostic complete! Check browser console (F12) for results.');
+                  } catch (err) {
+                    console.error('Diagnostic failed:', err);
+                    alert('Diagnostic failed. Check console for details.');
+                  }
+                }}
+                className="px-3 py-1 bg-purple-500 text-white rounded-md hover:bg-purple-600 text-sm"
+              >
+                Run Diagnostic
+              </button>
             </div>
           </div>
         </CardHeader>
