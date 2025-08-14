@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
-import { getEmployeeName, getEmployeeDetails } from '@/lib/employeeMapping';
+// Employee mapping no longer needed - we have real names now!
 import { Users, TrendingUp, Calendar, DollarSign, Package, Award, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 const PartsEmployeePerformance = () => {
@@ -46,30 +46,7 @@ const PartsEmployeePerformance = () => {
 
       const result = await response.json();
       
-      // Enhance employee data with names from mapping
-      if (result.employees) {
-        result.employees = result.employees.map(emp => {
-          const details = getEmployeeDetails(emp.employeeId);
-          return {
-            ...emp,
-            employeeName: details.fullName,
-            firstName: details.firstName,
-            lastName: details.lastName
-          };
-        });
-        
-        // Update top performer
-        if (result.summary && result.summary.topPerformer) {
-          const topDetails = getEmployeeDetails(result.summary.topPerformer.employeeId);
-          result.summary.topPerformer = {
-            ...result.summary.topPerformer,
-            employeeName: topDetails.fullName,
-            firstName: topDetails.firstName,
-            lastName: topDetails.lastName
-          };
-        }
-      }
-      
+      // No longer need to map names - they come directly from the backend!
       setData(result);
     } catch (err) {
       setError(err.message);
@@ -128,10 +105,9 @@ const PartsEmployeePerformance = () => {
   const exportToCSV = () => {
     if (!data || !data.employees) return;
 
-    const headers = ['Employee Name', 'Employee ID', 'Total Invoices', 'Days Worked', 'Total Sales', 'Avg Invoice Value', 'Avg Daily Sales', 'Avg Daily Invoices', '% of Total', 'Last Sale Date', 'Days Since Last Sale'];
+    const headers = ['Employee Name', 'Total Invoices', 'Days Worked', 'Total Sales', 'Avg Invoice Value', 'Avg Daily Sales', 'Avg Daily Invoices', '% of Total', 'Last Sale Date', 'Days Since Last Sale'];
     const rows = data.employees.map(emp => [
-      emp.employeeName || `Employee ${emp.employeeId}`,
-      emp.employeeId,
+      emp.employeeName || emp.employeeId || 'Unknown',
       emp.totalInvoices,
       emp.daysWorked,
       emp.totalSales.toFixed(2),
@@ -209,9 +185,8 @@ const PartsEmployeePerformance = () => {
                     {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
                   </div>
                   <div className="font-bold text-lg">
-                    {emp.employeeName || `Employee ${emp.employeeId}`}
+                    {emp.employeeName || emp.employeeId || 'Unknown'}
                   </div>
-                  <div className="text-xs text-gray-500">ID: {emp.employeeId}</div>
                   <div className="text-2xl font-bold mt-2">
                     ${emp.totalSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </div>
@@ -261,9 +236,6 @@ const PartsEmployeePerformance = () => {
             <div className="text-xl font-bold">
               {summary.topPerformer?.employeeName || summary.topPerformer?.employeeId || 'N/A'}
             </div>
-            {summary.topPerformer?.employeeName && (
-              <p className="text-xs text-gray-500">ID: {summary.topPerformer?.employeeId}</p>
-            )}
             <p className="text-xs text-muted-foreground mt-1">
               ${summary.topPerformer?.totalSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} in sales
             </p>
@@ -338,31 +310,6 @@ const PartsEmployeePerformance = () => {
               >
                 Export CSV
               </button>
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch(apiUrl('/api/diagnostic/employee-mapping'), {
-                      headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                      }
-                    });
-                    const data = await response.json();
-                    console.log('=== EMPLOYEE DIAGNOSTIC RESULTS ===');
-                    console.log('Top Creator IDs:', data.top_creator_ids);
-                    console.log('User Tables Found:', data.user_tables);
-                    console.log('Schemas:', data.schemas);
-                    console.log('Potential ID Columns:', data.potential_id_columns);
-                    console.log('Full Results:', data);
-                    alert('Diagnostic complete! Check browser console (F12) for results.');
-                  } catch (err) {
-                    console.error('Diagnostic failed:', err);
-                    alert('Diagnostic failed. Check console for details.');
-                  }
-                }}
-                className="px-3 py-1 bg-purple-500 text-white rounded-md hover:bg-purple-600 text-sm"
-              >
-                Run Diagnostic
-              </button>
             </div>
           </div>
         </CardHeader>
@@ -398,10 +345,7 @@ const PartsEmployeePerformance = () => {
                       {index > 2 && <span className="text-gray-500">{index + 1}</span>}
                     </td>
                     <td className="p-2 font-medium">
-                      <div>
-                        <div className="font-semibold">{emp.employeeName || `Employee ${emp.employeeId}`}</div>
-                        <div className="text-xs text-gray-500">ID: {emp.employeeId}</div>
-                      </div>
+                      <div className="font-semibold">{emp.employeeName || emp.employeeId || 'Unknown'}</div>
                     </td>
                     <td className="p-2 text-right font-semibold">
                       ${emp.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -450,7 +394,7 @@ const PartsEmployeePerformance = () => {
                           <div className="flex items-center gap-2 mb-3">
                             <FileText className="h-5 w-5 text-blue-600" />
                             <h4 className="font-semibold text-lg">
-                              Invoice Details for {emp.employeeName || `Employee ${emp.employeeId}`}
+                              Invoice Details for {emp.employeeName || emp.employeeId || 'Unknown'}
                             </h4>
                             <span className="text-sm text-gray-500">
                               ({invoiceDetails[emp.employeeId]?.length || 0} invoices)

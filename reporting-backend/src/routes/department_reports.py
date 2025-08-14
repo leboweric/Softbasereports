@@ -1598,11 +1598,11 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/parts/employee-invoice-details', methods=['GET'])
     @jwt_required()
     def get_parts_employee_invoice_details():
-        """Get detailed invoice list for a specific employee's parts sales"""
+        """Get detailed invoice list for a specific employee's parts sales using OpenBy field"""
         try:
             db = get_db()
             
-            employee_id = request.args.get('employee_id')
+            employee_id = request.args.get('employee_id')  # This is now the employee name
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
             days_back = request.args.get('days', 30, type=int)
@@ -1613,9 +1613,11 @@ def register_department_routes(reports_bp):
             else:
                 date_filter = f"InvoiceDate >= DATEADD(day, -{days_back}, GETDATE())"
             
-            # Build employee filter
+            # Build employee filter (employee_id is now the name)
             if employee_id and employee_id != 'all':
-                employee_filter = f"AND ISNULL(CAST(CreatorUserId AS NVARCHAR(100)), 'Unknown') = '{employee_id}'"
+                # Escape single quotes in employee name for SQL
+                safe_employee_name = employee_id.replace("'", "''")
+                employee_filter = f"AND OpenBy = '{safe_employee_name}'"
             else:
                 employee_filter = ""
             
@@ -1624,7 +1626,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 InvoiceNo,
                 InvoiceDate,
-                ISNULL(CAST(CreatorUserId AS NVARCHAR(100)), 'Unknown') as EmployeeId,
+                ISNULL(OpenBy, 'Unknown') as EmployeeName,
                 BillTo,
                 BillToName,
                 ISNULL(PartsTaxable, 0) as PartsTaxable,
@@ -1634,10 +1636,12 @@ def register_department_routes(reports_bp):
                 ISNULL(MiscTaxable, 0) + ISNULL(MiscNonTax, 0) as TotalMisc,
                 GrandTotal,
                 SaleCode,
-                ISNULL(LastModifierUserId, CreatorUserId) as LastModifierUserId
+                ISNULL(ClosedBy, OpenBy) as ClosedBy
             FROM ben002.InvoiceReg
             WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
                 AND SaleCode = 'CSTPRT'
+                AND OpenBy IS NOT NULL
+                AND OpenBy != ''
                 AND {date_filter}
                 {employee_filter}
             ORDER BY InvoiceDate DESC, InvoiceNo DESC
@@ -1651,7 +1655,8 @@ def register_department_routes(reports_bp):
                     invoices.append({
                         'invoiceNo': row.get('InvoiceNo'),
                         'invoiceDate': row.get('InvoiceDate').strftime('%Y-%m-%d %H:%M') if row.get('InvoiceDate') else None,
-                        'employeeId': row.get('EmployeeId'),
+                        'employeeId': row.get('EmployeeName'),  # Now using name as ID
+                        'employeeName': row.get('EmployeeName'),
                         'billTo': row.get('BillTo', ''),
                         'billToName': row.get('BillToName', ''),
                         'partsTaxable': float(row.get('PartsTaxable', 0)),
@@ -1661,7 +1666,7 @@ def register_department_routes(reports_bp):
                         'totalMisc': float(row.get('TotalMisc', 0)),
                         'grandTotal': float(row.get('GrandTotal', 0)),
                         'saleCode': row.get('SaleCode', ''),
-                        'lastModifiedBy': row.get('LastModifierUserId', '')
+                        'lastModifiedBy': row.get('ClosedBy', '')
                     })
             
             return jsonify({
@@ -1680,7 +1685,7 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/parts/employee-performance', methods=['GET'])
     @jwt_required()
     def get_parts_employee_performance():
-        """Get parts sales performance by employee using CreatorUserId from invoices"""
+        """Get parts sales performance by employee using OpenBy field for actual names"""
         try:
             db = get_db()
             
@@ -1695,11 +1700,11 @@ def register_department_routes(reports_bp):
             else:
                 date_filter = f"InvoiceDate >= DATEADD(day, -{days_back}, GETDATE())"
             
-            # Main query to get parts sales by employee - ONLY CSTPRT sale code
+            # Main query to get parts sales by employee using OpenBy field
             query = f"""
             WITH PartsSales AS (
                 SELECT 
-                    ISNULL(CAST(CreatorUserId AS NVARCHAR(100)), 'Unknown') as EmployeeId,
+                    ISNULL(OpenBy, 'Unknown') as EmployeeName,
                     COUNT(DISTINCT InvoiceNo) as TotalInvoices,
                     COUNT(DISTINCT CAST(InvoiceDate AS DATE)) as DaysWorked,
                     SUM(ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) as TotalPartsSales,
@@ -1709,12 +1714,14 @@ def register_department_routes(reports_bp):
                 FROM ben002.InvoiceReg
                 WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
                     AND SaleCode = 'CSTPRT'
+                    AND OpenBy IS NOT NULL
+                    AND OpenBy != ''
                     AND {date_filter}
-                GROUP BY CreatorUserId
+                GROUP BY OpenBy
             ),
             DailyAverages AS (
                 SELECT 
-                    EmployeeId,
+                    EmployeeName,
                     TotalInvoices,
                     DaysWorked,
                     TotalPartsSales,
@@ -1732,7 +1739,7 @@ def register_department_routes(reports_bp):
                 FROM PartsSales
             )
             SELECT 
-                EmployeeId,
+                EmployeeName,
                 TotalInvoices,
                 DaysWorked,
                 CAST(TotalPartsSales AS DECIMAL(10,2)) as TotalPartsSales,
@@ -1777,14 +1784,18 @@ def register_department_routes(reports_bp):
             
             if result:
                 for row in result:
-                    emp_id = str(row.get('EmployeeId', 'Unknown'))
-                    name_info = employee_names.get(emp_id, {})
+                    emp_name = row.get('EmployeeName', 'Unknown')
+                    
+                    # Split name into first and last
+                    name_parts = emp_name.split(' ', 1) if emp_name else ['', '']
+                    first_name = name_parts[0] if name_parts else ''
+                    last_name = name_parts[1] if len(name_parts) > 1 else ''
                     
                     employee_data = {
-                        'employeeId': emp_id,
-                        'employeeName': name_info.get('fullName', ''),
-                        'firstName': name_info.get('firstName', ''),
-                        'lastName': name_info.get('lastName', ''),
+                        'employeeId': emp_name,  # Use name as ID for now
+                        'employeeName': emp_name,
+                        'firstName': first_name,
+                        'lastName': last_name,
                         'totalInvoices': row.get('TotalInvoices', 0),
                         'daysWorked': row.get('DaysWorked', 0),
                         'totalSales': float(row.get('TotalPartsSales', 0)),
