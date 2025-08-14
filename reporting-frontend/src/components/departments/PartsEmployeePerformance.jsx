@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
-import { Users, TrendingUp, Calendar, DollarSign, Package, Award } from 'lucide-react';
+import { Users, TrendingUp, Calendar, DollarSign, Package, Award, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 
 const PartsEmployeePerformance = () => {
   const [data, setData] = useState(null);
@@ -12,6 +12,8 @@ const PartsEmployeePerformance = () => {
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showCustomDates, setShowCustomDates] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [invoiceDetails, setInvoiceDetails] = useState({});
+  const [loadingInvoices, setLoadingInvoices] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -47,6 +49,53 @@ const PartsEmployeePerformance = () => {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchInvoiceDetails = async (employeeId) => {
+    if (invoiceDetails[employeeId]) {
+      // Already have the data, just toggle
+      return;
+    }
+
+    setLoadingInvoices(prev => ({ ...prev, [employeeId]: true }));
+    
+    try {
+      let url;
+      if (dateRange === 'contest') {
+        url = apiUrl(`/api/reports/departments/parts/employee-invoice-details?employee_id=${employeeId}&start_date=2025-08-07&end_date=${new Date().toISOString().split('T')[0]}`);
+      } else if (dateRange === 'custom') {
+        url = apiUrl(`/api/reports/departments/parts/employee-invoice-details?employee_id=${employeeId}&start_date=${customStartDate}&end_date=${customEndDate}`);
+      } else {
+        url = apiUrl(`/api/reports/departments/parts/employee-invoice-details?employee_id=${employeeId}&days=${dateRange}`);
+      }
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch invoice details');
+      }
+
+      const result = await response.json();
+      setInvoiceDetails(prev => ({ ...prev, [employeeId]: result.invoices }));
+    } catch (err) {
+      console.error('Error fetching invoice details:', err);
+      setInvoiceDetails(prev => ({ ...prev, [employeeId]: [] }));
+    } finally {
+      setLoadingInvoices(prev => ({ ...prev, [employeeId]: false }));
+    }
+  };
+
+  const toggleEmployeeDetails = async (employeeId) => {
+    if (selectedEmployee === employeeId) {
+      setSelectedEmployee(null);
+    } else {
+      setSelectedEmployee(employeeId);
+      await fetchInvoiceDetails(employeeId);
     }
   };
 
@@ -281,14 +330,15 @@ const PartsEmployeePerformance = () => {
                   <th className="text-right p-2">Avg Invoice</th>
                   <th className="text-right p-2">Last Sale</th>
                   <th className="text-right p-2">Days Inactive</th>
+                  <th className="text-center p-2" width="40">Details</th>
                 </tr>
               </thead>
               <tbody>
                 {employees.map((emp, index) => (
+                  <React.Fragment key={emp.employeeId}>
                   <tr 
-                    key={emp.employeeId} 
-                    className={`border-b hover:bg-gray-50 cursor-pointer ${index === 0 ? 'bg-green-50' : ''}`}
-                    onClick={() => setSelectedEmployee(selectedEmployee === emp.employeeId ? null : emp.employeeId)}
+                    className={`border-b hover:bg-gray-50 cursor-pointer ${index === 0 ? 'bg-green-50' : ''} ${selectedEmployee === emp.employeeId ? 'bg-blue-50' : ''}`}
+                    onClick={() => toggleEmployeeDetails(emp.employeeId)}
                   >
                     <td className="p-2">
                       {index === 0 && <span className="text-xl">🏆</span>}
@@ -336,7 +386,101 @@ const PartsEmployeePerformance = () => {
                         </span>
                       )}
                     </td>
+                    <td className="p-2 text-center">
+                      {selectedEmployee === emp.employeeId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </td>
                   </tr>
+                  
+                  {/* Invoice Details Row */}
+                  {selectedEmployee === emp.employeeId && (
+                    <tr>
+                      <td colSpan="11" className="p-0">
+                        <div className="bg-gray-50 p-4 border-t border-b">
+                          <div className="flex items-center gap-2 mb-3">
+                            <FileText className="h-5 w-5 text-blue-600" />
+                            <h4 className="font-semibold text-lg">
+                              Invoice Details for {emp.employeeName || `Employee ${emp.employeeId}`}
+                            </h4>
+                            <span className="text-sm text-gray-500">
+                              ({invoiceDetails[emp.employeeId]?.length || 0} invoices)
+                            </span>
+                          </div>
+                          
+                          {loadingInvoices[emp.employeeId] ? (
+                            <div className="text-center py-4">Loading invoice details...</div>
+                          ) : invoiceDetails[emp.employeeId] && invoiceDetails[emp.employeeId].length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b bg-white">
+                                    <th className="text-left p-2">Invoice #</th>
+                                    <th className="text-left p-2">Date/Time</th>
+                                    <th className="text-left p-2">Bill To</th>
+                                    <th className="text-left p-2">Customer Name</th>
+                                    <th className="text-right p-2">Parts (Tax)</th>
+                                    <th className="text-right p-2">Parts (Non-Tax)</th>
+                                    <th className="text-right p-2 font-semibold">Total Parts</th>
+                                    <th className="text-right p-2">Labor</th>
+                                    <th className="text-right p-2">Misc</th>
+                                    <th className="text-right p-2">Grand Total</th>
+                                    <th className="text-center p-2">Sale Code</th>
+                                    <th className="text-left p-2">Modified By</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {invoiceDetails[emp.employeeId].map((inv, idx) => (
+                                    <tr key={inv.invoiceNo} className={`border-b ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                      <td className="p-2 font-mono">{inv.invoiceNo}</td>
+                                      <td className="p-2">{inv.invoiceDate}</td>
+                                      <td className="p-2">{inv.billTo}</td>
+                                      <td className="p-2">{inv.billToName}</td>
+                                      <td className="p-2 text-right">${inv.partsTaxable.toFixed(2)}</td>
+                                      <td className="p-2 text-right">${inv.partsNonTax.toFixed(2)}</td>
+                                      <td className="p-2 text-right font-semibold bg-green-50">
+                                        ${inv.totalParts.toFixed(2)}
+                                      </td>
+                                      <td className="p-2 text-right">
+                                        {inv.totalLabor > 0 ? `$${inv.totalLabor.toFixed(2)}` : '-'}
+                                      </td>
+                                      <td className="p-2 text-right">
+                                        {inv.totalMisc > 0 ? `$${inv.totalMisc.toFixed(2)}` : '-'}
+                                      </td>
+                                      <td className="p-2 text-right">${inv.grandTotal.toFixed(2)}</td>
+                                      <td className="p-2 text-center">
+                                        <span className="px-1 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">
+                                          {inv.saleCode || '-'}
+                                        </span>
+                                      </td>
+                                      <td className="p-2 text-xs">{inv.lastModifiedBy || inv.employeeId}</td>
+                                    </tr>
+                                  ))}
+                                  <tr className="font-semibold bg-yellow-50">
+                                    <td colSpan="6" className="p-2 text-right">Total:</td>
+                                    <td className="p-2 text-right bg-green-100">
+                                      ${invoiceDetails[emp.employeeId].reduce((sum, inv) => sum + inv.totalParts, 0).toFixed(2)}
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      ${invoiceDetails[emp.employeeId].reduce((sum, inv) => sum + inv.totalLabor, 0).toFixed(2)}
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      ${invoiceDetails[emp.employeeId].reduce((sum, inv) => sum + inv.totalMisc, 0).toFixed(2)}
+                                    </td>
+                                    <td className="p-2 text-right">
+                                      ${invoiceDetails[emp.employeeId].reduce((sum, inv) => sum + inv.grandTotal, 0).toFixed(2)}
+                                    </td>
+                                    <td colSpan="2"></td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-gray-500">No invoice details available</div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

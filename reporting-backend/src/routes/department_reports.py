@@ -1595,6 +1595,87 @@ def register_department_routes(reports_bp):
             }), 500
 
 
+    @reports_bp.route('/departments/parts/employee-invoice-details', methods=['GET'])
+    @jwt_required()
+    def get_parts_employee_invoice_details():
+        """Get detailed invoice list for a specific employee's parts sales"""
+        try:
+            db = get_db()
+            
+            employee_id = request.args.get('employee_id')
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            days_back = request.args.get('days', 30, type=int)
+            
+            # Build date filter
+            if start_date and end_date:
+                date_filter = f"InvoiceDate BETWEEN '{start_date}' AND '{end_date}'"
+            else:
+                date_filter = f"InvoiceDate >= DATEADD(day, -{days_back}, GETDATE())"
+            
+            # Build employee filter
+            if employee_id and employee_id != 'all':
+                employee_filter = f"AND ISNULL(CAST(CreatorUserId AS NVARCHAR(100)), 'Unknown') = '{employee_id}'"
+            else:
+                employee_filter = ""
+            
+            # Get invoice details
+            query = f"""
+            SELECT 
+                InvoiceNo,
+                InvoiceDate,
+                ISNULL(CAST(CreatorUserId AS NVARCHAR(100)), 'Unknown') as EmployeeId,
+                BillTo,
+                BillToName,
+                ISNULL(PartsTaxable, 0) as PartsTaxable,
+                ISNULL(PartsNonTax, 0) as PartsNonTax,
+                ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0) as TotalParts,
+                ISNULL(LaborTaxable, 0) + ISNULL(LaborNonTax, 0) as TotalLabor,
+                ISNULL(MiscTaxable, 0) + ISNULL(MiscNonTax, 0) as TotalMisc,
+                GrandTotal,
+                SaleCode,
+                ISNULL(LastModifierUserId, CreatorUserId) as LastModifierUserId
+            FROM ben002.InvoiceReg
+            WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
+                AND {date_filter}
+                {employee_filter}
+            ORDER BY InvoiceDate DESC, InvoiceNo DESC
+            """
+            
+            result = db.execute_query(query)
+            
+            invoices = []
+            if result:
+                for row in result:
+                    invoices.append({
+                        'invoiceNo': row.get('InvoiceNo'),
+                        'invoiceDate': row.get('InvoiceDate').strftime('%Y-%m-%d %H:%M') if row.get('InvoiceDate') else None,
+                        'employeeId': row.get('EmployeeId'),
+                        'billTo': row.get('BillTo', ''),
+                        'billToName': row.get('BillToName', ''),
+                        'partsTaxable': float(row.get('PartsTaxable', 0)),
+                        'partsNonTax': float(row.get('PartsNonTax', 0)),
+                        'totalParts': float(row.get('TotalParts', 0)),
+                        'totalLabor': float(row.get('TotalLabor', 0)),
+                        'totalMisc': float(row.get('TotalMisc', 0)),
+                        'grandTotal': float(row.get('GrandTotal', 0)),
+                        'saleCode': row.get('SaleCode', ''),
+                        'lastModifiedBy': row.get('LastModifierUserId', '')
+                    })
+            
+            return jsonify({
+                'invoices': invoices,
+                'count': len(invoices),
+                'totalParts': sum(inv['totalParts'] for inv in invoices)
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'invoice_details_error'
+            }), 500
+
+
     @reports_bp.route('/departments/parts/employee-performance', methods=['GET'])
     @jwt_required()
     def get_parts_employee_performance():
