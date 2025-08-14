@@ -40,6 +40,7 @@ from src.routes.simple_schema_export import simple_schema_export_bp
 from src.routes.table_discovery import table_discovery_bp
 from src.routes.employee_lookup import employee_bp
 from src.routes.employee_diagnostic import employee_diagnostic_bp
+from src.routes.invoice_field_diagnostic import invoice_field_diagnostic_bp
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -106,6 +107,7 @@ app.register_blueprint(simple_schema_export_bp)
 app.register_blueprint(table_discovery_bp)
 app.register_blueprint(employee_bp)
 app.register_blueprint(employee_diagnostic_bp)
+app.register_blueprint(invoice_field_diagnostic_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite

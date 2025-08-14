@@ -1748,52 +1748,28 @@ def register_department_routes(reports_bp):
             
             result = db.execute_query(query)
             
-            # Try to get employee names lookup
-            employee_names = {}
+            # First, let's check what columns exist for employee tracking
+            # Looking for CreatedBy, ChangedBy, ClosedBy or similar fields
+            check_columns_query = """
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = 'ben002' 
+                AND TABLE_NAME = 'InvoiceReg'
+                AND (COLUMN_NAME LIKE '%Created%' 
+                    OR COLUMN_NAME LIKE '%Changed%' 
+                    OR COLUMN_NAME LIKE '%Closed%'
+                    OR COLUMN_NAME LIKE '%User%'
+                    OR COLUMN_NAME LIKE '%Employee%')
+            """
+            
             try:
-                # Try to query for employee names from User table
-                names_query = """
-                IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'User' AND TABLE_SCHEMA = 'ben002')
-                BEGIN
-                    SELECT 
-                        CAST(Id AS NVARCHAR(50)) as EmployeeId,
-                        ISNULL(FirstName, '') as FirstName,
-                        ISNULL(LastName, '') as LastName,
-                        ISNULL(FirstName + ' ' + LastName, '') as FullName
-                    FROM ben002.[User]
-                END
-                ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Users' AND TABLE_SCHEMA = 'ben002')
-                BEGIN
-                    SELECT 
-                        CAST(Id AS NVARCHAR(50)) as EmployeeId,
-                        ISNULL(FirstName, '') as FirstName,
-                        ISNULL(LastName, '') as LastName,
-                        ISNULL(FirstName + ' ' + LastName, '') as FullName
-                    FROM ben002.Users
-                END
-                ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'AbpUsers' AND TABLE_SCHEMA = 'ben002')
-                BEGIN
-                    SELECT 
-                        CAST(Id AS NVARCHAR(50)) as EmployeeId,
-                        ISNULL(Name, '') as FirstName,
-                        ISNULL(Surname, '') as LastName,
-                        ISNULL(Name + ' ' + Surname, '') as FullName
-                    FROM ben002.AbpUsers
-                END
-                """
+                columns_result = db.execute_query(check_columns_query)
+                available_columns = [row['COLUMN_NAME'] for row in columns_result] if columns_result else []
                 
-                names_result = db.execute_query(names_query)
-                if names_result:
-                    for row in names_result:
-                        if row.get('EmployeeId'):
-                            employee_names[str(row['EmployeeId'])] = {
-                                'firstName': row.get('FirstName', ''),
-                                'lastName': row.get('LastName', ''),
-                                'fullName': row.get('FullName', '').strip()
-                            }
+                # Log available columns for debugging
+                print(f"Available employee-related columns: {available_columns}")
             except:
-                # If name lookup fails, continue without names
-                pass
+                available_columns = []
             
             # Parse results
             employees = []
