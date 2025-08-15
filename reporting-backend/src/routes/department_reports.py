@@ -4919,10 +4919,7 @@ def register_department_routes(reports_bp):
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
-                WHERE (e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
-                    OR e.InventoryDept = 40  -- Rental department
-                    OR e.RentalStatus IS NOT NULL)
-                    AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
+                WHERE e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
             )
             SELECT 
                 UnitNo,
@@ -7279,10 +7276,7 @@ def register_department_routes(reports_bp):
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
-                WHERE (e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
-                    OR e.InventoryDept = 40  -- Rental department
-                    OR e.RentalStatus IS NOT NULL)
-                    AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
+                WHERE e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
             )
             SELECT 
                 Make,
