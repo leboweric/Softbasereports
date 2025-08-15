@@ -4919,7 +4919,11 @@ def register_department_routes(reports_bp):
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
-                WHERE e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
+                WHERE EXISTS (
+                    SELECT 1 FROM ben002.RentalHistory rh 
+                    WHERE rh.SerialNo = e.SerialNo 
+                    AND rh.DaysRented > 0
+                )
             )
             SELECT 
                 UnitNo,
@@ -7297,7 +7301,11 @@ def register_department_routes(reports_bp):
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
-                WHERE e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
+                WHERE EXISTS (
+                    SELECT 1 FROM ben002.RentalHistory rh 
+                    WHERE rh.SerialNo = e.SerialNo 
+                    AND rh.DaysRented > 0
+                )
             )
             SELECT 
                 Make,
@@ -7434,7 +7442,11 @@ def register_department_routes(reports_bp):
                     e.WeekRent,
                     e.MonthRent
                 FROM ben002.Equipment e
-                WHERE e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
+                WHERE EXISTS (
+                    SELECT 1 FROM ben002.RentalHistory rh 
+                    WHERE rh.SerialNo = e.SerialNo 
+                    AND rh.DaysRented > 0
+                )
                 """
                 result0 = db.execute_query(test0)
                 debug_info['availability_query_results'] = len(result0) if result0 else 0
@@ -7552,7 +7564,7 @@ def register_department_routes(reports_bp):
             except Exception as e:
                 debug_info['simplified_query_error'] = str(e)
             
-            # Test 9: Find actual rental equipment
+            # Test 9: Find actual rental equipment - CHECK ALL RENTAL HISTORY
             try:
                 test9 = """
                 SELECT TOP 10
@@ -7564,18 +7576,27 @@ def register_department_routes(reports_bp):
                     e.RentalStatus,
                     e.RentalYTD,
                     e.RentalITD,
+                    rh.Year,
+                    rh.Month,
                     rh.DaysRented,
                     rh.RentAmount
                 FROM ben002.Equipment e
-                LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
-                    AND rh.Year = YEAR(GETDATE()) 
-                    AND rh.Month = MONTH(GETDATE())
-                    AND rh.DeletionTime IS NULL
-                WHERE rh.SerialNo IS NOT NULL
-                    AND rh.DaysRented > 0
+                INNER JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+                WHERE rh.DaysRented > 0
+                ORDER BY rh.Year DESC, rh.Month DESC
                 """
                 result9 = db.execute_query(test9)
                 debug_info['equipment_with_rental_history'] = result9 if result9 else []
+                
+                # Count total equipment with ANY rental history
+                count_query = """
+                SELECT COUNT(DISTINCT e.SerialNo) as count
+                FROM ben002.Equipment e
+                INNER JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+                WHERE rh.DaysRented > 0
+                """
+                count_result = db.execute_query(count_query)
+                debug_info['total_equipment_with_rental_history'] = count_result[0]['count'] if count_result else 0
             except Exception as e:
                 debug_info['rental_history_error'] = str(e)
             
