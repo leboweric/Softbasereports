@@ -7302,19 +7302,25 @@ def register_department_routes(reports_bp):
                 equipment = []
                 for row in simple_result:
                     status = row.get('Status', '')
-                    # Build full address if customer has address info
-                    address_parts = []
+                    # Build ship to info - show customer name and address for on rent equipment
+                    ship_info = ''
                     if status == 'On Rent':
-                        if row.get('CustomerAddress'):
-                            address_parts.append(row.get('CustomerAddress'))
-                        if row.get('CustomerCity'):
-                            city_state_zip = row.get('CustomerCity')
-                            if row.get('CustomerState'):
-                                city_state_zip += f", {row.get('CustomerState')}"
-                            if row.get('CustomerZip'):
-                                city_state_zip += f" {row.get('CustomerZip')}"
-                            address_parts.append(city_state_zip)
-                    ship_address = ', '.join(address_parts) if address_parts else ''
+                        # Start with customer name
+                        if row.get('CustomerName'):
+                            ship_info = row.get('CustomerName')
+                            # Add address if available
+                            address_parts = []
+                            if row.get('CustomerAddress'):
+                                address_parts.append(row.get('CustomerAddress'))
+                            if row.get('CustomerCity'):
+                                city_state_zip = row.get('CustomerCity')
+                                if row.get('CustomerState'):
+                                    city_state_zip += f", {row.get('CustomerState')}"
+                                if row.get('CustomerZip'):
+                                    city_state_zip += f" {row.get('CustomerZip')}"
+                                address_parts.append(city_state_zip)
+                            if address_parts:
+                                ship_info += ' - ' + ', '.join(address_parts)
                     
                     equipment.append({
                         'make': row.get('Make', ''),
@@ -7325,7 +7331,7 @@ def register_department_routes(reports_bp):
                         'rentalStatus': row.get('OriginalStatus', ''),
                         'billTo': row.get('CustomerName', '') if status == 'On Rent' else '',
                         'shipTo': '',  # Deprecated - using shipAddress instead
-                        'shipAddress': ship_address,
+                        'shipAddress': ship_info,
                         'shipContact': '',
                         'location': row.get('Location', ''),
                         'dayRate': 0,

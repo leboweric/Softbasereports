@@ -80,7 +80,7 @@ const RentalAvailability = () => {
   })
 
   const exportToCSV = () => {
-    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Bill To', 'Ship To Address', 'Location']
+    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To / Customer']
     
     const rows = filteredEquipment.map(item => [
       item.make,
@@ -88,9 +88,7 @@ const RentalAvailability = () => {
       item.unitNo,
       item.serialNo,
       item.status,
-      item.billTo || '',
-      item.shipAddress || '',
-      item.location || ''
+      item.shipAddress || ''
     ])
     
     const csvContent = [
@@ -280,9 +278,7 @@ const RentalAvailability = () => {
                   <TableHead>Unit Number</TableHead>
                   <TableHead>Serial Number</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Bill To</TableHead>
-                  <TableHead>Ship To Address</TableHead>
-                  <TableHead>Location</TableHead>
+                  <TableHead>Ship To / Customer</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -293,14 +289,12 @@ const RentalAvailability = () => {
                     <TableCell>{item.unitNo}</TableCell>
                     <TableCell>{item.serialNo}</TableCell>
                     <TableCell>{getStatusBadge(item.status)}</TableCell>
-                    <TableCell>{item.billTo || '-'}</TableCell>
                     <TableCell>{item.shipAddress || '-'}</TableCell>
-                    <TableCell>{item.location || '-'}</TableCell>
                   </TableRow>
                 ))}
                 {filteredEquipment.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No equipment found matching your filters
                     </TableCell>
                   </TableRow>
