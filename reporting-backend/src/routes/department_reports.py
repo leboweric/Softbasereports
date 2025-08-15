@@ -7277,13 +7277,13 @@ def register_department_routes(reports_bp):
                 rh_current.RentAmount
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            -- Try to find active rental work order to get actual rental customer
+            -- Try to find active rental work order to get actual SHIP TO customer
             LEFT JOIN (
-                SELECT UnitNo, BillTo, ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY OpenDate DESC) as rn
+                SELECT UnitNo, ShipTo, ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY OpenDate DESC) as rn
                 FROM ben002.WO 
                 WHERE Type = 'R' AND ClosedDate IS NULL
             ) wo ON e.UnitNo = wo.UnitNo AND wo.rn = 1
-            LEFT JOIN ben002.Customer wo_cust ON wo.BillTo = wo_cust.Number
+            LEFT JOIN ben002.Customer wo_cust ON wo.ShipTo = wo_cust.Number
             -- Current month rental history
             LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
                 AND rh_current.Year = YEAR(GETDATE()) 
