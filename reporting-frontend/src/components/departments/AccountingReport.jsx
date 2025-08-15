@@ -20,6 +20,7 @@ import { apiUrl } from '@/lib/api'
 import AROver90Report from '@/components/AROver90Report'
 import APReport from '@/components/APReport'
 import SalesCommissionReport from '@/components/SalesCommissionReport'
+import ControlNumberFinder from '@/components/ControlNumberFinder'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -124,6 +125,7 @@ const AccountingReport = ({ user }) => {
           <TabsTrigger value="ar">Accounts Receivable</TabsTrigger>
           <TabsTrigger value="ap">Accounts Payable</TabsTrigger>
           <TabsTrigger value="commissions">Sales Commissions</TabsTrigger>
+          <TabsTrigger value="control">Control Number Research</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -388,6 +390,10 @@ const AccountingReport = ({ user }) => {
 
         <TabsContent value="commissions" className="space-y-6">
           <SalesCommissionReport user={user} />
+        </TabsContent>
+
+        <TabsContent value="control" className="space-y-6">
+          <ControlNumberFinder />
         </TabsContent>
       </Tabs>
 
