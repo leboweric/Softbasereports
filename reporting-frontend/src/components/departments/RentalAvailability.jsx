@@ -157,7 +157,7 @@ const RentalAvailability = () => {
       {showDebug && <RentalAvailabilityDebug />}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
@@ -191,19 +191,6 @@ const RentalAvailability = () => {
               <span className="text-2xl font-bold text-blue-600">{summary.onRentUnits || 0}</span>
             </div>
             <p className="text-xs text-muted-foreground">Currently rented</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">On Hold</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <PauseCircle className="h-4 w-4 text-yellow-600 mr-2" />
-              <span className="text-2xl font-bold text-yellow-600">{summary.onHoldUnits || 0}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Temporarily unavailable</p>
           </CardContent>
         </Card>
 
