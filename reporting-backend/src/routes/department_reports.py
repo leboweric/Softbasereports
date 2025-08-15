@@ -1608,8 +1608,18 @@ def register_department_routes(reports_bp):
             # Get optional location filter from query params
             location_filter = request.args.get('location', '')
             
+            # Sanitize location filter to prevent SQL injection
+            if location_filter:
+                # Remove any potentially dangerous characters
+                location_filter = location_filter.replace("'", "''").replace(";", "").replace("--", "")
+            
             # Build the query to get all bin locations with their values
-            query = """
+            if location_filter:
+                location_condition = f"AND UPPER(Location) LIKE '%{location_filter.upper()}%'"
+            else:
+                location_condition = ""
+            
+            query = f"""
             WITH AllBins AS (
                 -- Primary Bin location
                 SELECT 
@@ -1681,14 +1691,7 @@ def register_department_routes(reports_bp):
                     COUNT(*) as TotalEntries,
                     CAST(SUM(TotalValue) AS DECIMAL(10,2)) as TotalValue
                 FROM AllBins
-                WHERE 1=1
-            """
-            
-            # Add location filter if provided
-            if location_filter:
-                query += f" AND UPPER(Location) LIKE '%{location_filter.upper()}%'"
-            
-            query += """
+                WHERE 1=1 {location_condition}
                 GROUP BY UPPER(LTRIM(RTRIM(Location)))
             )
             SELECT 
@@ -1705,13 +1708,15 @@ def register_department_routes(reports_bp):
             # Get details for specific location if requested
             details = []
             if location_filter:
+                # Location filter is already sanitized above
+                safe_filter = location_filter.upper()
                 details_query = f"""
                 WITH AllBins AS (
                     SELECT 'Primary' as BinType, Bin as Location, PartNo, Description, OnHand, Cost,
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
                     FROM ben002.Parts 
                     WHERE Bin IS NOT NULL AND Bin != '' AND OnHand > 0
-                        AND UPPER(Bin) LIKE '%{location_filter.upper()}%'
+                        AND UPPER(Bin) LIKE '%{safe_filter}%'
                     
                     UNION ALL
                     
@@ -1719,7 +1724,7 @@ def register_department_routes(reports_bp):
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
                     FROM ben002.Parts 
                     WHERE Bin1 IS NOT NULL AND Bin1 != '' AND OnHand > 0
-                        AND UPPER(Bin1) LIKE '%{location_filter.upper()}%'
+                        AND UPPER(Bin1) LIKE '%{safe_filter}%'
                     
                     UNION ALL
                     
@@ -1727,7 +1732,7 @@ def register_department_routes(reports_bp):
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
                     FROM ben002.Parts 
                     WHERE Bin2 IS NOT NULL AND Bin2 != '' AND OnHand > 0
-                        AND UPPER(Bin2) LIKE '%{location_filter.upper()}%'
+                        AND UPPER(Bin2) LIKE '%{safe_filter}%'
                     
                     UNION ALL
                     
@@ -1735,7 +1740,7 @@ def register_department_routes(reports_bp):
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
                     FROM ben002.Parts 
                     WHERE Bin3 IS NOT NULL AND Bin3 != '' AND OnHand > 0
-                        AND UPPER(Bin3) LIKE '%{location_filter.upper()}%'
+                        AND UPPER(Bin3) LIKE '%{safe_filter}%'
                     
                     UNION ALL
                     
@@ -1743,7 +1748,7 @@ def register_department_routes(reports_bp):
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
                     FROM ben002.Parts 
                     WHERE Bin4 IS NOT NULL AND Bin4 != '' AND OnHand > 0
-                        AND UPPER(Bin4) LIKE '%{location_filter.upper()}%'
+                        AND UPPER(Bin4) LIKE '%{safe_filter}%'
                 )
                 SELECT 
                     PartNo,
