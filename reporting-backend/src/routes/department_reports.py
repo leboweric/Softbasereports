@@ -7290,15 +7290,6 @@ def register_department_routes(reports_bp):
                 OR e.RentalITD > 0
                 -- Has rental history ever
                 OR EXISTS (SELECT 1 FROM ben002.RentalHistory rh2 WHERE rh2.SerialNo = e.SerialNo)
-            ORDER BY 
-                CASE 
-                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 2  -- On Rent second
-                    WHEN e.RentalStatus = 'Hold' THEN 3  -- Hold last
-                    ELSE 1  -- Available first
-                END,
-                e.Make,
-                e.Model,
-                e.UnitNo
             """
             simple_result = db.execute_query(combined_query)
             logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
