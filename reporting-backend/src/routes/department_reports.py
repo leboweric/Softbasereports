@@ -7306,7 +7306,8 @@ def register_department_routes(reports_bp):
                         'serialNo': row.get('SerialNo', ''),
                         'status': status,
                         'rentalStatus': row.get('OriginalStatus', ''),
-                        'shipTo': row.get('CustomerName', '') if status == 'On Rent' else '',
+                        'billTo': row.get('CustomerName', '') if status == 'On Rent' else '',
+                        'shipTo': '',  # Not used but kept for compatibility
                         'shipContact': '',
                         'location': row.get('Location', ''),
                         'dayRate': 0,

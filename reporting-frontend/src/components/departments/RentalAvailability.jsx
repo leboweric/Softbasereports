@@ -79,7 +79,7 @@ const RentalAvailability = () => {
   })
 
   const exportToCSV = () => {
-    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To', 'Ship Contact', 'Location']
+    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Bill To', 'Contact', 'Location']
     
     const rows = filteredEquipment.map(item => [
       item.make,
@@ -87,7 +87,7 @@ const RentalAvailability = () => {
       item.unitNo,
       item.serialNo,
       item.status,
-      item.shipTo || '',
+      item.billTo || item.shipTo || '',
       item.shipContact || '',
       item.location || ''
     ])
@@ -279,8 +279,8 @@ const RentalAvailability = () => {
                   <TableHead>Unit Number</TableHead>
                   <TableHead>Serial Number</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Ship To</TableHead>
-                  <TableHead>Ship Contact</TableHead>
+                  <TableHead>Bill To</TableHead>
+                  <TableHead>Contact</TableHead>
                   <TableHead>Location</TableHead>
                 </TableRow>
               </TableHeader>
@@ -292,7 +292,7 @@ const RentalAvailability = () => {
                     <TableCell>{item.unitNo}</TableCell>
                     <TableCell>{item.serialNo}</TableCell>
                     <TableCell>{getStatusBadge(item.status)}</TableCell>
-                    <TableCell>{item.shipTo || '-'}</TableCell>
+                    <TableCell>{item.billTo || item.shipTo || '-'}</TableCell>
                     <TableCell>{item.shipContact || '-'}</TableCell>
                     <TableCell>{item.location || '-'}</TableCell>
                   </TableRow>
