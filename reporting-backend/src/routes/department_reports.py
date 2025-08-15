@@ -7258,12 +7258,11 @@ def register_department_routes(reports_bp):
                 e.CustomerNo,
                 c.Name as CustomerName,
                 CASE 
-                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 'On Rent'
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
                     WHEN e.RentalStatus = 'Available' THEN 'Available'
-                    WHEN e.WebRentalFlag = 1 THEN 'Available'
-                    WHEN e.RentalYTD > 0 OR e.RentalITD > 0 THEN 'Available'
+                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 
+                         AND (e.RentalStatus IS NULL OR e.RentalStatus = '') THEN 'On Rent'
                     ELSE 'Available'
                 END as Status,
                 e.RentalStatus as OriginalStatus,

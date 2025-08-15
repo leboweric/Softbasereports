@@ -1,7 +1,23 @@
 # Softbase Reports Project Context
 
-## IMPORTANT: Git Workflow
-**ALWAYS push changes to git after completing any code modifications.** Do not wait for explicit instructions to push. Auto-commit and push all changes immediately after implementation.
+## IMPORTANT: Git Workflow & Quality Assurance
+**DO NOT push changes until they have been validated to work.** For the rest of any session:
+1. Write the query/code changes first
+2. Show the changes planned
+3. Explain what is expected to happen
+4. Wait for confirmation that current state is working
+5. Only push after verifying the query returns data and works as expected
+
+**Previous Issues from Lack of Testing:**
+- ORDER BY clauses that referenced columns incorrectly
+- Complex WHERE conditions that returned no results
+- Breaking changes from untested assumptions
+
+**Required Before Pushing:**
+- Validate SQL queries return expected data
+- Check for syntax errors and logical issues
+- Verify changes won't break existing functionality
+- Test edge cases where applicable
 
 ## CRITICAL: JSX Syntax Rules
 1. **Never use `>` character directly in JSX text content** - Always escape it as `&gt;`
