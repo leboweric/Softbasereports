@@ -50,8 +50,7 @@ const RentalAvailability = () => {
         const statusOrder = {
           'Available': 1,
           'On Rent': 2,
-          'Hold': 3,
-          'On Hold': 3
+          'Hold': 3
         }
         const aOrder = statusOrder[a.status] || 99
         const bOrder = statusOrder[b.status] || 99
@@ -78,8 +77,8 @@ const RentalAvailability = () => {
         return <Badge className="bg-green-100 text-green-800 border-green-200">Available</Badge>
       case 'On Rent':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-200">On Rent</Badge>
-      case 'On Hold':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">On Hold</Badge>
+      case 'Hold':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Hold</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -214,7 +213,7 @@ const RentalAvailability = () => {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">On Hold</CardTitle>
+            <CardTitle className="text-sm font-medium">Hold</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center">
@@ -283,7 +282,7 @@ const RentalAvailability = () => {
               <option value="all">All Status</option>
               <option value="Available">Available</option>
               <option value="On Rent">On Rent</option>
-              <option value="On Hold">On Hold</option>
+              <option value="Hold">Hold</option>
             </select>
           </div>
 
