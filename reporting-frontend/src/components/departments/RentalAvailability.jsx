@@ -10,11 +10,14 @@ import {
   PauseCircle, 
   Download,
   Search,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+import RentalAvailabilityDebug from './RentalAvailabilityDebug'
 
 const RentalAvailability = () => {
+  const [showDebug, setShowDebug] = useState(false)
   const [loading, setLoading] = useState(true)
   const [equipment, setEquipment] = useState([])
   const [summary, setSummary] = useState({})
@@ -129,6 +132,30 @@ const RentalAvailability = () => {
 
   return (
     <div className="space-y-6">
+      {/* Debug Toggle - Temporary */}
+      {equipment.length === 0 && !loading && (
+        <Card className="border-yellow-200 bg-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 text-yellow-600 mr-2" />
+                <span className="text-sm">No equipment data found. Run diagnostics to troubleshoot.</span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowDebug(!showDebug)}
+              >
+                {showDebug ? 'Hide' : 'Show'} Diagnostics
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Debug Component */}
+      {showDebug && <RentalAvailabilityDebug />}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>

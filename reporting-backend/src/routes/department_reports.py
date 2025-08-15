@@ -7398,5 +7398,128 @@ def register_department_routes(reports_bp):
         except Exception as e:
             logger.error(f"Error in rental availability report: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
+    
+    @reports_bp.route('/departments/rental/availability-debug', methods=['GET'])
+    @jwt_required()
+    def debug_rental_availability():
+        """Debug endpoint to troubleshoot rental availability data"""
+        try:
+            db = get_db()
+            debug_info = {}
+            
+            # Test 1: Check if Equipment table is accessible
+            try:
+                test1 = "SELECT COUNT(*) as total FROM ben002.Equipment"
+                result1 = db.execute_query(test1)
+                debug_info['equipment_table_count'] = result1[0]['total'] if result1 else 0
+            except Exception as e:
+                debug_info['equipment_table_error'] = str(e)
+            
+            # Test 2: Check Equipment table columns
+            try:
+                test2 = """
+                SELECT TOP 1 * FROM ben002.Equipment
+                """
+                result2 = db.execute_query(test2)
+                if result2:
+                    debug_info['equipment_columns'] = list(result2[0].keys())
+                    debug_info['sample_equipment'] = result2[0]
+            except Exception as e:
+                debug_info['equipment_columns_error'] = str(e)
+            
+            # Test 3: Check RentalStatus values
+            try:
+                test3 = """
+                SELECT RentalStatus, COUNT(*) as count
+                FROM ben002.Equipment
+                GROUP BY RentalStatus
+                ORDER BY count DESC
+                """
+                result3 = db.execute_query(test3)
+                debug_info['rental_status_values'] = result3 if result3 else []
+            except Exception as e:
+                debug_info['rental_status_error'] = str(e)
+            
+            # Test 4: Check equipment with rental rates
+            try:
+                test4 = """
+                SELECT COUNT(*) as count
+                FROM ben002.Equipment
+                WHERE DayRent > 0 OR WeekRent > 0 OR MonthRent > 0
+                """
+                result4 = db.execute_query(test4)
+                debug_info['equipment_with_rates'] = result4[0]['count'] if result4 else 0
+            except Exception as e:
+                debug_info['rental_rates_error'] = str(e)
+            
+            # Test 5: Check equipment with Make/Model
+            try:
+                test5 = """
+                SELECT COUNT(*) as count
+                FROM ben002.Equipment
+                WHERE Make IS NOT NULL AND Make != ''
+                """
+                result5 = db.execute_query(test5)
+                debug_info['equipment_with_make'] = result5[0]['count'] if result5 else 0
+            except Exception as e:
+                debug_info['make_model_error'] = str(e)
+            
+            # Test 6: Sample of rental equipment
+            try:
+                test6 = """
+                SELECT TOP 10 
+                    Make, Model, UnitNo, SerialNo, RentalStatus,
+                    CustomerNo, DayRent, WeekRent, MonthRent
+                FROM ben002.Equipment
+                WHERE (DayRent > 0 OR WeekRent > 0 OR MonthRent > 0)
+                    AND Make IS NOT NULL AND Make != ''
+                """
+                result6 = db.execute_query(test6)
+                debug_info['sample_rental_equipment'] = result6 if result6 else []
+            except Exception as e:
+                debug_info['sample_rental_error'] = str(e)
+            
+            # Test 7: Check Customer table join
+            try:
+                test7 = """
+                SELECT TOP 5
+                    e.UnitNo, e.CustomerNo, c.Name as CustomerName
+                FROM ben002.Equipment e
+                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                WHERE e.CustomerNo IS NOT NULL AND e.CustomerNo != ''
+                """
+                result7 = db.execute_query(test7)
+                debug_info['customer_join_test'] = result7 if result7 else []
+            except Exception as e:
+                debug_info['customer_join_error'] = str(e)
+            
+            # Test 8: Main query test (simplified)
+            try:
+                test8 = """
+                SELECT TOP 20
+                    e.Make,
+                    e.Model,
+                    e.UnitNo,
+                    e.SerialNo,
+                    e.RentalStatus,
+                    e.CustomerNo,
+                    e.DayRent,
+                    e.WeekRent,
+                    e.MonthRent
+                FROM ben002.Equipment e
+                WHERE e.Make IS NOT NULL 
+                    AND e.Make != ''
+                ORDER BY e.UnitNo
+                """
+                result8 = db.execute_query(test8)
+                debug_info['simplified_query_results'] = len(result8) if result8 else 0
+                debug_info['simplified_query_sample'] = result8[:5] if result8 else []
+            except Exception as e:
+                debug_info['simplified_query_error'] = str(e)
+            
+            return jsonify(debug_info)
+            
+        except Exception as e:
+            return jsonify({'error': str(e), 'type': 'main_exception'}), 500
 
 
