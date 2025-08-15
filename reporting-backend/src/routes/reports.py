@@ -17,7 +17,6 @@ from .department_reports import register_department_routes
 register_department_routes(reports_bp)
 
 # Import accounting reports routes (they use reports_bp directly)
-from . import accounting_reports
 from . import control_number_research
 
 def get_softbase_service():
