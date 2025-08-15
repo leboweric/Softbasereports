@@ -35,7 +35,9 @@ const PartsInventoryByLocation = () => {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch inventory data')
+        const errorData = await response.json()
+        console.error('Backend error:', errorData)
+        throw new Error(errorData.error || 'Failed to fetch inventory data')
       }
 
       const data = await response.json()
@@ -46,6 +48,7 @@ const PartsInventoryByLocation = () => {
       setShowDetails(!!location && data.details && data.details.length > 0)
     } catch (error) {
       console.error('Error fetching inventory data:', error)
+      alert(`Error: ${error.message}\n\nPlease check the console for more details.`)
     } finally {
       setLoading(false)
     }

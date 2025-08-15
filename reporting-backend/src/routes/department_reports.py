@@ -1608,16 +1608,22 @@ def register_department_routes(reports_bp):
             # Get optional location filter from query params
             location_filter = request.args.get('location', '')
             
+            # Log the incoming request
+            print(f"[DEBUG] Inventory by location request - Filter: '{location_filter}'")
+            
             # Sanitize location filter to prevent SQL injection
             if location_filter:
                 # Remove any potentially dangerous characters
                 location_filter = location_filter.replace("'", "''").replace(";", "").replace("--", "")
+                print(f"[DEBUG] Sanitized filter: '{location_filter}'")
             
             # Build the query to get all bin locations with their values
             if location_filter:
                 location_condition = f"AND UPPER(Location) LIKE '%{location_filter.upper()}%'"
             else:
                 location_condition = ""
+            
+            print(f"[DEBUG] Location condition: '{location_condition}'")
             
             query = f"""
             WITH AllBins AS (
@@ -1703,7 +1709,19 @@ def register_department_routes(reports_bp):
             ORDER BY TotalValue DESC
             """
             
-            summary_result = db.execute_query(query)
+            print(f"[DEBUG] About to execute summary query")
+            
+            try:
+                summary_result = db.execute_query(query)
+                print(f"[DEBUG] Summary query executed successfully, rows returned: {len(summary_result) if summary_result else 0}")
+            except Exception as query_error:
+                print(f"[ERROR] Summary query failed: {str(query_error)}")
+                print(f"[ERROR] Query was: {query[:500]}...")  # Print first 500 chars of query
+                return jsonify({
+                    'error': f'Database query failed: {str(query_error)}',
+                    'type': 'query_execution_error',
+                    'location_filter': location_filter
+                }), 500
             
             # Get details for specific location if requested
             details = []
@@ -1762,7 +1780,16 @@ def register_department_routes(reports_bp):
                 ORDER BY TotalValue DESC
                 """
                 
-                details_result = db.execute_query(details_query)
+                print(f"[DEBUG] About to execute details query for filter: '{safe_filter}'")
+                
+                try:
+                    details_result = db.execute_query(details_query)
+                    print(f"[DEBUG] Details query executed successfully, rows returned: {len(details_result) if details_result else 0}")
+                except Exception as details_error:
+                    print(f"[ERROR] Details query failed: {str(details_error)}")
+                    # Don't fail the whole request if details fail, just log it
+                    details_result = None
+                
                 if details_result:
                     for row in details_result:
                         details.append({
@@ -1797,9 +1824,16 @@ def register_department_routes(reports_bp):
             })
             
         except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"[ERROR] Unexpected error in inventory-by-location endpoint: {str(e)}")
+            print(f"[ERROR] Full traceback: {error_trace}")
+            
             return jsonify({
                 'error': str(e),
-                'type': 'parts_inventory_location_error'
+                'type': 'parts_inventory_location_error',
+                'location_filter': request.args.get('location', ''),
+                'debug_info': 'Check server logs for detailed error information'
             }), 500
 
 
