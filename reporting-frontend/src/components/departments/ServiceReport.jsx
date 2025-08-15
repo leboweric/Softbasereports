@@ -286,25 +286,6 @@ const ServiceReport = ({ user, onNavigate }) => {
     }
   }
 
-  const handleNoteChange = (woNumber, value) => {
-    // Update local state immediately
-    setNotes(prev => ({
-      ...prev,
-      [woNumber]: {
-        ...prev[woNumber],
-        note: value
-      }
-    }))
-    
-    // Debounce the save
-    clearTimeout(window.noteSaveTimeout?.[woNumber])
-    if (!window.noteSaveTimeout) {
-      window.noteSaveTimeout = {}
-    }
-    window.noteSaveTimeout[woNumber] = setTimeout(() => {
-      saveNote(woNumber, value)
-    }, 1000) // Auto-save after 1 second of no typing
-  }
 
   const lookupWorkOrder = async () => {
     if (!woLookup.trim()) return
