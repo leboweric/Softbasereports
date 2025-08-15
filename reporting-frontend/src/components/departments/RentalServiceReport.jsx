@@ -115,7 +115,7 @@ const RentalServiceReport = () => {
     // Create CSV rows
     const rows = workOrders.map(wo => [
       wo.woNumber,
-      wo.shipToCustomer || ''
+      wo.shipToCustomer || '',
       wo.unitNumber || '',
       wo.make || '',
       wo.model || '',
