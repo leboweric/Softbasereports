@@ -7247,9 +7247,9 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # Simple working query - just get equipment with RentalStatus
+            # Get ALL rental equipment - expand criteria to match original report
             combined_query = """
-            SELECT 
+            SELECT DISTINCT
                 e.UnitNo, 
                 e.SerialNo, 
                 e.Make, 
@@ -7261,9 +7261,15 @@ def register_department_routes(reports_bp):
                     WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 'On Rent'
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
+                    WHEN e.RentalStatus = 'Available' THEN 'Available'
+                    WHEN e.WebRentalFlag = 1 THEN 'Available'
+                    WHEN e.RentalYTD > 0 OR e.RentalITD > 0 THEN 'Available'
                     ELSE 'Available'
                 END as Status,
                 e.RentalStatus as OriginalStatus,
+                e.WebRentalFlag,
+                e.RentalYTD,
+                e.RentalITD,
                 rh.DaysRented,
                 rh.RentAmount
             FROM ben002.Equipment e
@@ -7272,7 +7278,18 @@ def register_department_routes(reports_bp):
                 AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DeletionTime IS NULL
-            WHERE e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
+            WHERE 
+                -- Any equipment with rental status
+                (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
+                -- Currently on rent
+                OR (rh.SerialNo IS NOT NULL AND rh.DaysRented > 0)
+                -- Has rental flag
+                OR e.WebRentalFlag = 1
+                -- Has rental revenue
+                OR e.RentalYTD > 0 
+                OR e.RentalITD > 0
+                -- Has rental history ever
+                OR EXISTS (SELECT 1 FROM ben002.RentalHistory rh2 WHERE rh2.SerialNo = e.SerialNo)
             """
             simple_result = db.execute_query(combined_query)
             logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
