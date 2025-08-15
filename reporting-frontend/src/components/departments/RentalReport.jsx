@@ -43,6 +43,7 @@ import {
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
 import RentalAvailability from './RentalAvailability'
+import RentalShipToResearch from '../RentalShipToResearch'
 
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
@@ -509,6 +510,7 @@ const RentalReport = ({ user }) => {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
           <TabsTrigger value="service-report">Service Report</TabsTrigger>
+          <TabsTrigger value="research">Ship To Research</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -790,6 +792,10 @@ const RentalReport = ({ user }) => {
 
         <TabsContent value="availability" className="space-y-6">
           <RentalAvailability />
+        </TabsContent>
+
+        <TabsContent value="research" className="space-y-6">
+          <RentalShipToResearch />
         </TabsContent>
       </Tabs>
     </div>

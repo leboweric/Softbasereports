@@ -19,6 +19,7 @@ register_department_routes(reports_bp)
 # Import accounting reports routes (they use reports_bp directly)
 from . import control_number_research
 from . import control_number_reports
+from . import rental_shipto_research
 
 def get_softbase_service():
     """Get Softbase service instance for current organization"""
