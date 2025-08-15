@@ -87,10 +87,10 @@ const RentalAvailability = () => {
   const filteredEquipment = equipment.filter(item => {
     const matchesStatus = filterStatus === 'all' || item.status === filterStatus
     const matchesSearch = searchTerm === '' || 
-      item.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.unitNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.serialNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.make && item.make.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.model && item.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.unitNo && item.unitNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.serialNo && item.serialNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.billTo && item.billTo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.shipAddress && item.shipAddress.toLowerCase().includes(searchTerm.toLowerCase()))
     
@@ -101,11 +101,11 @@ const RentalAvailability = () => {
     const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To / Customer']
     
     const rows = filteredEquipment.map(item => [
-      item.make,
-      item.model,
-      item.unitNo,
-      item.serialNo,
-      item.status,
+      item.make || '',
+      item.model || '',
+      item.unitNo || '',
+      item.serialNo || '',
+      item.status || '',
       item.shipAddress || ''
     ])
     
@@ -302,10 +302,10 @@ const RentalAvailability = () => {
               <TableBody>
                 {filteredEquipment.map((item, idx) => (
                   <TableRow key={idx}>
-                    <TableCell className="font-medium">{item.make}</TableCell>
-                    <TableCell>{item.model}</TableCell>
-                    <TableCell>{item.unitNo}</TableCell>
-                    <TableCell>{item.serialNo}</TableCell>
+                    <TableCell className="font-medium">{item.make || ''}</TableCell>
+                    <TableCell>{item.model || ''}</TableCell>
+                    <TableCell>{item.unitNo || ''}</TableCell>
+                    <TableCell>{item.serialNo || ''}</TableCell>
                     <TableCell>{getStatusBadge(item.status)}</TableCell>
                     <TableCell>{item.shipAddress || '-'}</TableCell>
                   </TableRow>
