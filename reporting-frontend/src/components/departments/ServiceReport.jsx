@@ -40,6 +40,8 @@ const ServiceReport = ({ user, onNavigate }) => {
   const [woLookup, setWoLookup] = useState('')
   const [woDetail, setWoDetail] = useState(null)
   const [loadingWoDetail, setLoadingWoDetail] = useState(false)
+  const [notes, setNotes] = useState({})
+  const [savingNotes, setSavingNotes] = useState({})
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -166,12 +168,93 @@ const ServiceReport = ({ user, onNavigate }) => {
       if (response.ok) {
         const data = await response.json()
         setAwaitingInvoiceDetails(data)
+        
+        // Fetch notes for all work orders
+        if (data.work_orders && data.work_orders.length > 0) {
+          fetchNotesForWorkOrders(data.work_orders.map(wo => wo.wo_number))
+        }
       }
     } catch (error) {
       console.error('Error fetching awaiting invoice details:', error)
     } finally {
       setDetailsLoading(false)
     }
+  }
+  
+  const fetchNotesForWorkOrders = async (woNumbers) => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/work-orders/notes/batch'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ wo_numbers: woNumbers })
+      })
+      
+      if (response.ok) {
+        const notesData = await response.json()
+        setNotes(notesData)
+      }
+    } catch (error) {
+      console.error('Error fetching notes:', error)
+    }
+  }
+  
+  const saveNote = async (woNumber, noteText) => {
+    setSavingNotes(prev => ({ ...prev, [woNumber]: true }))
+    
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/work-orders/notes'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          wo_number: woNumber,
+          note: noteText
+        })
+      })
+      
+      if (response.ok) {
+        const savedNote = await response.json()
+        setNotes(prev => ({
+          ...prev,
+          [woNumber]: {
+            note: savedNote.note,
+            updated_at: savedNote.updated_at,
+            updated_by: savedNote.updated_by
+          }
+        }))
+      }
+    } catch (error) {
+      console.error('Error saving note:', error)
+    } finally {
+      setSavingNotes(prev => ({ ...prev, [woNumber]: false }))
+    }
+  }
+  
+  const handleNoteChange = (woNumber, value) => {
+    // Update local state immediately
+    setNotes(prev => ({
+      ...prev,
+      [woNumber]: {
+        ...prev[woNumber],
+        note: value
+      }
+    }))
+    
+    // Debounce the save
+    clearTimeout(window.noteSaveTimeout?.[woNumber])
+    if (!window.noteSaveTimeout) {
+      window.noteSaveTimeout = {}
+    }
+    window.noteSaveTimeout[woNumber] = setTimeout(() => {
+      saveNote(woNumber, value)
+    }, 1000) // Auto-save after 1 second of no typing
   }
 
   const lookupWorkOrder = async () => {
@@ -207,7 +290,7 @@ const ServiceReport = ({ user, onNavigate }) => {
   const exportToCSV = () => {
     if (!awaitingInvoiceDetails) return
     
-    const headers = ['WO#', 'Type', 'Customer', 'Unit', 'Make/Model', 'Technician', 'Completed', 'Days Waiting', 'Labor', 'Parts', 'Misc', 'Total']
+    const headers = ['WO#', 'Type', 'Customer', 'Unit', 'Make/Model', 'Technician', 'Completed', 'Days Waiting', 'Labor', 'Parts', 'Misc', 'Total', 'Notes']
     const rows = awaitingInvoiceDetails.work_orders.map(wo => [
       wo.wo_number,
       wo.type,
@@ -220,7 +303,8 @@ const ServiceReport = ({ user, onNavigate }) => {
       wo.labor_total.toFixed(2),
       wo.parts_total.toFixed(2),
       wo.misc_total.toFixed(2),
-      wo.total_value.toFixed(2)
+      wo.total_value.toFixed(2),
+      notes[wo.wo_number]?.note || ''
     ])
     
     const csvContent = [
@@ -631,6 +715,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                           <TableHead className="text-right">Parts</TableHead>
                           <TableHead className="text-right">Misc</TableHead>
                           <TableHead className="text-right">Total</TableHead>
+                          <TableHead>Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -666,6 +751,29 @@ const ServiceReport = ({ user, onNavigate }) => {
                             <TableCell className="text-right">{formatCurrency(wo.parts_total)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(wo.misc_total)}</TableCell>
                             <TableCell className="text-right font-medium">{formatCurrency(wo.total_value)}</TableCell>
+                            <TableCell className="min-w-[200px]">
+                              <div className="relative">
+                                <textarea
+                                  className={`w-full px-2 py-1 text-sm border rounded resize-none ${
+                                    savingNotes[wo.wo_number] ? 'bg-yellow-50' : ''
+                                  }`}
+                                  placeholder="Add notes..."
+                                  value={notes[wo.wo_number]?.note || ''}
+                                  onChange={(e) => handleNoteChange(wo.wo_number, e.target.value)}
+                                  rows={2}
+                                />
+                                {savingNotes[wo.wo_number] && (
+                                  <div className="absolute top-1 right-1 text-xs text-yellow-600">
+                                    Saving...
+                                  </div>
+                                )}
+                                {notes[wo.wo_number]?.updated_by && (
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    Last updated by {notes[wo.wo_number].updated_by}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

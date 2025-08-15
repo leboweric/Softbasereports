@@ -41,6 +41,8 @@ from src.routes.table_discovery import table_discovery_bp
 from src.routes.employee_lookup import employee_bp
 from src.routes.employee_diagnostic import employee_diagnostic_bp
 from src.routes.invoice_field_diagnostic import invoice_field_diagnostic_bp
+from src.routes.work_order_notes import notes_bp
+from src.services.postgres_service import get_postgres_db
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -108,6 +110,7 @@ app.register_blueprint(table_discovery_bp)
 app.register_blueprint(employee_bp)
 app.register_blueprint(employee_diagnostic_bp)
 app.register_blueprint(invoice_field_diagnostic_bp)
+app.register_blueprint(notes_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
@@ -156,5 +159,14 @@ def serve(path):
 
 
 if __name__ == '__main__':
+    # Initialize PostgreSQL tables on startup
+    try:
+        postgres_db = get_postgres_db()
+        if postgres_db:
+            postgres_db.create_tables()
+            print("✅ PostgreSQL tables initialized")
+    except Exception as e:
+        print(f"⚠️ Could not initialize PostgreSQL tables: {e}")
+    
     app.run(host='0.0.0.0', port=5000, debug=True)
 
