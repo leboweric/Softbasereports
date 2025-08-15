@@ -23,6 +23,7 @@ from . import rental_shipto_research
 from . import rental_shipto_simple
 from . import rental_comprehensive_research
 from . import rental_customer_solution
+from . import rental_diagnosis
 
 def get_softbase_service():
     """Get Softbase service instance for current organization"""
