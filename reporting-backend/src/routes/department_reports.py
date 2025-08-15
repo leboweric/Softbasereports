@@ -7246,7 +7246,7 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # Modified query to find all rental equipment
+            # Use the SAME working query from equipment-report
             query = """
             WITH RentalEquipment AS (
                 SELECT 
@@ -7257,15 +7257,18 @@ def register_department_routes(reports_bp):
                     e.ModelYear,
                     e.RentalStatus,
                     e.Location,
+                    e.Cost,
+                    e.DayRent,
+                    e.WeekRent,
+                    e.MonthRent,
                     e.CustomerNo,
                     c.Name as CurrentCustomer,
                     COALESCE(c.Contact, c.Phone1, '') as CustomerContact,
-                    -- Check if currently on rent based on RentalHistory
+                    -- Check if currently on rent
                     CASE 
-                        WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 'On Rent'
-                        WHEN e.RentalStatus = 'On Hold' OR e.RentalStatus = 'Hold' THEN 'On Hold'
-                        WHEN e.RentalStatus = 'Ready To Rent' OR e.RentalStatus = 'Available' THEN 'Available'
-                        WHEN e.RentalStatus = 'Rented' THEN 'On Rent'
+                        WHEN rh.SerialNo IS NOT NULL THEN 'On Rent'
+                        WHEN e.RentalStatus = 'On Hold' THEN 'On Hold'
+                        WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
                         ELSE COALESCE(e.RentalStatus, 'Unknown')
                     END as CurrentStatus,
                     rh.DaysRented as CurrentMonthDays
@@ -7274,16 +7277,12 @@ def register_department_routes(reports_bp):
                 LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                     AND rh.Year = YEAR(GETDATE()) 
                     AND rh.Month = MONTH(GETDATE())
+                    AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
-                WHERE 
-                    -- Find equipment that's part of rental fleet or has rental activity
-                    (e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
+                WHERE (e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
                     OR e.InventoryDept = 40  -- Rental department
-                    OR e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
-                    OR e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0  -- Has rental rates
-                    OR e.RentalYTD > 0 OR e.RentalITD > 0  -- Has rental revenue
-                    OR rh.SerialNo IS NOT NULL)  -- Has current rental history
-                    AND e.Make IS NOT NULL AND e.Make != ''  -- Has valid make
+                    OR e.RentalStatus IS NOT NULL)
+                    AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
             )
             SELECT 
                 Make,
@@ -7291,6 +7290,13 @@ def register_department_routes(reports_bp):
                 UnitNo,
                 SerialNo,
                 CurrentStatus as Status,
+                RentalStatus,
+                Location,
+                Cost,
+                DayRent,
+                WeekRent,
+                MonthRent,
+                ModelYear,
                 -- Only show customer info if on rent
                 CASE 
                     WHEN CurrentStatus = 'On Rent' THEN CurrentCustomer
@@ -7299,8 +7305,7 @@ def register_department_routes(reports_bp):
                 CASE 
                     WHEN CurrentStatus = 'On Rent' THEN CustomerContact
                     ELSE NULL 
-                END as ShipContact,
-                Location
+                END as ShipContact
             FROM RentalEquipment
             ORDER BY 
                 CASE CurrentStatus
@@ -7318,27 +7323,23 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             logger.info(f"Found {len(results) if results else 0} equipment records")
             
-            # Get summary counts - updated to match new criteria
+            # Get summary counts - EXACT same as equipment-report
             summary_query = """
             SELECT 
                 COUNT(*) as total_units,
-                COUNT(CASE WHEN e.RentalStatus = 'Ready To Rent' OR e.RentalStatus = 'Available' THEN 1 END) as available_units,
-                COUNT(CASE WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 1 
-                           WHEN e.RentalStatus = 'Rented' THEN 1 END) as on_rent_units,
-                COUNT(CASE WHEN e.RentalStatus = 'Hold' OR e.RentalStatus = 'On Hold' THEN 1 END) as on_hold_units
+                COUNT(CASE WHEN e.RentalStatus = 'Ready To Rent' THEN 1 END) as available_units,
+                COUNT(CASE WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 1 END) as on_rent_units,
+                COUNT(CASE WHEN e.RentalStatus = 'On Hold' THEN 1 END) as on_hold_units
             FROM ben002.Equipment e
             LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                 AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
+                AND rh.DaysRented > 0
                 AND rh.DeletionTime IS NULL
-            WHERE 
-                (e.CustomerNo = '900006'
-                 OR e.InventoryDept = 40
-                 OR e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
-                 OR e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0
-                 OR e.RentalYTD > 0 OR e.RentalITD > 0
-                 OR rh.SerialNo IS NOT NULL)
-                AND e.Make IS NOT NULL AND e.Make != ''
+            WHERE (e.CustomerNo = '900006'
+                OR e.InventoryDept = 40
+                OR e.RentalStatus IS NOT NULL)
+                AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
             """
             
             logger.info("Executing summary query")
