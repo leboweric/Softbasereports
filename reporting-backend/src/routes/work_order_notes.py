@@ -6,7 +6,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-notes_bp = Blueprint('notes', __name__, url_prefix='/api/work-orders')
+notes_bp = Blueprint('notes', __name__)
 
 @notes_bp.route('/notes', methods=['GET'])
 @jwt_required()
