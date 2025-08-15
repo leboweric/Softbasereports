@@ -26,6 +26,15 @@
 2. **Ensure all JSX tags are properly balanced** - Match opening and closing tags exactly
 3. **When copying code between components, verify the data structure matches** - API responses may have different shapes
 
+## CRITICAL: Database Query Best Practices (2025-08-15)
+1. **Avoid SELECT * in production queries** - Can fail with certain column types that don't serialize to JSON
+   - Wrong: `SELECT * FROM ben002.WORental`
+   - Correct: `SELECT WONo, ControlNo, RentalContractNo FROM ben002.WORental`
+2. **Always wrap database queries in try-catch blocks** - Tables might not exist or queries might fail
+3. **Check table existence before querying** - Some tables like WORental may not exist in all installations
+4. **Return partial results on failure** - Don't let one failed query break the entire endpoint
+   - Use empty arrays as fallback: `except: results['data'] = []`
+
 ## Work Order Lookup Tool Implementation (2025-08-15)
 
 **Important Discovery**: The Work Order Detail Lookup tool uses a specific data structure from the API endpoint `/api/reports/departments/rental/wo-detail/{woNumber}`. This endpoint works for ALL work order types (Service, Rental, Parts, etc.).
@@ -525,6 +534,37 @@ Created comprehensive parts inventory management system with multiple reports.
 - Removed low-value Monthly Demand Trend card
 - Default "Include Current Month" unchecked on Dashboard
 - Added percentage of total sales to Top 10 Customers
+
+## Rental Availability - Ship To Customer Issue (2025-08-15)
+
+**Current Status**: The rental availability report shows "RENTAL FLEET - EXPENSE" for on-rent equipment instead of the actual customer.
+
+**Problem**: Equipment.CustomerNo appears to point to an internal account ("RENTAL FLEET") rather than the actual rental customer.
+
+**Research in Progress**:
+- Investigating RentalContract table for CustomerNo field
+- Checking WO (Work Orders) table for Type='R' with ShipTo field
+- Looking for WORental table that might link contracts to work orders
+- Tracing equipment through the system to find actual rental customer
+
+**Potential Solutions Being Investigated**:
+1. Use RentalContract.CustomerNo for active contracts
+2. Use WO.ShipTo for rental work orders (Type='R')
+3. Find relationship between Equipment and actual rental customer
+
+## Control Number Field Discovery (2025-08-15)
+
+**Discovered**: Equipment.ControlNo field (nvarchar, 50 chars) is the internal accounting control number.
+
+**Purpose**: Internal equipment tracking/reference number for accounting, separate from serial numbers.
+
+**Usage Found In**:
+- Equipment, WO, InvoiceReg tables (linking equipment to transactions)
+- GLDetail table (for general ledger entries)
+- EQControlNoChange table (audit trail for control number changes)
+- Company.NextControlNo (auto-increment sequence)
+
+**Report Created**: Control Number to Serial Number mapping report for accounting team in Accounting > Control Numbers tab.
 
 ## Feature Requests
 
