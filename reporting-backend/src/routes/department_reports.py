@@ -7284,13 +7284,32 @@ def register_department_routes(reports_bp):
                 AND rh_current.Month = MONTH(GETDATE())
                 AND rh_current.DaysRented > 0
                 AND rh_current.DeletionTime IS NULL
-            -- Join to find rental contract via WO table
+            -- Join to find rental customer via WORental and WO tables
+            -- Gets the most recent rental WO for each equipment
             LEFT JOIN (
-                SELECT DISTINCT wo.SerialNo, wo.UnitNo, wo.RentalContractNo, wo.BillTo
-                FROM ben002.WO wo
-                WHERE wo.RentalContractNo IS NOT NULL AND wo.RentalContractNo > 0
-                AND wo.ClosedDate IS NULL  -- Only active work orders
-            ) rental_wo ON (e.SerialNo = rental_wo.SerialNo OR e.UnitNo = rental_wo.UnitNo)
+                SELECT 
+                    wr.SerialNo, 
+                    wr.UnitNo, 
+                    MAX(wo.WONo) as MaxWONo
+                FROM ben002.WORental wr
+                INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                WHERE wo.Type = 'R' 
+                AND wo.RentalContractNo IS NOT NULL 
+                AND wo.RentalContractNo > 0
+                GROUP BY wr.SerialNo, wr.UnitNo
+            ) latest_rental ON (e.SerialNo = latest_rental.SerialNo OR e.UnitNo = latest_rental.UnitNo)
+            -- Get the details of that latest rental WO
+            LEFT JOIN (
+                SELECT DISTINCT
+                    wr.SerialNo,
+                    wr.UnitNo,
+                    wo.WONo,
+                    wo.RentalContractNo,
+                    wo.BillTo
+                FROM ben002.WORental wr
+                INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                WHERE wo.Type = 'R'
+            ) rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
             -- Get the actual rental customer
             LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
             WHERE (

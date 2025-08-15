@@ -556,36 +556,39 @@ Created comprehensive parts inventory management system with multiple reports.
 
 ## Rental Availability - Ship To Customer Issue (2025-08-15)
 
-**Current Status**: The rental availability report shows "RENTAL FLEET - EXPENSE" for on-rent equipment instead of the actual customer.
+**CRITICAL: THE COMPETING PRODUCT SUCCESSFULLY SHOWS SHIP TO CUSTOMERS**
+- This proves the data EXISTS in the database
+- We need to find the correct way to access it
+- Stop assuming it's a data issue - it's our query that needs fixing
 
-**CRITICAL DISCOVERY - SOLVED THE MYSTERY!**:
-- **RentalContract table has NO CustomerNo field** - This is why we couldn't find the link!
-- **WO table has RentalContractNo field** - This is the missing link!
-- The linkage path is: RentalContract → WO (via RentalContractNo) → Customer (via BillTo)
+**Current Status**: The rental availability report shows "RENTAL FLEET - EXPENSE" for on-rent equipment instead of the actual customer. Competing products show the correct Ship To customer.
 
-**How Rental Customer Linkage Actually Works**:
-1. RentalContract table stores contract details (RentalContractNo, dates, charges) but NO customer
-2. WO table has BOTH RentalContractNo AND BillTo (customer number)
-3. To find rental customer: Join RentalContract to WO on RentalContractNo, then get BillTo
+**Discoveries So Far**:
+- **RentalContract table has NO CustomerNo field** 
+- **WO table has RentalContractNo field** but it's often NULL
+- The theoretical linkage path would be: RentalContract → WO (via RentalContractNo) → Customer (via BillTo)
+- But WO.RentalContractNo is not populated for most/all rental work orders
 
-**Problem Discovered Through Research**:
+**What We Know**:
 - Equipment.CustomerNo points to internal account "900006" (RENTAL FLEET)
 - Equipment marked as rented (via RentalHistory with DaysRented > 0)
 - RentalContracts exist (316) but don't directly link to customers
-- Rental Work Orders exist (1,657) with RentalContractNo field
-- RentalContract missing CustomerNo field (discovered via schema inspection)
+- Rental Work Orders exist (1,657) but RentalContractNo field is NULL
+- **The competing product finds the customer, so the data MUST be there**
 
-**Root Cause**: 
-- RentalContract doesn't store CustomerNo directly
-- Must go through WO table to find customer
-- Many rental WOs have NULL UnitNo, making equipment linkage difficult
+**Possible Places We Haven't Looked**:
+1. A view that joins the data (check all views with "Rental" in name)
+2. A different field in WO table that links to rentals
+3. A junction table we haven't discovered
+4. The WORental table might have additional linkage
+5. Invoice tables might have the rental customer info
+6. There might be a "current customer" field we're missing
 
-**Correct Solution - Multi-source customer lookup**:
-1. Find WO with matching RentalContractNo, get BillTo (PRIMARY METHOD)
-2. Work Order ShipTo (if rental WO exists with matching UnitNo)
-3. Work Order BillTo (fallback if no ShipTo)
-4. Recent Invoice customer (if ControlNo matches)
-5. Equipment.CustomerNo (last resort, even if RENTAL FLEET)
+**DO NOT ASSUME**:
+- Do not assume the data is missing
+- Do not assume it's a Softbase data issue
+- The competing product proves the data exists
+- We need to find the right query/join/table
 
 ## Control Number Field Discovery (2025-08-15)
 
