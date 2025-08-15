@@ -137,11 +137,23 @@ To get the complete database schema:
 - **PartsTaxable/PartsNonTax**: Revenue fields for parts
 - **LaborTaxable/LaborNonTax**: Revenue fields for labor
 
-## Common Commands
-- **Frontend dev**: `cd reporting-frontend && npm run dev`
-- **Backend dev**: `cd reporting-backend && python -m src.run`
-- **Build frontend**: `cd reporting-frontend && npm run build`
+## IMPORTANT: Development vs Production
+
+### LOCAL DEVELOPMENT (on your machine for testing):
+- **Frontend dev**: `cd reporting-frontend && npm run dev` (runs on localhost:5173 or similar)
+- **Backend dev**: `cd reporting-backend && python -m src.run` (runs on localhost:5000 or 5001)
+- **Purpose**: Test changes locally before pushing to git
+- **Note**: Vite proxy forwards /api calls from frontend to local backend
+
+### PRODUCTION DEPLOYMENT (automatic):
 - **Deploy**: Auto-deploys on git push (Netlify for frontend, Railway for backend)
+- **Frontend**: Automatically deployed to Netlify when you push to git
+- **Backend**: Automatically deployed to Railway when you push to git
+- **No manual deployment needed**: Just `git push` and both services auto-deploy
+
+### Build Commands:
+- **Build frontend locally** (for testing): `cd reporting-frontend && npm run build`
+- **You don't need to build manually for deployment** - Netlify builds automatically
 
 ## Performance Optimizations
 1. Dashboard uses parallel query execution
@@ -546,20 +558,30 @@ Created comprehensive parts inventory management system with multiple reports.
 
 **Current Status**: The rental availability report shows "RENTAL FLEET - EXPENSE" for on-rent equipment instead of the actual customer.
 
+**CRITICAL DISCOVERY - SOLVED THE MYSTERY!**:
+- **RentalContract table has NO CustomerNo field** - This is why we couldn't find the link!
+- **WO table has RentalContractNo field** - This is the missing link!
+- The linkage path is: RentalContract → WO (via RentalContractNo) → Customer (via BillTo)
+
+**How Rental Customer Linkage Actually Works**:
+1. RentalContract table stores contract details (RentalContractNo, dates, charges) but NO customer
+2. WO table has BOTH RentalContractNo AND BillTo (customer number)
+3. To find rental customer: Join RentalContract to WO on RentalContractNo, then get BillTo
+
 **Problem Discovered Through Research**:
 - Equipment.CustomerNo points to internal account "900006" (RENTAL FLEET)
 - Equipment marked as rented (via RentalHistory with DaysRented > 0)
-- RentalContracts exist (316) but don't link to the rented equipment
-- Rental Work Orders exist (1,657) but many have NULL UnitNo - not linked to equipment
-- No proper linkage between Equipment → RentalContract or Equipment → WO with UnitNo
+- RentalContracts exist (316) but don't directly link to customers
+- Rental Work Orders exist (1,657) with RentalContractNo field
+- RentalContract missing CustomerNo field (discovered via schema inspection)
 
-**Root Cause**: Equipment is being rented WITHOUT proper data relationships:
-- RentalHistory shows equipment is rented (DaysRented = 31)
-- But no RentalContract found for that SerialNo
-- Work Orders for rentals don't have UnitNo populated
+**Root Cause**: 
+- RentalContract doesn't store CustomerNo directly
+- Must go through WO table to find customer
+- Many rental WOs have NULL UnitNo, making equipment linkage difficult
 
-**Recommended Solution**: Multi-source customer lookup in priority order:
-1. RentalContract.CustomerNo (if active contract exists for SerialNo)
+**Correct Solution - Multi-source customer lookup**:
+1. Find WO with matching RentalContractNo, get BillTo (PRIMARY METHOD)
 2. Work Order ShipTo (if rental WO exists with matching UnitNo)
 3. Work Order BillTo (fallback if no ShipTo)
 4. Recent Invoice customer (if ControlNo matches)

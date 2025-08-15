@@ -21,6 +21,8 @@ from . import control_number_research
 from . import control_number_reports
 from . import rental_shipto_research
 from . import rental_shipto_simple
+from . import rental_comprehensive_research
+from . import rental_customer_solution
 
 def get_softbase_service():
     """Get Softbase service instance for current organization"""
