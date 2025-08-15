@@ -1603,7 +1603,7 @@ def register_department_routes(reports_bp):
     def get_parts_inventory_by_location():
         """Get parts inventory value by bin location"""
         try:
-            db = DatabaseService()
+            db = get_db()
             
             # Get optional location filter from query params
             location_filter = request.args.get('location', '')
