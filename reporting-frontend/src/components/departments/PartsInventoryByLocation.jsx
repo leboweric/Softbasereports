@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Search, Download, Package, DollarSign, MapPin } from 'lucide-react'
+import { Search, Download, Package, DollarSign, MapPin, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const PartsInventoryByLocation = () => {
@@ -14,6 +14,8 @@ const PartsInventoryByLocation = () => {
   const [locationFilter, setLocationFilter] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [showDetails, setShowDetails] = useState(false)
+  const [sortConfig, setSortConfig] = useState({ key: 'totalValue', direction: 'desc' })
+  const [detailsSortConfig, setDetailsSortConfig] = useState({ key: 'totalValue', direction: 'desc' })
 
   useEffect(() => {
     fetchInventoryData()
@@ -61,6 +63,55 @@ const PartsInventoryByLocation = () => {
   const handleLocationClick = (location) => {
     setSearchInput(location)
     fetchInventoryData(location)
+  }
+
+  const handleSort = (key) => {
+    const direction = sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+    setSortConfig({ key, direction })
+  }
+
+  const handleDetailsSort = (key) => {
+    const direction = detailsSortConfig.key === key && detailsSortConfig.direction === 'asc' ? 'desc' : 'asc'
+    setDetailsSortConfig({ key, direction })
+  }
+
+  const sortedLocations = [...locations].sort((a, b) => {
+    const aValue = a[sortConfig.key]
+    const bValue = b[sortConfig.key]
+    
+    if (typeof aValue === 'string') {
+      return sortConfig.direction === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    return sortConfig.direction === 'asc' 
+      ? aValue - bValue 
+      : bValue - aValue
+  })
+
+  const sortedDetails = [...details].sort((a, b) => {
+    const aValue = a[detailsSortConfig.key]
+    const bValue = b[detailsSortConfig.key]
+    
+    if (typeof aValue === 'string') {
+      return detailsSortConfig.direction === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue)
+    }
+    
+    return detailsSortConfig.direction === 'asc' 
+      ? aValue - bValue 
+      : bValue - aValue
+  })
+
+  const getSortIcon = (columnKey, currentConfig) => {
+    if (currentConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
+    }
+    return currentConfig.direction === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />
   }
 
   const formatCurrency = (value) => {
@@ -239,17 +290,73 @@ const PartsInventoryByLocation = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Part Number</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Bin Type</TableHead>
-                    <TableHead className="text-right">On Hand</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
-                    <TableHead className="text-right">Total Value</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleDetailsSort('partNo')}
+                    >
+                      <div className="flex items-center">
+                        Part Number
+                        {getSortIcon('partNo', detailsSortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleDetailsSort('description')}
+                    >
+                      <div className="flex items-center">
+                        Description
+                        {getSortIcon('description', detailsSortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleDetailsSort('location')}
+                    >
+                      <div className="flex items-center">
+                        Location
+                        {getSortIcon('location', detailsSortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleDetailsSort('binType')}
+                    >
+                      <div className="flex items-center">
+                        Bin Type
+                        {getSortIcon('binType', detailsSortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-right"
+                      onClick={() => handleDetailsSort('onHand')}
+                    >
+                      <div className="flex items-center justify-end">
+                        On Hand
+                        {getSortIcon('onHand', detailsSortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-right"
+                      onClick={() => handleDetailsSort('cost')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Cost
+                        {getSortIcon('cost', detailsSortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-right"
+                      onClick={() => handleDetailsSort('totalValue')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Total Value
+                        {getSortIcon('totalValue', detailsSortConfig)}
+                      </div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {details.map((item, idx) => (
+                  {sortedDetails.map((item, idx) => (
                     <TableRow key={idx}>
                       <TableCell className="font-medium">{item.partNo}</TableCell>
                       <TableCell>{item.description}</TableCell>
@@ -271,7 +378,7 @@ const PartsInventoryByLocation = () => {
                   <TableRow className="font-bold bg-muted/50">
                     <TableCell colSpan={6}>Total</TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(details.reduce((sum, item) => sum + item.totalValue, 0))}
+                      {formatCurrency(sortedDetails.reduce((sum, item) => sum + item.totalValue, 0))}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -281,15 +388,47 @@ const PartsInventoryByLocation = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Location</TableHead>
-                    <TableHead className="text-right">Unique Parts</TableHead>
-                    <TableHead className="text-right">Total Entries</TableHead>
-                    <TableHead className="text-right">Total Value</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleSort('location')}
+                    >
+                      <div className="flex items-center">
+                        Location
+                        {getSortIcon('location', sortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-right"
+                      onClick={() => handleSort('partCount')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Unique Parts
+                        {getSortIcon('partCount', sortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-right"
+                      onClick={() => handleSort('totalEntries')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Total Entries
+                        {getSortIcon('totalEntries', sortConfig)}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-muted/50 text-right"
+                      onClick={() => handleSort('totalValue')}
+                    >
+                      <div className="flex items-center justify-end">
+                        Total Value
+                        {getSortIcon('totalValue', sortConfig)}
+                      </div>
+                    </TableHead>
                     <TableHead className="text-right">% of Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {locations.map((loc, idx) => (
+                  {sortedLocations.map((loc, idx) => (
                     <TableRow 
                       key={idx}
                       className="cursor-pointer hover:bg-muted/50"
@@ -313,10 +452,10 @@ const PartsInventoryByLocation = () => {
                   <TableRow className="font-bold bg-muted/50">
                     <TableCell>GRAND TOTAL</TableCell>
                     <TableCell className="text-right">
-                      {locations.reduce((sum, loc) => sum + loc.partCount, 0)}
+                      {sortedLocations.reduce((sum, loc) => sum + loc.partCount, 0)}
                     </TableCell>
                     <TableCell className="text-right">
-                      {locations.reduce((sum, loc) => sum + loc.totalEntries, 0)}
+                      {sortedLocations.reduce((sum, loc) => sum + loc.totalEntries, 0)}
                     </TableCell>
                     <TableCell className="text-right">{formatCurrency(grandTotal)}</TableCell>
                     <TableCell className="text-right">100%</TableCell>
