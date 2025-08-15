@@ -7238,4 +7238,130 @@ def register_department_routes(reports_bp):
             logger.error(f"Error finding WO-Invoice link: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/rental/availability', methods=['GET'])
+    @jwt_required()
+    def get_rental_availability():
+        """Get rental availability report showing all equipment status and customer info"""
+        try:
+            db = get_db()
+            
+            # Query to get all rental equipment with availability status
+            query = """
+            SELECT 
+                e.Make,
+                e.Model,
+                e.UnitNo,
+                e.SerialNo,
+                e.RentalStatus,
+                -- Determine if unit is available or on rent
+                CASE 
+                    WHEN e.RentalStatus IN ('Ready To Rent', 'Available') THEN 'Available'
+                    WHEN e.RentalStatus = 'On Rent' THEN 'On Rent'
+                    WHEN e.RentalStatus = 'On Hold' THEN 'On Hold'
+                    ELSE 'Other'
+                END as Status,
+                -- Get customer info if on rent
+                CASE 
+                    WHEN e.CustomerNo IS NOT NULL AND e.CustomerNo != '' AND e.CustomerNo != '900006'
+                    THEN c.Name 
+                    ELSE NULL 
+                END as ShipTo,
+                -- Get customer contact info
+                CASE 
+                    WHEN e.CustomerNo IS NOT NULL AND e.CustomerNo != '' AND e.CustomerNo != '900006'
+                    THEN COALESCE(c.Contact, c.Phone1, '')
+                    ELSE NULL 
+                END as ShipContact,
+                e.CustomerNo,
+                e.Location,
+                e.DayRent,
+                e.WeekRent,
+                e.MonthRent,
+                e.ModelYear,
+                e.Cost
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            WHERE e.Make IS NOT NULL 
+                AND e.Make != ''
+                AND e.CustomerNo = '900006'  -- Fleet owned units
+            ORDER BY 
+                CASE 
+                    WHEN e.RentalStatus = 'On Rent' THEN 1
+                    WHEN e.RentalStatus IN ('Ready To Rent', 'Available') THEN 2
+                    WHEN e.RentalStatus = 'On Hold' THEN 3
+                    ELSE 4
+                END,
+                e.Make,
+                e.Model,
+                e.UnitNo
+            """
+            
+            results = db.execute_query(query)
+            
+            # Get summary counts
+            summary_query = """
+            SELECT 
+                COUNT(*) as total_units,
+                COUNT(CASE WHEN RentalStatus IN ('Ready To Rent', 'Available') THEN 1 END) as available_units,
+                COUNT(CASE WHEN RentalStatus = 'On Rent' THEN 1 END) as on_rent_units,
+                COUNT(CASE WHEN RentalStatus = 'On Hold' THEN 1 END) as on_hold_units,
+                COUNT(CASE WHEN RentalStatus NOT IN ('Ready To Rent', 'Available', 'On Rent', 'On Hold') THEN 1 END) as other_status_units
+            FROM ben002.Equipment
+            WHERE Make IS NOT NULL 
+                AND Make != ''
+                AND CustomerNo = '900006'  -- Fleet owned units
+            """
+            
+            summary_result = db.execute_query(summary_query)
+            
+            # Parse results
+            equipment = []
+            if results:
+                for row in results:
+                    equipment.append({
+                        'make': row.get('Make', ''),
+                        'model': row.get('Model', ''),
+                        'unitNo': row.get('UnitNo', ''),
+                        'serialNo': row.get('SerialNo', ''),
+                        'rentalStatus': row.get('RentalStatus', ''),
+                        'status': row.get('Status', ''),
+                        'shipTo': row.get('ShipTo', ''),
+                        'shipContact': row.get('ShipContact', ''),
+                        'location': row.get('Location', ''),
+                        'dayRate': float(row.get('DayRent', 0)) if row.get('DayRent') else 0,
+                        'weekRate': float(row.get('WeekRent', 0)) if row.get('WeekRent') else 0,
+                        'monthRate': float(row.get('MonthRent', 0)) if row.get('MonthRent') else 0,
+                        'modelYear': row.get('ModelYear', ''),
+                        'cost': float(row.get('Cost', 0)) if row.get('Cost') else 0
+                    })
+            
+            # Parse summary
+            summary = {
+                'totalUnits': 0,
+                'availableUnits': 0,
+                'onRentUnits': 0,
+                'onHoldUnits': 0,
+                'otherStatusUnits': 0,
+                'utilizationRate': 0
+            }
+            
+            if summary_result and len(summary_result) > 0:
+                row = summary_result[0]
+                summary['totalUnits'] = row.get('total_units', 0)
+                summary['availableUnits'] = row.get('available_units', 0)
+                summary['onRentUnits'] = row.get('on_rent_units', 0)
+                summary['onHoldUnits'] = row.get('on_hold_units', 0)
+                summary['otherStatusUnits'] = row.get('other_status_units', 0)
+                
+                if summary['totalUnits'] > 0:
+                    summary['utilizationRate'] = round((summary['onRentUnits'] / summary['totalUnits']) * 100, 1)
+            
+            return jsonify({
+                'equipment': equipment,
+                'summary': summary
+            })
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
 

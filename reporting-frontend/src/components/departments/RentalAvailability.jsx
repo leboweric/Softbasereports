@@ -1,0 +1,294 @@
+import { useState, useEffect } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { 
+  Truck, 
+  CheckCircle, 
+  XCircle, 
+  PauseCircle, 
+  Download,
+  Search,
+  RefreshCw
+} from 'lucide-react'
+import { apiUrl } from '@/lib/api'
+
+const RentalAvailability = () => {
+  const [loading, setLoading] = useState(true)
+  const [equipment, setEquipment] = useState([])
+  const [summary, setSummary] = useState({})
+  const [filterStatus, setFilterStatus] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    fetchAvailabilityData()
+  }, [])
+
+  const fetchAvailabilityData = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('token')
+      
+      const response = await fetch(apiUrl('/api/reports/departments/rental/availability'), {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch availability data')
+      }
+
+      const data = await response.json()
+      setEquipment(data.equipment || [])
+      setSummary(data.summary || {})
+    } catch (error) {
+      console.error('Error fetching availability data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getStatusBadge = (status) => {
+    switch(status) {
+      case 'Available':
+        return <Badge className="bg-green-100 text-green-800 border-green-200">Available</Badge>
+      case 'On Rent':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">On Rent</Badge>
+      case 'On Hold':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">On Hold</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  const filteredEquipment = equipment.filter(item => {
+    const matchesStatus = filterStatus === 'all' || item.status === filterStatus
+    const matchesSearch = searchTerm === '' || 
+      item.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.unitNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.serialNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.shipTo && item.shipTo.toLowerCase().includes(searchTerm.toLowerCase()))
+    
+    return matchesStatus && matchesSearch
+  })
+
+  const exportToCSV = () => {
+    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To', 'Ship Contact', 'Location']
+    
+    const rows = filteredEquipment.map(item => [
+      item.make,
+      item.model,
+      item.unitNo,
+      item.serialNo,
+      item.status,
+      item.shipTo || '',
+      item.shipContact || '',
+      item.location || ''
+    ])
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => {
+        const cellStr = String(cell)
+        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+          return `"${cellStr.replace(/"/g, '""')}"`
+        }
+        return cellStr
+      }).join(','))
+    ].join('\n')
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    
+    const today = new Date().toISOString().split('T')[0]
+    link.setAttribute('href', url)
+    link.setAttribute('download', `rental_availability_${today}.csv`)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Truck className="h-8 w-8 animate-pulse mx-auto mb-2" />
+            <p>Loading availability data...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{summary.totalUnits || 0}</div>
+            <p className="text-xs text-muted-foreground">Units</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Available</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+              <span className="text-2xl font-bold text-green-600">{summary.availableUnits || 0}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Ready to rent</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">On Rent</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <Truck className="h-4 w-4 text-blue-600 mr-2" />
+              <span className="text-2xl font-bold text-blue-600">{summary.onRentUnits || 0}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Currently rented</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">On Hold</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              <PauseCircle className="h-4 w-4 text-yellow-600 mr-2" />
+              <span className="text-2xl font-bold text-yellow-600">{summary.onHoldUnits || 0}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Temporarily unavailable</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Utilization Rate</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{summary.utilizationRate || 0}%</div>
+            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+              <div 
+                className="bg-blue-600 h-2 rounded-full" 
+                style={{ width: `${summary.utilizationRate || 0}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters and Actions */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Rental Equipment Availability</CardTitle>
+              <CardDescription>
+                Current status of all rental equipment with customer information
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={fetchAvailabilityData}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Button variant="outline" onClick={exportToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Filter Controls */}
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search by make, model, unit #, serial #, or customer..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-2 border rounded-md"
+            >
+              <option value="all">All Status</option>
+              <option value="Available">Available</option>
+              <option value="On Rent">On Rent</option>
+              <option value="On Hold">On Hold</option>
+            </select>
+          </div>
+
+          {/* Equipment Table */}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Make</TableHead>
+                  <TableHead>Model</TableHead>
+                  <TableHead>Unit Number</TableHead>
+                  <TableHead>Serial Number</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Ship To</TableHead>
+                  <TableHead>Ship Contact</TableHead>
+                  <TableHead>Location</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEquipment.map((item, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{item.make}</TableCell>
+                    <TableCell>{item.model}</TableCell>
+                    <TableCell>{item.unitNo}</TableCell>
+                    <TableCell>{item.serialNo}</TableCell>
+                    <TableCell>{getStatusBadge(item.status)}</TableCell>
+                    <TableCell>{item.shipTo || '-'}</TableCell>
+                    <TableCell>{item.shipContact || '-'}</TableCell>
+                    <TableCell>{item.location || '-'}</TableCell>
+                  </TableRow>
+                ))}
+                {filteredEquipment.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      No equipment found matching your filters
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          
+          {/* Results Summary */}
+          <div className="mt-4 text-sm text-muted-foreground">
+            Showing {filteredEquipment.length} of {equipment.length} units
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+export default RentalAvailability
