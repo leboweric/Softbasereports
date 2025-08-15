@@ -44,7 +44,26 @@ const RentalAvailability = () => {
       }
 
       const data = await response.json()
-      setEquipment(data.equipment || [])
+      // Sort equipment: Available first, then On Rent, then others
+      const sortedEquipment = (data.equipment || []).sort((a, b) => {
+        // Define sort order
+        const statusOrder = {
+          'Available': 1,
+          'On Rent': 2,
+          'Hold': 3,
+          'On Hold': 3
+        }
+        const aOrder = statusOrder[a.status] || 99
+        const bOrder = statusOrder[b.status] || 99
+        
+        // Sort by status order first
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder
+        }
+        // Then by unit number
+        return (a.unitNo || '').localeCompare(b.unitNo || '')
+      })
+      setEquipment(sortedEquipment)
       setSummary(data.summary || {})
     } catch (error) {
       console.error('Error fetching availability data:', error)
