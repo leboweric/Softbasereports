@@ -674,13 +674,16 @@ const RentalReport = ({ user }) => {
                       const currentData = data[currentIndex]
                       const previousData = currentIndex > 0 ? data[currentIndex - 1] : null
                       
+                      // Safety check for currentData
+                      if (!currentData) return null
+                      
                       return (
                         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                           <p className="font-semibold mb-2">{label}</p>
                           <div className="space-y-1">
                             <p className="text-purple-600">
-                              Revenue: {formatCurrency(currentData.amount)}
-                              {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
+                              Revenue: {formatCurrency(currentData.amount || 0)}
+                              {formatPercentage(calculatePercentageChange(currentData.amount || 0, previousData?.amount))}
                             </p>
                           </div>
                         </div>
