@@ -7278,18 +7278,8 @@ def register_department_routes(reports_bp):
                 AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DeletionTime IS NULL
-            WHERE 
-                -- Any equipment with rental status
-                (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
-                -- Currently on rent
+            WHERE (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
                 OR (rh.SerialNo IS NOT NULL AND rh.DaysRented > 0)
-                -- Has rental flag
-                OR e.WebRentalFlag = 1
-                -- Has rental revenue
-                OR e.RentalYTD > 0 
-                OR e.RentalITD > 0
-                -- Has rental history ever
-                OR EXISTS (SELECT 1 FROM ben002.RentalHistory rh2 WHERE rh2.SerialNo = e.SerialNo)
             """
             simple_result = db.execute_query(combined_query)
             logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
