@@ -7248,19 +7248,42 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get ALL rental equipment - include those with rental rates, rental status, or rental history
+            # UPDATED: Now properly links to actual rental customers via WO.RentalContractNo
             combined_query = """
+            WITH RentalCustomers AS (
+                -- Find actual rental customers through WO table using RentalContractNo
+                SELECT DISTINCT
+                    wo.SerialNo,
+                    wo.UnitNo,
+                    wo.RentalContractNo,
+                    wo.BillTo as ActualCustomerNo,
+                    c_actual.Name as ActualCustomerName,
+                    c_actual.Address as ActualCustomerAddress,
+                    c_actual.City as ActualCustomerCity,
+                    c_actual.State as ActualCustomerState,
+                    c_actual.ZipCode as ActualCustomerZip,
+                    wo.ShipTo,
+                    wo.ShipName
+                FROM ben002.WO wo
+                INNER JOIN ben002.RentalContract rc ON wo.RentalContractNo = rc.RentalContractNo
+                LEFT JOIN ben002.Customer c_actual ON wo.BillTo = c_actual.Number
+                WHERE wo.RentalContractNo IS NOT NULL
+                AND (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
+            )
             SELECT DISTINCT
                 e.UnitNo, 
                 e.SerialNo, 
                 e.Make, 
                 e.Model, 
                 e.Location,
-                e.CustomerNo,
-                c.Name as CustomerName,
-                c.Address as CustomerAddress,
-                c.City as CustomerCity,
-                c.State as CustomerState,
-                c.ZipCode as CustomerZip,
+                e.CustomerNo as EquipmentCustomerNo,
+                -- Use actual rental customer if available, otherwise fall back to equipment customer
+                COALESCE(rc.ActualCustomerNo, e.CustomerNo) as CustomerNo,
+                COALESCE(rc.ActualCustomerName, c.Name) as CustomerName,
+                COALESCE(rc.ActualCustomerAddress, c.Address) as CustomerAddress,
+                COALESCE(rc.ActualCustomerCity, c.City) as CustomerCity,
+                COALESCE(rc.ActualCustomerState, c.State) as CustomerState,
+                COALESCE(rc.ActualCustomerZip, c.ZipCode) as CustomerZip,
                 CASE 
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
@@ -7273,9 +7296,11 @@ def register_department_routes(reports_bp):
                 e.RentalYTD,
                 e.RentalITD,
                 rh_current.DaysRented,
-                rh_current.RentAmount
+                rh_current.RentAmount,
+                rc.RentalContractNo
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            LEFT JOIN RentalCustomers rc ON (e.SerialNo = rc.SerialNo OR e.UnitNo = rc.UnitNo)
             LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
                 AND rh_current.Year = YEAR(GETDATE()) 
                 AND rh_current.Month = MONTH(GETDATE())
