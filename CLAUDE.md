@@ -34,6 +34,13 @@
 3. **Check table existence before querying** - Some tables like WORental may not exist in all installations
 4. **Return partial results on failure** - Don't let one failed query break the entire endpoint
    - Use empty arrays as fallback: `except: results['data'] = []`
+5. **Complex CTEs and UNION queries can fail silently** - Break them into simpler individual queries
+   - Complex trace queries with multiple CTEs may not return proper error messages
+   - Start with simple COUNT queries to verify tables exist and have data
+6. **Debug endpoints incrementally** - Build from simplest query to complex
+   - First verify table exists with COUNT(*)
+   - Then try SELECT TOP 1 with specific columns
+   - Only then build complex joins
 
 ## Work Order Lookup Tool Implementation (2025-08-15)
 

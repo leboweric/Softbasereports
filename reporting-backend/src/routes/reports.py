@@ -20,6 +20,7 @@ register_department_routes(reports_bp)
 from . import control_number_research
 from . import control_number_reports
 from . import rental_shipto_research
+from . import rental_shipto_simple
 
 def get_softbase_service():
     """Get Softbase service instance for current organization"""

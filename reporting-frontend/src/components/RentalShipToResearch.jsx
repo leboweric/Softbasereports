@@ -12,7 +12,7 @@ const RentalShipToResearch = () => {
       setLoading(true)
       const token = localStorage.getItem('token')
       
-      const response = await fetch(apiUrl('/api/reports/departments/rental/shipto-research'), {
+      const response = await fetch(apiUrl('/api/reports/departments/rental/shipto-simple'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
