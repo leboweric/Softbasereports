@@ -7260,11 +7260,11 @@ def register_department_routes(reports_bp):
                 CASE 
                     WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 'On Rent'
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
-                    WHEN e.RentalStatus = 'Ready To Rent' THEN 'Ready To Rent'
+                    WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
                     WHEN e.RentalStatus = 'Available' THEN 'Available'
                     WHEN e.WebRentalFlag = 1 THEN 'Available'
                     WHEN e.RentalYTD > 0 OR e.RentalITD > 0 THEN 'Available'
-                    ELSE COALESCE(e.RentalStatus, 'Available')
+                    ELSE 'Available'
                 END as Status,
                 e.RentalStatus as OriginalStatus,
                 e.WebRentalFlag,
@@ -7319,8 +7319,8 @@ def register_department_routes(reports_bp):
                 
                 total_units = len(equipment)
                 on_rent = sum(1 for e in equipment if e['status'] == 'On Rent')
-                available = sum(1 for e in equipment if 'ready' in e['status'].lower())
-                on_hold = sum(1 for e in equipment if 'hold' in e['status'].lower())
+                available = sum(1 for e in equipment if e['status'].lower() == 'available')
+                on_hold = sum(1 for e in equipment if e['status'].lower() == 'hold')
                 
                 return jsonify({
                     'equipment': equipment,
