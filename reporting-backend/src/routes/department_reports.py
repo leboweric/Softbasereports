@@ -7243,6 +7243,27 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
+            # First, let's check what rental equipment actually exists
+            test_query = """
+            SELECT COUNT(*) as count, 
+                   COUNT(CASE WHEN RentalStatus = 'Ready To Rent' THEN 1 END) as ready,
+                   COUNT(CASE WHEN RentalStatus = 'Hold' THEN 1 END) as hold,
+                   COUNT(DISTINCT Make) as unique_makes
+            FROM ben002.Equipment 
+            WHERE RentalStatus IS NOT NULL AND RentalStatus != ''
+            """
+            test_result = db.execute_query(test_query)
+            logger.info(f"Rental equipment check: {test_result}")
+            
+            # Check sample of rental equipment
+            sample_query = """
+            SELECT TOP 5 UnitNo, Make, Model, RentalStatus, CustomerNo, InventoryDept
+            FROM ben002.Equipment
+            WHERE RentalStatus IS NOT NULL AND RentalStatus != ''
+            """
+            sample_result = db.execute_query(sample_query)
+            logger.info(f"Sample rental equipment: {sample_result}")
+            
             # Use the SAME working query from equipment-report
             query = """
             WITH RentalEquipment AS (
@@ -7399,6 +7420,27 @@ def register_department_routes(reports_bp):
         try:
             db = get_db()
             debug_info = {}
+            
+            # Test 0: Direct query of what availability endpoint would return
+            try:
+                test0 = """
+                SELECT TOP 100 
+                    e.UnitNo,
+                    e.SerialNo,
+                    e.Make,
+                    e.Model,
+                    e.RentalStatus,
+                    e.DayRent,
+                    e.WeekRent,
+                    e.MonthRent
+                FROM ben002.Equipment e
+                WHERE e.RentalStatus IS NOT NULL AND e.RentalStatus != ''
+                """
+                result0 = db.execute_query(test0)
+                debug_info['availability_query_results'] = len(result0) if result0 else 0
+                debug_info['availability_query_sample'] = result0[:3] if result0 else []
+            except Exception as e:
+                debug_info['availability_query_error'] = str(e)
             
             # Test 1: Check if Equipment table is accessible
             try:
