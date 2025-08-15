@@ -27,14 +27,24 @@ def research_rental_shipto():
         """
         research_results['rental_contract_columns'] = db.execute_query(contract_cols_query)
         
-        # 2. Sample RentalContract data
+        # 2. Sample RentalContract data - simpler query without *
         contract_sample_query = """
-        SELECT TOP 5 * 
+        SELECT TOP 5 
+            RentalContractNo,
+            SerialNo,
+            CustomerNo,
+            StartDate,
+            EndDate,
+            DeliveryCharge,
+            PickupCharge
         FROM ben002.RentalContract
         WHERE EndDate IS NULL OR EndDate > GETDATE()
         ORDER BY StartDate DESC
         """
-        research_results['rental_contract_sample'] = db.execute_query(contract_sample_query)
+        try:
+            research_results['rental_contract_sample'] = db.execute_query(contract_sample_query)
+        except:
+            research_results['rental_contract_sample'] = []
         
         # 3. Check WO table for rental work orders with ShipTo
         wo_rental_query = """
@@ -69,12 +79,19 @@ def research_rental_shipto():
         """
         research_results['worental_columns'] = db.execute_query(worental_cols_query)
         
-        # 5. Sample WORental data
+        # 5. Sample WORental data - check if table exists first
         worental_sample_query = """
-        SELECT TOP 5 *
+        SELECT TOP 5 
+            WONo,
+            ControlNo,
+            RentalContractNo
         FROM ben002.WORental
         """
-        research_results['worental_sample'] = db.execute_query(worental_sample_query)
+        try:
+            research_results['worental_sample'] = db.execute_query(worental_sample_query)
+        except:
+            research_results['worental_sample'] = []
+            research_results['worental_note'] = 'WORental table may not exist or is empty'
         
         # 6. Find all ShipTo related fields
         shipto_fields_query = """
@@ -164,7 +181,11 @@ def research_rental_shipto():
         WHERE wo.Type = 'R'
         AND wo.ClosedDate IS NULL
         """
-        research_results['rental_trace'] = db.execute_query(trace_query)
+        try:
+            research_results['rental_trace'] = db.execute_query(trace_query)
+        except Exception as e:
+            research_results['rental_trace'] = []
+            research_results['rental_trace_error'] = str(e)
         
         # 8. Check if RentalContract has a relationship with WO
         contract_wo_link_query = """
