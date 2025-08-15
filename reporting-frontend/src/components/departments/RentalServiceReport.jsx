@@ -210,7 +210,7 @@ const RentalServiceReport = () => {
                 <div className="flex items-center gap-2 text-sm">
                   <AlertTriangle className="h-4 w-4 text-orange-600" />
                   <span className="text-orange-700">
-                    <strong>{summary.awaitingInvoice.overThreeDays}</strong> orders waiting >3 days
+                    <strong>{summary.awaitingInvoice.overThreeDays}</strong> orders waiting &gt;3 days
                     {summary.awaitingInvoice.overFiveDays > 0 && (
                       <span> ({summary.awaitingInvoice.overFiveDays} over 5 days)</span>
                     )}

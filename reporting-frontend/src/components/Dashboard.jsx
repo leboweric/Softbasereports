@@ -1238,10 +1238,10 @@ const Dashboard = ({ user }) => {
                           <TableHead className="text-right">Value</TableHead>
                           <TableHead className="text-right">Avg Days</TableHead>
                           <TableHead className="text-center">≤3 days</TableHead>
-                          <TableHead className="text-center">>3 days</TableHead>
-                          <TableHead className="text-center">>7 days</TableHead>
-                          <TableHead className="text-center">>14 days</TableHead>
-                          <TableHead className="text-center">>30 days</TableHead>
+                          <TableHead className="text-center">&gt;3 days</TableHead>
+                          <TableHead className="text-center">&gt;7 days</TableHead>
+                          <TableHead className="text-center">&gt;14 days</TableHead>
+                          <TableHead className="text-center">&gt;30 days</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1297,7 +1297,7 @@ const Dashboard = ({ user }) => {
                           { range: '4-7 days', percentage: invoiceDelayData.totals.over_three_pct - invoiceDelayData.totals.over_seven_pct },
                           { range: '8-14 days', percentage: invoiceDelayData.totals.over_seven_pct - invoiceDelayData.totals.over_fourteen_pct },
                           { range: '15-30 days', percentage: invoiceDelayData.totals.over_fourteen_pct - invoiceDelayData.totals.over_thirty_pct },
-                          { range: '>30 days', percentage: invoiceDelayData.totals.over_thirty_pct }
+                          { range: '&gt;30 days', percentage: invoiceDelayData.totals.over_thirty_pct }
                         ]}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="range" />

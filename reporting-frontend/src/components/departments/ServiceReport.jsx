@@ -551,7 +551,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                     <div className="flex items-center gap-2 text-sm">
                       <AlertTriangle className="h-4 w-4 text-orange-600" />
                       <span className="text-orange-700">
-                        <strong>{awaitingInvoiceData.over_three}</strong> orders waiting >3 days
+                        <strong>{awaitingInvoiceData.over_three}</strong> orders waiting &gt;3 days
                         {awaitingInvoiceData.over_five > 0 && (
                           <span> ({awaitingInvoiceData.over_five} over 5 days)</span>
                         )}
@@ -601,15 +601,15 @@ const ServiceReport = ({ user, onNavigate }) => {
                       <p className="text-xl font-bold text-red-600">{awaitingInvoiceDetails.summary.avg_days_waiting}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-muted-foreground">>3 Days</p>
+                      <p className="text-sm text-muted-foreground">&gt;3 Days</p>
                       <p className="text-xl font-bold text-orange-600">{awaitingInvoiceDetails.summary.over_3_days}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-muted-foreground">>5 Days</p>
+                      <p className="text-sm text-muted-foreground">&gt;5 Days</p>
                       <p className="text-xl font-bold text-red-600">{awaitingInvoiceDetails.summary.over_5_days}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-sm text-muted-foreground">>7 Days</p>
+                      <p className="text-sm text-muted-foreground">&gt;7 Days</p>
                       <p className="text-xl font-bold text-red-900">{awaitingInvoiceDetails.summary.over_7_days}</p>
                     </div>
                   </div>
@@ -886,10 +886,10 @@ const ServiceReport = ({ user, onNavigate }) => {
                           ))}
                         </div>
                       )}
-                    </div>
-                  </>
-                )}
-              </div>
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
