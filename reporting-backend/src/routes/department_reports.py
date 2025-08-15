@@ -7248,42 +7248,21 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get ALL rental equipment - include those with rental rates, rental status, or rental history
-            # UPDATED: Now properly links to actual rental customers via WO.RentalContractNo
+            # Simplified query to prevent failures - still gets rental customers via WO table
             combined_query = """
-            WITH RentalCustomers AS (
-                -- Find actual rental customers through WO table using RentalContractNo
-                SELECT DISTINCT
-                    wo.SerialNo,
-                    wo.UnitNo,
-                    wo.RentalContractNo,
-                    wo.BillTo as ActualCustomerNo,
-                    c_actual.Name as ActualCustomerName,
-                    c_actual.Address as ActualCustomerAddress,
-                    c_actual.City as ActualCustomerCity,
-                    c_actual.State as ActualCustomerState,
-                    c_actual.ZipCode as ActualCustomerZip,
-                    wo.ShipTo,
-                    wo.ShipName
-                FROM ben002.WO wo
-                INNER JOIN ben002.RentalContract rc ON wo.RentalContractNo = rc.RentalContractNo
-                LEFT JOIN ben002.Customer c_actual ON wo.BillTo = c_actual.Number
-                WHERE wo.RentalContractNo IS NOT NULL
-                AND (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
-            )
             SELECT DISTINCT
                 e.UnitNo, 
                 e.SerialNo, 
                 e.Make, 
                 e.Model, 
                 e.Location,
-                e.CustomerNo as EquipmentCustomerNo,
-                -- Use actual rental customer if available, otherwise fall back to equipment customer
-                COALESCE(rc.ActualCustomerNo, e.CustomerNo) as CustomerNo,
-                COALESCE(rc.ActualCustomerName, c.Name) as CustomerName,
-                COALESCE(rc.ActualCustomerAddress, c.Address) as CustomerAddress,
-                COALESCE(rc.ActualCustomerCity, c.City) as CustomerCity,
-                COALESCE(rc.ActualCustomerState, c.State) as CustomerState,
-                COALESCE(rc.ActualCustomerZip, c.ZipCode) as CustomerZip,
+                e.CustomerNo,
+                -- Try to get actual rental customer from WO table if available
+                COALESCE(rental_cust.Name, c.Name) as CustomerName,
+                COALESCE(rental_cust.Address, c.Address) as CustomerAddress,
+                COALESCE(rental_cust.City, c.City) as CustomerCity,
+                COALESCE(rental_cust.State, c.State) as CustomerState,
+                COALESCE(rental_cust.ZipCode, c.ZipCode) as CustomerZip,
                 CASE 
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
@@ -7297,15 +7276,23 @@ def register_department_routes(reports_bp):
                 e.RentalITD,
                 rh_current.DaysRented,
                 rh_current.RentAmount,
-                rc.RentalContractNo
+                rental_wo.RentalContractNo
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            LEFT JOIN RentalCustomers rc ON (e.SerialNo = rc.SerialNo OR e.UnitNo = rc.UnitNo)
             LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
                 AND rh_current.Year = YEAR(GETDATE()) 
                 AND rh_current.Month = MONTH(GETDATE())
                 AND rh_current.DaysRented > 0
                 AND rh_current.DeletionTime IS NULL
+            -- Join to find rental contract via WO table
+            LEFT JOIN (
+                SELECT DISTINCT wo.SerialNo, wo.UnitNo, wo.RentalContractNo, wo.BillTo
+                FROM ben002.WO wo
+                WHERE wo.RentalContractNo IS NOT NULL AND wo.RentalContractNo > 0
+                AND wo.ClosedDate IS NULL  -- Only active work orders
+            ) rental_wo ON (e.SerialNo = rental_wo.SerialNo OR e.UnitNo = rental_wo.UnitNo)
+            -- Get the actual rental customer
+            LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
             WHERE (
                 -- Has rental rates set
                 (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
@@ -7319,8 +7306,63 @@ def register_department_routes(reports_bp):
                 )
             )
             """
-            simple_result = db.execute_query(combined_query)
-            logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
+            
+            # Try the enhanced query, but fall back to simple query if it fails
+            try:
+                simple_result = db.execute_query(combined_query)
+                logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
+            except Exception as query_error:
+                logger.warning(f"Enhanced rental query failed: {str(query_error)}. Falling back to simple query.")
+                # Fallback to simpler query without the WO join
+                fallback_query = """
+                SELECT DISTINCT
+                    e.UnitNo, 
+                    e.SerialNo, 
+                    e.Make, 
+                    e.Model, 
+                    e.Location,
+                    e.CustomerNo,
+                    c.Name as CustomerName,
+                    c.Address as CustomerAddress,
+                    c.City as CustomerCity,
+                    c.State as CustomerState,
+                    c.ZipCode as CustomerZip,
+                    CASE 
+                        WHEN e.RentalStatus = 'Hold' THEN 'Hold'
+                        WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
+                        WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
+                        WHEN e.RentalStatus = 'Available' THEN 'Available'
+                        ELSE 'Available'
+                    END as Status,
+                    e.RentalStatus as OriginalStatus,
+                    e.WebRentalFlag,
+                    e.RentalYTD,
+                    e.RentalITD,
+                    rh_current.DaysRented,
+                    rh_current.RentAmount,
+                    NULL as RentalContractNo
+                FROM ben002.Equipment e
+                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
+                    AND rh_current.Year = YEAR(GETDATE()) 
+                    AND rh_current.Month = MONTH(GETDATE())
+                    AND rh_current.DaysRented > 0
+                    AND rh_current.DeletionTime IS NULL
+                WHERE (
+                    -- Has rental rates set
+                    (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
+                    -- OR has rental status
+                    OR (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
+                    -- OR has rental history
+                    OR EXISTS (
+                        SELECT 1 FROM ben002.RentalHistory rh_any
+                        WHERE rh_any.SerialNo = e.SerialNo 
+                        AND rh_any.DaysRented > 0
+                    )
+                )
+                """
+                simple_result = db.execute_query(fallback_query)
+                logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
             
             # If we found equipment, return it directly for now
             if simple_result and len(simple_result) > 0:
