@@ -7247,7 +7247,7 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # Get ALL rental equipment - expand criteria to match original report
+            # Get ALL rental equipment that has ever had rental activity
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7259,26 +7259,29 @@ def register_department_routes(reports_bp):
                 c.Name as CustomerName,
                 CASE 
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
+                    WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
                     WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
                     WHEN e.RentalStatus = 'Available' THEN 'Available'
-                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 
-                         AND (e.RentalStatus IS NULL OR e.RentalStatus = '') THEN 'On Rent'
                     ELSE 'Available'
                 END as Status,
                 e.RentalStatus as OriginalStatus,
                 e.WebRentalFlag,
                 e.RentalYTD,
                 e.RentalITD,
-                rh.DaysRented,
-                rh.RentAmount
+                rh_current.DaysRented,
+                rh_current.RentAmount
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
-                AND rh.Year = YEAR(GETDATE()) 
-                AND rh.Month = MONTH(GETDATE())
-                AND rh.DeletionTime IS NULL
-            WHERE (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
-                OR (rh.SerialNo IS NOT NULL AND rh.DaysRented > 0)
+            LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
+                AND rh_current.Year = YEAR(GETDATE()) 
+                AND rh_current.Month = MONTH(GETDATE())
+                AND rh_current.DaysRented > 0
+                AND rh_current.DeletionTime IS NULL
+            WHERE EXISTS (
+                SELECT 1 FROM ben002.RentalHistory rh_any
+                WHERE rh_any.SerialNo = e.SerialNo 
+                AND rh_any.DaysRented > 0
+            )
             """
             simple_result = db.execute_query(combined_query)
             logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
