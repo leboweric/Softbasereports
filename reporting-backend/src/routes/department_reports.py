@@ -7247,29 +7247,52 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # SIMPLE TEST - Just get equipment with RentalStatus set
-            simple_test = """
-            SELECT UnitNo, SerialNo, Make, Model, RentalStatus, WebRentalFlag, RentalYTD, RentalITD
-            FROM ben002.Equipment
-            WHERE RentalStatus IS NOT NULL AND RentalStatus != ''
+            # Get equipment with RentalStatus OR currently on rent
+            combined_query = """
+            SELECT DISTINCT
+                e.UnitNo, 
+                e.SerialNo, 
+                e.Make, 
+                e.Model, 
+                e.Location,
+                e.CustomerNo,
+                c.Name as CustomerName,
+                CASE 
+                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 'On Rent'
+                    WHEN e.RentalStatus = 'Hold' THEN 'Hold'
+                    WHEN e.RentalStatus = 'Ready To Rent' THEN 'Ready To Rent'
+                    ELSE COALESCE(e.RentalStatus, 'Available')
+                END as Status,
+                e.RentalStatus as OriginalStatus,
+                rh.DaysRented,
+                rh.RentAmount
+            FROM ben002.Equipment e
+            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                AND rh.Year = YEAR(GETDATE()) 
+                AND rh.Month = MONTH(GETDATE())
+                AND rh.DeletionTime IS NULL
+            WHERE (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
+                OR (rh.SerialNo IS NOT NULL AND rh.DaysRented > 0)
             """
-            simple_result = db.execute_query(simple_test)
-            logger.info(f"Simple rental query found {len(simple_result) if simple_result else 0} records")
+            simple_result = db.execute_query(combined_query)
+            logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
             
             # If we found equipment, return it directly for now
             if simple_result and len(simple_result) > 0:
                 equipment = []
                 for row in simple_result:
+                    status = row.get('Status', '')
                     equipment.append({
                         'make': row.get('Make', ''),
                         'model': row.get('Model', ''),
                         'unitNo': row.get('UnitNo', ''),
                         'serialNo': row.get('SerialNo', ''),
-                        'status': row.get('RentalStatus', ''),
-                        'rentalStatus': row.get('RentalStatus', ''),
-                        'shipTo': '',
+                        'status': status,
+                        'rentalStatus': row.get('OriginalStatus', ''),
+                        'shipTo': row.get('CustomerName', '') if status == 'On Rent' else '',
                         'shipContact': '',
-                        'location': '',
+                        'location': row.get('Location', ''),
                         'dayRate': 0,
                         'weekRate': 0,
                         'monthRate': 0,
@@ -7277,14 +7300,19 @@ def register_department_routes(reports_bp):
                         'cost': 0
                     })
                 
+                total_units = len(equipment)
+                on_rent = sum(1 for e in equipment if e['status'] == 'On Rent')
+                available = sum(1 for e in equipment if 'ready' in e['status'].lower())
+                on_hold = sum(1 for e in equipment if 'hold' in e['status'].lower())
+                
                 return jsonify({
                     'equipment': equipment,
                     'summary': {
-                        'totalUnits': len(equipment),
-                        'availableUnits': sum(1 for e in equipment if 'ready' in e['status'].lower()),
-                        'onRentUnits': 0,
-                        'onHoldUnits': sum(1 for e in equipment if 'hold' in e['status'].lower()),
-                        'utilizationRate': 0
+                        'totalUnits': total_units,
+                        'availableUnits': available,
+                        'onRentUnits': on_rent,
+                        'onHoldUnits': on_hold,
+                        'utilizationRate': round((on_rent / total_units * 100), 1) if total_units > 0 else 0
                     }
                 })
             
