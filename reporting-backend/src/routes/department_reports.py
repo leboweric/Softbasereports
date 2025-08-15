@@ -7497,6 +7497,62 @@ def register_department_routes(reports_bp):
             except Exception as e:
                 debug_info['simplified_query_error'] = str(e)
             
+            # Test 9: Find actual rental equipment
+            try:
+                test9 = """
+                SELECT TOP 10
+                    e.UnitNo,
+                    e.Make,
+                    e.Model,
+                    e.CustomerNo,
+                    e.InventoryDept,
+                    e.RentalStatus,
+                    e.RentalYTD,
+                    e.RentalITD,
+                    rh.DaysRented,
+                    rh.RentAmount
+                FROM ben002.Equipment e
+                LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                    AND rh.Year = YEAR(GETDATE()) 
+                    AND rh.Month = MONTH(GETDATE())
+                    AND rh.DeletionTime IS NULL
+                WHERE rh.SerialNo IS NOT NULL
+                    AND rh.DaysRented > 0
+                """
+                result9 = db.execute_query(test9)
+                debug_info['equipment_with_rental_history'] = result9 if result9 else []
+            except Exception as e:
+                debug_info['rental_history_error'] = str(e)
+            
+            # Test 10: Check what InventoryDept values exist
+            try:
+                test10 = """
+                SELECT InventoryDept, COUNT(*) as count
+                FROM ben002.Equipment
+                WHERE InventoryDept IS NOT NULL
+                GROUP BY InventoryDept
+                ORDER BY count DESC
+                """
+                result10 = db.execute_query(test10)
+                debug_info['inventory_dept_values'] = result10 if result10 else []
+            except Exception as e:
+                debug_info['inventory_dept_error'] = str(e)
+            
+            # Test 11: Find equipment by specific makes that Equipment Report uses
+            try:
+                test11 = """
+                SELECT COUNT(*) as count,
+                    COUNT(CASE WHEN CustomerNo = '900006' THEN 1 END) as with_900006,
+                    COUNT(CASE WHEN InventoryDept = 40 THEN 1 END) as with_dept_40,
+                    COUNT(CASE WHEN RentalStatus IS NOT NULL THEN 1 END) as with_rental_status
+                FROM ben002.Equipment
+                WHERE UPPER(Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
+                """
+                result11 = db.execute_query(test11)
+                debug_info['equipment_by_makes'] = result11[0] if result11 else {}
+            except Exception as e:
+                debug_info['makes_error'] = str(e)
+            
             return jsonify(debug_info)
             
         except Exception as e:
