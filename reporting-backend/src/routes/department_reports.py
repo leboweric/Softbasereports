@@ -7243,9 +7243,22 @@ def register_department_routes(reports_bp):
     def get_rental_availability():
         """Get rental availability report showing all equipment status and customer info"""
         try:
+            logger.info("Starting rental availability report")
             db = get_db()
             
+            # First, let's check what rental statuses exist
+            status_check = """
+            SELECT DISTINCT RentalStatus, COUNT(*) as count
+            FROM ben002.Equipment
+            WHERE Make IS NOT NULL AND Make != ''
+            GROUP BY RentalStatus
+            ORDER BY count DESC
+            """
+            status_results = db.execute_query(status_check)
+            logger.info(f"Rental statuses found: {status_results}")
+            
             # Query to get all rental equipment with availability status
+            # Looking for rental equipment (likely identified by having rental rates)
             query = """
             SELECT 
                 e.Make,
@@ -7255,20 +7268,25 @@ def register_department_routes(reports_bp):
                 e.RentalStatus,
                 -- Determine if unit is available or on rent
                 CASE 
-                    WHEN e.RentalStatus IN ('Ready To Rent', 'Available') THEN 'Available'
-                    WHEN e.RentalStatus = 'On Rent' THEN 'On Rent'
-                    WHEN e.RentalStatus = 'On Hold' THEN 'On Hold'
+                    WHEN e.RentalStatus IN ('Ready To Rent', 'Available', 'A') THEN 'Available'
+                    WHEN e.RentalStatus IN ('On Rent', 'R', 'Rented') THEN 'On Rent'
+                    WHEN e.RentalStatus IN ('On Hold', 'H', 'Hold') THEN 'On Hold'
+                    WHEN e.RentalStatus IS NULL OR e.RentalStatus = '' THEN 
+                        CASE 
+                            WHEN e.CustomerNo IS NOT NULL AND e.CustomerNo != '' THEN 'On Rent'
+                            ELSE 'Available'
+                        END
                     ELSE 'Other'
                 END as Status,
-                -- Get customer info if on rent
+                -- Get customer info if unit has a customer assigned
                 CASE 
-                    WHEN e.CustomerNo IS NOT NULL AND e.CustomerNo != '' AND e.CustomerNo != '900006'
+                    WHEN e.CustomerNo IS NOT NULL AND e.CustomerNo != ''
                     THEN c.Name 
                     ELSE NULL 
                 END as ShipTo,
                 -- Get customer contact info
                 CASE 
-                    WHEN e.CustomerNo IS NOT NULL AND e.CustomerNo != '' AND e.CustomerNo != '900006'
+                    WHEN e.CustomerNo IS NOT NULL AND e.CustomerNo != ''
                     THEN COALESCE(c.Contact, c.Phone1, '')
                     ELSE NULL 
                 END as ShipContact,
@@ -7283,12 +7301,16 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
             WHERE e.Make IS NOT NULL 
                 AND e.Make != ''
-                AND e.CustomerNo = '900006'  -- Fleet owned units
+                -- Only include equipment that has rental rates (indicates it's rental equipment)
+                AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0 
+                     OR e.RentalStatus IS NOT NULL)
             ORDER BY 
                 CASE 
-                    WHEN e.RentalStatus = 'On Rent' THEN 1
-                    WHEN e.RentalStatus IN ('Ready To Rent', 'Available') THEN 2
-                    WHEN e.RentalStatus = 'On Hold' THEN 3
+                    WHEN e.RentalStatus IN ('On Rent', 'R', 'Rented') OR 
+                         (e.CustomerNo IS NOT NULL AND e.CustomerNo != '') THEN 1
+                    WHEN e.RentalStatus IN ('Ready To Rent', 'Available', 'A') OR 
+                         (e.CustomerNo IS NULL OR e.CustomerNo = '') THEN 2
+                    WHEN e.RentalStatus IN ('On Hold', 'H', 'Hold') THEN 3
                     ELSE 4
                 END,
                 e.Make,
@@ -7296,22 +7318,32 @@ def register_department_routes(reports_bp):
                 e.UnitNo
             """
             
+            logger.info("Executing main equipment query")
             results = db.execute_query(query)
+            logger.info(f"Found {len(results) if results else 0} equipment records")
             
             # Get summary counts
             summary_query = """
             SELECT 
                 COUNT(*) as total_units,
-                COUNT(CASE WHEN RentalStatus IN ('Ready To Rent', 'Available') THEN 1 END) as available_units,
-                COUNT(CASE WHEN RentalStatus = 'On Rent' THEN 1 END) as on_rent_units,
-                COUNT(CASE WHEN RentalStatus = 'On Hold' THEN 1 END) as on_hold_units,
-                COUNT(CASE WHEN RentalStatus NOT IN ('Ready To Rent', 'Available', 'On Rent', 'On Hold') THEN 1 END) as other_status_units
+                COUNT(CASE WHEN RentalStatus IN ('Ready To Rent', 'Available', 'A') 
+                          OR (RentalStatus IS NULL AND (CustomerNo IS NULL OR CustomerNo = '')) 
+                      THEN 1 END) as available_units,
+                COUNT(CASE WHEN RentalStatus IN ('On Rent', 'R', 'Rented') 
+                          OR (CustomerNo IS NOT NULL AND CustomerNo != '') 
+                      THEN 1 END) as on_rent_units,
+                COUNT(CASE WHEN RentalStatus IN ('On Hold', 'H', 'Hold') THEN 1 END) as on_hold_units,
+                COUNT(CASE WHEN RentalStatus NOT IN ('Ready To Rent', 'Available', 'A', 'On Rent', 'R', 'Rented', 'On Hold', 'H', 'Hold') 
+                          AND RentalStatus IS NOT NULL 
+                      THEN 1 END) as other_status_units
             FROM ben002.Equipment
             WHERE Make IS NOT NULL 
                 AND Make != ''
-                AND CustomerNo = '900006'  -- Fleet owned units
+                AND (DayRent > 0 OR WeekRent > 0 OR MonthRent > 0 
+                     OR RentalStatus IS NOT NULL)
             """
             
+            logger.info("Executing summary query")
             summary_result = db.execute_query(summary_query)
             
             # Parse results
@@ -7356,12 +7388,15 @@ def register_department_routes(reports_bp):
                 if summary['totalUnits'] > 0:
                     summary['utilizationRate'] = round((summary['onRentUnits'] / summary['totalUnits']) * 100, 1)
             
+            logger.info(f"Returning {len(equipment)} equipment records with summary: {summary}")
+            
             return jsonify({
                 'equipment': equipment,
                 'summary': summary
             })
             
         except Exception as e:
+            logger.error(f"Error in rental availability report: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
 
 
