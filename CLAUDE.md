@@ -3,6 +3,58 @@
 ## IMPORTANT: Git Workflow
 **ALWAYS push changes to git after completing any code modifications.** Do not wait for explicit instructions to push. Auto-commit and push all changes immediately after implementation.
 
+## CRITICAL: JSX Syntax Rules
+1. **Never use `>` character directly in JSX text content** - Always escape it as `&gt;`
+   - Wrong: `<p>>3 days</p>`
+   - Correct: `<p>&gt;3 days</p>`
+2. **Ensure all JSX tags are properly balanced** - Match opening and closing tags exactly
+3. **When copying code between components, verify the data structure matches** - API responses may have different shapes
+
+## Work Order Lookup Tool Implementation (2025-08-15)
+
+**Important Discovery**: The Work Order Detail Lookup tool uses a specific data structure from the API endpoint `/api/reports/departments/rental/wo-detail/{woNumber}`. This endpoint works for ALL work order types (Service, Rental, Parts, etc.).
+
+**Data Structure**:
+```javascript
+woDetail = {
+  workOrder: {
+    number: "S123456",
+    billTo: "12345",
+    customerName: "Customer Name",
+    unitNo: "U123",
+    make: "CAT",
+    model: "D6",
+    saleCode: "SVE"
+  },
+  labor: {
+    details: [...],      // Array of labor line items
+    quoteItems: [...],   // Array of flat rate labor from quotes
+    costTotal: 1234.56,
+    sellTotal: 2345.67
+  },
+  parts: {
+    details: [...],      // Array of parts with ExtendedSell calculated
+    sellTotal: 3456.78
+  },
+  misc: {
+    details: [...],      // Array of misc charges
+    costTotal: 456.78,
+    sellTotal: 567.89
+  },
+  totals: {
+    totalCost: 5678.90,
+    totalSell: 6789.01
+  },
+  invoice: [...]         // Array of associated invoices if any
+}
+```
+
+**Key Learning**: When copying working implementations between components, always verify that:
+1. The data structure access patterns match (e.g., `woDetail.workOrder.number` not `woDetail.header.WONo`)
+2. The same endpoint is being used
+3. All required state variables are defined
+4. The formatCurrency function is available
+
 ## Sales Commission Report - Unassigned Invoices (2025-08-05)
 
 ### Current Status:
