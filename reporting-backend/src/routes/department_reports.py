@@ -7290,6 +7290,15 @@ def register_department_routes(reports_bp):
                 OR e.RentalITD > 0
                 -- Has rental history ever
                 OR EXISTS (SELECT 1 FROM ben002.RentalHistory rh2 WHERE rh2.SerialNo = e.SerialNo)
+            ORDER BY 
+                CASE 
+                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 2  -- On Rent second
+                    WHEN e.RentalStatus = 'Hold' THEN 3  -- Hold last
+                    ELSE 1  -- Available first
+                END,
+                e.Make,
+                e.Model,
+                e.UnitNo
             """
             simple_result = db.execute_query(combined_query)
             logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
@@ -7316,18 +7325,6 @@ def register_department_routes(reports_bp):
                         'modelYear': '',
                         'cost': 0
                     })
-                
-                # Sort equipment: Available first, then On Rent, then Hold
-                def sort_key(item):
-                    status = item['status'].lower()
-                    if status == 'available':
-                        return (1, item['make'], item['model'], item['unitNo'])
-                    elif status == 'on rent':
-                        return (2, item['make'], item['model'], item['unitNo'])
-                    else:  # hold
-                        return (3, item['make'], item['model'], item['unitNo'])
-                
-                equipment.sort(key=sort_key)
                 
                 total_units = len(equipment)
                 on_rent = sum(1 for e in equipment if e['status'] == 'On Rent')
