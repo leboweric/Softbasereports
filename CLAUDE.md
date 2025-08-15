@@ -554,41 +554,52 @@ Created comprehensive parts inventory management system with multiple reports.
 - Default "Include Current Month" unchecked on Dashboard
 - Added percentage of total sales to Top 10 Customers
 
-## Rental Availability - Ship To Customer Issue (2025-08-15)
+## Rental Availability - Ship To Customer Issue (SOLVED 2025-08-15)
 
-**CRITICAL: THE COMPETING PRODUCT SUCCESSFULLY SHOWS SHIP TO CUSTOMERS**
-- This proves the data EXISTS in the database
-- We need to find the correct way to access it
-- Stop assuming it's a data issue - it's our query that needs fixing
+**CRITICAL LEARNING: Always trust that competing products work - the data IS there!**
+- The competing product showed correct customers, proving the data existed
+- We initially blamed "missing data" but the real issue was not finding the right table/join
+- Lesson: If another product can do it, we can too - keep searching!
 
-**Current Status**: The rental availability report shows "RENTAL FLEET - EXPENSE" for on-rent equipment instead of the actual customer. Competing products show the correct Ship To customer.
+**SOLUTION FOUND: WORental + WO Tables Have the Customer Data!**
 
-**Discoveries So Far**:
-- **RentalContract table has NO CustomerNo field** 
-- **WO table has RentalContractNo field** but it's often NULL
-- The theoretical linkage path would be: RentalContract → WO (via RentalContractNo) → Customer (via BillTo)
-- But WO.RentalContractNo is not populated for most/all rental work orders
+The rental customer information is stored in:
+1. **WORental table** - Contains SerialNo, UnitNo, and WONo for rental equipment
+2. **WO table** - Work orders with Type='R' (Rental) that have:
+   - RentalContractNo populated (for rental work orders)
+   - BillTo field with the actual customer number
+   - These WOs link to Customer table for customer names
 
-**What We Know**:
-- Equipment.CustomerNo points to internal account "900006" (RENTAL FLEET)
-- Equipment marked as rented (via RentalHistory with DaysRented > 0)
-- RentalContracts exist (316) but don't directly link to customers
-- Rental Work Orders exist (1,657) but RentalContractNo field is NULL
-- **The competing product finds the customer, so the data MUST be there**
+**The Working Query Path**:
+```
+Equipment → WORental (via SerialNo/UnitNo) → WO (via WONo) → Customer (via BillTo)
+```
 
-**Possible Places We Haven't Looked**:
-1. A view that joins the data (check all views with "Rental" in name)
-2. A different field in WO table that links to rentals
-3. A junction table we haven't discovered
-4. The WORental table might have additional linkage
-5. Invoice tables might have the rental customer info
-6. There might be a "current customer" field we're missing
+**Key Discovery Process**:
+1. Initially thought RentalContract → WO → Customer would work
+2. Found RentalContract has no CustomerNo field
+3. Found WO.RentalContractNo exists but wasn't always populated
+4. Diagnostic revealed WORental records DO link to WOs with RentalContractNo
+5. These Type='R' work orders have the actual customer in BillTo field
 
-**DO NOT ASSUME**:
-- Do not assume the data is missing
-- Do not assume it's a Softbase data issue
-- The competing product proves the data exists
-- We need to find the right query/join/table
+**Actual Customer Examples Found**:
+- Unit 12330 → BETHANY PRESS (not RENTAL FLEET)
+- Unit 12446C → ALEXANDRIA PRECISION MACHINING
+- Unit 13136C → TRADEMARK TRANSPORTATION
+- Unit 13400C2R → WINNESOTA
+- Unit 14909 → TWIN CITY DIE
+
+**Implementation**:
+- Query the most recent rental WO for each equipment from WORental
+- Join to WO table to get BillTo (customer number)
+- Join to Customer table to get customer name
+- Falls back to Equipment.CustomerNo if no rental WO found
+
+**Lessons Learned**:
+1. Don't assume data is missing - it's likely in an unexpected place
+2. WORental table is crucial for rental customer linkage
+3. Type='R' work orders are specifically for rentals
+4. The competing product's success proves the data exists - keep searching!
 
 ## Control Number Field Discovery (2025-08-15)
 
