@@ -7248,6 +7248,7 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get ALL rental equipment - include those with rental rates, rental status, or rental history
+            # For on-rent equipment, try to get customer from active rental work order
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7256,11 +7257,11 @@ def register_department_routes(reports_bp):
                 e.Model, 
                 e.Location,
                 e.CustomerNo,
-                c.Name as CustomerName,
-                c.Address as CustomerAddress,
-                c.City as CustomerCity,
-                c.State as CustomerState,
-                c.ZipCode as CustomerZip,
+                COALESCE(wo_cust.Name, c.Name) as CustomerName,
+                COALESCE(wo_cust.Address, c.Address) as CustomerAddress,
+                COALESCE(wo_cust.City, c.City) as CustomerCity,
+                COALESCE(wo_cust.State, c.State) as CustomerState,
+                COALESCE(wo_cust.ZipCode, c.ZipCode) as CustomerZip,
                 CASE 
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
@@ -7276,6 +7277,14 @@ def register_department_routes(reports_bp):
                 rh_current.RentAmount
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            -- Try to find active rental work order to get actual rental customer
+            LEFT JOIN (
+                SELECT UnitNo, BillTo, ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY OpenDate DESC) as rn
+                FROM ben002.WO 
+                WHERE Type = 'R' AND ClosedDate IS NULL
+            ) wo ON e.UnitNo = wo.UnitNo AND wo.rn = 1
+            LEFT JOIN ben002.Customer wo_cust ON wo.BillTo = wo_cust.Number
+            -- Current month rental history
             LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
                 AND rh_current.Year = YEAR(GETDATE()) 
                 AND rh_current.Month = MONTH(GETDATE())
