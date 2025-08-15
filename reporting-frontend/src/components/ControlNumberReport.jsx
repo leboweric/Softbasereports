@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { apiUrl } from '@/lib/api'
 import { Download, AlertCircle, CheckCircle, XCircle, Hash, RefreshCw } from 'lucide-react'
+import * as XLSX from 'xlsx'
 
 const ControlNumberReport = () => {
   const [loading, setLoading] = useState(true)
@@ -47,52 +48,69 @@ const ControlNumberReport = () => {
     }
   }
 
-  const exportToCSV = () => {
+  const exportToExcel = () => {
     if (!mappingData?.equipment) return
 
-    const headers = [
-      'Control Number', 'Serial Number', 'Unit Number', 'Make', 'Model',
-      'Customer Name', 'Location', 'Cost', 'Status', 'In GL', 'Last WO', 'Last Invoice'
+    // Prepare data for Excel
+    const worksheetData = filteredEquipment.map(item => ({
+      'Control Number': item.control_number === 'NOT ASSIGNED' ? '' : item.control_number,
+      'Serial Number': item.serial_number,
+      'Unit Number': item.unit_number,
+      'Make': item.make,
+      'Model': item.model,
+      'Customer Name': item.customer_name || '',
+      'Location': item.location || '',
+      'Cost': item.cost,
+      'Status': item.control_status,
+      'In GL': item.in_gl_system,
+      'Last WO': item.last_wo_number || '',
+      'Last Invoice': item.last_invoice_no || ''
+    }))
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.json_to_sheet(worksheetData)
+
+    // Set column widths
+    const colWidths = [
+      { wch: 15 }, // Control Number
+      { wch: 15 }, // Serial Number
+      { wch: 12 }, // Unit Number
+      { wch: 12 }, // Make
+      { wch: 15 }, // Model
+      { wch: 25 }, // Customer Name
+      { wch: 15 }, // Location
+      { wch: 10 }, // Cost
+      { wch: 12 }, // Status
+      { wch: 8 },  // In GL
+      { wch: 12 }, // Last WO
+      { wch: 12 }  // Last Invoice
     ]
-    
-    const rows = filteredEquipment.map(item => [
-      item.control_number,
-      item.serial_number,
-      item.unit_number,
-      item.make,
-      item.model,
-      item.customer_name || '',
-      item.location || '',
-      item.cost,
-      item.control_status,
-      item.in_gl_system,
-      item.last_wo_number || '',
-      item.last_invoice_no || ''
-    ])
-    
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => {
-        const cellStr = String(cell)
-        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
-          return `"${cellStr.replace(/"/g, '""')}"`
-        }
-        return cellStr
-      }).join(','))
-    ].join('\n')
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    
+    ws['!cols'] = colWidths
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Control Number Mapping')
+
+    // If there's summary data, add a second sheet
+    if (mappingData?.summary) {
+      const summaryData = [
+        ['Summary Statistics'],
+        [],
+        ['Total Equipment', mappingData.summary.total_equipment],
+        ['With Control Numbers', mappingData.summary.with_control_numbers],
+        ['Without Control Numbers', mappingData.summary.without_control_numbers],
+        ['Percentage Assigned', `${mappingData.summary.percentage_assigned}%`],
+        ['With GL Entries', mappingData.summary.with_gl_entries]
+      ]
+      
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData)
+      wsSummary['!cols'] = [{ wch: 25 }, { wch: 15 }]
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary')
+    }
+
+    // Generate and download file
     const today = new Date().toISOString().split('T')[0]
-    link.setAttribute('href', url)
-    link.setAttribute('download', `control_number_mapping_${today}.csv`)
-    link.style.visibility = 'hidden'
-    
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    XLSX.writeFile(wb, `control_number_mapping_${today}.xlsx`)
   }
 
   const filteredEquipment = mappingData?.equipment?.filter(item => {
@@ -209,9 +227,9 @@ const ControlNumberReport = () => {
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Refresh
                   </Button>
-                  <Button variant="outline" onClick={exportToCSV}>
+                  <Button variant="outline" onClick={exportToExcel}>
                     <Download className="h-4 w-4 mr-2" />
-                    Export CSV
+                    Export XLS
                   </Button>
                 </div>
               </div>
@@ -286,7 +304,7 @@ const ControlNumberReport = () => {
               
               {filteredEquipment.length > 100 && (
                 <div className="mt-4 text-sm text-muted-foreground text-center">
-                  Showing first 100 records. Export CSV for complete data.
+                  Showing first 100 records. Export XLS for complete data.
                 </div>
               )}
             </CardContent>
