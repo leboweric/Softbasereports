@@ -1,5 +1,8 @@
 # Softbase Reports Project Context
 
+## IMPORTANT: Git Workflow
+**ALWAYS push changes to git after completing any code modifications.** Do not wait for explicit instructions to push. Auto-commit and push all changes immediately after implementation.
+
 ## Sales Commission Report - Unassigned Invoices (2025-08-05)
 
 ### Current Status:
@@ -454,6 +457,54 @@ Created comprehensive parts inventory management system with multiple reports.
 - Removed low-value Monthly Demand Trend card
 - Default "Include Current Month" unchecked on Dashboard
 - Added percentage of total sales to Top 10 Customers
+
+## Feature Requests
+
+### Work Order Notes Feature (2025-08-15)
+
+**Request**: Service manager requested ability to add editable notes column to the work orders report on the Service department page.
+
+**Challenge**: The Azure SQL database (schema: ben002) is **read-only** - we cannot modify the Softbase database tables.
+
+**Recommended Solution: PostgreSQL on Railway**
+
+Since the backend is already deployed on Railway, the best approach would be:
+
+1. **Add PostgreSQL database to Railway project**
+   - Railway makes this easy with their PostgreSQL addon
+   - Separate database for user-generated content (notes, comments, etc.)
+
+2. **Database Schema**:
+   ```sql
+   CREATE TABLE work_order_notes (
+       id SERIAL PRIMARY KEY,
+       wo_number VARCHAR(50) NOT NULL,
+       note TEXT,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       created_by VARCHAR(100),
+       updated_by VARCHAR(100),
+       INDEX idx_wo_number (wo_number)
+   );
+   ```
+
+3. **Backend Implementation**:
+   - Add PostgreSQL connection alongside existing Azure SQL connection
+   - Create endpoints: `GET /api/work-orders/notes`, `POST /api/work-orders/notes`, `PUT /api/work-orders/notes/:id`
+   - Join notes data with work orders data in the service layer
+
+4. **Frontend Implementation**:
+   - Add editable notes column to work orders table
+   - Inline editing with auto-save on blur
+   - Visual indicator when notes exist
+   - Include notes in CSV export
+
+**Alternative Solutions**:
+- **Local Storage**: Quick but not shared between users/devices
+- **JSON File Storage**: Simple but limited concurrent user support
+- **Cloud Service (Firebase/Supabase)**: More complex setup but real-time sync
+
+**Status**: On hold pending decision on implementation approach
 
 ## Complete Database Schema Documentation
 
