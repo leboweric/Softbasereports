@@ -2525,6 +2525,8 @@ def register_department_routes(reports_bp):
             )
             SELECT 
                 r.*,
+                -- Get actual rental customer name using same approach as Availability Report
+                COALESCE(rental_cust.Name, r.ShipToCustomer) as ActualShipToCustomer,
                 COALESCE(l.LaborCost, 0) as LaborCost,
                 COALESCE(p.PartsCost, 0) as PartsCost,
                 COALESCE(m.MiscCost, 0) as MiscCost,
@@ -2541,6 +2543,21 @@ def register_department_routes(reports_bp):
             LEFT JOIN LaborQuotes lq ON r.WONo = lq.WONo
             LEFT JOIN PartsCosts p ON r.WONo = p.WONo
             LEFT JOIN MiscCosts m ON r.WONo = m.WONo
+            -- Join to find rental customer OUTSIDE the CTE, just like Availability Report
+            LEFT JOIN (
+                SELECT 
+                    wr.SerialNo, 
+                    wr.UnitNo, 
+                    MAX(wo.WONo) as MaxWONo
+                FROM ben002.WORental wr
+                INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                WHERE wo.Type = 'R' 
+                AND wo.RentalContractNo IS NOT NULL 
+                AND wo.RentalContractNo > 0
+                GROUP BY wr.SerialNo, wr.UnitNo
+            ) latest_rental ON (r.SerialNumber = latest_rental.SerialNo OR r.Equipment = latest_rental.UnitNo)
+            LEFT JOIN ben002.WO rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
+            LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
             ORDER BY InvoiceTotal DESC, r.OpenDate DESC
             """
             
@@ -2571,7 +2588,7 @@ def register_department_routes(reports_bp):
                     'woNumber': wo.get('WONo'),
                     'billTo': wo.get('BillTo') or '',
                     'customer': wo.get('CustomerName') or wo.get('BillTo') or 'Unknown',
-                    'shipToCustomer': wo.get('ShipToCustomer') or '',
+                    'shipToCustomer': wo.get('ActualShipToCustomer') or wo.get('ShipToCustomer') or '',
                     'unitNumber': wo.get('Equipment') or '',  # This is UnitNo from the query
                     'serialNumber': wo.get('SerialNumber') or '',
                     'make': wo.get('Make') or '',
