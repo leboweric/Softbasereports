@@ -148,14 +148,14 @@ const PartsInventoryByLocation = () => {
         <CardHeader>
           <CardTitle>Inventory Value by Location</CardTitle>
           <CardDescription>
-            Search for parts inventory value by bin location (e.g., "VAN 50", "SHELF A", etc.)
+            Search for parts inventory value by bin location (e.g., "V50", "SHOP", "WHS1", "NEW", etc.)
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Enter location (e.g., VAN 50)"
+              placeholder="Enter location (e.g., V50, SHOP, WHS1)"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
