@@ -597,6 +597,54 @@ Equipment → WORental (via SerialNo/UnitNo) → WO (via WONo) → Customer (via
 
 **Lessons Learned**:
 1. Don't assume data is missing - it's likely in an unexpected place
+
+## CRITICAL: Query Optimization for CTEs with Complex Joins (2025-08-15)
+
+**PROBLEM**: Service Report was timing out when trying to use the same customer lookup as Availability Report
+
+**ROOT CAUSE**: Placement of joins matters significantly with CTEs!
+- **WRONG**: Putting complex joins INSIDE the CTE (causes joins to execute for every row during CTE processing)
+- **RIGHT**: Putting complex joins OUTSIDE the CTE in the final SELECT (joins only the final result set)
+
+**The Failed Approach** (causes timeout):
+```sql
+WITH RentalWOs AS (
+    SELECT w.*, rental_cust.Name  -- ❌ Joins inside CTE
+    FROM WO w
+    LEFT JOIN (complex subquery) ON ...
+    LEFT JOIN Customer ON ...
+),
+LaborCosts AS (...),
+PartsCosts AS (...)
+SELECT * FROM RentalWOs ...
+```
+
+**The Working Approach** (same as Availability Report):
+```sql
+WITH RentalWOs AS (
+    SELECT w.*  -- ✅ Simple select, no joins
+    FROM WO w
+),
+LaborCosts AS (...),
+PartsCosts AS (...)
+SELECT 
+    r.*,
+    rental_cust.Name  -- ✅ Joins in final SELECT
+FROM RentalWOs r
+LEFT JOIN (complex subquery) ON ...  -- Joins happen AFTER CTEs complete
+LEFT JOIN Customer ON ...
+```
+
+**Key Learning**: When using CTEs for aggregation (like summing costs), keep the CTEs simple and do complex lookups in the final SELECT. This dramatically improves performance because:
+1. CTEs process their data first without complex joins
+2. Complex joins only happen on the final, smaller result set
+3. The database optimizer can better handle the query
+
+**Pattern to Follow**:
+- Use CTEs for filtering and aggregation
+- Keep CTEs simple - avoid complex joins inside them
+- Do customer lookups and complex joins in the final SELECT statement
+- This is exactly how the Availability Report works successfully
 2. WORental table is crucial for rental customer linkage
 3. Type='R' work orders are specifically for rentals
 4. The competing product's success proves the data exists - keep searching!
