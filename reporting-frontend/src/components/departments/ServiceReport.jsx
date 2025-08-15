@@ -196,7 +196,10 @@ const ServiceReport = ({ user, onNavigate }) => {
       
       if (response.ok) {
         const notesData = await response.json()
+        console.log('Fetched notes for work orders:', notesData)
         setNotes(notesData)
+      } else {
+        console.error('Failed to fetch notes:', response.status, response.statusText)
       }
     } catch (error) {
       console.error('Error fetching notes:', error)
@@ -222,6 +225,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       
       if (response.ok) {
         const savedNote = await response.json()
+        console.log('Note saved successfully:', savedNote)
         setNotes(prev => ({
           ...prev,
           [woNumber]: {
@@ -230,6 +234,10 @@ const ServiceReport = ({ user, onNavigate }) => {
             updated_by: savedNote.updated_by
           }
         }))
+      } else {
+        console.error('Failed to save note:', response.status, response.statusText)
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
       }
     } catch (error) {
       console.error('Error saving note:', error)
