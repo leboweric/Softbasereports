@@ -665,21 +665,24 @@ LEFT JOIN Customer ON ...
 
 ## Feature Requests
 
-### Work Order Notes Feature (2025-08-15)
+### Work Order Notes Feature (2025-08-15) - IN PROGRESS
 
 **Request**: Service manager requested ability to add editable notes column to the work orders report on the Service department page.
 
 **Challenge**: The Azure SQL database (schema: ben002) is **read-only** - we cannot modify the Softbase database tables.
 
-**Recommended Solution: PostgreSQL on Railway**
+**Solution Implemented: PostgreSQL on Railway**
 
-Since the backend is already deployed on Railway, the best approach would be:
+**CURRENT STATUS**: Notes feature implemented but not persisting. Debugging connection issues.
 
-1. **Add PostgreSQL database to Railway project**
-   - Railway makes this easy with their PostgreSQL addon
-   - Separate database for user-generated content (notes, comments, etc.)
+**User has PostgreSQL already deployed on Railway**:
+- Connection strings provided by user:
+  - Internal: `postgresql://postgres:ZINQrdsRJEQeYMsLEPazJJbyztwWSMiY@postgres.railway.internal:5432/railway`
+  - External: `postgresql://postgres:ZINQrdsRJEQeYMsLEPazJJbyztwWSMiY@nozomi.proxy.rlwy.net:45435/railway`
 
-2. **Database Schema**:
+**Implementation Completed**:
+
+1. **Database Schema Created**:
    ```sql
    CREATE TABLE work_order_notes (
        id SERIAL PRIMARY KEY,
@@ -688,28 +691,59 @@ Since the backend is already deployed on Railway, the best approach would be:
        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
        created_by VARCHAR(100),
-       updated_by VARCHAR(100),
-       INDEX idx_wo_number (wo_number)
+       updated_by VARCHAR(100)
    );
+   CREATE INDEX idx_wo_number ON work_order_notes(wo_number);
    ```
 
-3. **Backend Implementation**:
-   - Add PostgreSQL connection alongside existing Azure SQL connection
-   - Create endpoints: `GET /api/work-orders/notes`, `POST /api/work-orders/notes`, `PUT /api/work-orders/notes/:id`
-   - Join notes data with work orders data in the service layer
+2. **Backend Files Created**:
+   - `reporting-backend/src/services/postgres_service.py` - PostgreSQL connection pool service
+   - `reporting-backend/src/routes/work_order_notes.py` - CRUD endpoints for notes
+   - `reporting-backend/src/routes/postgres_diagnostic.py` - Diagnostic endpoints for testing connection
+   - Endpoints: 
+     - `GET/POST /api/work-orders/notes`
+     - `GET /api/work-orders/notes/<wo_number>`
+     - `PUT /api/work-orders/notes/<int:note_id>`
+     - `DELETE /api/work-orders/notes/<int:note_id>`
+     - `POST /api/work-orders/notes/batch`
+     - `GET /api/postgres/diagnostic` - Test connection
+     - `POST /api/postgres/force-create-tables` - Force create tables
 
-4. **Frontend Implementation**:
-   - Add editable notes column to work orders table
-   - Inline editing with auto-save on blur
-   - Visual indicator when notes exist
-   - Include notes in CSV export
+3. **Frontend Implementation**:
+   - Modified `reporting-frontend/src/components/departments/ServiceReport.jsx`
+   - Added Notes column to Work Orders table (far right)
+   - Auto-save with 1-second debounce after typing stops
+   - Notes included in CSV export
+   - Removed Type and Technician columns for better UX
+   - Added `PostgresTest` component with Test Connection button for debugging
 
-**Alternative Solutions**:
-- **Local Storage**: Quick but not shared between users/devices
-- **JSON File Storage**: Simple but limited concurrent user support
-- **Cloud Service (Firebase/Supabase)**: More complex setup but real-time sync
+4. **Known Issues Being Debugged**:
+   - **Main Issue**: Notes appear to save but don't persist when navigating away
+   - Console error: "Failed to fetch" when trying to save notes
+   - User confirmed PostgreSQL table exists but notes aren't being saved
+   - **Port Issue Fixed**: Vite proxy was pointing to port 5000, backend runs on 5001
+   - **Production Crash Fixed**: Missing postgres_diagnostic import caused crash
 
-**Status**: On hold pending decision on implementation approach
+5. **Debugging Steps Taken**:
+   - Created PostgresTest component with "Test Connection" button
+   - Added diagnostic endpoints to verify PostgreSQL connection
+   - Fixed Vite proxy configuration (port 5000 → 5001)
+   - Restored diagnostic endpoints after accidentally removing them
+
+**Files Modified**:
+- `reporting-backend/src/main.py` - Added blueprint registrations
+- `reporting-backend/src/services/postgres_service.py` - PostgreSQL connection service
+- `reporting-backend/src/routes/work_order_notes.py` - Notes CRUD endpoints
+- `reporting-backend/src/routes/postgres_diagnostic.py` - Diagnostic endpoints
+- `reporting-frontend/src/components/departments/ServiceReport.jsx` - Added notes column
+- `reporting-frontend/src/components/PostgresTest.jsx` - Test connection component
+- `reporting-frontend/vite.config.js` - Fixed proxy port (5000 → 5001)
+
+**Next Steps**:
+1. User needs to click "Test Connection" to see diagnostic info
+2. May need to click "Force Create Tables" if table doesn't exist
+3. Verify environment variables are set in Railway
+4. Test notes persistence after confirming connection
 
 ## Complete Database Schema Documentation
 
