@@ -290,14 +290,12 @@ const ServiceReport = ({ user, onNavigate }) => {
   const exportToCSV = () => {
     if (!awaitingInvoiceDetails) return
     
-    const headers = ['WO#', 'Type', 'Customer', 'Unit', 'Make/Model', 'Technician', 'Completed', 'Days Waiting', 'Labor', 'Parts', 'Misc', 'Total', 'Notes']
+    const headers = ['WO#', 'Customer', 'Unit', 'Make/Model', 'Completed', 'Days Waiting', 'Labor', 'Parts', 'Misc', 'Total', 'Notes']
     const rows = awaitingInvoiceDetails.work_orders.map(wo => [
       wo.wo_number,
-      wo.type,
       wo.customer_name,
       wo.unit_no || '',
       wo.make && wo.model ? `${wo.make} ${wo.model}` : '',
-      wo.technician || '',
       wo.completed_date,
       wo.days_waiting,
       wo.labor_total.toFixed(2),
@@ -704,11 +702,9 @@ const ServiceReport = ({ user, onNavigate }) => {
                       <TableHeader>
                         <TableRow>
                           <TableHead>WO#</TableHead>
-                          <TableHead>Type</TableHead>
                           <TableHead>Customer</TableHead>
                           <TableHead>Unit</TableHead>
                           <TableHead>Make/Model</TableHead>
-                          <TableHead>Technician</TableHead>
                           <TableHead>Completed</TableHead>
                           <TableHead className="text-center">Days</TableHead>
                           <TableHead className="text-right">Labor</TableHead>
@@ -725,11 +721,6 @@ const ServiceReport = ({ user, onNavigate }) => {
                             className={wo.days_waiting > 7 ? 'bg-red-50' : wo.days_waiting > 3 ? 'bg-orange-50' : ''}
                           >
                             <TableCell className="font-medium">{wo.wo_number}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">
-                                {wo.type}
-                              </Badge>
-                            </TableCell>
                             <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
                               {wo.customer_name}
                             </TableCell>
@@ -737,7 +728,6 @@ const ServiceReport = ({ user, onNavigate }) => {
                             <TableCell className="max-w-[150px] truncate" title={wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}>
                               {wo.make && wo.model ? `${wo.make} ${wo.model}` : '-'}
                             </TableCell>
-                            <TableCell>{wo.technician || '-'}</TableCell>
                             <TableCell>{wo.completed_date}</TableCell>
                             <TableCell className="text-center">
                               <Badge 
