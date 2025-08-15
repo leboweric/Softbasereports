@@ -8,6 +8,25 @@ logger = logging.getLogger(__name__)
 
 notes_bp = Blueprint('notes', __name__)
 
+@notes_bp.route('/test', methods=['GET'])
+@jwt_required()
+def test_connection():
+    """Test if database connection is working"""
+    try:
+        db = get_postgres_db()
+        if not db:
+            return jsonify({'error': 'No database connection'}), 500
+        
+        # Try a simple query
+        result = db.execute_query("SELECT 1 as test")
+        if result:
+            return jsonify({'success': True, 'message': 'Database connection working'}), 200
+        else:
+            return jsonify({'error': 'Query failed'}), 500
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+
 @notes_bp.route('/notes', methods=['GET'])
 @jwt_required()
 def get_notes():
@@ -133,7 +152,10 @@ def create_or_update_note():
             
     except Exception as e:
         logger.error(f"Error creating/updating note: {str(e)}")
-        return jsonify({'error': 'Failed to save note'}), 500
+        logger.error(f"Full error details: {repr(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to save note: {str(e)}'}), 500
 
 @notes_bp.route('/notes/<int:note_id>', methods=['PUT'])
 @jwt_required()
@@ -222,4 +244,7 @@ def get_notes_batch():
         
     except Exception as e:
         logger.error(f"Error fetching batch notes: {str(e)}")
-        return jsonify({'error': 'Failed to fetch notes'}), 500
+        logger.error(f"Full error details: {repr(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to fetch notes: {str(e)}'}), 500

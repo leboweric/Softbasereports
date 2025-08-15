@@ -717,12 +717,12 @@ LEFT JOIN Customer ON ...
    - Removed Type and Technician columns for better UX
    - Added `PostgresTest` component with Test Connection button for debugging
 
-4. **Known Issues Being Debugged**:
-   - **Main Issue**: Notes appear to save but don't persist when navigating away
-   - Console error: "Failed to fetch" when trying to save notes
-   - User confirmed PostgreSQL table exists but notes aren't being saved
-   - **Port Issue Fixed**: Vite proxy was pointing to port 5000, backend runs on 5001
-   - **Production Crash Fixed**: Missing postgres_diagnostic import caused crash
+4. **Known Issues FIXED**:
+   - ✅ **Port Issue**: Vite proxy was pointing to port 5000, backend runs on 5001
+   - ✅ **Production Crash**: Missing postgres_diagnostic import caused crash
+   - ✅ **Type Mismatch Error**: wo_number is VARCHAR in PostgreSQL but we were sending integers
+     - Error: "operator does not exist: character varying = integer"
+     - Solution: Convert work order numbers to strings before sending: `String(woNumber)`
 
 5. **Debugging Steps Taken**:
    - Created PostgresTest component with "Test Connection" button

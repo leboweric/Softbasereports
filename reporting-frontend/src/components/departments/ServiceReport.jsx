@@ -191,7 +191,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ wo_numbers: woNumbers })
+        body: JSON.stringify({ wo_numbers: woNumbers.map(String) })
       })
       
       if (response.ok) {
@@ -218,7 +218,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          wo_number: woNumber,
+          wo_number: String(woNumber),
           note: noteText
         })
       })
