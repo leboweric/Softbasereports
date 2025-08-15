@@ -546,18 +546,24 @@ Created comprehensive parts inventory management system with multiple reports.
 
 **Current Status**: The rental availability report shows "RENTAL FLEET - EXPENSE" for on-rent equipment instead of the actual customer.
 
-**Problem**: Equipment.CustomerNo appears to point to an internal account ("RENTAL FLEET") rather than the actual rental customer.
+**Problem Discovered Through Research**:
+- Equipment.CustomerNo points to internal account "900006" (RENTAL FLEET)
+- Equipment marked as rented (via RentalHistory with DaysRented > 0)
+- RentalContracts exist (316) but don't link to the rented equipment
+- Rental Work Orders exist (1,657) but many have NULL UnitNo - not linked to equipment
+- No proper linkage between Equipment → RentalContract or Equipment → WO with UnitNo
 
-**Research in Progress**:
-- Investigating RentalContract table for CustomerNo field
-- Checking WO (Work Orders) table for Type='R' with ShipTo field
-- Looking for WORental table that might link contracts to work orders
-- Tracing equipment through the system to find actual rental customer
+**Root Cause**: Equipment is being rented WITHOUT proper data relationships:
+- RentalHistory shows equipment is rented (DaysRented = 31)
+- But no RentalContract found for that SerialNo
+- Work Orders for rentals don't have UnitNo populated
 
-**Potential Solutions Being Investigated**:
-1. Use RentalContract.CustomerNo for active contracts
-2. Use WO.ShipTo for rental work orders (Type='R')
-3. Find relationship between Equipment and actual rental customer
+**Recommended Solution**: Multi-source customer lookup in priority order:
+1. RentalContract.CustomerNo (if active contract exists for SerialNo)
+2. Work Order ShipTo (if rental WO exists with matching UnitNo)
+3. Work Order BillTo (fallback if no ShipTo)
+4. Recent Invoice customer (if ControlNo matches)
+5. Equipment.CustomerNo (last resort, even if RENTAL FLEET)
 
 ## Control Number Field Discovery (2025-08-15)
 
