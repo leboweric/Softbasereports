@@ -347,80 +347,110 @@ const RentalAvailability = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-100 transition-colors select-none"
                     onClick={() => handleSort('make')}
                   >
-                    <div className="flex items-center">
-                      Make
-                      {sortColumn === 'make' && (
+                    <div className="flex items-center gap-1 group">
+                      <span className="group-hover:text-blue-600">Make</span>
+                      {sortColumn === 'make' ? (
                         sortDirection === 'asc' ? 
-                        <ChevronUp className="ml-1 h-4 w-4" /> : 
-                        <ChevronDown className="ml-1 h-4 w-4" />
+                        <ChevronUp className="h-4 w-4 text-blue-600" /> : 
+                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <div className="flex flex-col opacity-40 group-hover:opacity-100">
+                          <ChevronUp className="h-3 w-3 -mb-1" />
+                          <ChevronDown className="h-3 w-3" />
+                        </div>
                       )}
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-100 transition-colors select-none"
                     onClick={() => handleSort('model')}
                   >
-                    <div className="flex items-center">
-                      Model
-                      {sortColumn === 'model' && (
+                    <div className="flex items-center gap-1 group">
+                      <span className="group-hover:text-blue-600">Model</span>
+                      {sortColumn === 'model' ? (
                         sortDirection === 'asc' ? 
-                        <ChevronUp className="ml-1 h-4 w-4" /> : 
-                        <ChevronDown className="ml-1 h-4 w-4" />
+                        <ChevronUp className="h-4 w-4 text-blue-600" /> : 
+                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <div className="flex flex-col opacity-40 group-hover:opacity-100">
+                          <ChevronUp className="h-3 w-3 -mb-1" />
+                          <ChevronDown className="h-3 w-3" />
+                        </div>
                       )}
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-100 transition-colors select-none"
                     onClick={() => handleSort('unitNo')}
                   >
-                    <div className="flex items-center">
-                      Unit Number
-                      {sortColumn === 'unitNo' && (
+                    <div className="flex items-center gap-1 group">
+                      <span className="group-hover:text-blue-600">Unit Number</span>
+                      {sortColumn === 'unitNo' ? (
                         sortDirection === 'asc' ? 
-                        <ChevronUp className="ml-1 h-4 w-4" /> : 
-                        <ChevronDown className="ml-1 h-4 w-4" />
+                        <ChevronUp className="h-4 w-4 text-blue-600" /> : 
+                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <div className="flex flex-col opacity-40 group-hover:opacity-100">
+                          <ChevronUp className="h-3 w-3 -mb-1" />
+                          <ChevronDown className="h-3 w-3" />
+                        </div>
                       )}
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-100 transition-colors select-none"
                     onClick={() => handleSort('serialNo')}
                   >
-                    <div className="flex items-center">
-                      Serial Number
-                      {sortColumn === 'serialNo' && (
+                    <div className="flex items-center gap-1 group">
+                      <span className="group-hover:text-blue-600">Serial Number</span>
+                      {sortColumn === 'serialNo' ? (
                         sortDirection === 'asc' ? 
-                        <ChevronUp className="ml-1 h-4 w-4" /> : 
-                        <ChevronDown className="ml-1 h-4 w-4" />
+                        <ChevronUp className="h-4 w-4 text-blue-600" /> : 
+                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <div className="flex flex-col opacity-40 group-hover:opacity-100">
+                          <ChevronUp className="h-3 w-3 -mb-1" />
+                          <ChevronDown className="h-3 w-3" />
+                        </div>
                       )}
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-100 transition-colors select-none"
                     onClick={() => handleSort('status')}
                   >
-                    <div className="flex items-center">
-                      Status
-                      {sortColumn === 'status' && (
+                    <div className="flex items-center gap-1 group">
+                      <span className="group-hover:text-blue-600">Status</span>
+                      {sortColumn === 'status' ? (
                         sortDirection === 'asc' ? 
-                        <ChevronUp className="ml-1 h-4 w-4" /> : 
-                        <ChevronDown className="ml-1 h-4 w-4" />
+                        <ChevronUp className="h-4 w-4 text-blue-600" /> : 
+                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <div className="flex flex-col opacity-40 group-hover:opacity-100">
+                          <ChevronUp className="h-3 w-3 -mb-1" />
+                          <ChevronDown className="h-3 w-3" />
+                        </div>
                       )}
                     </div>
                   </TableHead>
                   <TableHead 
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-100 transition-colors select-none"
                     onClick={() => handleSort('shipAddress')}
                   >
-                    <div className="flex items-center">
-                      Ship To / Customer
-                      {sortColumn === 'shipAddress' && (
+                    <div className="flex items-center gap-1 group">
+                      <span className="group-hover:text-blue-600">Ship To / Customer</span>
+                      {sortColumn === 'shipAddress' ? (
                         sortDirection === 'asc' ? 
-                        <ChevronUp className="ml-1 h-4 w-4" /> : 
-                        <ChevronDown className="ml-1 h-4 w-4" />
+                        <ChevronUp className="h-4 w-4 text-blue-600" /> : 
+                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <div className="flex flex-col opacity-40 group-hover:opacity-100">
+                          <ChevronUp className="h-3 w-3 -mb-1" />
+                          <ChevronDown className="h-3 w-3" />
+                        </div>
                       )}
                     </div>
                   </TableHead>

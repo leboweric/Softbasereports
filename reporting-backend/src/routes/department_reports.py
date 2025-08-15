@@ -2439,7 +2439,8 @@ def register_department_routes(reports_bp):
                     w.WONo,
                     w.BillTo,
                     w.BillTo as CustomerName,
-                    w.ShipTo as ShipToCustomer,
+                    -- Get actual rental customer name
+                    COALESCE(rental_cust.Name, w.ShipTo, 'N/A') as ShipToCustomer,
                     w.UnitNo as Equipment,
                     w.SerialNo as SerialNumber,
                     w.Make,
@@ -2466,6 +2467,19 @@ def register_department_routes(reports_bp):
                     w.SaleCode,
                     w.SaleDept
                 FROM ben002.WO w
+                -- Get rental customer using the same approach as Availability Report
+                LEFT JOIN (
+                    SELECT 
+                        wr.SerialNo, 
+                        wr.UnitNo, 
+                        MAX(wo.WONo) as MaxWONo
+                    FROM ben002.WORental wr
+                    INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                    WHERE wo.Type = 'R' 
+                    GROUP BY wr.SerialNo, wr.UnitNo
+                ) latest_rental ON (w.SerialNo = latest_rental.SerialNo OR w.UnitNo = latest_rental.UnitNo)
+                LEFT JOIN ben002.WO rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
+                LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
                 WHERE w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
                 AND (
