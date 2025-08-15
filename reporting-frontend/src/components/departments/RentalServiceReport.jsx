@@ -110,11 +110,12 @@ const RentalServiceReport = () => {
 
   const exportToCSV = () => {
     // Create CSV headers
-    const headers = ['WO#', 'Ship To Customer', 'Unit Number', 'Make', 'Model', 'Status', 'Date Opened', 'Total Cost']
+    const headers = ['WO#', 'Bill To', 'Ship To Customer', 'Unit Number', 'Make', 'Model', 'Status', 'Date Opened', 'Total Cost']
     
     // Create CSV rows
     const rows = workOrders.map(wo => [
       wo.woNumber,
+      wo.billTo || '',
       wo.shipToCustomer || '',
       wo.unitNumber || '',
       wo.make || '',
@@ -283,6 +284,7 @@ const RentalServiceReport = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>WO#</TableHead>
+                  <TableHead>Bill To</TableHead>
                   <TableHead>Ship To Customer</TableHead>
                   <TableHead>Unit Number</TableHead>
                   <TableHead>Make/Model</TableHead>
@@ -299,6 +301,7 @@ const RentalServiceReport = () => {
                     className={wo.totalCost > 0 ? "bg-red-50" : ""}
                   >
                     <TableCell className="font-medium">{wo.woNumber}</TableCell>
+                    <TableCell>{wo.billTo || 'N/A'}</TableCell>
                     <TableCell>{wo.shipToCustomer || 'N/A'}</TableCell>
                     <TableCell>{wo.unitNumber || 'N/A'}</TableCell>
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
@@ -321,7 +324,7 @@ const RentalServiceReport = () => {
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
-                <TableCell colSpan={7}>Total</TableCell>
+                <TableCell colSpan={8}>Total</TableCell>
                 <TableCell className={`text-right ${(summary?.totalCost || 0) > 0 ? 'text-red-600' : ''}`}>
                   {formatCurrency(summary?.totalCost || 0)}
                 </TableCell>
