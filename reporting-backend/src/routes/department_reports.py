@@ -7247,26 +7247,48 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # First, let's check what rental equipment actually exists
-            test_query = """
-            SELECT COUNT(*) as count, 
-                   COUNT(CASE WHEN RentalStatus = 'Ready To Rent' THEN 1 END) as ready,
-                   COUNT(CASE WHEN RentalStatus = 'Hold' THEN 1 END) as hold,
-                   COUNT(DISTINCT Make) as unique_makes
-            FROM ben002.Equipment 
-            WHERE RentalStatus IS NOT NULL AND RentalStatus != ''
-            """
-            test_result = db.execute_query(test_query)
-            logger.info(f"Rental equipment check: {test_result}")
-            
-            # Check sample of rental equipment
-            sample_query = """
-            SELECT TOP 5 UnitNo, Make, Model, RentalStatus, CustomerNo, InventoryDept
+            # SIMPLE TEST - Just get equipment with RentalStatus set
+            simple_test = """
+            SELECT UnitNo, SerialNo, Make, Model, RentalStatus, WebRentalFlag, RentalYTD, RentalITD
             FROM ben002.Equipment
             WHERE RentalStatus IS NOT NULL AND RentalStatus != ''
             """
-            sample_result = db.execute_query(sample_query)
-            logger.info(f"Sample rental equipment: {sample_result}")
+            simple_result = db.execute_query(simple_test)
+            logger.info(f"Simple rental query found {len(simple_result) if simple_result else 0} records")
+            
+            # If we found equipment, return it directly for now
+            if simple_result and len(simple_result) > 0:
+                equipment = []
+                for row in simple_result:
+                    equipment.append({
+                        'make': row.get('Make', ''),
+                        'model': row.get('Model', ''),
+                        'unitNo': row.get('UnitNo', ''),
+                        'serialNo': row.get('SerialNo', ''),
+                        'status': row.get('RentalStatus', ''),
+                        'rentalStatus': row.get('RentalStatus', ''),
+                        'shipTo': '',
+                        'shipContact': '',
+                        'location': '',
+                        'dayRate': 0,
+                        'weekRate': 0,
+                        'monthRate': 0,
+                        'modelYear': '',
+                        'cost': 0
+                    })
+                
+                return jsonify({
+                    'equipment': equipment,
+                    'summary': {
+                        'totalUnits': len(equipment),
+                        'availableUnits': sum(1 for e in equipment if 'ready' in e['status'].lower()),
+                        'onRentUnits': 0,
+                        'onHoldUnits': sum(1 for e in equipment if 'hold' in e['status'].lower()),
+                        'utilizationRate': 0
+                    }
+                })
+            
+            logger.info("No equipment found with simple query, trying complex query...")
             
             # Use the SAME working query from equipment-report
             query = """
