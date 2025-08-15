@@ -7247,7 +7247,7 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # Get ALL rental equipment that has ever had rental activity
+            # Get ALL rental equipment - include those with rental rates, rental status, or rental history
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7277,10 +7277,17 @@ def register_department_routes(reports_bp):
                 AND rh_current.Month = MONTH(GETDATE())
                 AND rh_current.DaysRented > 0
                 AND rh_current.DeletionTime IS NULL
-            WHERE EXISTS (
-                SELECT 1 FROM ben002.RentalHistory rh_any
-                WHERE rh_any.SerialNo = e.SerialNo 
-                AND rh_any.DaysRented > 0
+            WHERE (
+                -- Has rental rates set
+                (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
+                -- OR has rental status
+                OR (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
+                -- OR has rental history
+                OR EXISTS (
+                    SELECT 1 FROM ben002.RentalHistory rh_any
+                    WHERE rh_any.SerialNo = e.SerialNo 
+                    AND rh_any.DaysRented > 0
+                )
             )
             """
             simple_result = db.execute_query(combined_query)
