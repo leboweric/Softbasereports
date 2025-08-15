@@ -11,7 +11,9 @@ import {
   Download,
   Search,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalAvailabilityDebug from './RentalAvailabilityDebug'
@@ -23,6 +25,8 @@ const RentalAvailability = () => {
   const [summary, setSummary] = useState({})
   const [filterStatus, setFilterStatus] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [sortColumn, setSortColumn] = useState(null)
+  const [sortDirection, setSortDirection] = useState('asc')
 
   useEffect(() => {
     fetchAvailabilityData()
@@ -71,6 +75,15 @@ const RentalAvailability = () => {
     }
   }
 
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
   const getStatusBadge = (status) => {
     switch(status) {
       case 'Available':
@@ -84,23 +97,65 @@ const RentalAvailability = () => {
     }
   }
 
-  const filteredEquipment = equipment.filter(item => {
-    const matchesStatus = filterStatus === 'all' || item.status === filterStatus
-    const matchesSearch = searchTerm === '' || 
-      (item.make && item.make.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.model && item.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.unitNo && item.unitNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.serialNo && item.serialNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.billTo && item.billTo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.shipAddress && item.shipAddress.toLowerCase().includes(searchTerm.toLowerCase()))
-    
-    return matchesStatus && matchesSearch
-  })
+  const filteredAndSortedEquipment = equipment
+    .filter(item => {
+      const matchesStatus = filterStatus === 'all' || item.status === filterStatus
+      const matchesSearch = searchTerm === '' || 
+        (item.make && item.make.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.model && item.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.unitNo && item.unitNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.serialNo && item.serialNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.billTo && item.billTo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.shipAddress && item.shipAddress.toLowerCase().includes(searchTerm.toLowerCase()))
+      
+      return matchesStatus && matchesSearch
+    })
+    .sort((a, b) => {
+      if (!sortColumn) return 0
+      
+      let aValue = ''
+      let bValue = ''
+      
+      switch(sortColumn) {
+        case 'make':
+          aValue = a.make || ''
+          bValue = b.make || ''
+          break
+        case 'model':
+          aValue = a.model || ''
+          bValue = b.model || ''
+          break
+        case 'unitNo':
+          aValue = a.unitNo || ''
+          bValue = b.unitNo || ''
+          break
+        case 'serialNo':
+          aValue = a.serialNo || ''
+          bValue = b.serialNo || ''
+          break
+        case 'status':
+          aValue = a.status || ''
+          bValue = b.status || ''
+          break
+        case 'shipAddress':
+          aValue = a.shipAddress || ''
+          bValue = b.shipAddress || ''
+          break
+        default:
+          return 0
+      }
+      
+      if (sortDirection === 'asc') {
+        return aValue.localeCompare(bValue)
+      } else {
+        return bValue.localeCompare(aValue)
+      }
+    })
 
   const exportToCSV = () => {
     const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To / Customer']
     
-    const rows = filteredEquipment.map(item => [
+    const rows = filteredAndSortedEquipment.map(item => [
       item.make || '',
       item.model || '',
       item.unitNo || '',
@@ -291,16 +346,88 @@ const RentalAvailability = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Make</TableHead>
-                  <TableHead>Model</TableHead>
-                  <TableHead>Unit Number</TableHead>
-                  <TableHead>Serial Number</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Ship To / Customer</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('make')}
+                  >
+                    <div className="flex items-center">
+                      Make
+                      {sortColumn === 'make' && (
+                        sortDirection === 'asc' ? 
+                        <ChevronUp className="ml-1 h-4 w-4" /> : 
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('model')}
+                  >
+                    <div className="flex items-center">
+                      Model
+                      {sortColumn === 'model' && (
+                        sortDirection === 'asc' ? 
+                        <ChevronUp className="ml-1 h-4 w-4" /> : 
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('unitNo')}
+                  >
+                    <div className="flex items-center">
+                      Unit Number
+                      {sortColumn === 'unitNo' && (
+                        sortDirection === 'asc' ? 
+                        <ChevronUp className="ml-1 h-4 w-4" /> : 
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('serialNo')}
+                  >
+                    <div className="flex items-center">
+                      Serial Number
+                      {sortColumn === 'serialNo' && (
+                        sortDirection === 'asc' ? 
+                        <ChevronUp className="ml-1 h-4 w-4" /> : 
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center">
+                      Status
+                      {sortColumn === 'status' && (
+                        sortDirection === 'asc' ? 
+                        <ChevronUp className="ml-1 h-4 w-4" /> : 
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleSort('shipAddress')}
+                  >
+                    <div className="flex items-center">
+                      Ship To / Customer
+                      {sortColumn === 'shipAddress' && (
+                        sortDirection === 'asc' ? 
+                        <ChevronUp className="ml-1 h-4 w-4" /> : 
+                        <ChevronDown className="ml-1 h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEquipment.map((item, idx) => (
+                {filteredAndSortedEquipment.map((item, idx) => (
                   <TableRow key={idx}>
                     <TableCell className="font-medium">{item.make || ''}</TableCell>
                     <TableCell>{item.model || ''}</TableCell>
@@ -310,7 +437,7 @@ const RentalAvailability = () => {
                     <TableCell>{item.shipAddress || '-'}</TableCell>
                   </TableRow>
                 ))}
-                {filteredEquipment.length === 0 && (
+                {filteredAndSortedEquipment.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No equipment found matching your filters
@@ -323,7 +450,7 @@ const RentalAvailability = () => {
           
           {/* Results Summary */}
           <div className="mt-4 text-sm text-muted-foreground">
-            Showing {filteredEquipment.length} of {equipment.length} units
+            Showing {filteredAndSortedEquipment.length} of {equipment.length} units
           </div>
         </CardContent>
       </Card>
