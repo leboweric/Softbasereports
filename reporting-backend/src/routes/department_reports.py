@@ -7246,57 +7246,67 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # Use exact same criteria as equipment-report for consistency
+            # Use EXACT same query as equipment-report but select only needed fields
             query = """
+            WITH RentalEquipment AS (
+                SELECT 
+                    e.UnitNo,
+                    e.SerialNo,
+                    e.Make,
+                    e.Model,
+                    e.ModelYear,
+                    e.RentalStatus,
+                    e.Location,
+                    e.CustomerNo,
+                    c.Name as CurrentCustomer,
+                    COALESCE(c.Contact, c.Phone1, '') as CustomerContact,
+                    -- Check if currently on rent
+                    CASE 
+                        WHEN rh.SerialNo IS NOT NULL THEN 'On Rent'
+                        WHEN e.RentalStatus = 'On Hold' THEN 'On Hold'
+                        WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
+                        ELSE COALESCE(e.RentalStatus, 'Unknown')
+                    END as CurrentStatus,
+                    rh.DaysRented as CurrentMonthDays
+                FROM ben002.Equipment e
+                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                    AND rh.Year = YEAR(GETDATE()) 
+                    AND rh.Month = MONTH(GETDATE())
+                    AND rh.DaysRented > 0
+                    AND rh.DeletionTime IS NULL
+                WHERE (e.CustomerNo = '900006'  -- RENTAL FLEET - EXPENSE
+                    OR e.InventoryDept = 40  -- Rental department
+                    OR e.RentalStatus IS NOT NULL)
+                    AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
+            )
             SELECT 
-                e.Make,
-                e.Model,
-                e.UnitNo,
-                e.SerialNo,
-                e.Location,
-                e.ModelYear,
-                ISNULL(e.Cost, 0) as Cost,
-                -- Determine status based on RentalHistory
+                Make,
+                Model,
+                UnitNo,
+                SerialNo,
+                CurrentStatus as Status,
+                -- Only show customer info if on rent
                 CASE 
-                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 'On Rent'
-                    WHEN e.RentalStatus = 'Hold' THEN 'On Hold'
-                    WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
-                    ELSE 'Available'
-                END as Status,
-                -- Get customer info if on rent
-                CASE 
-                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0
-                    THEN c.Name 
+                    WHEN CurrentStatus = 'On Rent' THEN CurrentCustomer
                     ELSE NULL 
                 END as ShipTo,
                 CASE 
-                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0
-                    THEN COALESCE(c.Contact, c.Phone1, '')
+                    WHEN CurrentStatus = 'On Rent' THEN CustomerContact
                     ELSE NULL 
-                END as ShipContact
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
-                AND rh.Year = YEAR(GETDATE()) 
-                AND rh.Month = MONTH(GETDATE())
-                AND rh.DaysRented > 0
-                AND rh.DeletionTime IS NULL
-            WHERE 
-                -- Use same criteria as equipment-report
-                (e.CustomerNo = '900006'
-                 OR e.InventoryDept = 40
-                 OR e.RentalStatus IS NOT NULL)
-                AND UPPER(e.Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
+                END as ShipContact,
+                Location
+            FROM RentalEquipment
             ORDER BY 
-                CASE 
-                    WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 1
-                    WHEN e.RentalStatus = 'Ready To Rent' THEN 2
-                    WHEN e.RentalStatus = 'Hold' THEN 3
+                CASE CurrentStatus
+                    WHEN 'On Rent' THEN 1
+                    WHEN 'Available' THEN 2
+                    WHEN 'On Hold' THEN 3
                     ELSE 4
                 END,
-                e.Make,
-                e.Model,
-                e.UnitNo
+                Make,
+                Model,
+                UnitNo
             """
             
             logger.info("Executing main equipment query")
