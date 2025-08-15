@@ -7388,25 +7388,12 @@ def register_department_routes(reports_bp):
                 equipment = []
                 for row in simple_result:
                     status = row.get('Status', '')
-                    # Build ship to info - show customer name and address for on rent equipment
+                    # Show just customer name for on rent equipment (no address to avoid cutoff)
                     ship_info = ''
                     if status == 'On Rent':
-                        # Start with customer name
+                        # Just show customer name
                         if row.get('CustomerName'):
                             ship_info = row.get('CustomerName')
-                            # Add address if available
-                            address_parts = []
-                            if row.get('CustomerAddress'):
-                                address_parts.append(row.get('CustomerAddress'))
-                            if row.get('CustomerCity'):
-                                city_state_zip = row.get('CustomerCity')
-                                if row.get('CustomerState'):
-                                    city_state_zip += f", {row.get('CustomerState')}"
-                                if row.get('CustomerZip'):
-                                    city_state_zip += f" {row.get('CustomerZip')}"
-                                address_parts.append(city_state_zip)
-                            if address_parts:
-                                ship_info += ' - ' + ', '.join(address_parts)
                     
                     equipment.append({
                         'make': row.get('Make', ''),
