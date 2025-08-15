@@ -1,7 +1,7 @@
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
-from src.services.database import get_db
+from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
@@ -13,7 +13,7 @@ def get_equipment_identifiers_report():
     """Get report showing all equipment identification fields including potential control numbers"""
     try:
         logger.info("Starting equipment identifiers report")
-        db = get_db()
+        db = AzureSQLService()
         
         # Get all equipment with various identification fields
         # Since we don't know what the control number field is, we'll show all potential fields
@@ -122,7 +122,7 @@ def get_control_serial_link_report():
     """Get report linking rental contract control numbers with equipment serial numbers"""
     try:
         logger.info("Starting control number to serial number link report")
-        db = get_db()
+        db = AzureSQLService()
         
         # Get all rental contracts with their associated equipment
         query = """
@@ -254,7 +254,7 @@ def get_control_serial_link_report():
 def get_control_serial_summary():
     """Get summary statistics for control number to serial number relationships"""
     try:
-        db = get_db()
+        db = AzureSQLService()
         
         # Get summary by customer
         customer_summary_query = """
