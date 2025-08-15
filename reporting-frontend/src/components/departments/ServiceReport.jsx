@@ -680,7 +680,7 @@ const ServiceReport = ({ user, onNavigate }) => {
             </CardContent>
           </Card>
 
-          {/* Work Order Lookup Tool */}
+          {/* Work Order Lookup */}
           <Card>
             <CardHeader>
               <CardTitle>Work Order Detail Lookup</CardTitle>
@@ -692,7 +692,7 @@ const ServiceReport = ({ user, onNavigate }) => {
               <div className="flex gap-2 mb-4">
                 <input
                   type="text"
-                  placeholder="Enter WO# (e.g., S123456)"
+                  placeholder="Enter Work Order Number (e.g. S123456)"
                   value={woLookup}
                   onChange={(e) => setWoLookup(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && lookupWorkOrder()}
@@ -712,180 +712,174 @@ const ServiceReport = ({ user, onNavigate }) => {
                     <div className="text-red-600">{woDetail.error}</div>
                   ) : (
                     <>
-                      {/* Header Info */}
+                      {/* Work Order Header */}
                       <div className="bg-gray-50 p-4 rounded-lg">
-                        <h4 className="font-semibold mb-2">Work Order: {woDetail.header.WONo}</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                          <div>
-                            <span className="text-gray-600">Customer:</span> {woDetail.header.Customer || 'N/A'}
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Unit:</span> {woDetail.header.UnitNo || 'N/A'}
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Status:</span> {woDetail.header.Status || 'Unknown'}
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Open Date:</span> {woDetail.header.OpenDate ? new Date(woDetail.header.OpenDate).toLocaleDateString() : 'N/A'}
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Completed:</span> {woDetail.header.CompletedDate ? new Date(woDetail.header.CompletedDate).toLocaleDateString() : 'Not Completed'}
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Technician:</span> {woDetail.header.Technician || 'N/A'}
-                          </div>
+                        <h4 className="font-semibold mb-2">Work Order: {woDetail.workOrder.number}</h4>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>Bill To: {woDetail.workOrder.billTo} - {woDetail.workOrder.customerName}</div>
+                          <div>Unit: {woDetail.workOrder.unitNo || 'N/A'}</div>
+                          <div>Make/Model: {woDetail.workOrder.make} {woDetail.workOrder.model}</div>
+                          <div>Sale Code: {woDetail.workOrder.saleCode}</div>
                         </div>
                       </div>
 
-                      {/* Labor Details */}
-                      <div>
-                        <h5 className="font-semibold mb-2">Labor Details</h5>
-                        {woDetail.labor.details.length > 0 || woDetail.labor.quoteItems?.length > 0 ? (
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Mechanic</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead className="text-right">Hours</TableHead>
-                                <TableHead className="text-right">Cost</TableHead>
-                                <TableHead className="text-right">Sell</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {woDetail.labor.details.map((item, idx) => (
-                                <TableRow key={idx}>
-                                  <TableCell>{item.MechanicName}</TableCell>
-                                  <TableCell>{item.DateOfLabor ? new Date(item.DateOfLabor).toLocaleDateString() : 'N/A'}</TableCell>
-                                  <TableCell className="text-right">{item.Hours || 0}</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                      {/* Cost Breakdown */}
+                      <div className="space-y-4">
+                        {/* Labor */}
+                        <div>
+                          <h5 className="font-semibold mb-2">Labor Details</h5>
+                          {(woDetail.labor.details.length > 0 || woDetail.labor.quoteItems?.length > 0) ? (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Mechanic</TableHead>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead className="text-right">Hours</TableHead>
+                                  <TableHead className="text-right">Cost</TableHead>
+                                  <TableHead className="text-right">Sell</TableHead>
                                 </TableRow>
-                              ))}
-                              {/* Show flat rate labor from quotes */}
-                              {woDetail.labor.quoteItems?.map((item, idx) => (
-                                <TableRow key={`quote-${idx}`} className="bg-yellow-50">
-                                  <TableCell>Flat Rate Labor</TableCell>
-                                  <TableCell>Quote</TableCell>
-                                  <TableCell className="text-right">-</TableCell>
-                                  <TableCell className="text-right">-</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.Amount || 0)}</TableCell>
+                              </TableHeader>
+                              <TableBody>
+                                {woDetail.labor.details.map((item, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell>{item.MechanicName}</TableCell>
+                                    <TableCell>{item.DateOfLabor ? new Date(item.DateOfLabor).toLocaleDateString() : 'N/A'}</TableCell>
+                                    <TableCell className="text-right">{item.Hours || 0}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                                  </TableRow>
+                                ))}
+                                {/* Show flat rate labor from quotes */}
+                                {woDetail.labor.quoteItems?.map((item, idx) => (
+                                  <TableRow key={`quote-${idx}`} className="bg-yellow-50">
+                                    <TableCell>Flat Rate Labor</TableCell>
+                                    <TableCell>Quote</TableCell>
+                                    <TableCell className="text-right">-</TableCell>
+                                    <TableCell className="text-right">-</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.Amount || 0)}</TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow className="font-semibold">
+                                  <TableCell colSpan={3}>Total Labor</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(woDetail.labor.costTotal)}</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(woDetail.labor.sellTotal)}</TableCell>
                                 </TableRow>
-                              ))}
-                              <TableRow className="font-semibold">
-                                <TableCell colSpan={3}>Total Labor</TableCell>
-                                <TableCell className="text-right">{formatCurrency(woDetail.labor.costTotal)}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(woDetail.labor.sellTotal)}</TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        ) : (
-                          <p className="text-gray-500">No labor charges</p>
-                        )}
-                      </div>
-
-                      {/* Parts */}
-                      <div>
-                        <h5 className="font-semibold mb-2">Parts Details</h5>
-                        {woDetail.parts.details.length > 0 ? (
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Part #</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead className="text-right">Qty</TableHead>
-                                <TableHead className="text-right">Cost Each</TableHead>
-                                <TableHead className="text-right">Sell Each</TableHead>
-                                <TableHead className="text-right">Extended Sell</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {woDetail.parts.details.map((item, idx) => (
-                                <TableRow key={idx}>
-                                  <TableCell>{item.PartNo}</TableCell>
-                                  <TableCell>{item.Description}</TableCell>
-                                  <TableCell className="text-right">{item.Qty || 0}</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.ExtendedSell || 0)}</TableCell>
-                                </TableRow>
-                              ))}
-                              <TableRow className="font-semibold">
-                                <TableCell colSpan={5}>Total Parts</TableCell>
-                                <TableCell className="text-right">{formatCurrency(woDetail.parts.sellTotal)}</TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        ) : (
-                          <p className="text-gray-500">No parts charges</p>
-                        )}
-                      </div>
-
-                      {/* Misc */}
-                      <div>
-                        <h5 className="font-semibold mb-2">Misc/Freight Details</h5>
-                        {woDetail.misc.details.length > 0 ? (
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Description</TableHead>
-                                <TableHead className="text-right">Cost</TableHead>
-                                <TableHead className="text-right">Sell</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {woDetail.misc.details.map((item, idx) => (
-                                <TableRow key={idx}>
-                                  <TableCell>{item.Description}</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
-                                  <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
-                                </TableRow>
-                              ))}
-                              <TableRow className="font-semibold">
-                                <TableCell>Total Misc</TableCell>
-                                <TableCell className="text-right">{formatCurrency(woDetail.misc.costTotal)}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(woDetail.misc.sellTotal)}</TableCell>
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        ) : (
-                          <p className="text-gray-500">No misc charges</p>
-                        )}
-                      </div>
-
-                      {/* Summary */}
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <h5 className="font-semibold mb-2">Cost vs Sell Comparison</h5>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span>Total Cost:</span>
-                            <span className="font-semibold">{formatCurrency(woDetail.totals.totalCost)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Total Sell Price:</span>
-                            <span className="font-semibold">{formatCurrency(woDetail.totals.totalSell)}</span>
-                          </div>
-                          <div className="flex justify-between text-green-600">
-                            <span>Gross Profit:</span>
-                            <span className="font-semibold">
-                              {formatCurrency(woDetail.totals.totalSell - woDetail.totals.totalCost)}
-                            </span>
-                          </div>
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            <p className="text-gray-500">No labor charges</p>
+                          )}
                         </div>
-                      </div>
 
-                      {/* Invoice Data if Available */}
-                      {woDetail.invoice && woDetail.invoice.length > 0 && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <h5 className="font-semibold mb-2">Associated Invoice</h5>
-                          {woDetail.invoice.map((inv, idx) => (
-                            <div key={idx} className="text-sm space-y-1">
-                              <p>Invoice #: {inv.InvoiceNo}</p>
-                              <p>Date: {new Date(inv.InvoiceDate).toLocaleDateString()}</p>
-                              <p>Grand Total: {formatCurrency(inv.GrandTotal)}</p>
+                        {/* Parts */}
+                        <div>
+                          <h5 className="font-semibold mb-2">Parts Details</h5>
+                          {woDetail.parts.details.length > 0 ? (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Part #</TableHead>
+                                  <TableHead>Description</TableHead>
+                                  <TableHead className="text-right">Qty</TableHead>
+                                  <TableHead className="text-right">Cost Each</TableHead>
+                                  <TableHead className="text-right">Sell Each</TableHead>
+                                  <TableHead className="text-right">Extended Sell</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {woDetail.parts.details.map((item, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell>{item.PartNo}</TableCell>
+                                    <TableCell>{item.Description}</TableCell>
+                                    <TableCell className="text-right">{item.Qty || 0}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.ExtendedSell || 0)}</TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow className="font-semibold">
+                                  <TableCell colSpan={5}>Total Parts</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(woDetail.parts.sellTotal)}</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            <p className="text-gray-500">No parts charges</p>
+                          )}
+                        </div>
+
+                        {/* Misc */}
+                        <div>
+                          <h5 className="font-semibold mb-2">Misc/Freight Details</h5>
+                          {woDetail.misc.details.length > 0 ? (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Description</TableHead>
+                                  <TableHead className="text-right">Cost</TableHead>
+                                  <TableHead className="text-right">Sell</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {woDetail.misc.details.map((item, idx) => (
+                                  <TableRow key={idx}>
+                                    <TableCell>{item.Description}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.Cost || 0)}</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(item.Sell || 0)}</TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow className="font-semibold">
+                                  <TableCell>Total Misc</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(woDetail.misc.costTotal)}</TableCell>
+                                  <TableCell className="text-right">{formatCurrency(woDetail.misc.sellTotal)}</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            <p className="text-gray-500">No misc charges</p>
+                          )}
+                        </div>
+
+                        {/* Summary */}
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <h5 className="font-semibold mb-2">Cost vs Sell Comparison</h5>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span>Total Cost (what we show in report):</span>
+                              <span className="font-semibold">{formatCurrency(woDetail.totals.totalCost)}</span>
                             </div>
-                          ))}
+                            <div className="flex justify-between">
+                              <span>Total Sell Price (what customer is charged):</span>
+                              <span className="font-semibold">{formatCurrency(woDetail.totals.totalSell)}</span>
+                            </div>
+                            <div className="flex justify-between text-red-600">
+                              <span>Difference:</span>
+                              <span className="font-semibold">
+                                {formatCurrency(woDetail.totals.totalSell - woDetail.totals.totalCost)}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-sm mt-3 text-yellow-800">
+                            <strong>Note:</strong> Our report shows internal COST, not the SELL price charged to customers. 
+                            This explains why the invoice total ({formatCurrency(woDetail.totals.totalSell)}) 
+                            differs from our report total ({formatCurrency(woDetail.totals.totalCost)}).
+                          </p>
                         </div>
-                      )}
+
+                        {/* Invoice Data if Available */}
+                        {woDetail.invoice && woDetail.invoice.length > 0 && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h5 className="font-semibold mb-2">Associated Invoice</h5>
+                            {woDetail.invoice.map((inv, idx) => (
+                              <div key={idx} className="text-sm space-y-1">
+                                <p>Invoice #: {inv.InvoiceNo}</p>
+                                <p>Date: {new Date(inv.InvoiceDate).toLocaleDateString()}</p>
+                                <p>Grand Total: {formatCurrency(inv.GrandTotal)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
