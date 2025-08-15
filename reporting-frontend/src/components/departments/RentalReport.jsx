@@ -42,7 +42,6 @@ import {
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
-import RentalEquipmentReport from './RentalEquipmentReport'
 import RentalAvailability from './RentalAvailability'
 
 const RentalReport = ({ user }) => {
@@ -509,7 +508,6 @@ const RentalReport = ({ user }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
-          <TabsTrigger value="equipment-report">Equipment Report</TabsTrigger>
           <TabsTrigger value="service-report">Service Report</TabsTrigger>
         </TabsList>
 
@@ -784,10 +782,6 @@ const RentalReport = ({ user }) => {
           )}
         </CardContent>
       </Card>
-        </TabsContent>
-
-        <TabsContent value="equipment-report">
-          <RentalEquipmentReport />
         </TabsContent>
 
         <TabsContent value="service-report">

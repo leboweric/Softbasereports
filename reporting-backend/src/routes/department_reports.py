@@ -7257,6 +7257,10 @@ def register_department_routes(reports_bp):
                 e.Location,
                 e.CustomerNo,
                 c.Name as CustomerName,
+                c.Address as CustomerAddress,
+                c.City as CustomerCity,
+                c.State as CustomerState,
+                c.ZipCode as CustomerZip,
                 CASE 
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
@@ -7298,6 +7302,20 @@ def register_department_routes(reports_bp):
                 equipment = []
                 for row in simple_result:
                     status = row.get('Status', '')
+                    # Build full address if customer has address info
+                    address_parts = []
+                    if status == 'On Rent':
+                        if row.get('CustomerAddress'):
+                            address_parts.append(row.get('CustomerAddress'))
+                        if row.get('CustomerCity'):
+                            city_state_zip = row.get('CustomerCity')
+                            if row.get('CustomerState'):
+                                city_state_zip += f", {row.get('CustomerState')}"
+                            if row.get('CustomerZip'):
+                                city_state_zip += f" {row.get('CustomerZip')}"
+                            address_parts.append(city_state_zip)
+                    ship_address = ', '.join(address_parts) if address_parts else ''
+                    
                     equipment.append({
                         'make': row.get('Make', ''),
                         'model': row.get('Model', ''),
@@ -7306,7 +7324,8 @@ def register_department_routes(reports_bp):
                         'status': status,
                         'rentalStatus': row.get('OriginalStatus', ''),
                         'billTo': row.get('CustomerName', '') if status == 'On Rent' else '',
-                        'shipTo': '',  # Not used but kept for compatibility
+                        'shipTo': '',  # Deprecated - using shipAddress instead
+                        'shipAddress': ship_address,
                         'shipContact': '',
                         'location': row.get('Location', ''),
                         'dayRate': 0,

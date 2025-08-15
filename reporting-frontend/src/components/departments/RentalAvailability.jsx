@@ -73,13 +73,14 @@ const RentalAvailability = () => {
       item.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.unitNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.serialNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.shipTo && item.shipTo.toLowerCase().includes(searchTerm.toLowerCase()))
+      (item.billTo && item.billTo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.shipAddress && item.shipAddress.toLowerCase().includes(searchTerm.toLowerCase()))
     
     return matchesStatus && matchesSearch
   })
 
   const exportToCSV = () => {
-    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Bill To', 'Contact', 'Location']
+    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Bill To', 'Ship To Address', 'Location']
     
     const rows = filteredEquipment.map(item => [
       item.make,
@@ -87,8 +88,8 @@ const RentalAvailability = () => {
       item.unitNo,
       item.serialNo,
       item.status,
-      item.billTo || item.shipTo || '',
-      item.shipContact || '',
+      item.billTo || '',
+      item.shipAddress || '',
       item.location || ''
     ])
     
@@ -280,7 +281,7 @@ const RentalAvailability = () => {
                   <TableHead>Serial Number</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Bill To</TableHead>
-                  <TableHead>Contact</TableHead>
+                  <TableHead>Ship To Address</TableHead>
                   <TableHead>Location</TableHead>
                 </TableRow>
               </TableHeader>
@@ -292,8 +293,8 @@ const RentalAvailability = () => {
                     <TableCell>{item.unitNo}</TableCell>
                     <TableCell>{item.serialNo}</TableCell>
                     <TableCell>{getStatusBadge(item.status)}</TableCell>
-                    <TableCell>{item.billTo || item.shipTo || '-'}</TableCell>
-                    <TableCell>{item.shipContact || '-'}</TableCell>
+                    <TableCell>{item.billTo || '-'}</TableCell>
+                    <TableCell>{item.shipAddress || '-'}</TableCell>
                     <TableCell>{item.location || '-'}</TableCell>
                   </TableRow>
                 ))}
