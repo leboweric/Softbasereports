@@ -7248,7 +7248,6 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get ALL rental equipment - include those with rental rates, rental status, or rental history
-            # Try to get actual rental customer from RentalContract or WO, not Equipment.CustomerNo
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7256,14 +7255,12 @@ def register_department_routes(reports_bp):
                 e.Make, 
                 e.Model, 
                 e.Location,
-                e.CustomerNo as EquipmentCustomerNo,
-                -- Try to get customer from active rental WO first, then RentalContract, then Equipment
-                COALESCE(wo_cust.Number, rc_cust.Number, c.Number) as CustomerNo,
-                COALESCE(wo_cust.Name, rc_cust.Name, c.Name) as CustomerName,
-                COALESCE(wo_cust.Address, rc_cust.Address, c.Address) as CustomerAddress,
-                COALESCE(wo_cust.City, rc_cust.City, c.City) as CustomerCity,
-                COALESCE(wo_cust.State, rc_cust.State, c.State) as CustomerState,
-                COALESCE(wo_cust.ZipCode, rc_cust.ZipCode, c.ZipCode) as CustomerZip,
+                e.CustomerNo,
+                c.Name as CustomerName,
+                c.Address as CustomerAddress,
+                c.City as CustomerCity,
+                c.State as CustomerState,
+                c.ZipCode as CustomerZip,
                 CASE 
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
@@ -7278,17 +7275,7 @@ def register_department_routes(reports_bp):
                 rh_current.DaysRented,
                 rh_current.RentAmount
             FROM ben002.Equipment e
-            -- Equipment's default customer
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            -- Try to find active rental work order
-            LEFT JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo 
-                AND wo.Type = 'R' 
-                AND wo.ClosedDate IS NULL
-            LEFT JOIN ben002.Customer wo_cust ON wo.BillTo = wo_cust.Number
-            -- Try to find rental contract
-            LEFT JOIN ben002.RentalContract rc ON e.SerialNo = rc.SerialNo
-            LEFT JOIN ben002.Customer rc_cust ON rc.CustomerNo = rc_cust.Number
-            -- Current month rental history
             LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
                 AND rh_current.Year = YEAR(GETDATE()) 
                 AND rh_current.Month = MONTH(GETDATE())
