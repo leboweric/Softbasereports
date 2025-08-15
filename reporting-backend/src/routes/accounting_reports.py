@@ -7,9 +7,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-@reports_bp.route('/departments/accounting/equipment-identifiers', methods=['GET'])
+@reports_bp.route('/departments/accounting/find-control-fields', methods=['GET'])
 @jwt_required()
-def get_equipment_identifiers_report():
+def find_control_fields():
     """Get report showing all equipment identification fields including potential control numbers"""
     try:
         logger.info("Starting equipment identifiers report")
