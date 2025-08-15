@@ -258,7 +258,7 @@ const ServiceReport = ({ user, onNavigate }) => {
   
   const openNotesModal = (workOrder) => {
     setSelectedWorkOrder(workOrder)
-    setModalNote(notes[workOrder.WONo]?.note || '')
+    setModalNote(notes[workOrder.wo_number]?.note || '')
     setModalOpen(true)
   }
 
@@ -269,8 +269,8 @@ const ServiceReport = ({ user, onNavigate }) => {
     if (selectedWorkOrder) {
       setNotes(prev => ({
         ...prev,
-        [selectedWorkOrder.WONo]: {
-          ...prev[selectedWorkOrder.WONo],
+        [selectedWorkOrder.wo_number]: {
+          ...prev[selectedWorkOrder.wo_number],
           note: value
         }
       }))
@@ -281,7 +281,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       }
       
       window.noteSaveTimeout = setTimeout(() => {
-        saveNote(selectedWorkOrder.WONo, value)
+        saveNote(selectedWorkOrder.wo_number, value)
       }, 1000)
     }
   }
@@ -1010,7 +1010,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              Work Order Notes - {selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number}
+              Work Order Notes - {selectedWorkOrder?.wo_number}
             </DialogTitle>
             <DialogDescription>
               {selectedWorkOrder?.customer_name && (
@@ -1025,14 +1025,14 @@ const ServiceReport = ({ user, onNavigate }) => {
               placeholder="Enter notes for this work order..."
               className="min-h-[300px] w-full"
             />
-            {savingNotes[selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number] && (
+            {savingNotes[selectedWorkOrder?.wo_number] && (
               <div className="text-sm text-yellow-600 mt-2">
                 Saving...
               </div>
             )}
-            {notes[selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number]?.updated_by && (
+            {notes[selectedWorkOrder?.wo_number]?.updated_by && (
               <div className="text-xs text-gray-500 mt-2">
-                Last updated by {notes[selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number].updated_by}
+                Last updated by {notes[selectedWorkOrder?.wo_number].updated_by}
               </div>
             )}
           </div>
