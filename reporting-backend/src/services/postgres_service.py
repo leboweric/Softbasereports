@@ -22,11 +22,16 @@ class PostgreSQLService:
     def _initialize_pool(self):
         """Initialize the connection pool"""
         try:
-            # Get PostgreSQL connection string from environment
-            database_url = os.environ.get('POSTGRES_URL', os.environ.get('DATABASE_URL'))
+            # Get PostgreSQL connection string from environment - Railway uses various names
+            database_url = (
+                os.environ.get('POSTGRES_URL') or 
+                os.environ.get('DATABASE_URL') or
+                os.environ.get('DATABASE_PRIVATE_URL') or
+                os.environ.get('POSTGRES_PRIVATE_URL')
+            )
             
             if not database_url:
-                logger.warning("PostgreSQL URL not found in environment variables")
+                logger.warning("PostgreSQL URL not found in environment variables (checked POSTGRES_URL, DATABASE_URL, DATABASE_PRIVATE_URL, POSTGRES_PRIVATE_URL)")
                 return
             
             # Parse the connection string for psycopg2
