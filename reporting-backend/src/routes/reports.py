@@ -16,6 +16,9 @@ report_generator = ReportGenerator()
 from .department_reports import register_department_routes
 register_department_routes(reports_bp)
 
+# Import accounting reports routes (they use reports_bp directly)
+from . import accounting_reports
+
 def get_softbase_service():
     """Get Softbase service instance for current organization"""
     if hasattr(g, 'current_organization'):
