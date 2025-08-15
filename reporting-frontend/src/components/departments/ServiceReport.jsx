@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Clock, Download } from 'lucide-react'
+import { AlertTriangle, Clock, Download, FileText } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -42,6 +50,9 @@ const ServiceReport = ({ user, onNavigate }) => {
   const [loadingWoDetail, setLoadingWoDetail] = useState(false)
   const [notes, setNotes] = useState({})
   const [savingNotes, setSavingNotes] = useState({})
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState(null)
+  const [modalNote, setModalNote] = useState('')
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -245,6 +256,36 @@ const ServiceReport = ({ user, onNavigate }) => {
     }
   }
   
+  const openNotesModal = (workOrder) => {
+    setSelectedWorkOrder(workOrder)
+    setModalNote(notes[workOrder.WONo]?.note || '')
+    setModalOpen(true)
+  }
+
+  const handleModalNoteChange = (value) => {
+    setModalNote(value)
+    
+    // Update local state immediately
+    if (selectedWorkOrder) {
+      setNotes(prev => ({
+        ...prev,
+        [selectedWorkOrder.WONo]: {
+          ...prev[selectedWorkOrder.WONo],
+          note: value
+        }
+      }))
+      
+      // Debounce the save
+      if (window.noteSaveTimeout) {
+        clearTimeout(window.noteSaveTimeout)
+      }
+      
+      window.noteSaveTimeout = setTimeout(() => {
+        saveNote(selectedWorkOrder.WONo, value)
+      }, 1000)
+    }
+  }
+
   const handleNoteChange = (woNumber, value) => {
     // Update local state immediately
     setNotes(prev => ({
@@ -719,16 +760,23 @@ const ServiceReport = ({ user, onNavigate }) => {
                           <TableHead className="text-right">Parts</TableHead>
                           <TableHead className="text-right">Misc</TableHead>
                           <TableHead className="text-right">Total</TableHead>
-                          <TableHead>Notes</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {awaitingInvoiceDetails.work_orders.map((wo) => (
                           <TableRow 
                             key={wo.wo_number}
-                            className={wo.days_waiting > 7 ? 'bg-red-50' : wo.days_waiting > 3 ? 'bg-orange-50' : ''}
+                            className={`${wo.days_waiting > 7 ? 'bg-red-50' : wo.days_waiting > 3 ? 'bg-orange-50' : ''} cursor-pointer hover:bg-gray-50`}
+                            onClick={() => openNotesModal(wo)}
                           >
-                            <TableCell className="font-medium">{wo.wo_number}</TableCell>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {wo.wo_number}
+                                {notes[wo.wo_number]?.note && (
+                                  <FileText className="w-4 h-4 text-blue-500" />
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
                               {wo.customer_name}
                             </TableCell>
@@ -749,29 +797,6 @@ const ServiceReport = ({ user, onNavigate }) => {
                             <TableCell className="text-right">{formatCurrency(wo.parts_total)}</TableCell>
                             <TableCell className="text-right">{formatCurrency(wo.misc_total)}</TableCell>
                             <TableCell className="text-right font-medium">{formatCurrency(wo.total_value)}</TableCell>
-                            <TableCell className="min-w-[200px]">
-                              <div className="relative">
-                                <textarea
-                                  className={`w-full px-2 py-1 text-sm border rounded resize-none ${
-                                    savingNotes[wo.wo_number] ? 'bg-yellow-50' : ''
-                                  }`}
-                                  placeholder="Add notes..."
-                                  value={notes[wo.wo_number]?.note || ''}
-                                  onChange={(e) => handleNoteChange(wo.wo_number, e.target.value)}
-                                  rows={2}
-                                />
-                                {savingNotes[wo.wo_number] && (
-                                  <div className="absolute top-1 right-1 text-xs text-yellow-600">
-                                    Saving...
-                                  </div>
-                                )}
-                                {notes[wo.wo_number]?.updated_by && (
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    Last updated by {notes[wo.wo_number].updated_by}
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -998,6 +1023,40 @@ const ServiceReport = ({ user, onNavigate }) => {
           <ServiceInvoiceBilling />
         </TabsContent>
       </Tabs>
+
+      {/* Notes Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Work Order Notes - {selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedWorkOrder?.customer_name && (
+                <span className="text-sm">Customer: {selectedWorkOrder.customer_name}</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <Textarea
+              value={modalNote}
+              onChange={(e) => handleModalNoteChange(e.target.value)}
+              placeholder="Enter notes for this work order..."
+              className="min-h-[300px] w-full"
+            />
+            {savingNotes[selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number] && (
+              <div className="text-sm text-yellow-600 mt-2">
+                Saving...
+              </div>
+            )}
+            {notes[selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number]?.updated_by && (
+              <div className="text-xs text-gray-500 mt-2">
+                Last updated by {notes[selectedWorkOrder?.WONo || selectedWorkOrder?.wo_number].updated_by}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
