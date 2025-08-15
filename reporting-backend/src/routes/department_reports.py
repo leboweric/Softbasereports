@@ -7257,11 +7257,32 @@ def register_department_routes(reports_bp):
                 e.Model, 
                 e.Location,
                 e.CustomerNo,
-                COALESCE(wo_cust.Name, c.Name) as CustomerName,
-                COALESCE(wo_cust.Address, c.Address) as CustomerAddress,
-                COALESCE(wo_cust.City, c.City) as CustomerCity,
-                COALESCE(wo_cust.State, c.State) as CustomerState,
-                COALESCE(wo_cust.ZipCode, c.ZipCode) as CustomerZip,
+                -- Use RentalContract customer if available and not RENTAL FLEET
+                CASE 
+                    WHEN rc_cust.Name IS NOT NULL AND rc_cust.Name NOT LIKE '%RENTAL FLEET%' THEN rc_cust.Name
+                    WHEN c.Name NOT LIKE '%RENTAL FLEET%' THEN c.Name
+                    ELSE ''
+                END as CustomerName,
+                CASE 
+                    WHEN rc_cust.Name IS NOT NULL AND rc_cust.Name NOT LIKE '%RENTAL FLEET%' THEN rc_cust.Address
+                    WHEN c.Name NOT LIKE '%RENTAL FLEET%' THEN c.Address
+                    ELSE ''
+                END as CustomerAddress,
+                CASE 
+                    WHEN rc_cust.Name IS NOT NULL AND rc_cust.Name NOT LIKE '%RENTAL FLEET%' THEN rc_cust.City
+                    WHEN c.Name NOT LIKE '%RENTAL FLEET%' THEN c.City
+                    ELSE ''
+                END as CustomerCity,
+                CASE 
+                    WHEN rc_cust.Name IS NOT NULL AND rc_cust.Name NOT LIKE '%RENTAL FLEET%' THEN rc_cust.State
+                    WHEN c.Name NOT LIKE '%RENTAL FLEET%' THEN c.State
+                    ELSE ''
+                END as CustomerState,
+                CASE 
+                    WHEN rc_cust.Name IS NOT NULL AND rc_cust.Name NOT LIKE '%RENTAL FLEET%' THEN rc_cust.ZipCode
+                    WHEN c.Name NOT LIKE '%RENTAL FLEET%' THEN c.ZipCode
+                    ELSE ''
+                END as CustomerZip,
                 CASE 
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
@@ -7277,13 +7298,14 @@ def register_department_routes(reports_bp):
                 rh_current.RentAmount
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            -- Try to find active rental work order to get actual SHIP TO customer
+            -- Try RentalContract first for actual rental customer
             LEFT JOIN (
-                SELECT UnitNo, ShipTo, ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY OpenDate DESC) as rn
-                FROM ben002.WO 
-                WHERE Type = 'R' AND ClosedDate IS NULL
-            ) wo ON e.UnitNo = wo.UnitNo AND wo.rn = 1
-            LEFT JOIN ben002.Customer wo_cust ON wo.ShipTo = wo_cust.Number
+                SELECT SerialNo, CustomerNo, 
+                       ROW_NUMBER() OVER (PARTITION BY SerialNo ORDER BY StartDate DESC) as rn
+                FROM ben002.RentalContract
+                WHERE EndDate IS NULL OR EndDate > GETDATE()
+            ) rc ON e.SerialNo = rc.SerialNo AND rc.rn = 1
+            LEFT JOIN ben002.Customer rc_cust ON rc.CustomerNo = rc_cust.Number
             -- Current month rental history
             LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
                 AND rh_current.Year = YEAR(GETDATE()) 
