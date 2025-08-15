@@ -28,6 +28,7 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 import ServiceInvoiceBilling from '../ServiceInvoiceBilling'
+import PostgresTest from '../PostgresTest'
 
 const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
@@ -596,6 +597,9 @@ const ServiceReport = ({ user, onNavigate }) => {
         </TabsContent>
 
         <TabsContent value="work-orders" className="space-y-6">
+          {/* Temporary PostgreSQL diagnostic */}
+          <PostgresTest />
+          
           {/* Service, Shop & PM Work Orders Awaiting Invoice Card */}
           {awaitingInvoiceData && awaitingInvoiceData.count > 0 && (
             <Card 

@@ -42,6 +42,7 @@ from src.routes.employee_lookup import employee_bp
 from src.routes.employee_diagnostic import employee_diagnostic_bp
 from src.routes.invoice_field_diagnostic import invoice_field_diagnostic_bp
 from src.routes.work_order_notes import notes_bp
+from src.routes.postgres_diagnostic import postgres_diagnostic_bp
 from src.services.postgres_service import get_postgres_db
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
@@ -111,6 +112,7 @@ app.register_blueprint(employee_bp)
 app.register_blueprint(employee_diagnostic_bp)
 app.register_blueprint(invoice_field_diagnostic_bp)
 app.register_blueprint(notes_bp)
+app.register_blueprint(postgres_diagnostic_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
