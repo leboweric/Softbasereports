@@ -1598,6 +1598,205 @@ def register_department_routes(reports_bp):
                 'type': 'parts_fill_rate_error'
             }), 500
 
+    @reports_bp.route('/departments/parts/inventory-by-location', methods=['GET'])
+    @jwt_required()
+    def get_parts_inventory_by_location():
+        """Get parts inventory value by bin location"""
+        try:
+            db = DatabaseService()
+            
+            # Get optional location filter from query params
+            location_filter = request.args.get('location', '')
+            
+            # Build the query to get all bin locations with their values
+            query = """
+            WITH AllBins AS (
+                -- Primary Bin location
+                SELECT 
+                    Bin as Location,
+                    PartNo,
+                    Description,
+                    OnHand,
+                    Cost,
+                    CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                FROM ben002.Parts 
+                WHERE Bin IS NOT NULL AND Bin != '' AND OnHand > 0
+                
+                UNION ALL
+                
+                -- Bin1 location
+                SELECT 
+                    Bin1 as Location,
+                    PartNo,
+                    Description,
+                    OnHand,
+                    Cost,
+                    CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                FROM ben002.Parts 
+                WHERE Bin1 IS NOT NULL AND Bin1 != '' AND OnHand > 0
+                
+                UNION ALL
+                
+                -- Bin2 location
+                SELECT 
+                    Bin2 as Location,
+                    PartNo,
+                    Description,
+                    OnHand,
+                    Cost,
+                    CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                FROM ben002.Parts 
+                WHERE Bin2 IS NOT NULL AND Bin2 != '' AND OnHand > 0
+                
+                UNION ALL
+                
+                -- Bin3 location
+                SELECT 
+                    Bin3 as Location,
+                    PartNo,
+                    Description,
+                    OnHand,
+                    Cost,
+                    CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                FROM ben002.Parts 
+                WHERE Bin3 IS NOT NULL AND Bin3 != '' AND OnHand > 0
+                
+                UNION ALL
+                
+                -- Bin4 location
+                SELECT 
+                    Bin4 as Location,
+                    PartNo,
+                    Description,
+                    OnHand,
+                    Cost,
+                    CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                FROM ben002.Parts 
+                WHERE Bin4 IS NOT NULL AND Bin4 != '' AND OnHand > 0
+            ),
+            LocationSummary AS (
+                SELECT 
+                    UPPER(LTRIM(RTRIM(Location))) as Location,
+                    COUNT(DISTINCT PartNo) as PartCount,
+                    COUNT(*) as TotalEntries,
+                    CAST(SUM(TotalValue) AS DECIMAL(10,2)) as TotalValue
+                FROM AllBins
+                WHERE 1=1
+            """
+            
+            # Add location filter if provided
+            if location_filter:
+                query += f" AND UPPER(Location) LIKE '%{location_filter.upper()}%'"
+            
+            query += """
+                GROUP BY UPPER(LTRIM(RTRIM(Location)))
+            )
+            SELECT 
+                Location,
+                PartCount,
+                TotalEntries,
+                TotalValue
+            FROM LocationSummary
+            ORDER BY TotalValue DESC
+            """
+            
+            summary_result = db.execute_query(query)
+            
+            # Get details for specific location if requested
+            details = []
+            if location_filter:
+                details_query = f"""
+                WITH AllBins AS (
+                    SELECT 'Primary' as BinType, Bin as Location, PartNo, Description, OnHand, Cost,
+                           CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                    FROM ben002.Parts 
+                    WHERE Bin IS NOT NULL AND Bin != '' AND OnHand > 0
+                        AND UPPER(Bin) LIKE '%{location_filter.upper()}%'
+                    
+                    UNION ALL
+                    
+                    SELECT 'Alt 1' as BinType, Bin1 as Location, PartNo, Description, OnHand, Cost,
+                           CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                    FROM ben002.Parts 
+                    WHERE Bin1 IS NOT NULL AND Bin1 != '' AND OnHand > 0
+                        AND UPPER(Bin1) LIKE '%{location_filter.upper()}%'
+                    
+                    UNION ALL
+                    
+                    SELECT 'Alt 2' as BinType, Bin2 as Location, PartNo, Description, OnHand, Cost,
+                           CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                    FROM ben002.Parts 
+                    WHERE Bin2 IS NOT NULL AND Bin2 != '' AND OnHand > 0
+                        AND UPPER(Bin2) LIKE '%{location_filter.upper()}%'
+                    
+                    UNION ALL
+                    
+                    SELECT 'Alt 3' as BinType, Bin3 as Location, PartNo, Description, OnHand, Cost,
+                           CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                    FROM ben002.Parts 
+                    WHERE Bin3 IS NOT NULL AND Bin3 != '' AND OnHand > 0
+                        AND UPPER(Bin3) LIKE '%{location_filter.upper()}%'
+                    
+                    UNION ALL
+                    
+                    SELECT 'Alt 4' as BinType, Bin4 as Location, PartNo, Description, OnHand, Cost,
+                           CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
+                    FROM ben002.Parts 
+                    WHERE Bin4 IS NOT NULL AND Bin4 != '' AND OnHand > 0
+                        AND UPPER(Bin4) LIKE '%{location_filter.upper()}%'
+                )
+                SELECT 
+                    PartNo,
+                    Description,
+                    Location,
+                    BinType,
+                    OnHand,
+                    Cost,
+                    TotalValue
+                FROM AllBins
+                ORDER BY TotalValue DESC
+                """
+                
+                details_result = db.execute_query(details_query)
+                if details_result:
+                    for row in details_result:
+                        details.append({
+                            'partNo': row.get('PartNo', ''),
+                            'description': row.get('Description', ''),
+                            'location': row.get('Location', ''),
+                            'binType': row.get('BinType', ''),
+                            'onHand': float(row.get('OnHand', 0)),
+                            'cost': float(row.get('Cost', 0)),
+                            'totalValue': float(row.get('TotalValue', 0))
+                        })
+            
+            # Parse summary results
+            locations = []
+            grand_total = 0
+            if summary_result:
+                for row in summary_result:
+                    location_value = float(row.get('TotalValue', 0))
+                    grand_total += location_value
+                    locations.append({
+                        'location': row.get('Location', ''),
+                        'partCount': row.get('PartCount', 0),
+                        'totalEntries': row.get('TotalEntries', 0),
+                        'totalValue': location_value
+                    })
+            
+            return jsonify({
+                'locations': locations,
+                'details': details,
+                'grandTotal': grand_total,
+                'locationFilter': location_filter
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'parts_inventory_location_error'
+            }), 500
+
 
     @reports_bp.route('/departments/parts/employee-invoice-details', methods=['GET'])
     @jwt_required()
