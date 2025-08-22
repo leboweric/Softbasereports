@@ -247,36 +247,36 @@ const MinitracSearch = () => {
 
             {/* Filters */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Select value={filters.category} onValueChange={(value) => setFilters({...filters, category: value})}>
+              <Select value={filters.category || "all"} onValueChange={(value) => setFilters({...filters, category: value === "all" ? "" : value})}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Categories</SelectItem>
+                  <SelectItem value="all">All Categories</SelectItem>
                   {filterOptions.categories.map(cat => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={filters.status} onValueChange={(value) => setFilters({...filters, status: value})}>
+              <Select value={filters.status || "all"} onValueChange={(value) => setFilters({...filters, status: value === "all" ? "" : value})}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Statuses</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   {filterOptions.statuses.map(status => (
                     <SelectItem key={status} value={status}>{status}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={filters.make} onValueChange={(value) => setFilters({...filters, make: value})}>
+              <Select value={filters.make || "all"} onValueChange={(value) => setFilters({...filters, make: value === "all" ? "" : value})}>
                 <SelectTrigger>
                   <SelectValue placeholder="All Makes" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Makes</SelectItem>
+                  <SelectItem value="all">All Makes</SelectItem>
                   {filterOptions.makes.map(make => (
                     <SelectItem key={make} value={make}>{make}</SelectItem>
                   ))}
