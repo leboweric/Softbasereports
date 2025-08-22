@@ -581,15 +581,78 @@ const SalesCommissionReport = ({ user }) => {
               <CardDescription>Current commission rates and rules</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 text-sm">
-                <p>• <strong>Rental (RENTAL):</strong> 10% of sales revenue</p>
-                <p>• <strong>New Equipment (LINDE, LINDEN, NEWEQ, KOM):</strong> 20% of gross profit</p>
-                <p>• <strong>Allied Equipment (ALLIED):</strong> 20% of gross profit</p>
-                <p>• <strong>Used Equipment (USEDEQ, USED K/L/SL):</strong> 5% of selling price</p>
-                <p>• <strong>Rental Sale (RNTSALE):</strong> 5% of gross profit</p>
-                <p className="text-muted-foreground mt-4">
-                  <strong>Note:</strong> Gross profit calculations use estimated margins until actual cost data is available:
-                  New/Allied: 20%, Rental Sale: 25%
+              <div className="space-y-4 text-sm">
+                <div>
+                  <h4 className="font-semibold text-base mb-2">New Equipment</h4>
+                  <ul className="space-y-1 ml-4">
+                    <li>• 20% of profit</li>
+                    <li>• $100 minimum</li>
+                    <li>• $50 minimum on pallet trucks</li>
+                    <li>• $200 on National Accounts/Dealer Ship-ins</li>
+                    <li>• $100 on Komatsu National Accounts/Dealer Ship-Ins</li>
+                    <li>• "Free Loaners" without management approval charged against sale</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-base mb-2">Used Equipment</h4>
+                  <ul className="space-y-1 ml-4">
+                    <li>• 5% of selling price OR:</li>
+                    <li className="ml-4">◦ 20% of profit on "Low Profit" sale</li>
+                    <li className="ml-4">◦ $100 on "No Profit" sale</li>
+                    <li className="ml-4">◦ Above subject to Salesperson's approval</li>
+                    <li>• 20% of profit on any "Pass Through" sale</li>
+                    <li>• "In-House" financing: flat $150 after first payment</li>
+                    <li>• FMV Returns sold @ 30% over cost: 20% of profit</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-base mb-2">Rental Equipment</h4>
+                  <ul className="space-y-1 ml-4">
+                    <li>• 10% of rental bill on monthly rentals</li>
+                    <li>• 5% of rental bill on monthly rentals &gt;20% off list</li>
+                    <li>• 12-Month maximum rental commission</li>
+                    <li>• LTR ≥36 months: 5% of rental rate (12-month max)</li>
+                    <li className="font-semibold">• No Commission on:</li>
+                    <li className="ml-4">◦ Rent to Rent</li>
+                    <li className="ml-4">◦ Dealer Rentals</li>
+                    <li className="ml-4">◦ House Accounts</li>
+                    <li className="ml-4">◦ Service Rentals</li>
+                    <li className="ml-4">◦ Construction/Rental Houses (United Rentals, Knutson, etc.)</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-base mb-2">Rental Equipment Sales</h4>
+                  <ul className="space-y-1 ml-4">
+                    <li>• 5% of selling price or 20% of profit</li>
+                    <li>• $100 minimum</li>
+                    <li>• $50 minimum on pallet trucks</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-base mb-2">Rental Purchase Option (RPO)</h4>
+                  <ul className="space-y-1 ml-4">
+                    <li className="font-semibold">• Inadvertent RPO (Not Stated Up Front):</li>
+                    <li className="ml-4">◦ Commission paid monthly on rental</li>
+                    <li className="ml-4">◦ At sale: greater of rental paid or sale commission</li>
+                    <li className="font-semibold">• RPO (Signed Quote):</li>
+                    <li className="ml-4">◦ Commission paid upon completion of sale</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold text-base mb-2">Allied Products</h4>
+                  <ul className="space-y-1 ml-4">
+                    <li>• 20% of profit</li>
+                  </ul>
+                </div>
+                
+                <p className="text-muted-foreground mt-4 text-xs border-t pt-3">
+                  <strong>Note:</strong> System calculations use estimated margins where actual cost data is unavailable.
+                  Actual commissions may vary based on specific contract terms and management approvals.
                 </p>
               </div>
             </CardContent>
