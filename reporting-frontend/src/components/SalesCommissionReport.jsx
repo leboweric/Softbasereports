@@ -429,6 +429,7 @@ const SalesCommissionReport = ({ user }) => {
                                 <tr className="border-b">
                                   <th className="text-left p-2">Invoice #</th>
                                   <th className="text-left p-2">Date</th>
+                                  <th className="text-left p-2">Bill To</th>
                                   <th className="text-left p-2">Customer</th>
                                   <th className="text-left p-2">Sale Code</th>
                                   <th className="text-left p-2">Category</th>
@@ -441,6 +442,7 @@ const SalesCommissionReport = ({ user }) => {
                                   <tr key={invIdx} className="border-b hover:bg-gray-50">
                                     <td className="p-2">{inv.invoice_no}</td>
                                     <td className="p-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                                    <td className="p-2 font-mono text-xs">{inv.bill_to || '-'}</td>
                                     <td className="p-2">{inv.customer_name}</td>
                                     <td className="p-2">
                                       <Badge variant="outline" className="font-mono text-xs">
@@ -459,7 +461,7 @@ const SalesCommissionReport = ({ user }) => {
                                   </tr>
                                 ))}
                                 <tr className="font-semibold bg-gray-50">
-                                  <td colSpan="5" className="p-2 text-right">Subtotal:</td>
+                                  <td colSpan="6" className="p-2 text-right">Subtotal:</td>
                                   <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
                                   <td className="text-right p-2 text-green-600">{formatCurrency(salesman.total_commission)}</td>
                                 </tr>
