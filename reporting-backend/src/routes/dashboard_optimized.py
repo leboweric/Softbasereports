@@ -448,48 +448,25 @@ class DashboardQueries:
     def get_monthly_equipment_sales(self):
         """Get monthly equipment sales since March 2025 with gross margin"""
         try:
-            # First, try to get detailed equipment sales from EquipmentHistory
-            detail_query = """
+            # Use InvoiceReg directly as the primary source
+            query = """
             SELECT 
-                YEAR(eh.Date) as year,
-                MONTH(eh.Date) as month,
-                COUNT(DISTINCT eh.SerialNo) as units_sold,
-                SUM(eh.Sell) as equipment_revenue,
-                SUM(eh.Cost) as equipment_cost,
-                COUNT(DISTINCT ir.InvoiceNo) as invoice_count
-            FROM ben002.EquipmentHistory eh
-            LEFT JOIN ben002.InvoiceReg ir ON 
-                CAST(eh.WONo AS VARCHAR) = CAST(ir.WONo AS VARCHAR) 
-                AND YEAR(ir.InvoiceDate) = YEAR(eh.Date)
-                AND MONTH(ir.InvoiceDate) = MONTH(eh.Date)
-            WHERE eh.Date >= '2025-03-01'
-                AND eh.EntryType IN ('SALE', 'SOLD', 'S')  -- Equipment sale types
-            GROUP BY YEAR(eh.Date), MONTH(eh.Date)
-            ORDER BY YEAR(eh.Date), MONTH(eh.Date)
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue,
+                SUM(COALESCE(EquipmentCost, 0)) as equipment_cost,
+                COUNT(CASE 
+                    WHEN (EquipmentTaxable > 0 OR EquipmentNonTax > 0) 
+                    THEN InvoiceNo 
+                    ELSE NULL 
+                END) as invoice_count
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2025-03-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
             
-            results = self.db.execute_query(detail_query)
-            
-            # If EquipmentHistory doesn't have data, fall back to InvoiceReg
-            if not results or all(row['units_sold'] == 0 for row in results):
-                query = """
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue,
-                    SUM(COALESCE(EquipmentCost, 0)) as equipment_cost,
-                    COUNT(CASE 
-                        WHEN (EquipmentTaxable > 0 OR EquipmentNonTax > 0) 
-                        THEN InvoiceNo 
-                        ELSE NULL 
-                    END) as invoice_count,
-                    0 as units_sold  -- We don't have unit data from InvoiceReg alone
-                FROM ben002.InvoiceReg
-                WHERE InvoiceDate >= '2025-03-01'
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                """
-                results = self.db.execute_query(query)
+            results = self.db.execute_query(query)
             
             monthly_equipment = []
             if results:
@@ -497,7 +474,6 @@ class DashboardQueries:
                     month_date = datetime(row['year'], row['month'], 1)
                     revenue = float(row['equipment_revenue'] or 0)
                     cost = float(row['equipment_cost'] or 0)
-                    units = int(row.get('units_sold', 0) or 0)  # Use actual units if available
                     
                     # Calculate gross margin percentage
                     margin = None
@@ -509,7 +485,7 @@ class DashboardQueries:
                         'year': row['year'],
                         'amount': revenue,
                         'margin': margin,
-                        'units': units if units > 0 else int(row.get('invoice_count', 0) or 0)  # Use units or fall back to invoices
+                        'units': int(row.get('invoice_count', 0) or 0)  # Use invoice count as proxy for units
                     })
             
             # Pad missing months from March onwards
@@ -2152,33 +2128,24 @@ def get_equipment_sales_details_endpoint():
         if not end_date:
             end_date = datetime.now().strftime('%Y-%m-%d')
         
-        # Try to get equipment sales from EquipmentHistory with Equipment details
+        # For now, get equipment sales summary from InvoiceReg
+        # We can't get individual unit details without proper table relationships
         query = f"""
         SELECT 
-            eh.SerialNo,
-            eh.Date as SaleDate,
-            eh.Sell as SellPrice,
-            eh.Cost as CostPrice,
-            eh.WONo,
-            e.UnitNo,
-            e.Make,
-            e.Model,
-            e.ModelYear,
-            e.CustomerNo,
-            c.Name as CustomerName,
             ir.InvoiceNo,
             ir.InvoiceDate,
+            ir.BillTo as CustomerNo,
+            ir.BillToName as CustomerName,
             ir.SaleCode,
-            ir.Salesman1
-        FROM ben002.EquipmentHistory eh
-        INNER JOIN ben002.Equipment e ON eh.SerialNo = e.SerialNo
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        LEFT JOIN ben002.InvoiceReg ir ON 
-            CAST(eh.WONo AS VARCHAR) = CAST(ir.WONo AS VARCHAR)
-        WHERE eh.Date >= '{start_date}'
-            AND eh.Date <= '{end_date}'
-            AND eh.EntryType IN ('SALE', 'SOLD', 'S')
-        ORDER BY eh.Date DESC
+            ir.Salesman1,
+            ir.EquipmentTaxable + COALESCE(ir.EquipmentNonTax, 0) as SellPrice,
+            ir.EquipmentCost as CostPrice,
+            ir.WONo
+        FROM ben002.InvoiceReg ir
+        WHERE ir.InvoiceDate >= '{start_date}'
+            AND ir.InvoiceDate <= '{end_date}'
+            AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
+        ORDER BY ir.InvoiceDate DESC
         """
         
         results = db.execute_query(query)
@@ -2186,7 +2153,7 @@ def get_equipment_sales_details_endpoint():
         equipment_sales = []
         total_revenue = 0
         total_cost = 0
-        units_by_model = {}
+        sale_code_summary = {}
         
         if results:
             for row in results:
@@ -2197,41 +2164,38 @@ def get_equipment_sales_details_endpoint():
                     gp_percent = round(((sell_price - cost_price) / sell_price) * 100, 1)
                 
                 equipment_sales.append({
-                    'serial_no': row['SerialNo'],
-                    'unit_no': row['UnitNo'],
-                    'make': row['Make'],
-                    'model': row['Model'],
-                    'model_year': row['ModelYear'],
+                    'invoice_no': row['InvoiceNo'],
+                    'invoice_date': row['InvoiceDate'].strftime('%Y-%m-%d') if row['InvoiceDate'] else None,
                     'customer_no': row['CustomerNo'],
                     'customer_name': row['CustomerName'],
                     'sell_price': sell_price,
                     'cost_price': cost_price,
                     'gp_amount': sell_price - cost_price,
                     'gp_percent': gp_percent,
-                    'invoice_no': row['InvoiceNo'],
-                    'invoice_date': row['InvoiceDate'].strftime('%Y-%m-%d') if row['InvoiceDate'] else None,
-                    'salesman': row['Salesman1']
+                    'sale_code': row['SaleCode'],
+                    'salesman': row['Salesman1'],
+                    'wo_no': row['WONo']
                 })
                 
                 total_revenue += sell_price
                 total_cost += cost_price
                 
-                # Track units by model
-                model_key = f"{row['Make']} {row['Model']}" if row['Make'] and row['Model'] else 'Unknown'
-                if model_key not in units_by_model:
-                    units_by_model[model_key] = {'qty': 0, 'revenue': 0, 'cost': 0}
-                units_by_model[model_key]['qty'] += 1
-                units_by_model[model_key]['revenue'] += sell_price
-                units_by_model[model_key]['cost'] += cost_price
+                # Track by sale code instead of model
+                sale_code = row['SaleCode'] or 'Unknown'
+                if sale_code not in sale_code_summary:
+                    sale_code_summary[sale_code] = {'qty': 0, 'revenue': 0, 'cost': 0}
+                sale_code_summary[sale_code]['qty'] += 1
+                sale_code_summary[sale_code]['revenue'] += sell_price
+                sale_code_summary[sale_code]['cost'] += cost_price
         
-        # Format model summary
-        model_summary = []
-        for model, data in units_by_model.items():
+        # Format sale code summary
+        code_summary = []
+        for code, data in sale_code_summary.items():
             gp = 0
             if data['revenue'] > 0:
                 gp = round(((data['revenue'] - data['cost']) / data['revenue']) * 100, 1)
-            model_summary.append({
-                'model': model,
+            code_summary.append({
+                'sale_code': code,
                 'qty': data['qty'],
                 'total_sales': data['revenue'],
                 'gp_percent': gp
@@ -2246,7 +2210,7 @@ def get_equipment_sales_details_endpoint():
                 'total_gp': total_revenue - total_cost,
                 'overall_gp_percent': round(((total_revenue - total_cost) / total_revenue) * 100, 1) if total_revenue > 0 else 0
             },
-            'by_model': model_summary,
+            'by_sale_code': code_summary,
             'date_range': {
                 'start': start_date,
                 'end': end_date
