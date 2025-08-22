@@ -1093,12 +1093,20 @@ const Dashboard = ({ user }) => {
                     const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                     const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
                       .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
+                    const avgUnits = completeMonths.filter(item => item.units > 0)
+                      .reduce((sum, item, _, arr) => sum + item.units / arr.length, 0)
                     return (
                       <div className="text-right">
-                        <div className="mb-2">
+                        <div className="mb-1">
                           <p className="text-sm text-muted-foreground">Avg Revenue</p>
                           <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
                         </div>
+                        {avgUnits > 0 && (
+                          <div className="mb-1">
+                            <p className="text-sm text-muted-foreground">Avg Units</p>
+                            <p className="text-lg font-semibold">{Math.round(avgUnits)}</p>
+                          </div>
+                        )}
                         <div>
                           <p className="text-sm text-muted-foreground">Avg Margin</p>
                           <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
@@ -1135,6 +1143,16 @@ const Dashboard = ({ user }) => {
                               Revenue: {formatCurrency(monthData?.amount || 0)}
                               {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
                             </p>
+                            {monthData?.units !== null && monthData?.units !== undefined && monthData?.units > 0 && (
+                              <p className="text-purple-600">
+                                Units Sold: {monthData.units}
+                                {currentIndex > 0 && data[currentIndex - 1].units > 0 && (
+                                  <span className="ml-2 text-sm">
+                                    ({monthData.units > data[currentIndex - 1].units ? '+' : ''}{monthData.units - data[currentIndex - 1].units} vs last month)
+                                  </span>
+                                )}
+                              </p>
+                            )}
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600">
                                 Margin: {monthData.margin.toFixed(1)}%

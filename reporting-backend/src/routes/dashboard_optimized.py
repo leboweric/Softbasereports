@@ -448,25 +448,48 @@ class DashboardQueries:
     def get_monthly_equipment_sales(self):
         """Get monthly equipment sales since March 2025 with gross margin"""
         try:
-            # Match the monthly_sales query structure exactly - no WHERE filtering on equipment amounts
-            query = """
+            # First, try to get detailed equipment sales from EquipmentHistory
+            detail_query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue,
-                SUM(COALESCE(EquipmentCost, 0)) as equipment_cost,
-                COUNT(CASE 
-                    WHEN (EquipmentTaxable > 0 OR EquipmentNonTax > 0) 
-                    THEN InvoiceNo 
-                    ELSE NULL 
-                END) as invoice_count
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(eh.Date) as year,
+                MONTH(eh.Date) as month,
+                COUNT(DISTINCT eh.SerialNo) as units_sold,
+                SUM(eh.Sell) as equipment_revenue,
+                SUM(eh.Cost) as equipment_cost,
+                COUNT(DISTINCT ir.InvoiceNo) as invoice_count
+            FROM ben002.EquipmentHistory eh
+            LEFT JOIN ben002.InvoiceReg ir ON 
+                CAST(eh.WONo AS VARCHAR) = CAST(ir.WONo AS VARCHAR) 
+                AND YEAR(ir.InvoiceDate) = YEAR(eh.Date)
+                AND MONTH(ir.InvoiceDate) = MONTH(eh.Date)
+            WHERE eh.Date >= '2025-03-01'
+                AND eh.EntryType IN ('SALE', 'SOLD', 'S')  -- Equipment sale types
+            GROUP BY YEAR(eh.Date), MONTH(eh.Date)
+            ORDER BY YEAR(eh.Date), MONTH(eh.Date)
             """
             
-            results = self.db.execute_query(query)
+            results = self.db.execute_query(detail_query)
+            
+            # If EquipmentHistory doesn't have data, fall back to InvoiceReg
+            if not results or all(row['units_sold'] == 0 for row in results):
+                query = """
+                SELECT 
+                    YEAR(InvoiceDate) as year,
+                    MONTH(InvoiceDate) as month,
+                    SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue,
+                    SUM(COALESCE(EquipmentCost, 0)) as equipment_cost,
+                    COUNT(CASE 
+                        WHEN (EquipmentTaxable > 0 OR EquipmentNonTax > 0) 
+                        THEN InvoiceNo 
+                        ELSE NULL 
+                    END) as invoice_count,
+                    0 as units_sold  -- We don't have unit data from InvoiceReg alone
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= '2025-03-01'
+                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                """
+                results = self.db.execute_query(query)
             
             monthly_equipment = []
             if results:
@@ -474,6 +497,7 @@ class DashboardQueries:
                     month_date = datetime(row['year'], row['month'], 1)
                     revenue = float(row['equipment_revenue'] or 0)
                     cost = float(row['equipment_cost'] or 0)
+                    units = int(row.get('units_sold', 0) or 0)  # Use actual units if available
                     
                     # Calculate gross margin percentage
                     margin = None
@@ -485,7 +509,7 @@ class DashboardQueries:
                         'year': row['year'],
                         'amount': revenue,
                         'margin': margin,
-                        'units': int(row['invoice_count'] or 0)  # Use invoice count as proxy for units
+                        'units': units if units > 0 else int(row.get('invoice_count', 0) or 0)  # Use units or fall back to invoices
                     })
             
             # Pad missing months from March onwards
@@ -2111,6 +2135,127 @@ def debug_equipment_sales():
     except Exception as e:
         logger.error(f"Equipment sales debug error: {str(e)}")
         return jsonify({'error': str(e), 'message': 'Failed to run debug'}), 500
+
+@dashboard_optimized_bp.route('/api/dashboard-optimized/equipment-sales-details', methods=['GET'])
+@jwt_required()
+def get_equipment_sales_details_endpoint():
+    """Get detailed equipment sales information with unit counts"""
+    try:
+        db = get_db_connection()
+        
+        # Get date range from query params
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        if not start_date:
+            start_date = datetime.now().replace(day=1).strftime('%Y-%m-%d')
+        if not end_date:
+            end_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # Try to get equipment sales from EquipmentHistory with Equipment details
+        query = f"""
+        SELECT 
+            eh.SerialNo,
+            eh.Date as SaleDate,
+            eh.Sell as SellPrice,
+            eh.Cost as CostPrice,
+            eh.WONo,
+            e.UnitNo,
+            e.Make,
+            e.Model,
+            e.ModelYear,
+            e.CustomerNo,
+            c.Name as CustomerName,
+            ir.InvoiceNo,
+            ir.InvoiceDate,
+            ir.SaleCode,
+            ir.Salesman1
+        FROM ben002.EquipmentHistory eh
+        INNER JOIN ben002.Equipment e ON eh.SerialNo = e.SerialNo
+        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        LEFT JOIN ben002.InvoiceReg ir ON 
+            CAST(eh.WONo AS VARCHAR) = CAST(ir.WONo AS VARCHAR)
+        WHERE eh.Date >= '{start_date}'
+            AND eh.Date <= '{end_date}'
+            AND eh.EntryType IN ('SALE', 'SOLD', 'S')
+        ORDER BY eh.Date DESC
+        """
+        
+        results = db.execute_query(query)
+        
+        equipment_sales = []
+        total_revenue = 0
+        total_cost = 0
+        units_by_model = {}
+        
+        if results:
+            for row in results:
+                sell_price = float(row['SellPrice'] or 0)
+                cost_price = float(row['CostPrice'] or 0)
+                gp_percent = 0
+                if sell_price > 0:
+                    gp_percent = round(((sell_price - cost_price) / sell_price) * 100, 1)
+                
+                equipment_sales.append({
+                    'serial_no': row['SerialNo'],
+                    'unit_no': row['UnitNo'],
+                    'make': row['Make'],
+                    'model': row['Model'],
+                    'model_year': row['ModelYear'],
+                    'customer_no': row['CustomerNo'],
+                    'customer_name': row['CustomerName'],
+                    'sell_price': sell_price,
+                    'cost_price': cost_price,
+                    'gp_amount': sell_price - cost_price,
+                    'gp_percent': gp_percent,
+                    'invoice_no': row['InvoiceNo'],
+                    'invoice_date': row['InvoiceDate'].strftime('%Y-%m-%d') if row['InvoiceDate'] else None,
+                    'salesman': row['Salesman1']
+                })
+                
+                total_revenue += sell_price
+                total_cost += cost_price
+                
+                # Track units by model
+                model_key = f"{row['Make']} {row['Model']}" if row['Make'] and row['Model'] else 'Unknown'
+                if model_key not in units_by_model:
+                    units_by_model[model_key] = {'qty': 0, 'revenue': 0, 'cost': 0}
+                units_by_model[model_key]['qty'] += 1
+                units_by_model[model_key]['revenue'] += sell_price
+                units_by_model[model_key]['cost'] += cost_price
+        
+        # Format model summary
+        model_summary = []
+        for model, data in units_by_model.items():
+            gp = 0
+            if data['revenue'] > 0:
+                gp = round(((data['revenue'] - data['cost']) / data['revenue']) * 100, 1)
+            model_summary.append({
+                'model': model,
+                'qty': data['qty'],
+                'total_sales': data['revenue'],
+                'gp_percent': gp
+            })
+        
+        return jsonify({
+            'details': equipment_sales,
+            'summary': {
+                'total_units': len(equipment_sales),
+                'total_revenue': total_revenue,
+                'total_cost': total_cost,
+                'total_gp': total_revenue - total_cost,
+                'overall_gp_percent': round(((total_revenue - total_cost) / total_revenue) * 100, 1) if total_revenue > 0 else 0
+            },
+            'by_model': model_summary,
+            'date_range': {
+                'start': start_date,
+                'end': end_date
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get equipment sales details: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @dashboard_optimized_bp.route('/api/reports/dashboard/invalidate-cache', methods=['POST'])
 @jwt_required()
