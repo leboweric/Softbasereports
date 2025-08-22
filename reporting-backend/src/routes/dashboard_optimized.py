@@ -1935,6 +1935,7 @@ def debug_equipment_sales():
     """Debug endpoint for equipment sales data"""
     try:
         db = DatabaseService()
+        result = {}
         
         # Test 1: Check if we have any equipment sales
         test1_query = """
@@ -1951,27 +1952,46 @@ def debug_equipment_sales():
         ORDER BY InvoiceDate DESC
         """
         
-        # Test 2: Check if InvoiceSales table exists and has data
+        try:
+            invoices = db.execute_query(test1_query)
+            result['invoice_samples'] = [dict(row) for row in invoices] if invoices else []
+            result['invoice_count'] = len(invoices) if invoices else 0
+        except Exception as e:
+            result['invoice_samples'] = []
+            result['invoice_error'] = str(e)
+        
+        # Test 2: Check ALL sale codes that have equipment revenue
         test2_query = """
-        SELECT COUNT(*) as total_count
-        FROM ben002.InvoiceSales
-        WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+        SELECT DISTINCT SaleCode, COUNT(*) as count
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2025-03-01'
+            AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
+        GROUP BY SaleCode
+        ORDER BY count DESC
         """
         
-        # Test 3: Sample InvoiceSales data
+        try:
+            all_codes = db.execute_query(test2_query)
+            result['all_equipment_sale_codes'] = [dict(row) for row in all_codes] if all_codes else []
+        except Exception as e:
+            result['sale_codes_error'] = str(e)
+        
+        # Test 3: Check if InvoiceSales table exists
         test3_query = """
-        SELECT TOP 5
-            InvoiceNo,
-            SaleCode,
-            Qty,
-            SerialNo,
-            UnitNo,
-            Description
-        FROM ben002.InvoiceSales
-        WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+        SELECT COUNT(*) as total_count
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = 'ben002' 
+            AND TABLE_NAME = 'InvoiceSales'
         """
         
-        # Test 4: Monthly aggregation
+        try:
+            table_exists = db.execute_query(test3_query)
+            result['invoice_sales_exists'] = bool(table_exists and table_exists[0]['total_count'] > 0)
+        except Exception as e:
+            result['invoice_sales_exists'] = False
+            result['table_check_error'] = str(e)
+        
+        # Test 4: Monthly aggregation without InvoiceSales
         test4_query = """
         SELECT 
             YEAR(InvoiceDate) as year,
@@ -1990,38 +2010,36 @@ def debug_equipment_sales():
         """
         
         try:
-            invoices = db.execute_query(test1_query)
-        except Exception as e:
-            invoices = None
-            invoice_error = str(e)
-        
-        try:
-            sales_count = db.execute_query(test2_query)
-        except Exception as e:
-            sales_count = None
-            sales_error = str(e)
-            
-        try:
-            sales_sample = db.execute_query(test3_query)
-        except Exception as e:
-            sales_sample = None
-            
-        try:
             monthly_data = db.execute_query(test4_query)
+            result['monthly_aggregation'] = [dict(row) for row in monthly_data] if monthly_data else []
         except Exception as e:
-            monthly_data = None
+            result['monthly_error'] = str(e)
         
-        return jsonify({
-            'invoice_samples': [dict(row) for row in invoices] if invoices else [],
-            'invoice_sales_count': dict(sales_count[0]) if sales_count else {'total_count': 0, 'error': 'InvoiceSales table may not exist'},
-            'invoice_sales_samples': [dict(row) for row in sales_sample] if sales_sample else [],
-            'monthly_aggregation': [dict(row) for row in monthly_data] if monthly_data else [],
-            'message': 'Debug data for equipment sales'
-        })
+        # If InvoiceSales exists, try to query it
+        if result.get('invoice_sales_exists'):
+            test5_query = """
+            SELECT TOP 5
+                InvoiceNo,
+                SaleCode,
+                Qty,
+                SerialNo,
+                UnitNo,
+                Description
+            FROM ben002.InvoiceSales
+            WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+            """
+            try:
+                sales_sample = db.execute_query(test5_query)
+                result['invoice_sales_samples'] = [dict(row) for row in sales_sample] if sales_sample else []
+            except Exception as e:
+                result['invoice_sales_error'] = str(e)
+        
+        result['message'] = 'Debug data for equipment sales'
+        return jsonify(result)
         
     except Exception as e:
         logger.error(f"Equipment sales debug error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': str(e), 'message': 'Failed to run debug'}), 500
 
 @dashboard_optimized_bp.route('/api/reports/dashboard/invalidate-cache', methods=['POST'])
 @jwt_required()

@@ -1119,6 +1119,12 @@ const Dashboard = ({ user }) => {
                         const monthData = data[currentIndex]
                         const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
                         const previousUnits = currentIndex > 0 ? data[currentIndex - 1].units : null
+                        const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
+                        
+                        // Calculate margin change in percentage points
+                        const marginChange = previousMargin !== null && monthData?.margin !== null 
+                          ? monthData.margin - previousMargin 
+                          : null
                         
                         return (
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
@@ -1138,6 +1144,11 @@ const Dashboard = ({ user }) => {
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600">
                                 Margin: {monthData.margin.toFixed(1)}%
+                                {marginChange !== null && (
+                                  <span className={`ml-2 text-sm ${marginChange > 0 ? 'text-green-600' : marginChange < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                    ({marginChange > 0 ? '+' : ''}{marginChange.toFixed(1)} pts)
+                                  </span>
+                                )}
                               </p>
                             )}
                           </div>
