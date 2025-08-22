@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import SaleCodeCheck from './SaleCodeCheck'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -1176,6 +1177,9 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Temporary sale code check */}
+          <SaleCodeCheck />
 
         </TabsContent>
 

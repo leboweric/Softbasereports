@@ -1902,6 +1902,65 @@ def analyze_invoice_delays():
             'message': str(e)
         }), 500
 
+@dashboard_optimized_bp.route('/api/dashboard-optimized/equipment-salecodes', methods=['GET'])
+@jwt_required()
+def check_equipment_sale_codes():
+    """Check what equipment sale codes actually exist in the database"""
+    try:
+        db = DatabaseService()
+        
+        # Get all sale codes that have equipment revenue since March
+        query = """
+        SELECT 
+            SaleCode,
+            COUNT(*) as invoice_count,
+            SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as total_revenue,
+            MIN(InvoiceDate) as first_invoice,
+            MAX(InvoiceDate) as last_invoice
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2025-03-01'
+            AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
+        GROUP BY SaleCode
+        ORDER BY total_revenue DESC
+        """
+        
+        results = db.execute_query(query)
+        
+        # Also check if our specific codes exist at all (even before March)
+        check_query = """
+        SELECT 
+            'LINDE' as code, COUNT(*) as count 
+        FROM ben002.InvoiceReg 
+        WHERE SaleCode = 'LINDE'
+        UNION ALL
+        SELECT 
+            'LINDEN' as code, COUNT(*) as count 
+        FROM ben002.InvoiceReg 
+        WHERE SaleCode = 'LINDEN'
+        UNION ALL
+        SELECT 
+            'NEWEQ' as code, COUNT(*) as count 
+        FROM ben002.InvoiceReg 
+        WHERE SaleCode = 'NEWEQ'
+        UNION ALL
+        SELECT 
+            'KOM' as code, COUNT(*) as count 
+        FROM ben002.InvoiceReg 
+        WHERE SaleCode = 'KOM'
+        """
+        
+        code_check = db.execute_query(check_query)
+        
+        return jsonify({
+            'equipment_sale_codes': [dict(row) for row in results] if results else [],
+            'target_codes_check': [dict(row) for row in code_check] if code_check else [],
+            'message': 'These are all the sale codes with equipment revenue since March 2025'
+        })
+        
+    except Exception as e:
+        logger.error(f"Sale codes check error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @dashboard_optimized_bp.route('/api/dashboard-optimized/equipment-debug', methods=['GET'])
 @jwt_required()
 def debug_equipment_sales():
