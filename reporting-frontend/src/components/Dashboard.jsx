@@ -801,11 +801,19 @@ const Dashboard = ({ user }) => {
               </div>
               {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
                 const completeMonths = dashboardData.monthly_sales.slice(0, -1)
-                const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
+                  .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
                 return (
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Average</p>
-                    <p className="text-lg font-semibold">{formatCurrency(average)}</p>
+                    <div className="mb-2">
+                      <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                      <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Avg Margin</p>
+                      <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                    </div>
                   </div>
                 )
               })()}
@@ -875,11 +883,19 @@ const Dashboard = ({ user }) => {
               </div>
               {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
                 const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
-                const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
+                  .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
                 return (
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Average</p>
-                    <p className="text-lg font-semibold">{formatCurrency(average)}</p>
+                    <div className="mb-2">
+                      <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                      <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Avg Margin</p>
+                      <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                    </div>
                   </div>
                 )
               })()}

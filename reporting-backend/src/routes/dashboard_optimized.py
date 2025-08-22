@@ -144,6 +144,12 @@ class DashboardQueries:
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as amount,
+                -- Revenue excluding rental for margin calculation
+                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) + 
+                    COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) + 
+                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0) +
+                    COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as non_rental_revenue,
+                -- Cost excluding rental (no RentalCost field exists)
                 SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + COALESCE(EquipmentCost, 0)) as total_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
@@ -157,12 +163,13 @@ class DashboardQueries:
                 for row in results:
                     month_date = datetime(row['year'], row['month'], 1)
                     amount = float(row['amount'])
+                    non_rental_revenue = float(row['non_rental_revenue'] or 0)
                     cost = float(row['total_cost'] or 0)
                     
-                    # Calculate gross margin percentage
+                    # Calculate gross margin percentage excluding rental
                     margin = None
-                    if amount > 0:
-                        margin = round(((amount - cost) / amount) * 100, 1)
+                    if non_rental_revenue > 0:
+                        margin = round(((non_rental_revenue - cost) / non_rental_revenue) * 100, 1)
                     
                     monthly_sales.append({
                         'month': month_date.strftime("%b"),
@@ -209,6 +216,11 @@ class DashboardQueries:
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as amount,
+                -- Revenue for margin calc: Parts + Labor + Misc (excluding Equipment and Rental)
+                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) + 
+                    COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) + 
+                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as margin_revenue,
+                -- Cost: Parts + Labor + Misc (no Equipment or Rental cost)
                 SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0)) as total_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
@@ -222,12 +234,13 @@ class DashboardQueries:
                 for row in results:
                     month_date = datetime(row['year'], row['month'], 1)
                     amount = float(row['amount'])
+                    margin_revenue = float(row['margin_revenue'] or 0)
                     cost = float(row['total_cost'] or 0)
                     
-                    # Calculate gross margin percentage
+                    # Calculate gross margin percentage on Parts + Labor + Misc only
                     margin = None
-                    if amount > 0:
-                        margin = round(((amount - cost) / amount) * 100, 1)
+                    if margin_revenue > 0:
+                        margin = round(((margin_revenue - cost) / margin_revenue) * 100, 1)
                     
                     monthly_sales.append({
                         'month': month_date.strftime("%b"),
