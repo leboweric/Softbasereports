@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import EquipmentDebug from './EquipmentDebug'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -914,11 +915,17 @@ const Dashboard = ({ user }) => {
                     const currentIndex = data.findIndex(item => item.month === label)
                     const monthData = data[currentIndex]
                     const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                    const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
                     
                     // Also get the stream data for detailed breakdown if available
                     const streamData = dashboardData?.monthly_sales_by_stream
                     const streamMonthData = streamData ? streamData[currentIndex] : null
                     const previousStreamData = currentIndex > 0 && streamData ? streamData[currentIndex - 1] : null
+                    
+                    // Calculate margin change in percentage points
+                    const marginChange = previousMargin !== null && monthData?.margin !== null 
+                      ? monthData.margin - previousMargin 
+                      : null
                     
                     return (
                       <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
@@ -930,6 +937,11 @@ const Dashboard = ({ user }) => {
                         {monthData?.margin !== null && monthData?.margin !== undefined && (
                           <p className="text-blue-600 mb-2">
                             Margin: {monthData.margin.toFixed(1)}%
+                            {marginChange !== null && (
+                              <span className={`ml-2 text-sm ${marginChange > 0 ? 'text-green-600' : marginChange < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                ({marginChange > 0 ? '+' : ''}{marginChange.toFixed(1)} pts)
+                              </span>
+                            )}
                           </p>
                         )}
                         {streamMonthData && (
@@ -1154,6 +1166,9 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
+
+          {/* Temporary debug component */}
+          <EquipmentDebug />
 
         </TabsContent>
 

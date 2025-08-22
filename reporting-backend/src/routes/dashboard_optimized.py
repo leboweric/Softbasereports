@@ -1929,6 +1929,100 @@ def analyze_invoice_delays():
             'message': str(e)
         }), 500
 
+@dashboard_optimized_bp.route('/api/dashboard-optimized/equipment-debug', methods=['GET'])
+@jwt_required()
+def debug_equipment_sales():
+    """Debug endpoint for equipment sales data"""
+    try:
+        db = DatabaseService()
+        
+        # Test 1: Check if we have any equipment sales
+        test1_query = """
+        SELECT TOP 10
+            InvoiceNo,
+            InvoiceDate,
+            SaleCode,
+            EquipmentTaxable,
+            EquipmentNonTax,
+            EquipmentCost
+        FROM ben002.InvoiceReg
+        WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+            AND InvoiceDate >= '2025-03-01'
+        ORDER BY InvoiceDate DESC
+        """
+        
+        # Test 2: Check if InvoiceSales table exists and has data
+        test2_query = """
+        SELECT COUNT(*) as total_count
+        FROM ben002.InvoiceSales
+        WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+        """
+        
+        # Test 3: Sample InvoiceSales data
+        test3_query = """
+        SELECT TOP 5
+            InvoiceNo,
+            SaleCode,
+            Qty,
+            SerialNo,
+            UnitNo,
+            Description
+        FROM ben002.InvoiceSales
+        WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+        """
+        
+        # Test 4: Monthly aggregation
+        test4_query = """
+        SELECT 
+            YEAR(InvoiceDate) as year,
+            MONTH(InvoiceDate) as month,
+            COUNT(*) as invoice_count,
+            SUM(CASE 
+                WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+                THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
+                ELSE 0
+            END) as equipment_revenue
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= '2025-03-01'
+            AND SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        ORDER BY year, month
+        """
+        
+        try:
+            invoices = db.execute_query(test1_query)
+        except Exception as e:
+            invoices = None
+            invoice_error = str(e)
+        
+        try:
+            sales_count = db.execute_query(test2_query)
+        except Exception as e:
+            sales_count = None
+            sales_error = str(e)
+            
+        try:
+            sales_sample = db.execute_query(test3_query)
+        except Exception as e:
+            sales_sample = None
+            
+        try:
+            monthly_data = db.execute_query(test4_query)
+        except Exception as e:
+            monthly_data = None
+        
+        return jsonify({
+            'invoice_samples': [dict(row) for row in invoices] if invoices else [],
+            'invoice_sales_count': dict(sales_count[0]) if sales_count else {'total_count': 0, 'error': 'InvoiceSales table may not exist'},
+            'invoice_sales_samples': [dict(row) for row in sales_sample] if sales_sample else [],
+            'monthly_aggregation': [dict(row) for row in monthly_data] if monthly_data else [],
+            'message': 'Debug data for equipment sales'
+        })
+        
+    except Exception as e:
+        logger.error(f"Equipment sales debug error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @dashboard_optimized_bp.route('/api/reports/dashboard/invalidate-cache', methods=['POST'])
 @jwt_required()
 def invalidate_dashboard_cache():
