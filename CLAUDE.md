@@ -105,6 +105,43 @@ These need to be fixed in the source data by assigning salesmen to these custome
    - First word match (e.g., SIMONSON matches SIMONSON LUMBER)
 3. Fixed NaN values in totals
 4. Improved error handling
+5. **Added BillTo column** (2025-08-22) - Now displays customer number between Date and Customer in Detailed Invoice Breakdown
+
+### Detailed Commission Structure (Updated 2025-08-22)
+Complete commission structure documentation added to Commission Structure card:
+- **New Equipment**: 20% of profit with various minimums ($100 standard, $50 pallet trucks)
+- **Used Equipment**: 5% of selling price or variable rates based on profit levels
+- **Rental Equipment**: 10% standard, 5% for discounted rentals, with specific exclusions
+- **Rental Equipment Sales**: Separate from rentals with own commission structure
+- **RPO (Rental Purchase Option)**: Different handling for inadvertent vs signed quotes
+- **Allied Products**: 20% of profit
+
+## Dashboard Improvements (2025-08-22)
+
+### Monthly Sales (No Equipment) Tooltip Enhancements
+1. **Added department-specific gross margin tracking**
+   - Shows margin percentage and month-to-month changes for Parts, Labor, Misc
+   - Format: "GM: 42.5% +2.1pts" showing both current margin and point change
+   - Rental shows "(No cost data)" as placeholder since true costs aren't available
+2. **Fixed alignment issues** - All revenue items now align properly using consistent spacing
+
+### Equipment Sales Tracking
+1. **Discovery**: EquipmentHistory table's WONo column doesn't exist despite documentation
+   - Initial attempt to track individual units via EquipmentHistory failed
+   - Reverted to using InvoiceReg with invoice counts as proxy for units
+2. **Filtered to New Equipment only**
+   - Changed from showing ALL equipment to just NEW equipment sales
+   - Added filtering: `SaleCode IN ('NEWEQ', 'LINDE', 'LINDEN', 'KOM', 'NEW')` or `SaleDept = 80`
+   - Title changed from "Equipment Sales (All)" to "New Equipment Sales"
+   - Should now match competing report's unit counts more closely
+3. **Added unit tracking display**
+   - Shows "Units Sold" in tooltip with month-over-month changes
+   - Displays average units in card header
+   - Note: These are invoice counts, not actual serial-tracked units
+
+### Known Limitations
+- **Equipment unit tracking**: Without proper table relationships to individual equipment records (SerialNo, UnitNo, Make, Model), we can't match competing report's exact unit-level detail
+- **Rental margins**: No true cost data available for rental revenue calculations
 
 ## Overview
 This is a comprehensive reporting system for Softbase Evolution, a heavy equipment management system. The project consists of a React frontend and Flask backend that connects to an Azure SQL Server database.
