@@ -257,7 +257,7 @@ class DashboardQueries:
                     
                     # Calculate gross margin percentage on Parts + Labor + Misc only
                     margin = None
-                    if margin_revenue > 0:
+                    if margin_revenue > 0.01:  # Use small threshold to avoid division issues
                         margin = round(((margin_revenue - cost) / margin_revenue) * 100, 1)
                     
                     monthly_sales.append({
@@ -1893,6 +1893,24 @@ def analyze_invoice_delays():
             'error': 'Failed to analyze invoice delays',
             'message': str(e)
         }), 500
+
+@dashboard_optimized_bp.route('/api/dashboard-optimized/debug-no-equipment', methods=['GET'])
+@jwt_required()
+def debug_no_equipment_sales():
+    """Debug endpoint to check Monthly Sales (No Equipment) data"""
+    try:
+        queries = DashboardQueries()
+        data = queries.get_monthly_sales_excluding_equipment()
+        
+        return jsonify({
+            'monthly_sales_no_equipment': data,
+            'count': len(data),
+            'message': 'Data for Monthly Sales (No Equipment) card'
+        })
+        
+    except Exception as e:
+        logger.error(f"Debug no equipment error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @dashboard_optimized_bp.route('/api/dashboard-optimized/equipment-salecodes', methods=['GET'])
 @jwt_required()

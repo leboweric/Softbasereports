@@ -916,6 +916,9 @@ const Dashboard = ({ user }) => {
                     const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
                     const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
                     
+                    // Debug logging to check if margin exists
+                    console.log('Monthly Sales No Equipment - monthData:', monthData)
+                    
                     // Also get the stream data for detailed breakdown if available
                     const streamData = dashboardData?.monthly_sales_by_stream
                     const streamMonthData = streamData ? streamData[currentIndex] : null
