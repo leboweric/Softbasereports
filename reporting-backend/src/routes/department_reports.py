@@ -529,12 +529,9 @@ def register_department_routes(reports_bp):
                 labor_revenue = float(row['labor_revenue'] or 0)
                 labor_cost = float(row['labor_cost'] or 0)
                 
-                # Check if this is current month or future
-                is_current_or_future = (row['year'] > current_year) or (row['year'] == current_year and row['month'] >= current_month)
-                
-                # Calculate gross margin percentage only for historical months
+                # Calculate gross margin percentage for all months with revenue
                 margin_percentage = None
-                if not is_current_or_future and labor_revenue > 0:
+                if labor_revenue > 0:
                     margin_percentage = round(((labor_revenue - labor_cost) / labor_revenue) * 100, 1)
                 
                 monthlyLaborRevenue.append({
@@ -665,12 +662,9 @@ def register_department_routes(reports_bp):
                 parts_revenue = float(row['parts_revenue'] or 0)
                 parts_cost = float(row['parts_cost'] or 0)
                 
-                # Check if this is current month or future
-                is_current_or_future = (row['year'] > current_year) or (row['year'] == current_year and row['month'] >= current_month)
-                
-                # Calculate gross margin percentage only for historical months
+                # Calculate gross margin percentage for all months with revenue
                 margin_percentage = None
-                if not is_current_or_future and parts_revenue > 0:
+                if parts_revenue > 0:
                     margin_percentage = round(((parts_revenue - parts_cost) / parts_revenue) * 100, 1)
                 
                 monthlyPartsRevenue.append({
