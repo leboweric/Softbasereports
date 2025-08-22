@@ -592,22 +592,23 @@ def register_department_routes(reports_bp):
                 prev_year = current_year
             
             # Get parts sales through same day for current and previous month
+            # Using PartsTaxable + PartsNonTax to match the main parts revenue query
             current_query = f"""
-            SELECT SUM(GrandTotal) as total_sales
+            SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
             FROM ben002.InvoiceReg
             WHERE YEAR(InvoiceDate) = {current_year}
                 AND MONTH(InvoiceDate) = {current_month}
                 AND DAY(InvoiceDate) <= {current_day}
-                AND SaleCode IN ('PRT', 'PCR', 'PAG', 'PIN', 'PRB')
+                AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
             """
             
             prev_query = f"""
-            SELECT SUM(GrandTotal) as total_sales
+            SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
             FROM ben002.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND DAY(InvoiceDate) <= {current_day}
-                AND SaleCode IN ('PRT', 'PCR', 'PAG', 'PIN', 'PRB')
+                AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
             """
             
             current_result = db.execute_query(current_query)
