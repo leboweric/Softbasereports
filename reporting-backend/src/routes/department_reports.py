@@ -6349,6 +6349,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
+                ir.BillTo,
                 ir.BillToName as CustomerName,
                 sl.Salesman1,
                 ir.SaleCode,
@@ -6423,6 +6424,7 @@ def register_department_routes(reports_bp):
                 invoice = {
                     'invoice_no': row['InvoiceNo'],
                     'invoice_date': row['InvoiceDate'].isoformat() if row['InvoiceDate'] else None,
+                    'bill_to': row['BillTo'],
                     'customer_name': row['CustomerName'],
                     'sale_code': row['SaleCode'],
                     'category': row['Category'],
