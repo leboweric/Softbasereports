@@ -136,7 +136,12 @@ const AccountingReport = ({ user }) => {
                 <CardTitle className="text-sm font-medium">Total Accounts Receivable</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$1.697M</div>
+                <div className="text-2xl font-bold">
+                  ${arData ? (arData.total_ar >= 1000000 ? 
+                    `${(arData.total_ar / 1000000).toFixed(2)}M` : 
+                    `${(arData.total_ar / 1000).toFixed(0)}k`) : 
+                    '...'}
+                </div>
               </CardContent>
             </Card>
             
