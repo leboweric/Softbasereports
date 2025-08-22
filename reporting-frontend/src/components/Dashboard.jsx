@@ -813,36 +813,44 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_sales || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={dashboardData?.monthly_sales || []} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
                 <Tooltip content={({ active, payload, label }) => {
                   if (active && payload && payload.length && dashboardData?.monthly_sales) {
                     const data = dashboardData.monthly_sales
                     const currentIndex = data.findIndex(item => item.month === label)
-                    const currentValue = payload[0].value
+                    const monthData = data[currentIndex]
                     const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
                     
                     return (
                       <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                         <p className="font-semibold mb-1">{label}</p>
                         <p className="text-green-600">
-                          {formatCurrency(currentValue)}
-                          {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                          Revenue: {formatCurrency(monthData?.amount || 0)}
+                          {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
                         </p>
+                        {monthData?.margin !== null && monthData?.margin !== undefined && (
+                          <p className="text-blue-600">
+                            Margin: {monthData.margin.toFixed(1)}%
+                          </p>
+                        )}
                       </div>
                     )
                   }
                   return null
                 }} />
-                <Bar dataKey="amount" fill="#8884d8" shape={<CustomBar />} />
+                <Bar yAxisId="left" dataKey="amount" fill="#8884d8" shape={<CustomBar />} />
+                <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} />
                 {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales.slice(0, -1)
                   const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                   return (
                     <ReferenceLine 
+                      yAxisId="left"
                       y={average} 
                       stroke="#666" 
                       strokeDasharray="3 3"
@@ -850,7 +858,7 @@ const Dashboard = ({ user }) => {
                     />
                   )
                 })()}
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -878,18 +886,81 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_sales_no_equipment || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={dashboardData?.monthly_sales_no_equipment || []} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="amount" fill="#10b981" shape={<CustomBarNoEquipment />} />
+                <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
+                <Tooltip content={({ active, payload, label }) => {
+                  if (active && payload && dashboardData?.monthly_sales_no_equipment) {
+                    const data = dashboardData.monthly_sales_no_equipment
+                    const currentIndex = data.findIndex(item => item.month === label)
+                    const monthData = data[currentIndex]
+                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                    
+                    // Also get the stream data for detailed breakdown if available
+                    const streamData = dashboardData?.monthly_sales_by_stream
+                    const streamMonthData = streamData ? streamData[currentIndex] : null
+                    const previousStreamData = currentIndex > 0 && streamData ? streamData[currentIndex - 1] : null
+                    
+                    return (
+                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                        <p className="font-semibold mb-2">{label}</p>
+                        <p className="font-semibold text-green-600">
+                          Total: {formatCurrency(monthData?.amount || 0)}
+                          {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
+                        </p>
+                        {monthData?.margin !== null && monthData?.margin !== undefined && (
+                          <p className="text-blue-600 mb-2">
+                            Margin: {monthData.margin.toFixed(1)}%
+                          </p>
+                        )}
+                        {streamMonthData && (
+                          <div className="text-sm space-y-1 border-t pt-2">
+                            <div className="flex justify-between">
+                              <span>Parts:</span>
+                              <span className="ml-4">
+                                {formatCurrency(streamMonthData.parts)}
+                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.parts, previousStreamData.parts))}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Labor:</span>
+                              <span className="ml-4">
+                                {formatCurrency(streamMonthData.labor)}
+                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.labor, previousStreamData.labor))}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Rental:</span>
+                              <span className="ml-4">
+                                {formatCurrency(streamMonthData.rental)}
+                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Misc:</span>
+                              <span className="ml-4">
+                                {formatCurrency(streamMonthData.misc)}
+                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.misc, previousStreamData.misc))}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+                  return null
+                }} />
+                <Bar yAxisId="left" dataKey="amount" fill="#10b981" shape={<CustomBarNoEquipment />} />
+                <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b' }} />
                 {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
                   const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                   return (
                     <ReferenceLine 
+                      yAxisId="left"
                       y={average} 
                       stroke="#666" 
                       strokeDasharray="3 3"
@@ -897,7 +968,7 @@ const Dashboard = ({ user }) => {
                     />
                   )
                 })()}
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
             </Card>
