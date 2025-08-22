@@ -926,7 +926,7 @@ const Dashboard = ({ user }) => {
                           <div className="text-sm space-y-1 border-t pt-2">
                             <div className="flex justify-between">
                               <span>Parts:</span>
-                              <span className="ml-4">
+                              <span>
                                 {formatCurrency(streamMonthData.parts)}
                                 {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.parts, previousStreamData.parts))}
                                 {streamMonthData.parts_margin !== null && streamMonthData.parts_margin !== undefined && (
@@ -943,7 +943,7 @@ const Dashboard = ({ user }) => {
                             </div>
                             <div className="flex justify-between">
                               <span>Labor:</span>
-                              <span className="ml-4">
+                              <span>
                                 {formatCurrency(streamMonthData.labor)}
                                 {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.labor, previousStreamData.labor))}
                                 {streamMonthData.labor_margin !== null && streamMonthData.labor_margin !== undefined && (
@@ -960,14 +960,14 @@ const Dashboard = ({ user }) => {
                             </div>
                             <div className="flex justify-between">
                               <span>Rental:</span>
-                              <span className="ml-4">
+                              <span>
                                 {formatCurrency(streamMonthData.rental)}
                                 {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span>Misc:</span>
-                              <span className="ml-4">
+                              <span>
                                 {formatCurrency(streamMonthData.misc)}
                                 {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.misc, previousStreamData.misc))}
                                 {streamMonthData.misc_margin !== null && streamMonthData.misc_margin !== undefined && (
