@@ -137,13 +137,14 @@ class DashboardQueries:
                 return 0
     
     def get_monthly_sales(self):
-        """Get monthly sales since March 2025"""
+        """Get monthly sales since March 2025 with gross margin"""
         try:
             query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                SUM(GrandTotal) as amount
+                SUM(GrandTotal) as amount,
+                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + COALESCE(EquipmentCost, 0)) as total_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -155,10 +156,19 @@ class DashboardQueries:
             if results:
                 for row in results:
                     month_date = datetime(row['year'], row['month'], 1)
+                    amount = float(row['amount'])
+                    cost = float(row['total_cost'] or 0)
+                    
+                    # Calculate gross margin percentage
+                    margin = None
+                    if amount > 0:
+                        margin = round(((amount - cost) / amount) * 100, 1)
+                    
                     monthly_sales.append({
                         'month': month_date.strftime("%b"),
                         'year': row['year'],
-                        'amount': float(row['amount'])
+                        'amount': amount,
+                        'margin': margin
                     })
             
             # Pad missing months from March onwards
@@ -182,7 +192,8 @@ class DashboardQueries:
                     monthly_sales.append({
                         'month': month_info['month'],
                         'year': month_info['year'],
-                        'amount': 0
+                        'amount': 0,
+                        'margin': None
                     })
             
             return monthly_sales
@@ -191,13 +202,14 @@ class DashboardQueries:
             return []
     
     def get_monthly_sales_excluding_equipment(self):
-        """Get monthly sales since March 2025 excluding equipment sales"""
+        """Get monthly sales since March 2025 excluding equipment sales with gross margin"""
         try:
             query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as amount
+                SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as amount,
+                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0)) as total_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -209,10 +221,19 @@ class DashboardQueries:
             if results:
                 for row in results:
                     month_date = datetime(row['year'], row['month'], 1)
+                    amount = float(row['amount'])
+                    cost = float(row['total_cost'] or 0)
+                    
+                    # Calculate gross margin percentage
+                    margin = None
+                    if amount > 0:
+                        margin = round(((amount - cost) / amount) * 100, 1)
+                    
                     monthly_sales.append({
                         'month': month_date.strftime("%b"),
                         'year': row['year'],
-                        'amount': float(row['amount'])
+                        'amount': amount,
+                        'margin': margin
                     })
             
             # Pad missing months from March onwards
@@ -236,7 +257,8 @@ class DashboardQueries:
                     monthly_sales.append({
                         'month': month_info['month'],
                         'year': month_info['year'],
-                        'amount': 0
+                        'amount': 0,
+                        'margin': None
                     })
             
             return monthly_sales

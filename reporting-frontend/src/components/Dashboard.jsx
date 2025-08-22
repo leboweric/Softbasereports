@@ -23,6 +23,7 @@ import {
 import { 
   BarChart, 
   Bar, 
+  ComposedChart,
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -33,7 +34,8 @@ import {
   PieChart,
   Pie,
   Cell,
-  ReferenceLine
+  ReferenceLine,
+  Legend
 } from 'recharts'
 import { 
   DollarSign, 
