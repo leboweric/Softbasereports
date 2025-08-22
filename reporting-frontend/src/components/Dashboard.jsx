@@ -963,6 +963,9 @@ const Dashboard = ({ user }) => {
                               <span>
                                 {formatCurrency(streamMonthData.rental)}
                                 {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
+                                <span className="text-xs ml-2 text-gray-400">
+                                  (No cost data)
+                                </span>
                               </span>
                             </div>
                             <div className="flex justify-between">
