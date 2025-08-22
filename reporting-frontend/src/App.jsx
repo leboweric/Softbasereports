@@ -13,6 +13,7 @@ import AccountingReport from './components/departments/AccountingReport'
 import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import AIQueryTester from './components/AIQueryTester'
 import TableDiscovery from './components/TableDiscovery'
+import MinitracSearch from './components/MinitracSearch'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
@@ -97,6 +98,8 @@ function App() {
         return <AIQueryTester user={user} organization={organization} />
       case 'table-discovery':
         return <TableDiscovery user={user} organization={organization} />
+      case 'minitrac':
+        return <MinitracSearch user={user} organization={organization} />
       case 'users':
         return <div className="p-8 text-center text-gray-500">Users management coming soon...</div>
       case 'settings':

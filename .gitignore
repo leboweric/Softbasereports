@@ -163,4 +163,4 @@ analyze_*.py
 *.analysis
 *.diagnostic
 *_test.html
-*_debug.html
+*_debug.html*.xlsx

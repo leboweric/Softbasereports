@@ -15,7 +15,8 @@ import {
   Package,
   Truck,
   Calculator,
-  Search
+  Search,
+  History
 } from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
@@ -27,6 +28,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
     { name: 'Parts', icon: Package, id: 'parts' },
     { name: 'Rental', icon: Truck, id: 'rental' },
     { name: 'Accounting', icon: Calculator, id: 'accounting' },
+    { name: 'Minitrac', icon: History, id: 'minitrac' },
     { name: 'AI Query', icon: Sparkles, id: 'ai-query' },
     { name: 'AI Query Tester', icon: BarChart3, id: 'ai-query-tester' },
     { name: 'Report Creator', icon: FileText, id: 'report-creator' },
