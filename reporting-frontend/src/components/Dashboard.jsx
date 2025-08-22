@@ -1058,6 +1058,101 @@ const Dashboard = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>New Equipment Sales</CardTitle>
+                    <CardDescription>
+                      New equipment revenue and gross margin
+                    </CardDescription>
+                  </div>
+                  {dashboardData?.monthly_equipment_sales && dashboardData.monthly_equipment_sales.length > 0 && (() => {
+                    const completeMonths = dashboardData.monthly_equipment_sales.slice(0, -1)
+                    const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
+                      .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
+                    const avgUnits = completeMonths.reduce((sum, item) => sum + (item.units || 0), 0) / completeMonths.length
+                    return (
+                      <div className="text-right">
+                        <div className="mb-2">
+                          <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                          <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                        </div>
+                        <div className="mb-2">
+                          <p className="text-sm text-muted-foreground">Avg Units/Month</p>
+                          <p className="text-lg font-semibold">{avgUnits.toFixed(1)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Avg Margin</p>
+                          <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <ComposedChart data={dashboardData?.monthly_equipment_sales || []} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && dashboardData?.monthly_equipment_sales) {
+                        const data = dashboardData.monthly_equipment_sales
+                        const currentIndex = data.findIndex(item => item.month === label)
+                        const monthData = data[currentIndex]
+                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                        const previousUnits = currentIndex > 0 ? data[currentIndex - 1].units : null
+                        
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-2">{label}</p>
+                            <p className="font-semibold text-cyan-600">
+                              Units Sold: {monthData?.units || 0}
+                              {previousUnits !== null && previousUnits > 0 && (
+                                <span className="text-xs ml-2">
+                                  ({((monthData?.units - previousUnits) / previousUnits * 100).toFixed(0)}% vs prev)
+                                </span>
+                              )}
+                            </p>
+                            <p className="font-semibold text-green-600">
+                              Revenue: {formatCurrency(monthData?.amount || 0)}
+                              {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
+                            </p>
+                            {monthData?.margin !== null && monthData?.margin !== undefined && (
+                              <p className="text-blue-600">
+                                Margin: {monthData.margin.toFixed(1)}%
+                              </p>
+                            )}
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="amount" fill="#06b6d4" name="Revenue" />
+                    <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b' }} name="Gross Margin %" />
+                    {dashboardData?.monthly_equipment_sales && dashboardData.monthly_equipment_sales.length > 0 && (() => {
+                      const completeMonths = dashboardData.monthly_equipment_sales.slice(0, -1)
+                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                      return (
+                        <ReferenceLine 
+                          yAxisId="left"
+                          y={average} 
+                          stroke="#666" 
+                          strokeDasharray="3 3"
+                          label={{ value: "Average", position: "insideTopRight" }}
+                        />
+                      )
+                    })()}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
 
         </TabsContent>

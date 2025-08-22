@@ -137,20 +137,38 @@ class DashboardQueries:
                 return 0
     
     def get_monthly_sales(self):
-        """Get monthly sales since March 2025 with gross margin"""
+        """Get monthly sales since March 2025 with gross margin (excluding NEWEQP-R service prep)"""
         try:
             query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                SUM(GrandTotal) as amount,
-                -- Revenue excluding rental for margin calculation
+                -- Exclude NEWEQP-R from GrandTotal (it's service prep, not a real equipment sale)
+                SUM(GrandTotal - 
+                    CASE 
+                        WHEN SaleCode = 'NEWEQP-R' 
+                        THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
+                        ELSE 0
+                    END
+                ) as amount,
+                -- Revenue excluding rental and NEWEQP-R for margin calculation
                 SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) + 
                     COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) + 
                     COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0) +
-                    COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as non_rental_revenue,
-                -- Cost excluding rental (no RentalCost field exists)
-                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + COALESCE(EquipmentCost, 0)) as total_cost
+                    CASE 
+                        WHEN SaleCode != 'NEWEQP-R'
+                        THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
+                        ELSE 0
+                    END
+                ) as non_rental_revenue,
+                -- Cost excluding rental and NEWEQP-R
+                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + 
+                    CASE 
+                        WHEN SaleCode != 'NEWEQP-R'
+                        THEN COALESCE(EquipmentCost, 0)
+                        ELSE 0
+                    END
+                ) as total_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -397,6 +415,116 @@ class DashboardQueries:
                 return {'value': count * 500, 'count': count}  # Estimate value
             except:
                 return {'value': 0, 'count': 0}
+    
+    def get_monthly_equipment_sales(self):
+        """Get monthly NEW equipment sales since March 2025 with gross margin and unit count (excluding used, allied, and service prep)"""
+        try:
+            # First get revenue and costs from InvoiceReg
+            revenue_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                SUM(CASE 
+                    WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+                    THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
+                    ELSE 0
+                END) as equipment_revenue,
+                SUM(CASE 
+                    WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+                    THEN COALESCE(EquipmentCost, 0)
+                    ELSE 0
+                END) as equipment_cost
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= '2025-03-01'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            # Then get unit counts from InvoiceSales (counting distinct equipment sold)
+            units_query = """
+            SELECT 
+                YEAR(inv.InvoiceDate) as year,
+                MONTH(inv.InvoiceDate) as month,
+                COUNT(DISTINCT CASE 
+                    WHEN sales.SerialNo IS NOT NULL AND sales.SerialNo != '' 
+                    THEN sales.SerialNo 
+                    WHEN sales.UnitNo IS NOT NULL AND sales.UnitNo != ''
+                    THEN sales.UnitNo
+                    ELSE CONCAT(CAST(sales.InvoiceNo AS VARCHAR), '-', CAST(sales.ItemNo AS VARCHAR))
+                END) as units_sold
+            FROM ben002.InvoiceSales sales
+            INNER JOIN ben002.InvoiceReg inv ON sales.InvoiceNo = inv.InvoiceNo
+            WHERE sales.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+                AND inv.InvoiceDate >= '2025-03-01'
+                AND sales.Qty > 0
+            GROUP BY YEAR(inv.InvoiceDate), MONTH(inv.InvoiceDate)
+            """
+            
+            # Execute both queries
+            revenue_results = self.db.execute_query(revenue_query)
+            units_results = self.db.execute_query(units_query)
+            
+            # Create lookup dictionary for units
+            units_by_month = {}
+            if units_results:
+                for row in units_results:
+                    key = f"{row['year']}-{row['month']}"
+                    units_by_month[key] = int(row['units_sold'] or 0)
+            
+            monthly_equipment = []
+            if revenue_results:
+                for row in revenue_results:
+                    month_date = datetime(row['year'], row['month'], 1)
+                    revenue = float(row['equipment_revenue'] or 0)
+                    cost = float(row['equipment_cost'] or 0)
+                    
+                    # Get unit count for this month
+                    key = f"{row['year']}-{row['month']}"
+                    units = units_by_month.get(key, 0)
+                    
+                    # Calculate gross margin percentage
+                    margin = None
+                    if revenue > 0:
+                        margin = round(((revenue - cost) / revenue) * 100, 1)
+                    
+                    monthly_equipment.append({
+                        'month': month_date.strftime("%b"),
+                        'year': row['year'],
+                        'amount': revenue,
+                        'margin': margin,
+                        'units': units
+                    })
+            
+            # Pad missing months from March onwards
+            start_date = datetime(2025, 3, 1)
+            all_months = []
+            date = start_date
+            while date <= self.current_date:
+                all_months.append({'month': date.strftime("%b"), 'year': date.year})
+                if date.month == 12:
+                    date = date.replace(year=date.year + 1, month=1)
+                else:
+                    date = date.replace(month=date.month + 1)
+            
+            existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_equipment}
+            monthly_equipment = []
+            for month_info in all_months:
+                key = f"{month_info['year']}-{month_info['month']}"
+                if key in existing_data:
+                    monthly_equipment.append(existing_data[key])
+                else:
+                    monthly_equipment.append({
+                        'month': month_info['month'],
+                        'year': month_info['year'],
+                        'amount': 0,
+                        'margin': None,
+                        'units': 0
+                    })
+            
+            return monthly_equipment
+        except Exception as e:
+            logger.error(f"Monthly equipment sales query failed: {str(e)}")
+            return []
     
     def get_monthly_quotes(self):
         """Get monthly quotes since March - latest quote per work order"""
@@ -1289,6 +1417,7 @@ def get_dashboard_summary_optimized():
             'total_customers': lambda: cached_query('total_customers', queries.get_total_customers, cache_ttl['active_customers']),
             'monthly_sales': lambda: cached_query('monthly_sales', queries.get_monthly_sales, cache_ttl['monthly_sales']),
             'monthly_sales_no_equipment': lambda: cached_query('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment, cache_ttl['monthly_sales']),
+            'monthly_equipment_sales': lambda: cached_query('monthly_equipment_sales', queries.get_monthly_equipment_sales, cache_ttl['monthly_sales']),
             'monthly_sales_by_stream': lambda: cached_query('monthly_sales_by_stream', queries.get_monthly_sales_by_stream, cache_ttl['monthly_sales']),
             'uninvoiced': lambda: cached_query('uninvoiced', queries.get_uninvoiced_work_orders, cache_ttl['uninvoiced']),
             'monthly_quotes': lambda: cached_query('monthly_quotes', queries.get_monthly_quotes, cache_ttl['monthly_quotes']),
