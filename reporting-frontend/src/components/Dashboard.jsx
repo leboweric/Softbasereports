@@ -214,9 +214,6 @@ const Dashboard = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Customer risk data fetched:', data)
-        console.log('Number of customers analyzed:', data.customers?.length)
-        console.log('Customers with risk:', data.customers?.filter(c => c.risk_level !== 'none')?.length)
         setCustomerRiskData(data)
       } else {
         console.error('Customer risk API failed:', response.status, response.statusText)
@@ -319,15 +316,9 @@ const Dashboard = ({ user }) => {
 
   const getCustomerRisk = (customerName) => {
     if (!customerRiskData?.customers) {
-      console.log('No customer risk data available')
       return null
     }
     const risk = customerRiskData.customers.find(c => c.customer_name === customerName)
-    if (!risk) {
-      console.log(`No risk data found for customer: ${customerName}`)
-    } else if (risk.risk_level !== 'none') {
-      console.log(`Risk found for ${customerName}:`, risk.risk_level, risk.risk_factors)
-    }
     return risk
   }
 
@@ -429,18 +420,6 @@ const Dashboard = ({ user }) => {
       payload.month === monthNames[currentMonth - 1] && 
       payload.year === currentYear &&
       paceData
-    
-    // Debug logging
-    if (payload && payload.month === 'Aug') {
-      console.log('August bar detected:', {
-        payload,
-        currentMonth,
-        currentYear,
-        isCurrentMonth,
-        paceData: !!paceData
-      })
-    }
-    
     return (
       <g>
         <rect x={x} y={y} width={width} height={height} fill={fill} />
@@ -915,9 +894,6 @@ const Dashboard = ({ user }) => {
                     const monthData = data[currentIndex]
                     const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
                     const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
-                    
-                    // Debug logging to check if margin exists
-                    console.log('Monthly Sales No Equipment - monthData:', monthData)
                     
                     // Also get the stream data for detailed breakdown if available
                     const streamData = dashboardData?.monthly_sales_by_stream
