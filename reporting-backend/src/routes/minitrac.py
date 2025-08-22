@@ -3,8 +3,8 @@ Minitrac historical data API endpoints
 """
 
 from flask import Blueprint, request, jsonify
-from services.postgres_service import PostgreSQLService
-from utils.auth import require_auth
+from src.services.postgres_service import PostgreSQLService
+from src.utils.auth import require_auth
 import logging
 
 logger = logging.getLogger(__name__)
