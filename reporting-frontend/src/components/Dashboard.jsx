@@ -842,8 +842,9 @@ const Dashboard = ({ user }) => {
                   }
                   return null
                 }} />
-                <Bar yAxisId="left" dataKey="amount" fill="#8884d8" shape={<CustomBar />} />
-                <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} />
+                <Legend />
+                <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} />
+                <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} name="Gross Margin %" />
                 {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales.slice(0, -1)
@@ -952,8 +953,9 @@ const Dashboard = ({ user }) => {
                   }
                   return null
                 }} />
-                <Bar yAxisId="left" dataKey="amount" fill="#10b981" shape={<CustomBarNoEquipment />} />
-                <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b' }} />
+                <Legend />
+                <Bar yAxisId="left" dataKey="amount" fill="#10b981" name="Revenue" shape={<CustomBarNoEquipment />} />
+                <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b' }} name="Gross Margin %" />
                 {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
