@@ -417,31 +417,56 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_equipment_sales(self):
-        """Get monthly NEW equipment sales since March 2025 with gross margin (excluding used, allied, and service prep)"""
+        """Get monthly NEW equipment sales since March 2025 with gross margin (excluding used, allied, rental, service, parts)"""
         try:
-            # Get revenue and costs from InvoiceReg (InvoiceSales table doesn't exist)
+            # Get ALL equipment revenue from the EquipmentTaxable and EquipmentNonTax fields
+            # Then exclude known used/allied/service codes
+            # The equipment fields should already exclude rental, service, and parts
             query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                SUM(CASE 
-                    WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
-                    THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
-                    ELSE 0
-                END) as equipment_revenue,
-                SUM(CASE 
-                    WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
-                    THEN COALESCE(EquipmentCost, 0)
-                    ELSE 0
-                END) as equipment_cost,
-                COUNT(CASE 
-                    WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+                -- Sum all equipment revenue except for specific exclusions
+                SUM(
+                    CASE 
+                        -- Exclude service prep, used equipment, allied, and rental sales
+                        WHEN SaleCode IN ('NEWEQP-R', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                         'ALLIED', 'USEDCAP', 'USEDEQP', 'RENTAL', 'RENTR', 'RENTRS')
+                        THEN 0
+                        -- Exclude anything starting with USED, RENT, or containing service/parts codes
+                        WHEN SaleCode LIKE 'USED%' OR SaleCode LIKE 'RENT%' 
+                            OR SaleCode LIKE '%SVC%' OR SaleCode LIKE '%SVE%' 
+                            OR SaleCode LIKE '%PRT%' OR SaleCode LIKE '%PART%'
+                        THEN 0
+                        -- Include everything else in equipment fields
+                        ELSE COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
+                    END
+                ) as equipment_revenue,
+                SUM(
+                    CASE 
+                        WHEN SaleCode IN ('NEWEQP-R', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                         'ALLIED', 'USEDCAP', 'USEDEQP', 'RENTAL', 'RENTR', 'RENTRS')
+                        THEN 0
+                        WHEN SaleCode LIKE 'USED%' OR SaleCode LIKE 'RENT%' 
+                            OR SaleCode LIKE '%SVC%' OR SaleCode LIKE '%SVE%' 
+                            OR SaleCode LIKE '%PRT%' OR SaleCode LIKE '%PART%'
+                        THEN 0
+                        ELSE COALESCE(EquipmentCost, 0)
+                    END
+                ) as equipment_cost,
+                COUNT(DISTINCT CASE 
+                    WHEN SaleCode NOT IN ('NEWEQP-R', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                         'ALLIED', 'USEDCAP', 'USEDEQP', 'RENTAL', 'RENTR', 'RENTRS')
+                        AND SaleCode NOT LIKE 'USED%' AND SaleCode NOT LIKE 'RENT%'
+                        AND SaleCode NOT LIKE '%SVC%' AND SaleCode NOT LIKE '%SVE%'
+                        AND SaleCode NOT LIKE '%PRT%' AND SaleCode NOT LIKE '%PART%'
                         AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
                     THEN InvoiceNo
                     ELSE NULL
                 END) as invoice_count
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
+                AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)  -- Only include rows with equipment revenue
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
