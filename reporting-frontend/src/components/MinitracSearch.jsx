@@ -24,7 +24,6 @@ const MinitracSearch = () => {
   });
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState(null);
   const [selectedUnit, setSelectedUnit] = useState(null);
   const [unitDetails, setUnitDetails] = useState(null);
   const [pagination, setPagination] = useState({
@@ -34,10 +33,9 @@ const MinitracSearch = () => {
     total_pages: 0
   });
 
-  // Load filter options and stats on mount
+  // Load filter options on mount
   useEffect(() => {
     loadFilterOptions();
-    loadStatistics();
   }, []);
 
   const loadFilterOptions = async () => {
@@ -54,23 +52,6 @@ const MinitracSearch = () => {
       }
     } catch (error) {
       console.error('Error loading filter options:', error);
-    }
-  };
-
-  const loadStatistics = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(apiUrl('/api/minitrac/stats'), {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await response.json();
-      if (data.success) {
-        setStats(data.stats);
-      }
-    } catch (error) {
-      console.error('Error loading statistics:', error);
     }
   };
 
@@ -170,53 +151,6 @@ const MinitracSearch = () => {
 
   return (
     <div className="space-y-6">
-      {/* Statistics Cards */}
-      {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Equipment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total_equipment?.toLocaleString()}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Book Value</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {formatCurrency(stats.financials?.total_book_value)}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">YTD Income</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(stats.financials?.total_ytd_income)}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">YTD Expense</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(stats.financials?.total_ytd_expense)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Search Interface */}
       <Card>
         <CardHeader>
