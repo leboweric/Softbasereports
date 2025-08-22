@@ -1087,16 +1087,11 @@ const Dashboard = ({ user }) => {
                     const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                     const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
                       .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
-                    const avgUnits = completeMonths.reduce((sum, item) => sum + (item.units || 0), 0) / completeMonths.length
                     return (
                       <div className="text-right">
                         <div className="mb-2">
                           <p className="text-sm text-muted-foreground">Avg Revenue</p>
                           <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
-                        </div>
-                        <div className="mb-2">
-                          <p className="text-sm text-muted-foreground">Avg Invoices/Month</p>
-                          <p className="text-lg font-semibold">{avgUnits.toFixed(1)}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Avg Margin</p>
@@ -1120,7 +1115,6 @@ const Dashboard = ({ user }) => {
                         const currentIndex = data.findIndex(item => item.month === label)
                         const monthData = data[currentIndex]
                         const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
-                        const previousUnits = currentIndex > 0 ? data[currentIndex - 1].units : null
                         const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
                         
                         // Calculate margin change in percentage points
@@ -1131,14 +1125,6 @@ const Dashboard = ({ user }) => {
                         return (
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                             <p className="font-semibold mb-2">{label}</p>
-                            <p className="font-semibold text-cyan-600">
-                              Invoices: {monthData?.units || 0}
-                              {previousUnits !== null && previousUnits > 0 && (
-                                <span className="text-xs ml-2">
-                                  ({((monthData?.units - previousUnits) / previousUnits * 100).toFixed(0)}% vs prev)
-                                </span>
-                              )}
-                            </p>
                             <p className="font-semibold text-green-600">
                               Revenue: {formatCurrency(monthData?.amount || 0)}
                               {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
