@@ -1,5 +1,79 @@
 # Softbase Reports Project Context
 
+## Minitrac Historical Data Integration (2025-08-22)
+
+### Overview
+Successfully implemented a complete solution to replace $600/month Minitrac subscription with self-hosted PostgreSQL storage of 28,030 equipment records from Excel export.
+
+### Implementation Details
+
+#### 1. Database Architecture
+- **PostgreSQL Schema Created**: `minitrac_equipment` table with 120+ columns
+- **Data Successfully Imported**: All 28,030 records from `MTrEquipment250226.xlsx`
+- **Indexes Added**: On unit_num, serial, make, model, status, customer fields for performance
+- **Full-text Search**: PostgreSQL GIN index for searching across multiple fields
+
+#### 2. Backend API Endpoints Created
+- `/api/minitrac/search` - Advanced search with filters and pagination
+- `/api/minitrac/equipment/<unit_num>` - Detailed equipment information
+- `/api/minitrac/filters` - Dynamic filter options for dropdowns
+- `/api/minitrac/export` - CSV export functionality
+- `/api/minitrac/stats` - Statistics (removed from UI but endpoint exists)
+
+#### 3. Frontend Interface
+- **Component**: `MinitracSearch.jsx` with comprehensive search UI
+- **Features**: Search box, category/status/make filters, pagination, detail views
+- **Export**: CSV download of search results
+- **Menu Integration**: Added "Minitrac" item to navigation between Accounting and AI Query
+
+### Key Learnings & Fixes
+
+#### Import Path Issues in Production
+- **Problem**: Routes in production need `src.` prefix for imports
+- **Wrong**: `from services.postgres_service import PostgreSQLService`
+- **Correct**: `from src.services.postgres_service import PostgreSQLService`
+
+#### Authentication Decorator
+- **Problem**: Used non-existent `require_auth` decorator
+- **Solution**: Use `@jwt_required()` from `flask_jwt_extended` (standard in this project)
+
+#### Select Component Constraints
+- **Problem**: Radix UI Select components cannot have empty string values
+- **Solution**: Use "all" as the value and convert to empty string in handler
+```javascript
+// Wrong
+<SelectItem value="">All Categories</SelectItem>
+
+// Correct
+<SelectItem value="all">All Categories</SelectItem>
+// Then in handler: value === "all" ? "" : value
+```
+
+#### Git Large File Issues
+- **Problem**: 6MB Excel file caused push failures
+- **Solution**: Add `*.xlsx` to `.gitignore`, data already imported to PostgreSQL
+
+#### PostgreSQL Connection Pattern
+- **Service Pattern**: Use `PostgreSQLService()` with context manager
+```python
+pg_service = PostgreSQLService()
+with pg_service.get_connection() as conn:
+    # Use connection
+```
+
+### Cost-Benefit Analysis
+- **Eliminated Cost**: $600/month = $7,200/year
+- **One-time Implementation**: ~2 hours
+- **Result**: Full control, better integration, no recurring fees
+
+### Files Created/Modified
+- `/reporting-backend/src/routes/minitrac.py` - API endpoints
+- `/reporting-backend/src/scripts/import_minitrac_data.py` - Import script
+- `/reporting-frontend/src/components/MinitracSearch.jsx` - UI component
+- `/reporting-frontend/src/App.jsx` - Added route
+- `/reporting-frontend/src/components/Layout.jsx` - Added menu item
+- `/reporting-backend/src/main.py` - Registered blueprint
+
 ## IMPORTANT: Git Workflow & Quality Assurance
 **DO NOT push changes until they have been validated to work.** For the rest of any session:
 1. Write the query/code changes first
