@@ -419,18 +419,20 @@ class DashboardQueries:
     def get_monthly_equipment_sales(self):
         """Get monthly equipment sales since March 2025 with gross margin"""
         try:
-            # SIMPLIFIED: Just get ALL equipment revenue to ensure it works
-            # We can add filtering later once we confirm data is showing
+            # Match the monthly_sales query structure exactly - no WHERE filtering on equipment amounts
             query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue,
                 SUM(COALESCE(EquipmentCost, 0)) as equipment_cost,
-                COUNT(DISTINCT InvoiceNo) as invoice_count
+                COUNT(CASE 
+                    WHEN (EquipmentTaxable > 0 OR EquipmentNonTax > 0) 
+                    THEN InvoiceNo 
+                    ELSE NULL 
+                END) as invoice_count
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
-                AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -1453,6 +1455,7 @@ def get_dashboard_summary_optimized():
             'work_order_types': wo_types_data['types'],
             'monthly_sales': results.get('monthly_sales', []),
             'monthly_sales_no_equipment': results.get('monthly_sales_no_equipment', []),
+            'monthly_equipment_sales': results.get('monthly_equipment_sales', []),
             'monthly_sales_by_stream': results.get('monthly_sales_by_stream', []),
             'monthly_quotes': results.get('monthly_quotes', []),
             'top_customers': results.get('top_customers', []),
