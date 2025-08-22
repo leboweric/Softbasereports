@@ -134,7 +134,7 @@ const Login = ({ onLogin }) => {
 
           <div className="space-y-6">
             <h2 className="text-4xl font-bold text-white">
-              Transform Your Equipment Management
+              Real Time Dashboards
             </h2>
             <p className="text-xl text-blue-100 max-w-md mx-auto">
               Comprehensive reporting and analytics for Softbase Evolution
