@@ -39,22 +39,23 @@ def register_department_routes(reports_bp):
                 prev_year = current_year
             
             # Get service revenue through same day for current and previous month
+            # Using LaborTaxable + LaborNonTax to match the main labor revenue query
             current_query = f"""
-            SELECT SUM(GrandTotal) as total_revenue
+            SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
             FROM ben002.InvoiceReg
             WHERE YEAR(InvoiceDate) = {current_year}
                 AND MONTH(InvoiceDate) = {current_month}
                 AND DAY(InvoiceDate) <= {current_day}
-                AND SaleCode IN ('SVE', 'SVP', 'SVM', 'SVR', 'SVW')
+                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
             """
             
             prev_query = f"""
-            SELECT SUM(GrandTotal) as total_revenue
+            SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
             FROM ben002.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND DAY(InvoiceDate) <= {current_day}
-                AND SaleCode IN ('SVE', 'SVP', 'SVM', 'SVR', 'SVW')
+                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
             """
             
             current_result = db.execute_query(current_query)
