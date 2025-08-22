@@ -3,8 +3,8 @@ Minitrac historical data API endpoints
 """
 
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
 from src.services.postgres_service import PostgreSQLService
-from src.utils.auth import require_auth
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 minitrac_bp = Blueprint('minitrac', __name__)
 
 @minitrac_bp.route('/api/minitrac/search', methods=['GET'])
-@require_auth
+@jwt_required()
 def search_equipment():
     """
     Search Minitrac equipment data
@@ -138,7 +138,7 @@ def search_equipment():
         return jsonify({'error': str(e)}), 500
 
 @minitrac_bp.route('/api/minitrac/equipment/<unit_num>', methods=['GET'])
-@require_auth
+@jwt_required()
 def get_equipment_detail(unit_num):
     """Get detailed information for a specific equipment unit"""
     try:
@@ -171,7 +171,7 @@ def get_equipment_detail(unit_num):
         return jsonify({'error': str(e)}), 500
 
 @minitrac_bp.route('/api/minitrac/filters', methods=['GET'])
-@require_auth
+@jwt_required()
 def get_filter_options():
     """Get available filter options for dropdowns"""
     try:
@@ -213,7 +213,7 @@ def get_filter_options():
         return jsonify({'error': str(e)}), 500
 
 @minitrac_bp.route('/api/minitrac/export', methods=['GET'])
-@require_auth
+@jwt_required()
 def export_search_results():
     """Export search results to CSV format"""
     try:
@@ -322,7 +322,7 @@ def export_search_results():
         return jsonify({'error': str(e)}), 500
 
 @minitrac_bp.route('/api/minitrac/stats', methods=['GET'])
-@require_auth
+@jwt_required()
 def get_statistics():
     """Get summary statistics for Minitrac data"""
     try:
