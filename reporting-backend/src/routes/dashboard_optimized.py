@@ -446,9 +446,10 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_equipment_sales(self):
-        """Get monthly equipment sales since March 2025 with gross margin"""
+        """Get monthly NEW equipment sales since March 2025 with gross margin"""
         try:
-            # Use InvoiceReg directly as the primary source
+            # Filter for NEW equipment sales only - common sale codes for new equipment
+            # Based on competing report showing "Dept: New Equipment"
             query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
@@ -462,6 +463,12 @@ class DashboardQueries:
                 END) as invoice_count
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
+                AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
+                AND (
+                    SaleCode IN ('NEWEQ', 'LINDE', 'LINDEN', 'KOM', 'NEW')
+                    OR SaleCode LIKE 'NEW%'
+                    OR SaleDept = 80  -- New Equipment department based on typical setups
+                )
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -1948,18 +1955,19 @@ def check_equipment_sale_codes():
     try:
         db = DatabaseService()
         
-        # Get all sale codes that have equipment revenue since March
+        # Get all sale codes that have equipment revenue for July 2025 specifically
         query = """
         SELECT 
             SaleCode,
+            SaleDept,
             COUNT(*) as invoice_count,
             SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as total_revenue,
             MIN(InvoiceDate) as first_invoice,
             MAX(InvoiceDate) as last_invoice
         FROM ben002.InvoiceReg
-        WHERE InvoiceDate >= '2025-03-01'
+        WHERE YEAR(InvoiceDate) = 2025 AND MONTH(InvoiceDate) = 7
             AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
-        GROUP BY SaleCode
+        GROUP BY SaleCode, SaleDept
         ORDER BY total_revenue DESC
         """
         
