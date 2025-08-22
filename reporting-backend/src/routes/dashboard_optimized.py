@@ -417,10 +417,10 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_equipment_sales(self):
-        """Get monthly NEW equipment sales since March 2025 with gross margin and unit count (excluding used, allied, and service prep)"""
+        """Get monthly NEW equipment sales since March 2025 with gross margin (excluding used, allied, and service prep)"""
         try:
-            # First get revenue and costs from InvoiceReg
-            revenue_query = """
+            # Get revenue and costs from InvoiceReg (InvoiceSales table doesn't exist)
+            query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
@@ -433,54 +433,27 @@ class DashboardQueries:
                     WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
                     THEN COALESCE(EquipmentCost, 0)
                     ELSE 0
-                END) as equipment_cost
+                END) as equipment_cost,
+                COUNT(CASE 
+                    WHEN SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
+                        AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
+                    THEN InvoiceNo
+                    ELSE NULL
+                END) as invoice_count
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
             
-            # Then get unit counts from InvoiceSales (counting distinct equipment sold)
-            units_query = """
-            SELECT 
-                YEAR(inv.InvoiceDate) as year,
-                MONTH(inv.InvoiceDate) as month,
-                COUNT(DISTINCT CASE 
-                    WHEN sales.SerialNo IS NOT NULL AND sales.SerialNo != '' 
-                    THEN sales.SerialNo 
-                    WHEN sales.UnitNo IS NOT NULL AND sales.UnitNo != ''
-                    THEN sales.UnitNo
-                    ELSE CONCAT(CAST(sales.InvoiceNo AS VARCHAR), '-', CAST(sales.ItemNo AS VARCHAR))
-                END) as units_sold
-            FROM ben002.InvoiceSales sales
-            INNER JOIN ben002.InvoiceReg inv ON sales.InvoiceNo = inv.InvoiceNo
-            WHERE sales.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
-                AND inv.InvoiceDate >= '2025-03-01'
-                AND sales.Qty > 0
-            GROUP BY YEAR(inv.InvoiceDate), MONTH(inv.InvoiceDate)
-            """
-            
-            # Execute both queries
-            revenue_results = self.db.execute_query(revenue_query)
-            units_results = self.db.execute_query(units_query)
-            
-            # Create lookup dictionary for units
-            units_by_month = {}
-            if units_results:
-                for row in units_results:
-                    key = f"{row['year']}-{row['month']}"
-                    units_by_month[key] = int(row['units_sold'] or 0)
+            results = self.db.execute_query(query)
             
             monthly_equipment = []
-            if revenue_results:
-                for row in revenue_results:
+            if results:
+                for row in results:
                     month_date = datetime(row['year'], row['month'], 1)
                     revenue = float(row['equipment_revenue'] or 0)
                     cost = float(row['equipment_cost'] or 0)
-                    
-                    # Get unit count for this month
-                    key = f"{row['year']}-{row['month']}"
-                    units = units_by_month.get(key, 0)
                     
                     # Calculate gross margin percentage
                     margin = None
@@ -492,7 +465,7 @@ class DashboardQueries:
                         'year': row['year'],
                         'amount': revenue,
                         'margin': margin,
-                        'units': units
+                        'units': int(row['invoice_count'] or 0)  # Use invoice count as proxy for units
                     })
             
             # Pad missing months from March onwards

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import EquipmentDebug from './EquipmentDebug'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -1093,7 +1092,7 @@ const Dashboard = ({ user }) => {
                           <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
                         </div>
                         <div className="mb-2">
-                          <p className="text-sm text-muted-foreground">Avg Units/Month</p>
+                          <p className="text-sm text-muted-foreground">Avg Invoices/Month</p>
                           <p className="text-lg font-semibold">{avgUnits.toFixed(1)}</p>
                         </div>
                         <div>
@@ -1130,7 +1129,7 @@ const Dashboard = ({ user }) => {
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                             <p className="font-semibold mb-2">{label}</p>
                             <p className="font-semibold text-cyan-600">
-                              Units Sold: {monthData?.units || 0}
+                              Invoices: {monthData?.units || 0}
                               {previousUnits !== null && previousUnits > 0 && (
                                 <span className="text-xs ml-2">
                                   ({((monthData?.units - previousUnits) / previousUnits * 100).toFixed(0)}% vs prev)
@@ -1177,9 +1176,6 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
-
-          {/* Temporary debug component */}
-          <EquipmentDebug />
 
         </TabsContent>
 
