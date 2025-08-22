@@ -924,33 +924,39 @@ const Dashboard = ({ user }) => {
                         )}
                         {streamMonthData && (
                           <div className="text-sm space-y-1 border-t pt-2">
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span>Parts:</span>
-                              <span className="ml-4">
-                                {formatCurrency(streamMonthData.parts)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.parts, previousStreamData.parts))}
-                              </span>
+                              <div className="text-right">
+                                <div>{formatCurrency(streamMonthData.parts)}</div>
+                                {streamMonthData.parts_margin !== null && streamMonthData.parts_margin !== undefined && (
+                                  <div className="text-xs text-gray-600">GM: {streamMonthData.parts_margin}%</div>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span>Labor:</span>
-                              <span className="ml-4">
-                                {formatCurrency(streamMonthData.labor)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.labor, previousStreamData.labor))}
-                              </span>
+                              <div className="text-right">
+                                <div>{formatCurrency(streamMonthData.labor)}</div>
+                                {streamMonthData.labor_margin !== null && streamMonthData.labor_margin !== undefined && (
+                                  <div className="text-xs text-gray-600">GM: {streamMonthData.labor_margin}%</div>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span>Rental:</span>
-                              <span className="ml-4">
-                                {formatCurrency(streamMonthData.rental)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
-                              </span>
+                              <div className="text-right">
+                                <div>{formatCurrency(streamMonthData.rental)}</div>
+                                <div className="text-xs text-gray-400">No cost data</div>
+                              </div>
                             </div>
-                            <div className="flex justify-between">
+                            <div className="flex justify-between items-center">
                               <span>Misc:</span>
-                              <span className="ml-4">
-                                {formatCurrency(streamMonthData.misc)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.misc, previousStreamData.misc))}
-                              </span>
+                              <div className="text-right">
+                                <div>{formatCurrency(streamMonthData.misc)}</div>
+                                {streamMonthData.misc_margin !== null && streamMonthData.misc_margin !== undefined && (
+                                  <div className="text-xs text-gray-600">GM: {streamMonthData.misc_margin}%</div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}

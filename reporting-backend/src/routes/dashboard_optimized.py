@@ -298,16 +298,21 @@ class DashboardQueries:
             return []
     
     def get_monthly_sales_by_stream(self):
-        """Get monthly sales by revenue stream since March 2025"""
+        """Get monthly sales by revenue stream since March 2025 with department margins"""
         try:
             query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
+                -- Revenue
                 SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
                 SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue,
                 SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
-                SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue
+                SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
+                -- Costs
+                SUM(COALESCE(PartsCost, 0)) as parts_cost,
+                SUM(COALESCE(LaborCost, 0)) as labor_cost,
+                SUM(COALESCE(MiscCost, 0)) as misc_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -319,13 +324,37 @@ class DashboardQueries:
             if results:
                 for row in results:
                     month_date = datetime(row['year'], row['month'], 1)
+                    
+                    # Calculate margins for each department
+                    parts_revenue = float(row['parts_revenue'] or 0)
+                    parts_cost = float(row['parts_cost'] or 0)
+                    parts_margin = None
+                    if parts_revenue > 0:
+                        parts_margin = round(((parts_revenue - parts_cost) / parts_revenue) * 100, 1)
+                    
+                    labor_revenue = float(row['labor_revenue'] or 0)
+                    labor_cost = float(row['labor_cost'] or 0)
+                    labor_margin = None
+                    if labor_revenue > 0:
+                        labor_margin = round(((labor_revenue - labor_cost) / labor_revenue) * 100, 1)
+                    
+                    misc_revenue = float(row['misc_revenue'] or 0)
+                    misc_cost = float(row['misc_cost'] or 0)
+                    misc_margin = None
+                    if misc_revenue > 0:
+                        misc_margin = round(((misc_revenue - misc_cost) / misc_revenue) * 100, 1)
+                    
                     monthly_data.append({
                         'month': month_date.strftime("%b"),
                         'year': row['year'],
-                        'parts': float(row['parts_revenue'] or 0),
-                        'labor': float(row['labor_revenue'] or 0),
+                        'parts': parts_revenue,
+                        'labor': labor_revenue,
                         'rental': float(row['rental_revenue'] or 0),
-                        'misc': float(row['misc_revenue'] or 0)
+                        'misc': misc_revenue,
+                        # Add margins
+                        'parts_margin': parts_margin,
+                        'labor_margin': labor_margin,
+                        'misc_margin': misc_margin
                     })
             
             # Pad missing months from March onwards
