@@ -641,49 +641,55 @@ const SalesCommissionReport = ({ user }) => {
                                     const cat = inv.category
                                     if (!acc[cat]) {
                                       acc[cat] = { 
-                                        sales: 0, 
+                                        sales: 0,
+                                        cost: 0,
                                         commission: 0,
                                         count: 0
                                       }
                                     }
                                     acc[cat].sales += inv.category_amount
+                                    acc[cat].cost += (inv.category_cost || 0)
                                     acc[cat].commission += inv.commission
                                     acc[cat].count += 1
                                     return acc
                                   }, {})
                                   
                                   return Object.entries(categoryTotals).map(([category, totals]) => {
-                                    let formula = ''
-                                    let rate = ''
-                                    
                                     if (category === 'Rental') {
-                                      rate = '8%'
-                                      formula = `${formatCurrency(totals.sales)} × 8% = ${formatCommission(totals.commission)}`
-                                    } else if (category === 'New Equipment' || category === 'Allied Equipment') {
-                                      // For equipment, we'd need the cost data to show GP calculation
-                                      // Since we don't have it in the frontend, we'll show the effective rate
-                                      const effectiveRate = (totals.commission / totals.sales * 100).toFixed(1)
-                                      rate = `~${effectiveRate}% effective`
-                                      formula = `${formatCurrency(totals.sales)} × ${effectiveRate}% = ${formatCommission(totals.commission)}`
-                                    } else if (category === 'Used Equipment') {
-                                      // Used equipment might be 15% of GP now with the new structure
-                                      const effectiveRate = (totals.commission / totals.sales * 100).toFixed(1)
-                                      rate = `~${effectiveRate}% effective`
-                                      formula = `${formatCurrency(totals.sales)} × ${effectiveRate}% = ${formatCommission(totals.commission)}`
+                                      // Rental: Simple 8% of revenue
+                                      return (
+                                        <div key={category} className="py-2 px-2 bg-white rounded mb-1">
+                                          <div className="font-semibold text-gray-700 mb-1">
+                                            {category} ({totals.count} invoice{totals.count !== 1 ? 's' : ''}):
+                                          </div>
+                                          <div className="text-xs font-mono text-gray-600 ml-2">
+                                            Revenue: {formatCurrency(totals.sales)} × 8% = {formatCommission(totals.commission)}
+                                          </div>
+                                        </div>
+                                      )
                                     } else {
-                                      const effectiveRate = (totals.commission / totals.sales * 100).toFixed(1)
-                                      rate = `${effectiveRate}%`
-                                      formula = `${formatCurrency(totals.sales)} × ${effectiveRate}% = ${formatCommission(totals.commission)}`
+                                      // Equipment: 15% of gross profit
+                                      const grossProfit = totals.sales - totals.cost
+                                      const expectedCommission = grossProfit * 0.15
+                                      
+                                      return (
+                                        <div key={category} className="py-2 px-2 bg-white rounded mb-1">
+                                          <div className="font-semibold text-gray-700 mb-1">
+                                            {category} ({totals.count} invoice{totals.count !== 1 ? 's' : ''}):
+                                          </div>
+                                          <div className="text-xs font-mono text-gray-600 ml-2 space-y-0.5">
+                                            <div>Revenue: {formatCurrency(totals.sales)}</div>
+                                            <div>- Cost: {formatCurrency(totals.cost)}</div>
+                                            <div className="border-t border-gray-300 pt-0.5">
+                                              = Gross Profit: {formatCurrency(grossProfit)}
+                                            </div>
+                                            <div className="text-green-700 font-semibold">
+                                              × 15% = {formatCommission(totals.commission)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )
                                     }
-                                    
-                                    return (
-                                      <div key={category} className="flex justify-between items-center py-1 px-2 bg-white rounded">
-                                        <span className="text-gray-700">
-                                          <strong>{category}</strong> ({totals.count} invoice{totals.count !== 1 ? 's' : ''}):
-                                        </span>
-                                        <span className="font-mono text-gray-600">{formula}</span>
-                                      </div>
-                                    )
                                   })
                                 })()}
                                 <div className="border-t border-blue-300 pt-2 mt-2 flex justify-between items-center px-2">
@@ -692,7 +698,7 @@ const SalesCommissionReport = ({ user }) => {
                                 </div>
                               </div>
                               <p className="text-xs text-gray-600 mt-2 italic">
-                                Note: Equipment commissions are 15% of gross profit (Revenue - Cost). Rental commissions are 8% of revenue.
+                                Note: Equipment sales earn 15% of gross profit. Rentals earn 8% of revenue. Minimum $75 per equipment invoice.
                               </p>
                             </div>
                           </div>
