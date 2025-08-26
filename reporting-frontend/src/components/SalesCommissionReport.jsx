@@ -213,6 +213,16 @@ const SalesCommissionReport = ({ user }) => {
     }).format(amount || 0)
   }
 
+  // Format commission amounts with cents
+  const formatCommission = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount || 0)
+  }
+
   // Generate month options for the last 12 months
   const generateMonthOptions = () => {
     const options = []
@@ -395,7 +405,7 @@ const SalesCommissionReport = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(commissionData.totals.total_commissions)}
+                  {formatCommission(commissionData.totals.total_commissions)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {commissionData.salespeople.length} sales reps
@@ -443,7 +453,7 @@ const SalesCommissionReport = ({ user }) => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right font-bold text-green-600">
-                        {formatCurrency(rep.commission_amount)}
+                        {formatCommission(rep.commission_amount)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -457,7 +467,7 @@ const SalesCommissionReport = ({ user }) => {
                     <TableCell className="text-right">{formatCurrency(commissionData.totals.total_sales)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right text-green-600">
-                      {formatCurrency(commissionData.totals.total_commissions)}
+                      {formatCommission(commissionData.totals.total_commissions)}
                     </TableCell>
                   </TableRow>
                 </TableBody>
@@ -504,7 +514,7 @@ const SalesCommissionReport = ({ user }) => {
                           <div className="text-sm text-muted-foreground">
                             {salesman.invoices.length} invoices • 
                             Total Sales: {formatCurrency(salesman.total_sales)} • 
-                            Commission: <span className="font-semibold text-green-600">{formatCurrency(salesman.total_commission)}</span>
+                            Commission: <span className="font-semibold text-green-600">{formatCommission(salesman.total_commission)}</span>
                           </div>
                         </div>
                         {salesman.invoices.length > 0 ? (
@@ -610,14 +620,14 @@ const SalesCommissionReport = ({ user }) => {
                                     </td>
                                     <td className="text-right p-2">{formatCurrency(inv.category_amount)}</td>
                                     <td className="text-right p-2 font-medium text-green-600">
-                                      {formatCurrency(inv.commission)}
+                                      {formatCommission(inv.commission)}
                                     </td>
                                   </tr>
                                 ))})()}
                                 <tr className="font-semibold bg-gray-50">
                                   <td colSpan="6" className="p-2 text-right">Subtotal:</td>
                                   <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
-                                  <td className="text-right p-2 text-green-600">{formatCurrency(salesman.total_commission)}</td>
+                                  <td className="text-right p-2 text-green-600">{formatCommission(salesman.total_commission)}</td>
                                 </tr>
                               </tbody>
                             </table>
@@ -635,7 +645,7 @@ const SalesCommissionReport = ({ user }) => {
                           <span>Grand Total</span>
                           <div>
                             <span className="mr-8">Sales: {formatCurrency(detailsData.grand_totals.sales || 0)}</span>
-                            <span className="text-green-600">Commission: {formatCurrency(detailsData.grand_totals.commission || 0)}</span>
+                            <span className="text-green-600">Commission: {formatCommission(detailsData.grand_totals.commission || 0)}</span>
                           </div>
                         </div>
                       </div>
