@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp } from 'lucide-react'
+import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
@@ -28,6 +28,10 @@ const SalesCommissionReport = ({ user }) => {
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     return `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`
   })
+  
+  // Sorting states - track sort column and direction for each salesman's table and unassigned table
+  const [sortConfigs, setSortConfigs] = useState({})
+  const [unassignedSortConfig, setUnassignedSortConfig] = useState({ key: null, direction: null })
 
   useEffect(() => {
     fetchCommissionData()
@@ -220,6 +224,87 @@ const SalesCommissionReport = ({ user }) => {
       options.push({ value, label })
     }
     return options
+  }
+
+  // Generic sorting function
+  const sortData = (data, key, direction) => {
+    if (!data || !key) return data
+    
+    return [...data].sort((a, b) => {
+      let aValue = a[key]
+      let bValue = b[key]
+      
+      // Handle special cases for specific fields
+      if (key === 'invoice_no') {
+        // Convert invoice number to number for proper sorting
+        aValue = parseInt(aValue) || 0
+        bValue = parseInt(bValue) || 0
+      } else if (key === 'invoice_date') {
+        // Convert dates for proper sorting
+        aValue = new Date(aValue).getTime()
+        bValue = new Date(bValue).getTime()
+      } else if (key === 'category_amount' || key === 'commission') {
+        // Handle numeric values
+        aValue = parseFloat(aValue) || 0
+        bValue = parseFloat(bValue) || 0
+      } else if (typeof aValue === 'string') {
+        // Case-insensitive string comparison
+        aValue = aValue.toLowerCase()
+        bValue = bValue.toLowerCase()
+      }
+      
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
+  // Handle sorting for individual salesman tables
+  const handleSalesmanSort = (salesmanName, key) => {
+    const currentConfig = sortConfigs[salesmanName] || { key: null, direction: null }
+    let direction = 'asc'
+    
+    if (currentConfig.key === key) {
+      if (currentConfig.direction === 'asc') {
+        direction = 'desc'
+      } else if (currentConfig.direction === 'desc') {
+        direction = null
+      }
+    }
+    
+    setSortConfigs(prev => ({
+      ...prev,
+      [salesmanName]: { key: direction ? key : null, direction }
+    }))
+  }
+
+  // Handle sorting for unassigned invoices table
+  const handleUnassignedSort = (key) => {
+    let direction = 'asc'
+    
+    if (unassignedSortConfig.key === key) {
+      if (unassignedSortConfig.direction === 'asc') {
+        direction = 'desc'
+      } else if (unassignedSortConfig.direction === 'desc') {
+        direction = null
+      }
+    }
+    
+    setUnassignedSortConfig({ 
+      key: direction ? key : null, 
+      direction 
+    })
+  }
+
+  // Get sort icon for column header
+  const getSortIcon = (sortConfig, key) => {
+    if (!sortConfig || sortConfig.key !== key) {
+      return <ArrowUpDown className="h-3 w-3 opacity-50" />
+    }
+    if (sortConfig.direction === 'asc') {
+      return <ArrowUp className="h-3 w-3" />
+    }
+    return <ArrowDown className="h-3 w-3" />
   }
 
   if (loading) {
@@ -427,18 +512,87 @@ const SalesCommissionReport = ({ user }) => {
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="border-b">
-                                  <th className="text-left p-2">Invoice #</th>
-                                  <th className="text-left p-2">Date</th>
-                                  <th className="text-left p-2">Bill To</th>
-                                  <th className="text-left p-2">Customer</th>
-                                  <th className="text-left p-2">Sale Code</th>
-                                  <th className="text-left p-2">Category</th>
-                                  <th className="text-right p-2">Amount</th>
-                                  <th className="text-right p-2">Commission</th>
+                                  <th 
+                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'invoice_no')}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Invoice #
+                                      {getSortIcon(sortConfigs[salesman.name], 'invoice_no')}
+                                    </div>
+                                  </th>
+                                  <th 
+                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'invoice_date')}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Date
+                                      {getSortIcon(sortConfigs[salesman.name], 'invoice_date')}
+                                    </div>
+                                  </th>
+                                  <th 
+                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'bill_to')}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Bill To
+                                      {getSortIcon(sortConfigs[salesman.name], 'bill_to')}
+                                    </div>
+                                  </th>
+                                  <th 
+                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'customer_name')}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Customer
+                                      {getSortIcon(sortConfigs[salesman.name], 'customer_name')}
+                                    </div>
+                                  </th>
+                                  <th 
+                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'sale_code')}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Sale Code
+                                      {getSortIcon(sortConfigs[salesman.name], 'sale_code')}
+                                    </div>
+                                  </th>
+                                  <th 
+                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'category')}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      Category
+                                      {getSortIcon(sortConfigs[salesman.name], 'category')}
+                                    </div>
+                                  </th>
+                                  <th 
+                                    className="text-right p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'category_amount')}
+                                  >
+                                    <div className="flex items-center justify-end gap-1">
+                                      Amount
+                                      {getSortIcon(sortConfigs[salesman.name], 'category_amount')}
+                                    </div>
+                                  </th>
+                                  <th 
+                                    className="text-right p-2 cursor-pointer hover:bg-gray-100"
+                                    onClick={() => handleSalesmanSort(salesman.name, 'commission')}
+                                  >
+                                    <div className="flex items-center justify-end gap-1">
+                                      Commission
+                                      {getSortIcon(sortConfigs[salesman.name], 'commission')}
+                                    </div>
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {salesman.invoices.map((inv, invIdx) => (
+                                {(() => {
+                                  const sortConfig = sortConfigs[salesman.name]
+                                  const sortedInvoices = sortConfig?.key 
+                                    ? sortData(salesman.invoices, sortConfig.key, sortConfig.direction)
+                                    : salesman.invoices
+                                  return sortedInvoices.map((inv, invIdx) => (
                                   <tr key={invIdx} className="border-b hover:bg-gray-50">
                                     <td className="p-2">{inv.invoice_no}</td>
                                     <td className="p-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
@@ -459,7 +613,7 @@ const SalesCommissionReport = ({ user }) => {
                                       {formatCurrency(inv.commission)}
                                     </td>
                                   </tr>
-                                ))}
+                                ))})()}
                                 <tr className="font-semibold bg-gray-50">
                                   <td colSpan="6" className="p-2 text-right">Subtotal:</td>
                                   <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
@@ -517,18 +671,86 @@ const SalesCommissionReport = ({ user }) => {
                           <table className="w-full text-sm">
                             <thead>
                               <tr className="border-b border-yellow-300">
-                                <th className="text-left p-2">Invoice #</th>
-                                <th className="text-left p-2">Date</th>
-                                <th className="text-left p-2">Bill To</th>
-                                <th className="text-left p-2">Customer</th>
-                                <th className="text-left p-2">Assigned To</th>
-                                <th className="text-left p-2">Sale Code</th>
-                                <th className="text-left p-2">Category</th>
-                                <th className="text-right p-2">Amount</th>
+                                <th 
+                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('invoice_no')}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Invoice #
+                                    {getSortIcon(unassignedSortConfig, 'invoice_no')}
+                                  </div>
+                                </th>
+                                <th 
+                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('invoice_date')}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Date
+                                    {getSortIcon(unassignedSortConfig, 'invoice_date')}
+                                  </div>
+                                </th>
+                                <th 
+                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('bill_to')}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Bill To
+                                    {getSortIcon(unassignedSortConfig, 'bill_to')}
+                                  </div>
+                                </th>
+                                <th 
+                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('customer_name')}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Customer
+                                    {getSortIcon(unassignedSortConfig, 'customer_name')}
+                                  </div>
+                                </th>
+                                <th 
+                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('salesman')}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Assigned To
+                                    {getSortIcon(unassignedSortConfig, 'salesman')}
+                                  </div>
+                                </th>
+                                <th 
+                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('sale_code')}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Sale Code
+                                    {getSortIcon(unassignedSortConfig, 'sale_code')}
+                                  </div>
+                                </th>
+                                <th 
+                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('category')}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    Category
+                                    {getSortIcon(unassignedSortConfig, 'category')}
+                                  </div>
+                                </th>
+                                <th 
+                                  className="text-right p-2 cursor-pointer hover:bg-yellow-100"
+                                  onClick={() => handleUnassignedSort('category_amount')}
+                                >
+                                  <div className="flex items-center justify-end gap-1">
+                                    Amount
+                                    {getSortIcon(unassignedSortConfig, 'category_amount')}
+                                  </div>
+                                </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {detailsData.unassigned.invoices.map((inv, idx) => (
+                              {(() => {
+                                const sortedInvoices = unassignedSortConfig.key 
+                                  ? sortData(detailsData.unassigned.invoices, unassignedSortConfig.key, unassignedSortConfig.direction)
+                                  : detailsData.unassigned.invoices
+                                return sortedInvoices.map((inv, idx) => (
                                 <tr key={idx} className="border-b border-yellow-200 hover:bg-yellow-100">
                                   <td className="p-2">{inv.invoice_no}</td>
                                   <td className="p-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
@@ -554,7 +776,7 @@ const SalesCommissionReport = ({ user }) => {
                                   </td>
                                   <td className="text-right p-2 font-medium">{formatCurrency(inv.category_amount)}</td>
                                 </tr>
-                              ))}
+                              ))})()}
                               <tr className="font-semibold bg-yellow-100">
                                 <td colSpan="7" className="p-2 text-right">Total Unassigned/House:</td>
                                 <td className="text-right p-2">{formatCurrency(detailsData.unassigned.total)}</td>
