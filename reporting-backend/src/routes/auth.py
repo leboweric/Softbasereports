@@ -106,9 +106,22 @@ def get_current_user():
     if not current_user or not current_user.is_active:
         return jsonify({'message': 'User not found'}), 404
     
+    # Get permissions
+    permissions = []
+    is_super_admin = any(r.name == 'Super Admin' for r in current_user.roles)
+    if is_super_admin:
+        permissions = ['*', 'manage_users', 'view_dashboard', 'view_service', 
+                     'view_parts', 'view_rental', 'view_accounting', 
+                     'view_minitrac', 'use_ai_query', 'use_report_creator',
+                     'view_database_explorer', 'view_users']
+    else:
+        permissions = [p.name for role in current_user.roles for p in role.permissions]
+    
     return jsonify({
         'user': current_user.to_dict(),
-        'organization': current_user.organization.to_dict()
+        'organization': current_user.organization.to_dict(),
+        'permissions': permissions,
+        'accessible_departments': current_user.get_accessible_departments()
     }), 200
 
 @auth_bp.route('/refresh', methods=['POST'])

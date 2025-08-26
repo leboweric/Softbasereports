@@ -38,10 +38,21 @@ def temp_login():
                 
                 # Get permissions and departments
                 permissions = []
-                for role in user.roles:
-                    for permission in role.permissions:
-                        if permission.name not in permissions:
-                            permissions.append(permission.name)
+                
+                # Check if user is Super Admin - if so, give all permissions
+                is_super_admin = any(r.name == 'Super Admin' for r in user.roles)
+                if is_super_admin:
+                    # Super Admin gets all permissions
+                    permissions = ['*', 'manage_users', 'view_dashboard', 'view_service', 
+                                 'view_parts', 'view_rental', 'view_accounting', 
+                                 'view_minitrac', 'use_ai_query', 'use_report_creator',
+                                 'view_database_explorer', 'view_users']
+                else:
+                    # Regular users get permissions from their roles
+                    for role in user.roles:
+                        for permission in role.permissions:
+                            if permission.name not in permissions:
+                                permissions.append(permission.name)
                 
                 accessible_departments = user.get_accessible_departments()
                 
