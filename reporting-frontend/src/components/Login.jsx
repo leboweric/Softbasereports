@@ -32,7 +32,11 @@ const Login = ({ onLogin }) => {
     setError('')
 
     try {
-      const response = await fetch(apiUrl('/api/auth/login'), {
+      // Try temp-login endpoint for specific users
+      const isTempUser = loginForm.username === 'elebow@bmhmn.com' || loginForm.username === 'jchristensen@bmhmn.com'
+      const endpoint = isTempUser ? '/api/auth/temp-login' : '/api/auth/login'
+      
+      const response = await fetch(apiUrl(endpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
