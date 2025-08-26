@@ -5798,6 +5798,7 @@ def register_department_routes(reports_bp):
                 AND sl.Salesman != 'Unassigned'
                 AND sl.Salesman IS NOT NULL
                 AND sl.Salesman != ''
+                AND UPPER(sl.Salesman) != 'HOUSE'
             GROUP BY sl.Salesman
             ORDER BY SUM(
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) +
