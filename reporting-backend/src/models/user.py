@@ -37,7 +37,7 @@ class User(db.Model):
     first_name = db.Column(db.String(80), nullable=True)
     last_name = db.Column(db.String(80), nullable=True)
     role = db.Column(db.String(50), default='user')  # DEPRECATED - use roles relationship
-    department_id = db.Column(db.Integer, db.ForeignKey('department.id', ondelete='SET NULL'), nullable=True)
+    # department_id = db.Column(db.Integer, db.ForeignKey('department.id', ondelete='SET NULL'), nullable=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
@@ -48,7 +48,7 @@ class User(db.Model):
                            backref=db.backref('users', lazy='dynamic'),
                            primaryjoin="User.id==user_roles.c.user_id",
                            secondaryjoin="Role.id==user_roles.c.role_id")
-    department = db.relationship('Department', backref='users', lazy='select')
+    # department = db.relationship('Department', backref='users', lazy='select')
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -123,7 +123,7 @@ class User(db.Model):
             'last_name': self.last_name,
             'role': self.role,  # Keep for legacy
             'roles': [r.to_dict() for r in self.roles],
-            'department': self.department.to_dict() if self.department else None,
+            'department': None,  # Temporarily disabled
             'organization_id': self.organization_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
