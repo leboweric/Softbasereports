@@ -806,11 +806,11 @@ const SalesCommissionReport = ({ user }) => {
             )}
           </Card>
 
-          {/* Commission Rules */}
+          {/* Current Commission Rules */}
           <Card>
             <CardHeader>
-              <CardTitle>Commission Structure</CardTitle>
-              <CardDescription>Current commission rates and rules</CardDescription>
+              <CardTitle>Current Commission Structure</CardTitle>
+              <CardDescription>Existing commission rates and rules (complex)</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4 text-sm">
@@ -885,6 +885,145 @@ const SalesCommissionReport = ({ user }) => {
                 <p className="text-muted-foreground mt-4 text-xs border-t pt-3">
                   <strong>Note:</strong> System calculations use estimated margins where actual cost data is unavailable.
                   Actual commissions may vary based on specific contract terms and management approvals.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Proposed Commission Structure */}
+          <Card className="border-green-200 bg-green-50/50">
+            <CardHeader>
+              <CardTitle className="text-green-800">Proposed Commission Structure</CardTitle>
+              <CardDescription>Simplified, automated, and mathematically equivalent system</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6 text-sm">
+                {/* Philosophy Section */}
+                <div className="bg-white p-4 rounded-lg border border-green-200">
+                  <h4 className="font-semibold text-base mb-2 text-green-800">Commission Philosophy</h4>
+                  <ul className="space-y-1 text-gray-700">
+                    <li>• <strong>Simplicity:</strong> Two clear rules that are easy to understand and automate</li>
+                    <li>• <strong>Fairness:</strong> Aligns company and sales rep interests through profit-based equipment commissions</li>
+                    <li>• <strong>Transparency:</strong> No complex subcategories, special cases, or subjective determinations</li>
+                    <li>• <strong>Long-term Focus:</strong> Rewards ongoing customer relationships, especially in rentals</li>
+                  </ul>
+                </div>
+
+                {/* Structure Breakdown */}
+                <div className="bg-white p-4 rounded-lg border border-green-200">
+                  <h4 className="font-semibold text-base mb-3 text-green-800">Simplified Structure</h4>
+                  
+                  <div className="space-y-3">
+                    <div className="border-l-4 border-blue-500 pl-3">
+                      <h5 className="font-semibold text-blue-700">Equipment Sales (All Types)</h5>
+                      <ul className="mt-1 space-y-0.5 text-gray-700">
+                        <li>• <strong>15% of gross profit</strong> (Revenue - Cost)</li>
+                        <li>• <strong>$75 minimum</strong> per invoice</li>
+                        <li>• Applies to: New, Used, Allied equipment</li>
+                        <li>• No complex subcategories or special cases</li>
+                      </ul>
+                    </div>
+
+                    <div className="border-l-4 border-purple-500 pl-3">
+                      <h5 className="font-semibold text-purple-700">Rentals</h5>
+                      <ul className="mt-1 space-y-0.5 text-gray-700">
+                        <li>• <strong>8% of rental revenue</strong></li>
+                        <li>• <strong>Unlimited duration</strong> (no 12-month cap)</li>
+                        <li>• House accounts excluded via customer flag</li>
+                        <li>• Simple, predictable, no tracking required</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mathematical Equivalence */}
+                <div className="bg-white p-4 rounded-lg border border-green-200">
+                  <h4 className="font-semibold text-base mb-3 text-green-800">Rental Structure: Mathematical Equivalence</h4>
+                  
+                  <div className="mb-3 p-3 bg-blue-50 rounded border border-blue-200">
+                    <p className="font-medium text-blue-800 mb-2">The Math Behind the Change:</p>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="font-medium text-gray-700">Old System:</p>
+                        <p className="text-gray-600">10% × 12 months max = <strong>120%</strong> of monthly rent</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-700">New System:</p>
+                        <p className="text-gray-600">8% × 15 months avg = <strong>120%</strong> of monthly rent</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-600 italic">Based on 15-month average rental duration</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h5 className="font-medium text-gray-700">Real-World Examples:</h5>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between p-2 bg-gray-50 rounded">
+                        <span className="text-gray-700">6-month rental:</span>
+                        <div className="text-right">
+                          <span className="text-gray-500 line-through mr-2">Old: 60%</span>
+                          <span className="font-medium">New: 48%</span>
+                          <span className="text-red-600 ml-1 text-xs">(-12%)</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between p-2 bg-green-50 rounded">
+                        <span className="text-gray-700">15-month rental:</span>
+                        <div className="text-right">
+                          <span className="text-gray-500 line-through mr-2">Old: 120%</span>
+                          <span className="font-medium">New: 120%</span>
+                          <span className="text-green-600 ml-1 text-xs">(same)</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between p-2 bg-green-50 rounded">
+                        <span className="text-gray-700">24-month rental:</span>
+                        <div className="text-right">
+                          <span className="text-gray-500 line-through mr-2">Old: 120%</span>
+                          <span className="font-medium">New: 192%</span>
+                          <span className="text-green-600 ml-1 text-xs">(+72%)</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-between p-2 bg-green-50 rounded">
+                        <span className="text-gray-700">36-month rental:</span>
+                        <div className="text-right">
+                          <span className="text-gray-500 line-through mr-2">Old: 120%</span>
+                          <span className="font-medium">New: 288%</span>
+                          <span className="text-green-600 ml-1 text-xs">(+168%)</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-gray-600 italic mt-2">
+                      * Percentages shown are total commission as % of one month's rental revenue
+                    </p>
+                  </div>
+                </div>
+
+                {/* Benefits Summary */}
+                <div className="bg-gradient-to-r from-green-100 to-blue-100 p-4 rounded-lg border border-green-300">
+                  <h4 className="font-semibold text-base mb-2 text-gray-800">Key Benefits</h4>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="space-y-1">
+                      <p className="text-gray-700">✅ <strong>90% simpler</strong> than current system</p>
+                      <p className="text-gray-700">✅ <strong>Fully automated</strong> calculations</p>
+                      <p className="text-gray-700">✅ <strong>No disputes</strong> or gray areas</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-gray-700">✅ <strong>Rewards loyalty</strong> on long rentals</p>
+                      <p className="text-gray-700">✅ <strong>Profit-focused</strong> equipment sales</p>
+                      <p className="text-gray-700">✅ <strong>Fair to all</strong> parties</p>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-gray-500 border-t pt-3">
+                  <strong>Implementation Note:</strong> This simplified structure uses actual cost data from InvoiceReg 
+                  to calculate true gross profit on equipment sales, ensuring commissions align with profitability. 
+                  The rental commission change (10% → 8% with no cap) maintains equivalent compensation at typical 
+                  rental durations while eliminating complex tracking requirements.
                 </p>
               </div>
             </CardContent>

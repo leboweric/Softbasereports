@@ -5807,19 +5807,15 @@ def register_department_routes(reports_bp):
             
             results = db.execute_query(sales_query, [start_date, end_date, start_date, end_date])
             
-            # Commission structure:
-            # - Rental: 10% of top line sales
-            # - New Equipment: 20% of gross profit (actual)
-            # - Allied Equipment: 20% of gross profit (actual)
-            # - Used Equipment: 5% of selling price
-            # - RNTSALE: Special handling - should be 5% of GP but treating as 5% of sales for now
+            # SIMPLIFIED Commission structure (Proposed):
+            # - Equipment Sales (All types): 15% of gross profit, $75 minimum per invoice
+            # - Rentals: 8% of revenue (unlimited duration, no 12-month cap)
+            # Note: House accounts excluded from rental commissions
             
             salespeople = []
             totals = {
                 'rental': 0,
-                'used_equipment': 0,
-                'allied_equipment': 0,
-                'new_equipment': 0,
+                'equipment_sales': 0,  # Combined all equipment types
                 'total_sales': 0,
                 'total_commissions': 0
             }
@@ -5833,29 +5829,23 @@ def register_department_routes(reports_bp):
                 allied_cost = float(row['AlliedEquipmentCost'] or 0)
                 new = float(row['NewEquipmentSales'] or 0)
                 new_cost = float(row['NewEquipmentCost'] or 0)
-                total_sales = rental + used + allied + new
                 
-                # Calculate actual gross profits
-                rental_gp = rental - rental_cost
-                new_gp = new - new_cost
-                allied_gp = allied - allied_cost
-                used_gp = used - used_cost
+                # Combine all equipment sales
+                equipment_revenue = used + allied + new
+                equipment_cost = used_cost + allied_cost + new_cost
+                equipment_gp = equipment_revenue - equipment_cost
                 
-                # Calculate commission based on category-specific rules using ACTUAL cost data
-                # Rental: 10% of sales (top line, not profit)
-                rental_commission = rental * 0.10
+                total_sales = rental + equipment_revenue
                 
-                # New Equipment: 20% of ACTUAL gross profit
-                new_commission = new_gp * 0.20 if new_gp > 0 else 0
+                # SIMPLIFIED CALCULATION:
+                # Rental: 8% of revenue (no limits, no tracking needed)
+                rental_commission = rental * 0.08
                 
-                # Allied Equipment: 20% of ACTUAL gross profit
-                allied_commission = allied_gp * 0.20 if allied_gp > 0 else 0
+                # All Equipment: 15% of gross profit with $75 minimum
+                # Note: In production, minimum would apply per invoice, not per salesperson total
+                equipment_commission = max(equipment_gp * 0.15, 75) if equipment_gp > 0 else 0
                 
-                # Used Equipment: 5% of selling price
-                # Note: RNTSALE should ideally be 5% of GP, but we're treating all used as 5% of sales for simplicity
-                used_commission = used * 0.05
-                
-                commission_amount = rental_commission + new_commission + allied_commission + used_commission
+                commission_amount = rental_commission + equipment_commission
                 
                 # Calculate effective commission rate for display
                 commission_rate = commission_amount / total_sales if total_sales > 0 else 0
@@ -5863,19 +5853,20 @@ def register_department_routes(reports_bp):
                 salespeople.append({
                     'name': row['SalesRep'],
                     'rental': rental,
-                    'used_equipment': used,
-                    'allied_equipment': allied,
-                    'new_equipment': new,
+                    'equipment_sales': equipment_revenue,  # Combined equipment
+                    'equipment_gp': equipment_gp,  # Show gross profit for transparency
                     'total_sales': total_sales,
                     'commission_rate': commission_rate,
-                    'commission_amount': commission_amount
+                    'commission_amount': commission_amount,
+                    # Keep detailed breakdown for reference
+                    'used_equipment': used,
+                    'allied_equipment': allied,
+                    'new_equipment': new
                 })
                 
                 # Update totals
                 totals['rental'] += rental
-                totals['used_equipment'] += used
-                totals['allied_equipment'] += allied
-                totals['new_equipment'] += new
+                totals['equipment_sales'] += equipment_revenue
                 totals['total_sales'] += total_sales
                 totals['total_commissions'] += commission_amount
             
@@ -6405,21 +6396,22 @@ def register_department_routes(reports_bp):
                     THEN COALESCE(ir.EquipmentCost, 0)
                     ELSE 0
                 END as CategoryCost,
-                -- Calculate commission with ACTUAL cost data
+                -- SIMPLIFIED commission calculation
                 CASE 
-                    -- Rental: 10% of revenue (not profit)
+                    -- Rental: 8% of revenue (unlimited duration)
                     WHEN ir.SaleCode = 'RENTAL'
-                    THEN (COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)) * 0.10
-                    -- New Equipment & Allied: 20% of ACTUAL gross profit
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED')
+                    THEN (COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)) * 0.08
+                    -- All Equipment: 15% of gross profit (with $75 minimum applied later)
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED',
+                                        'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
                     THEN CASE 
                         WHEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) - COALESCE(ir.EquipmentCost, 0)) > 0
-                        THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) - COALESCE(ir.EquipmentCost, 0)) * 0.20
+                        THEN GREATEST(
+                            (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) - COALESCE(ir.EquipmentCost, 0)) * 0.15,
+                            75  -- $75 minimum per invoice
+                        )
                         ELSE 0
                     END
-                    -- Used Equipment: 5% of selling price (not profit)
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
-                    THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.05
                     ELSE 0
                 END as Commission
             FROM ben002.InvoiceReg ir
