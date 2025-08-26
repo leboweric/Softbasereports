@@ -6,10 +6,10 @@ from src.models.user import db
 
 # Association table for many-to-many relationship between users and roles
 user_roles = db.Table('user_roles',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
-    db.Column('role_id', db.Integer, db.ForeignKey('role.id'), primary_key=True),
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('role.id', ondelete='CASCADE'), primary_key=True),
     db.Column('assigned_at', db.DateTime, default=datetime.utcnow),
-    db.Column('assigned_by', db.Integer, db.ForeignKey('user.id'))
+    db.Column('assigned_by', db.Integer, db.ForeignKey('user.id', ondelete='SET NULL'))
 )
 
 # Association table for many-to-many relationship between roles and permissions
