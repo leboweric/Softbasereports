@@ -5743,11 +5743,18 @@ def register_department_routes(reports_bp):
             )
             SELECT 
                 sl.Salesman as SalesRep,
+                -- Rental sales and costs
                 SUM(CASE 
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
                     ELSE 0 
                 END) as RentalSales,
+                SUM(CASE 
+                    WHEN ir.SaleCode = 'RENTAL'
+                    THEN COALESCE(ir.RentalCost, 0)
+                    ELSE 0 
+                END) as RentalCost,
+                -- Used equipment sales and costs
                 SUM(CASE 
                     -- USEDEQ is used equipment, RNTSALE is selling used rental units
                     -- USED K, USED L, USED SL are additional used equipment codes
@@ -5757,17 +5764,33 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as UsedEquipmentSales,
                 SUM(CASE 
-                    -- Allied equipment sales
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    THEN COALESCE(ir.EquipmentCost, 0)
+                    ELSE 0 
+                END) as UsedEquipmentCost,
+                -- Allied equipment sales and costs
+                SUM(CASE 
                     WHEN ir.SaleCode = 'ALLIED'
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as AlliedEquipmentSales,
                 SUM(CASE 
+                    WHEN ir.SaleCode = 'ALLIED'
+                    THEN COALESCE(ir.EquipmentCost, 0)
+                    ELSE 0 
+                END) as AlliedEquipmentCost,
+                -- New equipment sales and costs
+                SUM(CASE 
                     -- LINDE is new Linde equipment, NEWEQ/NEWEQP-R are other new equipment, KOM is Komatsu
                     WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
-                END) as NewEquipmentSales
+                END) as NewEquipmentSales,
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN COALESCE(ir.EquipmentCost, 0)
+                    ELSE 0 
+                END) as NewEquipmentCost
             FROM ben002.InvoiceReg ir
             INNER JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
             WHERE ir.InvoiceDate >= %s
@@ -5786,14 +5809,10 @@ def register_department_routes(reports_bp):
             
             # Commission structure:
             # - Rental: 10% of top line sales
-            # - New Equipment: 20% of gross profit
-            # - Used Equipment (except RNTSALE): 5% of selling price
-            # - RNTSALE: 5% of gross profit
-            # For now, using estimated GP margins until we find actual cost data
-            estimated_gp_margins = {
-                'new': 0.20,  # 20% GP margin on new equipment
-                'rntsale': 0.25  # 25% GP margin on rental sales
-            }
+            # - New Equipment: 20% of gross profit (actual)
+            # - Allied Equipment: 20% of gross profit (actual)
+            # - Used Equipment: 5% of selling price
+            # - RNTSALE: Special handling - should be 5% of GP but treating as 5% of sales for now
             
             salespeople = []
             totals = {
@@ -5807,25 +5826,33 @@ def register_department_routes(reports_bp):
             
             for row in results:
                 rental = float(row['RentalSales'] or 0)
+                rental_cost = float(row['RentalCost'] or 0)
                 used = float(row['UsedEquipmentSales'] or 0)
+                used_cost = float(row['UsedEquipmentCost'] or 0)
                 allied = float(row['AlliedEquipmentSales'] or 0)
+                allied_cost = float(row['AlliedEquipmentCost'] or 0)
                 new = float(row['NewEquipmentSales'] or 0)
+                new_cost = float(row['NewEquipmentCost'] or 0)
                 total_sales = rental + used + allied + new
                 
-                # Calculate commission based on category-specific rules
-                # Rental: 10% of sales
+                # Calculate actual gross profits
+                rental_gp = rental - rental_cost
+                new_gp = new - new_cost
+                allied_gp = allied - allied_cost
+                used_gp = used - used_cost
+                
+                # Calculate commission based on category-specific rules using ACTUAL cost data
+                # Rental: 10% of sales (top line, not profit)
                 rental_commission = rental * 0.10
                 
-                # New Equipment: 20% of gross profit (using estimated margin for now)
-                new_gp = new * estimated_gp_margins['new']
-                new_commission = new_gp * 0.20
+                # New Equipment: 20% of ACTUAL gross profit
+                new_commission = new_gp * 0.20 if new_gp > 0 else 0
                 
-                # Allied Equipment: Treating as new equipment (20% of GP)
-                allied_gp = allied * estimated_gp_margins['new']
-                allied_commission = allied_gp * 0.20
+                # Allied Equipment: 20% of ACTUAL gross profit
+                allied_commission = allied_gp * 0.20 if allied_gp > 0 else 0
                 
-                # Used Equipment: 5% of selling price (includes RNTSALE for now)
-                # TODO: Separate RNTSALE (5% of GP) from other used equipment (5% of sales)
+                # Used Equipment: 5% of selling price
+                # Note: RNTSALE should ideally be 5% of GP, but we're treating all used as 5% of sales for simplicity
                 used_commission = used * 0.05
                 
                 commission_amount = rental_commission + new_commission + allied_commission + used_commission
@@ -6360,6 +6387,7 @@ def register_department_routes(reports_bp):
                     WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
                     ELSE 'Other'
                 END as Category,
+                -- Revenue amounts
                 CASE 
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
@@ -6368,23 +6396,29 @@ def register_department_routes(reports_bp):
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0
                 END as CategoryAmount,
-                -- Commission rates vary by category
-                CASE 
-                    WHEN ir.SaleCode = 'RENTAL' THEN 0.10  -- 10% of sales
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED') THEN 0.04  -- 20% of 20% GP = 4% effective
-                    WHEN ir.SaleCode = 'RNTSALE' THEN 0.0125  -- 5% of 25% GP = 1.25% effective
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL') THEN 0.05  -- 5% of selling price
-                    ELSE 0
-                END as EffectiveRate,
-                -- Calculate commission with proper rates
+                -- Cost amounts for gross profit calculation
                 CASE 
                     WHEN ir.SaleCode = 'RENTAL'
+                    THEN COALESCE(ir.RentalCost, 0)
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
+                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN COALESCE(ir.EquipmentCost, 0)
+                    ELSE 0
+                END as CategoryCost,
+                -- Calculate commission with ACTUAL cost data
+                CASE 
+                    -- Rental: 10% of revenue (not profit)
+                    WHEN ir.SaleCode = 'RENTAL'
                     THEN (COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)) * 0.10
+                    -- New Equipment & Allied: 20% of ACTUAL gross profit
                     WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'ALLIED')
-                    THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.04
-                    WHEN ir.SaleCode = 'RNTSALE'
-                    THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.0125
-                    WHEN ir.SaleCode IN ('USEDEQ', 'USED K', 'USED L', 'USED SL')
+                    THEN CASE 
+                        WHEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) - COALESCE(ir.EquipmentCost, 0)) > 0
+                        THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) - COALESCE(ir.EquipmentCost, 0)) * 0.20
+                        ELSE 0
+                    END
+                    -- Used Equipment: 5% of selling price (not profit)
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
                     THEN (COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) * 0.05
                     ELSE 0
                 END as Commission
@@ -6429,7 +6463,7 @@ def register_department_routes(reports_bp):
                     'sale_code': row['SaleCode'],
                     'category': row['Category'],
                     'category_amount': float(row['CategoryAmount'] or 0),
-                    'effective_rate': float(row['EffectiveRate'] or 0),
+                    'category_cost': float(row.get('CategoryCost', 0) or 0),
                     'commission': float(row['Commission'] or 0)
                 }
                 
