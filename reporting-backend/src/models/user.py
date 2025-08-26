@@ -37,7 +37,7 @@ class User(db.Model):
     first_name = db.Column(db.String(80), nullable=True)
     last_name = db.Column(db.String(80), nullable=True)
     role = db.Column(db.String(50), default='user')  # DEPRECATED - use roles relationship
-    department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=True)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.id', ondelete='SET NULL'), nullable=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
@@ -48,7 +48,7 @@ class User(db.Model):
                            backref=db.backref('users', lazy='dynamic'),
                            primaryjoin="User.id==user_roles.c.user_id",
                            secondaryjoin="Role.id==user_roles.c.role_id")
-    department = db.relationship('Department', backref='users')
+    department = db.relationship('Department', backref='users', lazy='joined')
 
     def __repr__(self):
         return f'<User {self.username}>'
