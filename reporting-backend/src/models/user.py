@@ -48,7 +48,7 @@ class User(db.Model):
                            backref=db.backref('users', lazy='dynamic'),
                            primaryjoin="User.id==user_roles.c.user_id",
                            secondaryjoin="Role.id==user_roles.c.role_id")
-    department = db.relationship('Department', backref='users', lazy='joined')
+    department = db.relationship('Department', backref='users', lazy='select')
 
     def __repr__(self):
         return f'<User {self.username}>'
