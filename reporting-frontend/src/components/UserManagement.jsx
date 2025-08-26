@@ -43,7 +43,10 @@ const UserManagement = ({ user, organization }) => {
       })
       if (usersRes.ok) {
         const usersData = await usersRes.json()
-        setUsers(usersData.users)
+        setUsers(usersData.users || [])
+      } else {
+        console.error('Failed to fetch users:', usersRes.status)
+        setUsers([])
       }
 
       // Fetch roles
@@ -52,7 +55,10 @@ const UserManagement = ({ user, organization }) => {
       })
       if (rolesRes.ok) {
         const rolesData = await rolesRes.json()
-        setRoles(rolesData.roles)
+        setRoles(rolesData.roles || [])
+      } else {
+        console.error('Failed to fetch roles:', rolesRes.status)
+        setRoles([])
       }
 
       // Fetch departments
@@ -61,11 +67,18 @@ const UserManagement = ({ user, organization }) => {
       })
       if (deptsRes.ok) {
         const deptsData = await deptsRes.json()
-        setDepartments(deptsData.departments)
+        setDepartments(deptsData.departments || [])
+      } else {
+        console.error('Failed to fetch departments:', deptsRes.status)
+        setDepartments([])
       }
     } catch (err) {
       setError('Failed to load user data')
       console.error(err)
+      // Set default empty arrays to prevent crashes
+      setUsers([])
+      setRoles([])
+      setDepartments([])
     } finally {
       setLoading(false)
     }
@@ -207,7 +220,7 @@ const UserManagement = ({ user, organization }) => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {users.map((u) => (
+            {users && users.length > 0 ? users.map((u) => (
               <div key={u.id} className="border rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -304,7 +317,9 @@ const UserManagement = ({ user, organization }) => {
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-center text-gray-500 py-4">No users found</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -317,7 +332,7 @@ const UserManagement = ({ user, organization }) => {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {roles.map(role => (
+            {roles && roles.length > 0 ? roles.map(role => (
               <div key={role.id} className="border rounded-lg p-3">
                 <div className="flex justify-between items-start">
                   <div>
@@ -334,7 +349,9 @@ const UserManagement = ({ user, organization }) => {
                   </Badge>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-center text-gray-500 py-4">No roles configured</p>
+            )}
           </div>
         </CardContent>
       </Card>
