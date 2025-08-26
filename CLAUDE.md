@@ -1,5 +1,139 @@
 # Softbase Reports Project Context
 
+## Sales Commission System Overhaul (2025-08-26)
+
+### Overview
+Completely redesigned the sales commission calculation system from a complex, manual process to a simplified, automated system using actual cost data from InvoiceReg table.
+
+### Key Discoveries
+
+#### InvoiceReg Has Cost Data!
+- **Discovery**: InvoiceReg table contains actual cost columns we weren't using
+- **Cost Fields Available**:
+  - `EquipmentCost` - Cost of equipment sold
+  - `LaborCost` - Cost of labor
+  - `PartsCost` - Cost of parts
+  - `MiscCost` - Cost of miscellaneous items
+  - `RentalCost` - Cost of rentals
+- **Impact**: Can calculate actual gross profit instead of using estimated margins
+
+#### Previous Issues
+- System was using hardcoded margin assumptions (20% for new equipment, 25% for rental sales)
+- Commissions were inaccurate - based on assumed margins rather than actual profitability
+- Complex rules with 20+ special cases made automation nearly impossible
+
+### Implemented Solution: Simplified Commission Structure
+
+#### New Commission Rules (Proposed)
+1. **Equipment Sales** (All Types - New, Used, Allied):
+   - 15% of actual gross profit (Revenue - Cost)
+   - $75 minimum per invoice
+   - No complex subcategories or special cases
+
+2. **Rentals**:
+   - 8% of rental revenue (reduced from 10%)
+   - Unlimited duration (removed 12-month cap)
+   - House accounts excluded via customer flag
+
+#### Mathematical Justification for Rental Changes
+- **Old System**: 10% × 12 months max = 120% of monthly rent maximum
+- **New System**: 8% × unlimited months
+- **Break-even**: At 15 months (120% total commission)
+- **Benefits**:
+  - Short rentals (<15 months): Company saves slightly
+  - Long rentals (>15 months): Sales reps earn more
+  - Encourages long-term customer retention
+  - Eliminates complex tracking requirements
+
+### Implementation Details
+
+#### Backend Changes (`department_reports.py`)
+1. **Updated SQL Queries** to include cost columns:
+   ```sql
+   -- Now fetching both revenue and cost
+   SUM(CASE WHEN ir.SaleCode IN (...) 
+       THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+   END) as NewEquipmentSales,
+   SUM(CASE WHEN ir.SaleCode IN (...) 
+       THEN COALESCE(ir.EquipmentCost, 0)
+   END) as NewEquipmentCost
+   ```
+
+2. **Commission Calculation** using actual gross profit:
+   ```python
+   # OLD: Using assumed margins
+   new_gp = new * 0.20  # Assumed 20% margin
+   new_commission = new_gp * 0.20
+   
+   # NEW: Using actual cost data
+   new_gp = new - new_cost  # Actual gross profit
+   new_commission = new_gp * 0.15 if new_gp > 0 else 0
+   ```
+
+3. **Exclusions Added**:
+   - House accounts excluded from commission calculations
+   - Filter: `AND UPPER(sl.Salesman) != 'HOUSE'`
+
+#### Frontend Updates (`SalesCommissionReport.jsx`)
+
+1. **Commission Display Formatting**:
+   - Created `formatCommission()` function for 2 decimal places ($150.70 not $151)
+   - Sales amounts continue using `formatCurrency()` for whole dollars
+
+2. **Added "Proposed Commission Structure" Card** showing:
+   - Commission philosophy and benefits
+   - Clear breakdown of new structure
+   - Mathematical equivalence demonstration
+   - Real-world rental duration examples
+
+3. **Commission Calculation Breakdown** for each sales rep:
+   - Shows actual gross profit calculations
+   - Displays: Revenue - Cost = Gross Profit × 15% = Commission
+   - Groups invoices by category for clarity
+   - Full transparency in commission math
+
+4. **UI Improvements**:
+   - Renamed "Commission Structure" to "Current Commission Structure"
+   - Added sortable columns to all invoice tables
+   - Color-coded the proposed structure (green theme)
+   - Added detailed calculation breakdowns under each rep's invoices
+
+### Technical Patterns Established
+
+#### Data Access Pattern
+- Backend calculates commissions using actual cost data
+- Frontend receives both revenue and cost for transparency
+- Commission calculation happens in backend, display logic in frontend
+
+#### Commission Calculation Flow
+```javascript
+// Frontend receives from backend:
+{
+  category_amount: 50000,  // Revenue
+  category_cost: 40000,    // Cost (now included!)
+  commission: 1500         // Pre-calculated commission
+}
+
+// Frontend can show the math:
+Gross Profit = $50,000 - $40,000 = $10,000
+Commission = $10,000 × 15% = $1,500
+```
+
+### Benefits Achieved
+
+1. **Accuracy**: Commissions based on actual profitability, not estimates
+2. **Simplicity**: Two rules replace 20+ complex scenarios
+3. **Transparency**: Sales reps can see exact calculations
+4. **Automation**: Fully automatable with no manual interventions
+5. **Fairness**: Aligns company and sales rep interests
+
+### Future Considerations
+
+- Add `IsHouseAccount` flag to Customer table for automatic exclusions
+- Consider phase-in period running old and new systems in parallel
+- May need to adjust rates based on historical commission analysis
+- Rental tracking table no longer needed with unlimited commission duration
+
 ## Minitrac Historical Data Integration (2025-08-22)
 
 ### Overview
