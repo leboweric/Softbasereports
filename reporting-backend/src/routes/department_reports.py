@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
 from flask import request
 from src.services.azure_sql_service import AzureSQLService
+from src.utils.auth_decorators import require_permission, require_department
 import json
 import logging
 
@@ -18,7 +19,7 @@ def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
     
     @reports_bp.route('/departments/service/pace', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_service')
     def get_service_pace():
         """Get service department revenue pace comparing current month to previous month"""
         try:
@@ -80,7 +81,7 @@ def register_department_routes(reports_bp):
             return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/parts/open-work-orders', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_parts')
     def get_parts_open_work_orders():
         """Get open Parts work orders summary"""
         try:
@@ -631,7 +632,7 @@ def register_department_routes(reports_bp):
             return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/parts', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_parts')
     def get_parts_department_report():
         """Get Parts Department report data"""
         try:
@@ -2142,7 +2143,7 @@ def register_department_routes(reports_bp):
             return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/rental', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_rental')
     def get_rental_department_report():
         """Get Rental Department report data"""
         try:
@@ -3031,7 +3032,7 @@ def register_department_routes(reports_bp):
             }), 500
 
     @reports_bp.route('/departments/accounting', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_accounting')
     def get_accounting_report():
         """Get accounting department report data with expenses over time"""
         try:
@@ -5657,7 +5658,7 @@ def register_department_routes(reports_bp):
             }), 500
 
     @reports_bp.route('/departments/accounting/sales-commissions', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_commissions')
     def get_sales_commissions():
         """Get sales commission report for a specific month"""
         try:

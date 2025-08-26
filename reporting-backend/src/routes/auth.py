@@ -88,7 +88,9 @@ def login():
         return jsonify({
             'token': access_token,
             'user': user.to_dict(),
-            'organization': user.organization.to_dict()
+            'organization': user.organization.to_dict(),
+            'permissions': [p.name for role in user.roles for p in role.permissions],
+            'accessible_departments': user.get_accessible_departments()
         }), 200
         
     except Exception as e:

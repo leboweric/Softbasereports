@@ -4,6 +4,9 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+# Import this after db is defined to avoid circular import
+from src.models.rbac import user_roles
+
 class Organization(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
@@ -33,11 +36,17 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     first_name = db.Column(db.String(80), nullable=True)
     last_name = db.Column(db.String(80), nullable=True)
-    role = db.Column(db.String(50), default='user')  # admin, manager, user
+    role = db.Column(db.String(50), default='user')  # DEPRECATED - use roles relationship
+    department_id = db.Column(db.Integer, db.ForeignKey('department.id'), nullable=True)
     organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
+    
+    # Relationships
+    roles = db.relationship('Role', secondary=user_roles, 
+                           backref=db.backref('users', lazy='dynamic'))
+    department = db.relationship('Department', backref='users')
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -50,7 +59,58 @@ class User(db.Model):
     
     @property
     def is_admin(self):
-        return self.role == 'admin'
+        """Check if user has admin role (legacy support + new RBAC)"""
+        if self.role == 'admin':  # Legacy check
+            return True
+        return any(r.name in ['Super Admin', 'Leadership'] for r in self.roles)
+    
+    def has_role(self, role_name):
+        """Check if user has a specific role"""
+        return any(r.name == role_name for r in self.roles)
+    
+    def has_permission(self, permission_name):
+        """Check if user has a specific permission through any of their roles"""
+        # Super Admin has all permissions
+        if any(r.name == 'Super Admin' for r in self.roles):
+            return True
+        
+        # Check if permission name includes wildcard
+        if permission_name.startswith('view_') and any(r.name == 'Leadership' for r in self.roles):
+            return True  # Leadership can view everything
+        
+        # Check specific permissions
+        for role in self.roles:
+            if role.has_permission(permission_name):
+                return True
+        return False
+    
+    def has_any_permission(self, *permission_names):
+        """Check if user has any of the specified permissions"""
+        return any(self.has_permission(p) for p in permission_names)
+    
+    def has_all_permissions(self, *permission_names):
+        """Check if user has all of the specified permissions"""
+        return all(self.has_permission(p) for p in permission_names)
+    
+    def can_access_department(self, department_name):
+        """Check if user can access a specific department"""
+        # Super Admin and Leadership can access all
+        if any(r.name in ['Super Admin', 'Leadership'] for r in self.roles):
+            return True
+        
+        # Check if user has role in that department
+        return any(r.department == department_name for r in self.roles)
+    
+    def get_accessible_departments(self):
+        """Get list of departments user can access"""
+        if any(r.name in ['Super Admin', 'Leadership'] for r in self.roles):
+            return ['Dashboard', 'Parts', 'Service', 'Rental', 'Accounting', 'Database', 'AI']
+        
+        departments = set(['Dashboard'])  # Everyone can see dashboard
+        for role in self.roles:
+            if role.department:
+                departments.add(role.department)
+        return list(departments)
 
     def to_dict(self):
         return {
@@ -59,11 +119,15 @@ class User(db.Model):
             'email': self.email,
             'first_name': self.first_name,
             'last_name': self.last_name,
-            'role': self.role,
+            'role': self.role,  # Keep for legacy
+            'roles': [r.to_dict() for r in self.roles],
+            'department': self.department.to_dict() if self.department else None,
             'organization_id': self.organization_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
-            'is_active': self.is_active
+            'is_active': self.is_active,
+            'accessible_departments': self.get_accessible_departments(),
+            'is_admin': self.is_admin
         }
 
 class ReportTemplate(db.Model):

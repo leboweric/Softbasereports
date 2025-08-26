@@ -14,12 +14,15 @@ import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import AIQueryTester from './components/AIQueryTester'
 import TableDiscovery from './components/TableDiscovery'
 import MinitracSearch from './components/MinitracSearch'
+import UserManagement from './components/UserManagement'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
 function App() {
   const [user, setUser] = useState(null)
   const [organization, setOrganization] = useState(null)
+  const [permissions, setPermissions] = useState([])
+  const [accessibleDepartments, setAccessibleDepartments] = useState([])
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [loading, setLoading] = useState(true)
 
@@ -45,6 +48,11 @@ function App() {
         const data = await response.json()
         setUser(data.user)
         setOrganization(data.organization)
+        // Set permissions and accessible departments from user data
+        if (data.user) {
+          setPermissions(data.user.permissions || [])
+          setAccessibleDepartments(data.user.accessible_departments || [])
+        }
       } else {
         localStorage.removeItem('token')
       }
@@ -56,20 +64,36 @@ function App() {
     }
   }
 
-  const handleLogin = (userData, organizationData) => {
+  const handleLogin = (userData, organizationData, userPermissions = [], departments = []) => {
     setUser(userData)
     setOrganization(organizationData)
+    setPermissions(userPermissions)
+    setAccessibleDepartments(departments)
   }
 
   const handleLogout = () => {
     localStorage.removeItem('token')
     setUser(null)
     setOrganization(null)
+    setPermissions([])
+    setAccessibleDepartments([])
     setCurrentPage('dashboard')
   }
 
   const handleNavigate = (pageId) => {
     setCurrentPage(pageId)
+  }
+
+  // Check if user has permission to view a page
+  const hasPermission = (permission) => {
+    return permissions.includes(permission) || permissions.includes('*')
+  }
+
+  // Check if user can access a department
+  const canAccessDepartment = (department) => {
+    return accessibleDepartments.includes(department) || 
+           accessibleDepartments.includes('Dashboard') ||
+           permissions.includes('*')
   }
 
   const renderPage = () => {
@@ -101,7 +125,7 @@ function App() {
       case 'minitrac':
         return <MinitracSearch user={user} organization={organization} />
       case 'users':
-        return <div className="p-8 text-center text-gray-500">Users management coming soon...</div>
+        return <UserManagement user={user} organization={organization} />
       case 'settings':
         return <div className="p-8 text-center text-gray-500">Settings coming soon...</div>
       default:
@@ -130,6 +154,8 @@ function App() {
       onLogout={handleLogout}
       currentPage={currentPage}
       onNavigate={handleNavigate}
+      permissions={permissions}
+      accessibleDepartments={accessibleDepartments}
     >
       {renderPage()}
     </Layout>

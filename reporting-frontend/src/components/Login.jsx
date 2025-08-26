@@ -44,7 +44,7 @@ const Login = ({ onLogin }) => {
 
       if (response.ok) {
         localStorage.setItem('token', data.token)
-        onLogin(data.user, data.organization)
+        onLogin(data.user, data.organization, data.permissions || [], data.accessible_departments || [])
       } else {
         setError(data.message || 'Login failed')
       }

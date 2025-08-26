@@ -19,25 +19,54 @@ import {
   History
 } from 'lucide-react'
 
-const Layout = ({ children, user, onLogout, currentPage, onNavigate }) => {
+const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const navigation = [
-    { name: 'Dashboard', icon: BarChart3, id: 'dashboard' },
-    { name: 'Service', icon: Wrench, id: 'service' },
-    { name: 'Parts', icon: Package, id: 'parts' },
-    { name: 'Rental', icon: Truck, id: 'rental' },
-    { name: 'Accounting', icon: Calculator, id: 'accounting' },
-    { name: 'Minitrac', icon: History, id: 'minitrac' },
-    { name: 'AI Query', icon: Sparkles, id: 'ai-query' },
-    { name: 'AI Query Tester', icon: BarChart3, id: 'ai-query-tester' },
-    { name: 'Report Creator', icon: FileText, id: 'report-creator' },
-    { name: 'Reports', icon: FileText, id: 'reports' },
-    { name: 'Database Explorer', icon: Database, id: 'database-explorer' },
-    { name: 'Table Discovery', icon: Search, id: 'table-discovery' },
-    { name: 'Users', icon: Users, id: 'users' },
-    { name: 'Settings', icon: Settings, id: 'settings' },
+  // Check if user has specific permission
+  const hasPermission = (permission) => {
+    return permissions.includes(permission) || permissions.includes('*')
+  }
+
+  // Check if user can access department
+  const canAccessDepartment = (department) => {
+    return accessibleDepartments.includes(department) || 
+           hasPermission('*') // Super admin can access everything
+  }
+
+  const allNavigation = [
+    { name: 'Dashboard', icon: BarChart3, id: 'dashboard', permission: 'view_dashboard' },
+    { name: 'Service', icon: Wrench, id: 'service', permission: 'view_service', department: 'Service' },
+    { name: 'Parts', icon: Package, id: 'parts', permission: 'view_parts', department: 'Parts' },
+    { name: 'Rental', icon: Truck, id: 'rental', permission: 'view_rental', department: 'Rental' },
+    { name: 'Accounting', icon: Calculator, id: 'accounting', permission: 'view_accounting', department: 'Accounting' },
+    { name: 'Minitrac', icon: History, id: 'minitrac', permission: 'view_minitrac' },
+    { name: 'AI Query', icon: Sparkles, id: 'ai-query', permission: 'use_ai_query', department: 'AI' },
+    { name: 'AI Query Tester', icon: BarChart3, id: 'ai-query-tester', permission: 'use_ai_query', hide: true }, // Hide in production
+    { name: 'Report Creator', icon: FileText, id: 'report-creator', permission: 'use_report_creator' },
+    { name: 'Reports', icon: FileText, id: 'reports', permission: 'view_dashboard' },
+    { name: 'Database Explorer', icon: Database, id: 'database-explorer', permission: 'view_database_explorer', department: 'Database' },
+    { name: 'Table Discovery', icon: Search, id: 'table-discovery', permission: 'view_database_explorer', hide: true }, // Hide in production
+    { name: 'Users', icon: Users, id: 'users', permission: 'view_users' },
+    { name: 'Settings', icon: Settings, id: 'settings', permission: 'view_dashboard' },
   ]
+
+  // Filter navigation based on permissions
+  const navigation = allNavigation.filter(item => {
+    // Hide items marked as hidden
+    if (item.hide) return false
+    
+    // Check permission
+    if (item.permission && !hasPermission(item.permission)) {
+      return false
+    }
+    
+    // Check department access
+    if (item.department && !canAccessDepartment(item.department)) {
+      return false
+    }
+    
+    return true
+  })
 
   const handleNavigation = (pageId) => {
     onNavigate(pageId)
