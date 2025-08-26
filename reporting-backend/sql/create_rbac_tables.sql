@@ -1,5 +1,6 @@
 -- RBAC System Database Setup for PostgreSQL
 -- Run this script in pgAdmin to create the necessary tables for Role-Based Access Control
+-- IMPORTANT: Run 01_create_user_tables.sql FIRST if the user table doesn't exist yet!
 
 -- Create Department table
 CREATE TABLE IF NOT EXISTS department (

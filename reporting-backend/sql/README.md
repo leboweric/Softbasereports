@@ -10,7 +10,24 @@ These SQL scripts set up the Role-Based Access Control (RBAC) system for the Sof
 
 ## Installation Steps
 
-### Step 1: Create Tables
+### Step 0: Check Existing Tables
+First, check what tables already exist:
+```sql
+-- File: 00_check_existing_tables.sql
+```
+This will show you which tables are missing.
+
+### Step 1: Create User Tables (if needed)
+If the `user` table doesn't exist, run this FIRST:
+```sql
+-- File: 01_create_user_tables.sql
+```
+This creates:
+- `organization` table
+- `user` table
+- `report_template` table
+
+### Step 2: Create RBAC Tables
 Run the following script to create all necessary RBAC tables:
 ```sql
 -- File: create_rbac_tables.sql
@@ -23,7 +40,7 @@ This creates:
 - `role_permissions` association table (many-to-many)
 - Adds `department_id` column to user table if needed
 
-### Step 2: Insert Default Data
+### Step 3: Insert Default Data
 Run the following script to populate default roles and permissions:
 ```sql
 -- File: insert_default_rbac_data.sql
@@ -34,7 +51,7 @@ This inserts:
 - 10 default roles (Super Admin, Leadership, Managers, Staff, etc.)
 - Permission assignments for each role
 
-### Step 3: Migrate Existing Users
+### Step 4: Migrate Existing Users
 Run the following script to assign roles to existing users:
 ```sql
 -- File: migrate_existing_users.sql
@@ -45,7 +62,7 @@ This will:
 - Assign Read Only role to all other users
 - Make the first user in each organization a Super Admin
 
-### Step 4: Verify Setup
+### Step 5: Verify Setup
 Check the results by running queries from:
 ```sql
 -- File: useful_rbac_queries.sql
