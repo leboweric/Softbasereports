@@ -1,5 +1,112 @@
 # Softbase Reports Project Context
 
+## User Management & RBAC System (2025-08-26)
+
+### Overview
+Implemented comprehensive Role-Based Access Control (RBAC) system to restrict access based on user roles and department assignments. Leadership can see everything while department users only see their specific pages.
+
+### Implementation Components
+
+#### 1. Database Models (backend/src/models/rbac.py)
+- **Role**: Defines user roles (Super Admin, Leadership, Parts Manager, etc.)
+- **Permission**: Granular permissions (view_parts, edit_service, etc.)
+- **Department**: Organizational departments (Parts, Service, Rental, Accounting)
+- Many-to-many relationships between Users-Roles and Roles-Permissions
+
+#### 2. Permission System
+- **Super Admin**: Full access to everything (permissions = '*')
+- **Leadership**: View all departments, export data (view_*, export_*)
+- **Department Managers**: Full access to their department
+- **Department Staff**: View-only or limited edit in their department
+- **Read Only**: Dashboard access only
+
+#### 3. Authorization Decorators (backend/src/utils/auth_decorators.py)
+```python
+@require_permission('view_parts')  # Single permission
+@require_permission('view_parts', 'edit_parts')  # Any of these permissions
+@require_all_permissions('view_parts', 'edit_parts')  # All permissions required
+@require_role('Parts Manager', 'Super Admin')  # Role-based
+@require_department('Parts', 'Service')  # Department access
+@admin_required  # Admin only
+```
+
+#### 4. Frontend Permission Filtering
+- Menu items filtered based on user permissions
+- Routes protected - redirect if no access
+- User permissions stored in React state
+- Layout component dynamically shows/hides navigation items
+
+#### 5. User Management UI
+- Admin interface at /users route
+- View all users with their roles
+- Assign/remove roles from users
+- Enable/disable user accounts
+- View role definitions and permission levels
+
+### Setup Instructions
+
+#### Initialize RBAC System (First Time)
+```bash
+cd reporting-backend
+python3 src/scripts/init_database.py
+```
+This will:
+- Create Role, Permission, Department tables
+- Insert default roles and permissions
+- Migrate existing users to new permission system
+
+#### Default Roles Created
+1. **Super Admin** (Level 10): Full system access
+2. **Leadership** (Level 9): View all departments, export data
+3. **Accounting Manager** (Level 5): Full accounting access
+4. **Parts Manager** (Level 5): Full parts department access
+5. **Service Manager** (Level 5): Full service department access
+6. **Rental Manager** (Level 5): Full rental department access
+7. **Parts Staff** (Level 1): View parts data only
+8. **Service Tech** (Level 1): View service, edit own work orders
+9. **Sales Rep** (Level 1): View own commission data
+10. **Read Only** (Level 0): Dashboard only
+
+### API Endpoints
+
+#### User Management
+- `GET /api/users` - List all users (requires view_users)
+- `GET /api/users/<id>` - Get user details (requires view_users)
+- `PUT /api/users/<id>` - Update user (requires edit_users)
+- `POST /api/users/<id>/roles` - Assign role (requires manage_roles)
+- `DELETE /api/users/<id>/roles/<role>` - Remove role (requires manage_roles)
+
+#### Reference Data
+- `GET /api/roles` - List available roles
+- `GET /api/permissions` - List all permissions (admin only)
+- `GET /api/departments` - List departments
+
+### Key Files Modified/Created
+- `reporting-backend/src/models/rbac.py` - RBAC models
+- `reporting-backend/src/models/user.py` - Extended User model with permissions
+- `reporting-backend/src/utils/auth_decorators.py` - Permission decorators
+- `reporting-backend/src/utils/init_rbac.py` - RBAC initialization
+- `reporting-backend/src/routes/user_management.py` - User management API
+- `reporting-backend/src/routes/department_reports.py` - Protected routes
+- `reporting-frontend/src/App.jsx` - Permission state management
+- `reporting-frontend/src/components/Layout.jsx` - Menu filtering
+- `reporting-frontend/src/components/UserManagement.jsx` - Admin UI
+
+### Testing the System
+1. Login as admin user
+2. Navigate to Users menu item (only visible to users with view_users permission)
+3. Assign roles to users
+4. Login as different users to verify access restrictions
+5. Department users should only see their department in menu
+6. Leadership users should see all departments
+
+### Migration Notes
+- Existing users are migrated based on their legacy 'role' field:
+  - 'admin' → Super Admin
+  - 'manager' → Leadership  
+  - Others → Read Only
+- First user in an organization is automatically admin
+
 ## Sales Commission System Overhaul (2025-08-26)
 
 ### Overview
