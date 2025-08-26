@@ -124,7 +124,7 @@ function App() {
         return <TableDiscovery user={user} organization={organization} />
       case 'minitrac':
         return <MinitracSearch user={user} organization={organization} />
-      case 'users':
+      case 'user-management':
         return <UserManagement user={user} organization={organization} />
       case 'settings':
         return <div className="p-8 text-center text-gray-500">Settings coming soon...</div>

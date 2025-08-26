@@ -46,7 +46,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
     { name: 'Reports', icon: FileText, id: 'reports', permission: 'view_dashboard' },
     { name: 'Database Explorer', icon: Database, id: 'database-explorer', permission: 'view_database_explorer', department: 'Database' },
     { name: 'Table Discovery', icon: Search, id: 'table-discovery', permission: 'view_database_explorer', hide: true }, // Hide in production
-    { name: 'Users', icon: Users, id: 'users', permission: 'view_users' },
+    { name: 'User Management', icon: Users, id: 'user-management', permission: 'manage_users' },
     { name: 'Settings', icon: Settings, id: 'settings', permission: 'view_dashboard' },
   ]
 
