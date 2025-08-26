@@ -5816,6 +5816,9 @@ def register_department_routes(reports_bp):
             salespeople = []
             totals = {
                 'rental': 0,
+                'used_equipment': 0,
+                'allied_equipment': 0,
+                'new_equipment': 0,
                 'equipment_sales': 0,  # Combined all equipment types
                 'total_sales': 0,
                 'total_commissions': 0
@@ -5865,8 +5868,11 @@ def register_department_routes(reports_bp):
                     'new_equipment': new
                 })
                 
-                # Update totals
+                # Update totals - keep individual categories for display
                 totals['rental'] += rental
+                totals['used_equipment'] += used
+                totals['allied_equipment'] += allied
+                totals['new_equipment'] += new
                 totals['equipment_sales'] += equipment_revenue
                 totals['total_sales'] += total_sales
                 totals['total_commissions'] += commission_amount
