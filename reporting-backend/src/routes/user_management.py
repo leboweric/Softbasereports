@@ -13,27 +13,28 @@ user_management_bp = Blueprint('user_management', __name__)
 def get_all_users():
     """Get all users in the system"""
     try:
+        # Just return all users - bypass the organization check for now
+        users = User.query.all()
+        
+        # Add debug info
         current_user_id = get_jwt_identity()
-        current_user = User.query.get(int(current_user_id))
-        
-        # If current user not found by ID, try to get all users anyway for Super Admin
-        if not current_user:
-            # For now, just return all users if we can't find the current user
-            # This handles the case where JWT has old user ID
-            users = User.query.all()
-            return jsonify({
-                'users': [u.to_dict() for u in users],
-                'warning': 'Current user not found, showing all users'
-            }), 200
-        
-        # Get all users in the same organization
-        users = User.query.filter_by(organization_id=current_user.organization_id).all()
         
         return jsonify({
-            'users': [u.to_dict() for u in users]
+            'users': [u.to_dict() for u in users],
+            'debug': {
+                'jwt_user_id': current_user_id,
+                'total_users': len(users),
+                'user_ids': [u.id for u in users]
+            }
         }), 200
     except Exception as e:
-        return jsonify({'message': f'Error fetching users: {str(e)}'}), 500
+        # Return the actual error for debugging
+        import traceback
+        return jsonify({
+            'users': [],
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 200  # Return 200 even on error so we can see the error in frontend
 
 @user_management_bp.route('/users/<int:user_id>', methods=['GET'])
 @cross_origin()

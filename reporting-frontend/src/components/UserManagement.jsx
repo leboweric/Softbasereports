@@ -42,12 +42,19 @@ const UserManagement = ({ user, organization }) => {
       const usersRes = await fetch(apiUrl('/api/users'), {
         headers: { 'Authorization': `Bearer ${token}` }
       })
-      if (usersRes.ok) {
-        const usersData = await usersRes.json()
-        setUsers(usersData.users || [])
-      } else {
-        console.error('Failed to fetch users:', usersRes.status)
-        setUsers([])
+      const usersData = await usersRes.json()
+      console.log('Users API response:', usersData)  // Debug log
+      
+      if (usersData.error) {
+        console.error('Users API error:', usersData.error)
+        console.error('Traceback:', usersData.traceback)
+        setError(`Users API Error: ${usersData.error}`)
+      }
+      
+      setUsers(usersData.users || [])
+      
+      if (usersData.debug) {
+        console.log('Debug info:', usersData.debug)
       }
 
       // Fetch roles
