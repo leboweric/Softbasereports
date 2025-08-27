@@ -102,18 +102,8 @@ def update_user(user_id):
         print(f"User {user_id} updated successfully")
         print(f"User after update - first_name: {user.first_name}, last_name: {user.last_name}")
         
-        # Return simple response to avoid any serialization issues
-        return jsonify({
-            'message': 'User updated successfully',
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'is_active': user.is_active
-            }
-        }), 200
+        # Return the full user object using to_dict()
+        return jsonify(user.to_dict()), 200
     except Exception as e:
         db.session.rollback()
         print(f"Error updating user {user_id}: {str(e)}")
