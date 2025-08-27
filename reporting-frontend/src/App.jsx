@@ -14,7 +14,7 @@ import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import AIQueryTester from './components/AIQueryTester'
 import TableDiscovery from './components/TableDiscovery'
 import MinitracSearch from './components/MinitracSearch'
-import UserManagement from './components/UserManagement'
+import UserManagementEnhanced from './components/UserManagementEnhanced'
 import { apiUrl } from '@/lib/api'
 import './App.css'
 
@@ -125,7 +125,7 @@ function App() {
       case 'minitrac':
         return <MinitracSearch user={user} organization={organization} />
       case 'user-management':
-        return <UserManagement user={user} organization={organization} />
+        return <UserManagementEnhanced user={user} organization={organization} />
       case 'settings':
         return <div className="p-8 text-center text-gray-500">Settings coming soon...</div>
       default:

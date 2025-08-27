@@ -2,6 +2,8 @@
 from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from werkzeug.security import generate_password_hash
+from datetime import datetime
 from src.models.user import db, User, Organization
 from src.models.rbac import Role, Permission, Department
 
@@ -72,11 +74,10 @@ def update_user(user_id):
             user.last_name = data['last_name']
         if 'email' in data:
             user.email = data['email']
+        if 'username' in data:
+            user.username = data['username']
         if 'is_active' in data:
             user.is_active = data['is_active']
-        # Commenting out department_id as it's not currently in use
-        # if 'department_id' in data:
-        #     user.department_id = data['department_id']
         
         db.session.commit()
         return jsonify({
@@ -213,3 +214,110 @@ def get_all_departments():
         }), 200
     except Exception as e:
         return jsonify({'message': f'Error fetching departments: {str(e)}'}), 500
+
+@user_management_bp.route('/users/create', methods=['POST'])
+@cross_origin()
+@jwt_required()
+def create_user():
+    """Create a new user"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(int(current_user_id))
+        
+        if not current_user:
+            return jsonify({'message': 'Current user not found'}), 404
+        
+        data = request.get_json()
+        
+        # Check if username already exists
+        if User.query.filter_by(username=data['username']).first():
+            return jsonify({'message': 'Username already exists'}), 400
+        
+        # Check if email already exists
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'message': 'Email already exists'}), 400
+        
+        # Create new user
+        new_user = User(
+            username=data['username'],
+            email=data['email'],
+            first_name=data.get('first_name', ''),
+            last_name=data.get('last_name', ''),
+            organization_id=current_user.organization_id,
+            is_active=True,
+            created_at=datetime.utcnow()
+        )
+        
+        # Set password
+        new_user.set_password(data['password'])
+        
+        # Add to database
+        db.session.add(new_user)
+        db.session.commit()
+        
+        # Assign initial role if provided
+        if data.get('role'):
+            role = Role.query.filter_by(name=data['role']).first()
+            if role:
+                new_user.roles.append(role)
+                db.session.commit()
+        
+        return jsonify({
+            'message': 'User created successfully',
+            'user': new_user.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Error creating user: {str(e)}'}), 500
+
+@user_management_bp.route('/users/<int:user_id>/reset-password', methods=['POST'])
+@cross_origin()
+@jwt_required()
+def reset_user_password(user_id):
+    """Reset a user's password"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        
+        data = request.get_json()
+        new_password = data.get('password')
+        
+        if not new_password:
+            return jsonify({'message': 'Password is required'}), 400
+        
+        # Set new password
+        user.set_password(new_password)
+        db.session.commit()
+        
+        return jsonify({'message': 'Password reset successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Error resetting password: {str(e)}'}), 500
+
+@user_management_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@cross_origin()
+@jwt_required()
+def delete_user(user_id):
+    """Delete a user"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        
+        # Don't allow deleting yourself
+        current_user_id = get_jwt_identity()
+        if int(current_user_id) == user_id:
+            return jsonify({'message': 'Cannot delete your own account'}), 400
+        
+        # Delete user
+        db.session.delete(user)
+        db.session.commit()
+        
+        return jsonify({'message': 'User deleted successfully'}), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Error deleting user: {str(e)}'}), 500
