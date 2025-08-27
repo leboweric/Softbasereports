@@ -85,8 +85,11 @@ def update_user(user_id):
             user.is_active = data['is_active']
         
         db.session.commit()
+        db.session.refresh(user)  # Force refresh from database
         print(f"User {user_id} updated successfully")
+        print(f"User after update - first_name: {user.first_name}, last_name: {user.last_name}")
         
+        # Return simple response to avoid any serialization issues
         return jsonify({
             'message': 'User updated successfully',
             'user': {

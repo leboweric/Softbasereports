@@ -136,7 +136,13 @@ const UserManagementEnhanced = ({ user, organization }) => {
   const updateUserDetails = async () => {
     try {
       const token = localStorage.getItem('token')
-      console.log('Updating user:', editUser.id, editUser)
+      const updateData = {
+        first_name: editUser.first_name,
+        last_name: editUser.last_name,
+        email: editUser.email,
+        username: editUser.username
+      }
+      console.log('Updating user:', editUser.id, 'with data:', updateData)
       
       const response = await fetch(apiUrl(`/api/users/${editUser.id}`), {
         method: 'PUT',
@@ -144,12 +150,7 @@ const UserManagementEnhanced = ({ user, organization }) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          first_name: editUser.first_name,
-          last_name: editUser.last_name,
-          email: editUser.email,
-          username: editUser.username
-        })
+        body: JSON.stringify(updateData)
       })
 
       console.log('Update response status:', response.status)
@@ -157,9 +158,17 @@ const UserManagementEnhanced = ({ user, organization }) => {
       console.log('Update response data:', data)
 
       if (response.ok) {
+        // Check if we got the updated user data
+        if (data.user && data.user.first_name === editUser.first_name) {
+          console.log('Update successful - data matches')
+        } else {
+          console.warn('Update may have failed - data does not match sent values')
+          console.log('Sent:', updateData.first_name, 'Got back:', data.user?.first_name || data.first_name)
+        }
+        
         setShowEditUser(false)
         setEditUser(null)
-        fetchData() // Refresh data
+        fetchData() // Refresh data - this should get the updated values
       } else {
         console.error('Update failed:', data)
         setError(data.message || 'Failed to update user')
