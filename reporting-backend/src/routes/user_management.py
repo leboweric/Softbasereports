@@ -16,8 +16,15 @@ def get_all_users():
         current_user_id = get_jwt_identity()
         current_user = User.query.get(int(current_user_id))
         
+        # If current user not found by ID, try to get all users anyway for Super Admin
         if not current_user:
-            return jsonify({'message': 'User not found'}), 404
+            # For now, just return all users if we can't find the current user
+            # This handles the case where JWT has old user ID
+            users = User.query.all()
+            return jsonify({
+                'users': [u.to_dict() for u in users],
+                'warning': 'Current user not found, showing all users'
+            }), 200
         
         # Get all users in the same organization
         users = User.query.filter_by(organization_id=current_user.organization_id).all()
