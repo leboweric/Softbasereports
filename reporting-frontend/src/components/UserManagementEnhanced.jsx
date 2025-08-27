@@ -143,16 +143,20 @@ const UserManagementEnhanced = ({ user, organization }) => {
         username: editUser.username
       }
       const updateUrl = apiUrl(`/api/users/${editUser.id}`)
+      const timestamp = Date.now()
       console.log('Updating user:', editUser.id, 'with data:', updateData)
       console.log('PUT URL:', updateUrl)
+      console.log('Request timestamp:', timestamp)
       
       const response = await fetch(updateUrl, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Request-ID': `update-${timestamp}`
         },
-        body: JSON.stringify(updateData)
+        body: JSON.stringify(updateData),
+        cache: 'no-cache'  // Disable caching
       })
 
       console.log('Update response status:', response.status)

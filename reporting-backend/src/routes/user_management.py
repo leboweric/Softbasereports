@@ -57,14 +57,22 @@ def get_user(user_id):
     except Exception as e:
         return jsonify({'message': f'Error fetching user: {str(e)}'}), 500
 
-@user_management_bp.route('/users/<int:user_id>', methods=['PUT'])
+@user_management_bp.route('/users/<int:user_id>', methods=['PUT', 'OPTIONS'])
 @cross_origin()
-@jwt_required()
 def update_user(user_id):
     """Update user information"""
-    print(f"PUT request received for user {user_id}")
-    print(f"Request method: {request.method}")
-    print(f"Request headers: {dict(request.headers)}")
+    print(f"=== REQUEST RECEIVED ===")
+    print(f"Method: {request.method} for user {user_id}")
+    print(f"Path: {request.path}")
+    print(f"Request ID: {request.headers.get('X-Request-ID', 'none')}")
+    
+    if request.method == 'OPTIONS':
+        print("OPTIONS preflight request")
+        return '', 204
+    
+    # Check JWT only for non-OPTIONS requests
+    from flask_jwt_extended import verify_jwt_in_request
+    verify_jwt_in_request()
     
     try:
         user = User.query.get(user_id)
