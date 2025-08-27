@@ -64,7 +64,6 @@ def update_user(user_id):
     print(f"=== REQUEST RECEIVED ===")
     print(f"Method: {request.method} for user {user_id}")
     print(f"Path: {request.path}")
-    print(f"Request ID: {request.headers.get('X-Request-ID', 'none')}")
     
     if request.method == 'OPTIONS':
         print("OPTIONS preflight request")
