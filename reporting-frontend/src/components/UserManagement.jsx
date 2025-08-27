@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import UserDiagnostic from './UserDiagnostic'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -161,6 +162,9 @@ const UserManagement = ({ user, organization }) => {
 
   return (
     <div className="space-y-6">
+      {/* Temporary Diagnostic */}
+      <UserDiagnostic />
+      
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
