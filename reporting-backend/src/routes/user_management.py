@@ -43,6 +43,8 @@ def get_all_users():
 @jwt_required()
 def get_user(user_id):
     """Get a specific user"""
+    print(f"GET request received for user {user_id}")
+    print(f"Request method: {request.method}")
     try:
         user = User.query.get(user_id)
         if not user:
@@ -60,6 +62,10 @@ def get_user(user_id):
 @jwt_required()
 def update_user(user_id):
     """Update user information"""
+    print(f"PUT request received for user {user_id}")
+    print(f"Request method: {request.method}")
+    print(f"Request headers: {dict(request.headers)}")
+    
     try:
         user = User.query.get(user_id)
         if not user:

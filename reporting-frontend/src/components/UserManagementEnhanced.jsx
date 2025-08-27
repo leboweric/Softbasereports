@@ -142,9 +142,11 @@ const UserManagementEnhanced = ({ user, organization }) => {
         email: editUser.email,
         username: editUser.username
       }
+      const updateUrl = apiUrl(`/api/users/${editUser.id}`)
       console.log('Updating user:', editUser.id, 'with data:', updateData)
+      console.log('PUT URL:', updateUrl)
       
-      const response = await fetch(apiUrl(`/api/users/${editUser.id}`), {
+      const response = await fetch(updateUrl, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
