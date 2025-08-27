@@ -354,3 +354,51 @@ def delete_user(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': f'Error deleting user: {str(e)}'}), 500
+
+@user_management_bp.route('/users/<int:user_id>/update-info', methods=['POST'])
+@cross_origin()
+@jwt_required()
+def update_user_info(user_id):
+    """Alternative update endpoint using POST to avoid CORS issues"""
+    print(f"=== UPDATE-INFO REQUEST RECEIVED ===")
+    print(f"Updating user {user_id}")
+    
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+        
+        data = request.get_json()
+        print(f"Update data: {data}")
+        
+        # Update fields
+        if 'first_name' in data:
+            user.first_name = data['first_name']
+        if 'last_name' in data:
+            user.last_name = data['last_name']
+        if 'email' in data:
+            user.email = data['email']
+        if 'username' in data:
+            user.username = data['username']
+        
+        db.session.commit()
+        db.session.refresh(user)
+        
+        print(f"User {user_id} updated: {user.first_name} {user.last_name}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'User updated successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating user: {str(e)}")
+        return jsonify({'message': f'Error: {str(e)}'}), 500

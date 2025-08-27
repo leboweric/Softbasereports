@@ -142,12 +142,13 @@ const UserManagementEnhanced = ({ user, organization }) => {
         email: editUser.email,
         username: editUser.username
       }
-      const updateUrl = apiUrl(`/api/users/${editUser.id}`)
+      // Use POST endpoint to avoid CORS issues with PUT
+      const updateUrl = apiUrl(`/api/users/${editUser.id}/update-info`)
       console.log('Updating user:', editUser.id, 'with data:', updateData)
-      console.log('PUT URL:', updateUrl)
+      console.log('POST URL:', updateUrl)
       
       const response = await fetch(updateUrl, {
-        method: 'PUT',
+        method: 'POST',  // Using POST instead of PUT
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
