@@ -44,6 +44,8 @@ const UserManagement = ({ user, organization }) => {
       })
       const usersData = await usersRes.json()
       console.log('Users API response:', usersData)  // Debug log
+      console.log('Is array?', Array.isArray(usersData))  // Check if it's an array
+      console.log('Has users property?', usersData.users)  // Check for users property
       
       if (usersData.error) {
         console.error('Users API error:', usersData.error)
@@ -51,7 +53,12 @@ const UserManagement = ({ user, organization }) => {
         setError(`Users API Error: ${usersData.error}`)
       }
       
-      setUsers(usersData.users || [])
+      // Handle both array response and object with users property
+      if (Array.isArray(usersData)) {
+        setUsers(usersData)
+      } else {
+        setUsers(usersData.users || [])
+      }
       
       if (usersData.debug) {
         console.log('Debug info:', usersData.debug)
