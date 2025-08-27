@@ -3,19 +3,14 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
   BarChart3, 
-  FileText, 
   Users, 
-  Settings, 
   LogOut, 
   Menu,
   X,
-  Sparkles,
-  Database,
   Wrench,
   Package,
   Truck,
   Calculator,
-  Search,
   History
 } from 'lucide-react'
 
@@ -40,14 +35,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
     { name: 'Rental', icon: Truck, id: 'rental', permission: 'view_rental', department: 'Rental' },
     { name: 'Accounting', icon: Calculator, id: 'accounting', permission: 'view_accounting', department: 'Accounting' },
     { name: 'Minitrac', icon: History, id: 'minitrac', permission: 'view_minitrac' },
-    { name: 'AI Query', icon: Sparkles, id: 'ai-query', permission: 'use_ai_query', department: 'AI' },
-    { name: 'AI Query Tester', icon: BarChart3, id: 'ai-query-tester', permission: 'use_ai_query', hide: true }, // Hide in production
-    { name: 'Report Creator', icon: FileText, id: 'report-creator', permission: 'use_report_creator' },
-    { name: 'Reports', icon: FileText, id: 'reports', permission: 'view_dashboard' },
-    { name: 'Database Explorer', icon: Database, id: 'database-explorer', permission: 'view_database_explorer', department: 'Database' },
-    { name: 'Table Discovery', icon: Search, id: 'table-discovery', permission: 'view_database_explorer', hide: true }, // Hide in production
     { name: 'User Management', icon: Users, id: 'user-management', permission: 'manage_users' },
-    { name: 'Settings', icon: Settings, id: 'settings', permission: 'view_dashboard' },
   ]
 
   // Filter navigation based on permissions
