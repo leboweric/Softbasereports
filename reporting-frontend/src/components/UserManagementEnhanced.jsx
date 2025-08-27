@@ -136,6 +136,8 @@ const UserManagementEnhanced = ({ user, organization }) => {
   const updateUserDetails = async () => {
     try {
       const token = localStorage.getItem('token')
+      console.log('Updating user:', editUser.id, editUser)
+      
       const response = await fetch(apiUrl(`/api/users/${editUser.id}`), {
         method: 'PUT',
         headers: {
@@ -150,16 +152,21 @@ const UserManagementEnhanced = ({ user, organization }) => {
         })
       })
 
+      console.log('Update response status:', response.status)
+      const data = await response.json()
+      console.log('Update response data:', data)
+
       if (response.ok) {
         setShowEditUser(false)
         setEditUser(null)
         fetchData() // Refresh data
       } else {
-        const data = await response.json()
+        console.error('Update failed:', data)
         setError(data.message || 'Failed to update user')
       }
     } catch (err) {
-      setError('Failed to update user')
+      console.error('Update error:', err)
+      setError('Failed to update user: ' + err.message)
     }
   }
 

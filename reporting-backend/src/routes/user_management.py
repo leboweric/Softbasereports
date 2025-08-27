@@ -66,26 +66,43 @@ def update_user(user_id):
             return jsonify({'message': 'User not found'}), 404
         
         data = request.get_json()
+        print(f"Updating user {user_id} with data: {data}")  # Debug log
         
         # Update basic info
         if 'first_name' in data:
             user.first_name = data['first_name']
+            print(f"Set first_name to: {user.first_name}")
         if 'last_name' in data:
             user.last_name = data['last_name']
+            print(f"Set last_name to: {user.last_name}")
         if 'email' in data:
             user.email = data['email']
+            print(f"Set email to: {user.email}")
         if 'username' in data:
             user.username = data['username']
+            print(f"Set username to: {user.username}")
         if 'is_active' in data:
             user.is_active = data['is_active']
         
         db.session.commit()
+        print(f"User {user_id} updated successfully")
+        
         return jsonify({
             'message': 'User updated successfully',
-            'user': user.to_dict()
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'is_active': user.is_active
+            }
         }), 200
     except Exception as e:
         db.session.rollback()
+        print(f"Error updating user {user_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'message': f'Error updating user: {str(e)}'}), 500
 
 @user_management_bp.route('/users/<int:user_id>/roles', methods=['POST'])
