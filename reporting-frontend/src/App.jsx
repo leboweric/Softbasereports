@@ -48,11 +48,9 @@ function App() {
         const data = await response.json()
         setUser(data.user)
         setOrganization(data.organization)
-        // Set permissions and accessible departments from user data
-        if (data.user) {
-          setPermissions(data.user.permissions || [])
-          setAccessibleDepartments(data.user.accessible_departments || [])
-        }
+        // Set permissions and accessible departments from response data
+        setPermissions(data.permissions || [])
+        setAccessibleDepartments(data.accessible_departments || [])
       } else {
         localStorage.removeItem('token')
       }
