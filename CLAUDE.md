@@ -1,5 +1,72 @@
 # Softbase Reports Project Context
 
+## User Management & RBAC System Implementation (2025-08-27)
+
+### Overview  
+Successfully built and deployed a comprehensive user management framework with Role-Based Access Control (RBAC). The system now properly restricts access where "Leadership can see every page but if you are in the Parts Department you can only see the Parts page."
+
+### Key Accomplishments Today
+
+#### 1. Fixed User Update Functionality
+- **Problem**: User edits were failing silently - changes not persisting to database
+- **Root Cause**: SQLAlchemy was caching the old user object after commit
+- **Solution**: Added `db.session.expire(user)` and re-fetched user after commit
+```python
+db.session.commit()
+db.session.expire(user)  # Expire the cached object
+updated_user = User.query.get(user_id)  # Re-fetch fresh data
+return jsonify(updated_user.to_dict())
+```
+- **Learning**: Always force a fresh database query after updates to ensure returning current data
+
+#### 2. Fixed Menu Items Disappearing on Browser Refresh  
+- **Problem**: Navigation menu items vanished after browser refresh
+- **Root Cause**: Frontend was looking for permissions in wrong location on token validation
+- **Fix**: Changed from `data.user.permissions` to `data.permissions` in validateToken()
+- **Learning**: Always verify the exact shape of API responses between endpoints
+
+#### 3. Created User Management UI
+- **Features Added**:
+  - View all users with their roles and status
+  - Edit user names, emails, usernames (working after fix #1)
+  - Assign/remove roles from users
+  - Enable/disable user accounts  
+  - Create new users with role assignment
+  - Reset user passwords
+  - Delete users (except your own account)
+- **Component**: UserManagementEnhanced.jsx with full CRUD operations
+
+#### 4. CORS Issues with PUT Requests
+- **Problem**: PUT requests for user updates triggered CORS preflight failures
+- **Initial Attempt**: Removed custom X-Request-ID header - still failed
+- **Solution**: Created alternative POST endpoint `/users/{id}/update-info`
+- **Learning**: Sometimes it's better to work around CORS with POST than fight browser security
+
+#### 5. Cleaned Up Navigation Menu
+- **Removed**: AI Query, Report Creator, Reports, Database Explorer, Settings
+- **Kept**: Dashboard, Service, Parts, Rental, Accounting, Minitrac, User Management
+- **Result**: Cleaner, more focused interface
+
+#### 6. Fixed Commission Report Formatting
+- **Issue**: Currency values showing whole dollars instead of cents
+- **Fix**: Changed formatCurrency from 0 to 2 decimal places
+- **Added**: Collapsible Commission Structure sections with Show/Hide buttons
+
+### Technical Debt Resolved
+- Consolidated users into single organization (Bennett Material Handling)
+- Fixed bcrypt password hash validation issues with temp_login workaround  
+- Proper error handling for missing permissions
+- Fixed array vs object response handling in UserManagement component
+
+### Database Schema Changes
+Created new PostgreSQL tables for RBAC:
+- `role` - User roles with hierarchy levels
+- `permission` - Granular permissions  
+- `department` - Organizational departments
+- `user_roles` - User to role associations
+- `role_permissions` - Role to permission associations
+- `user_departments` - User to department associations
+
 ## User Management & RBAC System (2025-08-26)
 
 ### Overview
