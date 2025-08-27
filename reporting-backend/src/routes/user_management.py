@@ -98,12 +98,16 @@ def update_user(user_id):
             user.is_active = data['is_active']
         
         db.session.commit()
-        db.session.refresh(user)  # Force refresh from database
+        
+        # Force a new query to get the updated data
+        db.session.expire(user)  # Expire the object from session
+        updated_user = User.query.get(user_id)  # Re-fetch from database
+        
         print(f"User {user_id} updated successfully")
-        print(f"User after update - first_name: {user.first_name}, last_name: {user.last_name}")
+        print(f"User after update - first_name: {updated_user.first_name}, last_name: {updated_user.last_name}")
         
         # Return the full user object using to_dict()
-        return jsonify(user.to_dict()), 200
+        return jsonify(updated_user.to_dict()), 200
     except Exception as e:
         db.session.rollback()
         print(f"Error updating user {user_id}: {str(e)}")
@@ -372,19 +376,22 @@ def update_user_info(user_id):
             user.username = data['username']
         
         db.session.commit()
-        db.session.refresh(user)
         
-        print(f"User {user_id} updated: {user.first_name} {user.last_name}")
+        # Force a new query to get the updated data
+        db.session.expire(user)  # Expire the object from session  
+        updated_user = User.query.get(user_id)  # Re-fetch from database
+        
+        print(f"User {user_id} updated: {updated_user.first_name} {updated_user.last_name}")
         
         return jsonify({
             'success': True,
             'message': 'User updated successfully',
             'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name
+                'id': updated_user.id,
+                'username': updated_user.username,
+                'email': updated_user.email,
+                'first_name': updated_user.first_name,
+                'last_name': updated_user.last_name
             }
         }), 200
         
