@@ -22,6 +22,8 @@ const SalesCommissionReport = ({ user }) => {
   const [detailsData, setDetailsData] = useState(null)
   const [showDetails, setShowDetails] = useState(false)
   const [loadingDetails, setLoadingDetails] = useState(false)
+  const [showCurrentStructure, setShowCurrentStructure] = useState(false)
+  const [showProposedStructure, setShowProposedStructure] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date()
     // Default to previous month since commissions are usually calculated for completed months
@@ -879,10 +881,32 @@ const SalesCommissionReport = ({ user }) => {
           {/* Current Commission Rules */}
           <Card>
             <CardHeader>
-              <CardTitle>Current Commission Structure</CardTitle>
-              <CardDescription>Existing commission rates and rules (complex)</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Current Commission Structure</CardTitle>
+                  <CardDescription>Existing commission rates and rules (complex)</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowCurrentStructure(!showCurrentStructure)}
+                >
+                  {showCurrentStructure ? (
+                    <>
+                      <ChevronUp className="h-4 w-4 mr-2" />
+                      Hide Details
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4 mr-2" />
+                      Show Details
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
+            {showCurrentStructure && (
+              <CardContent>
               <div className="space-y-4 text-sm">
                 <div>
                   <h4 className="font-semibold text-base mb-2">New Equipment</h4>
@@ -958,15 +982,39 @@ const SalesCommissionReport = ({ user }) => {
                 </p>
               </div>
             </CardContent>
+            )}
           </Card>
 
           {/* Proposed Commission Structure */}
           <Card className="border-green-200 bg-green-50/50">
             <CardHeader>
-              <CardTitle className="text-green-800">Proposed Commission Structure</CardTitle>
-              <CardDescription>Simplified, automated, and mathematically equivalent system</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-green-800">Proposed Commission Structure</CardTitle>
+                  <CardDescription>Simplified, automated, and mathematically equivalent system</CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowProposedStructure(!showProposedStructure)}
+                  className="border-green-400 hover:bg-green-100"
+                >
+                  {showProposedStructure ? (
+                    <>
+                      <ChevronUp className="h-4 w-4 mr-2" />
+                      Hide Details
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4 mr-2" />
+                      Show Details
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent>
+            {showProposedStructure && (
+              <CardContent>
               <div className="space-y-6 text-sm">
                 {/* Philosophy Section */}
                 <div className="bg-white p-4 rounded-lg border border-green-200">
@@ -1097,6 +1145,7 @@ const SalesCommissionReport = ({ user }) => {
                 </p>
               </div>
             </CardContent>
+            )}
           </Card>
         </>
       ) : (
