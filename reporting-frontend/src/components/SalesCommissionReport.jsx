@@ -611,8 +611,8 @@ const SalesCommissionReport = ({ user }) => {
           </Card>
 
           {/* Detailed Invoice Breakdown */}
-          <Card>
-            <CardHeader>
+          <Card className="-mx-4 sm:-mx-6 lg:-mx-8">
+            <CardHeader className="px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Detailed Invoice Breakdown</CardTitle>
@@ -647,7 +647,7 @@ const SalesCommissionReport = ({ user }) => {
               </div>
             </CardHeader>
             {showDetails && (
-              <CardContent>
+              <CardContent className="px-4 sm:px-6 lg:px-8">
                 {loadingDetails ? (
                   <div className="py-8 text-center">
                     <LoadingSpinner size="small" />
@@ -701,11 +701,11 @@ const SalesCommissionReport = ({ user }) => {
                         </div>
                         {salesman.invoices.length > 0 ? (
                           <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                            <table className="w-full text-xs">
                               <thead>
                                 <tr className="border-b">
                                   <th 
-                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'invoice_no')}
                                   >
                                     <div className="flex items-center gap-1">
@@ -714,7 +714,7 @@ const SalesCommissionReport = ({ user }) => {
                                     </div>
                                   </th>
                                   <th 
-                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'invoice_date')}
                                   >
                                     <div className="flex items-center gap-1">
@@ -723,7 +723,7 @@ const SalesCommissionReport = ({ user }) => {
                                     </div>
                                   </th>
                                   <th 
-                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'bill_to')}
                                   >
                                     <div className="flex items-center gap-1">
@@ -732,7 +732,7 @@ const SalesCommissionReport = ({ user }) => {
                                     </div>
                                   </th>
                                   <th 
-                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'customer_name')}
                                   >
                                     <div className="flex items-center gap-1">
@@ -741,7 +741,7 @@ const SalesCommissionReport = ({ user }) => {
                                     </div>
                                   </th>
                                   <th 
-                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'sale_code')}
                                   >
                                     <div className="flex items-center gap-1">
@@ -750,7 +750,7 @@ const SalesCommissionReport = ({ user }) => {
                                     </div>
                                   </th>
                                   <th 
-                                    className="text-left p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'category')}
                                   >
                                     <div className="flex items-center gap-1">
@@ -759,7 +759,7 @@ const SalesCommissionReport = ({ user }) => {
                                     </div>
                                   </th>
                                   <th 
-                                    className="text-right p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-right p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'category_amount')}
                                   >
                                     <div className="flex items-center justify-end gap-1">
@@ -767,28 +767,28 @@ const SalesCommissionReport = ({ user }) => {
                                       {getSortIcon(sortConfigs[salesman.name], 'category_amount')}
                                     </div>
                                   </th>
-                                  <th className="text-right p-2">
+                                  <th className="text-right p-1">
                                     <div className="flex items-center justify-end">
                                       Cost
                                     </div>
                                   </th>
-                                  <th className="text-right p-2">
+                                  <th className="text-right p-1">
                                     <div className="flex items-center justify-end">
                                       Profit
                                     </div>
                                   </th>
-                                  <th className="text-center p-2">
+                                  <th className="text-center p-1">
                                     <div className="flex items-center justify-center">
                                       Comm.
                                     </div>
                                   </th>
-                                  <th className="text-center p-2">
+                                  <th className="text-center p-1">
                                     <div className="flex items-center justify-center">
                                       Rate
                                     </div>
                                   </th>
                                   <th 
-                                    className="text-right p-2 cursor-pointer hover:bg-gray-100"
+                                    className="text-right p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'commission')}
                                   >
                                     <div className="flex items-center justify-end gap-1">
@@ -796,12 +796,12 @@ const SalesCommissionReport = ({ user }) => {
                                       {getSortIcon(sortConfigs[salesman.name], 'commission')}
                                     </div>
                                   </th>
-                                  <th className="text-right p-2">
+                                  <th className="text-right p-1">
                                     <div className="flex items-center justify-end">
                                       Extra Comm.
                                     </div>
                                   </th>
-                                  <th className="text-right p-2">
+                                  <th className="text-right p-1">
                                     <div className="flex items-center justify-end">
                                       Total
                                     </div>
@@ -816,22 +816,22 @@ const SalesCommissionReport = ({ user }) => {
                                     : salesman.invoices
                                   return sortedInvoices.map((inv, invIdx) => (
                                   <tr key={invIdx} className="border-b hover:bg-gray-50">
-                                    <td className="p-2">{inv.invoice_no}</td>
-                                    <td className="p-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                                    <td className="p-1">{inv.invoice_no}</td>
+                                    <td className="p-1">{new Date(inv.invoice_date).toLocaleDateString()}</td>
                                     <td className="p-2 font-mono text-xs">{inv.bill_to || '-'}</td>
-                                    <td className="p-2">{inv.customer_name}</td>
-                                    <td className="p-2">
+                                    <td className="p-1">{inv.customer_name}</td>
+                                    <td className="p-1">
                                       <Badge variant="outline" className="font-mono text-xs">
                                         {inv.sale_code}
                                       </Badge>
                                     </td>
-                                    <td className="p-2">
+                                    <td className="p-1">
                                       <Badge variant="secondary" className="text-xs">
                                         {inv.category}
                                       </Badge>
                                     </td>
-                                    <td className="text-right p-2">{formatCurrency(inv.category_amount)}</td>
-                                    <td className="text-right p-2">
+                                    <td className="text-right p-1">{formatCurrency(inv.category_amount)}</td>
+                                    <td className="text-right p-1">
                                       {(inv.category === 'New Equipment' || inv.category === 'Allied Equipment') ? (
                                         <input
                                           type="number"
@@ -849,7 +849,7 @@ const SalesCommissionReport = ({ user }) => {
                                         <span className="text-xs text-muted-foreground">-</span>
                                       )}
                                     </td>
-                                    <td className="text-right p-2">
+                                    <td className="text-right p-1">
                                       {(inv.category === 'New Equipment' || inv.category === 'Allied Equipment') ? (
                                         (() => {
                                           const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
@@ -866,7 +866,7 @@ const SalesCommissionReport = ({ user }) => {
                                         <span className="text-xs text-muted-foreground">-</span>
                                       )}
                                     </td>
-                                    <td className="text-center p-2">
+                                    <td className="text-center p-1">
                                       <Checkbox
                                         checked={
                                           (commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.is_commissionable ?? true)
@@ -876,7 +876,7 @@ const SalesCommissionReport = ({ user }) => {
                                         }
                                       />
                                     </td>
-                                    <td className="text-center p-2">
+                                    <td className="text-center p-1">
                                       {inv.category === 'Rental' ? (
                                         <Select
                                           value={String(
@@ -930,7 +930,7 @@ const SalesCommissionReport = ({ user }) => {
                                         return formatCommission(inv.commission)
                                       })()}
                                     </td>
-                                    <td className="text-right p-2">
+                                    <td className="text-right p-1">
                                       <input
                                         type="number"
                                         className="w-20 px-1 py-0.5 text-xs text-right border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -978,8 +978,8 @@ const SalesCommissionReport = ({ user }) => {
                                   </tr>
                                 ))})()}
                                 <tr className="font-semibold bg-gray-50">
-                                  <td colSpan="6" className="p-2 text-right">Subtotal:</td>
-                                  <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
+                                  <td colSpan="6" className="p-1 text-right">Subtotal:</td>
+                                  <td className="text-right p-1">{formatCurrency(salesman.total_sales)}</td>
                                   <td></td>
                                   <td></td>
                                   <td></td>
@@ -1018,7 +1018,7 @@ const SalesCommissionReport = ({ user }) => {
                                       return formatCommission(totalCommission)
                                     })()}
                                   </td>
-                                  <td className="text-right p-2">
+                                  <td className="text-right p-1">
                                     {(() => {
                                       // Calculate total extra commission
                                       const totalExtra = salesman.invoices.reduce((sum, inv) => {
@@ -1158,7 +1158,7 @@ const SalesCommissionReport = ({ user }) => {
                           These invoices are either unassigned or assigned to "House". Review to ensure proper commission assignment.
                         </p>
                         <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
+                          <table className="w-full text-xs">
                             <thead>
                               <tr className="border-b border-yellow-300">
                                 <th 
@@ -1242,11 +1242,11 @@ const SalesCommissionReport = ({ user }) => {
                                   : detailsData.unassigned.invoices
                                 return sortedInvoices.map((inv, idx) => (
                                 <tr key={idx} className="border-b border-yellow-200 hover:bg-yellow-100">
-                                  <td className="p-2">{inv.invoice_no}</td>
-                                  <td className="p-2">{new Date(inv.invoice_date).toLocaleDateString()}</td>
+                                  <td className="p-1">{inv.invoice_no}</td>
+                                  <td className="p-1">{new Date(inv.invoice_date).toLocaleDateString()}</td>
                                   <td className="p-2 font-mono text-xs">{inv.bill_to || '-'}</td>
-                                  <td className="p-2">{inv.customer_name}</td>
-                                  <td className="p-2">
+                                  <td className="p-1">{inv.customer_name}</td>
+                                  <td className="p-1">
                                     <Badge 
                                       variant={inv.salesman === 'House' ? 'warning' : 'destructive'}
                                       className="text-xs"
@@ -1254,12 +1254,12 @@ const SalesCommissionReport = ({ user }) => {
                                       {inv.salesman || 'Unassigned'}
                                     </Badge>
                                   </td>
-                                  <td className="p-2">
+                                  <td className="p-1">
                                     <Badge variant="outline" className="font-mono text-xs">
                                       {inv.sale_code}
                                     </Badge>
                                   </td>
-                                  <td className="p-2">
+                                  <td className="p-1">
                                     <Badge variant="secondary" className="text-xs">
                                       {inv.category}
                                     </Badge>
@@ -1268,8 +1268,8 @@ const SalesCommissionReport = ({ user }) => {
                                 </tr>
                               ))})()}
                               <tr className="font-semibold bg-yellow-100">
-                                <td colSpan="7" className="p-2 text-right">Total Unassigned/House:</td>
-                                <td className="text-right p-2">{formatCurrency(detailsData.unassigned.total)}</td>
+                                <td colSpan="7" className="p-1 text-right">Total Unassigned/House:</td>
+                                <td className="text-right p-1">{formatCurrency(detailsData.unassigned.total)}</td>
                               </tr>
                             </tbody>
                           </table>
