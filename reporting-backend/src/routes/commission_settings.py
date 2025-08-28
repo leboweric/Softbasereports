@@ -27,7 +27,8 @@ def get_commission_settings():
                         category,
                         is_commissionable,
                         commission_rate,
-                        cost_override
+                        cost_override,
+                        extra_commission
                     FROM commission_settings
                     WHERE invoice_no IN (
                         SELECT DISTINCT invoice_no 
@@ -43,7 +44,8 @@ def get_commission_settings():
                         category,
                         is_commissionable,
                         commission_rate,
-                        cost_override
+                        cost_override,
+                        extra_commission
                     FROM commission_settings
                     ORDER BY invoice_no, sale_code, category
                 """
@@ -63,7 +65,8 @@ def get_commission_settings():
                 settings[key] = {
                     'is_commissionable': is_commissionable,
                     'commission_rate': row[4] if len(row) > 4 else None,
-                    'cost_override': row[5] if len(row) > 5 else None
+                    'cost_override': row[5] if len(row) > 5 else None,
+                    'extra_commission': row[6] if len(row) > 6 else 0
                 }
             
             return jsonify({'settings': settings}), 200
@@ -115,20 +118,22 @@ def update_commission_settings_batch():
                 is_commissionable = setting.get('is_commissionable', True)
                 commission_rate = setting.get('commission_rate')  # Can be None for non-rentals
                 cost_override = setting.get('cost_override')  # Can be None if not overridden
+                extra_commission = setting.get('extra_commission', 0)  # Default to 0
                 
                 # Use UPSERT (INSERT ... ON CONFLICT UPDATE)
                 cursor.execute("""
                     INSERT INTO commission_settings 
-                        (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, updated_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission, updated_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (invoice_no, sale_code, category)
                     DO UPDATE SET 
                         is_commissionable = EXCLUDED.is_commissionable,
                         commission_rate = EXCLUDED.commission_rate,
                         cost_override = EXCLUDED.cost_override,
+                        extra_commission = EXCLUDED.extra_commission,
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = EXCLUDED.updated_by
-                """, (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, username))
+                """, (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission, username))
             
             conn.commit()
             

@@ -6450,17 +6450,18 @@ def register_department_routes(reports_bp):
                 with pg_service.get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
-                        SELECT invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override
+                        SELECT invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission
                         FROM commission_settings
                     """)
                     settings_results = cursor.fetchall()
                     for row in settings_results:
-                        invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override = row
+                        invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission = row
                         key = f"{invoice_no}_{sale_code}_{category}"
                         commission_settings[key] = {
                             'is_commissionable': is_commissionable,
                             'commission_rate': commission_rate,
-                            'cost_override': cost_override
+                            'cost_override': cost_override,
+                            'extra_commission': float(extra_commission) if extra_commission else 0
                         }
             except Exception as e:
                 logger.warning(f"Could not fetch commission settings: {str(e)}")
@@ -6489,6 +6490,7 @@ def register_department_routes(reports_bp):
                 is_commissionable = settings.get('is_commissionable', True) if isinstance(settings, dict) else settings
                 custom_rate = settings.get('commission_rate') if isinstance(settings, dict) else None
                 cost_override = settings.get('cost_override') if isinstance(settings, dict) else None
+                extra_commission = settings.get('extra_commission', 0) if isinstance(settings, dict) else 0
                 
                 # Get original values
                 category_amount = float(row['CategoryAmount'] or 0)
@@ -6514,6 +6516,9 @@ def register_department_routes(reports_bp):
                     # Default to base calculation
                     actual_commission = float(row['Commission'] or 0) if is_commissionable else 0
                 
+                # Add extra commission to the calculated commission
+                total_commission = actual_commission + float(extra_commission)
+                
                 invoice = {
                     'invoice_no': invoice_no,
                     'invoice_date': row['InvoiceDate'].isoformat() if row['InvoiceDate'] else None,
@@ -6526,14 +6531,16 @@ def register_department_routes(reports_bp):
                     'cost_override': cost_override,  # User's override if any
                     'actual_cost': actual_cost,  # The cost being used for calculation
                     'profit': category_amount - actual_cost if category in ['New Equipment', 'Allied Equipment'] else None,
-                    'commission': actual_commission,
+                    'commission': actual_commission,  # Base calculated commission
+                    'extra_commission': extra_commission,  # User-added extra commission
+                    'total_commission': total_commission,  # Total including extra
                     'is_commissionable': is_commissionable,
                     'commission_rate': custom_rate
                 }
                 
                 salesmen_details[salesman]['invoices'].append(invoice)
                 salesmen_details[salesman]['total_sales'] += invoice['category_amount']
-                salesmen_details[salesman]['total_commission'] += actual_commission
+                salesmen_details[salesman]['total_commission'] += total_commission
             
             # Convert to list and sort by total sales
             salesmen_list = list(salesmen_details.values())

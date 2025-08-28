@@ -84,6 +84,7 @@ const SalesCommissionReport = ({ user }) => {
             const commissionRate = setting.commission_rate || 
                                   (inv.category === 'Rental' ? 0.10 : null) // Default 10% for rentals
             const costOverride = setting.cost_override !== undefined ? setting.cost_override : null
+            const extraCommission = setting.extra_commission || 0
             
             settingsArray.push({
               invoice_no: inv.invoice_no,
@@ -91,7 +92,8 @@ const SalesCommissionReport = ({ user }) => {
               category: inv.category || '',
               is_commissionable: isCommissionable,
               commission_rate: commissionRate,
-              cost_override: costOverride
+              cost_override: costOverride,
+              extra_commission: extraCommission
             })
           })
         })
@@ -154,6 +156,20 @@ const SalesCommissionReport = ({ user }) => {
       [key]: {
         ...prev[key],
         cost_override: numericCost
+      }
+    }))
+    setHasUnsavedChanges(true)
+  }, [])
+  
+  // Handle extra commission change
+  const handleExtraCommissionChange = useCallback((invoiceNo, saleCode, category, extra) => {
+    const key = `${invoiceNo}_${saleCode}_${category}`
+    const numericExtra = extra === '' ? 0 : parseFloat(extra)
+    setCommissionSettings(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        extra_commission: numericExtra
       }
     }))
     setHasUnsavedChanges(true)
@@ -646,7 +662,41 @@ const SalesCommissionReport = ({ user }) => {
                           <div className="text-sm text-muted-foreground">
                             {salesman.invoices.length} invoices • 
                             Total Sales: {formatCurrency(salesman.total_sales)} • 
-                            Commission: <span className="font-semibold text-green-600">{formatCommission(salesman.total_commission)}</span>
+                            Commission: <span className="font-semibold text-green-600">{formatCommission((() => {
+                              // Calculate total commission including extra for this salesman
+                              return salesman.invoices.reduce((sum, inv) => {
+                                const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                const setting = commissionSettings[key] || {}
+                                const isCommissionable = setting.is_commissionable !== false
+                                const extraCommission = parseFloat(setting.extra_commission || 0)
+                                
+                                if (!isCommissionable) return sum + extraCommission
+                                
+                                let calculatedCommission = 0
+                                
+                                // For rentals, use the selected rate
+                                if (inv.category === 'Rental') {
+                                  const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
+                                  calculatedCommission = inv.category_amount * rate
+                                }
+                                // For New/Allied equipment, recalculate based on adjusted cost
+                                else if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                  const costOverride = setting.cost_override
+                                  const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+                                  const profit = inv.category_amount - cost
+                                  calculatedCommission = profit > 0 ? profit * 0.20 : 0
+                                }
+                                // For Used equipment, 5% of sale price
+                                else if (inv.category === 'Used Equipment') {
+                                  calculatedCommission = inv.category_amount * 0.05
+                                }
+                                else {
+                                  calculatedCommission = inv.commission
+                                }
+                                
+                                return sum + calculatedCommission + extraCommission
+                              }, 0)
+                            })())}</span>
                           </div>
                         </div>
                         {salesman.invoices.length > 0 ? (
@@ -744,6 +794,16 @@ const SalesCommissionReport = ({ user }) => {
                                     <div className="flex items-center justify-end gap-1">
                                       Commission
                                       {getSortIcon(sortConfigs[salesman.name], 'commission')}
+                                    </div>
+                                  </th>
+                                  <th className="text-right p-2">
+                                    <div className="flex items-center justify-end">
+                                      Extra Comm.
+                                    </div>
+                                  </th>
+                                  <th className="text-right p-2">
+                                    <div className="flex items-center justify-end">
+                                      Total
                                     </div>
                                   </th>
                                 </tr>
@@ -870,6 +930,51 @@ const SalesCommissionReport = ({ user }) => {
                                         return formatCommission(inv.commission)
                                       })()}
                                     </td>
+                                    <td className="text-right p-2">
+                                      <input
+                                        type="number"
+                                        className="w-20 px-1 py-0.5 text-xs text-right border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        value={
+                                          commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.extra_commission ?? 0
+                                        }
+                                        onChange={(e) => handleExtraCommissionChange(inv.invoice_no, inv.sale_code, inv.category, e.target.value)}
+                                        step="0.01"
+                                      />
+                                    </td>
+                                    <td className="text-right p-2 font-bold text-green-600">
+                                      {(() => {
+                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const setting = commissionSettings[key] || {}
+                                        const isCommissionable = setting.is_commissionable !== false
+                                        const extraCommission = parseFloat(setting.extra_commission || 0)
+                                        
+                                        if (!isCommissionable) return formatCommission(extraCommission)
+                                        
+                                        let calculatedCommission = 0
+                                        
+                                        // For rentals, recalculate based on selected rate
+                                        if (inv.category === 'Rental') {
+                                          const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
+                                          calculatedCommission = inv.category_amount * rate
+                                        }
+                                        // For New/Allied equipment, recalculate based on adjusted cost
+                                        else if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                          const costOverride = setting.cost_override
+                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+                                          const profit = inv.category_amount - cost
+                                          calculatedCommission = profit > 0 ? profit * 0.20 : 0
+                                        }
+                                        // For Used equipment, 5% of sale price
+                                        else if (inv.category === 'Used Equipment') {
+                                          calculatedCommission = inv.category_amount * 0.05
+                                        }
+                                        else {
+                                          calculatedCommission = inv.commission
+                                        }
+                                        
+                                        return formatCommission(calculatedCommission + extraCommission)
+                                      })()}
+                                    </td>
                                   </tr>
                                 ))})()}
                                 <tr className="font-semibold bg-gray-50">
@@ -913,6 +1018,55 @@ const SalesCommissionReport = ({ user }) => {
                                       return formatCommission(totalCommission)
                                     })()}
                                   </td>
+                                  <td className="text-right p-2">
+                                    {(() => {
+                                      // Calculate total extra commission
+                                      const totalExtra = salesman.invoices.reduce((sum, inv) => {
+                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const setting = commissionSettings[key] || {}
+                                        return sum + parseFloat(setting.extra_commission || 0)
+                                      }, 0)
+                                      return formatCommission(totalExtra)
+                                    })()}
+                                  </td>
+                                  <td className="text-right p-2 font-bold text-green-600">
+                                    {(() => {
+                                      // Calculate total commission including extra
+                                      const totalWithExtra = salesman.invoices.reduce((sum, inv) => {
+                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const setting = commissionSettings[key] || {}
+                                        const isCommissionable = setting.is_commissionable !== false
+                                        const extraCommission = parseFloat(setting.extra_commission || 0)
+                                        
+                                        if (!isCommissionable) return sum + extraCommission
+                                        
+                                        let calculatedCommission = 0
+                                        
+                                        // For rentals, use the selected rate
+                                        if (inv.category === 'Rental') {
+                                          const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
+                                          calculatedCommission = inv.category_amount * rate
+                                        }
+                                        // For New/Allied equipment, recalculate based on adjusted cost
+                                        else if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                          const costOverride = setting.cost_override
+                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+                                          const profit = inv.category_amount - cost
+                                          calculatedCommission = profit > 0 ? profit * 0.20 : 0
+                                        }
+                                        // For Used equipment, 5% of sale price
+                                        else if (inv.category === 'Used Equipment') {
+                                          calculatedCommission = inv.category_amount * 0.05
+                                        }
+                                        else {
+                                          calculatedCommission = inv.commission
+                                        }
+                                        
+                                        return sum + calculatedCommission + extraCommission
+                                      }, 0)
+                                      return formatCommission(totalWithExtra)
+                                    })()}
+                                  </td>
                                 </tr>
                               </tbody>
                             </table>
@@ -930,7 +1084,48 @@ const SalesCommissionReport = ({ user }) => {
                           <span>Grand Total</span>
                           <div>
                             <span className="mr-8">Sales: {formatCurrency(detailsData.grand_totals.sales || 0)}</span>
-                            <span className="text-green-600">Commission: {formatCommission(detailsData.grand_totals.commission || 0)}</span>
+                            <span className="text-green-600">Commission: {formatCommission((() => {
+                              // Calculate grand total including all extra commissions
+                              let grandTotal = 0
+                              detailsData.salesmen.forEach(salesman => {
+                                salesman.invoices.forEach(inv => {
+                                  const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                  const setting = commissionSettings[key] || {}
+                                  const isCommissionable = setting.is_commissionable !== false
+                                  const extraCommission = parseFloat(setting.extra_commission || 0)
+                                  
+                                  if (!isCommissionable) {
+                                    grandTotal += extraCommission
+                                    return
+                                  }
+                                  
+                                  let calculatedCommission = 0
+                                  
+                                  // For rentals, use the selected rate
+                                  if (inv.category === 'Rental') {
+                                    const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
+                                    calculatedCommission = inv.category_amount * rate
+                                  }
+                                  // For New/Allied equipment, recalculate based on adjusted cost
+                                  else if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                    const costOverride = setting.cost_override
+                                    const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+                                    const profit = inv.category_amount - cost
+                                    calculatedCommission = profit > 0 ? profit * 0.20 : 0
+                                  }
+                                  // For Used equipment, 5% of sale price
+                                  else if (inv.category === 'Used Equipment') {
+                                    calculatedCommission = inv.category_amount * 0.05
+                                  }
+                                  else {
+                                    calculatedCommission = inv.commission
+                                  }
+                                  
+                                  grandTotal += calculatedCommission + extraCommission
+                                })
+                              })
+                              return grandTotal
+                            })())}</span>
                           </div>
                         </div>
                       </div>
