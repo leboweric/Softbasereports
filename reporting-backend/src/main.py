@@ -48,6 +48,7 @@ from src.routes.user_management import user_management_bp
 from src.routes.password_fix import password_fix_bp
 from src.routes.temp_login import temp_login_bp
 from src.routes.user_diagnostic import user_diagnostic_bp
+from src.routes.commission_settings import commission_settings_bp
 from src.services.postgres_service import get_postgres_db
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
@@ -123,6 +124,7 @@ app.register_blueprint(user_management_bp, url_prefix='/api')
 app.register_blueprint(password_fix_bp)
 app.register_blueprint(temp_login_bp)
 app.register_blueprint(user_diagnostic_bp)
+app.register_blueprint(commission_settings_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite

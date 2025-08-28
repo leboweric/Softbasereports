@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
   TableBody,
@@ -34,13 +35,93 @@ const SalesCommissionReport = ({ user }) => {
   // Sorting states - track sort column and direction for each salesman's table and unassigned table
   const [sortConfigs, setSortConfigs] = useState({})
   const [unassignedSortConfig, setUnassignedSortConfig] = useState({ key: null, direction: null })
+  
+  // Commission settings state - tracks which invoice lines are commissionable
+  const [commissionSettings, setCommissionSettings] = useState({})
+  const [savingSettings, setSavingSettings] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   useEffect(() => {
     fetchCommissionData()
     if (showDetails) {
       fetchDetailsData()
+      fetchCommissionSettings()
     }
   }, [selectedMonth])
+  
+  // Fetch commission settings from backend
+  const fetchCommissionSettings = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/commission-settings?month=${selectedMonth}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCommissionSettings(data.settings || {})
+      }
+    } catch (error) {
+      console.error('Error fetching commission settings:', error)
+    }
+  }
+  
+  // Save commission settings to backend
+  const saveCommissionSettings = async () => {
+    try {
+      setSavingSettings(true)
+      const token = localStorage.getItem('token')
+      
+      // Convert settings object to array format for batch update
+      const settingsArray = []
+      if (detailsData?.salesmen) {
+        detailsData.salesmen.forEach(salesman => {
+          salesman.invoices.forEach(inv => {
+            const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+            const isCommissionable = commissionSettings[key] !== false // Default to true
+            settingsArray.push({
+              invoice_no: inv.invoice_no,
+              sale_code: inv.sale_code || '',
+              category: inv.category || '',
+              is_commissionable: isCommissionable
+            })
+          })
+        })
+      }
+      
+      const response = await fetch(apiUrl('/api/commission-settings/batch'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ settings: settingsArray })
+      })
+      
+      if (response.ok) {
+        setHasUnsavedChanges(false)
+        // Refresh data to recalculate commissions
+        await fetchCommissionData()
+        await fetchDetailsData()
+      }
+    } catch (error) {
+      console.error('Error saving commission settings:', error)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+  
+  // Handle checkbox change for commission setting
+  const handleCommissionCheckChange = useCallback((invoiceNo, saleCode, category, checked) => {
+    const key = `${invoiceNo}_${saleCode}_${category}`
+    setCommissionSettings(prev => ({
+      ...prev,
+      [key]: checked
+    }))
+    setHasUnsavedChanges(true)
+  }, [])
 
   const fetchCommissionData = async () => {
     try {
@@ -485,19 +566,32 @@ const SalesCommissionReport = ({ user }) => {
                   <CardTitle>Detailed Invoice Breakdown</CardTitle>
                   <CardDescription>Individual invoices by sales rep with commission calculations</CardDescription>
                 </div>
-                <Button
-                  onClick={() => {
-                    setShowDetails(!showDetails)
-                    if (!showDetails && !detailsData) {
-                      fetchDetailsData()
-                    }
-                  }}
-                  variant="outline"
-                  size="sm"
-                >
-                  {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {showDetails ? 'Hide' : 'Show'} Details
-                </Button>
+                <div className="flex gap-2">
+                  {hasUnsavedChanges && showDetails && (
+                    <Button
+                      onClick={saveCommissionSettings}
+                      disabled={savingSettings}
+                      size="sm"
+                      variant="default"
+                    >
+                      {savingSettings ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => {
+                      setShowDetails(!showDetails)
+                      if (!showDetails && !detailsData) {
+                        fetchDetailsData()
+                        fetchCommissionSettings()
+                      }
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    {showDetails ? 'Hide' : 'Show'} Details
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             {showDetails && (
@@ -587,6 +681,11 @@ const SalesCommissionReport = ({ user }) => {
                                       {getSortIcon(sortConfigs[salesman.name], 'category_amount')}
                                     </div>
                                   </th>
+                                  <th className="text-center p-2">
+                                    <div className="flex items-center justify-center">
+                                      Comm.
+                                    </div>
+                                  </th>
                                   <th 
                                     className="text-right p-2 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'commission')}
@@ -621,15 +720,38 @@ const SalesCommissionReport = ({ user }) => {
                                       </Badge>
                                     </td>
                                     <td className="text-right p-2">{formatCurrency(inv.category_amount)}</td>
+                                    <td className="text-center p-2">
+                                      <Checkbox
+                                        checked={commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`] !== false}
+                                        onCheckedChange={(checked) => 
+                                          handleCommissionCheckChange(inv.invoice_no, inv.sale_code, inv.category, checked)
+                                        }
+                                      />
+                                    </td>
                                     <td className="text-right p-2 font-medium text-green-600">
-                                      {formatCommission(inv.commission)}
+                                      {(() => {
+                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const isCommissionable = commissionSettings[key] !== false
+                                        return formatCommission(isCommissionable ? inv.commission : 0)
+                                      })()}
                                     </td>
                                   </tr>
                                 ))})()}
                                 <tr className="font-semibold bg-gray-50">
                                   <td colSpan="6" className="p-2 text-right">Subtotal:</td>
                                   <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
-                                  <td className="text-right p-2 text-green-600">{formatCommission(salesman.total_commission)}</td>
+                                  <td></td>
+                                  <td className="text-right p-2 text-green-600">
+                                    {(() => {
+                                      // Calculate total commission based on checkbox selections
+                                      const totalCommission = salesman.invoices.reduce((sum, inv) => {
+                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const isCommissionable = commissionSettings[key] !== false
+                                        return sum + (isCommissionable ? inv.commission : 0)
+                                      }, 0)
+                                      return formatCommission(totalCommission)
+                                    })()}
+                                  </td>
                                 </tr>
                               </tbody>
                             </table>

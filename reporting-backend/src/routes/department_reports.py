@@ -6443,6 +6443,27 @@ def register_department_routes(reports_bp):
             
             results = db.execute_query(details_query, [start_date, end_date, start_date, end_date])
             
+            # Fetch commission settings from PostgreSQL
+            commission_settings = {}
+            try:
+                from src.services.postgres_service import PostgreSQLService
+                pg_service = PostgreSQLService()
+                with pg_service.get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT invoice_no, sale_code, category, is_commissionable
+                        FROM commission_settings
+                    """)
+                    settings_results = cursor.fetchall()
+                    for row in settings_results:
+                        invoice_no, sale_code, category, is_commissionable = row
+                        key = f"{invoice_no}_{sale_code}_{category}"
+                        commission_settings[key] = is_commissionable
+            except Exception as e:
+                logger.warning(f"Could not fetch commission settings: {str(e)}")
+                # If we can't fetch settings, default to all commissionable
+                commission_settings = {}
+            
             # Group by salesman
             salesmen_details = {}
             for row in results:
@@ -6455,21 +6476,34 @@ def register_department_routes(reports_bp):
                         'total_commission': 0
                     }
                 
+                invoice_no = row['InvoiceNo']
+                sale_code = row['SaleCode']
+                category = row['Category']
+                
+                # Check if this invoice is commissionable
+                settings_key = f"{invoice_no}_{sale_code}_{category}"
+                is_commissionable = commission_settings.get(settings_key, True)  # Default to True if not set
+                
+                # Calculate commission based on setting
+                base_commission = float(row['Commission'] or 0)
+                actual_commission = base_commission if is_commissionable else 0
+                
                 invoice = {
-                    'invoice_no': row['InvoiceNo'],
+                    'invoice_no': invoice_no,
                     'invoice_date': row['InvoiceDate'].isoformat() if row['InvoiceDate'] else None,
                     'bill_to': row['BillTo'],
                     'customer_name': row['CustomerName'],
-                    'sale_code': row['SaleCode'],
-                    'category': row['Category'],
+                    'sale_code': sale_code,
+                    'category': category,
                     'category_amount': float(row['CategoryAmount'] or 0),
                     'category_cost': float(row.get('CategoryCost', 0) or 0),
-                    'commission': float(row['Commission'] or 0)
+                    'commission': actual_commission,
+                    'is_commissionable': is_commissionable  # Include this so frontend knows the setting
                 }
                 
                 salesmen_details[salesman]['invoices'].append(invoice)
                 salesmen_details[salesman]['total_sales'] += invoice['category_amount']
-                salesmen_details[salesman]['total_commission'] += invoice['commission']
+                salesmen_details[salesman]['total_commission'] += actual_commission
             
             # Convert to list and sort by total sales
             salesmen_list = list(salesmen_details.values())
