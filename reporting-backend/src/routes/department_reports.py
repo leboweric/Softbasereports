@@ -6450,14 +6450,17 @@ def register_department_routes(reports_bp):
                 with pg_service.get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
-                        SELECT invoice_no, sale_code, category, is_commissionable
+                        SELECT invoice_no, sale_code, category, is_commissionable, commission_rate
                         FROM commission_settings
                     """)
                     settings_results = cursor.fetchall()
                     for row in settings_results:
-                        invoice_no, sale_code, category, is_commissionable = row
+                        invoice_no, sale_code, category, is_commissionable, commission_rate = row
                         key = f"{invoice_no}_{sale_code}_{category}"
-                        commission_settings[key] = is_commissionable
+                        commission_settings[key] = {
+                            'is_commissionable': is_commissionable,
+                            'commission_rate': commission_rate
+                        }
             except Exception as e:
                 logger.warning(f"Could not fetch commission settings: {str(e)}")
                 # If we can't fetch settings, default to all commissionable
@@ -6479,13 +6482,21 @@ def register_department_routes(reports_bp):
                 sale_code = row['SaleCode']
                 category = row['Category']
                 
-                # Check if this invoice is commissionable
+                # Check if this invoice is commissionable and get custom rate
                 settings_key = f"{invoice_no}_{sale_code}_{category}"
-                is_commissionable = commission_settings.get(settings_key, True)  # Default to True if not set
+                settings = commission_settings.get(settings_key, {})
+                is_commissionable = settings.get('is_commissionable', True) if isinstance(settings, dict) else settings
+                custom_rate = settings.get('commission_rate') if isinstance(settings, dict) else None
                 
                 # Calculate commission based on setting
                 base_commission = float(row['Commission'] or 0)
-                actual_commission = base_commission if is_commissionable else 0
+                
+                # For rentals with custom rate, recalculate
+                if category == 'Rental' and custom_rate is not None:
+                    rental_revenue = float(row['CategoryAmount'] or 0)
+                    actual_commission = rental_revenue * float(custom_rate) if is_commissionable else 0
+                else:
+                    actual_commission = base_commission if is_commissionable else 0
                 
                 invoice = {
                     'invoice_no': invoice_no,
@@ -6497,7 +6508,8 @@ def register_department_routes(reports_bp):
                     'category_amount': float(row['CategoryAmount'] or 0),
                     'category_cost': float(row.get('CategoryCost', 0) or 0),
                     'commission': actual_commission,
-                    'is_commissionable': is_commissionable  # Include this so frontend knows the setting
+                    'is_commissionable': is_commissionable,  # Include this so frontend knows the setting
+                    'commission_rate': custom_rate  # Include the rate for rentals
                 }
                 
                 salesmen_details[salesman]['invoices'].append(invoice)

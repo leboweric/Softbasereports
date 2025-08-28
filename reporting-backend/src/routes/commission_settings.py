@@ -25,7 +25,8 @@ def get_commission_settings():
                         invoice_no,
                         sale_code,
                         category,
-                        is_commissionable
+                        is_commissionable,
+                        commission_rate
                     FROM commission_settings
                     WHERE invoice_no IN (
                         SELECT DISTINCT invoice_no 
@@ -39,7 +40,8 @@ def get_commission_settings():
                         invoice_no,
                         sale_code,
                         category,
-                        is_commissionable
+                        is_commissionable,
+                        commission_rate
                     FROM commission_settings
                     ORDER BY invoice_no, sale_code, category
                 """
@@ -56,7 +58,10 @@ def get_commission_settings():
                 
                 # Create a unique key for each invoice line
                 key = f"{invoice_no}_{sale_code}_{category}"
-                settings[key] = is_commissionable
+                settings[key] = {
+                    'is_commissionable': is_commissionable,
+                    'commission_rate': row[4] if len(row) > 4 else None
+                }
             
             return jsonify({'settings': settings}), 200
             
@@ -105,18 +110,20 @@ def update_commission_settings_batch():
                 sale_code = setting.get('sale_code', '')
                 category = setting.get('category', '')
                 is_commissionable = setting.get('is_commissionable', True)
+                commission_rate = setting.get('commission_rate')  # Can be None for non-rentals
                 
                 # Use UPSERT (INSERT ... ON CONFLICT UPDATE)
                 cursor.execute("""
                     INSERT INTO commission_settings 
-                        (invoice_no, sale_code, category, is_commissionable, updated_by)
-                    VALUES (%s, %s, %s, %s, %s)
+                        (invoice_no, sale_code, category, is_commissionable, commission_rate, updated_by)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (invoice_no, sale_code, category)
                     DO UPDATE SET 
                         is_commissionable = EXCLUDED.is_commissionable,
+                        commission_rate = EXCLUDED.commission_rate,
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = EXCLUDED.updated_by
-                """, (invoice_no, sale_code, category, is_commissionable, username))
+                """, (invoice_no, sale_code, category, is_commissionable, commission_rate, username))
             
             conn.commit()
             

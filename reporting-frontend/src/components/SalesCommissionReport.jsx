@@ -79,12 +79,17 @@ const SalesCommissionReport = ({ user }) => {
         detailsData.salesmen.forEach(salesman => {
           salesman.invoices.forEach(inv => {
             const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
-            const isCommissionable = commissionSettings[key] !== false // Default to true
+            const setting = commissionSettings[key] || {}
+            const isCommissionable = setting.is_commissionable !== false // Default to true
+            const commissionRate = setting.commission_rate || 
+                                  (inv.category === 'Rental' ? 0.10 : null) // Default 10% for rentals
+            
             settingsArray.push({
               invoice_no: inv.invoice_no,
               sale_code: inv.sale_code || '',
               category: inv.category || '',
-              is_commissionable: isCommissionable
+              is_commissionable: isCommissionable,
+              commission_rate: commissionRate
             })
           })
         })
@@ -117,7 +122,23 @@ const SalesCommissionReport = ({ user }) => {
     const key = `${invoiceNo}_${saleCode}_${category}`
     setCommissionSettings(prev => ({
       ...prev,
-      [key]: checked
+      [key]: {
+        ...prev[key],
+        is_commissionable: checked
+      }
+    }))
+    setHasUnsavedChanges(true)
+  }, [])
+  
+  // Handle rate change for rental commissions
+  const handleRateChange = useCallback((invoiceNo, saleCode, category, rate) => {
+    const key = `${invoiceNo}_${saleCode}_${category}`
+    setCommissionSettings(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        commission_rate: parseFloat(rate)
+      }
     }))
     setHasUnsavedChanges(true)
   }, [])
@@ -685,6 +706,11 @@ const SalesCommissionReport = ({ user }) => {
                                       Comm.
                                     </div>
                                   </th>
+                                  <th className="text-center p-2">
+                                    <div className="flex items-center justify-center">
+                                      Rate
+                                    </div>
+                                  </th>
                                   <th 
                                     className="text-right p-2 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'commission')}
@@ -721,17 +747,53 @@ const SalesCommissionReport = ({ user }) => {
                                     <td className="text-right p-2">{formatCurrency(inv.category_amount)}</td>
                                     <td className="text-center p-2">
                                       <Checkbox
-                                        checked={commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`] !== false}
+                                        checked={
+                                          (commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.is_commissionable ?? true)
+                                        }
                                         onCheckedChange={(checked) => 
                                           handleCommissionCheckChange(inv.invoice_no, inv.sale_code, inv.category, checked)
                                         }
                                       />
                                     </td>
+                                    <td className="text-center p-2">
+                                      {inv.category === 'Rental' ? (
+                                        <Select
+                                          value={String(
+                                            commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.commission_rate ?? 
+                                            inv.commission_rate ?? 
+                                            0.10
+                                          )}
+                                          onValueChange={(value) => 
+                                            handleRateChange(inv.invoice_no, inv.sale_code, inv.category, value)
+                                          }
+                                        >
+                                          <SelectTrigger className="h-7 w-16 text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="0.10">10%</SelectItem>
+                                            <SelectItem value="0.05">5%</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">-</span>
+                                      )}
+                                    </td>
                                     <td className="text-right p-2 font-medium text-green-600">
                                       {(() => {
                                         const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
-                                        const isCommissionable = commissionSettings[key] !== false
-                                        return formatCommission(isCommissionable ? inv.commission : 0)
+                                        const setting = commissionSettings[key] || {}
+                                        const isCommissionable = setting.is_commissionable !== false
+                                        
+                                        if (!isCommissionable) return formatCommission(0)
+                                        
+                                        // For rentals, recalculate based on selected rate
+                                        if (inv.category === 'Rental') {
+                                          const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
+                                          return formatCommission(inv.category_amount * rate)
+                                        }
+                                        
+                                        return formatCommission(inv.commission)
                                       })()}
                                     </td>
                                   </tr>
@@ -740,13 +802,24 @@ const SalesCommissionReport = ({ user }) => {
                                   <td colSpan="6" className="p-2 text-right">Subtotal:</td>
                                   <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
                                   <td></td>
+                                  <td></td>
                                   <td className="text-right p-2 text-green-600">
                                     {(() => {
-                                      // Calculate total commission based on checkbox selections
+                                      // Calculate total commission based on checkbox selections and rates
                                       const totalCommission = salesman.invoices.reduce((sum, inv) => {
                                         const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
-                                        const isCommissionable = commissionSettings[key] !== false
-                                        return sum + (isCommissionable ? inv.commission : 0)
+                                        const setting = commissionSettings[key] || {}
+                                        const isCommissionable = setting.is_commissionable !== false
+                                        
+                                        if (!isCommissionable) return sum
+                                        
+                                        // For rentals, use the selected rate
+                                        if (inv.category === 'Rental') {
+                                          const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
+                                          return sum + (inv.category_amount * rate)
+                                        }
+                                        
+                                        return sum + inv.commission
                                       }, 0)
                                       return formatCommission(totalCommission)
                                     })()}
