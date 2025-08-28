@@ -83,13 +83,15 @@ const SalesCommissionReport = ({ user }) => {
             const isCommissionable = setting.is_commissionable !== false // Default to true
             const commissionRate = setting.commission_rate || 
                                   (inv.category === 'Rental' ? 0.10 : null) // Default 10% for rentals
+            const costOverride = setting.cost_override !== undefined ? setting.cost_override : null
             
             settingsArray.push({
               invoice_no: inv.invoice_no,
               sale_code: inv.sale_code || '',
               category: inv.category || '',
               is_commissionable: isCommissionable,
-              commission_rate: commissionRate
+              commission_rate: commissionRate,
+              cost_override: costOverride
             })
           })
         })
@@ -138,6 +140,20 @@ const SalesCommissionReport = ({ user }) => {
       [key]: {
         ...prev[key],
         commission_rate: parseFloat(rate)
+      }
+    }))
+    setHasUnsavedChanges(true)
+  }, [])
+  
+  // Handle cost override change
+  const handleCostChange = useCallback((invoiceNo, saleCode, category, cost) => {
+    const key = `${invoiceNo}_${saleCode}_${category}`
+    const numericCost = cost === '' ? null : parseFloat(cost)
+    setCommissionSettings(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        cost_override: numericCost
       }
     }))
     setHasUnsavedChanges(true)
@@ -701,6 +717,16 @@ const SalesCommissionReport = ({ user }) => {
                                       {getSortIcon(sortConfigs[salesman.name], 'category_amount')}
                                     </div>
                                   </th>
+                                  <th className="text-right p-2">
+                                    <div className="flex items-center justify-end">
+                                      Cost
+                                    </div>
+                                  </th>
+                                  <th className="text-right p-2">
+                                    <div className="flex items-center justify-end">
+                                      Profit
+                                    </div>
+                                  </th>
                                   <th className="text-center p-2">
                                     <div className="flex items-center justify-center">
                                       Comm.
@@ -745,6 +771,41 @@ const SalesCommissionReport = ({ user }) => {
                                       </Badge>
                                     </td>
                                     <td className="text-right p-2">{formatCurrency(inv.category_amount)}</td>
+                                    <td className="text-right p-2">
+                                      {(inv.category === 'New Equipment' || inv.category === 'Allied Equipment') ? (
+                                        <input
+                                          type="number"
+                                          className="w-24 px-1 py-0.5 text-xs text-right border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                          value={
+                                            commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.cost_override ?? 
+                                            inv.actual_cost ?? 
+                                            inv.category_cost ?? 
+                                            0
+                                          }
+                                          onChange={(e) => handleCostChange(inv.invoice_no, inv.sale_code, inv.category, e.target.value)}
+                                          step="0.01"
+                                        />
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">-</span>
+                                      )}
+                                    </td>
+                                    <td className="text-right p-2">
+                                      {(inv.category === 'New Equipment' || inv.category === 'Allied Equipment') ? (
+                                        (() => {
+                                          const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                          const costOverride = commissionSettings[key]?.cost_override
+                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+                                          const profit = inv.category_amount - cost
+                                          return (
+                                            <span className={profit < 0 ? 'text-red-600' : ''}>
+                                              {formatCurrency(profit)}
+                                            </span>
+                                          )
+                                        })()
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">-</span>
+                                      )}
+                                    </td>
                                     <td className="text-center p-2">
                                       <Checkbox
                                         checked={
@@ -793,6 +854,19 @@ const SalesCommissionReport = ({ user }) => {
                                           return formatCommission(inv.category_amount * rate)
                                         }
                                         
+                                        // For New/Allied equipment, recalculate based on adjusted cost
+                                        if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                          const costOverride = setting.cost_override
+                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+                                          const profit = inv.category_amount - cost
+                                          return formatCommission(profit > 0 ? profit * 0.20 : 0)
+                                        }
+                                        
+                                        // For Used equipment, 5% of sale price
+                                        if (inv.category === 'Used Equipment') {
+                                          return formatCommission(inv.category_amount * 0.05)
+                                        }
+                                        
                                         return formatCommission(inv.commission)
                                       })()}
                                     </td>
@@ -801,6 +875,8 @@ const SalesCommissionReport = ({ user }) => {
                                 <tr className="font-semibold bg-gray-50">
                                   <td colSpan="6" className="p-2 text-right">Subtotal:</td>
                                   <td className="text-right p-2">{formatCurrency(salesman.total_sales)}</td>
+                                  <td></td>
+                                  <td></td>
                                   <td></td>
                                   <td></td>
                                   <td className="text-right p-2 text-green-600">
@@ -817,6 +893,19 @@ const SalesCommissionReport = ({ user }) => {
                                         if (inv.category === 'Rental') {
                                           const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
                                           return sum + (inv.category_amount * rate)
+                                        }
+                                        
+                                        // For New/Allied equipment, recalculate based on adjusted cost
+                                        if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                          const costOverride = setting.cost_override
+                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+                                          const profit = inv.category_amount - cost
+                                          return sum + (profit > 0 ? profit * 0.20 : 0)
+                                        }
+                                        
+                                        // For Used equipment, 5% of sale price
+                                        if (inv.category === 'Used Equipment') {
+                                          return sum + (inv.category_amount * 0.05)
                                         }
                                         
                                         return sum + inv.commission

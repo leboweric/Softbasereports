@@ -6450,16 +6450,17 @@ def register_department_routes(reports_bp):
                 with pg_service.get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
-                        SELECT invoice_no, sale_code, category, is_commissionable, commission_rate
+                        SELECT invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override
                         FROM commission_settings
                     """)
                     settings_results = cursor.fetchall()
                     for row in settings_results:
-                        invoice_no, sale_code, category, is_commissionable, commission_rate = row
+                        invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override = row
                         key = f"{invoice_no}_{sale_code}_{category}"
                         commission_settings[key] = {
                             'is_commissionable': is_commissionable,
-                            'commission_rate': commission_rate
+                            'commission_rate': commission_rate,
+                            'cost_override': cost_override
                         }
             except Exception as e:
                 logger.warning(f"Could not fetch commission settings: {str(e)}")
@@ -6482,21 +6483,36 @@ def register_department_routes(reports_bp):
                 sale_code = row['SaleCode']
                 category = row['Category']
                 
-                # Check if this invoice is commissionable and get custom rate
+                # Check if this invoice is commissionable and get custom settings
                 settings_key = f"{invoice_no}_{sale_code}_{category}"
                 settings = commission_settings.get(settings_key, {})
                 is_commissionable = settings.get('is_commissionable', True) if isinstance(settings, dict) else settings
                 custom_rate = settings.get('commission_rate') if isinstance(settings, dict) else None
+                cost_override = settings.get('cost_override') if isinstance(settings, dict) else None
                 
-                # Calculate commission based on setting
-                base_commission = float(row['Commission'] or 0)
+                # Get original values
+                category_amount = float(row['CategoryAmount'] or 0)
+                original_cost = float(row.get('CategoryCost', 0) or 0)
                 
-                # For rentals with custom rate, recalculate
-                if category == 'Rental' and custom_rate is not None:
-                    rental_revenue = float(row['CategoryAmount'] or 0)
-                    actual_commission = rental_revenue * float(custom_rate) if is_commissionable else 0
+                # Use cost override if provided, otherwise use original cost
+                actual_cost = float(cost_override) if cost_override is not None else original_cost
+                
+                # Calculate commission based on category
+                if not is_commissionable:
+                    actual_commission = 0
+                elif category == 'Rental' and custom_rate is not None:
+                    # Rental: use custom rate
+                    actual_commission = category_amount * float(custom_rate)
+                elif category in ['New Equipment', 'Allied Equipment']:
+                    # New/Allied: 20% of profit (using potentially overridden cost)
+                    profit = category_amount - actual_cost
+                    actual_commission = profit * 0.20 if profit > 0 else 0
+                elif category == 'Used Equipment':
+                    # Used: 5% of sale price
+                    actual_commission = category_amount * 0.05
                 else:
-                    actual_commission = base_commission if is_commissionable else 0
+                    # Default to base calculation
+                    actual_commission = float(row['Commission'] or 0) if is_commissionable else 0
                 
                 invoice = {
                     'invoice_no': invoice_no,
@@ -6505,11 +6521,14 @@ def register_department_routes(reports_bp):
                     'customer_name': row['CustomerName'],
                     'sale_code': sale_code,
                     'category': category,
-                    'category_amount': float(row['CategoryAmount'] or 0),
-                    'category_cost': float(row.get('CategoryCost', 0) or 0),
+                    'category_amount': category_amount,
+                    'category_cost': original_cost,  # Original cost from database
+                    'cost_override': cost_override,  # User's override if any
+                    'actual_cost': actual_cost,  # The cost being used for calculation
+                    'profit': category_amount - actual_cost if category in ['New Equipment', 'Allied Equipment'] else None,
                     'commission': actual_commission,
-                    'is_commissionable': is_commissionable,  # Include this so frontend knows the setting
-                    'commission_rate': custom_rate  # Include the rate for rentals
+                    'is_commissionable': is_commissionable,
+                    'commission_rate': custom_rate
                 }
                 
                 salesmen_details[salesman]['invoices'].append(invoice)
