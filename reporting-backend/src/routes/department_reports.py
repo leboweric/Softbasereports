@@ -7440,6 +7440,8 @@ def register_department_routes(reports_bp):
             WHERE 
             -- PRIMARY FILTER: Units owned by Rental Department
             e.InventoryDept = 60
+            -- Exclude customer-owned equipment
+            AND (e.Customer = 0 OR e.Customer IS NULL)
             """
             
             # Try the enhanced query, but fall back to simple query if it fails
@@ -7488,6 +7490,8 @@ def register_department_routes(reports_bp):
                 WHERE 
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
+                -- Exclude customer-owned equipment
+                AND (e.Customer = 0 OR e.Customer IS NULL)
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
