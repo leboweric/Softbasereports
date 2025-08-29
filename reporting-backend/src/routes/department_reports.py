@@ -7445,17 +7445,19 @@ def register_department_routes(reports_bp):
                 OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
                 OR e.InventoryDept = 60  -- Rental department inventory (60, not 10)
             )
-            -- EXCLUDE specific problem unit numbers identified by rental manager
+            -- EXCLUDE only units specifically marked as non-rental or sold by rental manager
             AND e.UnitNo NOT IN (
-                '293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
-                'TUGBAT', 'RTRSEL', 'SER01', '21775',  -- Non-rental units
-                '15597', '17004', '17295B', '17636', '18552', '18808', '18823', 
+                -- Units marked "Not a Rental Unit"
+                '293060', '218919', 'Z452512A-43084', '21775', 'SER01',
+                -- Units marked "Sold Unit"  
+                '15597', '17004', '17295B', '17636', '18552', '18808', '18823',
                 '18835', '18838B', '18993B', '19060', '19063', '19306B', '19321B',
-                '19332', '19420', '19421', '19463B', '19628B', '19645B', '19752B',
-                '19809B', '19890', '19950B', '20134', '20134B', '20457', '20868B',
-                '17685', '18552', '19018', '19332', '19459', '19586', '19773',
-                '19811', '19879', '19890', '19950B', '20071', '20147', '20178B',
-                '20522C', '20868B', '21071', '21373', '21420', '21422', '21424'
+                '19332', '19420', '19421', '19463B', '19628B', '19752B', '19809B',
+                '19890', '20134', '20134B', '20457', '20868B',
+                -- Units marked "Transferred to Used/Sold Unit"
+                '19645B', '19950B',
+                -- Unit marked "Rerent Unit - Should not be in inventory"
+                'RTRSEL'
             )
             -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
             AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
@@ -7515,17 +7517,19 @@ def register_department_routes(reports_bp):
                     OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
                     OR e.InventoryDept = 60  -- Rental department inventory (60, not 10)
                 )
-                -- EXCLUDE specific problem unit numbers identified by rental manager
+                -- EXCLUDE only units specifically marked as non-rental or sold by rental manager
                 AND e.UnitNo NOT IN (
-                    '293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
-                    'TUGBAT', 'RTRSEL', 'SER01', '21775',  -- Non-rental units
-                    '15597', '17004', '17295B', '17636', '18552', '18808', '18823', 
+                    -- Units marked "Not a Rental Unit"
+                    '293060', '218919', 'Z452512A-43084', '21775', 'SER01',
+                    -- Units marked "Sold Unit"  
+                    '15597', '17004', '17295B', '17636', '18552', '18808', '18823',
                     '18835', '18838B', '18993B', '19060', '19063', '19306B', '19321B',
-                    '19332', '19420', '19421', '19463B', '19628B', '19645B', '19752B',
-                    '19809B', '19890', '19950B', '20134', '20134B', '20457', '20868B',
-                    '17685', '18552', '19018', '19332', '19459', '19586', '19773',
-                    '19811', '19879', '19890', '19950B', '20071', '20147', '20178B',
-                    '20522C', '20868B', '21071', '21373', '21420', '21422', '21424'
+                    '19332', '19420', '19421', '19463B', '19628B', '19752B', '19809B',
+                    '19890', '20134', '20134B', '20457', '20868B',
+                    -- Units marked "Transferred to Used/Sold Unit"
+                    '19645B', '19950B',
+                    -- Unit marked "Rerent Unit - Should not be in inventory"
+                    'RTRSEL'
                 )
                 -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
                 AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
