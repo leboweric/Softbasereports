@@ -7369,7 +7369,7 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Get ONLY actual rental equipment based on discovered RentalStatus values
-            # UPDATED 2025-08-29: Based on diagnostic, only "Ready To Rent" and "Hold" exist
+            # UPDATED 2025-08-29: Added exclusions for non-rental equipment
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7396,7 +7396,10 @@ def register_department_routes(reports_bp):
                 e.RentalITD,
                 rh_current.DaysRented,
                 rh_current.RentAmount,
-                rental_wo.RentalContractNo
+                rental_wo.RentalContractNo,
+                e.DayRent,
+                e.WeekRent,
+                e.MonthRent
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
             LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
@@ -7435,6 +7438,14 @@ def register_department_routes(reports_bp):
             WHERE 
             -- PRIMARY FILTER: Equipment with valid rental status
             e.RentalStatus IN ('Ready To Rent', 'Hold')
+            -- EXCLUDE units with no rental rates (not actual rental units)
+            AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
+            -- EXCLUDE specific problem unit numbers identified
+            AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
+                                'TUGBAT', 'RTRSEL', 'SER01')
+            -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
+            AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
+            AND NOT (UPPER(e.Make) LIKE '%BAT%' AND (e.UnitNo LIKE '%BAT%' OR e.SerialNo LIKE '%BAT%'))
             """
             
             # Try the enhanced query, but fall back to simple query if it fails
@@ -7469,7 +7480,10 @@ def register_department_routes(reports_bp):
                     e.RentalITD,
                     rh_current.DaysRented,
                     rh_current.RentAmount,
-                    NULL as RentalContractNo
+                    NULL as RentalContractNo,
+                    e.DayRent,
+                    e.WeekRent,
+                    e.MonthRent
                 FROM ben002.Equipment e
                 LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
                 LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
@@ -7480,6 +7494,14 @@ def register_department_routes(reports_bp):
                 WHERE 
                 -- PRIMARY FILTER: Equipment with valid rental status
                 e.RentalStatus IN ('Ready To Rent', 'Hold')
+                -- EXCLUDE units with no rental rates (not actual rental units)
+                AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
+                -- EXCLUDE specific problem unit numbers identified
+                AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
+                                    'TUGBAT', 'RTRSEL', 'SER01')
+                -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
+                AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
+                AND NOT (UPPER(e.Make) LIKE '%BAT%' AND (e.UnitNo LIKE '%BAT%' OR e.SerialNo LIKE '%BAT%'))
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
@@ -7508,9 +7530,9 @@ def register_department_routes(reports_bp):
                         'shipAddress': ship_info,
                         'shipContact': '',
                         'location': row.get('Location', ''),
-                        'dayRate': 0,
-                        'weekRate': 0,
-                        'monthRate': 0,
+                        'dayRate': float(row.get('DayRent', 0) or 0),
+                        'weekRate': float(row.get('WeekRent', 0) or 0),
+                        'monthRate': float(row.get('MonthRent', 0) or 0),
                         'modelYear': '',
                         'cost': 0
                     })
