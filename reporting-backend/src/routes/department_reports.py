@@ -7368,11 +7368,8 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # BASED ON ACTUAL DATA:
-            # Department 60 has 1,019 units with:
-            # - RentalStatus: NULL (945), 'Ready To Rent' (68), 'Hold' (6)
-            # - Location: ALL NULL (no sold/disposed indicators)
-            # Simply get ALL units from Dept 60 and check rental status
+            # UPDATED LOGIC: Check for OPEN rental work orders (Type='R' and ClosedDate IS NULL)
+            # This matches what the Rental Manager sees in Softbase under "Open Rental Orders"
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7381,14 +7378,14 @@ def register_department_routes(reports_bp):
                 e.Model, 
                 e.Location,
                 e.CustomerNo,
-                -- Try to get actual rental customer from WO table if available
-                COALESCE(rental_cust.Name, c.Name) as CustomerName,
-                COALESCE(rental_cust.Address, c.Address) as CustomerAddress,
-                COALESCE(rental_cust.City, c.City) as CustomerCity,
-                COALESCE(rental_cust.State, c.State) as CustomerState,
-                COALESCE(rental_cust.ZipCode, c.ZipCode) as CustomerZip,
+                -- Get customer info from open rental WO if exists
+                COALESCE(open_rental.CustomerName, c.Name) as CustomerName,
+                COALESCE(open_rental.CustomerAddress, c.Address) as CustomerAddress,
+                COALESCE(open_rental.CustomerCity, c.City) as CustomerCity,
+                COALESCE(open_rental.CustomerState, c.State) as CustomerState,
+                COALESCE(open_rental.CustomerZip, c.ZipCode) as CustomerZip,
                 CASE 
-                    WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
+                    WHEN open_rental.WONo IS NOT NULL THEN 'On Rent'
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     ELSE 'Available'  -- Includes NULL and 'Ready To Rent'
                 END as Status,
@@ -7396,47 +7393,35 @@ def register_department_routes(reports_bp):
                 e.WebRentalFlag,
                 e.RentalYTD,
                 e.RentalITD,
-                rh_current.DaysRented,
-                rh_current.RentAmount,
-                rental_wo.RentalContractNo,
+                open_rental.WONo as OpenRentalWO,
+                open_rental.OpenDate as RentalStartDate,
+                open_rental.RentalContractNo,
                 e.DayRent,
                 e.WeekRent,
                 e.MonthRent
             FROM ben002.Equipment e
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-            LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
-                AND rh_current.Year = YEAR(GETDATE()) 
-                AND rh_current.Month = MONTH(GETDATE())
-                AND rh_current.DaysRented > 0
-                AND rh_current.DeletionTime IS NULL
-            -- Join to find rental customer via WORental and WO tables
-            -- Gets the most recent rental WO for each equipment
+            -- Check for OPEN rental work orders (matching Softbase "Open Rental Orders")
             LEFT JOIN (
                 SELECT 
-                    wr.SerialNo, 
-                    wr.UnitNo, 
-                    MAX(wo.WONo) as MaxWONo
-                FROM ben002.WORental wr
-                INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-                WHERE wo.Type = 'R' 
-                AND wo.RentalContractNo IS NOT NULL 
-                AND wo.RentalContractNo > 0
-                GROUP BY wr.SerialNo, wr.UnitNo
-            ) latest_rental ON (e.SerialNo = latest_rental.SerialNo OR e.UnitNo = latest_rental.UnitNo)
-            -- Get the details of that latest rental WO
-            LEFT JOIN (
-                SELECT DISTINCT
                     wr.SerialNo,
                     wr.UnitNo,
                     wo.WONo,
+                    wo.OpenDate,
                     wo.RentalContractNo,
-                    wo.BillTo
+                    wo.BillTo,
+                    cust.Name as CustomerName,
+                    cust.Address as CustomerAddress,
+                    cust.City as CustomerCity,
+                    cust.State as CustomerState,
+                    cust.ZipCode as CustomerZip
                 FROM ben002.WORental wr
                 INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                LEFT JOIN ben002.Customer cust ON wo.BillTo = cust.Number
                 WHERE wo.Type = 'R'
-            ) rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
-            -- Get the actual rental customer
-            LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
+                AND wo.ClosedDate IS NULL  -- This is the key: OPEN rental orders only
+                AND wo.DeletionTime IS NULL
+            ) open_rental ON (e.UnitNo = open_rental.UnitNo OR e.SerialNo = open_rental.SerialNo)
             WHERE 
             -- PRIMARY FILTER: Units owned by Rental Department
             e.InventoryDept = 60
@@ -7466,7 +7451,7 @@ def register_department_routes(reports_bp):
                     c.State as CustomerState,
                     c.ZipCode as CustomerZip,
                     CASE 
-                        WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
+                        WHEN open_rental.WONo IS NOT NULL THEN 'On Rent'
                         WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                         ELSE 'Available'  -- Includes NULL and 'Ready To Rent'
                     END as Status,
@@ -7474,19 +7459,29 @@ def register_department_routes(reports_bp):
                     e.WebRentalFlag,
                     e.RentalYTD,
                     e.RentalITD,
-                    rh_current.DaysRented,
-                    rh_current.RentAmount,
-                    NULL as RentalContractNo,
+                    open_rental.WONo as OpenRentalWO,
+                    open_rental.OpenDate as RentalStartDate,
+                    open_rental.RentalContractNo,
                     e.DayRent,
                     e.WeekRent,
                     e.MonthRent
                 FROM ben002.Equipment e
                 LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-                LEFT JOIN ben002.RentalHistory rh_current ON e.SerialNo = rh_current.SerialNo 
-                    AND rh_current.Year = YEAR(GETDATE()) 
-                    AND rh_current.Month = MONTH(GETDATE())
-                    AND rh_current.DaysRented > 0
-                    AND rh_current.DeletionTime IS NULL
+                -- Check for OPEN rental work orders
+                LEFT JOIN (
+                    SELECT 
+                        wr.SerialNo,
+                        wr.UnitNo,
+                        wo.WONo,
+                        wo.OpenDate,
+                        wo.RentalContractNo,
+                        wo.BillTo
+                    FROM ben002.WORental wr
+                    INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                    WHERE wo.Type = 'R'
+                    AND wo.ClosedDate IS NULL  -- OPEN rental orders only
+                    AND wo.DeletionTime IS NULL
+                ) open_rental ON (e.UnitNo = open_rental.UnitNo OR e.SerialNo = open_rental.SerialNo)
                 WHERE 
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
