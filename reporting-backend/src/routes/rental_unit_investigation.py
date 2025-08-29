@@ -41,8 +41,7 @@ def investigate_units():
                 InventoryDept,
                 DayRent,
                 WeekRent,
-                MonthRent,
-                IsDeleted
+                MonthRent
             FROM ben002.Equipment
             WHERE UnitNo = '{unit_no}'
             """
