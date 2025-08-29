@@ -7368,8 +7368,10 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # Get ONLY actual rental equipment based on discovered RentalStatus values
-            # UPDATED 2025-08-29: Added exclusions for non-rental equipment
+            # SIMPLIFIED APPROACH:
+            # 1. Get all units owned by Rental Department (InventoryDept = 60)
+            # 2. Exclude sold/disposed/transferred units
+            # 3. Show current status (On Rent or Available)
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7385,9 +7387,8 @@ def register_department_routes(reports_bp):
                 COALESCE(rental_cust.State, c.State) as CustomerState,
                 COALESCE(rental_cust.ZipCode, c.ZipCode) as CustomerZip,
                 CASE 
-                    WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
-                    WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
+                    WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     ELSE 'Available'
                 END as Status,
                 e.RentalStatus as OriginalStatus,
@@ -7436,32 +7437,24 @@ def register_department_routes(reports_bp):
             -- Get the actual rental customer
             LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
             WHERE 
-            -- Include equipment that is either:
-            -- 1. Marked as rental status OR
-            -- 2. Currently on rent (in RentalHistory) OR  
-            -- 3. Has InventoryDept = 60 (rental department - corrected from 10)
-            (
-                e.RentalStatus IN ('Ready To Rent', 'Hold')
-                OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
-                OR e.InventoryDept = 60  -- Rental department inventory (60, not 10)
-            )
-            -- EXCLUDE only units specifically marked as non-rental or sold by rental manager
-            AND e.UnitNo NOT IN (
-                -- Units marked "Not a Rental Unit"
-                '293060', '218919', 'Z452512A-43084', '21775', 'SER01',
-                -- Units marked "Sold Unit"  
-                '15597', '17004', '17295B', '17636', '18552', '18808', '18823',
-                '18835', '18838B', '18993B', '19060', '19063', '19306B', '19321B',
-                '19332', '19420', '19421', '19463B', '19628B', '19752B', '19809B',
-                '19890', '20134', '20134B', '20457', '20868B',
-                -- Units marked "Transferred to Used/Sold Unit"
-                '19645B', '19950B',
-                -- Unit marked "Rerent Unit - Should not be in inventory"
-                'RTRSEL'
-            )
-            -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
+            -- PRIMARY FILTER: Units owned by Rental Department
+            e.InventoryDept = 60
+            
+            -- EXCLUDE deleted units
+            AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
+            
+            -- EXCLUDE sold/disposed/transferred units based on RentalStatus
+            AND e.RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred')
+            
+            -- EXCLUDE units with problematic location indicators
+            AND NOT (UPPER(e.Location) LIKE '%SOLD%')
+            AND NOT (UPPER(e.Location) LIKE '%DISPOSED%')
+            AND NOT (UPPER(e.Location) LIKE '%SCRAP%')
+            AND NOT (UPPER(e.Location) LIKE '%AUCTION%')
+            
+            -- EXCLUDE units with specific patterns that aren't rentable
             AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
-            AND NOT (UPPER(e.Make) LIKE '%BAT%' AND (e.UnitNo LIKE '%BAT%' OR e.SerialNo LIKE '%BAT%'))
+            AND NOT (e.UnitNo IN ('PBATRO1', 'PBATSL1', 'TUGBAT'))
             """
             
             # Try the enhanced query, but fall back to simple query if it fails
@@ -7485,9 +7478,8 @@ def register_department_routes(reports_bp):
                     c.State as CustomerState,
                     c.ZipCode as CustomerZip,
                     CASE 
-                        WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                         WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
-                        WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
+                        WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                         ELSE 'Available'
                     END as Status,
                     e.RentalStatus as OriginalStatus,
@@ -7508,32 +7500,24 @@ def register_department_routes(reports_bp):
                     AND rh_current.DaysRented > 0
                     AND rh_current.DeletionTime IS NULL
                 WHERE 
-                -- Include equipment that is either:
-                -- 1. Marked as rental status OR
-                -- 2. Currently on rent (in RentalHistory) OR  
-                -- 3. Has InventoryDept = 60 (rental department - corrected from 10)
-                (
-                    e.RentalStatus IN ('Ready To Rent', 'Hold')
-                    OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
-                    OR e.InventoryDept = 60  -- Rental department inventory (60, not 10)
-                )
-                -- EXCLUDE only units specifically marked as non-rental or sold by rental manager
-                AND e.UnitNo NOT IN (
-                    -- Units marked "Not a Rental Unit"
-                    '293060', '218919', 'Z452512A-43084', '21775', 'SER01',
-                    -- Units marked "Sold Unit"  
-                    '15597', '17004', '17295B', '17636', '18552', '18808', '18823',
-                    '18835', '18838B', '18993B', '19060', '19063', '19306B', '19321B',
-                    '19332', '19420', '19421', '19463B', '19628B', '19752B', '19809B',
-                    '19890', '20134', '20134B', '20457', '20868B',
-                    -- Units marked "Transferred to Used/Sold Unit"
-                    '19645B', '19950B',
-                    -- Unit marked "Rerent Unit - Should not be in inventory"
-                    'RTRSEL'
-                )
-                -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
+                -- PRIMARY FILTER: Units owned by Rental Department
+                e.InventoryDept = 60
+                
+                -- EXCLUDE deleted units
+                AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
+                
+                -- EXCLUDE sold/disposed/transferred units based on RentalStatus
+                AND e.RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred')
+                
+                -- EXCLUDE units with problematic location indicators
+                AND NOT (UPPER(e.Location) LIKE '%SOLD%')
+                AND NOT (UPPER(e.Location) LIKE '%DISPOSED%')
+                AND NOT (UPPER(e.Location) LIKE '%SCRAP%')
+                AND NOT (UPPER(e.Location) LIKE '%AUCTION%')
+                
+                -- EXCLUDE units with specific patterns that aren't rentable
                 AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
-                AND NOT (UPPER(e.Make) LIKE '%BAT%' AND (e.UnitNo LIKE '%BAT%' OR e.SerialNo LIKE '%BAT%'))
+                AND NOT (e.UnitNo IN ('PBATRO1', 'PBATSL1', 'TUGBAT'))
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")

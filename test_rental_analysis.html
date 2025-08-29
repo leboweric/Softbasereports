@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rental Exclusion Analysis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+        }
+        h3 {
+            color: #666;
+            margin-top: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #loading {
+            display: none;
+            color: #007bff;
+            font-style: italic;
+        }
+        #results {
+            margin-top: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .unit-group {
+            background-color: #f9f9f9;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #007bff;
+            border-radius: 3px;
+        }
+        .unit-detail {
+            background-color: white;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .field-label {
+            font-weight: bold;
+            color: #555;
+            display: inline-block;
+            width: 150px;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .summary-table th,
+        .summary-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .summary-table th {
+            background-color: #007bff;
+            color: white;
+        }
+        .summary-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .pattern {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 3px;
+        }
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 2px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .tag-sold { background-color: #dc3545; color: white; }
+        .tag-ready { background-color: #28a745; color: white; }
+        .tag-hold { background-color: #ffc107; color: black; }
+        .tag-dept60 { background-color: #17a2b8; color: white; }
+        .tag-other { background-color: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Rental Unit Exclusion Analysis</h1>
+    <p>This tool analyzes units that should be excluded from rental availability to understand why they passed the filter.</p>
+    
+    <button id="analyzeBtn" onclick="analyzeUnits()">Run Analysis</button>
+    <div id="loading">Loading... Please wait while the analysis runs on the Railway backend.</div>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_URL = 'https://softbasereports-production.up.railway.app';
+        
+        async function getAuthToken() {
+            // Get token from localStorage or prompt for login
+            let token = localStorage.getItem('authToken');
+            
+            if (!token) {
+                const username = prompt('Enter username:');
+                const password = prompt('Enter password:');
+                
+                if (!username || !password) {
+                    throw new Error('Login required');
+                }
+                
+                const response = await fetch(`${API_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Login failed');
+                }
+                
+                const data = await response.json();
+                token = data.access_token;
+                localStorage.setItem('authToken', token);
+            }
+            
+            return token;
+        }
+        
+        async function analyzeUnits() {
+            const button = document.getElementById('analyzeBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+            
+            button.disabled = true;
+            loading.style.display = 'block';
+            results.innerHTML = '';
+            
+            try {
+                const token = await getAuthToken();
+                
+                const response = await fetch(`${API_URL}/api/rental/analyze-excluded-units`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.status === 401) {
+                    // Token expired, clear and retry
+                    localStorage.removeItem('authToken');
+                    throw new Error('Session expired. Please run analysis again.');
+                }
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayResults(data.analysis);
+                } else {
+                    throw new Error(data.error || 'Analysis failed');
+                }
+            } catch (error) {
+                results.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+        
+        function displayResults(analysis) {
+            const results = document.getElementById('results');
+            let html = '<h2>Analysis Results</h2>';
+            
+            // Display patterns if found
+            if (analysis.patterns && analysis.patterns.length > 0) {
+                html += '<h3>Key Patterns Identified</h3>';
+                analysis.patterns.forEach(pattern => {
+                    html += `<div class="pattern">⚠️ ${pattern}</div>`;
+                });
+            }
+            
+            // Summary statistics
+            html += '<h3>Summary Statistics</h3>';
+            
+            html += '<h4>By Rental Status</h4>';
+            html += '<table class="summary-table">';
+            html += '<tr><th>Status</th><th>Count</th></tr>';
+            for (const [status, count] of Object.entries(analysis.summary.by_rental_status)) {
+                html += `<tr><td>${status} <span class="tag ${getStatusTag(status)}">${status}</span></td><td>${count}</td></tr>`;
+            }
+            html += '</table>';
+            
+            html += '<h4>By Inventory Department</h4>';
+            html += '<table class="summary-table">';
+            html += '<tr><th>Department</th><th>Count</th></tr>';
+            for (const [dept, count] of Object.entries(analysis.summary.by_inventory_dept)) {
+                const deptTag = dept === '60' ? 'tag-dept60' : 'tag-other';
+                html += `<tr><td>${dept} <span class="tag ${deptTag}">${dept === '60' ? 'Rental' : 'Other'}</span></td><td>${count}</td></tr>`;
+            }
+            html += '</table>';
+            
+            html += '<h4>By Removal Indicator</h4>';
+            html += '<table class="summary-table">';
+            html += '<tr><th>Indicator</th><th>Count</th></tr>';
+            for (const [indicator, count] of Object.entries(analysis.summary.by_removal_indicator)) {
+                html += `<tr><td>${indicator}</td><td>${count}</td></tr>`;
+            }
+            html += '</table>';
+            
+            html += '<h4>Why Units Were Included</h4>';
+            html += '<table class="summary-table">';
+            html += '<tr><th>Reason</th><th>Count</th></tr>';
+            for (const [reason, count] of Object.entries(analysis.summary.by_inclusion_reason)) {
+                html += `<tr><td>${reason}</td><td>${count}</td></tr>`;
+            }
+            html += '</table>';
+            
+            // Detailed units by exclusion reason
+            html += '<h3>Units by Exclusion Reason</h3>';
+            
+            for (const [reason, units] of Object.entries(analysis.units_by_reason)) {
+                if (units.length > 0) {
+                    html += `<div class="unit-group">`;
+                    html += `<h4>${reason} (${units.length} units)</h4>`;
+                    
+                    units.forEach(unit => {
+                        html += `<div class="unit-detail">`;
+                        html += `<div><span class="field-label">Unit:</span> ${unit.unit_no} (${unit.serial_no})</div>`;
+                        html += `<div><span class="field-label">Make/Model:</span> ${unit.make_model}</div>`;
+                        html += `<div><span class="field-label">Status:</span> <span class="tag ${getStatusTag(unit.rental_status)}">${unit.rental_status || 'NULL'}</span></div>`;
+                        html += `<div><span class="field-label">Dept:</span> ${unit.inventory_dept || 'NULL'} ${unit.inventory_dept === 60 ? '(Rental)' : ''}</div>`;
+                        html += `<div><span class="field-label">Location:</span> ${unit.location || 'NULL'}</div>`;
+                        html += `<div><span class="field-label">Removal Indicator:</span> ${unit.removal_indicator}</div>`;
+                        html += `<div><span class="field-label">Why Included:</span> <strong>${unit.why_included}</strong></div>`;
+                        
+                        if (unit.rental_rates.day > 0 || unit.rental_rates.week > 0 || unit.rental_rates.month > 0) {
+                            html += `<div><span class="field-label">Rental Rates:</span> Day: $${unit.rental_rates.day}, Week: $${unit.rental_rates.week}, Month: $${unit.rental_rates.month}</div>`;
+                        }
+                        
+                        if (unit.in_rental_history) {
+                            html += `<div><span class="field-label">In Rental History:</span> Yes - ${unit.days_rented} days, $${unit.rent_amount}</div>`;
+                        }
+                        
+                        html += `</div>`;
+                    });
+                    
+                    html += `</div>`;
+                }
+            }
+            
+            results.innerHTML = html;
+        }
+        
+        function getStatusTag(status) {
+            if (!status) return 'tag-other';
+            const lower = status.toLowerCase();
+            if (lower.includes('sold')) return 'tag-sold';
+            if (lower.includes('ready')) return 'tag-ready';
+            if (lower.includes('hold')) return 'tag-hold';
+            return 'tag-other';
+        }
+    </script>
+</body>
+</html>
