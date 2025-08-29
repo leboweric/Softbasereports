@@ -7368,10 +7368,11 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # SIMPLIFIED APPROACH:
-            # 1. Get all units owned by Rental Department (InventoryDept = 60)
-            # 2. Exclude sold/disposed/transferred units
-            # 3. Show current status (On Rent or Available)
+            # BASED ON ACTUAL DATA:
+            # Department 60 has 1,019 units with:
+            # - RentalStatus: NULL (945), 'Ready To Rent' (68), 'Hold' (6)
+            # - Location: ALL NULL (no sold/disposed indicators)
+            # Simply get ALL units from Dept 60 and check rental status
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7389,7 +7390,7 @@ def register_department_routes(reports_bp):
                 CASE 
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
-                    ELSE 'Available'
+                    ELSE 'Available'  -- Includes NULL and 'Ready To Rent'
                 END as Status,
                 e.RentalStatus as OriginalStatus,
                 e.WebRentalFlag,
@@ -7440,21 +7441,8 @@ def register_department_routes(reports_bp):
             -- PRIMARY FILTER: Units owned by Rental Department
             e.InventoryDept = 60
             
-            -- EXCLUDE deleted units
+            -- EXCLUDE deleted units (should be none based on data)
             AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
-            
-            -- EXCLUDE sold/disposed/transferred units based on RentalStatus
-            AND e.RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred')
-            
-            -- EXCLUDE units with problematic location indicators
-            AND NOT (UPPER(e.Location) LIKE '%SOLD%')
-            AND NOT (UPPER(e.Location) LIKE '%DISPOSED%')
-            AND NOT (UPPER(e.Location) LIKE '%SCRAP%')
-            AND NOT (UPPER(e.Location) LIKE '%AUCTION%')
-            
-            -- EXCLUDE units with specific patterns that aren't rentable
-            AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
-            AND NOT (e.UnitNo IN ('PBATRO1', 'PBATSL1', 'TUGBAT'))
             """
             
             # Try the enhanced query, but fall back to simple query if it fails
@@ -7480,7 +7468,7 @@ def register_department_routes(reports_bp):
                     CASE 
                         WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
                         WHEN e.RentalStatus = 'Hold' THEN 'Hold'
-                        ELSE 'Available'
+                        ELSE 'Available'  -- Includes NULL and 'Ready To Rent'
                     END as Status,
                     e.RentalStatus as OriginalStatus,
                     e.WebRentalFlag,
@@ -7503,21 +7491,8 @@ def register_department_routes(reports_bp):
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
                 
-                -- EXCLUDE deleted units
+                -- EXCLUDE deleted units (should be none based on data)
                 AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
-                
-                -- EXCLUDE sold/disposed/transferred units based on RentalStatus
-                AND e.RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred')
-                
-                -- EXCLUDE units with problematic location indicators
-                AND NOT (UPPER(e.Location) LIKE '%SOLD%')
-                AND NOT (UPPER(e.Location) LIKE '%DISPOSED%')
-                AND NOT (UPPER(e.Location) LIKE '%SCRAP%')
-                AND NOT (UPPER(e.Location) LIKE '%AUCTION%')
-                
-                -- EXCLUDE units with specific patterns that aren't rentable
-                AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
-                AND NOT (e.UnitNo IN ('PBATRO1', 'PBATSL1', 'TUGBAT'))
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
