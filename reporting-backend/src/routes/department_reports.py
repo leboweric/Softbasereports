@@ -7444,8 +7444,9 @@ def register_department_routes(reports_bp):
             
             # Try the enhanced query, but fall back to simple query if it fails
             try:
+                logger.info("Executing combined query for InventoryDept = 60")
                 simple_result = db.execute_query(combined_query)
-                logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records")
+                logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records from Dept 60")
             except Exception as query_error:
                 logger.warning(f"Enhanced rental query failed: {str(query_error)}. Falling back to simple query.")
                 # Fallback to simpler query without the WO join
@@ -7490,6 +7491,9 @@ def register_department_routes(reports_bp):
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
+            
+            # Log what we got
+            logger.info(f"Query returned {len(simple_result) if simple_result else 0} records")
             
             # If we found equipment, return it directly for now
             if simple_result and len(simple_result) > 0:

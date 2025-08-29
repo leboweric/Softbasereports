@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Search, Download, FileText, DollarSign, Calendar, Gauge } from 'lucide-react';
+import { Loader2, Search, Download, FileText, DollarSign, Calendar, Gauge, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
 const MinitracSearch = () => {
@@ -31,6 +31,10 @@ const MinitracSearch = () => {
     per_page: 50,
     total: 0,
     total_pages: 0
+  });
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: 'asc'
   });
 
   // Load filter options on mount
@@ -149,6 +153,57 @@ const MinitracSearch = () => {
     return new Date(date).toLocaleDateString();
   };
 
+  // Sorting function
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // Sort results based on current sort configuration
+  const sortedResults = React.useMemo(() => {
+    let sortableResults = [...results];
+    if (sortConfig.key) {
+      sortableResults.sort((a, b) => {
+        // Handle null/undefined values
+        const aValue = a[sortConfig.key];
+        const bValue = b[sortConfig.key];
+        
+        if (aValue === null || aValue === undefined) return 1;
+        if (bValue === null || bValue === undefined) return -1;
+        
+        // Handle numeric fields
+        if (sortConfig.key === 'net_book_val' || sortConfig.key === 'ytd_income' || sortConfig.key === 'year') {
+          const aNum = parseFloat(aValue) || 0;
+          const bNum = parseFloat(bValue) || 0;
+          return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+        
+        // Handle string fields
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableResults;
+  }, [results, sortConfig]);
+
+  // Helper function to get sort icon
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />;
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="h-4 w-4 ml-1" />
+      : <ArrowDown className="h-4 w-4 ml-1" />;
+  };
+
   return (
     <div className="space-y-6">
       {/* Search Interface */}
@@ -234,21 +289,101 @@ const MinitracSearch = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Unit #</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Serial</TableHead>
-                    <TableHead>Make</TableHead>
-                    <TableHead>Model</TableHead>
-                    <TableHead>Year</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Book Value</TableHead>
-                    <TableHead>YTD Income</TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('unit_num')}
+                    >
+                      <div className="flex items-center">
+                        Unit #
+                        {getSortIcon('unit_num')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('category')}
+                    >
+                      <div className="flex items-center">
+                        Category
+                        {getSortIcon('category')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('serial')}
+                    >
+                      <div className="flex items-center">
+                        Serial
+                        {getSortIcon('serial')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('make')}
+                    >
+                      <div className="flex items-center">
+                        Make
+                        {getSortIcon('make')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('model')}
+                    >
+                      <div className="flex items-center">
+                        Model
+                        {getSortIcon('model')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('year')}
+                    >
+                      <div className="flex items-center">
+                        Year
+                        {getSortIcon('year')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center">
+                        Status
+                        {getSortIcon('status')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('ship_name')}
+                    >
+                      <div className="flex items-center">
+                        Customer
+                        {getSortIcon('ship_name')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('net_book_val')}
+                    >
+                      <div className="flex items-center">
+                        Book Value
+                        {getSortIcon('net_book_val')}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="cursor-pointer hover:bg-gray-50" 
+                      onClick={() => handleSort('ytd_income')}
+                    >
+                      <div className="flex items-center">
+                        YTD Income
+                        {getSortIcon('ytd_income')}
+                      </div>
+                    </TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {results.map((item) => (
+                  {sortedResults.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono">{item.unit_num}</TableCell>
                       <TableCell>{item.category}</TableCell>

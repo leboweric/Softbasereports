@@ -100,6 +100,32 @@ Used for custom data not in Softbase:
 - Self-hosted in PostgreSQL
 - Full search and export capabilities
 
+### Rental Availability Report
+**Key Learning: Never assume data values - always verify actual database content**
+
+#### Solution Summary
+The report filters equipment by `InventoryDept = 60` (Rental Department). This single filter automatically excludes all problematic units (sold, non-rental, transferred) because those units exist in OTHER departments, not Department 60.
+
+#### Technical Details
+- **Primary Filter**: `e.InventoryDept = 60` - Units owned by Rental Department
+- **On Rent Detection**: Join with `RentalHistory` table for current month where `DaysRented > 0`
+- **Available Status**: Department 60 units NOT in current month's RentalHistory
+- **Data Discovery**: Department 60 has only 3 RentalStatus values: NULL, 'Ready To Rent', 'Hold'
+- **Location Field**: All Department 60 units have NULL Location values
+
+#### Column Explorer Tool
+Added to Table Discovery to analyze actual database values:
+- **Endpoint**: `/api/database/column-values` in `table_discovery.py`
+- **UI**: Column Explorer tab in TableDiscovery.jsx
+- **Purpose**: Explore distinct values and distributions without assumptions
+- **Key Insight**: Helped discover Department 60's clean data state
+
+#### Common Pitfalls Avoided
+1. Don't filter by assumed RentalStatus values ('Sold', 'Disposed', etc.) that don't exist
+2. Don't use IsDeleted field - not relevant for Department 60
+3. Don't build complex exclusion lists - department ownership is the key filter
+4. Always verify actual data values before creating filters
+
 ## Common Issues & Solutions
 
 ### Import Paths
