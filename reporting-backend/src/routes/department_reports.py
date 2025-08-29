@@ -7378,12 +7378,27 @@ def register_department_routes(reports_bp):
                 e.Model, 
                 e.Location,
                 e.CustomerNo,
-                -- Get customer info from open rental WO if exists
-                COALESCE(open_rental.CustomerName, c.Name) as CustomerName,
-                COALESCE(open_rental.CustomerAddress, c.Address) as CustomerAddress,
-                COALESCE(open_rental.CustomerCity, c.City) as CustomerCity,
-                COALESCE(open_rental.CustomerState, c.State) as CustomerState,
-                COALESCE(open_rental.CustomerZip, c.ZipCode) as CustomerZip,
+                -- Show rental customer when on rent, otherwise show equipment owner
+                CASE 
+                    WHEN open_rental.WONo IS NOT NULL THEN open_rental.CustomerName
+                    ELSE c.Name
+                END as CustomerName,
+                CASE 
+                    WHEN open_rental.WONo IS NOT NULL THEN open_rental.CustomerAddress
+                    ELSE c.Address
+                END as CustomerAddress,
+                CASE 
+                    WHEN open_rental.WONo IS NOT NULL THEN open_rental.CustomerCity
+                    ELSE c.City
+                END as CustomerCity,
+                CASE 
+                    WHEN open_rental.WONo IS NOT NULL THEN open_rental.CustomerState
+                    ELSE c.State
+                END as CustomerState,
+                CASE 
+                    WHEN open_rental.WONo IS NOT NULL THEN open_rental.CustomerZip
+                    ELSE c.ZipCode
+                END as CustomerZip,
                 CASE 
                     WHEN open_rental.WONo IS NOT NULL THEN 'On Rent'
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
@@ -7421,12 +7436,14 @@ def register_department_routes(reports_bp):
                 WHERE wo.Type = 'R'
                 AND wo.ClosedDate IS NULL  -- This is the key: OPEN rental orders only
                 AND wo.DeletionTime IS NULL
+                -- Add date filter to exclude future-dated WOs (data quality issue)
+                AND wo.OpenDate <= GETDATE()
                 -- Ensure we have valid unit/serial matches
                 AND (wr.UnitNo IS NOT NULL AND wr.UnitNo != '' 
                      OR wr.SerialNo IS NOT NULL AND wr.SerialNo != '')
             ) open_rental ON (
-                (e.UnitNo IS NOT NULL AND e.UnitNo = open_rental.UnitNo)
-                OR (e.SerialNo IS NOT NULL AND e.SerialNo = open_rental.SerialNo)
+                (e.UnitNo IS NOT NULL AND e.UnitNo != '' AND e.UnitNo = open_rental.UnitNo)
+                OR (e.SerialNo IS NOT NULL AND e.SerialNo != '' AND e.SerialNo = open_rental.SerialNo)
             )
             WHERE 
             -- PRIMARY FILTER: Units owned by Rental Department
@@ -7442,7 +7459,7 @@ def register_department_routes(reports_bp):
                 logger.info(f"Combined query found {len(simple_result) if simple_result else 0} records from Dept 60")
             except Exception as query_error:
                 logger.warning(f"Enhanced rental query failed: {str(query_error)}. Falling back to simple query.")
-                # Fallback to simpler query without the WO join
+                # Fallback to simpler query without full customer info
                 fallback_query = """
                 SELECT DISTINCT
                     e.UnitNo, 
@@ -7451,11 +7468,27 @@ def register_department_routes(reports_bp):
                     e.Model, 
                     e.Location,
                     e.CustomerNo,
-                    c.Name as CustomerName,
-                    c.Address as CustomerAddress,
-                    c.City as CustomerCity,
-                    c.State as CustomerState,
-                    c.ZipCode as CustomerZip,
+                    -- Show rental customer when on rent, otherwise show equipment owner
+                    CASE 
+                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.Name
+                        ELSE c.Name
+                    END as CustomerName,
+                    CASE 
+                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.Address
+                        ELSE c.Address
+                    END as CustomerAddress,
+                    CASE 
+                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.City
+                        ELSE c.City
+                    END as CustomerCity,
+                    CASE 
+                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.State
+                        ELSE c.State
+                    END as CustomerState,
+                    CASE 
+                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.ZipCode
+                        ELSE c.ZipCode
+                    END as CustomerZip,
                     CASE 
                         WHEN open_rental.WONo IS NOT NULL THEN 'On Rent'
                         WHEN e.RentalStatus = 'Hold' THEN 'Hold'
@@ -7487,13 +7520,17 @@ def register_department_routes(reports_bp):
                     WHERE wo.Type = 'R'
                     AND wo.ClosedDate IS NULL  -- OPEN rental orders only
                     AND wo.DeletionTime IS NULL
+                    -- Add date filter to exclude future-dated WOs (data quality issue)
+                    AND wo.OpenDate <= GETDATE()
                     -- Ensure we have valid unit/serial matches
                     AND (wr.UnitNo IS NOT NULL AND wr.UnitNo != '' 
                          OR wr.SerialNo IS NOT NULL AND wr.SerialNo != '')
                 ) open_rental ON (
-                    (e.UnitNo IS NOT NULL AND e.UnitNo = open_rental.UnitNo)
-                    OR (e.SerialNo IS NOT NULL AND e.SerialNo = open_rental.SerialNo)
+                    (e.UnitNo IS NOT NULL AND e.UnitNo != '' AND e.UnitNo = open_rental.UnitNo)
+                    OR (e.SerialNo IS NOT NULL AND e.SerialNo != '' AND e.SerialNo = open_rental.SerialNo)
                 )
+                -- Join to get rental customer info
+                LEFT JOIN ben002.Customer rental_cust ON open_rental.BillTo = rental_cust.Number
                 WHERE 
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
