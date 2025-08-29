@@ -3,7 +3,6 @@ Investigate specific rental units to debug status detection issues
 """
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
 import logging
 from src.services.azure_sql_service import AzureSQLService
 from datetime import datetime
