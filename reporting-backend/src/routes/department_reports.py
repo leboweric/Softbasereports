@@ -7403,7 +7403,7 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
             -- Check for OPEN rental work orders (matching Softbase "Open Rental Orders")
             LEFT JOIN (
-                SELECT 
+                SELECT DISTINCT
                     wr.SerialNo,
                     wr.UnitNo,
                     wo.WONo,
@@ -7421,7 +7421,13 @@ def register_department_routes(reports_bp):
                 WHERE wo.Type = 'R'
                 AND wo.ClosedDate IS NULL  -- This is the key: OPEN rental orders only
                 AND wo.DeletionTime IS NULL
-            ) open_rental ON (e.UnitNo = open_rental.UnitNo OR e.SerialNo = open_rental.SerialNo)
+                -- Ensure we have valid unit/serial matches
+                AND (wr.UnitNo IS NOT NULL AND wr.UnitNo != '' 
+                     OR wr.SerialNo IS NOT NULL AND wr.SerialNo != '')
+            ) open_rental ON (
+                (e.UnitNo IS NOT NULL AND e.UnitNo = open_rental.UnitNo)
+                OR (e.SerialNo IS NOT NULL AND e.SerialNo = open_rental.SerialNo)
+            )
             WHERE 
             -- PRIMARY FILTER: Units owned by Rental Department
             e.InventoryDept = 60
@@ -7469,7 +7475,7 @@ def register_department_routes(reports_bp):
                 LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
                 -- Check for OPEN rental work orders
                 LEFT JOIN (
-                    SELECT 
+                    SELECT DISTINCT
                         wr.SerialNo,
                         wr.UnitNo,
                         wo.WONo,
@@ -7481,7 +7487,13 @@ def register_department_routes(reports_bp):
                     WHERE wo.Type = 'R'
                     AND wo.ClosedDate IS NULL  -- OPEN rental orders only
                     AND wo.DeletionTime IS NULL
-                ) open_rental ON (e.UnitNo = open_rental.UnitNo OR e.SerialNo = open_rental.SerialNo)
+                    -- Ensure we have valid unit/serial matches
+                    AND (wr.UnitNo IS NOT NULL AND wr.UnitNo != '' 
+                         OR wr.SerialNo IS NOT NULL AND wr.SerialNo != '')
+                ) open_rental ON (
+                    (e.UnitNo IS NOT NULL AND e.UnitNo = open_rental.UnitNo)
+                    OR (e.SerialNo IS NOT NULL AND e.SerialNo = open_rental.SerialNo)
+                )
                 WHERE 
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
