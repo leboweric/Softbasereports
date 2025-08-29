@@ -21,7 +21,8 @@ const RentalDiagnostic = () => {
         '/api/rental-diagnostic/equipment-schema',
         '/api/rental-diagnostic/rental-status-values', 
         '/api/rental-diagnostic/problem-units',
-        '/api/rental-diagnostic/find-sold-pattern'
+        '/api/rental-diagnostic/find-sold-pattern',
+        '/api/rental-diagnostic/units-on-hold'
       ];
 
       const results = {};
@@ -164,6 +165,53 @@ const RentalDiagnostic = () => {
             <pre className="text-sm">
               {JSON.stringify(data['/api/rental-diagnostic/problem-units'].patterns, null, 2)}
             </pre>
+          </div>
+        )}
+      </div>
+
+      {/* Units on Hold */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Units on Hold Analysis</h2>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left">Unit</th>
+                  <th className="px-4 py-2 text-left">Make/Model</th>
+                  <th className="px-4 py-2 text-left">Customer</th>
+                  <th className="px-4 py-2 text-left">Location</th>
+                  <th className="px-4 py-2 text-left">Last Rental</th>
+                  <th className="px-4 py-2 text-left">Current Month Days</th>
+                  <th className="px-4 py-2 text-left">YTD Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data['/api/rental-diagnostic/units-on-hold']?.units?.map((unit, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="px-4 py-2">{unit.UnitNo}</td>
+                    <td className="px-4 py-2">{unit.Make} {unit.Model}</td>
+                    <td className="px-4 py-2">{unit.CustomerName || unit.CustomerNo || 'None'}</td>
+                    <td className="px-4 py-2">{unit.Location}</td>
+                    <td className="px-4 py-2">{unit.LastRentalMonth || 'Never'}</td>
+                    <td className="px-4 py-2">{unit.CurrentMonthDaysRented || 0}</td>
+                    <td className="px-4 py-2">${unit.RentalYTD || 0}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        {data['/api/rental-diagnostic/units-on-hold']?.units && (
+          <div className="mt-4 p-4 bg-yellow-50 rounded">
+            <h3 className="font-semibold mb-2">Analysis:</h3>
+            <p className="text-sm">
+              Total units on hold: {data['/api/rental-diagnostic/units-on-hold'].total_on_hold}
+            </p>
+            <p className="text-sm mt-2">
+              These units have RentalStatus = 'Hold' which may indicate they are being held for a specific customer or undergoing maintenance/inspection.
+            </p>
           </div>
         )}
       </div>

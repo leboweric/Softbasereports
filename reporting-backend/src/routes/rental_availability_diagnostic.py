@@ -197,6 +197,62 @@ def analyze_problem_units():
         logger.error(f"Error analyzing problem units: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@rental_diag_bp.route('/units-on-hold', methods=['GET'])
+@jwt_required()
+def get_units_on_hold():
+    """Get details of all units with RentalStatus = 'Hold'"""
+    try:
+        db = get_db()
+        
+        query = """
+        SELECT 
+            e.UnitNo,
+            e.SerialNo,
+            e.Make,
+            e.Model,
+            e.Location,
+            e.CustomerNo,
+            c.Name as CustomerName,
+            e.InventoryDept,
+            e.DayRent,
+            e.WeekRent,
+            e.MonthRent,
+            e.RentalYTD,
+            e.RentalITD,
+            e.WebRentalFlag,
+            e.CreationTime,
+            e.LastModificationTime,
+            -- Check for recent rental history
+            (SELECT MAX(CAST(CAST(Year AS VARCHAR(4)) + '-' + CAST(Month AS VARCHAR(2)) + '-01' AS DATE))
+             FROM ben002.RentalHistory rh
+             WHERE rh.SerialNo = e.SerialNo
+             AND rh.DaysRented > 0
+            ) as LastRentalMonth,
+            -- Check if currently on rent
+            (SELECT TOP 1 rh.DaysRented
+             FROM ben002.RentalHistory rh
+             WHERE rh.SerialNo = e.SerialNo
+             AND rh.Year = YEAR(GETDATE())
+             AND rh.Month = MONTH(GETDATE())
+            ) as CurrentMonthDaysRented
+        FROM ben002.Equipment e
+        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        WHERE e.RentalStatus = 'Hold'
+        ORDER BY e.UnitNo
+        """
+        
+        results = db.execute_query(query)
+        
+        return jsonify({
+            'total_on_hold': len(results) if results else 0,
+            'units': results,
+            'note': 'These units have RentalStatus = Hold - investigating what this means'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting units on hold: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @rental_diag_bp.route('/find-sold-pattern', methods=['GET'])
 @jwt_required()
 def find_sold_pattern():
