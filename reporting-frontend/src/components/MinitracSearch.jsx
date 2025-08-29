@@ -479,19 +479,6 @@ const MinitracSearch = () => {
                 </div>
               </div>
 
-              {/* Financial Info */}
-              <div>
-                <h3 className="font-semibold mb-2">Financial Information</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="font-medium">Acquisition Cost:</span> {formatCurrency(unitDetails.acq_cost)}</div>
-                  <div><span className="font-medium">Book Value:</span> {formatCurrency(unitDetails.net_book_val)}</div>
-                  <div><span className="font-medium">YTD Income:</span> {formatCurrency(unitDetails.ytd_income)}</div>
-                  <div><span className="font-medium">YTD Expense:</span> {formatCurrency(unitDetails.ytd_expense)}</div>
-                  <div><span className="font-medium">ATD Income:</span> {formatCurrency(unitDetails.atd_income)}</div>
-                  <div><span className="font-medium">ATD Expense:</span> {formatCurrency(unitDetails.atd_expense)}</div>
-                </div>
-              </div>
-
               {/* Contract Info */}
               {unitDetails.cont_no && (
                 <div>
