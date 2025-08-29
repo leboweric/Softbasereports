@@ -1,5 +1,13 @@
 # Softbase Reports Project Context
 
+## CRITICAL: Azure SQL Database Access
+**⚠️ IMPORTANT: Azure SQL Database has IP firewall restrictions!**
+- **You CANNOT connect to Azure SQL directly from local development**
+- **The database ONLY accepts connections from Railway's IP addresses**
+- **All database queries MUST go through the deployed Railway backend**
+- **Use the web interface or deployed API endpoints to access data**
+- **Never waste time trying to connect directly with pymssql/pyodbc locally**
+
 ## Overview
 Comprehensive reporting system for Softbase Evolution connecting React frontend to Azure SQL Server via Flask backend.
 
