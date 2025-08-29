@@ -7439,15 +7439,24 @@ def register_department_routes(reports_bp):
             -- Include equipment that is either:
             -- 1. Marked as rental status OR
             -- 2. Currently on rent (in RentalHistory) OR  
-            -- 3. Has InventoryDept = 10 (rental department)
+            -- 3. Has InventoryDept = 60 (rental department - corrected from 10)
             (
                 e.RentalStatus IN ('Ready To Rent', 'Hold')
                 OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
-                OR e.InventoryDept = 10  -- Rental department inventory
+                OR e.InventoryDept = 60  -- Rental department inventory (60, not 10)
             )
-            -- EXCLUDE specific problem unit numbers identified
-            AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
-                                'TUGBAT', 'RTRSEL', 'SER01')
+            -- EXCLUDE specific problem unit numbers identified by rental manager
+            AND e.UnitNo NOT IN (
+                '293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
+                'TUGBAT', 'RTRSEL', 'SER01', '21775',  -- Non-rental units
+                '15597', '17004', '17295B', '17636', '18552', '18808', '18823', 
+                '18835', '18838B', '18993B', '19060', '19063', '19306B', '19321B',
+                '19332', '19420', '19421', '19463B', '19628B', '19645B', '19752B',
+                '19809B', '19890', '19950B', '20134', '20134B', '20457', '20868B',
+                '17685', '18552', '19018', '19332', '19459', '19586', '19773',
+                '19811', '19879', '19890', '19950B', '20071', '20147', '20178B',
+                '20522C', '20868B', '21071', '21373', '21420', '21422', '21424'
+            )
             -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
             AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
             AND NOT (UPPER(e.Make) LIKE '%BAT%' AND (e.UnitNo LIKE '%BAT%' OR e.SerialNo LIKE '%BAT%'))
@@ -7500,15 +7509,24 @@ def register_department_routes(reports_bp):
                 -- Include equipment that is either:
                 -- 1. Marked as rental status OR
                 -- 2. Currently on rent (in RentalHistory) OR  
-                -- 3. Has InventoryDept = 10 (rental department)
+                -- 3. Has InventoryDept = 60 (rental department - corrected from 10)
                 (
                     e.RentalStatus IN ('Ready To Rent', 'Hold')
                     OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
-                    OR e.InventoryDept = 10  -- Rental department inventory
+                    OR e.InventoryDept = 60  -- Rental department inventory (60, not 10)
                 )
-                -- EXCLUDE specific problem unit numbers identified
-                AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
-                                    'TUGBAT', 'RTRSEL', 'SER01')
+                -- EXCLUDE specific problem unit numbers identified by rental manager
+                AND e.UnitNo NOT IN (
+                    '293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
+                    'TUGBAT', 'RTRSEL', 'SER01', '21775',  -- Non-rental units
+                    '15597', '17004', '17295B', '17636', '18552', '18808', '18823', 
+                    '18835', '18838B', '18993B', '19060', '19063', '19306B', '19321B',
+                    '19332', '19420', '19421', '19463B', '19628B', '19645B', '19752B',
+                    '19809B', '19890', '19950B', '20134', '20134B', '20457', '20868B',
+                    '17685', '18552', '19018', '19332', '19459', '19586', '19773',
+                    '19811', '19879', '19890', '19950B', '20071', '20147', '20178B',
+                    '20522C', '20868B', '21071', '21373', '21420', '21422', '21424'
+                )
                 -- EXCLUDE units with specific patterns in Make/Model that aren't rentable
                 AND NOT (UPPER(e.Make) LIKE '%BATTERY%' OR UPPER(e.Model) LIKE '%BATTERY%')
                 AND NOT (UPPER(e.Make) LIKE '%BAT%' AND (e.UnitNo LIKE '%BAT%' OR e.SerialNo LIKE '%BAT%'))
