@@ -54,6 +54,7 @@ from src.routes.rental_exclusion_analysis import rental_exclusion_analysis_bp
 from src.routes.rental_dept_diagnostic import rental_dept_diagnostic_bp
 from src.routes.rental_status_discovery import rental_status_discovery_bp
 from src.routes.rental_availability_test import rental_test_bp
+from src.routes.rental_unit_investigation import rental_investigation_bp
 from src.services.postgres_service import get_postgres_db
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
@@ -135,6 +136,7 @@ app.register_blueprint(rental_exclusion_analysis_bp)
 app.register_blueprint(rental_dept_diagnostic_bp)
 app.register_blueprint(rental_status_discovery_bp)
 app.register_blueprint(rental_test_bp)
+app.register_blueprint(rental_investigation_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
