@@ -253,6 +253,66 @@ def get_units_on_hold():
         logger.error(f"Error getting units on hold: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@rental_diag_bp.route('/check-equipment-removed', methods=['GET'])
+@jwt_required()
+def check_equipment_removed():
+    """Check if sold units are in EquipmentRemoved view"""
+    try:
+        db = get_db()
+        
+        # Units from manager's feedback that are marked as sold
+        problem_units = [
+            '18552', '19332', '19890', '19950B', '20868B', '21775', 'SER01'
+        ]
+        
+        units_str = "','".join(problem_units)
+        
+        # Check EquipmentRemoved view
+        query = f"""
+        SELECT 
+            UnitNo,
+            SerialNo,
+            Make,
+            Model,
+            RemovedDate,
+            RemovedBy,
+            RemovedReason
+        FROM ben002.EquipmentRemoved
+        WHERE UnitNo IN ('{units_str}')
+        """
+        
+        try:
+            removed_units = db.execute_query(query)
+        except:
+            removed_units = {'error': 'EquipmentRemoved view may not exist or have different columns'}
+        
+        # Also check if these units have specific patterns in Equipment table
+        equipment_query = f"""
+        SELECT 
+            UnitNo,
+            SerialNo,
+            RentalStatus,
+            InventoryDept,
+            Customer,
+            CustomerNo,
+            Location
+        FROM ben002.Equipment
+        WHERE UnitNo IN ('{units_str}')
+        """
+        
+        current_status = db.execute_query(equipment_query)
+        
+        return jsonify({
+            'units_checked': problem_units,
+            'equipment_removed_records': removed_units if isinstance(removed_units, list) else [],
+            'current_equipment_status': current_status if current_status else [],
+            'note': 'Checking if sold units exist in EquipmentRemoved view'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking equipment removed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @rental_diag_bp.route('/find-sold-pattern', methods=['GET'])
 @jwt_required()
 def find_sold_pattern():

@@ -22,7 +22,8 @@ const RentalDiagnostic = () => {
         '/api/rental-diagnostic/rental-status-values', 
         '/api/rental-diagnostic/problem-units',
         '/api/rental-diagnostic/find-sold-pattern',
-        '/api/rental-diagnostic/units-on-hold'
+        '/api/rental-diagnostic/units-on-hold',
+        '/api/rental-diagnostic/check-equipment-removed'
       ];
 
       const results = {};
@@ -167,6 +168,49 @@ const RentalDiagnostic = () => {
             </pre>
           </div>
         )}
+      </div>
+
+      {/* Equipment Removed Check */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Equipment Removed Analysis</h2>
+        <div className="bg-white rounded-lg shadow p-4">
+          <h3 className="font-semibold mb-2">Checking if sold units are in EquipmentRemoved view:</h3>
+          
+          {data['/api/rental-diagnostic/check-equipment-removed']?.equipment_removed_records?.length > 0 ? (
+            <div className="mb-4">
+              <p className="text-green-600 mb-2">Found in EquipmentRemoved:</p>
+              <pre className="text-sm bg-gray-100 p-2 rounded">
+                {JSON.stringify(data['/api/rental-diagnostic/check-equipment-removed'].equipment_removed_records, null, 2)}
+              </pre>
+            </div>
+          ) : (
+            <p className="text-red-600 mb-4">No units found in EquipmentRemoved view</p>
+          )}
+          
+          <h3 className="font-semibold mb-2">Current status in Equipment table:</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left">Unit</th>
+                  <th className="px-4 py-2 text-left">RentalStatus</th>
+                  <th className="px-4 py-2 text-left">InventoryDept</th>
+                  <th className="px-4 py-2 text-left">Customer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data['/api/rental-diagnostic/check-equipment-removed']?.current_equipment_status?.map((unit, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="px-4 py-2">{unit.UnitNo}</td>
+                    <td className="px-4 py-2">{unit.RentalStatus || 'null'}</td>
+                    <td className="px-4 py-2">{unit.InventoryDept}</td>
+                    <td className="px-4 py-2">{unit.Customer ? 'Yes' : 'No'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* Units on Hold */}
