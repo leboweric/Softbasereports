@@ -271,3 +271,97 @@ def export_selected_schema():
             'success': False,
             'error': str(e)
         }), 500
+
+@table_discovery_bp.route('/api/database/column-values', methods=['POST'])
+@jwt_required()
+def get_column_values():
+    """Get distinct values and counts for a specific column"""
+    try:
+        data = request.get_json()
+        table_name = data.get('table')
+        column_name = data.get('column')
+        filter_column = data.get('filter_column')  # Optional: filter by another column
+        filter_value = data.get('filter_value')    # Optional: value to filter by
+        
+        if not table_name or not column_name:
+            return jsonify({
+                'success': False,
+                'error': 'Table and column names are required'
+            }), 400
+        
+        db = AzureSQLService()
+        
+        # Build the WHERE clause
+        where_clause = ""
+        if filter_column and filter_value is not None:
+            where_clause = f"WHERE {filter_column} = '{filter_value}'"
+        
+        # Get value distribution
+        distribution_query = f"""
+        SELECT 
+            {column_name} as Value,
+            COUNT(*) as Count,
+            CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() as DECIMAL(5,2)) as Percentage
+        FROM ben002.{table_name}
+        {where_clause}
+        GROUP BY {column_name}
+        ORDER BY COUNT(*) DESC
+        """
+        
+        distribution = db.execute_query(distribution_query)
+        
+        # Get sample records for each value (limit to top 10 values)
+        samples = {}
+        if distribution and len(distribution) > 0:
+            # Get top 10 values by count
+            top_values = distribution[:10]
+            
+            for value_row in top_values:
+                value = value_row['Value']
+                # Get 3 sample records for this value
+                sample_query = f"""
+                SELECT TOP 3 *
+                FROM ben002.{table_name}
+                WHERE {column_name} {'IS NULL' if value is None else f"= '{value}'"}
+                {f"AND {where_clause[6:]}" if where_clause else ""}  # Add filter if exists
+                """
+                
+                try:
+                    sample_data = db.execute_query(sample_query)
+                    samples[str(value) if value is not None else 'NULL'] = sample_data
+                except:
+                    samples[str(value) if value is not None else 'NULL'] = []
+        
+        # Get total count
+        total_query = f"""
+        SELECT COUNT(*) as total
+        FROM ben002.{table_name}
+        {where_clause}
+        """
+        total_result = db.execute_query(total_query)
+        total_count = total_result[0]['total'] if total_result else 0
+        
+        return jsonify({
+            'success': True,
+            'table': table_name,
+            'column': column_name,
+            'filter': {'column': filter_column, 'value': filter_value} if filter_column else None,
+            'total_rows': total_count,
+            'unique_values': len(distribution),
+            'distribution': [
+                {
+                    'value': d['Value'],
+                    'count': d['Count'],
+                    'percentage': float(d['Percentage'])
+                }
+                for d in distribution
+            ],
+            'samples': samples
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting column values: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
