@@ -11,7 +11,8 @@ import {
   Package,
   Truck,
   Calculator,
-  History
+  History,
+  Database
 } from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
@@ -35,6 +36,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
     { name: 'Rental', icon: Truck, id: 'rental', permission: 'view_rental', department: 'Rental' },
     { name: 'Accounting', icon: Calculator, id: 'accounting', permission: 'view_accounting', department: 'Accounting' },
     { name: 'Minitrac', icon: History, id: 'minitrac', permission: 'view_minitrac' },
+    { name: 'Database Explorer', icon: Database, id: 'database-explorer', permission: 'manage_users' },
     { name: 'User Management', icon: Users, id: 'user-management', permission: 'manage_users' },
   ]
 
