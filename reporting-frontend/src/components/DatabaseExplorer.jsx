@@ -15,8 +15,8 @@ const DatabaseExplorer = ({ user }) => {
     try {
       setError(null);
       const token = localStorage.getItem('token');
-      // Use the simple schema endpoint
-      const response = await fetch(apiUrl('/api/database/simple-schema'), {
+      // Use the full schema endpoint for comprehensive data
+      const response = await fetch(apiUrl('/api/database/full-schema'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -29,7 +29,34 @@ const DatabaseExplorer = ({ user }) => {
 
       const data = await response.json();
       console.log('Database Explorer API Response:', data);
-      setDatabaseInfo(data);
+      
+      // Transform the full-schema response to match expected format
+      const tables = [];
+      if (data.schema) {
+        for (const [tableName, tableInfo] of Object.entries(data.schema)) {
+          if (!tableInfo.error) {
+            tables.push({
+              table_name: tableName,
+              row_count: tableInfo.row_count || 0,
+              columns: tableInfo.columns || [],
+              primary_keys: tableInfo.primary_keys || [],
+              relationships: tableInfo.foreign_keys || []
+            });
+          }
+        }
+      }
+      
+      setDatabaseInfo({
+        database: data.database,
+        total_tables: data.total_tables,
+        tables: tables,
+        summary: {
+          total_tables: data.total_tables,
+          total_rows: tables.reduce((sum, t) => sum + (t.row_count || 0), 0),
+          total_relationships: data.relationships ? data.relationships.length : 0
+        },
+        export_date: new Date().toISOString()
+      });
     } catch (err) {
       setError(err.message);
     } finally {
