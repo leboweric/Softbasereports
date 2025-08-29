@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { 
   Database, 
   RefreshCw,
@@ -16,7 +18,8 @@ import {
   Table,
   Copy,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  BarChart3
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
@@ -29,6 +32,16 @@ const TableDiscovery = () => {
   const [error, setError] = useState(null)
   const [copiedTable, setCopiedTable] = useState(null)
   const [expandedTables, setExpandedTables] = useState(new Set())
+  
+  // Column explorer state
+  const [columnExplorer, setColumnExplorer] = useState({
+    table: '',
+    column: '',
+    filterColumn: '',
+    filterValue: '',
+    loading: false,
+    results: null
+  })
 
   const fetchTables = async () => {
     setLoading(true)
@@ -176,6 +189,50 @@ const TableDiscovery = () => {
       newExpanded.add(tableName)
     }
     setExpandedTables(newExpanded)
+  }
+
+  const exploreColumnValues = async () => {
+    if (!columnExplorer.table || !columnExplorer.column) {
+      setError('Please enter both table and column names')
+      return
+    }
+
+    setColumnExplorer(prev => ({ ...prev, loading: true, results: null }))
+    setError(null)
+
+    try {
+      const token = localStorage.getItem('token')
+      const body = {
+        table: columnExplorer.table,
+        column: columnExplorer.column
+      }
+      
+      if (columnExplorer.filterColumn && columnExplorer.filterValue) {
+        body.filter_column = columnExplorer.filterColumn
+        body.filter_value = columnExplorer.filterValue
+      }
+
+      const response = await fetch(apiUrl('/api/database/column-values'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setColumnExplorer(prev => ({ ...prev, results: data }))
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to fetch column values')
+      }
+    } catch (err) {
+      setError('Network error: ' + err.message)
+    } finally {
+      setColumnExplorer(prev => ({ ...prev, loading: false }))
+    }
   }
 
   const renderTableList = (tableList, title) => (
@@ -419,6 +476,7 @@ const TableDiscovery = () => {
               <TabsTrigger value="tables">Tables ({tables.total_tables})</TabsTrigger>
               <TabsTrigger value="views">Views ({tables.total_views})</TabsTrigger>
               <TabsTrigger value="details">Table Details</TabsTrigger>
+              <TabsTrigger value="explorer">Column Explorer</TabsTrigger>
             </TabsList>
 
             <TabsContent value="tables">
@@ -431,6 +489,147 @@ const TableDiscovery = () => {
 
             <TabsContent value="details">
               {renderTableDetails()}
+            </TabsContent>
+
+            <TabsContent value="explorer">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Column Value Explorer</CardTitle>
+                  <CardDescription>
+                    Explore distinct values and distributions for any column
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="table">Table Name</Label>
+                      <Input
+                        id="table"
+                        placeholder="e.g., Equipment"
+                        value={columnExplorer.table}
+                        onChange={(e) => setColumnExplorer(prev => ({ ...prev, table: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="column">Column Name</Label>
+                      <Input
+                        id="column"
+                        placeholder="e.g., RentalStatus"
+                        value={columnExplorer.column}
+                        onChange={(e) => setColumnExplorer(prev => ({ ...prev, column: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="filterColumn">Filter Column (Optional)</Label>
+                      <Input
+                        id="filterColumn"
+                        placeholder="e.g., InventoryDept"
+                        value={columnExplorer.filterColumn}
+                        onChange={(e) => setColumnExplorer(prev => ({ ...prev, filterColumn: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="filterValue">Filter Value (Optional)</Label>
+                      <Input
+                        id="filterValue"
+                        placeholder="e.g., 60"
+                        value={columnExplorer.filterValue}
+                        onChange={(e) => setColumnExplorer(prev => ({ ...prev, filterValue: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={exploreColumnValues}
+                    disabled={columnExplorer.loading}
+                    className="w-full"
+                  >
+                    {columnExplorer.loading ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Exploring...
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                        Explore Column Values
+                      </>
+                    )}
+                  </Button>
+
+                  {columnExplorer.results && (
+                    <div className="space-y-4 mt-6">
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-gray-600">Total Rows</div>
+                          <div className="text-xl font-semibold">{columnExplorer.results.total_rows?.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-gray-600">Unique Values</div>
+                          <div className="text-xl font-semibold">{columnExplorer.results.unique_values}</div>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded">
+                          <div className="text-gray-600">Table.Column</div>
+                          <div className="text-xl font-semibold">{columnExplorer.results.table}.{columnExplorer.results.column}</div>
+                        </div>
+                      </div>
+
+                      {columnExplorer.results.filter && (
+                        <Alert>
+                          <AlertDescription>
+                            Filtered by {columnExplorer.results.filter.column} = {columnExplorer.results.filter.value}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      <div>
+                        <h3 className="font-semibold mb-2">Value Distribution</h3>
+                        <div className="max-h-96 overflow-y-auto border rounded">
+                          <table className="w-full">
+                            <thead className="bg-gray-50 sticky top-0">
+                              <tr>
+                                <th className="text-left p-2 border-b">Value</th>
+                                <th className="text-right p-2 border-b">Count</th>
+                                <th className="text-right p-2 border-b">Percentage</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {columnExplorer.results.distribution.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                  <td className="p-2 border-b font-mono text-sm">
+                                    {item.value === null ? <span className="text-gray-400">NULL</span> : item.value}
+                                  </td>
+                                  <td className="text-right p-2 border-b">{item.count.toLocaleString()}</td>
+                                  <td className="text-right p-2 border-b">{item.percentage}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {columnExplorer.results.samples && Object.keys(columnExplorer.results.samples).length > 0 && (
+                        <div>
+                          <h3 className="font-semibold mb-2">Sample Records</h3>
+                          <div className="space-y-2">
+                            {Object.entries(columnExplorer.results.samples).slice(0, 3).map(([value, records]) => (
+                              <div key={value} className="border rounded p-3">
+                                <div className="font-medium mb-2">Value: {value}</div>
+                                <pre className="text-xs bg-gray-50 p-2 rounded overflow-x-auto">
+                                  {JSON.stringify(records, null, 2)}
+                                </pre>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </>
