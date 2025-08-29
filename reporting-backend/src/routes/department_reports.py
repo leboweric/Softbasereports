@@ -7438,8 +7438,6 @@ def register_department_routes(reports_bp):
             WHERE 
             -- PRIMARY FILTER: Equipment with valid rental status
             e.RentalStatus IN ('Ready To Rent', 'Hold')
-            -- EXCLUDE units with no rental rates (not actual rental units)
-            AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
             -- EXCLUDE specific problem unit numbers identified
             AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
                                 'TUGBAT', 'RTRSEL', 'SER01')
@@ -7494,8 +7492,6 @@ def register_department_routes(reports_bp):
                 WHERE 
                 -- PRIMARY FILTER: Equipment with valid rental status
                 e.RentalStatus IN ('Ready To Rent', 'Hold')
-                -- EXCLUDE units with no rental rates (not actual rental units)
-                AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
                 -- EXCLUDE specific problem unit numbers identified
                 AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
                                     'TUGBAT', 'RTRSEL', 'SER01')
