@@ -157,4 +157,8 @@ Backend requires:
 - PORT
 
 ## Database Schema
-For complete schema, use Database Explorer in app and export JSON.
+**📚 COMPLETE SCHEMA DOCUMENTATION: See [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)**
+- Detailed table structures, column types, and relationships
+- Common join patterns and gotchas
+- Data quality issues and workarounds
+- For live exploration: Use Database Explorer in app menu
