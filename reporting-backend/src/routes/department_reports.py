@@ -7368,8 +7368,8 @@ def register_department_routes(reports_bp):
             logger.info("Starting rental availability report")
             db = get_db()
             
-            # Get ALL rental equipment - include those with rental rates, rental status, or rental history
-            # UPDATED: Added filtering for sold units, non-rental units, and deleted equipment
+            # Get ONLY actual rental equipment based on discovered RentalStatus values
+            # UPDATED 2025-08-29: Based on diagnostic, only "Ready To Rent" and "Hold" exist
             combined_query = """
             SELECT DISTINCT
                 e.UnitNo, 
@@ -7378,9 +7378,6 @@ def register_department_routes(reports_bp):
                 e.Model, 
                 e.Location,
                 e.CustomerNo,
-                e.InventoryDept,
-                e.DeletionTime,
-                e.IsDeleted,
                 -- Try to get actual rental customer from WO table if available
                 COALESCE(rental_cust.Name, c.Name) as CustomerName,
                 COALESCE(rental_cust.Address, c.Address) as CustomerAddress,
@@ -7391,7 +7388,6 @@ def register_department_routes(reports_bp):
                     WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                     WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
                     WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
-                    WHEN e.RentalStatus = 'Available' THEN 'Available'
                     ELSE 'Available'
                 END as Status,
                 e.RentalStatus as OriginalStatus,
@@ -7436,40 +7432,24 @@ def register_department_routes(reports_bp):
             ) rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
             -- Get the actual rental customer
             LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
-            WHERE (
-                -- Has rental rates set
-                (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
-                -- OR has rental status
-                OR (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
-                -- OR has rental history
+            WHERE 
+            -- PRIMARY FILTER: Must have valid rental status OR recent rental activity
+            (
+                -- Has one of the two valid rental statuses
+                e.RentalStatus IN ('Ready To Rent', 'Hold')
+                -- OR has rental activity in the last 6 months
                 OR EXISTS (
-                    SELECT 1 FROM ben002.RentalHistory rh_any
-                    WHERE rh_any.SerialNo = e.SerialNo 
-                    AND rh_any.DaysRented > 0
-                )
-            )
-            -- CRITICAL FILTERS TO EXCLUDE SOLD/DISPOSED UNITS
-            AND (e.DeletionTime IS NULL)  -- Not deleted
-            AND (e.IsDeleted IS NULL OR e.IsDeleted = 0)  -- Not marked as deleted
-            AND (e.InventoryDept = 40 OR e.InventoryDept IS NULL)  -- Only rental dept or unassigned
-            -- Exclude specific statuses that indicate sold/disposed
-            AND (e.RentalStatus IS NULL 
-                OR e.RentalStatus NOT IN ('Sold', 'Disposed', 'Scrapped', 'Transferred')
-                OR e.RentalStatus = 'Available' 
-                OR e.RentalStatus = 'Ready To Rent'
-                OR e.RentalStatus = 'Hold'
-                OR e.RentalStatus = 'On Rent')
-            -- Exclude equipment that hasn't had rental activity in over 12 months (likely sold)
-            AND (
-                EXISTS (
                     SELECT 1 FROM ben002.RentalHistory rh_recent
                     WHERE rh_recent.SerialNo = e.SerialNo 
-                    AND ((rh_recent.Year = YEAR(GETDATE()) 
-                          OR (rh_recent.Year = YEAR(GETDATE()) - 1 AND rh_recent.Month >= MONTH(GETDATE()))))
+                    AND rh_recent.DaysRented > 0
+                    AND (
+                        (rh_recent.Year = YEAR(GETDATE()) AND rh_recent.Month >= MONTH(GETDATE()) - 6)
+                        OR (rh_recent.Year = YEAR(GETDATE()) - 1 AND rh_recent.Month >= MONTH(GETDATE()) + 6)
+                    )
                 )
-                OR e.RentalStatus IN ('Available', 'Ready To Rent', 'Hold', 'On Rent')
-                OR (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
             )
+            -- AND has rental rates (indicating it's set up for rental)
+            AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
             """
             
             # Try the enhanced query, but fall back to simple query if it fails
@@ -7487,9 +7467,6 @@ def register_department_routes(reports_bp):
                     e.Model, 
                     e.Location,
                     e.CustomerNo,
-                    e.InventoryDept,
-                    e.DeletionTime,
-                    e.IsDeleted,
                     c.Name as CustomerName,
                     c.Address as CustomerAddress,
                     c.City as CustomerCity,
@@ -7499,7 +7476,6 @@ def register_department_routes(reports_bp):
                         WHEN e.RentalStatus = 'Hold' THEN 'Hold'
                         WHEN rh_current.SerialNo IS NOT NULL AND rh_current.DaysRented > 0 THEN 'On Rent'
                         WHEN e.RentalStatus = 'Ready To Rent' THEN 'Available'
-                        WHEN e.RentalStatus = 'Available' THEN 'Available'
                         ELSE 'Available'
                     END as Status,
                     e.RentalStatus as OriginalStatus,
@@ -7516,40 +7492,24 @@ def register_department_routes(reports_bp):
                     AND rh_current.Month = MONTH(GETDATE())
                     AND rh_current.DaysRented > 0
                     AND rh_current.DeletionTime IS NULL
-                WHERE (
-                    -- Has rental rates set
-                    (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
-                    -- OR has rental status
-                    OR (e.RentalStatus IS NOT NULL AND e.RentalStatus != '')
-                    -- OR has rental history
+                WHERE 
+                -- PRIMARY FILTER: Must have valid rental status OR recent rental activity
+                (
+                    -- Has one of the two valid rental statuses
+                    e.RentalStatus IN ('Ready To Rent', 'Hold')
+                    -- OR has rental activity in the last 6 months
                     OR EXISTS (
-                        SELECT 1 FROM ben002.RentalHistory rh_any
-                        WHERE rh_any.SerialNo = e.SerialNo 
-                        AND rh_any.DaysRented > 0
-                    )
-                )
-                -- CRITICAL FILTERS TO EXCLUDE SOLD/DISPOSED UNITS
-                AND (e.DeletionTime IS NULL)  -- Not deleted
-                AND (e.IsDeleted IS NULL OR e.IsDeleted = 0)  -- Not marked as deleted
-                AND (e.InventoryDept = 40 OR e.InventoryDept IS NULL)  -- Only rental dept or unassigned
-                -- Exclude specific statuses that indicate sold/disposed
-                AND (e.RentalStatus IS NULL 
-                    OR e.RentalStatus NOT IN ('Sold', 'Disposed', 'Scrapped', 'Transferred')
-                    OR e.RentalStatus = 'Available' 
-                    OR e.RentalStatus = 'Ready To Rent'
-                    OR e.RentalStatus = 'Hold'
-                    OR e.RentalStatus = 'On Rent')
-                -- Exclude equipment that hasn't had rental activity in over 12 months (likely sold)
-                AND (
-                    EXISTS (
                         SELECT 1 FROM ben002.RentalHistory rh_recent
                         WHERE rh_recent.SerialNo = e.SerialNo 
-                        AND ((rh_recent.Year = YEAR(GETDATE()) 
-                              OR (rh_recent.Year = YEAR(GETDATE()) - 1 AND rh_recent.Month >= MONTH(GETDATE()))))
+                        AND rh_recent.DaysRented > 0
+                        AND (
+                            (rh_recent.Year = YEAR(GETDATE()) AND rh_recent.Month >= MONTH(GETDATE()) - 6)
+                            OR (rh_recent.Year = YEAR(GETDATE()) - 1 AND rh_recent.Month >= MONTH(GETDATE()) + 6)
+                        )
                     )
-                    OR e.RentalStatus IN ('Available', 'Ready To Rent', 'Hold', 'On Rent')
-                    OR (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
                 )
+                -- AND has rental rates (indicating it's set up for rental)
+                AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
