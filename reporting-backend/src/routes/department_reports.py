@@ -7433,23 +7433,8 @@ def register_department_routes(reports_bp):
             -- Get the actual rental customer
             LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
             WHERE 
-            -- PRIMARY FILTER: Must have valid rental status OR recent rental activity
-            (
-                -- Has one of the two valid rental statuses
-                e.RentalStatus IN ('Ready To Rent', 'Hold')
-                -- OR has rental activity in the last 6 months
-                OR EXISTS (
-                    SELECT 1 FROM ben002.RentalHistory rh_recent
-                    WHERE rh_recent.SerialNo = e.SerialNo 
-                    AND rh_recent.DaysRented > 0
-                    AND (
-                        (rh_recent.Year = YEAR(GETDATE()) AND rh_recent.Month >= MONTH(GETDATE()) - 6)
-                        OR (rh_recent.Year = YEAR(GETDATE()) - 1 AND rh_recent.Month >= MONTH(GETDATE()) + 6)
-                    )
-                )
-            )
-            -- AND has rental rates (indicating it's set up for rental)
-            AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
+            -- PRIMARY FILTER: Equipment with valid rental status
+            e.RentalStatus IN ('Ready To Rent', 'Hold')
             """
             
             # Try the enhanced query, but fall back to simple query if it fails
@@ -7493,23 +7478,8 @@ def register_department_routes(reports_bp):
                     AND rh_current.DaysRented > 0
                     AND rh_current.DeletionTime IS NULL
                 WHERE 
-                -- PRIMARY FILTER: Must have valid rental status OR recent rental activity
-                (
-                    -- Has one of the two valid rental statuses
-                    e.RentalStatus IN ('Ready To Rent', 'Hold')
-                    -- OR has rental activity in the last 6 months
-                    OR EXISTS (
-                        SELECT 1 FROM ben002.RentalHistory rh_recent
-                        WHERE rh_recent.SerialNo = e.SerialNo 
-                        AND rh_recent.DaysRented > 0
-                        AND (
-                            (rh_recent.Year = YEAR(GETDATE()) AND rh_recent.Month >= MONTH(GETDATE()) - 6)
-                            OR (rh_recent.Year = YEAR(GETDATE()) - 1 AND rh_recent.Month >= MONTH(GETDATE()) + 6)
-                        )
-                    )
-                )
-                -- AND has rental rates (indicating it's set up for rental)
-                AND (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
+                -- PRIMARY FILTER: Equipment with valid rental status
+                e.RentalStatus IN ('Ready To Rent', 'Hold')
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
