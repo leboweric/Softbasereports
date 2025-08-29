@@ -2103,22 +2103,23 @@ def register_department_routes(reports_bp):
                 prev_year = current_year
             
             # Get rental revenue through same day for current and previous month
+            # Use RentalTaxable + RentalNonTax to match the monthly revenue calculation
             current_query = f"""
-            SELECT SUM(GrandTotal) as total_revenue
+            SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
             FROM ben002.InvoiceReg
             WHERE YEAR(InvoiceDate) = {current_year}
                 AND MONTH(InvoiceDate) = {current_month}
                 AND DAY(InvoiceDate) <= {current_day}
-                AND SaleCode IN ('RENT', 'RENTR', 'RENTE', 'RENTM', 'RENTS', 'RENTRS')
+                AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
             """
             
             prev_query = f"""
-            SELECT SUM(GrandTotal) as total_revenue
+            SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
             FROM ben002.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND DAY(InvoiceDate) <= {current_day}
-                AND SaleCode IN ('RENT', 'RENTR', 'RENTE', 'RENTM', 'RENTS', 'RENTRS')
+                AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
             """
             
             current_result = db.execute_query(current_query)
