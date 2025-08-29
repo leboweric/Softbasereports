@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 rental_investigation_bp = Blueprint('rental_investigation', __name__)
 
 @rental_investigation_bp.route('/api/rental/investigate-units', methods=['GET'])
-@jwt_required()
 def investigate_units():
     """Investigate specific units to understand rental status issues"""
     
