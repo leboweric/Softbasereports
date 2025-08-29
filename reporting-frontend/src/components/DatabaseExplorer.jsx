@@ -15,8 +15,8 @@ const DatabaseExplorer = ({ user }) => {
     try {
       setError(null);
       const token = localStorage.getItem('token');
-      // Temporarily use simple endpoint for debugging
-      const response = await fetch(apiUrl('/api/reports/database-explorer-simple'), {
+      // Use the simple schema endpoint
+      const response = await fetch(apiUrl('/api/database/simple-schema'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
