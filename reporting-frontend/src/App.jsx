@@ -6,6 +6,7 @@ import AIQuery from './components/AIQuery'
 import ReportCreator from './components/ReportCreator'
 import Reports from './components/Reports'
 import DatabaseExplorer from './components/DatabaseExplorer'
+import RentalDiagnostic from './components/RentalDiagnostic'
 import ServiceReport from './components/departments/ServiceReport'
 import PartsReport from './components/departments/PartsReport'
 import RentalReport from './components/departments/RentalReport'
@@ -106,6 +107,8 @@ function App() {
         return <Reports user={user} organization={organization} />
       case 'database-explorer':
         return <DatabaseExplorer user={user} organization={organization} />
+      case 'rental-diagnostic':
+        return <RentalDiagnostic user={user} organization={organization} />
       case 'service':
         return <ServiceReport user={user} organization={organization} onNavigate={handleNavigate} />
       case 'parts':
