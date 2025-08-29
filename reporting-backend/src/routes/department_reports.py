@@ -7436,8 +7436,15 @@ def register_department_routes(reports_bp):
             -- Get the actual rental customer
             LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
             WHERE 
-            -- PRIMARY FILTER: Equipment with valid rental status
-            e.RentalStatus IN ('Ready To Rent', 'Hold')
+            -- Include equipment that is either:
+            -- 1. Marked as rental status OR
+            -- 2. Currently on rent (in RentalHistory) OR  
+            -- 3. Has InventoryDept = 10 (rental department)
+            (
+                e.RentalStatus IN ('Ready To Rent', 'Hold')
+                OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
+                OR e.InventoryDept = 10  -- Rental department inventory
+            )
             -- EXCLUDE specific problem unit numbers identified
             AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
                                 'TUGBAT', 'RTRSEL', 'SER01')
@@ -7490,8 +7497,15 @@ def register_department_routes(reports_bp):
                     AND rh_current.DaysRented > 0
                     AND rh_current.DeletionTime IS NULL
                 WHERE 
-                -- PRIMARY FILTER: Equipment with valid rental status
-                e.RentalStatus IN ('Ready To Rent', 'Hold')
+                -- Include equipment that is either:
+                -- 1. Marked as rental status OR
+                -- 2. Currently on rent (in RentalHistory) OR  
+                -- 3. Has InventoryDept = 10 (rental department)
+                (
+                    e.RentalStatus IN ('Ready To Rent', 'Hold')
+                    OR rh_current.SerialNo IS NOT NULL  -- Currently on rent
+                    OR e.InventoryDept = 10  -- Rental department inventory
+                )
                 -- EXCLUDE specific problem unit numbers identified
                 AND e.UnitNo NOT IN ('293060', '218919', 'Z452512A-43084', 'PBATRO1', 'PBATSL1', 
                                     'TUGBAT', 'RTRSEL', 'SER01')
