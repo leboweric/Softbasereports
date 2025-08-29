@@ -7440,9 +7440,6 @@ def register_department_routes(reports_bp):
             WHERE 
             -- PRIMARY FILTER: Units owned by Rental Department
             e.InventoryDept = 60
-            
-            -- EXCLUDE deleted units (should be none based on data)
-            AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
             """
             
             # Try the enhanced query, but fall back to simple query if it fails
@@ -7490,9 +7487,6 @@ def register_department_routes(reports_bp):
                 WHERE 
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
-                
-                -- EXCLUDE deleted units (should be none based on data)
-                AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
                 """
                 simple_result = db.execute_query(fallback_query)
                 logger.info(f"Fallback query found {len(simple_result) if simple_result else 0} records")
