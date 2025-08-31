@@ -7,7 +7,6 @@ import {
   Truck, 
   CheckCircle, 
   XCircle, 
-  PauseCircle, 
   Download,
   Search,
   RefreshCw,
@@ -53,8 +52,7 @@ const RentalAvailability = () => {
         // Define sort order
         const statusOrder = {
           'Available': 1,
-          'On Rent': 2,
-          'Hold': 3
+          'On Rent': 2
         }
         const aOrder = statusOrder[a.status] || 99
         const bOrder = statusOrder[b.status] || 99
@@ -90,8 +88,6 @@ const RentalAvailability = () => {
         return <Badge className="bg-green-100 text-green-800 border-green-200">Available</Badge>
       case 'On Rent':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-200">On Rent</Badge>
-      case 'Hold':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Hold</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -229,7 +225,7 @@ const RentalAvailability = () => {
       {showDebug && <RentalAvailabilityDebug />}
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
@@ -263,19 +259,6 @@ const RentalAvailability = () => {
               <span className="text-2xl font-bold text-blue-600">{summary.onRentUnits || 0}</span>
             </div>
             <p className="text-xs text-muted-foreground">Currently rented</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Hold</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center">
-              <PauseCircle className="h-4 w-4 text-yellow-600 mr-2" />
-              <span className="text-2xl font-bold text-yellow-600">{summary.onHoldUnits || 0}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">Temporarily unavailable</p>
           </CardContent>
         </Card>
 
@@ -337,7 +320,6 @@ const RentalAvailability = () => {
               <option value="all">All Status</option>
               <option value="Available">Available</option>
               <option value="On Rent">On Rent</option>
-              <option value="Hold">Hold</option>
             </select>
           </div>
 
