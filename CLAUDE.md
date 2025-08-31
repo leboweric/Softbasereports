@@ -104,14 +104,23 @@ Used for custom data not in Softbase:
 **Key Learning: Never assume data values - always verify actual database content**
 
 #### Solution Summary
-The report filters equipment by `InventoryDept = 60` (Rental Department). This single filter automatically excludes all problematic units (sold, non-rental, transferred) because those units exist in OTHER departments, not Department 60.
+The report determines rental status by checking for OPEN rental work orders in Softbase, matching the "WIP > Open Rental Orders" section in the Equipment Setup screen.
 
 #### Technical Details
 - **Primary Filter**: `e.InventoryDept = 60` - Units owned by Rental Department
-- **On Rent Detection**: Join with `RentalHistory` table for current month where `DaysRented > 0`
-- **Available Status**: Department 60 units NOT in current month's RentalHistory
-- **Data Discovery**: Department 60 has only 3 RentalStatus values: NULL, 'Ready To Rent', 'Hold'
-- **Location Field**: All Department 60 units have NULL Location values
+- **Customer Owned Filter**: `AND (e.Customer = 0 OR e.Customer IS NULL)` - Excludes customer-owned equipment
+- **On Rent Detection**: Check for open rental work orders:
+  - Join with `WORental` and `WO` tables
+  - `WHERE wo.Type = 'R' AND wo.ClosedDate IS NULL`
+  - **CRITICAL**: Exclude quotes with `AND wo.WONo NOT LIKE '9%'`
+- **Available Status**: Units with no open rental work orders (excluding quotes)
+
+#### Quotes vs Work Orders
+**IMPORTANT: Quotes are NOT rental orders!**
+- **Quotes**: WO numbers starting with '9' (e.g., 91600003)
+- **Work Orders**: WO numbers starting with '13' or other numbers (e.g., 130000713, 16001378)
+- **Why this matters**: Quotes can appear in WORental table with Type='R' but are NOT actual rentals
+- **Softbase Logic**: "Open Rental Orders" section only shows actual work orders, not quotes
 
 #### Column Explorer Tool
 Added to Table Discovery to analyze actual database values:
