@@ -7436,8 +7436,8 @@ def register_department_routes(reports_bp):
                 WHERE wo.Type = 'R'
                 AND wo.ClosedDate IS NULL  -- This is the key: OPEN rental orders only
                 AND wo.DeletionTime IS NULL
-                -- Add date filter to exclude future-dated WOs (data quality issue)
-                AND wo.OpenDate <= GETDATE()
+                -- Exclude quotes (WO numbers starting with 9)
+                AND wo.WONo NOT LIKE '9%'
                 -- Ensure we have valid unit/serial matches
                 AND (wr.UnitNo IS NOT NULL AND wr.UnitNo != '' 
                      OR wr.SerialNo IS NOT NULL AND wr.SerialNo != '')
@@ -7520,8 +7520,8 @@ def register_department_routes(reports_bp):
                     WHERE wo.Type = 'R'
                     AND wo.ClosedDate IS NULL  -- OPEN rental orders only
                     AND wo.DeletionTime IS NULL
-                    -- Add date filter to exclude future-dated WOs (data quality issue)
-                    AND wo.OpenDate <= GETDATE()
+                    -- Exclude quotes (WO numbers starting with 9)
+                    AND wo.WONo NOT LIKE '9%'
                     -- Ensure we have valid unit/serial matches
                     AND (wr.UnitNo IS NOT NULL AND wr.UnitNo != '' 
                          OR wr.SerialNo IS NOT NULL AND wr.SerialNo != '')
