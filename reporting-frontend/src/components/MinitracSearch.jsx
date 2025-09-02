@@ -345,7 +345,7 @@ const MinitracSearch = () => {
                         {getSortIcon('net_book_val')}
                       </div>
                     </TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>Details</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
