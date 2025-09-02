@@ -156,26 +156,45 @@ const RentalAvailability = () => {
   const exportToCSV = () => {
     const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To / Customer', 'State']
     
+    // Helper function to clean and standardize cell data
+    const cleanCell = (value) => {
+      // Handle null/undefined
+      if (value === null || value === undefined) return ''
+      
+      // Convert to string and trim whitespace
+      const str = String(value).trim()
+      
+      // Return empty string for falsy values after trim
+      if (!str) return ''
+      
+      return str
+    }
+    
+    // Helper function to format cell for CSV
+    const formatCSVCell = (value) => {
+      const cleaned = cleanCell(value)
+      
+      // Always quote cells to ensure consistent formatting in spreadsheet apps
+      // This prevents Excel from auto-formatting and ensures alignment
+      return `"${cleaned.replace(/"/g, '""')}"`
+    }
+    
     const rows = filteredAndSortedEquipment.map(item => [
-      item.make || '',
-      item.model || '',
-      item.unitNo || '',
-      item.serialNo || '',
-      item.status || '',
-      item.shipAddress || '',
-      item.shipState || ''
+      formatCSVCell(item.make),
+      formatCSVCell(item.model),
+      formatCSVCell(item.unitNo),
+      formatCSVCell(item.serialNo),
+      formatCSVCell(item.status),
+      formatCSVCell(item.shipAddress),
+      formatCSVCell(item.shipState)
     ])
     
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => {
-        const cellStr = String(cell)
-        if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
-          return `"${cellStr.replace(/"/g, '""')}"`
-        }
-        return cellStr
-      }).join(','))
-    ].join('\n')
+    // Add BOM for UTF-8 to ensure proper character encoding in Excel
+    const BOM = '\uFEFF'
+    const csvContent = BOM + [
+      headers.map(h => formatCSVCell(h)).join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\r\n') // Use Windows line endings for better Excel compatibility
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
