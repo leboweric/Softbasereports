@@ -4,9 +4,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Search, Download, FileText, DollarSign, Calendar, Gauge, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, Search, Download, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
 const MinitracSearch = () => {
@@ -26,12 +26,7 @@ const MinitracSearch = () => {
   const [loading, setLoading] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState(null);
   const [unitDetails, setUnitDetails] = useState(null);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    per_page: 50,
-    total: 0,
-    total_pages: 0
-  });
+  const [totalResults, setTotalResults] = useState(0);
   const [sortConfig, setSortConfig] = useState({
     key: null,
     direction: 'asc'
@@ -59,7 +54,7 @@ const MinitracSearch = () => {
     }
   };
 
-  const handleSearch = async (page = 1) => {
+  const handleSearch = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -67,9 +62,7 @@ const MinitracSearch = () => {
         search: searchTerm,
         category: filters.category,
         status: filters.status,
-        make: filters.make,
-        page: page,
-        per_page: 50
+        make: filters.make
       });
 
       const response = await fetch(apiUrl(`/api/minitrac/search?${params}`), {
@@ -81,7 +74,7 @@ const MinitracSearch = () => {
       
       if (data.success) {
         setResults(data.data);
-        setPagination(data.pagination);
+        setTotalResults(data.total || data.data.length);
       }
     } catch (error) {
       console.error('Error searching:', error);
@@ -281,7 +274,7 @@ const MinitracSearch = () => {
         <Card>
           <CardHeader>
             <CardTitle>
-              Search Results ({pagination.total} total)
+              Search Results ({totalResults} total)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -414,32 +407,6 @@ const MinitracSearch = () => {
               </Table>
             </div>
 
-            {/* Pagination */}
-            {pagination.total_pages > 1 && (
-              <div className="flex justify-between items-center mt-4">
-                <div className="text-sm text-gray-600">
-                  Page {pagination.page} of {pagination.total_pages}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSearch(pagination.page - 1)}
-                    disabled={pagination.page === 1}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleSearch(pagination.page + 1)}
-                    disabled={pagination.page === pagination.total_pages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}

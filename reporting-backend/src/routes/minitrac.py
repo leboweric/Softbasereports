@@ -26,8 +26,6 @@ def search_equipment():
         customer = request.args.get('customer', '').strip()
         make = request.args.get('make', '').strip()
         model = request.args.get('model', '').strip()
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 50))
         
         # Build query
         query_parts = []
@@ -97,14 +95,10 @@ def search_equipment():
             query_parts.append("AND model ILIKE %s")
             params.append(f'%{model}%')
         
-        # Count total results
-        count_query = f"SELECT COUNT(*) as total FROM minitrac_equipment WHERE 1=1 {''.join(query_parts)}"
+        # Add ordering (no pagination - return all results)
+        query = base_query + ''.join(query_parts) + " ORDER BY unit_num"
         
-        # Add ordering and pagination
-        query = base_query + ''.join(query_parts) + " ORDER BY unit_num LIMIT %s OFFSET %s"
-        params.extend([per_page, (page - 1) * per_page])
-        
-        # Execute queries
+        # Execute query
         pg_service = PostgreSQLService()
         with pg_service.get_connection() as conn:
             if conn is None:
@@ -112,11 +106,7 @@ def search_equipment():
             
             cursor = conn.cursor()
             
-            # Get total count
-            cursor.execute(count_query, params[:-2])  # Exclude pagination params
-            total_count = cursor.fetchone()['total']
-            
-            # Get results
+            # Get all results (no pagination)
             cursor.execute(query, params)
             results = cursor.fetchall()
             
@@ -125,12 +115,7 @@ def search_equipment():
         return jsonify({
             'success': True,
             'data': results,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total_count,
-                'total_pages': (total_count + per_page - 1) // per_page
-            }
+            'total': len(results)
         })
         
     except Exception as e:
