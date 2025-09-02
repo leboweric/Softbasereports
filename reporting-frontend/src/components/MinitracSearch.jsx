@@ -293,15 +293,6 @@ const MinitracSearch = () => {
                     </TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-gray-50" 
-                      onClick={() => handleSort('category')}
-                    >
-                      <div className="flex items-center">
-                        Category
-                        {getSortIcon('category')}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50" 
                       onClick={() => handleSort('serial')}
                     >
                       <div className="flex items-center">
@@ -338,15 +329,6 @@ const MinitracSearch = () => {
                     </TableHead>
                     <TableHead 
                       className="cursor-pointer hover:bg-gray-50" 
-                      onClick={() => handleSort('status')}
-                    >
-                      <div className="flex items-center">
-                        Status
-                        {getSortIcon('status')}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50" 
                       onClick={() => handleSort('ship_name')}
                     >
                       <div className="flex items-center">
@@ -363,15 +345,6 @@ const MinitracSearch = () => {
                         {getSortIcon('net_book_val')}
                       </div>
                     </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-gray-50" 
-                      onClick={() => handleSort('ytd_income')}
-                    >
-                      <div className="flex items-center">
-                        YTD Income
-                        {getSortIcon('ytd_income')}
-                      </div>
-                    </TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -379,19 +352,12 @@ const MinitracSearch = () => {
                   {sortedResults.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-mono">{item.unit_num}</TableCell>
-                      <TableCell>{item.category}</TableCell>
                       <TableCell>{item.serial || '-'}</TableCell>
                       <TableCell>{item.make || '-'}</TableCell>
                       <TableCell>{item.model || '-'}</TableCell>
                       <TableCell>{item.year || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={item.status === 'A' ? 'success' : 'secondary'}>
-                          {item.status || '-'}
-                        </Badge>
-                      </TableCell>
                       <TableCell>{item.ship_name || '-'}</TableCell>
                       <TableCell className="text-right">{formatCurrency(item.net_book_val)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(item.ytd_income)}</TableCell>
                       <TableCell>
                         <Button
                           size="sm"
