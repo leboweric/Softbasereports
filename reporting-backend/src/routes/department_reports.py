@@ -7563,6 +7563,7 @@ def register_department_routes(reports_bp):
                         'billTo': row.get('CustomerName', '') if status == 'On Rent' else '',
                         'shipTo': '',  # Deprecated - using shipAddress instead
                         'shipAddress': ship_info,
+                        'shipState': row.get('CustomerState', '') if status == 'On Rent' else '',
                         'shipContact': '',
                         'location': row.get('Location', ''),
                         'dayRate': float(row.get('DayRent', 0) or 0),

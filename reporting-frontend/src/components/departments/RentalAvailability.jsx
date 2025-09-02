@@ -102,7 +102,8 @@ const RentalAvailability = () => {
         (item.unitNo && item.unitNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.serialNo && item.serialNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.billTo && item.billTo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.shipAddress && item.shipAddress.toLowerCase().includes(searchTerm.toLowerCase()))
+        (item.shipAddress && item.shipAddress.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.shipState && item.shipState.toLowerCase().includes(searchTerm.toLowerCase()))
       
       return matchesStatus && matchesSearch
     })
@@ -137,6 +138,10 @@ const RentalAvailability = () => {
           aValue = a.shipAddress || ''
           bValue = b.shipAddress || ''
           break
+        case 'shipState':
+          aValue = a.shipState || ''
+          bValue = b.shipState || ''
+          break
         default:
           return 0
       }
@@ -149,7 +154,7 @@ const RentalAvailability = () => {
     })
 
   const exportToCSV = () => {
-    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To / Customer']
+    const headers = ['Make', 'Model', 'Unit Number', 'Serial Number', 'Status', 'Ship To / Customer', 'State']
     
     const rows = filteredAndSortedEquipment.map(item => [
       item.make || '',
@@ -157,7 +162,8 @@ const RentalAvailability = () => {
       item.unitNo || '',
       item.serialNo || '',
       item.status || '',
-      item.shipAddress || ''
+      item.shipAddress || '',
+      item.shipState || ''
     ])
     
     const csvContent = [
@@ -306,7 +312,7 @@ const RentalAvailability = () => {
             <div className="flex-1">
               <input
                 type="text"
-                placeholder="Search by make, model, unit #, serial #, or customer..."
+                placeholder="Search by make, model, unit #, serial #, customer, or state..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border rounded-md"
@@ -436,6 +442,24 @@ const RentalAvailability = () => {
                       )}
                     </div>
                   </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                    onClick={() => handleSort('shipState')}
+                  >
+                    <div className="flex items-center gap-1 group">
+                      <span className="group-hover:text-blue-600">State</span>
+                      {sortColumn === 'shipState' ? (
+                        sortDirection === 'asc' ? 
+                        <ChevronUp className="h-4 w-4 text-blue-600" /> : 
+                        <ChevronDown className="h-4 w-4 text-blue-600" />
+                      ) : (
+                        <div className="flex flex-col opacity-40 group-hover:opacity-100">
+                          <ChevronUp className="h-3 w-3 -mb-1" />
+                          <ChevronDown className="h-3 w-3" />
+                        </div>
+                      )}
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -447,11 +471,12 @@ const RentalAvailability = () => {
                     <TableCell>{item.serialNo || ''}</TableCell>
                     <TableCell>{getStatusBadge(item.status)}</TableCell>
                     <TableCell>{item.shipAddress || '-'}</TableCell>
+                    <TableCell>{item.shipState || '-'}</TableCell>
                   </TableRow>
                 ))}
                 {filteredAndSortedEquipment.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No equipment found matching your filters
                     </TableCell>
                   </TableRow>
