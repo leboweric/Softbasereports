@@ -82,7 +82,9 @@ class PermissionService:
             # Check if user has access to main nav item
             required_resource = nav_config.get('required_resource')
             
+            # If there's a required resource, check if user has access
             if required_resource and required_resource not in user_resources:
+                print(f"🔍 NAVIGATION DEBUG - Skipping {nav_id}: missing required resource {required_resource}")
                 continue
             
             # Filter tabs if they exist
@@ -92,10 +94,16 @@ class PermissionService:
                     if tab_config['resource'] in user_resources:
                         accessible_tabs[tab_id] = tab_config
                 
+                # Only include nav item if user has access to at least one tab
                 if accessible_tabs:
                     accessible_nav[nav_id] = {**nav_config, 'tabs': accessible_tabs}
+                    print(f"🔍 NAVIGATION DEBUG - Including {nav_id} with {len(accessible_tabs)} tabs")
+                else:
+                    print(f"🔍 NAVIGATION DEBUG - Skipping {nav_id}: no accessible tabs")
             else:
+                # No tabs, include the nav item
                 accessible_nav[nav_id] = nav_config
+                print(f"🔍 NAVIGATION DEBUG - Including {nav_id} (no tabs required)")
         
         return accessible_nav
     
