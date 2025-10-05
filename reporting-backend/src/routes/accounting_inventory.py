@@ -62,8 +62,9 @@ def get_accounting_inventory():
             AND wo.WONo NOT LIKE '9%'  -- Exclude quotes
         ) rental_check ON e.SerialNo = rental_check.SerialNo
         LEFT JOIN ben002.Depreciation d ON e.SerialNo = d.SerialNo
-            AND d.Inactive = 0  -- Only active depreciation records
+            AND d.Inactive = 0  -- Only active depreciation records (NOT IsDeleted)
         WHERE e.SerialNo IS NOT NULL
+            -- IsDeleted column removed - does not exist in Equipment table
         ORDER BY e.Make, e.Model, e.SerialNo
         """
         
