@@ -146,6 +146,65 @@ def initialize_specific_permissions():
         print(f"❌ Error creating specific permissions: {e}")
         raise
 
+def initialize_core_roles():
+    """Create all core roles from RBAC config"""
+    from src.config.rbac_config import ROLE_PERMISSIONS
+    
+    try:
+        for role_name, role_config in ROLE_PERMISSIONS.items():
+            # Check if role already exists
+            existing_role = Role.query.filter_by(name=role_name).first()
+            if existing_role:
+                print(f"✅ {role_name} role already exists")
+                continue
+            
+            print(f"🔧 Creating {role_name} role...")
+            
+            # Create the role
+            role = Role(
+                name=role_name,
+                description=f"Auto-generated {role_name} role",
+                department='All' if role_name in ['Super Admin', 'Leadership'] else 'Various',
+                level=1 if role_name == 'Super Admin' else 2
+            )
+            
+            db.session.add(role)
+            print(f"✅ {role_name} role created successfully")
+        
+        db.session.commit()
+        print("✅ All core roles initialized")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error creating core roles: {e}")
+        raise
+
+def assign_super_admin_to_existing_admin_users():
+    """Assign Super Admin role to users with legacy admin role"""
+    try:
+        from src.models.user import User
+        
+        # Get Super Admin role
+        super_admin_role = Role.query.filter_by(name='Super Admin').first()
+        if not super_admin_role:
+            print("⚠️ Super Admin role not found, skipping user assignment")
+            return
+        
+        # Find users with legacy admin role who don't have any RBAC roles
+        admin_users = User.query.filter_by(role='admin').all()
+        for user in admin_users:
+            if not user.roles:  # User has no RBAC roles assigned
+                user.roles.append(super_admin_role)
+                print(f"✅ Assigned Super Admin role to {user.username}")
+        
+        db.session.commit()
+        print("✅ Super Admin roles assigned to legacy admin users")
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error assigning Super Admin roles: {e}")
+        raise
+
 def initialize_all_rbac():
     """Initialize all RBAC roles and permissions"""
     print("🔧 Initializing RBAC system...")
@@ -154,8 +213,14 @@ def initialize_all_rbac():
         # First ensure specific permissions exist
         initialize_specific_permissions()
         
-        # Then create the Parts User role
+        # Create all core roles from RBAC config
+        initialize_core_roles()
+        
+        # Create the Parts User role (legacy)
         initialize_parts_user_role()
+        
+        # Assign Super Admin to existing admin users
+        assign_super_admin_to_existing_admin_users()
         
         print("✅ RBAC initialization complete")
         
