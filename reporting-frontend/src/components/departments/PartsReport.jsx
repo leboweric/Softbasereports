@@ -51,12 +51,15 @@ const PartsReport = ({ user, onNavigate }) => {
   // Get accessible tabs from user's navigation config
   const accessibleTabs = getAccessibleTabs(user, 'parts')
   
-  // Build tabs array from config
-  const tabs = Object.entries(accessibleTabs).map(([id, config]) => ({
-    value: id,
-    label: config.label,
-    resource: config.resource,
-  }))
+  // Build tabs array from config with desired order
+  const tabOrder = ['overview', 'work-orders', 'inventory-location', 'stock-alerts', 'forecast', 'employee-performance', 'velocity']
+  const tabs = tabOrder
+    .filter(id => accessibleTabs[id]) // Only include tabs user has access to
+    .map(id => ({
+      value: id,
+      label: accessibleTabs[id].label,
+      resource: accessibleTabs[id].resource,
+    }))
   const [partsData, setPartsData] = useState(null)
   const [fillRateData, setFillRateData] = useState(null)
   const [reorderAlertData, setReorderAlertData] = useState(null)
@@ -76,8 +79,8 @@ const PartsReport = ({ user, onNavigate }) => {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   
-  // Default to first available tab
-  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'work-orders')
+  // Default to first available tab (should be overview if accessible)
+  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'overview')
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {

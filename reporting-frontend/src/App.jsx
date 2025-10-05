@@ -63,8 +63,9 @@ function App() {
         // Check if current page is accessible
         const navigation = getAccessibleNavigation(userWithNavigation)
         if (!navigation[currentPage]) {
-          // Redirect to first available page
-          const firstAvailablePage = Object.keys(navigation)[0] || 'parts'
+          // Redirect to first available page using same order as Layout.jsx
+          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
+          const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
           setCurrentPage(firstAvailablePage)
         }
       } else {
@@ -93,7 +94,10 @@ function App() {
     // Use dynamic navigation to determine landing page
     const navigation = getAccessibleNavigation(userData)
     console.log('App handleLogin - getAccessibleNavigation result:', navigation)
-    const firstAvailablePage = Object.keys(navigation)[0] || 'parts'
+    
+    // Use same order as Layout.jsx to ensure Dashboard is first choice
+    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
+    const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
     console.log('App handleLogin - setting currentPage to:', firstAvailablePage)
     setCurrentPage(firstAvailablePage)
   }
@@ -131,8 +135,9 @@ function App() {
     
     // Check if user has access to current page
     if (!navigation[currentPage]) {
-      // Redirect to first available page
-      const firstAvailablePage = Object.keys(navigation)[0]
+      // Redirect to first available page using same order as Layout.jsx
+      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
+      const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0]
       if (firstAvailablePage && firstAvailablePage !== currentPage) {
         setCurrentPage(firstAvailablePage)
         // Return the default page immediately instead of null
