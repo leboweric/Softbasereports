@@ -211,6 +211,9 @@ const InventoryReport = ({ user }) => {
                     <TableHead>Status</TableHead>
                     {category === 'rental' && <TableHead>Location</TableHead>}
                     <TableHead className="text-right">Book Value</TableHead>
+                    <TableHead className="text-right">Gross Book Value</TableHead>
+                    <TableHead className="text-right">Accum. Depreciation</TableHead>
+                    <TableHead className="text-right">Net Book Value</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -241,11 +244,20 @@ const InventoryReport = ({ user }) => {
                       <TableCell className="text-right font-mono">
                         {formatCurrency(item.book_value)}
                       </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {item.gross_book_value !== null ? formatCurrency(item.gross_book_value) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {item.accumulated_depreciation !== null ? formatCurrency(item.accumulated_depreciation) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {item.net_book_value !== null ? formatCurrency(item.net_book_value) : '-'}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {data.items.length > 10 && (
                     <TableRow>
-                      <TableCell colSpan={category === 'rental' ? 5 : 4} className="text-center text-muted-foreground">
+                      <TableCell colSpan={category === 'rental' ? 8 : 7} className="text-center text-muted-foreground">
                         ... and {data.items.length - 10} more items
                       </TableCell>
                     </TableRow>

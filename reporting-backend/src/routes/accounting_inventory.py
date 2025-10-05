@@ -16,7 +16,7 @@ def get_accounting_inventory():
     try:
         db = AzureSQLService()
         
-        # Main query to get all equipment with financial and location details
+        # Main query to get all equipment with financial, location, and depreciation details
         main_query = """
         SELECT 
             e.SerialNo as control_number,
@@ -40,7 +40,14 @@ def get_accounting_inventory():
             CASE 
                 WHEN rental_check.is_on_rental = 1 THEN 'On Rental'
                 ELSE e.RentalStatus
-            END as current_status
+            END as current_status,
+            -- Add depreciation fields
+            d.StartingValue as gross_book_value,
+            d.NetBookValue as net_book_value,
+            (d.StartingValue - d.NetBookValue) as accumulated_depreciation,
+            d.Method as depreciation_method,
+            d.RemainingMonths,
+            d.TotalMonths
         FROM ben002.Equipment e
         LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
         LEFT JOIN (
@@ -54,6 +61,8 @@ def get_accounting_inventory():
             AND wo.ClosedDate IS NULL
             AND wo.WONo NOT LIKE '9%'  -- Exclude quotes
         ) rental_check ON e.SerialNo = rental_check.SerialNo
+        LEFT JOIN ben002.Depreciation d ON e.SerialNo = d.SerialNo
+            AND d.Inactive = 0  -- Only active depreciation records
         WHERE e.SerialNo IS NOT NULL
         AND (e.IsDeleted IS NULL OR e.IsDeleted = 0)
         ORDER BY e.Make, e.Model, e.SerialNo
@@ -91,9 +100,13 @@ def get_accounting_inventory():
                 'rental_itd': float(item['RentalITD']) if item['RentalITD'] else 0,
                 'day_rent': float(item['DayRent']) if item['DayRent'] else 0,
                 'month_rent': float(item['MonthRent']) if item['MonthRent'] else 0,
-                # Note: Gross book value and accumulated depreciation not available in current schema
-                'gross_book_value': None,
-                'accumulated_depreciation': None
+                # Depreciation data from Depreciation view
+                'gross_book_value': float(item['gross_book_value']) if item['gross_book_value'] else None,
+                'net_book_value': float(item['net_book_value']) if item['net_book_value'] else None,
+                'accumulated_depreciation': float(item['accumulated_depreciation']) if item['accumulated_depreciation'] else None,
+                'depreciation_method': item['depreciation_method'],
+                'remaining_months': item['RemainingMonths'],
+                'total_months': item['TotalMonths']
             }
             
             categories[category].append(formatted_item)
@@ -135,8 +148,9 @@ def get_accounting_inventory():
         
         # Add data quality notes
         summary['notes'] = [
-            "Book value represents original purchase cost",
-            "Gross book value and accumulated depreciation fields not available in current database schema",
+            "Book value represents original purchase cost from Equipment table",
+            "Depreciation data sourced from Depreciation view (active records only)",
+            "Gross book value, net book value, and accumulated depreciation available where depreciation records exist",
             "Rental equipment status determined by active work orders",
             "Location state shows current rental customer location"
         ]
