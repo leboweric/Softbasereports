@@ -52,6 +52,7 @@ from src.routes.postgres_diagnostic import postgres_diagnostic_bp
 from src.routes.minitrac import minitrac_bp
 from src.routes.user_management import user_management_bp
 from src.routes.password_fix import password_fix_bp
+from src.routes.password_fix_new import password_fix_bp as password_fix_new_bp
 from src.routes.temp_login import temp_login_bp
 from src.routes.user_diagnostic import user_diagnostic_bp
 from src.routes.commission_settings import commission_settings_bp
@@ -139,6 +140,7 @@ app.register_blueprint(postgres_diagnostic_bp)
 app.register_blueprint(minitrac_bp)
 app.register_blueprint(user_management_bp, url_prefix='/api')
 app.register_blueprint(password_fix_bp)
+app.register_blueprint(password_fix_new_bp)
 app.register_blueprint(temp_login_bp)
 app.register_blueprint(user_diagnostic_bp)
 app.register_blueprint(commission_settings_bp)

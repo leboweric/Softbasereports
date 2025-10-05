@@ -32,11 +32,8 @@ const Login = ({ onLogin }) => {
     setError('')
 
     try {
-      // Try temp-login endpoint for specific users
-      const isTempUser = loginForm.username === 'elebow@bmhmn.com' || loginForm.username === 'jchristensen@bmhmn.com'
-      const endpoint = isTempUser ? '/api/auth/temp-login' : '/api/auth/login'
-      
-      const response = await fetch(apiUrl(endpoint), {
+      // Use regular login endpoint for all users
+      const response = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
