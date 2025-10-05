@@ -48,7 +48,14 @@ const Login = ({ onLogin }) => {
 
       if (response.ok) {
         localStorage.setItem('token', data.token)
-        onLogin(data.user, data.organization, data.permissions || [], data.accessible_departments || [])
+        // Add navigation data to user object for compatibility
+        const userWithNavigation = {
+          ...data.user,
+          navigation: data.navigation,
+          resources: data.resources,
+          permissions_summary: data.permissions_summary
+        }
+        onLogin(userWithNavigation, data.organization, data.permissions || [], data.accessible_departments || [])
       } else {
         setError(data.message || 'Login failed')
       }

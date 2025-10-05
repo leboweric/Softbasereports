@@ -49,14 +49,21 @@ function App() {
 
       if (response.ok) {
         const data = await response.json()
-        setUser(data.user)
+        // Add navigation data to user object for compatibility
+        const userWithNavigation = {
+          ...data.user,
+          navigation: data.navigation,
+          resources: data.resources,
+          permissions_summary: data.permissions_summary
+        }
+        setUser(userWithNavigation)
         setOrganization(data.organization)
         // Set permissions and accessible departments from response data
         setPermissions(data.permissions || [])
         setAccessibleDepartments(data.accessible_departments || [])
         
         // Check if current page is accessible
-        const navigation = getAccessibleNavigation(data.user)
+        const navigation = getAccessibleNavigation(userWithNavigation)
         if (!navigation[currentPage]) {
           // Redirect to first available page
           const firstAvailablePage = Object.keys(navigation)[0] || 'parts'
