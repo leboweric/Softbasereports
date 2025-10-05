@@ -11,8 +11,15 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
 
   // Debug logging to see what's happening
   console.log('Layout render - user:', user)
-  console.log('Layout render - navigation:', navigation)
+  console.log('Layout render - user.navigation:', user?.navigation)
+  console.log('Layout render - navigation object:', navigation)
   console.log('Layout render - navigation keys:', Object.keys(navigation))
+  
+  // Check if user has navigation property at all
+  if (user) {
+    console.log('User properties:', Object.keys(user))
+    console.log('User has navigation:', 'navigation' in user)
+  }
 
   // Build navigation items with HARDCODED ORDER to fix menu
   const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
