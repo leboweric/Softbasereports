@@ -45,6 +45,10 @@ import PartsEmployeePerformance from './PartsEmployeePerformance'
 import PartsInventoryByLocation from './PartsInventoryByLocation'
 
 const PartsReport = ({ user, onNavigate }) => {
+  // Check if user has Parts User role (restricted access)
+  const isPartsUser = user?.roles?.some(role => role.name === 'Parts User')
+  const isPartsManager = user?.roles?.some(role => role.name === 'Parts Manager')
+  const isAdmin = user?.roles?.some(role => ['Super Admin', 'Leadership'].includes(role.name))
   const [partsData, setPartsData] = useState(null)
   const [fillRateData, setFillRateData] = useState(null)
   const [reorderAlertData, setReorderAlertData] = useState(null)
@@ -63,7 +67,36 @@ const PartsReport = ({ user, onNavigate }) => {
   const [top10Loading, setTop10Loading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  
+  // Define available tabs based on user permissions
+  const availableTabs = [
+    { id: 'overview', label: 'Overview', restricted: true }, // Managers/Admins only
+    { id: 'work-orders', label: 'Work Orders', restricted: false, permission: 'partsUser' },
+    { id: 'employee-performance', label: 'Employee Performance', restricted: true }, // Managers/Admins only
+    { id: 'inventory-location', label: 'Inventory by Location', restricted: false, permission: 'partsUser' },
+    { id: 'stock-alerts', label: 'Stock Alerts', restricted: false, permission: 'partsUser' },
+    { id: 'velocity', label: 'Velocity', restricted: true }, // Managers/Admins only
+    { id: 'forecast', label: 'Forecast', restricted: false, permission: 'partsUser' }
+  ]
+  
+  // Filter tabs based on user permissions
+  const visibleTabs = availableTabs.filter(tab => {
+    if (isAdmin || isPartsManager) return true // Admins and managers see all tabs
+    if (isPartsUser) {
+      // Parts Users only see specific tabs (the 4 allowed reports)
+      return tab.permission === 'partsUser'
+    }
+    return !tab.restricted // Other users see non-restricted tabs
+  })
+  
+  // Set default tab to first visible tab for Parts Users
+  const defaultTab = isPartsUser ? visibleTabs[0]?.id || 'work-orders' : 'overview'
+  const [activeTab, setActiveTab] = useState(defaultTab)
+  
+  // Helper function to check if a tab is visible to current user
+  const isTabVisible = (tabId) => {
+    return visibleTabs.some(tab => tab.id === tabId)
+  }
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -550,16 +583,15 @@ const PartsReport = ({ user, onNavigate }) => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="work-orders">Work Orders</TabsTrigger>
-          <TabsTrigger value="employee-performance">Employee Performance</TabsTrigger>
-          <TabsTrigger value="inventory-location">Inventory by Location</TabsTrigger>
-          <TabsTrigger value="stock-alerts">Stock Alerts</TabsTrigger>
-          <TabsTrigger value="velocity">Velocity</TabsTrigger>
-          <TabsTrigger value="forecast">Forecast</TabsTrigger>
+          {visibleTabs.map(tab => (
+            <TabsTrigger key={tab.id} value={tab.id}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        {isTabVisible('overview') && (
+          <TabsContent value="overview" className="space-y-6">
           {/* Monthly Parts Revenue */}
           <Card>
             <CardHeader>
@@ -808,8 +840,10 @@ const PartsReport = ({ user, onNavigate }) => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
-        <TabsContent value="work-orders" className="space-y-6">
+        {isTabVisible('work-orders') && (
+          <TabsContent value="work-orders" className="space-y-6">
           {/* Open Parts Work Orders Card */}
           {openWorkOrdersData && openWorkOrdersData.count > 0 && (
             <Card className="border-2 border-blue-400 bg-blue-50">

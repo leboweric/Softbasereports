@@ -149,6 +149,14 @@ DEFAULT_ROLES = [
         'permissions': ['view_parts', 'view_inventory']
     },
     {
+        'name': 'Parts User',
+        'description': 'Restricted access to specific Parts reports and Minitrac only',
+        'department': 'Parts',
+        'level': 2,
+        'permissions': ['view_parts_work_orders', 'view_parts_inventory_location', 
+                       'view_parts_stock_alerts', 'view_parts_forecast', 'view_minitrac', 'export_minitrac']
+    },
+    {
         'name': 'Service Tech',
         'description': 'View service work orders and update status',
         'department': 'Service',
@@ -262,5 +270,15 @@ DEFAULT_PERMISSIONS = [
     {'name': 'view_minitrac', 'resource': 'minitrac', 'action': 'view',
      'description': 'View Minitrac equipment data'},
     {'name': 'export_minitrac', 'resource': 'minitrac', 'action': 'export',
-     'description': 'Export Minitrac data'}
+     'description': 'Export Minitrac data'},
+    
+    # Parts - Specific Report Permissions
+    {'name': 'view_parts_work_orders', 'resource': 'parts', 'action': 'view_work_orders',
+     'description': 'View Parts work orders report'},
+    {'name': 'view_parts_inventory_location', 'resource': 'parts', 'action': 'view_inventory_location',
+     'description': 'View Parts inventory by location report'},
+    {'name': 'view_parts_stock_alerts', 'resource': 'parts', 'action': 'view_stock_alerts',
+     'description': 'View Parts stock alerts report'},
+    {'name': 'view_parts_forecast', 'resource': 'parts', 'action': 'view_forecast',
+     'description': 'View Parts forecast report'}
 ]

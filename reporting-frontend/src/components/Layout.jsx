@@ -29,6 +29,9 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
            hasPermission('*') // Super admin can access everything
   }
 
+  // Check if user has Parts User role (restricted access)
+  const isPartsUser = user?.roles?.some(role => role.name === 'Parts User')
+
   const allNavigation = [
     { name: 'Dashboard', icon: BarChart3, id: 'dashboard', permission: 'view_dashboard' },
     { name: 'Service', icon: Wrench, id: 'service', permission: 'view_service', department: 'Service' },
@@ -45,6 +48,11 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   const navigation = allNavigation.filter(item => {
     // Hide items marked as hidden
     if (item.hide) return false
+    
+    // Parts Users have restricted access - only Parts and Minitrac
+    if (isPartsUser) {
+      return ['parts', 'minitrac'].includes(item.id)
+    }
     
     // Check permission
     if (item.permission && !hasPermission(item.permission)) {

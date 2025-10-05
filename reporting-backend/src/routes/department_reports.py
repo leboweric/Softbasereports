@@ -81,7 +81,7 @@ def register_department_routes(reports_bp):
             return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/parts/open-work-orders', methods=['GET'])
-    @require_permission('view_parts')
+    @require_permission('view_parts_work_orders', 'view_parts')
     def get_parts_open_work_orders():
         """Get open Parts work orders summary"""
         try:
@@ -97,7 +97,7 @@ def register_department_routes(reports_bp):
             return jsonify({'error': str(e)}), 500
 
     @reports_bp.route('/departments/parts/open-work-orders-details', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_parts_work_orders', 'view_parts')
     def get_parts_open_work_orders_details():
         """Get detailed list of open Parts work orders"""
         try:
@@ -767,7 +767,7 @@ def register_department_routes(reports_bp):
 
 
     @reports_bp.route('/departments/parts/reorder-alert', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_parts_stock_alerts', 'view_parts')
     def get_parts_reorder_alert():
         """Get parts reorder point alerts - identifies parts needing reorder"""
         try:
@@ -1170,7 +1170,7 @@ def register_department_routes(reports_bp):
 
 
     @reports_bp.route('/departments/parts/forecast', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_parts_forecast', 'view_parts')
     def get_parts_demand_forecast():
         """Get parts demand forecast based on historical usage and trends"""
         try:
@@ -1596,7 +1596,7 @@ def register_department_routes(reports_bp):
             }), 500
 
     @reports_bp.route('/departments/parts/inventory-by-location', methods=['GET'])
-    @jwt_required()
+    @require_permission('view_parts_inventory_location', 'view_parts')
     def get_parts_inventory_by_location():
         """Get parts inventory value by bin location"""
         try:
