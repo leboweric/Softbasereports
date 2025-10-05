@@ -46,14 +46,14 @@ def get_accounting_inventory():
         LEFT JOIN (
             -- Subquery to check if equipment is currently on rental
             SELECT DISTINCT 
-                wr.EquipmentId,
+                wr.SerialNo,
                 1 as is_on_rental
             FROM ben002.WORental wr
             INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
             WHERE wo.Type = 'R' 
             AND wo.ClosedDate IS NULL
             AND wo.WONo NOT LIKE '9%'  -- Exclude quotes
-        ) rental_check ON e.Id = rental_check.EquipmentId
+        ) rental_check ON e.SerialNo = rental_check.SerialNo
         WHERE e.SerialNo IS NOT NULL
         AND (e.IsDeleted IS NULL OR e.IsDeleted = 0)
         ORDER BY e.Make, e.Model, e.SerialNo
