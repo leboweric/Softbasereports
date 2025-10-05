@@ -89,20 +89,36 @@ def login():
         from src.services.permission_service import PermissionService
         
         # Debug logging for user roles
-        print(f"🔍 LOGIN DEBUG - User: {user.username}")
+        print(f"🔍 LOGIN DEBUG - User: {user.username} ({user.email})")
         print(f"🔍 LOGIN DEBUG - User roles count: {len(user.roles)}")
         print(f"🔍 LOGIN DEBUG - User role names: {[r.name for r in user.roles]}")
         print(f"🔍 LOGIN DEBUG - Legacy role field: {user.role}")
         
-        navigation = PermissionService.get_user_navigation(user)
-        resources = PermissionService.get_user_resources(user)
-        permissions_summary = PermissionService.get_user_permissions_summary(user)
+        try:
+            navigation = PermissionService.get_user_navigation(user)
+            print(f"🔍 LOGIN DEBUG - Navigation returned: {navigation}")
+            print(f"🔍 LOGIN DEBUG - Navigation keys: {list(navigation.keys()) if navigation else None}")
+        except Exception as e:
+            print(f"🔍 LOGIN DEBUG - Error getting navigation: {e}")
+            import traceback
+            traceback.print_exc()
+            navigation = {}
         
-        print(f"🔍 LOGIN DEBUG - Navigation: {navigation}")
-        print(f"🔍 LOGIN DEBUG - Resources: {resources}")
-        print(f"🔍 LOGIN DEBUG - Navigation keys: {list(navigation.keys())}")
+        try:
+            resources = PermissionService.get_user_resources(user)
+            print(f"🔍 LOGIN DEBUG - Resources: {resources}")
+        except Exception as e:
+            print(f"🔍 LOGIN DEBUG - Error getting resources: {e}")
+            resources = []
         
-        return jsonify({
+        try:
+            permissions_summary = PermissionService.get_user_permissions_summary(user)
+            print(f"🔍 LOGIN DEBUG - Permissions summary: {permissions_summary}")
+        except Exception as e:
+            print(f"🔍 LOGIN DEBUG - Error getting permissions summary: {e}")
+            permissions_summary = {}
+        
+        response_data = {
             'token': access_token,
             'user': user.to_dict(),
             'organization': user.organization.to_dict(),
@@ -111,7 +127,13 @@ def login():
             'navigation': navigation,
             'resources': resources,
             'permissions_summary': permissions_summary
-        }), 200
+        }
+        
+        print(f"🔍 LOGIN DEBUG - Response includes navigation: {'navigation' in response_data}")
+        print(f"🔍 LOGIN DEBUG - Response navigation keys: {list(response_data['navigation'].keys()) if response_data.get('navigation') else None}")
+        print(f"🔍 LOGIN DEBUG - Final navigation value: {response_data.get('navigation')}")
+        
+        return jsonify(response_data), 200
         
     except Exception as e:
         return jsonify({'message': f'Login error: {str(e)}'}), 500
