@@ -1,6 +1,6 @@
 """
 Softbase Reports Backend API
-Version: 1.0.2 - Force navigation cleanup deployment
+Version: 1.0.3 - URGENT: Fix login navigation data
 """
 import os
 import sys
