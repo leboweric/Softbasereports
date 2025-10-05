@@ -1,6 +1,6 @@
 """
 Softbase Reports Backend API
-Version: 1.0.1 - Navigation cleanup deployed
+Version: 1.0.2 - Force navigation cleanup deployment
 """
 import os
 import sys
