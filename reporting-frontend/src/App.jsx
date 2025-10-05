@@ -17,6 +17,7 @@ import TableDiscovery from './components/TableDiscovery'
 import MinitracSearch from './components/MinitracSearch'
 import UserManagementEnhanced from './components/UserManagementEnhanced'
 import { apiUrl } from '@/lib/api'
+import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
 
 function App() {
@@ -53,10 +54,12 @@ function App() {
         setPermissions(data.permissions || [])
         setAccessibleDepartments(data.accessible_departments || [])
         
-        // Redirect Parts Users to parts page instead of dashboard
-        const isPartsUser = data.user?.roles?.some(role => role.name === 'Parts User')
-        if (isPartsUser && currentPage === 'dashboard') {
-          setCurrentPage('parts')
+        // Check if current page is accessible
+        const navigation = getAccessibleNavigation(data.user)
+        if (!navigation[currentPage]) {
+          // Redirect to first available page
+          const firstAvailablePage = Object.keys(navigation)[0] || 'parts'
+          setCurrentPage(firstAvailablePage)
         }
       } else {
         localStorage.removeItem('token')
@@ -75,11 +78,10 @@ function App() {
     setPermissions(userPermissions)
     setAccessibleDepartments(departments)
     
-    // Redirect Parts Users to parts page instead of dashboard
-    const isPartsUser = userData?.roles?.some(role => role.name === 'Parts User')
-    if (isPartsUser) {
-      setCurrentPage('parts')
-    }
+    // Use dynamic navigation to determine landing page
+    const navigation = getAccessibleNavigation(userData)
+    const firstAvailablePage = Object.keys(navigation)[0] || 'parts'
+    setCurrentPage(firstAvailablePage)
   }
 
   const handleLogout = () => {
@@ -108,15 +110,22 @@ function App() {
   }
 
   const renderPage = () => {
-    // Check if user has Parts User role (restricted access)
-    const isPartsUser = user?.roles?.some(role => role.name === 'Parts User')
+    if (!user) return null
     
-    // Redirect Parts Users away from restricted pages
-    if (isPartsUser && !['parts', 'minitrac'].includes(currentPage)) {
-      setCurrentPage('parts')
-      return <PartsReport user={user} organization={organization} />
+    // Get accessible navigation for this user
+    const navigation = getAccessibleNavigation(user)
+    
+    // Check if user has access to current page
+    if (!navigation[currentPage]) {
+      // Redirect to first available page
+      const firstAvailablePage = Object.keys(navigation)[0]
+      if (firstAvailablePage && firstAvailablePage !== currentPage) {
+        setCurrentPage(firstAvailablePage)
+      }
+      return null
     }
     
+    // Render the appropriate page
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard user={user} organization={organization} />
@@ -171,16 +180,18 @@ function App() {
   }
 
   return (
-    <Layout 
-      user={user} 
-      onLogout={handleLogout}
-      currentPage={currentPage}
-      onNavigate={handleNavigate}
-      permissions={permissions}
-      accessibleDepartments={accessibleDepartments}
-    >
-      {renderPage()}
-    </Layout>
+    <PermissionsContext.Provider value={{ user, navigation: getAccessibleNavigation(user) }}>
+      <Layout 
+        user={user} 
+        onLogout={handleLogout}
+        currentPage={currentPage}
+        onNavigate={handleNavigate}
+        permissions={permissions}
+        accessibleDepartments={accessibleDepartments}
+      >
+        {renderPage()}
+      </Layout>
+    </PermissionsContext.Provider>
   )
 }
 

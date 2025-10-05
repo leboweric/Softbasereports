@@ -43,12 +43,20 @@ import {
 } from '@/components/ui/dialog'
 import PartsEmployeePerformance from './PartsEmployeePerformance'
 import PartsInventoryByLocation from './PartsInventoryByLocation'
+import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 
 const PartsReport = ({ user, onNavigate }) => {
-  // Check if user has Parts User role (restricted access)
-  const isPartsUser = user?.roles?.some(role => role.name === 'Parts User')
-  const isPartsManager = user?.roles?.some(role => role.name === 'Parts Manager')
-  const isAdmin = user?.roles?.some(role => ['Super Admin', 'Leadership'].includes(role.name))
+  const { navigation } = usePermissions()
+  
+  // Get accessible tabs from user's navigation config
+  const accessibleTabs = getAccessibleTabs(user, 'parts')
+  
+  // Build tabs array from config
+  const tabs = Object.entries(accessibleTabs).map(([id, config]) => ({
+    value: id,
+    label: config.label,
+    resource: config.resource,
+  }))
   const [partsData, setPartsData] = useState(null)
   const [fillRateData, setFillRateData] = useState(null)
   const [reorderAlertData, setReorderAlertData] = useState(null)
@@ -68,35 +76,8 @@ const PartsReport = ({ user, onNavigate }) => {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   
-  // Define available tabs based on user permissions
-  const availableTabs = [
-    { id: 'overview', label: 'Overview', restricted: true }, // Managers/Admins only
-    { id: 'work-orders', label: 'Work Orders', restricted: false, permission: 'partsUser' },
-    { id: 'employee-performance', label: 'Employee Performance', restricted: true }, // Managers/Admins only
-    { id: 'inventory-location', label: 'Inventory by Location', restricted: false, permission: 'partsUser' },
-    { id: 'stock-alerts', label: 'Stock Alerts', restricted: false, permission: 'partsUser' },
-    { id: 'velocity', label: 'Velocity', restricted: true }, // Managers/Admins only
-    { id: 'forecast', label: 'Forecast', restricted: false, permission: 'partsUser' }
-  ]
-  
-  // Filter tabs based on user permissions
-  const visibleTabs = availableTabs.filter(tab => {
-    if (isAdmin || isPartsManager) return true // Admins and managers see all tabs
-    if (isPartsUser) {
-      // Parts Users only see specific tabs (the 4 allowed reports)
-      return tab.permission === 'partsUser'
-    }
-    return !tab.restricted // Other users see non-restricted tabs
-  })
-  
-  // Set default tab to first visible tab for Parts Users
-  const defaultTab = isPartsUser ? visibleTabs[0]?.id || 'work-orders' : 'overview'
-  const [activeTab, setActiveTab] = useState(defaultTab)
-  
-  // Helper function to check if a tab is visible to current user
-  const isTabVisible = (tabId) => {
-    return visibleTabs.some(tab => tab.id === tabId)
-  }
+  // Default to first available tab
+  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'work-orders')
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -583,14 +564,14 @@ const PartsReport = ({ user, onNavigate }) => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
-          {visibleTabs.map(tab => (
-            <TabsTrigger key={tab.id} value={tab.id}>
+          {tabs.map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}>
               {tab.label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {isTabVisible('overview') && (
+        {tabs.some(tab => tab.value === 'overview') && (
           <TabsContent value="overview" className="space-y-6">
           {/* Monthly Parts Revenue */}
           <Card>
@@ -842,7 +823,7 @@ const PartsReport = ({ user, onNavigate }) => {
         </TabsContent>
         )}
 
-        {isTabVisible('work-orders') && (
+        {tabs.some(tab => tab.value === 'work-orders') && (
           <TabsContent value="work-orders" className="space-y-6">
           {/* Open Parts Work Orders Card */}
           {openWorkOrdersData && openWorkOrdersData.count > 0 && (
@@ -999,7 +980,7 @@ const PartsReport = ({ user, onNavigate }) => {
         </TabsContent>
         )}
 
-        {isTabVisible('stock-alerts') && (
+        {tabs.some(tab => tab.value === 'stock-alerts') && (
         <TabsContent value="stock-alerts" className="space-y-6">
           {/* Parts Fill Rate Card */}
           {fillRateData && (
@@ -1281,7 +1262,7 @@ const PartsReport = ({ user, onNavigate }) => {
         </TabsContent>
         )}
 
-        {isTabVisible('velocity') && (
+        {tabs.some(tab => tab.value === 'velocity') && (
         <TabsContent value="velocity" className="space-y-6">
           {/* Parts Velocity Analysis */}
           {velocityData && (
@@ -1456,7 +1437,7 @@ const PartsReport = ({ user, onNavigate }) => {
         </TabsContent>
         )}
 
-        {isTabVisible('forecast') && (
+        {tabs.some(tab => tab.value === 'forecast') && (
         <TabsContent value="forecast" className="space-y-6">
           {/* Parts Demand Forecast */}
           {forecastLoading ? (
@@ -1617,13 +1598,13 @@ const PartsReport = ({ user, onNavigate }) => {
         </TabsContent>
         )}
 
-        {isTabVisible('employee-performance') && (
+        {tabs.some(tab => tab.value === 'employee-performance') && (
         <TabsContent value="employee-performance" className="space-y-6">
           <PartsEmployeePerformance />
         </TabsContent>
         )}
 
-        {isTabVisible('inventory-location') && (
+        {tabs.some(tab => tab.value === 'inventory-location') && (
         <TabsContent value="inventory-location" className="space-y-6">
           <PartsInventoryByLocation />
         </TabsContent>

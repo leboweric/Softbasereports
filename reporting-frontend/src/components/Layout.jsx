@@ -1,76 +1,23 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  BarChart3, 
-  Users, 
-  LogOut, 
-  Menu,
-  X,
-  Wrench,
-  Package,
-  Truck,
-  Calculator,
-  History,
-  Database
-} from 'lucide-react'
+import { usePermissions } from '../contexts/PermissionsContext'
+import * as Icons from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { navigation } = usePermissions()
 
-  // Check if user has specific permission
-  const hasPermission = (permission) => {
-    return permissions.includes(permission) || permissions.includes('*')
-  }
-
-  // Check if user can access department
-  const canAccessDepartment = (department) => {
-    return accessibleDepartments.includes(department) || 
-           hasPermission('*') // Super admin can access everything
-  }
-
-  // Check if user has Parts User role (restricted access)
-  const isPartsUser = user?.roles?.some(role => role.name === 'Parts User')
-  
-  // Debug logging for Parts User role detection
-  if (user?.roles) {
-    console.log('User roles:', user.roles.map(r => r.name))
-    console.log('Is Parts User:', isPartsUser)
-  }
-
-  const allNavigation = [
-    { name: 'Dashboard', icon: BarChart3, id: 'dashboard', permission: 'view_dashboard' },
-    { name: 'Service', icon: Wrench, id: 'service', permission: 'view_service', department: 'Service' },
-    { name: 'Parts', icon: Package, id: 'parts', permission: 'view_parts', department: 'Parts' },
-    { name: 'Rental', icon: Truck, id: 'rental', permission: 'view_rental', department: 'Rental' },
-    { name: 'Accounting', icon: Calculator, id: 'accounting', permission: 'view_accounting', department: 'Accounting' },
-    { name: 'Minitrac', icon: History, id: 'minitrac', permission: 'view_minitrac' },
-    { name: 'Table Discovery', icon: Database, id: 'table-discovery', permission: 'manage_users' },
-    { name: 'Rental Diagnostic', icon: Database, id: 'rental-diagnostic', permission: 'manage_users' },
-    { name: 'User Management', icon: Users, id: 'user-management', permission: 'manage_users' },
-  ]
-
-  // Filter navigation based on permissions
-  const navigation = allNavigation.filter(item => {
-    // Hide items marked as hidden
-    if (item.hide) return false
+  // Build navigation items from user's accessible navigation
+  const navItems = Object.entries(navigation).map(([id, config]) => {
+    // Get the icon component dynamically
+    const IconComponent = Icons[config.icon] || Icons.Circle
     
-    // Parts Users have restricted access - only Parts and Minitrac
-    if (isPartsUser) {
-      return ['parts', 'minitrac'].includes(item.id)
+    return {
+      id,
+      label: config.label,
+      icon: IconComponent,
     }
-    
-    // Check permission
-    if (item.permission && !hasPermission(item.permission)) {
-      return false
-    }
-    
-    // Check department access
-    if (item.department && !canAccessDepartment(item.department)) {
-      return false
-    }
-    
-    return true
   })
 
   const handleNavigation = (pageId) => {
@@ -99,15 +46,15 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>BIS</h1>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
-              <X className="h-5 w-5" />
+              <Icons.X className="h-5 w-5" />
             </Button>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
-            {navigation.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon
               return (
                 <button
-                  key={item.name}
+                  key={item.label}
                   onClick={() => handleNavigation(item.id)}
                   className={`group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
                     currentPage === item.id
@@ -116,7 +63,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
                   }`}
                 >
                   <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {item.name}
+                  {item.label}
                   {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
                     <Badge variant="secondary" className="ml-auto text-xs">
                       AI
@@ -148,7 +95,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               size="sm"
               className="mt-3 w-full justify-start"
             >
-              <LogOut className="mr-2 h-4 w-4" />
+              <Icons.LogOut className="mr-2 h-4 w-4" />
               Sign out
             </Button>
           </div>
@@ -174,11 +121,11 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
-            {navigation.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon
               return (
                 <button
-                  key={item.name}
+                  key={item.label}
                   onClick={() => handleNavigation(item.id)}
                   className={`group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
                     currentPage === item.id
@@ -187,7 +134,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
                   }`}
                 >
                   <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {item.name}
+                  {item.label}
                   {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
                     <Badge variant="secondary" className="ml-auto text-xs">
                       AI
@@ -219,7 +166,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               size="sm"
               className="mt-3 w-full justify-start"
             >
-              <LogOut className="mr-2 h-4 w-4" />
+              <Icons.LogOut className="mr-2 h-4 w-4" />
               Sign out
             </Button>
           </div>
@@ -231,10 +178,10 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         {/* Mobile header */}
         <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm lg:hidden">
           <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(true)}>
-            <Menu className="h-5 w-5" />
+            <Icons.Menu className="h-5 w-5" />
           </Button>
           <div className="flex-1 text-sm font-semibold leading-6 text-gray-900">
-            {navigation.find(item => item.id === currentPage)?.name || 'Dashboard'}
+            {navItems.find(item => item.id === currentPage)?.name || 'Dashboard'}
           </div>
         </div>
 
