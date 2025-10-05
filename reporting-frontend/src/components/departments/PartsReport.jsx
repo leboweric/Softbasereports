@@ -997,7 +997,9 @@ const PartsReport = ({ user, onNavigate }) => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {isTabVisible('stock-alerts') && (
         <TabsContent value="stock-alerts" className="space-y-6">
           {/* Parts Fill Rate Card */}
           {fillRateData && (
@@ -1277,7 +1279,9 @@ const PartsReport = ({ user, onNavigate }) => {
             </Card>
           )}
         </TabsContent>
+        )}
 
+        {isTabVisible('velocity') && (
         <TabsContent value="velocity" className="space-y-6">
           {/* Parts Velocity Analysis */}
           {velocityData && (
@@ -1450,7 +1454,9 @@ const PartsReport = ({ user, onNavigate }) => {
             </Card>
           )}
         </TabsContent>
+        )}
 
+        {isTabVisible('forecast') && (
         <TabsContent value="forecast" className="space-y-6">
           {/* Parts Demand Forecast */}
           {forecastLoading ? (
@@ -1609,14 +1615,19 @@ const PartsReport = ({ user, onNavigate }) => {
             </Card>
           )}
         </TabsContent>
+        )}
 
+        {isTabVisible('employee-performance') && (
         <TabsContent value="employee-performance" className="space-y-6">
           <PartsEmployeePerformance />
         </TabsContent>
+        )}
 
+        {isTabVisible('inventory-location') && (
         <TabsContent value="inventory-location" className="space-y-6">
           <PartsInventoryByLocation />
         </TabsContent>
+        )}
       </Tabs>
 
       {/* Category Parts Modal */}
