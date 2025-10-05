@@ -179,7 +179,7 @@ def get_roles():
             'description': r.description,
             'department': r.department,
             'level': r.level,
-            'user_count': len(r.users)
+            'user_count': r.users.count()
         } for r in roles])
     except Exception as e:
         return jsonify({'error': f'Failed to fetch roles: {str(e)}'}), 500
@@ -227,7 +227,7 @@ def get_admin_stats():
         role_distribution = {}
         roles = Role.query.filter_by(is_active=True).all()
         for role in roles:
-            role_distribution[role.name] = len(role.users)
+            role_distribution[role.name] = role.users.count()
         
         return jsonify({
             'total_users': total_users,
