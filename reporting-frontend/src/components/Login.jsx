@@ -55,6 +55,8 @@ const Login = ({ onLogin }) => {
           resources: data.resources,
           permissions_summary: data.permissions_summary
         }
+        console.log('Login - userWithNavigation:', userWithNavigation)
+        console.log('Login - navigation keys:', Object.keys(userWithNavigation.navigation || {}))
         onLogin(userWithNavigation, data.organization, data.permissions || [], data.accessible_departments || [])
       } else {
         setError(data.message || 'Login failed')

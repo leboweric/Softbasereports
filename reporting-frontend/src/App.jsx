@@ -79,6 +79,9 @@ function App() {
   }
 
   const handleLogin = (userData, organizationData, userPermissions = [], departments = []) => {
+    console.log('App - received userData:', userData)
+    console.log('App - userData.navigation:', userData?.navigation)
+    
     setUser(userData)
     setOrganization(organizationData)
     setPermissions(userPermissions)
@@ -86,7 +89,9 @@ function App() {
     
     // Use dynamic navigation to determine landing page
     const navigation = getAccessibleNavigation(userData)
+    console.log('App - navigation from getAccessibleNavigation:', navigation)
     const firstAvailablePage = Object.keys(navigation)[0] || 'parts'
+    console.log('App - setting currentPage to:', firstAvailablePage)
     setCurrentPage(firstAvailablePage)
   }
 
@@ -180,6 +185,10 @@ function App() {
   if (!user) {
     return <Login onLogin={handleLogin} />
   }
+
+  console.log('App render - user:', user)
+  console.log('App render - currentPage:', currentPage)
+  console.log('App render - user.navigation:', user?.navigation)
 
   return (
     <PermissionsContext.Provider value={{ user, navigation: getAccessibleNavigation(user) }}>
