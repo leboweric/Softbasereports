@@ -52,6 +52,12 @@ function App() {
         // Set permissions and accessible departments from response data
         setPermissions(data.permissions || [])
         setAccessibleDepartments(data.accessible_departments || [])
+        
+        // Redirect Parts Users to parts page instead of dashboard
+        const isPartsUser = data.user?.roles?.some(role => role.name === 'Parts User')
+        if (isPartsUser && currentPage === 'dashboard') {
+          setCurrentPage('parts')
+        }
       } else {
         localStorage.removeItem('token')
       }
@@ -68,6 +74,12 @@ function App() {
     setOrganization(organizationData)
     setPermissions(userPermissions)
     setAccessibleDepartments(departments)
+    
+    // Redirect Parts Users to parts page instead of dashboard
+    const isPartsUser = userData?.roles?.some(role => role.name === 'Parts User')
+    if (isPartsUser) {
+      setCurrentPage('parts')
+    }
   }
 
   const handleLogout = () => {
@@ -96,6 +108,15 @@ function App() {
   }
 
   const renderPage = () => {
+    // Check if user has Parts User role (restricted access)
+    const isPartsUser = user?.roles?.some(role => role.name === 'Parts User')
+    
+    // Redirect Parts Users away from restricted pages
+    if (isPartsUser && !['parts', 'minitrac'].includes(currentPage)) {
+      setCurrentPage('parts')
+      return <PartsReport user={user} organization={organization} />
+    }
+    
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard user={user} organization={organization} />

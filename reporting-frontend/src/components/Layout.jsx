@@ -31,6 +31,12 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
 
   // Check if user has Parts User role (restricted access)
   const isPartsUser = user?.roles?.some(role => role.name === 'Parts User')
+  
+  // Debug logging for Parts User role detection
+  if (user?.roles) {
+    console.log('User roles:', user.roles.map(r => r.name))
+    console.log('Is Parts User:', isPartsUser)
+  }
 
   const allNavigation = [
     { name: 'Dashboard', icon: BarChart3, id: 'dashboard', permission: 'view_dashboard' },
