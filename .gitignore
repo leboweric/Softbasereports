@@ -163,4 +163,11 @@ analyze_*.py
 *.analysis
 *.diagnostic
 *_test.html
-*_debug.html*.xlsx
+*_debug.html
+
+# Data files that shouldn't be committed
+*.xlsx
+*.xls
+*.csv
+*.json
+*.xml
