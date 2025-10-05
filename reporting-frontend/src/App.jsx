@@ -2,10 +2,8 @@ import { useState, useEffect } from 'react'
 import Layout from './components/Layout'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
-import AIQuery from './components/AIQuery'
 import ReportCreator from './components/ReportCreator'
 import Reports from './components/Reports'
-import DatabaseExplorer from './components/DatabaseExplorer'
 import RentalDiagnostic from './components/RentalDiagnostic'
 import ServiceReport from './components/departments/ServiceReport'
 import PartsReport from './components/departments/PartsReport'
@@ -137,14 +135,10 @@ function App() {
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard user={user} organization={organization} />
-      case 'ai-query':
-        return <AIQuery user={user} organization={organization} />
       case 'report-creator':
         return <ReportCreator user={user} organization={organization} />
       case 'reports':
         return <Reports user={user} organization={organization} />
-      case 'database-explorer':
-        return <DatabaseExplorer user={user} organization={organization} />
       case 'rental-diagnostic':
         return <RentalDiagnostic user={user} organization={organization} />
       case 'service':
