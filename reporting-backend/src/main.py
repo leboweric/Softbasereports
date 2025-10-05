@@ -59,6 +59,7 @@ from src.routes.check_rental_fleet import check_rental_fleet_bp
 from src.routes.quote_diagnostic import quote_diagnostic_bp
 from src.routes.check_hold_status import check_hold_bp
 from src.services.postgres_service import get_postgres_db
+from src.init_rbac import initialize_all_rbac
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -163,6 +164,14 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    
+    # Initialize RBAC roles and permissions
+    try:
+        initialize_all_rbac()
+    except Exception as e:
+        print(f"⚠️  RBAC initialization failed: {e}")
+        # Don't crash the app if RBAC init fails
+        pass
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
