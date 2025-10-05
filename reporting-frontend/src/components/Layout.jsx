@@ -23,6 +23,10 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
     })
     .sort((a, b) => a.order - b.order) // Sort by order field
 
+  // Debug: Log navigation structure and sorted items
+  console.log('Navigation from backend:', navigation)
+  console.log('Sorted navItems:', navItems.map(item => ({ label: item.label, order: item.order })))
+
   const handleNavigation = (pageId) => {
     onNavigate(pageId)
     setSidebarOpen(false)
