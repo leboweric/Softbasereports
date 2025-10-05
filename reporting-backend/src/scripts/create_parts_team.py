@@ -9,9 +9,9 @@ import os
 # Add the parent directory to sys.path to import from src
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.models.user import User
+from src.models.user import User, db
 from src.models.rbac import Role
-from src.main import app, db
+from src.main import create_app
 from werkzeug.security import generate_password_hash
 
 def create_parts_users():
@@ -41,6 +41,9 @@ def create_parts_users():
             'password': 'abc123'
         }
     ]
+    
+    # Create app context
+    app = create_app()
     
     try:
         with app.app_context():
