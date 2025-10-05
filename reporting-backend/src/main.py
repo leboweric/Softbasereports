@@ -67,6 +67,7 @@ from src.routes.quote_diagnostic import quote_diagnostic_bp
 from src.routes.check_hold_status import check_hold_bp
 from src.routes.inventory_diagnostic import inventory_diagnostic_bp
 from src.routes.accounting_inventory import accounting_inventory_bp
+from src.routes.depreciation_explorer import depreciation_explorer_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
 
@@ -157,6 +158,7 @@ app.register_blueprint(quote_diagnostic_bp)
 app.register_blueprint(check_hold_bp)
 app.register_blueprint(inventory_diagnostic_bp)
 app.register_blueprint(accounting_inventory_bp)
+app.register_blueprint(depreciation_explorer_bp)
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
