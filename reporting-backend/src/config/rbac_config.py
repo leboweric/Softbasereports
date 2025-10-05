@@ -18,6 +18,10 @@ RESOURCES = {
     'rental_availability': 'Rental availability report',
     'rental_overview': 'Rental department overview',
     'accounting_overview': 'Accounting department overview',
+    'accounting_ar': 'Accounts receivable reports',
+    'accounting_ap': 'Accounts payable reports',
+    'accounting_commissions': 'Sales commission reports',
+    'accounting_control': 'Control number reports',
     'minitrac': 'Minitrac equipment database',
     'user_management': 'User and role management',
 }
@@ -67,6 +71,20 @@ ROLE_PERMISSIONS = {
             'service_work_orders', 'minitrac'
         ],
         'actions': ['view'],
+    },
+    'Accounting Manager': {
+        'resources': [
+            'accounting_overview', 'accounting_ar', 'accounting_ap',
+            'accounting_commissions', 'accounting_control'
+        ],
+        'actions': ['view', 'create', 'edit', 'export'],
+    },
+    'Accounting User': {
+        'resources': [
+            'accounting_overview', 'accounting_ar', 'accounting_ap',
+            'accounting_commissions', 'accounting_control'
+        ],
+        'actions': ['view', 'export'],
     },
 }
 
@@ -118,8 +136,14 @@ NAVIGATION_CONFIG = {
         'label': 'Accounting',
         'icon': 'DollarSign',
         'path': 'accounting',
-        'required_resource': 'accounting_overview',
         'order': 5,
+        'tabs': {
+            'overview': {'label': 'Overview', 'resource': 'accounting_overview'},
+            'ar': {'label': 'Accounts Receivable', 'resource': 'accounting_ar'},
+            'ap': {'label': 'Accounts Payable', 'resource': 'accounting_ap'},
+            'commissions': {'label': 'Sales Commissions', 'resource': 'accounting_commissions'},
+            'control': {'label': 'Control Numbers', 'resource': 'accounting_control'},
+        }
     },
     'minitrac': {
         'label': 'Minitrac',
