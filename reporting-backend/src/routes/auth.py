@@ -88,9 +88,19 @@ def login():
         # Get dynamic navigation and permissions
         from src.services.permission_service import PermissionService
         
+        # Debug logging for user roles
+        print(f"🔍 LOGIN DEBUG - User: {user.username}")
+        print(f"🔍 LOGIN DEBUG - User roles count: {len(user.roles)}")
+        print(f"🔍 LOGIN DEBUG - User role names: {[r.name for r in user.roles]}")
+        print(f"🔍 LOGIN DEBUG - Legacy role field: {user.role}")
+        
         navigation = PermissionService.get_user_navigation(user)
         resources = PermissionService.get_user_resources(user)
         permissions_summary = PermissionService.get_user_permissions_summary(user)
+        
+        print(f"🔍 LOGIN DEBUG - Navigation: {navigation}")
+        print(f"🔍 LOGIN DEBUG - Resources: {resources}")
+        print(f"🔍 LOGIN DEBUG - Navigation keys: {list(navigation.keys())}")
         
         return jsonify({
             'token': access_token,

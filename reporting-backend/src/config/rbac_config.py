@@ -19,8 +19,6 @@ RESOURCES = {
     'rental_overview': 'Rental department overview',
     'accounting_overview': 'Accounting department overview',
     'minitrac': 'Minitrac equipment database',
-    'database_explorer': 'Database exploration tools',
-    'ai_query': 'AI-powered query generation',
     'user_management': 'User and role management',
 }
 
@@ -79,11 +77,13 @@ NAVIGATION_CONFIG = {
         'icon': 'LayoutDashboard',
         'path': 'dashboard',
         'required_resource': 'dashboard',
+        'order': 1,
     },
     'parts': {
         'label': 'Parts',
         'icon': 'Package',
         'path': 'parts',
+        'order': 2,
         'tabs': {
             'overview': {'label': 'Overview', 'resource': 'parts_overview'},
             'work-orders': {'label': 'Work Orders', 'resource': 'parts_work_orders'},
@@ -98,6 +98,7 @@ NAVIGATION_CONFIG = {
         'label': 'Service',
         'icon': 'Wrench',
         'path': 'service',
+        'order': 3,
         'tabs': {
             'overview': {'label': 'Overview', 'resource': 'service_overview'},
             'work-orders': {'label': 'Work Orders', 'resource': 'service_work_orders'},
@@ -107,6 +108,7 @@ NAVIGATION_CONFIG = {
         'label': 'Rental',
         'icon': 'Truck',
         'path': 'rental',
+        'order': 4,
         'tabs': {
             'overview': {'label': 'Overview', 'resource': 'rental_overview'},
             'availability': {'label': 'Availability', 'resource': 'rental_availability'},
@@ -117,29 +119,20 @@ NAVIGATION_CONFIG = {
         'icon': 'DollarSign',
         'path': 'accounting',
         'required_resource': 'accounting_overview',
+        'order': 5,
     },
     'minitrac': {
         'label': 'Minitrac',
         'icon': 'Search',
         'path': 'minitrac',
         'required_resource': 'minitrac',
+        'order': 6,
     },
     'user-management': {
         'label': 'User Management',
         'icon': 'Users',
         'path': 'user-management',
         'required_resource': 'user_management',
-    },
-    'database-explorer': {
-        'label': 'Database Explorer',
-        'icon': 'Database',
-        'path': 'database-explorer',
-        'required_resource': 'database_explorer',
-    },
-    'ai-query': {
-        'label': 'AI Query',
-        'icon': 'Bot',
-        'path': 'ai-query',
-        'required_resource': 'ai_query',
+        'order': 99,
     },
 }

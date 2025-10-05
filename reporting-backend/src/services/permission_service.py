@@ -57,7 +57,14 @@ class PermissionService:
         user_resources = set(PermissionService.get_user_resources(user))
         accessible_nav = {}
         
+        # Explicitly exclude removed navigation items
+        excluded_nav_items = {'ai-query', 'database-explorer'}
+        
         for nav_id, nav_config in NAVIGATION_CONFIG.items():
+            # Skip excluded items
+            if nav_id in excluded_nav_items:
+                continue
+                
             # Check if user has access to main nav item
             required_resource = nav_config.get('required_resource')
             

@@ -48,13 +48,20 @@ const Login = ({ onLogin }) => {
 
       if (response.ok) {
         localStorage.setItem('token', data.token)
+        
+        // Debug: Check what backend actually sent
+        console.log('Login API response data:', data)
+        console.log('Login API data.navigation:', data.navigation)
+        console.log('Login API navigation keys:', Object.keys(data.navigation || {}))
+        
         // Add navigation data to user object for compatibility
         const userWithNavigation = {
           ...data.user,
-          navigation: data.navigation,
-          resources: data.resources,
-          permissions_summary: data.permissions_summary
+          navigation: data.navigation || {},
+          resources: data.resources || [],
+          permissions_summary: data.permissions_summary || {}
         }
+        console.log('Login created userWithNavigation:', userWithNavigation)
         onLogin(userWithNavigation, data.organization, data.permissions || [], data.accessible_departments || [])
       } else {
         setError(data.message || 'Login failed')
