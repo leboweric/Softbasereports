@@ -7424,14 +7424,17 @@ def register_department_routes(reports_bp):
                     wo.OpenDate,
                     wo.RentalContractNo,
                     wo.BillTo,
-                    cust.Name as CustomerName,
-                    cust.Address as CustomerAddress,
-                    cust.City as CustomerCity,
-                    cust.State as CustomerState,
-                    cust.ZipCode as CustomerZip
+                    wo.ShipTo,
+                    -- Use Ship To customer info when available, fall back to Bill To
+                    COALESCE(ship_cust.Name, bill_cust.Name) as CustomerName,
+                    COALESCE(ship_cust.Address, bill_cust.Address) as CustomerAddress,
+                    COALESCE(ship_cust.City, bill_cust.City) as CustomerCity,
+                    COALESCE(ship_cust.State, bill_cust.State) as CustomerState,
+                    COALESCE(ship_cust.ZipCode, bill_cust.ZipCode) as CustomerZip
                 FROM ben002.WORental wr
                 INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-                LEFT JOIN ben002.Customer cust ON wo.BillTo = cust.Number
+                LEFT JOIN ben002.Customer bill_cust ON wo.BillTo = bill_cust.Number
+                LEFT JOIN ben002.Customer ship_cust ON wo.ShipTo = ship_cust.Number
                 WHERE wo.Type = 'R'
                 AND wo.ClosedDate IS NULL  -- This is the key: OPEN rental orders only
                 AND wo.DeletionTime IS NULL
@@ -7469,23 +7472,23 @@ def register_department_routes(reports_bp):
                     e.CustomerNo,
                     -- Show rental customer when on rent, otherwise show equipment owner
                     CASE 
-                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.Name
+                        WHEN open_rental.WONo IS NOT NULL THEN COALESCE(ship_cust.Name, bill_cust.Name)
                         ELSE c.Name
                     END as CustomerName,
                     CASE 
-                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.Address
+                        WHEN open_rental.WONo IS NOT NULL THEN COALESCE(ship_cust.Address, bill_cust.Address)
                         ELSE c.Address
                     END as CustomerAddress,
                     CASE 
-                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.City
+                        WHEN open_rental.WONo IS NOT NULL THEN COALESCE(ship_cust.City, bill_cust.City)
                         ELSE c.City
                     END as CustomerCity,
                     CASE 
-                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.State
+                        WHEN open_rental.WONo IS NOT NULL THEN COALESCE(ship_cust.State, bill_cust.State)
                         ELSE c.State
                     END as CustomerState,
                     CASE 
-                        WHEN open_rental.WONo IS NOT NULL THEN rental_cust.ZipCode
+                        WHEN open_rental.WONo IS NOT NULL THEN COALESCE(ship_cust.ZipCode, bill_cust.ZipCode)
                         ELSE c.ZipCode
                     END as CustomerZip,
                     CASE 
@@ -7512,7 +7515,8 @@ def register_department_routes(reports_bp):
                         wo.WONo,
                         wo.OpenDate,
                         wo.RentalContractNo,
-                        wo.BillTo
+                        wo.BillTo,
+                        wo.ShipTo
                     FROM ben002.WORental wr
                     INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
                     WHERE wo.Type = 'R'
@@ -7527,8 +7531,9 @@ def register_department_routes(reports_bp):
                     (e.UnitNo IS NOT NULL AND e.UnitNo != '' AND e.UnitNo = open_rental.UnitNo)
                     OR (e.SerialNo IS NOT NULL AND e.SerialNo != '' AND e.SerialNo = open_rental.SerialNo)
                 )
-                -- Join to get rental customer info
-                LEFT JOIN ben002.Customer rental_cust ON open_rental.BillTo = rental_cust.Number
+                -- Join to get Ship To customer info first, fall back to Bill To
+                LEFT JOIN ben002.Customer ship_cust ON open_rental.ShipTo = ship_cust.Number
+                LEFT JOIN ben002.Customer bill_cust ON open_rental.BillTo = bill_cust.Number
                 WHERE 
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
