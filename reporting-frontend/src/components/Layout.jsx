@@ -9,16 +9,19 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   const { navigation } = usePermissions()
 
   // Build navigation items from user's accessible navigation
-  const navItems = Object.entries(navigation).map(([id, config]) => {
-    // Get the icon component dynamically
-    const IconComponent = Icons[config.icon] || Icons.Circle
-    
-    return {
-      id,
-      label: config.label,
-      icon: IconComponent,
-    }
-  })
+  const navItems = Object.entries(navigation)
+    .map(([id, config]) => {
+      // Get the icon component dynamically
+      const IconComponent = Icons[config.icon] || Icons.Circle
+      
+      return {
+        id,
+        label: config.label,
+        icon: IconComponent,
+        order: config.order || 999, // Default to 999 for items without order
+      }
+    })
+    .sort((a, b) => a.order - b.order) // Sort by order field
 
   const handleNavigation = (pageId) => {
     onNavigate(pageId)
