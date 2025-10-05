@@ -54,6 +54,20 @@ class PermissionService:
     @staticmethod
     def get_user_navigation(user):
         """Get navigation items user can access"""
+        # Fallback for users without RBAC roles (legacy support)
+        if not user or not user.roles:
+            print(f"⚠️ User {user.username if user else 'None'} has no RBAC roles, using legacy fallback")
+            
+            # Check legacy role field for admin users
+            if user and user.role == 'admin':
+                print(f"📋 Using legacy admin role for {user.username}")
+                # Return all navigation items for legacy admin users
+                return {nav_id: nav_config for nav_id, nav_config in NAVIGATION_CONFIG.items() 
+                       if nav_id not in {'ai-query', 'database-explorer'}}
+            else:
+                print(f"❌ User {user.username if user else 'None'} has no roles and no legacy admin role")
+                return {}
+        
         user_resources = set(PermissionService.get_user_resources(user))
         accessible_nav = {}
         
