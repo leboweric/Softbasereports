@@ -22,6 +22,7 @@ RESOURCES = {
     'accounting_ap': 'Accounts payable reports',
     'accounting_commissions': 'Sales commission reports',
     'accounting_control': 'Control number reports',
+    'accounting_inventory': 'Year-end inventory report',
     'minitrac': 'Minitrac equipment database',
     'user_management': 'User and role management',
 }
@@ -75,7 +76,7 @@ ROLE_PERMISSIONS = {
     'Accounting User': {
         'resources': [
             'accounting_overview', 'accounting_ar', 'accounting_ap',
-            'accounting_commissions', 'accounting_control'
+            'accounting_commissions', 'accounting_control', 'accounting_inventory'
         ],
         'actions': ['view', 'export'],
     },
@@ -136,6 +137,7 @@ NAVIGATION_CONFIG = {
             'ap': {'label': 'Accounts Payable', 'resource': 'accounting_ap'},
             'commissions': {'label': 'Sales Commissions', 'resource': 'accounting_commissions'},
             'control': {'label': 'Control Numbers', 'resource': 'accounting_control'},
+            'inventory': {'label': 'Inventory', 'resource': 'accounting_inventory'},
         }
     },
     'minitrac': {
