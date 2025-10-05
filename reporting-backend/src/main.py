@@ -1,7 +1,12 @@
+"""
+Softbase Reports Backend API
+Version: 1.0.1 - Navigation cleanup deployed
+"""
 import os
 import sys
 # DON'T CHANGE THIS !!!
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+# Force redeploy - navigation cleanup for Database Explorer and AI Query removal
 from flask import Flask, send_from_directory, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
