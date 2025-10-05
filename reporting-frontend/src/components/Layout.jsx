@@ -1,138 +1,41 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import * as Icons from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [navigation, setNavigation] = useState({})
   
   // Debug logging for data flow
   console.log('Layout render - user:', user)
   console.log('Layout render - user.navigation:', user?.navigation)
   
-  // Check if user has navigation property at all
-  if (user) {
-    console.log('User properties:', Object.keys(user))
-    console.log('User has navigation:', 'navigation' in user)
-  }
-
-  // Use useEffect to properly handle navigation updates
-  useEffect(() => {
-    console.log('Layout useEffect triggered - user:', user)
-    console.log('Layout useEffect - user?.navigation:', user?.navigation)
-    console.log('Layout useEffect - typeof user?.navigation:', typeof user?.navigation)
-    
-    if (user?.navigation && typeof user.navigation === 'object' && Object.keys(user.navigation).length > 0) {
-      console.log('Layout useEffect - setting navigation:', user.navigation)
-      setNavigation(user.navigation)
-    } else {
-      console.log('Layout useEffect - no valid navigation data yet, user.navigation is:', user?.navigation)
-      setNavigation({})
-    }
-  }, [user])
-
-  console.log('Layout render - navigation state:', navigation)
+  const navigation = user?.navigation || {}
+  const hasNavigation = Object.keys(navigation).length > 0
+  
+  console.log('Layout render - hasNavigation:', hasNavigation)
   console.log('Layout render - navigation keys:', Object.keys(navigation))
-
-  // Force a re-render check - if user has navigation but our state doesn't, update it
-  if (user?.navigation && typeof user.navigation === 'object' && Object.keys(user.navigation).length > 0 && Object.keys(navigation).length === 0) {
-    console.log('Layout: Force setting navigation from user prop')
-    setNavigation(user.navigation)
-  }
-
-  // Don't render menu items if no navigation data yet
-  if (!user || !navigation || Object.keys(navigation).length === 0) {
-    console.log('Layout: No navigation data yet, showing placeholder')
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Mobile sidebar placeholder */}
-        <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-          <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
-            <div className="flex h-16 items-center justify-between px-4 border-b">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src="/bennett-logo.png" 
-                  alt="Bennett Equipment" 
-                  className="h-10 w-auto"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'block';
-                  }}
-                />
-                <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>BIS</h1>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
-                <Icons.X className="h-5 w-5" />
-              </Button>
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-gray-500">Loading menu...</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop sidebar placeholder */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-          <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
-            <div className="flex h-16 items-center px-4 border-b">
-              <div className="flex items-center space-x-3">
-                <img 
-                  src="/bennett-logo.png" 
-                  alt="Bennett Equipment" 
-                  className="h-10 w-auto"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'block';
-                  }}
-                />
-                <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>BIS</h1>
-              </div>
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-gray-500">Loading menu...</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main content */}
-        <div className="lg:pl-64">
-          <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm lg:hidden">
-            <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(true)}>
-              <Icons.Menu className="h-5 w-5" />
-            </Button>
-            <div className="flex-1 text-sm font-semibold leading-6 text-gray-900">
-              Loading...
-            </div>
-          </div>
-          <main className="py-6">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              {children}
-            </div>
-          </main>
-        </div>
-      </div>
-    )
-  }
 
   // Build navigation items with HARDCODED ORDER to fix menu
   const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
   
-  const navItems = desiredOrder
-    .filter(id => navigation[id]) // Only include items user has access to
-    .map(id => {
-      const config = navigation[id]
-      const IconComponent = Icons[config.icon] || Icons.Circle
-      
-      return {
-        id,
-        label: config.label,
-        icon: IconComponent,
-      }
-    })
+  const navItems = hasNavigation 
+    ? desiredOrder
+        .filter(id => navigation[id]) // Only include items user has access to
+        .map(id => {
+          const config = navigation[id]
+          const IconComponent = Icons[config.icon] || Icons.Circle
+          
+          return {
+            id,
+            label: config.label,
+            icon: IconComponent,
+            order: config.order || 999,
+          }
+        })
+    : []
 
-  console.log('Layout: Navigation items built:', navItems.map(item => item.label))
+  console.log('Layout render - navItems:', navItems.map(item => item.label))
 
   const handleNavigation = (pageId) => {
     onNavigate(pageId)
@@ -164,28 +67,32 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
             </Button>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.label}
-                  onClick={() => handleNavigation(item.id)}
-                  className={`group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
-                    currentPage === item.id
-                      ? 'bg-blue-100 text-blue-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {item.label}
-                  {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      AI
-                    </Badge>
-                  )}
-                </button>
-              )
-            })}
+            {!hasNavigation ? (
+              <div className="p-4 text-gray-500">Loading menu...</div>
+            ) : (
+              navItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => handleNavigation(item.id)}
+                    className={`group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
+                      currentPage === item.id
+                        ? 'bg-blue-100 text-blue-900'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                    {item.label}
+                    {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        AI
+                      </Badge>
+                    )}
+                  </button>
+                )
+              })
+            )}
           </nav>
           <div className="border-t p-4">
             <div className="flex items-center">
@@ -235,28 +142,32 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.label}
-                  onClick={() => handleNavigation(item.id)}
-                  className={`group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
-                    currentPage === item.id
-                      ? 'bg-blue-100 text-blue-900'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
-                  {item.label}
-                  {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
-                    <Badge variant="secondary" className="ml-auto text-xs">
-                      AI
-                    </Badge>
-                  )}
-                </button>
-              )
-            })}
+            {!hasNavigation ? (
+              <div className="p-4 text-gray-500">Loading menu...</div>
+            ) : (
+              navItems.map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.label}
+                    onClick={() => handleNavigation(item.id)}
+                    className={`group flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
+                      currentPage === item.id
+                        ? 'bg-blue-100 text-blue-900'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Icon className="mr-3 h-5 w-5 flex-shrink-0" />
+                    {item.label}
+                    {(item.id === 'ai-query' || item.id === 'ai-query-tester') && (
+                      <Badge variant="secondary" className="ml-auto text-xs">
+                        AI
+                      </Badge>
+                    )}
+                  </button>
+                )
+              })
+            )}
           </nav>
           <div className="border-t p-4">
             <div className="flex items-center">
