@@ -16,6 +16,7 @@ import AIQueryTester from './components/AIQueryTester'
 import TableDiscovery from './components/TableDiscovery'
 import MinitracSearch from './components/MinitracSearch'
 import UserManagementEnhanced from './components/UserManagementEnhanced'
+import { UserManagement } from './components/admin/UserManagement'
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -156,7 +157,7 @@ function App() {
       case 'minitrac':
         return <MinitracSearch user={user} organization={organization} />
       case 'user-management':
-        return <UserManagementEnhanced user={user} organization={organization} />
+        return <UserManagement user={user} />
       case 'settings':
         return <div className="p-8 text-center text-gray-500">Settings coming soon...</div>
       default:
