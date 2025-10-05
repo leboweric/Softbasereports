@@ -1,24 +1,109 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import * as Icons from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [navigation, setNavigation] = useState({})
   
-  // Use navigation directly from user prop instead of context to avoid timing issues
-  const navigation = user?.navigation || {}
-
-  // Debug logging to see what's happening
+  // Debug logging for data flow
   console.log('Layout render - user:', user)
   console.log('Layout render - user.navigation:', user?.navigation)
-  console.log('Layout render - navigation object:', navigation)
-  console.log('Layout render - navigation keys:', Object.keys(navigation))
   
   // Check if user has navigation property at all
   if (user) {
     console.log('User properties:', Object.keys(user))
     console.log('User has navigation:', 'navigation' in user)
+  }
+
+  // Use useEffect to properly handle navigation updates
+  useEffect(() => {
+    if (user?.navigation) {
+      console.log('Layout useEffect - setting navigation:', user.navigation)
+      setNavigation(user.navigation)
+    } else {
+      console.log('Layout useEffect - no navigation data yet')
+      setNavigation({})
+    }
+  }, [user])
+
+  console.log('Layout render - navigation state:', navigation)
+  console.log('Layout render - navigation keys:', Object.keys(navigation))
+
+  // Don't render menu items if no navigation data yet
+  if (!user || !navigation || Object.keys(navigation).length === 0) {
+    console.log('Layout: No navigation data yet, showing placeholder')
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Mobile sidebar placeholder */}
+        <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
+            <div className="flex h-16 items-center justify-between px-4 border-b">
+              <div className="flex items-center space-x-3">
+                <img 
+                  src="/bennett-logo.png" 
+                  alt="Bennett Equipment" 
+                  className="h-10 w-auto"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'block';
+                  }}
+                />
+                <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>BIS</h1>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
+                <Icons.X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-gray-500">Loading menu...</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop sidebar placeholder */}
+        <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+          <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
+            <div className="flex h-16 items-center px-4 border-b">
+              <div className="flex items-center space-x-3">
+                <img 
+                  src="/bennett-logo.png" 
+                  alt="Bennett Equipment" 
+                  className="h-10 w-auto"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'block';
+                  }}
+                />
+                <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>BIS</h1>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-gray-500">Loading menu...</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="lg:pl-64">
+          <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm lg:hidden">
+            <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(true)}>
+              <Icons.Menu className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 text-sm font-semibold leading-6 text-gray-900">
+              Loading...
+            </div>
+          </div>
+          <main className="py-6">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              {children}
+            </div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   // Build navigation items with HARDCODED ORDER to fix menu
@@ -36,6 +121,8 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         icon: IconComponent,
       }
     })
+
+  console.log('Layout: Navigation items built:', navItems.map(item => item.label))
 
   const handleNavigation = (pageId) => {
     onNavigate(pageId)
