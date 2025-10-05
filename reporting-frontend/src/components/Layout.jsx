@@ -8,20 +8,21 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { navigation } = usePermissions()
 
-  // Build navigation items from user's accessible navigation
-  const navItems = Object.entries(navigation)
-    .map(([id, config]) => {
-      // Get the icon component dynamically
+  // Build navigation items with HARDCODED ORDER to fix menu
+  const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
+  
+  const navItems = desiredOrder
+    .filter(id => navigation[id]) // Only include items user has access to
+    .map(id => {
+      const config = navigation[id]
       const IconComponent = Icons[config.icon] || Icons.Circle
       
       return {
         id,
         label: config.label,
         icon: IconComponent,
-        order: config.order || 999, // Default to 999 for items without order
       }
     })
-    .sort((a, b) => a.order - b.order) // Sort by order field
 
   const handleNavigation = (pageId) => {
     onNavigate(pageId)
