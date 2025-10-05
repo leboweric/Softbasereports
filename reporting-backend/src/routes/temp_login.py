@@ -56,12 +56,38 @@ def temp_login():
                 
                 accessible_departments = user.get_accessible_departments()
                 
+                # Get dynamic navigation and permissions like the main login endpoint
+                from src.services.permission_service import PermissionService
+                
+                try:
+                    navigation = PermissionService.get_user_navigation(user)
+                    print(f"🔍 TEMP LOGIN - Navigation for {user.username}: {navigation}")
+                except Exception as e:
+                    print(f"🔍 TEMP LOGIN - Error getting navigation: {e}")
+                    navigation = {}
+                
+                try:
+                    resources = PermissionService.get_user_resources(user)
+                    print(f"🔍 TEMP LOGIN - Resources for {user.username}: {resources}")
+                except Exception as e:
+                    print(f"🔍 TEMP LOGIN - Error getting resources: {e}")
+                    resources = []
+                
+                try:
+                    permissions_summary = PermissionService.get_user_permissions_summary(user)
+                except Exception as e:
+                    print(f"🔍 TEMP LOGIN - Error getting permissions summary: {e}")
+                    permissions_summary = {}
+                
                 return jsonify({
                     'token': access_token,
                     'user': user.to_dict(),
                     'organization': user.organization.to_dict() if user.organization else None,
                     'permissions': permissions,
-                    'accessible_departments': accessible_departments
+                    'accessible_departments': accessible_departments,
+                    'navigation': navigation,
+                    'resources': resources,
+                    'permissions_summary': permissions_summary
                 }), 200
         
         return jsonify({'message': 'Invalid credentials'}), 401
