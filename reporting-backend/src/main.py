@@ -30,13 +30,13 @@ from src.routes.softbase_reports import softbase_reports_bp
 from src.routes.dashboard_optimized import dashboard_optimized_bp
 from src.routes.accounting_diagnostics import accounting_diagnostics_bp
 # from src.routes.diagnostics.expense_search_diagnostic import expense_search_diagnostic_bp
-from src.routes.diagnostics.invoice_columns_diagnostic import invoice_columns_diagnostic_bp
-from src.routes.diagnostics.find_expense_accounts import find_expense_accounts_bp
-from src.routes.diagnostics.gl_table_structure import gl_table_structure_bp
-from src.routes.diagnostics.analyze_gl_accounts import analyze_gl_accounts_bp
-from src.routes.diagnostics.monthly_expense_debug import monthly_expense_debug_bp
+# from src.routes.diagnostics.invoice_columns_diagnostic import invoice_columns_diagnostic_bp
+# from src.routes.diagnostics.find_expense_accounts import find_expense_accounts_bp
+# from src.routes.diagnostics.gl_table_structure import gl_table_structure_bp
+# from src.routes.diagnostics.analyze_gl_accounts import analyze_gl_accounts_bp
+# from src.routes.diagnostics.monthly_expense_debug import monthly_expense_debug_bp
 from src.routes.dashboard_pace import dashboard_pace_bp
-from src.routes.diagnostics.sales_pace_debug import sales_pace_debug_bp
+# from src.routes.diagnostics.sales_pace_debug import sales_pace_debug_bp
 from src.routes.sales_forecast import sales_forecast_bp
 from src.routes.ai_predictions import ai_predictions_bp
 from src.routes.ai_query_test import ai_query_test_bp
@@ -122,13 +122,13 @@ app.register_blueprint(softbase_reports_bp)
 app.register_blueprint(dashboard_optimized_bp)
 app.register_blueprint(accounting_diagnostics_bp)
 # app.register_blueprint(expense_search_diagnostic_bp)
-app.register_blueprint(invoice_columns_diagnostic_bp)
-app.register_blueprint(find_expense_accounts_bp)
-app.register_blueprint(gl_table_structure_bp)
-app.register_blueprint(analyze_gl_accounts_bp)
-app.register_blueprint(monthly_expense_debug_bp)
+# app.register_blueprint(invoice_columns_diagnostic_bp)
+# app.register_blueprint(find_expense_accounts_bp)
+# app.register_blueprint(gl_table_structure_bp)
+# app.register_blueprint(analyze_gl_accounts_bp)
+# app.register_blueprint(monthly_expense_debug_bp)
 app.register_blueprint(dashboard_pace_bp)
-app.register_blueprint(sales_pace_debug_bp)
+# app.register_blueprint(sales_pace_debug_bp)
 app.register_blueprint(sales_forecast_bp)
 app.register_blueprint(ai_predictions_bp)
 app.register_blueprint(ai_query_test_bp, url_prefix='/api/ai-test')
