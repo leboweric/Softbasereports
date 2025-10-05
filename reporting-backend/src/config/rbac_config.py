@@ -72,13 +72,6 @@ ROLE_PERMISSIONS = {
         ],
         'actions': ['view'],
     },
-    'Accounting Manager': {
-        'resources': [
-            'accounting_overview', 'accounting_ar', 'accounting_ap',
-            'accounting_commissions', 'accounting_control'
-        ],
-        'actions': ['view', 'create', 'edit', 'export'],
-    },
     'Accounting User': {
         'resources': [
             'accounting_overview', 'accounting_ar', 'accounting_ap',
