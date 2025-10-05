@@ -9,6 +9,11 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   // Use navigation directly from user prop instead of context to avoid timing issues
   const navigation = user?.navigation || {}
 
+  // Debug logging to see what's happening
+  console.log('Layout render - user:', user)
+  console.log('Layout render - navigation:', navigation)
+  console.log('Layout render - navigation keys:', Object.keys(navigation))
+
   // Build navigation items with HARDCODED ORDER to fix menu
   const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
   
