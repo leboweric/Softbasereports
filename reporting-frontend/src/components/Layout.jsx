@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { usePermissions } from '../contexts/PermissionsContext'
 import * as Icons from 'lucide-react'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { navigation } = usePermissions()
+  
+  // Use navigation directly from user prop instead of context to avoid timing issues
+  const navigation = user?.navigation || {}
 
   // Build navigation items with HARDCODED ORDER to fix menu
   const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
