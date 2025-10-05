@@ -160,7 +160,7 @@ app.register_blueprint(check_hold_bp)
 app.register_blueprint(inventory_diagnostic_bp)
 app.register_blueprint(accounting_inventory_bp)
 app.register_blueprint(depreciation_explorer_bp)
-app.register_blueprint(diagnostics_bp)
+# app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration
 # Use PostgreSQL if DATABASE_URL is set, otherwise fall back to SQLite
