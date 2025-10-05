@@ -19,17 +19,27 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
 
   // Use useEffect to properly handle navigation updates
   useEffect(() => {
-    if (user?.navigation) {
+    console.log('Layout useEffect triggered - user:', user)
+    console.log('Layout useEffect - user?.navigation:', user?.navigation)
+    console.log('Layout useEffect - typeof user?.navigation:', typeof user?.navigation)
+    
+    if (user?.navigation && typeof user.navigation === 'object' && Object.keys(user.navigation).length > 0) {
       console.log('Layout useEffect - setting navigation:', user.navigation)
       setNavigation(user.navigation)
     } else {
-      console.log('Layout useEffect - no navigation data yet')
+      console.log('Layout useEffect - no valid navigation data yet, user.navigation is:', user?.navigation)
       setNavigation({})
     }
   }, [user])
 
   console.log('Layout render - navigation state:', navigation)
   console.log('Layout render - navigation keys:', Object.keys(navigation))
+
+  // Force a re-render check - if user has navigation but our state doesn't, update it
+  if (user?.navigation && typeof user.navigation === 'object' && Object.keys(user.navigation).length > 0 && Object.keys(navigation).length === 0) {
+    console.log('Layout: Force setting navigation from user prop')
+    setNavigation(user.navigation)
+  }
 
   // Don't render menu items if no navigation data yet
   if (!user || !navigation || Object.keys(navigation).length === 0) {

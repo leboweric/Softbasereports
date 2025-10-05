@@ -62,6 +62,9 @@ const Login = ({ onLogin }) => {
           permissions_summary: data.permissions_summary || {}
         }
         console.log('Login created userWithNavigation:', userWithNavigation)
+        console.log('Login userWithNavigation.navigation:', userWithNavigation.navigation)
+        console.log('Login userWithNavigation.navigation keys:', Object.keys(userWithNavigation.navigation || {}))
+        console.log('Login calling onLogin with user:', userWithNavigation)
         onLogin(userWithNavigation, data.organization, data.permissions || [], data.accessible_departments || [])
       } else {
         setError(data.message || 'Login failed')
