@@ -64,7 +64,6 @@ def get_accounting_inventory():
         LEFT JOIN ben002.Depreciation d ON e.SerialNo = d.SerialNo
             AND d.Inactive = 0  -- Only active depreciation records
         WHERE e.SerialNo IS NOT NULL
-        AND (e.IsDeleted IS NULL OR e.IsDeleted = 0)
         ORDER BY e.Make, e.Model, e.SerialNo
         """
         
