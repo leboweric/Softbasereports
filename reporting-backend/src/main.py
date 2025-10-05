@@ -9,6 +9,7 @@ from datetime import datetime
 from src.models.user import db
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
+from src.routes.admin import admin_bp
 from src.routes.reports import reports_bp
 from src.routes.ai_query import ai_query_bp
 from src.routes.custom_reports import custom_reports_bp
@@ -95,6 +96,7 @@ def after_request(response):
 # Register blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
 app.register_blueprint(auth_bp, url_prefix='/api/auth')
+app.register_blueprint(admin_bp, url_prefix='/api/admin')
 app.register_blueprint(reports_bp, url_prefix='/api/reports')
 app.register_blueprint(ai_query_bp, url_prefix='/api/ai')
 app.register_blueprint(custom_reports_bp, url_prefix='/api/custom-reports')

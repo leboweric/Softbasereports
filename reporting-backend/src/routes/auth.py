@@ -85,12 +85,22 @@ def login():
             }
         )
         
+        # Get dynamic navigation and permissions
+        from src.services.permission_service import PermissionService
+        
+        navigation = PermissionService.get_user_navigation(user)
+        resources = PermissionService.get_user_resources(user)
+        permissions_summary = PermissionService.get_user_permissions_summary(user)
+        
         return jsonify({
             'token': access_token,
             'user': user.to_dict(),
             'organization': user.organization.to_dict(),
-            'permissions': [p.name for role in user.roles for p in role.permissions],
-            'accessible_departments': user.get_accessible_departments()
+            'permissions': [p.name for role in user.roles for p in role.permissions],  # Legacy
+            'accessible_departments': user.get_accessible_departments(),
+            'navigation': navigation,
+            'resources': resources,
+            'permissions_summary': permissions_summary
         }), 200
         
     except Exception as e:
@@ -117,11 +127,21 @@ def get_current_user():
     else:
         permissions = [p.name for role in current_user.roles for p in role.permissions]
     
+    # Get dynamic navigation and permissions
+    from src.services.permission_service import PermissionService
+    
+    navigation = PermissionService.get_user_navigation(current_user)
+    resources = PermissionService.get_user_resources(current_user)
+    permissions_summary = PermissionService.get_user_permissions_summary(current_user)
+    
     return jsonify({
         'user': current_user.to_dict(),
         'organization': current_user.organization.to_dict(),
-        'permissions': permissions,
-        'accessible_departments': current_user.get_accessible_departments()
+        'permissions': permissions,  # Legacy permissions for backward compatibility
+        'accessible_departments': current_user.get_accessible_departments(),
+        'navigation': navigation,
+        'resources': resources,
+        'permissions_summary': permissions_summary
     }), 200
 
 @auth_bp.route('/refresh', methods=['POST'])
