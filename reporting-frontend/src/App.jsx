@@ -80,25 +80,23 @@ function App() {
   }
 
   const handleLogin = (userData, organizationData, userPermissions = [], departments = []) => {
-    console.log('App handleLogin called with userData:', userData)
-    console.log('App handleLogin userData.navigation:', userData.navigation)
-    console.log('App handleLogin userData.navigation keys:', Object.keys(userData.navigation || {}))
+    // Process login data
     
     setUser(userData)
     setOrganization(organizationData)
     setPermissions(userPermissions)
     setAccessibleDepartments(departments)
     
-    console.log('App handleLogin - user state set, userData:', userData)
+    // User state updated
     
     // Use dynamic navigation to determine landing page
     const navigation = getAccessibleNavigation(userData)
-    console.log('App handleLogin - getAccessibleNavigation result:', navigation)
+    // Navigation data retrieved
     
     // Use same order as Layout.jsx to ensure Dashboard is first choice
     const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
     const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
-    console.log('App handleLogin - setting currentPage to:', firstAvailablePage)
+    // Setting default page
     setCurrentPage(firstAvailablePage)
   }
 

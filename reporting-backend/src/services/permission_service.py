@@ -56,16 +56,12 @@ class PermissionService:
         """Get navigation items user can access"""
         # Fallback for users without RBAC roles (legacy support)
         if not user or not user.roles:
-            print(f"⚠️ User {user.username if user else 'None'} has no RBAC roles, using legacy fallback")
-            
             # Check legacy role field for admin users
             if user and user.role == 'admin':
-                print(f"📋 Using legacy admin role for {user.username}")
                 # Return all navigation items for legacy admin users
                 return {nav_id: nav_config for nav_id, nav_config in NAVIGATION_CONFIG.items() 
                        if nav_id not in {'ai-query', 'database-explorer'}}
             else:
-                print(f"❌ User {user.username if user else 'None'} has no roles and no legacy admin role")
                 return {}
         
         user_resources = set(PermissionService.get_user_resources(user))
@@ -84,7 +80,6 @@ class PermissionService:
             
             # If there's a required resource, check if user has access
             if required_resource and required_resource not in user_resources:
-                print(f"🔍 NAVIGATION DEBUG - Skipping {nav_id}: missing required resource {required_resource}")
                 continue
             
             # Filter tabs if they exist
@@ -97,13 +92,9 @@ class PermissionService:
                 # Only include nav item if user has access to at least one tab
                 if accessible_tabs:
                     accessible_nav[nav_id] = {**nav_config, 'tabs': accessible_tabs}
-                    print(f"🔍 NAVIGATION DEBUG - Including {nav_id} with {len(accessible_tabs)} tabs")
-                else:
-                    print(f"🔍 NAVIGATION DEBUG - Skipping {nav_id}: no accessible tabs")
             else:
                 # No tabs, include the nav item
                 accessible_nav[nav_id] = nav_config
-                print(f"🔍 NAVIGATION DEBUG - Including {nav_id} (no tabs required)")
         
         return accessible_nav
     

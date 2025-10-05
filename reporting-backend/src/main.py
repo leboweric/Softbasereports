@@ -1,6 +1,6 @@
 """
 Softbase Reports Backend API
-Version: 1.0.3 - URGENT: Fix login navigation data
+Version: 1.0.4 - Fixed User Management roles loading error
 """
 import os
 import sys

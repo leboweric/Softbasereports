@@ -88,34 +88,25 @@ def login():
         # Get dynamic navigation and permissions
         from src.services.permission_service import PermissionService
         
-        # Debug logging for user roles
-        print(f"🔍 LOGIN DEBUG - User: {user.username} ({user.email})")
-        print(f"🔍 LOGIN DEBUG - User roles count: {len(user.roles)}")
-        print(f"🔍 LOGIN DEBUG - User role names: {[r.name for r in user.roles]}")
-        print(f"🔍 LOGIN DEBUG - Legacy role field: {user.role}")
+        # Log successful login
+        print(f"User {user.username} logged in successfully")
         
         try:
             navigation = PermissionService.get_user_navigation(user)
-            print(f"🔍 LOGIN DEBUG - Navigation returned: {navigation}")
-            print(f"🔍 LOGIN DEBUG - Navigation keys: {list(navigation.keys()) if navigation else None}")
         except Exception as e:
-            print(f"🔍 LOGIN DEBUG - Error getting navigation: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Error getting navigation for user {user.username}: {e}")
             navigation = {}
         
         try:
             resources = PermissionService.get_user_resources(user)
-            print(f"🔍 LOGIN DEBUG - Resources: {resources}")
         except Exception as e:
-            print(f"🔍 LOGIN DEBUG - Error getting resources: {e}")
+            print(f"Error getting resources for user {user.username}: {e}")
             resources = []
         
         try:
             permissions_summary = PermissionService.get_user_permissions_summary(user)
-            print(f"🔍 LOGIN DEBUG - Permissions summary: {permissions_summary}")
         except Exception as e:
-            print(f"🔍 LOGIN DEBUG - Error getting permissions summary: {e}")
+            print(f"Error getting permissions summary for user {user.username}: {e}")
             permissions_summary = {}
         
         response_data = {
@@ -129,9 +120,7 @@ def login():
             'permissions_summary': permissions_summary
         }
         
-        print(f"🔍 LOGIN DEBUG - Response includes navigation: {'navigation' in response_data}")
-        print(f"🔍 LOGIN DEBUG - Response navigation keys: {list(response_data['navigation'].keys()) if response_data.get('navigation') else None}")
-        print(f"🔍 LOGIN DEBUG - Final navigation value: {response_data.get('navigation')}")
+        # Login response prepared successfully
         
         return jsonify(response_data), 200
         

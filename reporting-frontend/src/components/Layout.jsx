@@ -6,15 +6,12 @@ import * as Icons from 'lucide-react'
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   
-  // Debug logging for data flow
-  console.log('Layout render - user:', user)
-  console.log('Layout render - user.navigation:', user?.navigation)
+  // Layout rendering
   
   const navigation = user?.navigation || {}
   const hasNavigation = Object.keys(navigation).length > 0
   
-  console.log('Layout render - hasNavigation:', hasNavigation)
-  console.log('Layout render - navigation keys:', Object.keys(navigation))
+  // Navigation data processed
 
   // Build navigation items with HARDCODED ORDER to fix menu
   const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
@@ -35,7 +32,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         })
     : []
 
-  console.log('Layout render - navItems:', navItems.map(item => item.label))
+  // Navigation items built
 
   const handleNavigation = (pageId) => {
     onNavigate(pageId)

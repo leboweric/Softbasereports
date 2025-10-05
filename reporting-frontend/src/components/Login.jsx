@@ -46,14 +46,7 @@ const Login = ({ onLogin }) => {
       if (response.ok) {
         localStorage.setItem('token', data.token)
         
-        // Debug: Check what backend actually sent
-        console.log('🔍 FULL LOGIN API RESPONSE:', JSON.stringify(data, null, 2))
-        console.log('🔍 Login API response data:', data)
-        console.log('🔍 Login API data.navigation:', data.navigation)
-        console.log('🔍 Login API data.navigation type:', typeof data.navigation)
-        console.log('🔍 Login API navigation keys:', Object.keys(data.navigation || {}))
-        console.log('🔍 Login API data.resources:', data.resources)
-        console.log('🔍 Login API data.permissions_summary:', data.permissions_summary)
+        // Login successful
         
         // Add navigation data to user object for compatibility
         const userWithNavigation = {
@@ -62,10 +55,7 @@ const Login = ({ onLogin }) => {
           resources: data.resources || [],
           permissions_summary: data.permissions_summary || {}
         }
-        console.log('🔍 Login created userWithNavigation:', userWithNavigation)
-        console.log('🔍 Login userWithNavigation.navigation:', userWithNavigation.navigation)
-        console.log('🔍 Login userWithNavigation.navigation keys:', Object.keys(userWithNavigation.navigation || {}))
-        console.log('🔍 Login calling onLogin with user:', userWithNavigation)
+        // Pass user data to parent component
         onLogin(userWithNavigation, data.organization, data.permissions || [], data.accessible_departments || [])
       } else {
         setError(data.message || 'Login failed')
