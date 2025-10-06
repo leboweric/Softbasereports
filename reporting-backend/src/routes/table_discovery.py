@@ -629,3 +629,58 @@ def analyze_gl_detail():
             'success': False,
             'error': str(e)
         }), 500
+
+@table_discovery_bp.route('/api/database/gl-column-check', methods=['GET'])
+@jwt_required()
+def check_gl_columns():
+    """Check actual column names in GL-related tables"""
+    try:
+        db = AzureSQLService()
+        
+        # Get column names from GL-related tables
+        column_check_query = """
+        SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = 'ben002'
+        AND TABLE_NAME IN ('GL', 'GLDetail', 'ChartOfAccounts')
+        ORDER BY TABLE_NAME, ORDINAL_POSITION
+        """
+        
+        columns = db.execute_query(column_check_query)
+        
+        # Organize by table
+        tables_info = {}
+        for col in columns:
+            table_name = col['TABLE_NAME']
+            if table_name not in tables_info:
+                tables_info[table_name] = {
+                    'columns': [],
+                    'sample_data': None
+                }
+            
+            tables_info[table_name]['columns'].append({
+                'name': col['COLUMN_NAME'],
+                'type': col['DATA_TYPE'],
+                'max_length': col['CHARACTER_MAXIMUM_LENGTH']
+            })
+        
+        # Get sample data for each table
+        for table_name in tables_info.keys():
+            try:
+                sample_query = f"SELECT TOP 3 * FROM ben002.{table_name}"
+                sample_data = db.execute_query(sample_query)
+                tables_info[table_name]['sample_data'] = sample_data
+            except Exception as e:
+                tables_info[table_name]['sample_data'] = f"Error: {str(e)}"
+        
+        return jsonify({
+            'success': True,
+            'tables': tables_info
+        })
+        
+    except Exception as e:
+        logger.error(f"Error checking GL columns: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
