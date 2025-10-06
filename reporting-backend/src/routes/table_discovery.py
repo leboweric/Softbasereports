@@ -474,3 +474,158 @@ def investigate_gl_structure():
             'success': False,
             'error': str(e)
         }), 500
+
+@table_discovery_bp.route('/api/database/gl-detail-analysis', methods=['POST'])
+@jwt_required()
+def analyze_gl_detail():
+    """Analyze GLDetail transactions for equipment linking and account balances"""
+    try:
+        data = request.get_json()
+        fiscal_year_filter = data.get('fiscal_year', True)  # Default to current fiscal year
+        
+        db = AzureSQLService()
+        
+        # Step 1: Check if GLDetail table exists and get its structure
+        gldetail_check_query = """
+        SELECT 
+            COLUMN_NAME,
+            DATA_TYPE,
+            CHARACTER_MAXIMUM_LENGTH,
+            IS_NULLABLE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002' 
+        AND TABLE_NAME = 'GLDetail'
+        ORDER BY ORDINAL_POSITION
+        """
+        
+        gldetail_columns = db.execute_query(gldetail_check_query)
+        if not gldetail_columns:
+            return jsonify({
+                'success': False,
+                'error': 'GLDetail table not found'
+            }), 404
+        
+        results = {
+            'table_structure': gldetail_columns,
+            'target_accounts': {},
+            'equipment_links': {},
+            'fiscal_year_data': {},
+            'sample_transactions': {}
+        }
+        
+        # Step 2: Get account balances for our target accounts
+        target_accounts = ['131000', '131200', '131300', '183000', '193000']
+        
+        # First, find the account number column in GLDetail
+        account_columns = [col['COLUMN_NAME'] for col in gldetail_columns 
+                         if 'account' in col['COLUMN_NAME'].lower() or 
+                            'acct' in col['COLUMN_NAME'].lower()]
+        
+        if not account_columns:
+            return jsonify({
+                'success': False,
+                'error': 'No account number column found in GLDetail'
+            }), 400
+        
+        account_col = account_columns[0]  # Use the first account column found
+        
+        # Get current balances for target accounts
+        balance_query = f"""
+        SELECT 
+            {account_col} as AccountNumber,
+            SUM(CASE WHEN Credit IS NOT NULL THEN -Credit ELSE 0 END + 
+                CASE WHEN Debit IS NOT NULL THEN Debit ELSE 0 END) as CurrentBalance,
+            COUNT(*) as TransactionCount,
+            MIN(Date) as EarliestTransaction,
+            MAX(Date) as LatestTransaction
+        FROM ben002.GLDetail
+        WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
+        GROUP BY {account_col}
+        ORDER BY {account_col}
+        """
+        
+        account_balances = db.execute_query(balance_query)
+        results['target_accounts'] = account_balances
+        
+        # Step 3: Get fiscal year data (Nov 2024 - Oct 2025) if requested
+        if fiscal_year_filter:
+            fiscal_query = f"""
+            SELECT 
+                {account_col} as AccountNumber,
+                SUM(CASE WHEN Credit IS NOT NULL THEN -Credit ELSE 0 END + 
+                    CASE WHEN Debit IS NOT NULL THEN Debit ELSE 0 END) as FiscalYearActivity,
+                COUNT(*) as FiscalYearTransactions
+            FROM ben002.GLDetail
+            WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
+            AND Date >= '2024-11-01' AND Date <= '2025-10-31'
+            GROUP BY {account_col}
+            ORDER BY {account_col}
+            """
+            
+            fiscal_data = db.execute_query(fiscal_query)
+            results['fiscal_year_data'] = fiscal_data
+        
+        # Step 4: Look for equipment linking patterns
+        # Check if there are columns that might link to equipment
+        equipment_link_columns = [col['COLUMN_NAME'] for col in gldetail_columns 
+                                if 'serial' in col['COLUMN_NAME'].lower() or 
+                                   'equipment' in col['COLUMN_NAME'].lower() or
+                                   'asset' in col['COLUMN_NAME'].lower() or
+                                   'reference' in col['COLUMN_NAME'].lower() or
+                                   'description' in col['COLUMN_NAME'].lower()]
+        
+        if equipment_link_columns:
+            # Sample transactions that might contain equipment references
+            for link_col in equipment_link_columns[:3]:  # Limit to first 3 columns
+                sample_query = f"""
+                SELECT TOP 10 
+                    {account_col} as AccountNumber,
+                    {link_col} as LinkingField,
+                    Date,
+                    Debit,
+                    Credit,
+                    Description
+                FROM ben002.GLDetail
+                WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
+                AND {link_col} IS NOT NULL
+                AND {link_col} != ''
+                ORDER BY Date DESC
+                """
+                
+                try:
+                    link_samples = db.execute_query(sample_query)
+                    results['equipment_links'][link_col] = link_samples
+                except:
+                    results['equipment_links'][link_col] = []
+        
+        # Step 5: Get sample recent transactions for each target account
+        for account in target_accounts:
+            sample_query = f"""
+            SELECT TOP 5
+                Date,
+                Debit,
+                Credit,
+                Description,
+                Reference
+            FROM ben002.GLDetail
+            WHERE {account_col} = '{account}'
+            ORDER BY Date DESC
+            """
+            
+            try:
+                samples = db.execute_query(sample_query)
+                results['sample_transactions'][account] = samples
+            except:
+                results['sample_transactions'][account] = []
+        
+        return jsonify({
+            'success': True,
+            'analysis_results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error analyzing GL detail: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
