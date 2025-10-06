@@ -69,6 +69,10 @@ from src.routes.inventory_diagnostic import inventory_diagnostic_bp
 from src.routes.accounting_inventory import accounting_inventory_bp
 from src.routes.depreciation_explorer import depreciation_explorer_bp
 from src.routes.diagnostics import diagnostics_bp
+from src.routes.gl_inventory_diagnostic import gl_inventory_diagnostic_bp
+from src.routes.gl_inventory_report import gl_inventory_report_bp
+from src.routes.equipment_gl_linker import equipment_gl_linker_bp
+from src.routes.final_gl_inventory_report import final_gl_inventory_report_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
 
@@ -160,6 +164,10 @@ app.register_blueprint(check_hold_bp)
 app.register_blueprint(inventory_diagnostic_bp)
 app.register_blueprint(accounting_inventory_bp)
 app.register_blueprint(depreciation_explorer_bp)
+app.register_blueprint(gl_inventory_diagnostic_bp)
+app.register_blueprint(gl_inventory_report_bp)
+app.register_blueprint(equipment_gl_linker_bp)
+app.register_blueprint(final_gl_inventory_report_bp)
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration
