@@ -365,3 +365,112 @@ def get_column_values():
             'success': False,
             'error': str(e)
         }), 500
+
+@table_discovery_bp.route('/api/database/gl-investigation', methods=['GET'])
+@jwt_required()
+def investigate_gl_structure():
+    """Investigate GL table structure and find target accounts"""
+    try:
+        db = AzureSQLService()
+        
+        # Step 1: Find GL-related tables
+        gl_tables_query = """
+        SELECT TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = 'ben002'
+        AND TABLE_NAME LIKE '%GL%'
+        ORDER BY TABLE_NAME
+        """
+        
+        gl_tables = db.execute_query(gl_tables_query)
+        
+        results = {
+            'gl_tables': [table['TABLE_NAME'] for table in gl_tables],
+            'accounts_found': {},
+            'sample_data': {}
+        }
+        
+        # Step 2: If we have GL tables, check for our target accounts
+        target_accounts = ['131000', '131200', '131300', '183000', '193000']
+        
+        for table in gl_tables:
+            table_name = table['TABLE_NAME']
+            
+            # Get table structure
+            try:
+                structure_query = f"""
+                SELECT 
+                    COLUMN_NAME,
+                    DATA_TYPE,
+                    CHARACTER_MAXIMUM_LENGTH,
+                    IS_NULLABLE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = 'ben002' 
+                AND TABLE_NAME = '{table_name}'
+                ORDER BY ORDINAL_POSITION
+                """
+                
+                columns = db.execute_query(structure_query)
+                results['sample_data'][table_name] = {
+                    'columns': columns,
+                    'sample_rows': []
+                }
+                
+                # Get sample data
+                sample_query = f"SELECT TOP 5 * FROM ben002.{table_name}"
+                sample_data = db.execute_query(sample_query)
+                results['sample_data'][table_name]['sample_rows'] = sample_data
+                
+                # Look for account number columns and check for our target accounts
+                account_columns = [col['COLUMN_NAME'] for col in columns 
+                                 if 'account' in col['COLUMN_NAME'].lower() or 
+                                    'acct' in col['COLUMN_NAME'].lower() or
+                                    'gl' in col['COLUMN_NAME'].lower()]
+                
+                if account_columns:
+                    for account_col in account_columns:
+                        # Check if any of our target accounts exist
+                        target_check_query = f"""
+                        SELECT DISTINCT {account_col} as AccountNumber, COUNT(*) as RecordCount
+                        FROM ben002.{table_name}
+                        WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
+                        GROUP BY {account_col}
+                        ORDER BY {account_col}
+                        """
+                        
+                        try:
+                            target_results = db.execute_query(target_check_query)
+                            if target_results:
+                                results['accounts_found'][table_name] = {
+                                    'account_column': account_col,
+                                    'found_accounts': target_results
+                                }
+                        except:
+                            pass
+                            
+            except Exception as e:
+                results['sample_data'][table_name] = {'error': str(e)}
+        
+        # Step 3: Look for equipment linking patterns
+        equipment_link_query = """
+        SELECT TABLE_NAME, COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002'
+        AND (COLUMN_NAME LIKE '%Serial%' OR COLUMN_NAME LIKE '%Equipment%' OR COLUMN_NAME LIKE '%Asset%')
+        ORDER BY TABLE_NAME, COLUMN_NAME
+        """
+        
+        equipment_links = db.execute_query(equipment_link_query)
+        results['equipment_linking_columns'] = equipment_links
+        
+        return jsonify({
+            'success': True,
+            'investigation_results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error investigating GL structure: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
