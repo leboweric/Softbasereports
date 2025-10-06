@@ -104,3 +104,74 @@ def get_equipment_depreciation_join():
             'success': False,
             'error': f'Error testing Equipment-Depreciation join: {str(e)}'
         }), 500
+
+@diagnostics_bp.route('/api/diagnostic/gl-table-columns', methods=['GET'])
+@jwt_required()
+def get_gl_table_columns():
+    """Get actual column names from GL-related tables"""
+    try:
+        sql_service = AzureSQLService()
+        
+        # Get column information for GL-related tables
+        query = """
+        SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = 'ben002'
+        AND TABLE_NAME IN ('GL', 'GLDetail', 'ChartOfAccounts', 'GLField', 'GLGroup')
+        ORDER BY TABLE_NAME, ORDINAL_POSITION
+        """
+        
+        columns = sql_service.execute_query(query)
+        
+        # Get sample data from GL table if it exists
+        sample_data = []
+        try:
+            sample_query = "SELECT TOP 3 * FROM ben002.GL WHERE AccountNo IN ('131000', '183000')"
+            sample_data = sql_service.execute_query(sample_query)
+        except Exception as e:
+            # If AccountNo doesn't exist, try other common account field names
+            try:
+                sample_query = "SELECT TOP 3 * FROM ben002.GL WHERE Account IN ('131000', '183000')"
+                sample_data = sql_service.execute_query(sample_query)
+            except Exception as e2:
+                try:
+                    sample_query = "SELECT TOP 3 * FROM ben002.GL"
+                    sample_data = sql_service.execute_query(sample_query)
+                except Exception as e3:
+                    sample_data = [{'error': f'Could not get GL sample data: {str(e3)}'}]
+        
+        # Get sample data from GLDetail table if it exists
+        gldetail_sample = []
+        try:
+            gldetail_query = "SELECT TOP 3 * FROM ben002.GLDetail"
+            gldetail_sample = sql_service.execute_query(gldetail_query)
+        except Exception as e:
+            gldetail_sample = [{'error': f'Could not get GLDetail sample data: {str(e)}'}]
+        
+        # Organize columns by table
+        tables_info = {}
+        for col in columns:
+            table_name = col['TABLE_NAME']
+            if table_name not in tables_info:
+                tables_info[table_name] = []
+            tables_info[table_name].append({
+                'name': col['COLUMN_NAME'],
+                'type': col['DATA_TYPE'],
+                'max_length': col['CHARACTER_MAXIMUM_LENGTH'],
+                'nullable': col['IS_NULLABLE']
+            })
+        
+        return jsonify({
+            'success': True,
+            'tables_found': list(tables_info.keys()),
+            'columns_by_table': tables_info,
+            'gl_sample_data': sample_data,
+            'gldetail_sample_data': gldetail_sample,
+            'total_columns': len(columns)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error getting GL table columns: {str(e)}'
+        }), 500
