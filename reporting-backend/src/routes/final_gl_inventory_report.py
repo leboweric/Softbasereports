@@ -39,12 +39,15 @@ def get_final_gl_inventory_report():
         fiscal_end = '2025-10-31'
         current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # Step 1: Get GL account balances with precise decimal handling (simplified - no ChartOfAccounts join)
+        # Step 1: Get actual GL account balances for Oct 2025 (using proper accounting fields)
         gl_balances_query = """
         SELECT 
             AccountNo,
-            CAST(CurrentBalance AS DECIMAL(18,2)) as CurrentBalance,
-            CAST(YTDBalance AS DECIMAL(18,2)) as YTDBalance,
+            CAST(YTD AS DECIMAL(18,2)) as current_balance,
+            CAST(MTD AS DECIMAL(18,2)) as october_balance,
+            Year,
+            Month,
+            AccountField,
             CASE 
                 WHEN AccountNo = '131000' THEN 'New Equipment'
                 WHEN AccountNo = '131200' THEN 'Used Equipment + Batteries'
@@ -55,6 +58,9 @@ def get_final_gl_inventory_report():
             END as Category
         FROM ben002.GL
         WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
+        AND Year = 2025
+        AND Month = 10
+        AND AccountField = 'Actual'
         ORDER BY AccountNo
         """
         
@@ -74,36 +80,39 @@ def get_final_gl_inventory_report():
         ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
         ytd_depreciation = format_currency(ytd_depreciation_result[0]['YTD_Depreciation_Expense']) if ytd_depreciation_result else Decimal('0.00')
         
-        # Step 3: Get equipment details with department-based GL mapping (using correct Equipment table fields)
-        equipment_details_query = """
+        # Step 3: Get equipment linked to GL accounts via transactions (Nov 2024 - Oct 2025)
+        equipment_transactions_query = """
         SELECT 
-            e.SerialNo,
+            gld.AccountNo,
+            gld.ControlNo as serial_no,
             e.Make,
             e.Model,
             e.ModelYear,
             CAST(e.Cost AS DECIMAL(18,2)) as Cost,
-            e.InventoryDept,
+            CAST(SUM(gld.Amount) AS DECIMAL(18,2)) as total_transactions,
+            COUNT(*) as transaction_count,
+            MIN(gld.EffectiveDate) as first_transaction,
+            MAX(gld.EffectiveDate) as last_transaction,
             CASE 
-                WHEN e.InventoryDept = 10 THEN '131000'
-                WHEN e.InventoryDept = 20 THEN '131200'
-                WHEN e.InventoryDept = 30 THEN '131300'
-                WHEN e.InventoryDept = 60 THEN '183000'
-                ELSE 'Unknown'
-            END as GL_Account,
-            CASE 
-                WHEN e.InventoryDept = 10 THEN 'New Equipment'
-                WHEN e.InventoryDept = 20 THEN 'Used Equipment + Batteries'
-                WHEN e.InventoryDept = 30 THEN 'Allied Equipment'
-                WHEN e.InventoryDept = 60 THEN 'Rental Fleet'
-                ELSE 'Other Department'
-            END as Department_Category
-        FROM ben002.Equipment e
-        WHERE e.InventoryDept IN (10, 20, 30, 60)
-        AND e.SerialNo IS NOT NULL
-        ORDER BY e.InventoryDept, e.SerialNo
+                WHEN gld.AccountNo = '131000' THEN 'New Equipment'
+                WHEN gld.AccountNo = '131200' THEN 'Used Equipment + Batteries'
+                WHEN gld.AccountNo = '131300' THEN 'Allied Equipment'
+                WHEN gld.AccountNo = '183000' THEN 'Rental Fleet Gross Value'
+                WHEN gld.AccountNo = '193000' THEN 'Accumulated Depreciation'
+                ELSE 'Other'
+            END as Category
+        FROM ben002.GLDetail gld
+        LEFT JOIN ben002.Equipment e ON gld.ControlNo = e.SerialNo
+        WHERE gld.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
+        AND gld.EffectiveDate >= '{fiscal_start}'
+        AND gld.EffectiveDate < '2025-11-01'
+        AND gld.Posted = 1
+        AND gld.ControlNo IS NOT NULL
+        GROUP BY gld.AccountNo, gld.ControlNo, e.Make, e.Model, e.ModelYear, e.Cost
+        ORDER BY gld.AccountNo, ABS(SUM(gld.Amount)) DESC
         """
         
-        equipment_details = db.execute_query(equipment_details_query)
+        equipment_details = db.execute_query(equipment_transactions_query)
         
         # Step 4: Build report with precise decimal calculations
         report_data = {
@@ -116,50 +125,60 @@ def get_final_gl_inventory_report():
             'ytd_depreciation': str(ytd_depreciation)
         }
         
-        # Process GL account balances
+        # Process GL account balances (using new accounting fields)
         for balance in gl_balances:
             account_no = balance['AccountNo']
-            current_balance = format_currency(balance['CurrentBalance'])
-            ytd_balance = format_currency(balance['YTDBalance'])
+            current_balance = format_currency(balance['current_balance'])
+            october_balance = format_currency(balance['october_balance'])
             
             report_data['gl_accounts'][account_no] = {
                 'account_number': account_no,
                 'category': balance['Category'],
                 'current_balance': str(current_balance),
-                'ytd_balance': str(ytd_balance)
+                'october_balance': str(october_balance),
+                'year': balance['Year'],
+                'month': balance['Month'],
+                'account_field': balance['AccountField']
             }
         
-        # Process equipment by GL account
+        # Process equipment by GL account (transaction-based linking)
         equipment_by_account = {}
-        for equipment in equipment_details:
-            gl_account = equipment['GL_Account']
+        for transaction in equipment_details:
+            gl_account = transaction['AccountNo']
             
             if gl_account not in equipment_by_account:
                 equipment_by_account[gl_account] = {
                     'count': 0,
                     'total_cost': Decimal('0.00'),
+                    'total_transaction_amount': Decimal('0.00'),
                     'equipment_list': []
                 }
             
             # Add equipment to the account
-            cost = format_currency(equipment['Cost'])
+            cost = format_currency(transaction['Cost']) if transaction['Cost'] else Decimal('0.00')
+            transaction_amount = format_currency(transaction['total_transactions'])
             
             equipment_by_account[gl_account]['count'] += 1
             equipment_by_account[gl_account]['total_cost'] += cost
+            equipment_by_account[gl_account]['total_transaction_amount'] += transaction_amount
             
             equipment_by_account[gl_account]['equipment_list'].append({
-                'serial_no': equipment['SerialNo'],
-                'make': equipment['Make'],
-                'model': equipment['Model'],
-                'year': equipment['ModelYear'],
+                'serial_no': transaction['serial_no'],
+                'make': transaction['Make'],
+                'model': transaction['Model'],
+                'year': transaction['ModelYear'],
                 'cost': str(cost),
-                'department': equipment['InventoryDept'],
-                'category': equipment['Department_Category']
+                'transaction_amount': str(transaction_amount),
+                'transaction_count': transaction['transaction_count'],
+                'first_transaction': transaction['first_transaction'],
+                'last_transaction': transaction['last_transaction'],
+                'category': transaction['Category']
             })
         
         # Convert totals to strings for JSON serialization
         for account in equipment_by_account:
             equipment_by_account[account]['total_cost'] = str(equipment_by_account[account]['total_cost'])
+            equipment_by_account[account]['total_transaction_amount'] = str(equipment_by_account[account]['total_transaction_amount'])
         
         report_data['equipment_summary'] = equipment_by_account
         
