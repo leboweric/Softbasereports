@@ -73,8 +73,8 @@ def get_final_gl_inventory_report():
             COUNT(*) as Transaction_Count
         FROM ben002.GLDetail gld
         WHERE gld.AccountNo = '193000'  -- Accumulated Depreciation
-        AND gld.EffectiveDate >= '{fiscal_start}'
-        AND gld.EffectiveDate <= '{fiscal_end}'
+        AND gld.EffectiveDate >= CAST('2024-11-01' AS datetime)
+        AND gld.EffectiveDate <= CAST('2025-10-31' AS datetime)
         """
         
         ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
@@ -104,8 +104,8 @@ def get_final_gl_inventory_report():
         FROM ben002.GLDetail gld
         LEFT JOIN ben002.Equipment e ON gld.ControlNo = e.SerialNo
         WHERE gld.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
-        AND gld.EffectiveDate >= '{fiscal_start}'
-        AND gld.EffectiveDate < '2025-11-01'
+        AND gld.EffectiveDate >= CAST('2024-11-01' AS datetime)
+        AND gld.EffectiveDate < CAST('2025-11-01' AS datetime)
         AND gld.Posted = 1
         AND gld.ControlNo IS NOT NULL
         GROUP BY gld.AccountNo, gld.ControlNo, e.Make, e.Model, e.ModelYear, e.Cost
