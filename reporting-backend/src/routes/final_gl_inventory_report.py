@@ -39,25 +39,23 @@ def get_final_gl_inventory_report():
         fiscal_end = '2025-10-31'
         current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # Step 1: Get GL account balances with precise decimal handling
+        # Step 1: Get GL account balances with precise decimal handling (simplified - no ChartOfAccounts join)
         gl_balances_query = """
         SELECT 
-            gl.AccountNo,
-            coa.AccountDescription,
-            CAST(gl.CurrentBalance AS DECIMAL(18,2)) as CurrentBalance,
-            CAST(gl.YTDBalance AS DECIMAL(18,2)) as YTDBalance,
+            AccountNo,
+            CAST(CurrentBalance AS DECIMAL(18,2)) as CurrentBalance,
+            CAST(YTDBalance AS DECIMAL(18,2)) as YTDBalance,
             CASE 
-                WHEN gl.AccountNo = '131000' THEN 'New Equipment'
-                WHEN gl.AccountNo = '131200' THEN 'Used Equipment + Batteries'
-                WHEN gl.AccountNo = '131300' THEN 'Allied Equipment'
-                WHEN gl.AccountNo = '183000' THEN 'Rental Fleet Gross Value'
-                WHEN gl.AccountNo = '193000' THEN 'Accumulated Depreciation'
+                WHEN AccountNo = '131000' THEN 'New Equipment'
+                WHEN AccountNo = '131200' THEN 'Used Equipment + Batteries'
+                WHEN AccountNo = '131300' THEN 'Allied Equipment'
+                WHEN AccountNo = '183000' THEN 'Rental Fleet Gross Value'
+                WHEN AccountNo = '193000' THEN 'Accumulated Depreciation'
                 ELSE 'Other'
             END as Category
-        FROM ben002.GL gl
-        LEFT JOIN ben002.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
-        WHERE gl.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
-        ORDER BY gl.AccountNo
+        FROM ben002.GL
+        WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
+        ORDER BY AccountNo
         """
         
         gl_balances = db.execute_query(gl_balances_query)
@@ -76,16 +74,14 @@ def get_final_gl_inventory_report():
         ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
         ytd_depreciation = format_currency(ytd_depreciation_result[0]['YTD_Depreciation_Expense']) if ytd_depreciation_result else Decimal('0.00')
         
-        # Step 3: Get equipment details with department-based GL mapping
+        # Step 3: Get equipment details with department-based GL mapping (using correct Equipment table fields)
         equipment_details_query = """
         SELECT 
             e.SerialNo,
             e.Make,
             e.Model,
-            e.Year,
-            CAST(e.AcquisitionCost AS DECIMAL(18,2)) as AcquisitionCost,
-            CAST(e.BookValue AS DECIMAL(18,2)) as BookValue,
-            CAST(e.AccumulatedDepreciation AS DECIMAL(18,2)) as AccumulatedDepreciation,
+            e.ModelYear,
+            CAST(e.Cost AS DECIMAL(18,2)) as Cost,
             e.InventoryDept,
             CASE 
                 WHEN e.InventoryDept = 10 THEN '131000'
@@ -127,7 +123,7 @@ def get_final_gl_inventory_report():
             ytd_balance = format_currency(balance['YTDBalance'])
             
             report_data['gl_accounts'][account_no] = {
-                'account_description': balance['AccountDescription'],
+                'account_number': account_no,
                 'category': balance['Category'],
                 'current_balance': str(current_balance),
                 'ytd_balance': str(ytd_balance)
@@ -141,39 +137,29 @@ def get_final_gl_inventory_report():
             if gl_account not in equipment_by_account:
                 equipment_by_account[gl_account] = {
                     'count': 0,
-                    'total_acquisition_cost': Decimal('0.00'),
-                    'total_book_value': Decimal('0.00'),
-                    'total_accumulated_depreciation': Decimal('0.00'),
+                    'total_cost': Decimal('0.00'),
                     'equipment_list': []
                 }
             
             # Add equipment to the account
-            acquisition_cost = format_currency(equipment['AcquisitionCost'])
-            book_value = format_currency(equipment['BookValue'])
-            accumulated_depreciation = format_currency(equipment['AccumulatedDepreciation'])
+            cost = format_currency(equipment['Cost'])
             
             equipment_by_account[gl_account]['count'] += 1
-            equipment_by_account[gl_account]['total_acquisition_cost'] += acquisition_cost
-            equipment_by_account[gl_account]['total_book_value'] += book_value
-            equipment_by_account[gl_account]['total_accumulated_depreciation'] += accumulated_depreciation
+            equipment_by_account[gl_account]['total_cost'] += cost
             
             equipment_by_account[gl_account]['equipment_list'].append({
                 'serial_no': equipment['SerialNo'],
                 'make': equipment['Make'],
                 'model': equipment['Model'],
-                'year': equipment['Year'],
-                'acquisition_cost': str(acquisition_cost),
-                'book_value': str(book_value),
-                'accumulated_depreciation': str(accumulated_depreciation),
+                'year': equipment['ModelYear'],
+                'cost': str(cost),
                 'department': equipment['InventoryDept'],
                 'category': equipment['Department_Category']
             })
         
         # Convert totals to strings for JSON serialization
         for account in equipment_by_account:
-            equipment_by_account[account]['total_acquisition_cost'] = str(equipment_by_account[account]['total_acquisition_cost'])
-            equipment_by_account[account]['total_book_value'] = str(equipment_by_account[account]['total_book_value'])
-            equipment_by_account[account]['total_accumulated_depreciation'] = str(equipment_by_account[account]['total_accumulated_depreciation'])
+            equipment_by_account[account]['total_cost'] = str(equipment_by_account[account]['total_cost'])
         
         report_data['equipment_summary'] = equipment_by_account
         
@@ -222,16 +208,14 @@ def export_final_gl_inventory_report():
         db = AzureSQLService()
         report_generator = ReportGenerator()
         
-        # Re-run a simplified query for export
+        # Re-run a simplified query for export (using correct Equipment table fields)
         export_query = """
         SELECT 
             e.SerialNo,
             e.Make,
             e.Model,
-            e.Year,
-            CAST(e.AcquisitionCost AS DECIMAL(18,2)) as AcquisitionCost,
-            CAST(e.BookValue AS DECIMAL(18,2)) as BookValue,
-            CAST(e.AccumulatedDepreciation AS DECIMAL(18,2)) as AccumulatedDepreciation,
+            e.ModelYear,
+            CAST(e.Cost AS DECIMAL(18,2)) as Cost,
             e.InventoryDept,
             CASE 
                 WHEN e.InventoryDept = 10 THEN '131000 - New Equipment'
