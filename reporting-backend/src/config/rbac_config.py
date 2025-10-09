@@ -13,6 +13,7 @@ RESOURCES = {
     'parts_overview': 'Parts department overview',
     'parts_employee_performance': 'Parts employee performance',
     'parts_velocity': 'Parts velocity metrics',
+    'parts_inventory_turns': 'Parts inventory turns analysis (5-turn matrix)',
     'service_work_orders': 'Service work orders',
     'service_overview': 'Service department overview',
     'rental_availability': 'Rental availability report',
@@ -50,14 +51,14 @@ ROLE_PERMISSIONS = {
         'resources': [
             'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
             'parts_forecast', 'parts_overview', 'parts_employee_performance',
-            'parts_velocity', 'minitrac'
+            'parts_velocity', 'parts_inventory_turns', 'minitrac'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
     'Parts User': {
         'resources': [
             'parts_work_orders', 'parts_inventory',
-            'parts_stock_alerts', 'parts_forecast', 'minitrac'
+            'parts_stock_alerts', 'parts_forecast', 'parts_inventory_turns', 'minitrac'
         ],
         'actions': ['view', 'export'],
     },
@@ -104,6 +105,7 @@ NAVIGATION_CONFIG = {
             'forecast': {'label': 'Forecast', 'resource': 'parts_forecast'},
             'employee-performance': {'label': 'Employee Performance', 'resource': 'parts_employee_performance'},
             'velocity': {'label': 'Velocity', 'resource': 'parts_velocity'},
+            'inventory-turns': {'label': 'Inventory Turns', 'resource': 'parts_inventory_turns'},
         }
     },
     'service': {

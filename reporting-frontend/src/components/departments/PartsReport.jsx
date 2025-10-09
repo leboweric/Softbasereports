@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/dialog'
 import PartsEmployeePerformance from './PartsEmployeePerformance'
 import PartsInventoryByLocation from './PartsInventoryByLocation'
+import PartsInventoryTurns from './PartsInventoryTurns'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 
 const PartsReport = ({ user, onNavigate }) => {
@@ -52,7 +53,7 @@ const PartsReport = ({ user, onNavigate }) => {
   const accessibleTabs = getAccessibleTabs(user, 'parts')
   
   // Build tabs array from config with desired order
-  const tabOrder = ['overview', 'work-orders', 'inventory-location', 'stock-alerts', 'forecast', 'employee-performance', 'velocity']
+  const tabOrder = ['overview', 'work-orders', 'inventory-location', 'stock-alerts', 'forecast', 'employee-performance', 'velocity', 'inventory-turns']
   const tabs = tabOrder
     .filter(id => accessibleTabs[id]) // Only include tabs user has access to
     .map(id => ({
@@ -1610,6 +1611,11 @@ const PartsReport = ({ user, onNavigate }) => {
         {tabs.some(tab => tab.value === 'inventory-location') && (
         <TabsContent value="inventory-location" className="space-y-6">
           <PartsInventoryByLocation />
+        </TabsContent>
+        )}
+        {tabs.some(tab => tab.value === 'inventory-turns') && (
+        <TabsContent value="inventory-turns" className="space-y-6">
+          <PartsInventoryTurns user={user} organization={organization} />
         </TabsContent>
         )}
       </Tabs>
