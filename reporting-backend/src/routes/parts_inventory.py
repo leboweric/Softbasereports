@@ -227,7 +227,7 @@ def calculate_inventory_turns():
                     total_potential_savings += potential_reduction * part_data['cost_per_unit']
         
         # Calculate summary statistics
-        current_turns = [p['current_turns'] for p in parts_data if p['current_turns'] > 0]
+        current_turns = [p['current_turns'] for p in parts_data if p['current_turns'] is not None and p['current_turns'] > 0]
         avg_current_turns = np.mean(current_turns) if current_turns else 0
         
         summary = {
