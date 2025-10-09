@@ -694,3 +694,185 @@ def test_tables():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
+
+@parts_inventory_bp.route('/api/parts/schema-tables', methods=['GET'])
+@jwt_required()
+def get_schema_tables():
+    """
+    Discover all tables in ben002 schema to find correct table names
+    """
+    try:
+        db = AzureSQLService()
+        logger.info("Discovering tables in ben002 schema...")
+        
+        # Get all tables in ben002 schema
+        tables_query = """
+        SELECT 
+            TABLE_SCHEMA,
+            TABLE_NAME,
+            TABLE_TYPE
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = 'ben002'
+        ORDER BY TABLE_NAME
+        """
+        
+        all_tables = db.execute_query(tables_query)
+        
+        # Filter for relevant tables (Invoice, Parts, WO related)
+        relevant_tables = []
+        for table in all_tables:
+            table_name = table['TABLE_NAME'].lower()
+            if any(keyword in table_name for keyword in ['invoice', 'part', 'wo', 'work']):
+                relevant_tables.append(table)
+        
+        # Get column info for relevant tables
+        table_details = {}
+        for table in relevant_tables[:10]:  # Limit to first 10 to avoid timeout
+            table_name = table['TABLE_NAME']
+            try:
+                columns_query = f"""
+                SELECT 
+                    COLUMN_NAME,
+                    DATA_TYPE,
+                    IS_NULLABLE,
+                    COLUMN_DEFAULT
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = '{table_name}'
+                ORDER BY ORDINAL_POSITION
+                """
+                
+                columns = db.execute_query(columns_query)
+                
+                # Get sample data
+                sample_query = f"""
+                SELECT TOP 3 *
+                FROM ben002.{table_name}
+                """
+                try:
+                    sample_data = db.execute_query(sample_query)
+                except:
+                    sample_data = []
+                
+                table_details[table_name] = {
+                    'schema_info': table,
+                    'columns': columns,
+                    'sample_data': sample_data,
+                    'column_count': len(columns),
+                    'sample_row_count': len(sample_data)
+                }
+                
+            except Exception as e:
+                logger.error(f"Error getting details for table {table_name}: {str(e)}")
+                table_details[table_name] = {
+                    'schema_info': table,
+                    'error': str(e)
+                }
+        
+        # Specifically look for common variations
+        specific_checks = {
+            'invoice_tables': [],
+            'parts_tables': [],
+            'wo_tables': []
+        }
+        
+        for table in all_tables:
+            table_name = table['TABLE_NAME'].lower()
+            if 'invoice' in table_name:
+                specific_checks['invoice_tables'].append(table['TABLE_NAME'])
+            elif 'part' in table_name:
+                specific_checks['parts_tables'].append(table['TABLE_NAME'])
+            elif 'wo' in table_name or 'work' in table_name:
+                specific_checks['wo_tables'].append(table['TABLE_NAME'])
+        
+        return jsonify({
+            'success': True,
+            'all_tables_count': len(all_tables),
+            'relevant_tables': relevant_tables,
+            'table_details': table_details,
+            'categorized_tables': specific_checks,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error discovering schema tables: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@parts_inventory_bp.route('/api/parts/table-sample/<table_name>', methods=['GET'])
+@jwt_required()
+def get_table_sample(table_name):
+    """
+    Get detailed sample data from a specific table
+    """
+    try:
+        db = AzureSQLService()
+        logger.info(f"Getting sample data from table: {table_name}")
+        
+        # Validate table name exists
+        check_query = f"""
+        SELECT TABLE_NAME
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = '{table_name}'
+        """
+        
+        table_exists = db.execute_query(check_query)
+        if not table_exists:
+            return jsonify({
+                'success': False,
+                'error': f'Table ben002.{table_name} does not exist'
+            }), 404
+        
+        # Get columns
+        columns_query = f"""
+        SELECT 
+            COLUMN_NAME,
+            DATA_TYPE,
+            IS_NULLABLE,
+            CHARACTER_MAXIMUM_LENGTH,
+            NUMERIC_PRECISION,
+            NUMERIC_SCALE
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = '{table_name}'
+        ORDER BY ORDINAL_POSITION
+        """
+        
+        columns = db.execute_query(columns_query)
+        
+        # Get sample data
+        sample_query = f"""
+        SELECT TOP 10 *
+        FROM ben002.{table_name}
+        """
+        
+        sample_data = db.execute_query(sample_query)
+        
+        # Get row count
+        count_query = f"""
+        SELECT COUNT(*) as row_count
+        FROM ben002.{table_name}
+        """
+        
+        count_result = db.execute_query(count_query)
+        total_rows = count_result[0]['row_count'] if count_result else 0
+        
+        return jsonify({
+            'success': True,
+            'table_name': table_name,
+            'columns': columns,
+            'sample_data': sample_data,
+            'total_rows': total_rows,
+            'sample_row_count': len(sample_data),
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting table sample for {table_name}: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'table_name': table_name,
+            'timestamp': datetime.now().isoformat()
+        }), 500
