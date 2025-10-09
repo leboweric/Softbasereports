@@ -999,3 +999,117 @@ def simple_test():
             'test': 'general_error',
             'timestamp': datetime.now().isoformat()
         }), 500
+
+@parts_inventory_bp.route('/api/parts/test-columns', methods=['GET'])
+@jwt_required()
+def test_columns():
+    """Test endpoint to discover column names in critical tables"""
+    try:
+        db = AzureSQLService()
+        logger.info("Starting column discovery test...")
+        
+        results = {}
+        
+        # Test InvDetail
+        try:
+            logger.info("Testing InvDetail table...")
+            invdetail_query = "SELECT TOP 3 * FROM ben002.InvDetail"
+            invdetail_data = db.execute_query(invdetail_query)
+            results['InvDetail'] = {
+                'exists': True,
+                'columns': list(invdetail_data[0].keys()) if invdetail_data else [],
+                'sample_data': invdetail_data[:2],  # Only show first 2 rows
+                'row_count': len(invdetail_data)
+            }
+            logger.info(f"InvDetail columns: {results['InvDetail']['columns']}")
+        except Exception as e:
+            logger.error(f"InvDetail error: {str(e)}")
+            results['InvDetail'] = {'exists': False, 'error': str(e)}
+        
+        # Test InvoiceReg
+        try:
+            logger.info("Testing InvoiceReg table...")
+            invoicereg_query = "SELECT TOP 3 * FROM ben002.InvoiceReg"
+            invoicereg_data = db.execute_query(invoicereg_query)
+            results['InvoiceReg'] = {
+                'exists': True,
+                'columns': list(invoicereg_data[0].keys()) if invoicereg_data else [],
+                'sample_data': invoicereg_data[:2],
+                'row_count': len(invoicereg_data)
+            }
+            logger.info(f"InvoiceReg columns: {results['InvoiceReg']['columns']}")
+        except Exception as e:
+            logger.error(f"InvoiceReg error: {str(e)}")
+            results['InvoiceReg'] = {'exists': False, 'error': str(e)}
+        
+        # Test WOParts
+        try:
+            logger.info("Testing WOParts table...")
+            woparts_query = "SELECT TOP 3 * FROM ben002.WOParts"
+            woparts_data = db.execute_query(woparts_query)
+            results['WOParts'] = {
+                'exists': True,
+                'columns': list(woparts_data[0].keys()) if woparts_data else [],
+                'sample_data': woparts_data[:2],
+                'row_count': len(woparts_data)
+            }
+            logger.info(f"WOParts columns: {results['WOParts']['columns']}")
+        except Exception as e:
+            logger.error(f"WOParts error: {str(e)}")
+            results['WOParts'] = {'exists': False, 'error': str(e)}
+        
+        # Test WO
+        try:
+            logger.info("Testing WO table...")
+            wo_query = "SELECT TOP 3 * FROM ben002.WO"
+            wo_data = db.execute_query(wo_query)
+            results['WO'] = {
+                'exists': True,
+                'columns': list(wo_data[0].keys()) if wo_data else [],
+                'sample_data': wo_data[:2],
+                'row_count': len(wo_data)
+            }
+            logger.info(f"WO columns: {results['WO']['columns']}")
+        except Exception as e:
+            logger.error(f"WO error: {str(e)}")
+            results['WO'] = {'exists': False, 'error': str(e)}
+        
+        # Test Parts
+        try:
+            logger.info("Testing Parts table...")
+            parts_query = "SELECT TOP 3 * FROM ben002.Parts"
+            parts_data = db.execute_query(parts_query)
+            results['Parts'] = {
+                'exists': True,
+                'columns': list(parts_data[0].keys()) if parts_data else [],
+                'sample_data': parts_data[:2],
+                'row_count': len(parts_data)
+            }
+            logger.info(f"Parts columns: {results['Parts']['columns']}")
+        except Exception as e:
+            logger.error(f"Parts error: {str(e)}")
+            results['Parts'] = {'exists': False, 'error': str(e)}
+        
+        # Summary of critical columns we need
+        critical_columns = {
+            'InvDetail_expected': ['PartNo', 'Quantity', 'InvoiceNo', 'Price'],
+            'InvoiceReg_expected': ['InvoiceNo', 'InvoiceDate'],
+            'WOParts_expected': ['PartNo', 'Qty', 'WONo', 'Cost'],
+            'WO_expected': ['WONo', 'OpenDate'],
+            'Parts_expected': ['PartNo', 'Description', 'Cost', 'List', 'OnHand']
+        }
+        
+        return jsonify({
+            'success': True,
+            'tables': results,
+            'expected_columns': critical_columns,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in column discovery test: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
