@@ -66,66 +66,83 @@ def calculate_inventory_turns():
                 'error': f'Date calculation error: {str(e)}'
             }), 500
         
-        # Get parts usage data from PartsSales (pre-aggregated monthly data) and WOParts
+        # Get parts usage data - aggregate properly by PartNo to avoid duplicates
         usage_query = f"""
-        WITH PartsUsage AS (
+        WITH WorkOrderUsage AS (
+            -- Calculate work order usage separately to avoid JOIN multiplication
+            SELECT 
+                wop.PartNo,
+                SUM(CASE WHEN wo.OpenDate >= DATEADD(MONTH, -12, GETDATE()) 
+                    THEN COALESCE(wop.Qty, 0) 
+                    ELSE 0 END) as WorkOrderQuantity
+            FROM ben002.WOParts wop
+            JOIN ben002.WO wo ON wop.WONo = wo.WONo
+            WHERE wop.PartNo IS NOT NULL
+            GROUP BY wop.PartNo
+        ),
+        PartsAggregated AS (
+            -- Aggregate parts data across all warehouses
             SELECT 
                 p.PartNo,
-                p.Description,
-                p.Cost,
-                p.List as ListPrice,
-                p.OnHand as CurrentStock,
+                MAX(p.Description) as Description,  -- Same for all warehouses
+                AVG(p.Cost) as Cost,  -- Average cost across warehouses
+                AVG(p.List) as ListPrice,  -- Average list price
+                SUM(p.OnHand) as CurrentStock,  -- Total stock across warehouses
                 
-                -- Sum last 12 months from PartsSales (Sales1 through Sales12)
-                COALESCE(ps.Sales1, 0) + COALESCE(ps.Sales2, 0) + COALESCE(ps.Sales3, 0) + 
-                COALESCE(ps.Sales4, 0) + COALESCE(ps.Sales5, 0) + COALESCE(ps.Sales6, 0) + 
-                COALESCE(ps.Sales7, 0) + COALESCE(ps.Sales8, 0) + COALESCE(ps.Sales9, 0) + 
-                COALESCE(ps.Sales10, 0) + COALESCE(ps.Sales11, 0) + COALESCE(ps.Sales12, 0) as SoldQuantity,
-                
-                -- Parts used in work orders in last 12 months
-                COALESCE(SUM(
-                    CASE WHEN wo.OpenDate >= DATEADD(MONTH, -12, GETDATE())
-                    THEN COALESCE(wop.Qty, 0)
-                    ELSE 0 END
-                ), 0) as WorkOrderQuantity,
-                
-                -- Concatenate monthly usage for variability calculation (Sales1-Sales12)
-                CONCAT(
-                    COALESCE(ps.Sales1, 0), ',',
-                    COALESCE(ps.Sales2, 0), ',',
-                    COALESCE(ps.Sales3, 0), ',',
-                    COALESCE(ps.Sales4, 0), ',',
-                    COALESCE(ps.Sales5, 0), ',',
-                    COALESCE(ps.Sales6, 0), ',',
-                    COALESCE(ps.Sales7, 0), ',',
-                    COALESCE(ps.Sales8, 0), ',',
-                    COALESCE(ps.Sales9, 0), ',',
-                    COALESCE(ps.Sales10, 0), ',',
-                    COALESCE(ps.Sales11, 0), ',',
-                    COALESCE(ps.Sales12, 0)
-                ) as MonthlyUsageData
+                -- Sum sales across all warehouses for this part
+                SUM(COALESCE(ps.Sales1, 0)) as Sales1_Total,
+                SUM(COALESCE(ps.Sales2, 0)) as Sales2_Total,
+                SUM(COALESCE(ps.Sales3, 0)) as Sales3_Total,
+                SUM(COALESCE(ps.Sales4, 0)) as Sales4_Total,
+                SUM(COALESCE(ps.Sales5, 0)) as Sales5_Total,
+                SUM(COALESCE(ps.Sales6, 0)) as Sales6_Total,
+                SUM(COALESCE(ps.Sales7, 0)) as Sales7_Total,
+                SUM(COALESCE(ps.Sales8, 0)) as Sales8_Total,
+                SUM(COALESCE(ps.Sales9, 0)) as Sales9_Total,
+                SUM(COALESCE(ps.Sales10, 0)) as Sales10_Total,
+                SUM(COALESCE(ps.Sales11, 0)) as Sales11_Total,
+                SUM(COALESCE(ps.Sales12, 0)) as Sales12_Total
                 
             FROM ben002.Parts p
             LEFT JOIN ben002.PartsSales ps ON p.PartNo = ps.PartNo
-            LEFT JOIN ben002.WOParts wop ON p.PartNo = wop.PartNo
-            LEFT JOIN ben002.WO wo ON wop.WONo = wo.WONo
-            
             WHERE p.PartNo IS NOT NULL 
             AND p.PartNo != ''
-            AND (p.Cost > 0 OR p.List > 0)  -- Only include parts with costs
+            AND (p.Cost > 0 OR p.List > 0)
+            GROUP BY p.PartNo
+        ),
+        PartsUsage AS (
+            SELECT 
+                pa.PartNo,
+                pa.Description,
+                pa.Cost,
+                pa.ListPrice,
+                pa.CurrentStock,
+                
+                -- Total sales quantity across all warehouses
+                (pa.Sales1_Total + pa.Sales2_Total + pa.Sales3_Total + pa.Sales4_Total + 
+                 pa.Sales5_Total + pa.Sales6_Total + pa.Sales7_Total + pa.Sales8_Total + 
+                 pa.Sales9_Total + pa.Sales10_Total + pa.Sales11_Total + pa.Sales12_Total) as SoldQuantity,
+                
+                -- Work order usage (from separate CTE)
+                COALESCE(wou.WorkOrderQuantity, 0) as WorkOrderQuantity,
+                
+                -- Monthly usage data for variability calculation
+                CONCAT(
+                    pa.Sales1_Total, ',', pa.Sales2_Total, ',', pa.Sales3_Total, ',',
+                    pa.Sales4_Total, ',', pa.Sales5_Total, ',', pa.Sales6_Total, ',',
+                    pa.Sales7_Total, ',', pa.Sales8_Total, ',', pa.Sales9_Total, ',',
+                    pa.Sales10_Total, ',', pa.Sales11_Total, ',', pa.Sales12_Total
+                ) as MonthlyUsageData
+                
+            FROM PartsAggregated pa
+            LEFT JOIN WorkOrderUsage wou ON pa.PartNo = wou.PartNo
             
-            GROUP BY p.PartNo, p.Description, p.Cost, p.List, p.OnHand,
-                     ps.Sales1, ps.Sales2, ps.Sales3, ps.Sales4, ps.Sales5, ps.Sales6,
-                     ps.Sales7, ps.Sales8, ps.Sales9, ps.Sales10, ps.Sales11, ps.Sales12
-            
-            HAVING (
-                -- Total sales from PartsSales
-                COALESCE(ps.Sales1, 0) + COALESCE(ps.Sales2, 0) + COALESCE(ps.Sales3, 0) + 
-                COALESCE(ps.Sales4, 0) + COALESCE(ps.Sales5, 0) + COALESCE(ps.Sales6, 0) + 
-                COALESCE(ps.Sales7, 0) + COALESCE(ps.Sales8, 0) + COALESCE(ps.Sales9, 0) + 
-                COALESCE(ps.Sales10, 0) + COALESCE(ps.Sales11, 0) + COALESCE(ps.Sales12, 0) +
-                -- Plus work order usage
-                COALESCE(SUM(CASE WHEN wo.OpenDate >= DATEADD(MONTH, -12, GETDATE()) THEN wop.Qty ELSE 0 END), 0)
+            WHERE (
+                -- Total usage threshold check
+                (pa.Sales1_Total + pa.Sales2_Total + pa.Sales3_Total + pa.Sales4_Total + 
+                 pa.Sales5_Total + pa.Sales6_Total + pa.Sales7_Total + pa.Sales8_Total + 
+                 pa.Sales9_Total + pa.Sales10_Total + pa.Sales11_Total + pa.Sales12_Total) +
+                COALESCE(wou.WorkOrderQuantity, 0)
             ) >= {min_usage_threshold}
         )
         SELECT 
@@ -399,14 +416,25 @@ def get_recommended_action(current_turns, target_turns, current_stock, reorder_p
     """
     Determine recommended action based on current vs target performance
     """
+    # Very high turns (over 50) indicate constantly running out of stock
+    if current_turns > 50:
+        return "Increase stock - turning too fast"
+    
+    # Stock level based recommendations (most important)
     if current_stock <= reorder_point:
         return "Order now"
     elif current_stock > max_level:
         return "Reduce stock"
-    elif current_turns > target_turns * 1.2:
+    
+    # Turns-based recommendations
+    elif current_turns > target_turns * 2.0:  # Much higher than target
+        return "Increase stock - high turns"
+    elif current_turns > target_turns * 1.5:  # Moderately higher than target
         return "Consider increasing stock"
-    elif current_turns < target_turns * 0.8:
-        return "Reduce stock"
+    elif current_turns < target_turns * 0.5:  # Much lower than target
+        return "Reduce stock - low turns"
+    elif current_turns < target_turns * 0.8:  # Slightly lower than target
+        return "Consider reducing stock"
     elif abs(current_turns - target_turns) > target_turns * 0.3:
         return "Review usage pattern"
     else:
