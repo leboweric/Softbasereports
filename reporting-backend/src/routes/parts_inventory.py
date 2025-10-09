@@ -876,3 +876,126 @@ def get_table_sample(table_name):
             'table_name': table_name,
             'timestamp': datetime.now().isoformat()
         }), 500
+
+@parts_inventory_bp.route('/api/parts/simple-test', methods=['GET'])
+@jwt_required()
+def simple_test():
+    """
+    Simple test to verify basic table access and identify the exact error
+    """
+    try:
+        db = AzureSQLService()
+        logger.info("Starting simple test...")
+        
+        # Test 1: Simple Parts table query
+        try:
+            parts_query = "SELECT TOP 5 PartNo, Description, Cost, OnHand FROM ben002.Parts WHERE PartNo IS NOT NULL"
+            logger.info(f"Testing Parts query: {parts_query}")
+            parts_result = db.execute_query(parts_query)
+            logger.info(f"Parts query succeeded, got {len(parts_result)} rows")
+        except Exception as e:
+            logger.error(f"Parts query failed: {str(e)}")
+            return jsonify({
+                'success': False,
+                'test': 'parts_table',
+                'error': str(e),
+                'step': 1
+            }), 500
+        
+        # Test 2: Simple InvoiceDetail query
+        try:
+            invoice_query = "SELECT TOP 5 PartNo, Quantity FROM ben002.InvoiceDetail WHERE PartNo IS NOT NULL"
+            logger.info(f"Testing InvoiceDetail query: {invoice_query}")
+            invoice_result = db.execute_query(invoice_query)
+            logger.info(f"InvoiceDetail query succeeded, got {len(invoice_result)} rows")
+        except Exception as e:
+            logger.error(f"InvoiceDetail query failed: {str(e)}")
+            return jsonify({
+                'success': False,
+                'test': 'invoice_detail_table',
+                'error': str(e),
+                'step': 2
+            }), 500
+        
+        # Test 3: Simple WOParts query
+        try:
+            woparts_query = "SELECT TOP 5 PartNo, Qty FROM ben002.WOParts WHERE PartNo IS NOT NULL"
+            logger.info(f"Testing WOParts query: {woparts_query}")
+            woparts_result = db.execute_query(woparts_query)
+            logger.info(f"WOParts query succeeded, got {len(woparts_result)} rows")
+        except Exception as e:
+            logger.error(f"WOParts query failed: {str(e)}")
+            return jsonify({
+                'success': False,
+                'test': 'woparts_table',
+                'error': str(e),
+                'step': 3
+            }), 500
+        
+        # Test 4: Simple join between Parts and InvoiceDetail
+        try:
+            join_query = """
+            SELECT TOP 5 p.PartNo, p.Description, id.Quantity
+            FROM ben002.Parts p
+            LEFT JOIN ben002.InvoiceDetail id ON p.PartNo = id.PartNo
+            WHERE p.PartNo IS NOT NULL
+            """
+            logger.info(f"Testing simple join: {join_query}")
+            join_result = db.execute_query(join_query)
+            logger.info(f"Simple join succeeded, got {len(join_result)} rows")
+        except Exception as e:
+            logger.error(f"Simple join failed: {str(e)}")
+            return jsonify({
+                'success': False,
+                'test': 'simple_join',
+                'error': str(e),
+                'step': 4
+            }), 500
+        
+        # Test 5: Date filtering (this might be the issue)
+        try:
+            date_query = """
+            SELECT TOP 5 p.PartNo, ir.InvoiceDate
+            FROM ben002.Parts p
+            LEFT JOIN ben002.InvoiceDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            WHERE ir.InvoiceDate >= '2024-01-01'
+            """
+            logger.info(f"Testing date filtering: {date_query}")
+            date_result = db.execute_query(date_query)
+            logger.info(f"Date filtering succeeded, got {len(date_result)} rows")
+        except Exception as e:
+            logger.error(f"Date filtering failed: {str(e)}")
+            return jsonify({
+                'success': False,
+                'test': 'date_filtering',
+                'error': str(e),
+                'step': 5
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'tests_passed': 5,
+            'results': {
+                'parts_count': len(parts_result),
+                'invoice_detail_count': len(invoice_result),
+                'woparts_count': len(woparts_result),
+                'join_count': len(join_result),
+                'date_filter_count': len(date_result)
+            },
+            'sample_data': {
+                'parts': parts_result[:2],
+                'invoice_detail': invoice_result[:2],
+                'woparts': woparts_result[:2]
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in simple test: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'test': 'general_error',
+            'timestamp': datetime.now().isoformat()
+        }), 500
