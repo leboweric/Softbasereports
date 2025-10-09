@@ -66,46 +66,47 @@ def calculate_inventory_turns():
                 'error': f'Date calculation error: {str(e)}'
             }), 500
         
-        # Get parts usage data from multiple sources
+        # Get parts usage data from PartsSales (pre-aggregated monthly data) and WOParts
         usage_query = f"""
         WITH PartsUsage AS (
-            -- Parts sold to customers (InvDetail)
             SELECT 
                 p.PartNo,
                 p.Description,
                 p.Cost,
                 p.List as ListPrice,
                 p.OnHand as CurrentStock,
-                COALESCE(SUM(
-                    CASE WHEN ir.InvoiceDate >= '{start_date.strftime('%Y-%m-%d')}'
-                         AND ir.InvoiceDate <= '{end_date.strftime('%Y-%m-%d')}'
-                    THEN COALESCE(id.Quantity, 0) 
-                    ELSE 0 END
-                ), 0) as SoldQuantity,
                 
-                -- Parts used in work orders (WOParts)
+                -- Sum last 12 months from PartsSales (Sales1 through Sales12)
+                COALESCE(ps.Sales1, 0) + COALESCE(ps.Sales2, 0) + COALESCE(ps.Sales3, 0) + 
+                COALESCE(ps.Sales4, 0) + COALESCE(ps.Sales5, 0) + COALESCE(ps.Sales6, 0) + 
+                COALESCE(ps.Sales7, 0) + COALESCE(ps.Sales8, 0) + COALESCE(ps.Sales9, 0) + 
+                COALESCE(ps.Sales10, 0) + COALESCE(ps.Sales11, 0) + COALESCE(ps.Sales12, 0) as SoldQuantity,
+                
+                -- Parts used in work orders in last 12 months
                 COALESCE(SUM(
-                    CASE WHEN wo.OpenDate >= '{start_date.strftime('%Y-%m-%d')}'
-                         AND wo.OpenDate <= '{end_date.strftime('%Y-%m-%d')}'
+                    CASE WHEN wo.OpenDate >= DATEADD(MONTH, -12, GETDATE())
                     THEN COALESCE(wop.Qty, 0)
                     ELSE 0 END
                 ), 0) as WorkOrderQuantity,
                 
-                -- Get monthly usage for variability calculation
-                STRING_AGG(
-                    CASE WHEN ir.InvoiceDate >= '{start_date.strftime('%Y-%m-%d')}'
-                         AND ir.InvoiceDate <= '{end_date.strftime('%Y-%m-%d')}'
-                    THEN CONCAT(
-                        YEAR(ir.InvoiceDate), '-', 
-                        FORMAT(MONTH(ir.InvoiceDate), '00'), ':', 
-                        COALESCE(id.Quantity, 0)
-                    )
-                    ELSE NULL END, '|'
+                -- Concatenate monthly usage for variability calculation (Sales1-Sales12)
+                CONCAT(
+                    COALESCE(ps.Sales1, 0), ',',
+                    COALESCE(ps.Sales2, 0), ',',
+                    COALESCE(ps.Sales3, 0), ',',
+                    COALESCE(ps.Sales4, 0), ',',
+                    COALESCE(ps.Sales5, 0), ',',
+                    COALESCE(ps.Sales6, 0), ',',
+                    COALESCE(ps.Sales7, 0), ',',
+                    COALESCE(ps.Sales8, 0), ',',
+                    COALESCE(ps.Sales9, 0), ',',
+                    COALESCE(ps.Sales10, 0), ',',
+                    COALESCE(ps.Sales11, 0), ',',
+                    COALESCE(ps.Sales12, 0)
                 ) as MonthlyUsageData
                 
             FROM ben002.Parts p
-            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
-            LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            LEFT JOIN ben002.PartsSales ps ON p.PartNo = ps.PartNo
             LEFT JOIN ben002.WOParts wop ON p.PartNo = wop.PartNo
             LEFT JOIN ben002.WO wo ON wop.WONo = wo.WONo
             
@@ -113,21 +114,18 @@ def calculate_inventory_turns():
             AND p.PartNo != ''
             AND (p.Cost > 0 OR p.List > 0)  -- Only include parts with costs
             
-            GROUP BY p.PartNo, p.Description, p.Cost, p.List, p.OnHand
+            GROUP BY p.PartNo, p.Description, p.Cost, p.List, p.OnHand,
+                     ps.Sales1, ps.Sales2, ps.Sales3, ps.Sales4, ps.Sales5, ps.Sales6,
+                     ps.Sales7, ps.Sales8, ps.Sales9, ps.Sales10, ps.Sales11, ps.Sales12
             
             HAVING (
-                COALESCE(SUM(
-                    CASE WHEN ir.InvoiceDate >= '{start_date.strftime('%Y-%m-%d')}'
-                         AND ir.InvoiceDate <= '{end_date.strftime('%Y-%m-%d')}'
-                    THEN COALESCE(id.Quantity, 0) 
-                    ELSE 0 END
-                ), 0) +
-                COALESCE(SUM(
-                    CASE WHEN wo.OpenDate >= '{start_date.strftime('%Y-%m-%d')}'
-                         AND wo.OpenDate <= '{end_date.strftime('%Y-%m-%d')}'
-                    THEN COALESCE(wop.Qty, 0)
-                    ELSE 0 END
-                ), 0)
+                -- Total sales from PartsSales
+                COALESCE(ps.Sales1, 0) + COALESCE(ps.Sales2, 0) + COALESCE(ps.Sales3, 0) + 
+                COALESCE(ps.Sales4, 0) + COALESCE(ps.Sales5, 0) + COALESCE(ps.Sales6, 0) + 
+                COALESCE(ps.Sales7, 0) + COALESCE(ps.Sales8, 0) + COALESCE(ps.Sales9, 0) + 
+                COALESCE(ps.Sales10, 0) + COALESCE(ps.Sales11, 0) + COALESCE(ps.Sales12, 0) +
+                -- Plus work order usage
+                COALESCE(SUM(CASE WHEN wo.OpenDate >= DATEADD(MONTH, -12, GETDATE()) THEN wop.Qty ELSE 0 END), 0)
             ) >= {min_usage_threshold}
         )
         SELECT 
@@ -365,25 +363,29 @@ def calculate_usage_variability(monthly_data_str, months):
             return 0
         
         # Parse the monthly usage data
-        # Format: "2024-01:5|2024-02:3|2024-03:8"
-        monthly_usage = {}
+        # New format: "5,3,8,0,2,1,4,6,3,2,5,7" (Sales1 through Sales12)
+        if ',' in monthly_data_str:
+            # Parse comma-separated values from PartsSales
+            usage_values = []
+            for value in monthly_data_str.split(','):
+                try:
+                    usage_values.append(float(value.strip()))
+                except:
+                    usage_values.append(0.0)
+        else:
+            # Fallback for old pipe-separated format (if any)
+            monthly_usage = {}
+            if '|' in monthly_data_str:
+                for entry in monthly_data_str.split('|'):
+                    if ':' in entry and entry.strip():
+                        try:
+                            month, qty = entry.split(':')
+                            monthly_usage[month] = float(qty)
+                        except:
+                            continue
+            usage_values = list(monthly_usage.values()) if monthly_usage else [0]
         
-        if '|' in monthly_data_str:
-            for entry in monthly_data_str.split('|'):
-                if ':' in entry and entry.strip():
-                    try:
-                        month, qty = entry.split(':')
-                        monthly_usage[month] = float(qty)
-                    except:
-                        continue
-        
-        if len(monthly_usage) < 2:
-            return 0
-        
-        # Fill in missing months with 0
-        usage_values = list(monthly_usage.values())
-        
-        # Calculate standard deviation
+        # Calculate standard deviation if we have enough data points
         if len(usage_values) > 1:
             return np.std(usage_values, ddof=1)
         else:
