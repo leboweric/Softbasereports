@@ -1090,13 +1090,62 @@ def test_columns():
             logger.error(f"Parts error: {str(e)}")
             results['Parts'] = {'exists': False, 'error': str(e)}
         
-        # Summary of critical columns we need
+        # Test ARDetail (likely has invoice line items)
+        try:
+            logger.info("Testing ARDetail table...")
+            ardetail_query = "SELECT TOP 3 * FROM ben002.ARDetail"
+            ardetail_data = db.execute_query(ardetail_query)
+            results['ARDetail'] = {
+                'exists': True,
+                'columns': list(ardetail_data[0].keys()) if ardetail_data else [],
+                'sample_data': ardetail_data[:2],
+                'row_count': len(ardetail_data)
+            }
+            logger.info(f"ARDetail columns: {results['ARDetail']['columns']}")
+        except Exception as e:
+            logger.error(f"ARDetail error: {str(e)}")
+            results['ARDetail'] = {'exists': False, 'error': str(e)}
+        
+        # Test Sales table
+        try:
+            logger.info("Testing Sales table...")
+            sales_query = "SELECT TOP 3 * FROM ben002.Sales"
+            sales_data = db.execute_query(sales_query)
+            results['Sales'] = {
+                'exists': True,
+                'columns': list(sales_data[0].keys()) if sales_data else [],
+                'sample_data': sales_data[:2],
+                'row_count': len(sales_data)
+            }
+            logger.info(f"Sales columns: {results['Sales']['columns']}")
+        except Exception as e:
+            logger.error(f"Sales error: {str(e)}")
+            results['Sales'] = {'exists': False, 'error': str(e)}
+        
+        # Test PartsSales table
+        try:
+            logger.info("Testing PartsSales table...")
+            partssales_query = "SELECT TOP 3 * FROM ben002.PartsSales"
+            partssales_data = db.execute_query(partssales_query)
+            results['PartsSales'] = {
+                'exists': True,
+                'columns': list(partssales_data[0].keys()) if partssales_data else [],
+                'sample_data': partssales_data[:2],
+                'row_count': len(partssales_data)
+            }
+            logger.info(f"PartsSales columns: {results['PartsSales']['columns']}")
+        except Exception as e:
+            logger.error(f"PartsSales error: {str(e)}")
+            results['PartsSales'] = {'exists': False, 'error': str(e)}
+        
+        # Summary of critical columns we need for invoice line items
         critical_columns = {
-            'InvDetail_expected': ['PartNo', 'Quantity', 'InvoiceNo', 'Price'],
+            'invoice_line_items_needed': ['PartNo', 'Quantity', 'InvoiceNo', 'Price/Sell'],
             'InvoiceReg_expected': ['InvoiceNo', 'InvoiceDate'],
             'WOParts_expected': ['PartNo', 'Qty', 'WONo', 'Cost'],
             'WO_expected': ['WONo', 'OpenDate'],
-            'Parts_expected': ['PartNo', 'Description', 'Cost', 'List', 'OnHand']
+            'Parts_expected': ['PartNo', 'Description', 'Cost', 'List', 'OnHand'],
+            'note': 'Looking for invoice line items table - could be ARDetail, Sales, or PartsSales'
         }
         
         return jsonify({
