@@ -1003,6 +1003,10 @@ const ServiceReport = ({ user, onNavigate }) => {
         </TabsContent>
 
         <TabsContent value="all-work-orders" className="space-y-6">
+          <div className="bg-red-100 border-2 border-red-500 p-4 mb-4">
+            <h2 className="text-red-800 font-bold">DEBUG: All Work Orders Tab is Active</h2>
+            <p className="text-red-700">If you can see this red box, the tab is working correctly.</p>
+          </div>
           <WorkOrderTypes />
         </TabsContent>
         
