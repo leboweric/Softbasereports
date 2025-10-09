@@ -26,20 +26,45 @@ def calculate_inventory_turns():
     Calculate min/max inventory levels for parts to achieve target turns
     """
     try:
-        # Get query parameters
-        months = int(request.args.get('months', 12))
-        lead_time_days = int(request.args.get('lead_time_days', 14))
-        service_level = float(request.args.get('service_level', 0.95))
-        target_turns = float(request.args.get('target_turns', 5.0))
-        min_usage_threshold = int(request.args.get('min_usage', 5))  # Minimum usage to include
+        logger.info("Starting inventory turns calculation")
         
-        db = AzureSQLService()
+        # Get query parameters with validation
+        try:
+            months = int(request.args.get('months', 12))
+            lead_time_days = int(request.args.get('lead_time_days', 14))
+            service_level = float(request.args.get('service_level', 0.95))
+            target_turns = float(request.args.get('target_turns', 5.0))
+            min_usage_threshold = int(request.args.get('min_usage', 5))
+            logger.info(f"Parameters: months={months}, lead_time_days={lead_time_days}, service_level={service_level}, target_turns={target_turns}, min_usage={min_usage_threshold}")
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid parameters: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Invalid parameters: {str(e)}'
+            }), 400
+        
+        # Initialize database connection
+        try:
+            db = AzureSQLService()
+            logger.info("Database connection established")
+        except Exception as e:
+            logger.error(f"Database connection failed: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Database connection failed: {str(e)}'
+            }), 500
         
         # Calculate date range for analysis
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=months * 30)
-        
-        logger.info(f"Analyzing parts usage from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        try:
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=months * 30)
+            logger.info(f"Analyzing parts usage from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        except Exception as e:
+            logger.error(f"Date calculation error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Date calculation error: {str(e)}'
+            }), 500
         
         # Get parts usage data from multiple sources
         usage_query = f"""
@@ -119,8 +144,20 @@ def calculate_inventory_turns():
         ORDER BY (SoldQuantity + WorkOrderQuantity) DESC
         """
         
-        logger.info("Executing parts usage query...")
-        usage_results = db.execute_query(usage_query)
+        # Execute the query with detailed error handling
+        try:
+            logger.info("Executing parts usage query...")
+            logger.debug(f"Query: {usage_query[:500]}...")  # Log first 500 chars of query
+            usage_results = db.execute_query(usage_query)
+            logger.info(f"Query executed successfully, returned {len(usage_results) if usage_results else 0} rows")
+        except Exception as e:
+            logger.error(f"Query execution failed: {str(e)}")
+            logger.error(f"Query that failed: {usage_query}")
+            return jsonify({
+                'success': False,
+                'error': f'Database query failed: {str(e)}',
+                'query_error': True
+            }), 500
         
         if not usage_results:
             return jsonify({
@@ -135,7 +172,16 @@ def calculate_inventory_turns():
             })
         
         # Convert to DataFrame for calculations
-        df = pd.DataFrame(usage_results)
+        try:
+            df = pd.DataFrame(usage_results)
+            logger.info(f"Created DataFrame with {len(df)} rows and columns: {list(df.columns)}")
+        except Exception as e:
+            logger.error(f"Failed to create DataFrame: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': f'Failed to process data: {str(e)}',
+                'data_processing_error': True
+            }), 500
         
         # Calculate inventory turn metrics for each part
         parts_data = []
@@ -198,53 +244,94 @@ def calculate_part_metrics(row, months, lead_time_days, target_turns, z_score):
     Calculate inventory metrics for a single part
     """
     try:
-        part_no = row['PartNo']
-        description = row['Description'] or ''
-        total_usage = float(row['TotalUsage'] or 0)
-        current_stock = float(row['CurrentStock'] or 0)
-        cost = float(row['Cost'] or 0)
-        
-        if total_usage <= 0:
+        # Extract data with error handling
+        try:
+            part_no = row['PartNo']
+            description = row['Description'] or ''
+            total_usage = float(row['TotalUsage'] or 0)
+            current_stock = float(row['CurrentStock'] or 0)
+            cost = float(row['Cost'] or 0)
+        except (KeyError, ValueError, TypeError) as e:
+            logger.error(f"Error extracting data for part: {str(e)}, row data: {dict(row)}")
             return None
         
-        # Calculate time-based metrics
-        analysis_days = months * 30
-        avg_daily_usage = total_usage / analysis_days
-        avg_monthly_usage = total_usage / months
+        if total_usage <= 0:
+            logger.debug(f"Skipping part {part_no} - no usage data")
+            return None
+        
+        # Calculate time-based metrics with error checking
+        try:
+            analysis_days = months * 30
+            avg_daily_usage = total_usage / analysis_days if analysis_days > 0 else 0
+            avg_monthly_usage = total_usage / months if months > 0 else 0
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"Error calculating time metrics for part {part_no}: {str(e)}")
+            return None
         
         # Calculate usage variability from monthly data
-        usage_std_dev = calculate_usage_variability(row.get('MonthlyUsageData', ''), months)
+        try:
+            usage_std_dev = calculate_usage_variability(row.get('MonthlyUsageData', ''), months)
+        except Exception as e:
+            logger.error(f"Error calculating usage variability for part {part_no}: {str(e)}")
+            usage_std_dev = 0
         
         # Calculate optimal order quantity for target turns
-        # Target Days of Supply = 365 / target_turns
-        target_days_supply = 365 / target_turns
-        optimal_order_qty = max(1, round(avg_daily_usage * target_days_supply))
+        try:
+            target_days_supply = 365 / target_turns if target_turns > 0 else 365
+            optimal_order_qty = max(1, round(avg_daily_usage * target_days_supply))
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"Error calculating optimal order quantity for part {part_no}: {str(e)}")
+            optimal_order_qty = 1
         
         # Calculate safety stock using standard formula
-        # Safety Stock = Z-score × σ × √Lead Time
-        if usage_std_dev > 0:
-            safety_stock = max(0, round(z_score * usage_std_dev * np.sqrt(lead_time_days / 30)))
-        else:
-            safety_stock = round(avg_daily_usage * lead_time_days * 0.5)  # 50% buffer if no variability
+        try:
+            if usage_std_dev > 0:
+                safety_stock = max(0, round(z_score * usage_std_dev * np.sqrt(lead_time_days / 30)))
+            else:
+                safety_stock = round(avg_daily_usage * lead_time_days * 0.5)  # 50% buffer if no variability
+        except Exception as e:
+            logger.error(f"Error calculating safety stock for part {part_no}: {str(e)}")
+            safety_stock = round(avg_daily_usage * 7)  # Default to 7 days buffer
         
         # Calculate reorder point (min level)
-        reorder_point = max(1, round((avg_daily_usage * lead_time_days) + safety_stock))
+        try:
+            reorder_point = max(1, round((avg_daily_usage * lead_time_days) + safety_stock))
+        except Exception as e:
+            logger.error(f"Error calculating reorder point for part {part_no}: {str(e)}")
+            reorder_point = 1
         
         # Calculate max level
-        max_level = reorder_point + optimal_order_qty
+        try:
+            max_level = reorder_point + optimal_order_qty
+        except Exception as e:
+            logger.error(f"Error calculating max level for part {part_no}: {str(e)}")
+            max_level = reorder_point + 1
         
         # Calculate current turns
-        if current_stock > 0 and cost > 0:
-            current_turns = (total_usage * cost) / (current_stock * cost) * (12 / months)
-        else:
+        try:
+            if current_stock > 0 and cost > 0:
+                current_turns = (total_usage * cost) / (current_stock * cost) * (12 / months)
+            else:
+                current_turns = 0
+        except (ZeroDivisionError, TypeError) as e:
+            logger.error(f"Error calculating current turns for part {part_no}: {str(e)}")
             current_turns = 0
         
         # Determine recommended action
-        recommended_action = get_recommended_action(current_turns, target_turns, current_stock, reorder_point, max_level)
+        try:
+            recommended_action = get_recommended_action(current_turns, target_turns, current_stock, reorder_point, max_level)
+        except Exception as e:
+            logger.error(f"Error determining recommended action for part {part_no}: {str(e)}")
+            recommended_action = "Review usage pattern"
         
         # Calculate annual value
-        annual_usage = total_usage * (12 / months)
-        annual_value = annual_usage * cost
+        try:
+            annual_usage = total_usage * (12 / months) if months > 0 else total_usage
+            annual_value = annual_usage * cost
+        except Exception as e:
+            logger.error(f"Error calculating annual value for part {part_no}: {str(e)}")
+            annual_usage = total_usage
+            annual_value = 0
         
         return {
             'part_number': part_no,
@@ -470,4 +557,140 @@ def get_part_detail():
         return jsonify({
             'success': False,
             'error': str(e)
+        }), 500
+
+@parts_inventory_bp.route('/api/parts/test-tables', methods=['GET'])
+@jwt_required()
+def test_tables():
+    """
+    Test endpoint to verify table and column names exist
+    """
+    try:
+        db = AzureSQLService()
+        logger.info("Testing database table and column access...")
+        
+        results = {}
+        
+        # Test 1: Check if Parts table exists and get column names
+        try:
+            parts_schema_query = """
+            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'Parts'
+            ORDER BY ORDINAL_POSITION
+            """
+            parts_columns = db.execute_query(parts_schema_query)
+            results['parts_table'] = {
+                'exists': len(parts_columns) > 0,
+                'columns': parts_columns,
+                'column_count': len(parts_columns)
+            }
+            logger.info(f"Parts table has {len(parts_columns)} columns")
+        except Exception as e:
+            logger.error(f"Error checking Parts table: {str(e)}")
+            results['parts_table'] = {'error': str(e)}
+        
+        # Test 2: Sample Parts data
+        try:
+            parts_sample_query = """
+            SELECT TOP 3 PartNo, Description, Cost, List, OnHand
+            FROM ben002.Parts 
+            WHERE PartNo IS NOT NULL AND PartNo != ''
+            """
+            parts_sample = db.execute_query(parts_sample_query)
+            results['parts_sample'] = {
+                'success': True,
+                'sample_data': parts_sample,
+                'row_count': len(parts_sample)
+            }
+            logger.info(f"Parts table sample query returned {len(parts_sample)} rows")
+        except Exception as e:
+            logger.error(f"Error sampling Parts table: {str(e)}")
+            results['parts_sample'] = {'error': str(e)}
+        
+        # Test 3: Check if InvoiceDetail table exists
+        try:
+            invoice_detail_query = """
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvoiceDetail'
+            ORDER BY ORDINAL_POSITION
+            """
+            invoice_columns = db.execute_query(invoice_detail_query)
+            results['invoice_detail_table'] = {
+                'exists': len(invoice_columns) > 0,
+                'columns': invoice_columns,
+                'column_count': len(invoice_columns)
+            }
+            logger.info(f"InvoiceDetail table has {len(invoice_columns)} columns")
+        except Exception as e:
+            logger.error(f"Error checking InvoiceDetail table: {str(e)}")
+            results['invoice_detail_table'] = {'error': str(e)}
+        
+        # Test 4: Check if WOParts table exists
+        try:
+            woparts_query = """
+            SELECT COLUMN_NAME, DATA_TYPE
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'WOParts'
+            ORDER BY ORDINAL_POSITION
+            """
+            woparts_columns = db.execute_query(woparts_query)
+            results['woparts_table'] = {
+                'exists': len(woparts_columns) > 0,
+                'columns': woparts_columns,
+                'column_count': len(woparts_columns)
+            }
+            logger.info(f"WOParts table has {len(woparts_columns)} columns")
+        except Exception as e:
+            logger.error(f"Error checking WOParts table: {str(e)}")
+            results['woparts_table'] = {'error': str(e)}
+        
+        # Test 5: Test join between Parts and InvoiceDetail
+        try:
+            join_test_query = """
+            SELECT TOP 3 
+                p.PartNo, 
+                p.Description,
+                id.Quantity,
+                ir.InvoiceDate
+            FROM ben002.Parts p
+            LEFT JOIN ben002.InvoiceDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            WHERE p.PartNo IS NOT NULL 
+            AND ir.InvoiceDate >= DATEADD(MONTH, -1, GETDATE())
+            """
+            join_test = db.execute_query(join_test_query)
+            results['join_test'] = {
+                'success': True,
+                'sample_joins': join_test,
+                'row_count': len(join_test)
+            }
+            logger.info(f"Join test returned {len(join_test)} rows")
+        except Exception as e:
+            logger.error(f"Error testing joins: {str(e)}")
+            results['join_test'] = {'error': str(e)}
+        
+        # Test 6: Check for required imports
+        import_status = {
+            'pandas': 'pd' in globals(),
+            'numpy': 'np' in globals(),
+            'scipy': HAS_SCIPY,
+            'datetime': 'datetime' in globals(),
+            'logging': 'logging' in globals()
+        }
+        results['imports'] = import_status
+        
+        return jsonify({
+            'success': True,
+            'test_results': results,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in test endpoint: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
         }), 500
