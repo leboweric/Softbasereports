@@ -1615,7 +1615,7 @@ const PartsReport = ({ user, onNavigate }) => {
         )}
         {tabs.some(tab => tab.value === 'inventory-turns') && (
         <TabsContent value="inventory-turns" className="space-y-6">
-          <PartsInventoryTurns user={user} organization={organization} />
+          <PartsInventoryTurns user={user} />
         </TabsContent>
         )}
       </Tabs>

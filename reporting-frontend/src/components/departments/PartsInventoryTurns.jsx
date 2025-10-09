@@ -11,7 +11,7 @@ import { AlertCircle, Download, Search, Settings, TrendingUp, TrendingDown, Minu
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
-const PartsInventoryTurns = ({ user, organization }) => {
+const PartsInventoryTurns = ({ user }) => {
   const [partsData, setPartsData] = useState([])
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(false)
