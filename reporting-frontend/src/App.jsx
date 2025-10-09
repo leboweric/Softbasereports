@@ -26,6 +26,8 @@ function App() {
   const [accessibleDepartments, setAccessibleDepartments] = useState([])
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [loading, setLoading] = useState(true)
+  
+  // Force deployment trigger - Parts Inventory Turns feature
 
   useEffect(() => {
     // Check if user is already logged in
