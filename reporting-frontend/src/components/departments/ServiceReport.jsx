@@ -36,6 +36,7 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 import ServiceInvoiceBilling from '../ServiceInvoiceBilling'
+import WorkOrderTypes from '../WorkOrderTypes'
 
 const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
@@ -435,6 +436,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="work-orders">Work Orders</TabsTrigger>
+          <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
           <TabsTrigger value="invoice-billing">Grede Billing</TabsTrigger>
         </TabsList>
 
@@ -998,6 +1000,10 @@ const ServiceReport = ({ user, onNavigate }) => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="all-work-orders" className="space-y-6">
+          <WorkOrderTypes />
         </TabsContent>
         
         <TabsContent value="invoice-billing" className="space-y-6">
