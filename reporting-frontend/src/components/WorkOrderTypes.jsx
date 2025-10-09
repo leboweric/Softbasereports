@@ -50,9 +50,12 @@ const WorkOrderTypes = () => {
               Total unique types: {types.total_types}
             </p>
             <div className="space-y-2">
+              <p className="text-blue-600 font-bold border-2 border-blue-500 p-2">
+                DEBUG: About to render {types.work_order_types?.length || 0} work order types
+              </p>
               {types.work_order_types && types.work_order_types.length > 0 ? (
                 types.work_order_types.map((type) => (
-                  <div key={type.type} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                  <div key={type.type} className="flex justify-between items-center p-2 bg-gray-50 rounded border-2 border-green-500">
                     <div>
                       <span className="font-medium">{type.type}</span>
                       <span className="ml-2 text-muted-foreground">- {type.description}</span>
@@ -61,7 +64,7 @@ const WorkOrderTypes = () => {
                   </div>
                 ))
               ) : (
-                <p className="text-red-500">No work order types found in data</p>
+                <p className="text-red-500 border-2 border-red-500 p-2">No work order types found in data</p>
               )}
             </div>
           </div>
