@@ -22,6 +22,7 @@ const WorkOrderTypes = () => {
       
       if (response.ok) {
         const data = await response.json()
+        console.log('WorkOrderTypes data:', data)
         setTypes(data)
       }
     } catch (error) {
@@ -35,29 +36,37 @@ const WorkOrderTypes = () => {
     return <LoadingSpinner />
   }
 
+  console.log('Rendering WorkOrderTypes, types:', types)
+  
   return (
     <Card>
       <CardHeader>
         <CardTitle>All Work Order Types in Database</CardTitle>
       </CardHeader>
       <CardContent>
-        {types && (
+        {types ? (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground mb-4">
               Total unique types: {types.total_types}
             </p>
             <div className="space-y-2">
-              {types.work_order_types.map((type) => (
-                <div key={type.type} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <div>
-                    <span className="font-medium">{type.type}</span>
-                    <span className="ml-2 text-muted-foreground">- {type.description}</span>
+              {types.work_order_types && types.work_order_types.length > 0 ? (
+                types.work_order_types.map((type) => (
+                  <div key={type.type} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <div>
+                      <span className="font-medium">{type.type}</span>
+                      <span className="ml-2 text-muted-foreground">- {type.description}</span>
+                    </div>
+                    <span className="text-sm">{type.count} work orders</span>
                   </div>
-                  <span className="text-sm">{type.count} work orders</span>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-red-500">No work order types found in data</p>
+              )}
             </div>
           </div>
+        ) : (
+          <p className="text-red-500">No data loaded</p>
         )}
       </CardContent>
     </Card>
