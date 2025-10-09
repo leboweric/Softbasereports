@@ -69,7 +69,7 @@ def calculate_inventory_turns():
         # Get parts usage data from multiple sources
         usage_query = f"""
         WITH PartsUsage AS (
-            -- Parts sold to customers (InvoiceDetail)
+            -- Parts sold to customers (InvDetail)
             SELECT 
                 p.PartNo,
                 p.Description,
@@ -104,7 +104,7 @@ def calculate_inventory_turns():
                 ) as MonthlyUsageData
                 
             FROM ben002.Parts p
-            LEFT JOIN ben002.InvoiceDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
             LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             LEFT JOIN ben002.WOParts wop ON p.PartNo = wop.PartNo
             LEFT JOIN ben002.WO wo ON wop.WONo = wo.WONo
@@ -515,7 +515,7 @@ def get_part_detail():
                 MONTH(ir.InvoiceDate) as Month,
                 SUM(COALESCE(id.Quantity, 0)) as SoldQty,
                 SUM(COALESCE(id.Quantity * id.Price, 0)) as SoldValue
-            FROM ben002.InvoiceDetail id
+            FROM ben002.InvDetail id
             JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             WHERE id.PartNo = '{part_no}'
             AND ir.InvoiceDate >= DATEADD(MONTH, -12, GETDATE())
@@ -608,24 +608,24 @@ def test_tables():
             logger.error(f"Error sampling Parts table: {str(e)}")
             results['parts_sample'] = {'error': str(e)}
         
-        # Test 3: Check if InvoiceDetail table exists
+        # Test 3: Check if InvDetail table exists
         try:
             invoice_detail_query = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvoiceDetail'
+            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvDetail'
             ORDER BY ORDINAL_POSITION
             """
             invoice_columns = db.execute_query(invoice_detail_query)
-            results['invoice_detail_table'] = {
+            results['inv_detail_table'] = {
                 'exists': len(invoice_columns) > 0,
                 'columns': invoice_columns,
                 'column_count': len(invoice_columns)
             }
-            logger.info(f"InvoiceDetail table has {len(invoice_columns)} columns")
+            logger.info(f"InvDetail table has {len(invoice_columns)} columns")
         except Exception as e:
-            logger.error(f"Error checking InvoiceDetail table: {str(e)}")
-            results['invoice_detail_table'] = {'error': str(e)}
+            logger.error(f"Error checking InvDetail table: {str(e)}")
+            results['inv_detail_table'] = {'error': str(e)}
         
         # Test 4: Check if WOParts table exists
         try:
@@ -646,7 +646,7 @@ def test_tables():
             logger.error(f"Error checking WOParts table: {str(e)}")
             results['woparts_table'] = {'error': str(e)}
         
-        # Test 5: Test join between Parts and InvoiceDetail
+        # Test 5: Test join between Parts and InvDetail
         try:
             join_test_query = """
             SELECT TOP 3 
@@ -655,7 +655,7 @@ def test_tables():
                 id.Quantity,
                 ir.InvoiceDate
             FROM ben002.Parts p
-            LEFT JOIN ben002.InvoiceDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
             LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             WHERE p.PartNo IS NOT NULL 
             AND ir.InvoiceDate >= DATEADD(MONTH, -1, GETDATE())
@@ -902,17 +902,17 @@ def simple_test():
                 'step': 1
             }), 500
         
-        # Test 2: Simple InvoiceDetail query
+        # Test 2: Simple InvDetail query (corrected table name)
         try:
-            invoice_query = "SELECT TOP 5 PartNo, Quantity FROM ben002.InvoiceDetail WHERE PartNo IS NOT NULL"
-            logger.info(f"Testing InvoiceDetail query: {invoice_query}")
+            invoice_query = "SELECT TOP 5 PartNo, Quantity FROM ben002.InvDetail WHERE PartNo IS NOT NULL"
+            logger.info(f"Testing InvDetail query: {invoice_query}")
             invoice_result = db.execute_query(invoice_query)
-            logger.info(f"InvoiceDetail query succeeded, got {len(invoice_result)} rows")
+            logger.info(f"InvDetail query succeeded, got {len(invoice_result)} rows")
         except Exception as e:
-            logger.error(f"InvoiceDetail query failed: {str(e)}")
+            logger.error(f"InvDetail query failed: {str(e)}")
             return jsonify({
                 'success': False,
-                'test': 'invoice_detail_table',
+                'test': 'inv_detail_table',
                 'error': str(e),
                 'step': 2
             }), 500
@@ -932,12 +932,12 @@ def simple_test():
                 'step': 3
             }), 500
         
-        # Test 4: Simple join between Parts and InvoiceDetail
+        # Test 4: Simple join between Parts and InvDetail
         try:
             join_query = """
             SELECT TOP 5 p.PartNo, p.Description, id.Quantity
             FROM ben002.Parts p
-            LEFT JOIN ben002.InvoiceDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
             WHERE p.PartNo IS NOT NULL
             """
             logger.info(f"Testing simple join: {join_query}")
@@ -952,12 +952,12 @@ def simple_test():
                 'step': 4
             }), 500
         
-        # Test 5: Date filtering (this might be the issue)
+        # Test 5: Date filtering with corrected table name
         try:
             date_query = """
             SELECT TOP 5 p.PartNo, ir.InvoiceDate
             FROM ben002.Parts p
-            LEFT JOIN ben002.InvoiceDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
             LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             WHERE ir.InvoiceDate >= '2024-01-01'
             """
