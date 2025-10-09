@@ -322,11 +322,19 @@ def calculate_part_metrics(row, months, lead_time_days, target_turns, z_score):
             logger.error(f"Error calculating max level for part {part_no}: {str(e)}")
             max_level = reorder_point + 1
         
-        # Calculate current turns
+        # Calculate current turns with proper logic for zero usage/stock
         try:
-            if current_stock > 0 and cost > 0:
-                current_turns = (total_usage * cost) / (current_stock * cost) * (12 / months)
+            if current_stock > 0 and total_usage > 0:
+                # Normal calculation: turns = annual usage / average inventory
+                current_turns = total_usage * (12 / months) / current_stock
+            elif current_stock > 0 and total_usage == 0:
+                # Stock but no usage = 0 turns (dead stock)
+                current_turns = 0
+            elif current_stock == 0 and total_usage > 0:
+                # No stock but has usage = infinite turns (out of stock)
+                current_turns = None  # Will show as "No Data"
             else:
+                # Both zero = 0 turns
                 current_turns = 0
         except (ZeroDivisionError, TypeError) as e:
             logger.error(f"Error calculating current turns for part {part_no}: {str(e)}")
@@ -339,19 +347,22 @@ def calculate_part_metrics(row, months, lead_time_days, target_turns, z_score):
             logger.error(f"Error determining recommended action for part {part_no}: {str(e)}")
             recommended_action = "Review usage pattern"
         
-        # Calculate annual value
+        # Calculate annual value (prevent negative values)
         try:
             annual_usage = total_usage * (12 / months) if months > 0 else total_usage
-            annual_value = annual_usage * cost
+            # Ensure both annual_usage and cost are positive
+            annual_usage = max(0, annual_usage)
+            cost_safe = max(0, cost) if cost else 0
+            annual_value = annual_usage * cost_safe
         except Exception as e:
             logger.error(f"Error calculating annual value for part {part_no}: {str(e)}")
-            annual_usage = total_usage
+            annual_usage = max(0, total_usage)
             annual_value = 0
         
         return {
             'part_number': part_no,
             'description': description[:100],  # Truncate long descriptions
-            'last_12mo_usage': int(total_usage * (12 / months)),  # Annualized
+            'last_12mo_usage': int(annual_usage),  # Use calculated annual_usage
             'avg_monthly_usage': round(avg_monthly_usage, 1),
             'avg_daily_usage': round(avg_daily_usage, 2),
             'usage_std_dev': round(usage_std_dev, 2),
@@ -359,10 +370,10 @@ def calculate_part_metrics(row, months, lead_time_days, target_turns, z_score):
             'reorder_point_min': reorder_point,
             'max_level': max_level,
             'current_stock': int(current_stock),
-            'current_turns': round(current_turns, 1),
+            'current_turns': round(current_turns, 1) if current_turns is not None else None,
             'target_turns': target_turns,
             'recommended_action': recommended_action,
-            'cost_per_unit': round(cost, 2),
+            'cost_per_unit': round(cost_safe, 2),  # Use safe cost
             'annual_value': round(annual_value, 2),
             'safety_stock': safety_stock
         }
@@ -416,12 +427,28 @@ def get_recommended_action(current_turns, target_turns, current_stock, reorder_p
     """
     Determine recommended action based on current vs target performance
     """
+    # Handle special cases first
+    if current_turns is None:
+        # No stock but has usage = out of stock with demand
+        return "Order now - out of stock"
+    elif current_turns == 0:
+        # Zero turns - check why
+        if current_stock > 0:
+            # Has stock but no usage = dead stock
+            if current_stock > max_level:
+                return "Reduce stock - no usage"
+            else:
+                return "Review usage pattern - no recent sales"
+        else:
+            # No stock, no usage
+            return "Review usage pattern"
+    
     # Very high turns (over 50) indicate constantly running out of stock
-    if current_turns > 50:
+    elif current_turns > 50:
         return "Increase stock - turning too fast"
     
-    # Stock level based recommendations (most important)
-    if current_stock <= reorder_point:
+    # Stock level based recommendations (most important for normal cases)
+    elif current_stock <= reorder_point:
         return "Order now"
     elif current_stock > max_level:
         return "Reduce stock"
