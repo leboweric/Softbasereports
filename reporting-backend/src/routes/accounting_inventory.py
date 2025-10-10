@@ -91,25 +91,41 @@ def get_accounting_inventory():
         new_equipment_result = db.execute_query(new_equipment_query)
         other_accounts = db.execute_query(other_accounts_query)
         
-        # Step 2: Get YTD depreciation expense - FISCAL YEAR ONLY (Nov 2024 - Oct 2025)
-        # DEBUG: This should return MUCH less than $11M if date filter works
+        # Step 2: Get YTD depreciation expense - FISCAL YEAR ONLY (Nov 1, 2024 - Oct 31, 2025)
+        # CRITICAL: This should return ~$3-4M, NOT $11M+ (which is total accumulated)
         ytd_depreciation_query = """
         SELECT 
             COUNT(*) as Transaction_Count,
             COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation_Expense,
             MIN(EffectiveDate) as Earliest_Date,
             MAX(EffectiveDate) as Latest_Date,
-            -- Debug: Show what dates we're actually getting
-            COUNT(CASE WHEN EffectiveDate >= '2024-11-01' AND EffectiveDate < '2025-01-01' THEN 1 END) as Nov_Dec_2024_Count,
-            COUNT(CASE WHEN EffectiveDate >= '2025-01-01' AND EffectiveDate <= '2025-10-31' THEN 1 END) as Jan_Oct_2025_Count
+            -- Debug: Verify date filtering is working
+            COUNT(CASE WHEN EffectiveDate >= '2024-11-01' AND EffectiveDate <= '2025-10-31' THEN 1 END) as Fiscal_Year_Count,
+            COUNT(CASE WHEN EffectiveDate < '2024-11-01' OR EffectiveDate > '2025-10-31' THEN 1 END) as Outside_Fiscal_Year_Count
         FROM ben002.GLDetail
         WHERE AccountNo = '193000'
         AND Posted = 1
-        AND ((EffectiveDate >= '2024-11-01' AND EffectiveDate < '2025-01-01')
-             OR (EffectiveDate >= '2025-01-01' AND EffectiveDate <= '2025-10-31'))
+        AND EffectiveDate >= '2024-11-01' 
+        AND EffectiveDate <= '2025-10-31'
         """
         
-        ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
+        # Execute depreciation query with debug logging
+        try:
+            logger.info(f"=== YTD DEPRECIATION DEBUG ===")
+            logger.info(f"Executing query: {ytd_depreciation_query}")
+            ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
+            
+            if ytd_depreciation_result and ytd_depreciation_result[0]:
+                result = ytd_depreciation_result[0]
+                logger.info(f"Query returned {result.get('Transaction_Count')} transactions")
+                logger.info(f"Date range: {result.get('Earliest_Date')} to {result.get('Latest_Date')}")
+                logger.info(f"Fiscal year transactions: {result.get('Fiscal_Year_Count')}")
+                logger.info(f"Outside fiscal year: {result.get('Outside_Fiscal_Year_Count')}")
+                logger.info(f"YTD Depreciation: ${result.get('YTD_Depreciation_Expense')}")
+            logger.info(f"=== END YTD DEPRECIATION DEBUG ===")
+        except Exception as e:
+            logger.error(f"YTD Depreciation query failed: {e}")
+            ytd_depreciation_result = None
         
         ytd_depreciation = Decimal('0.00')
         if ytd_depreciation_result and ytd_depreciation_result[0] and ytd_depreciation_result[0]['YTD_Depreciation_Expense'] is not None:
