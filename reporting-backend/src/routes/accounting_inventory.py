@@ -372,6 +372,22 @@ def get_accounting_inventory():
             "See gl_analysis section for GL account breakdown and validation"
         ]
         
+        # Convert all Decimals and None values to JSON-safe format
+        def make_json_safe(obj):
+            """Recursively convert Decimals and None to JSON-safe values"""
+            if obj is None:
+                return 0  # Convert None to 0 for numeric contexts
+            if isinstance(obj, Decimal):
+                return float(obj)
+            if isinstance(obj, dict):
+                return {k: make_json_safe(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [make_json_safe(item) for item in obj]
+            return obj
+        
+        # Make summary JSON-safe before returning
+        summary = make_json_safe(summary)
+        
         return jsonify(summary)
         
     except TypeError as e:
