@@ -326,6 +326,221 @@ organizations           # Multi-tenant organization data
 
 ---
 
+## Recent Major Developments
+
+### Accounting Inventory Report Implementation (December 2024)
+
+A comprehensive year-end inventory report was implemented for the Accounting department, providing GL account-based financial reporting with equipment categorization. This implementation revealed several critical technical insights and architectural lessons.
+
+#### Technical Implementation
+**Backend**: `accounting_inventory.py` - GL account balance integration with equipment categorization
+**Frontend**: `InventoryReport.jsx` - Responsive equipment display with financial summaries
+**Integration**: Added to AccountingReport.jsx as dedicated inventory tab
+
+#### Core Features Implemented
+- **GL Account Integration**: Direct GLDetail queries for accurate financial reporting
+- **Equipment Categorization**: Business logic-based categorization (Rental, New, Used, Batteries/Chargers, Allied)
+- **Financial Accuracy**: GL account balances as source of truth, not equipment book values
+- **YTD Depreciation**: Fiscal year (Nov 2024 - Oct 2025) depreciation expense tracking
+- **Responsive UI**: Category cards, detailed equipment lists, status badges
+
+#### Critical Technical Lessons Learned
+
+##### 1. Database Schema Assumptions Are Dangerous
+**Issue**: Initially assumed GLDetail table had `Year` and `Month` columns
+**Reality**: GLDetail uses `EffectiveDate` column for temporal filtering
+**Lesson**: Always verify actual table schemas before writing queries
+**Fix**: Use `EffectiveDate >= '2024-12-01' AND EffectiveDate <= '2024-12-31'` instead of `Year = 2024 AND Month = 12`
+
+##### 2. JSON Serialization Complexity with Financial Data
+**Issue**: Decimal objects and None values caused JSON serialization failures
+**Error**: `'<' not supported between instances of 'int' and 'NoneType'`
+**Solution**: Implemented recursive `make_json_safe()` function to handle:
+- Decimal → float conversion
+- None → 0 for numeric contexts
+- datetime → isoformat() strings
+- Nested dictionaries and lists
+
+##### 3. GL Account Balance Query Strategy
+**Challenge**: Getting accurate GL balances for specific time periods
+**Initial Approach**: Complex CTE queries with latest period detection
+**Final Approach**: Direct GLDetail sum queries with explicit date ranges
+**Key Insight**: GLDetail provides transaction-level accuracy vs GL table snapshots
+
+##### 4. Frontend Debug Category Filtering
+**Issue**: Backend debug sections (`debug_info`, `gl_analysis`) appeared as empty equipment categories
+**Root Cause**: Frontend filtered `totals` and `notes` but not debug sections
+**Solution**: 
+- Backend: Remove debug sections before JSON response
+- Frontend: Filter debug keys in equipment category loops
+
+##### 5. Equipment Categorization Business Logic
+**Requirement**: Categorize 21K+ equipment records by business rules
+**Logic Implemented**:
+```javascript
+// Priority order: Keywords override departments
+if (make.includes('allied')) return 'allied'
+if (model.includes('battery')) return 'batteries_chargers'
+if (inventoryDept === 60) return 'rental'
+if (inventoryDept === 10) return 'new'
+if (inventoryDept === 20) return 'used'
+if (inventoryDept === 30) return 'allied'
+```
+
+#### Financial Accuracy Requirements
+**Expected Amounts** (per Marissa's specifications):
+- Allied Equipment: $17,250.98 (GL Account 131300)
+- New Equipment: $776,157.98 (GL Account 131000)
+- Used Equipment: $155,100.30 (portion of GL Account 131200)
+- Batteries: $52,116.39 (portion of GL Account 131200)
+- Rental Net Book Value: GL 183000 - GL 193000
+
+#### Performance Optimizations
+- **Equipment Query**: Single query with rental status LEFT JOIN
+- **GL Queries**: Separate targeted queries vs complex CTEs
+- **JSON Safety**: Pre-processing vs runtime conversion
+- **Frontend Filtering**: Client-side category filtering for responsive UI
+
+#### Data Quality Insights
+**Equipment Table Realities**:
+- `CustomerNo` field references Customer.Number (not boolean Customer field)
+- `InventoryDept` is primary categorization driver (60=Rental, 10=New, 20=Used, 30=Allied)
+- Rental status determined by open work orders in WORental/WO tables
+- Quote work orders (WONo starting with '9') must be excluded from rental calculations
+
+**GLDetail Table Structure**:
+- `EffectiveDate` is the temporal dimension (no Year/Month columns)
+- `Posted = 1` filter required for accurate financial data
+- `Amount` field can be positive or negative (requires CASE logic for depreciation)
+- Account 193000 depreciation requires ABS() of negative amounts
+
+### Key Architectural Improvements from Inventory Work
+
+#### 1. Enhanced Error Handling
+```python
+def make_json_safe(obj):
+    """Recursively convert ALL problematic types to JSON-safe values"""
+    if obj is None: return None
+    if isinstance(obj, Decimal): return float(obj)
+    if isinstance(obj, (datetime, date)): return obj.isoformat()
+    if isinstance(obj, dict): return {str(k): make_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)): return [make_json_safe(item) for item in obj]
+    return obj
+```
+
+#### 2. Financial Data Query Patterns
+```sql
+-- Accurate GL balance extraction
+SELECT COALESCE(SUM(Amount), 0) as Balance
+FROM [ben002].GLDetail  
+WHERE AccountNo = '131300'
+  AND Posted = 1
+  AND EffectiveDate >= '2024-12-01'
+  AND EffectiveDate <= '2024-12-31'
+
+-- Fiscal year depreciation
+WHERE AccountNo = '193000' AND Posted = 1
+AND ((EffectiveDate >= '2024-11-01' AND EffectiveDate <= '2024-12-31')
+     OR (EffectiveDate >= '2025-01-01' AND EffectiveDate <= '2025-10-31'))
+```
+
+#### 3. Frontend Category Management
+```javascript
+// Exclude debug and system sections from UI display
+{Object.entries(inventoryData).filter(([key]) => 
+  key !== 'totals' && 
+  key !== 'notes' && 
+  key !== 'debug_info' && 
+  key !== 'gl_analysis'
+).map(([category, data]) => (
+  // Component rendering
+))}
+```
+
+### Sales Commission System Enhancements (2024)
+
+#### Implementation Details
+**Files**: `SalesCommissionReport.jsx`, commission calculation endpoints
+**Features**: Equipment commission (15% gross profit), Rental commission (8% revenue)
+**Data Source**: InvoiceReg table with actual cost data integration
+
+#### Key Technical Insights
+- **Cost Data Reality**: Equipment cost data available in InvoiceReg, not Equipment table
+- **Gross Profit Calculations**: `Revenue - Cost` from invoice-level data
+- **Commission Logic**: Different rates for equipment vs rental revenue streams
+- **Date Range Handling**: Flexible period selection with fiscal year support
+
+### AR Aging Report Critical Fixes (2024)
+
+#### Technical Challenge Solved
+**Issue**: AR aging required invoice-level grouping, not customer-level
+**Solution**: `GROUP BY CustomerNo, InvoiceNo` instead of just `CustomerNo`
+**Impact**: Accurate aging buckets (0-30, 31-60, 61-90, 90+ days)
+
+#### Debug Methodology Established
+- **Step 1**: Verify raw data with debug endpoints
+- **Step 2**: Test grouping logic in isolation
+- **Step 3**: Validate aging bucket calculations
+- **Step 4**: Compare results with accounting expectations
+
+### Rental Availability Reporting Breakthrough (2024)
+
+#### Core Discovery: Quote vs Work Order Distinction
+**Critical Learning**: Quotes are NOT rental orders
+- **Quotes**: WO numbers starting with '9' (e.g., 91600003)
+- **Work Orders**: Actual rental work orders (e.g., 130000713)
+- **Filter Logic**: `AND wo.WONo NOT LIKE '9%'` to exclude quotes
+
+#### Equipment Status Determination
+```sql
+-- On Rental Status Logic
+SELECT e.SerialNo,
+  CASE 
+    WHEN rental_check.is_on_rental = 1 THEN 'On Rental'
+    ELSE 'Available'
+  END as current_status
+FROM Equipment e
+LEFT JOIN (
+  SELECT DISTINCT wr.SerialNo, 1 as is_on_rental
+  FROM WORental wr
+  INNER JOIN WO wo ON wr.WONo = wo.WONo
+  WHERE wo.Type = 'R' 
+  AND wo.ClosedDate IS NULL
+  AND wo.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes
+) rental_check ON e.SerialNo = rental_check.SerialNo
+```
+
+#### Department-Based Equipment Filtering
+**Primary Filter**: `e.InventoryDept = 60` (Rental Department ownership)
+**Customer Filter**: `e.Customer = 0 OR e.Customer IS NULL` (Company-owned equipment)
+**Result**: Clean dataset matching Softbase's "Open Rental Orders" logic
+
+### Work Order Notes System (PostgreSQL Integration)
+
+#### Technical Implementation
+**Database**: PostgreSQL table for custom work order notes
+**Features**: Auto-save with 1-second debounce, full-text search, CSV export integration
+**Architecture**: Hybrid approach using both Azure SQL (Softbase data) and PostgreSQL (custom data)
+
+#### Performance Optimizations
+- **Debounced Auto-save**: Prevents excessive API calls during typing
+- **Indexed Search**: Full-text search on note content
+- **Batch Loading**: Efficient loading of notes for work order lists
+
+### Minitrac Equipment Database Migration (2024)
+
+#### Business Impact
+**Cost Savings**: Replaced $600/month SaaS subscription
+**Data Volume**: 28,000+ equipment records migrated to PostgreSQL
+**Features**: Equipment search, specifications, availability tracking
+
+#### Technical Architecture
+- **Data Migration**: Bulk import from Minitrac export files
+- **Search Optimization**: Indexed search on make, model, specifications
+- **Integration**: Seamless integration with existing equipment workflows
+
+---
+
 ## Current Issues & Limitations
 
 ### Database Access Constraints
@@ -335,46 +550,70 @@ organizations           # Multi-tenant organization data
 
 ### Technical Debt
 - **Mixed TypeScript/JavaScript**: Inconsistent typing across components
-- **API Error Handling**: Inconsistent error response formats
-- **Cache Strategy**: Limited caching implementation for expensive queries
+- **Schema Assumptions**: Need database schema validation before query development
+- **Error Handling Patterns**: Inconsistent JSON serialization safety across endpoints
 - **Test Coverage**: Minimal automated testing infrastructure
+- **Debug Logging**: Railway logging visibility issues during development
+
+### Data Quality & Schema Challenges
+- **Schema Documentation**: Incomplete understanding of GLDetail vs GL table differences
+- **Date Column Variations**: Different date column names across tables (EffectiveDate, TranDate, Date)
+- **Join Key Inconsistencies**: Customer.Number vs Customer.Id usage patterns
+- **Null Value Handling**: Inconsistent NULL vs 0 handling in financial calculations
 
 ### Performance Bottlenecks
 - **Dashboard Loading**: Multiple sequential API calls for dashboard data
 - **Large Dataset Exports**: Memory constraints on large CSV/Excel exports
-- **Real-time Updates**: No WebSocket implementation for live data updates
+- **GL Query Performance**: GLDetail table scans can be slow without proper date indexing
+- **Equipment Categorization**: 21K+ record categorization done in Python vs SQL
 
-### Security Considerations
-- **Database Credentials**: Some credentials in configuration files (should be environment-only)
-- **API Rate Limiting**: No rate limiting on expensive endpoints
-- **Audit Logging**: Limited user activity auditing
+### Development Process Issues
+- **Production-Only Database Access**: All testing requires Railway deployment
+- **Logging Visibility**: Limited visibility into Railway application logs during development
+- **Query Debugging**: Difficult to debug SQL queries without local database access
+- **Schema Discovery**: Manual trial-and-error for understanding table structures
 
-### Scalability Limitations
-- **Single Backend Instance**: No horizontal scaling architecture
-- **Database Connection Pool**: Limited connection pooling for high concurrency
-- **File Storage**: No cloud file storage for report exports and attachments
+### Financial Data Accuracy Challenges
+- **GL vs Equipment Book Values**: Equipment.Cost != actual GL account balances
+- **Depreciation Calculations**: Complex fiscal year filtering across multiple date ranges
+- **Invoice-Level Aggregations**: Need for invoice-level vs customer-level grouping patterns
+- **Quote vs Work Order Logic**: Business logic complexities in rental status determination
 
 ---
 
 ## Recommended Improvements
 
-### Near-term (Next 3 months)
-1. **Implement comprehensive TypeScript** across all frontend components
-2. **Add API rate limiting** and request throttling
-3. **Implement Redis caching** for expensive database queries
-4. **Add automated testing** with Jest and Cypress
-5. **Improve error handling** with consistent error response formats
+### Critical Near-term (Next 30 days)
+1. **Database Schema Documentation**: Complete mapping of all table schemas, column names, and relationships
+2. **Financial Query Standardization**: Establish standard patterns for GL account balance queries
+3. **JSON Serialization Safety**: Apply `make_json_safe()` pattern to all financial endpoints
+4. **Schema Validation Middleware**: Validate table structures before executing dynamic queries
+5. **Enhanced Logging Infrastructure**: Improve Railway logging visibility for development debugging
 
-### Medium-term (3-6 months)
-1. **WebSocket integration** for real-time dashboard updates
-2. **Horizontal scaling** architecture with load balancing
-3. **Cloud file storage** integration (AWS S3 or similar)
-4. **Advanced audit logging** and user activity tracking
-5. **Performance monitoring** with APM tools
+### Development Process Improvements (1-3 months)
+1. **Local Development Database**: Set up development replica or test database with same schema
+2. **Query Testing Framework**: Automated testing for SQL queries against known data sets
+3. **Schema Discovery Tools**: API endpoints for exploring table structures and column types
+4. **Financial Data Validation**: Automated validation of financial calculations against expected results
+5. **Comprehensive TypeScript Migration**: Convert all financial calculation components to TypeScript
 
-### Long-term (6+ months)
-1. **Microservices architecture** for better scalability
-2. **Data warehouse implementation** for historical analytics
-3. **Advanced AI features** with custom model training
-4. **Mobile application** for field service and rental management
-5. **API versioning** and public API development
+### Data Architecture Enhancements (3-6 months)
+1. **Optimized Equipment Categorization**: Move categorization logic to SQL for better performance
+2. **Financial Reporting Cache Layer**: Cache GL account balances and depreciation calculations
+3. **Date Column Standardization**: Wrapper functions to handle different date column patterns
+4. **Business Logic Documentation**: Document all quote vs work order, rental status, and categorization rules
+5. **Data Quality Monitoring**: Automated alerts for financial data discrepancies
+
+### Long-term Strategic Improvements (6+ months)
+1. **Financial Data Warehouse**: Separate analytical database for historical financial reporting
+2. **Advanced Equipment Tracking**: Real-time equipment status updates with WebSocket integration
+3. **Audit Trail System**: Complete audit logging for all financial calculations and data changes
+4. **API Documentation & Versioning**: Comprehensive API documentation with versioning strategy
+5. **Mobile Field Service App**: Mobile application for real-time equipment and work order management
+
+### Lessons-Learned Implementation Priorities
+1. **Always Verify Schema First**: No assumptions about table structures or column names
+2. **Financial Accuracy Over Performance**: GL account accuracy is more important than query speed
+3. **Comprehensive Error Handling**: Every financial endpoint needs JSON serialization safety
+4. **Business Logic Documentation**: Document all equipment categorization and status determination rules
+5. **Test-Driven Financial Development**: All financial calculations must have automated validation tests
