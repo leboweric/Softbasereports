@@ -158,7 +158,7 @@ const InventoryReport = ({ user }) => {
             <CardContent>
               <div className="text-2xl font-bold">{data.qty}</div>
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(data.equipment_total || data.gl_account_balance || data.total_book_value)}
+                {formatCurrency(data.category_total || data.gl_account_balance || data.total_book_value)}
               </p>
             </CardContent>
           </Card>
@@ -198,8 +198,8 @@ const InventoryReport = ({ user }) => {
               {getCategoryLabel(category)} ({data.qty} units)
             </CardTitle>
             <CardDescription>
-              Equipment Total: {formatCurrency(data.equipment_total || data.gl_account_balance || data.total_book_value)}
-              {data.note && <span className="text-xs block">{data.note}</span>}
+              GL Balance: {formatCurrency(data.category_total || data.gl_account_balance || data.total_book_value)}
+              {data.gl_account && <span className="text-xs block">Account: {data.gl_account}</span>}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -245,7 +245,7 @@ const InventoryReport = ({ user }) => {
                         {formatCurrency(item.book_value)}
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {formatCurrency(data.equipment_total || data.gl_account_balance)}
+                        {formatCurrency(data.category_total || data.gl_account_balance)}
                       </TableCell>
                       {category === 'rental' && (
                         <TableCell className="text-right font-mono">
