@@ -31,16 +31,26 @@ def get_accounting_inventory():
     try:
         db = AzureSQLService()
         
-        # Step 1: Get specific GL account balances using direct queries
+        # Step 1: First, find the correct date column name in GLDetail
+        column_discovery_query = """
+        SELECT TOP 1 * 
+        FROM [ben002].GLDetail 
+        WHERE AccountNo IN ('131300', '131000', '193000')
+        ORDER BY EffectiveDate DESC
+        """
         
+        # Execute discovery query to see what columns exist
+        sample_data = db.execute_query(column_discovery_query)
+        
+        # Based on previous queries, EffectiveDate appears to be the date column
         # Allied Equipment (131300) - Manual fix for $17,250.98
         allied_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [ben002].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
-          AND Year = 2024 
-          AND Month = 12
+          AND EffectiveDate >= '2024-12-01'
+          AND EffectiveDate <= '2024-12-31'
         """
         
         # New Equipment (131000) - Manual fix for $776,157.98  
@@ -49,8 +59,8 @@ def get_accounting_inventory():
         FROM [ben002].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
-          AND Year = 2024
-          AND Month = 12
+          AND EffectiveDate >= '2024-12-01'
+          AND EffectiveDate <= '2024-12-31'
         """
         
         # Keep original query for other accounts (131200, 183000, 193000)
@@ -71,25 +81,18 @@ def get_accounting_inventory():
         other_accounts = db.execute_query(other_accounts_query)
         
         # Step 2: Get YTD depreciation expense (Fiscal Year: Nov 2024 - Oct 2025)
-        # CORRECTED: Proper fiscal year filtering
+        # FIXED: Use EffectiveDate with proper fiscal year filtering
         ytd_depreciation_query = """
         SELECT 
-            CAST(SUM(CASE WHEN gld.Amount < 0 THEN ABS(gld.Amount) ELSE 0 END) AS DECIMAL(18,2)) as YTD_Depreciation_Expense,
+            CAST(SUM(CASE WHEN Amount < 0 THEN ABS(Amount) ELSE 0 END) AS DECIMAL(18,2)) as YTD_Depreciation_Expense,
             COUNT(*) as Transaction_Count,
-            MIN(gld.EffectiveDate) as Earliest_Date,
-            MAX(gld.EffectiveDate) as Latest_Date,
-            -- Debug: Show sample transactions
-            COUNT(CASE WHEN gld.Amount < 0 THEN 1 END) as Negative_Transactions,
-            COUNT(CASE WHEN gld.Amount >= 0 THEN 1 END) as Positive_Transactions,
-            SUM(gld.Amount) as Total_Amount_All_Signs
-        FROM ben002.GLDetail gld
-        WHERE gld.AccountNo = '193000'
-        AND (
-            (gld.EffectiveDate >= '2024-11-01' AND gld.EffectiveDate <= '2024-12-31')
-            OR 
-            (gld.EffectiveDate >= '2025-01-01' AND gld.EffectiveDate <= '2025-10-31')
-        )
-        AND gld.Posted = 1
+            MIN(EffectiveDate) as Earliest_Date,
+            MAX(EffectiveDate) as Latest_Date
+        FROM ben002.GLDetail
+        WHERE AccountNo = '193000'
+        AND Posted = 1
+        AND ((EffectiveDate >= '2024-11-01' AND EffectiveDate <= '2024-12-31')
+             OR (EffectiveDate >= '2025-01-01' AND EffectiveDate <= '2025-10-31'))
         """
         
         ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
