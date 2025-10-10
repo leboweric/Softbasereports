@@ -27,11 +27,14 @@ def get_accounting_inventory():
     try:
         db = AzureSQLService()
         
-        # Step 1: Get GL account balances for Oct 2025
+        # Step 1: Get GL account balances - TRY CURRENT PERIOD INSTEAD OF OCT 2025
         gl_balances_query = """
         SELECT 
             AccountNo,
             CAST(YTD AS DECIMAL(18,2)) as current_balance,
+            Year,
+            Month,
+            AccountField,
             CASE 
                 WHEN AccountNo = '131000' THEN 'New Equipment'
                 WHEN AccountNo = '131200' THEN 'Used Equipment + Batteries'
@@ -42,8 +45,8 @@ def get_accounting_inventory():
             END as Category
         FROM ben002.GL
         WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
-        AND Year = 2025
-        AND Month = 10
+        AND Year = 2024  -- TRY 2024 INSTEAD OF 2025
+        AND Month = 12   -- TRY DECEMBER INSTEAD OF OCTOBER
         AND AccountField = 'Actual'
         ORDER BY AccountNo
         """
@@ -150,9 +153,38 @@ def get_accounting_inventory():
             'allied': []
         }
         
+        # DEBUG: Track categorization
+        categorization_debug = {
+            'total_equipment_processed': 0,
+            'by_department': {},
+            'by_category': {},
+            'sample_categorizations': []
+        }
+        
         for item in all_equipment:
             category = categorize_equipment_fixed(item)
             categories[category].append(item)
+            
+            # DEBUG tracking
+            categorization_debug['total_equipment_processed'] += 1
+            dept = item['InventoryDept']
+            if dept not in categorization_debug['by_department']:
+                categorization_debug['by_department'][dept] = 0
+            categorization_debug['by_department'][dept] += 1
+            
+            if category not in categorization_debug['by_category']:
+                categorization_debug['by_category'][category] = 0
+            categorization_debug['by_category'][category] += 1
+            
+            # Sample first few items for each category
+            if len(categorization_debug['sample_categorizations']) < 20:
+                categorization_debug['sample_categorizations'].append({
+                    'serial_no': item['serial_number'],
+                    'make': item['Make'],
+                    'model': item['Model'],
+                    'inventory_dept': item['InventoryDept'],
+                    'categorized_as': category
+                })
         
         # Step 5: FIXED - Use GL account balances as source of truth for dollar amounts
         
@@ -163,11 +195,22 @@ def get_accounting_inventory():
             gl_account_balances[account_no] = format_currency(balance['current_balance'])
         
         # Extract specific GL account balances
-        allied_gl_balance = gl_account_balances.get('131300', Decimal('0.00'))        # $17,250.98
-        new_equipment_gl_balance = gl_account_balances.get('131000', Decimal('0.00'))  # $776,157.98  
-        account_131200_total = gl_account_balances.get('131200', Decimal('0.00'))     # $207,216.69
+        allied_gl_balance = gl_account_balances.get('131300', Decimal('0.00'))        # Expected: $17,250.98
+        new_equipment_gl_balance = gl_account_balances.get('131000', Decimal('0.00'))  # Expected: $776,157.98  
+        account_131200_total = gl_account_balances.get('131200', Decimal('0.00'))     # Expected: $207,216.69
         rental_gross = gl_account_balances.get('183000', Decimal('0.00'))            # Rental gross
         rental_accumulated_dep = gl_account_balances.get('193000', Decimal('0.00'))  # Accumulated depreciation
+        
+        # DEBUG: Add raw GL balances to response for troubleshooting
+        debug_gl_raw = {}
+        for balance in gl_balances:
+            debug_gl_raw[balance['AccountNo']] = {
+                'raw_balance': float(balance['current_balance']),
+                'formatted_balance': str(format_currency(balance['current_balance'])),
+                'year': balance.get('Year'),
+                'month': balance.get('Month'),
+                'account_field': balance.get('AccountField')
+            }
         
         # Calculate rental net book value
         rental_net_book_value = rental_gross - abs(rental_accumulated_dep)
@@ -261,6 +304,20 @@ def get_accounting_inventory():
                 'gross_183000': str(rental_gross),
                 'accumulated_dep_193000': str(rental_accumulated_dep),
                 'net_book_value': str(rental_net_book_value)
+            }
+        }
+        
+        # DEBUG: Add diagnostic information
+        summary['debug_info'] = {
+            'gl_raw_balances': debug_gl_raw,
+            'categorization_debug': categorization_debug,
+            'expected_vs_actual': {
+                'allied': {'expected': '17250.98', 'actual': str(allied_gl_balance), 'variance': str(allied_gl_balance - Decimal('17250.98'))},
+                'new': {'expected': '776157.98', 'actual': str(new_equipment_gl_balance), 'variance': str(new_equipment_gl_balance - Decimal('776157.98'))},
+                'rental_units': {'expected': 971, 'actual': equipment_counts['rental']},
+                'new_units': {'expected': 30, 'actual': equipment_counts['new']},
+                'used_units': {'expected': 51, 'actual': equipment_counts['used']},
+                'battery_units': {'expected': 5, 'actual': equipment_counts['batteries_chargers']}
             }
         }
         
