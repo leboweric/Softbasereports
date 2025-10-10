@@ -5,7 +5,10 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 from decimal import Decimal, ROUND_HALF_UP
+import traceback
+import logging
 
+logger = logging.getLogger(__name__)
 accounting_inventory_bp = Blueprint('accounting_inventory', __name__)
 
 def format_currency(amount):
@@ -221,8 +224,8 @@ def get_accounting_inventory():
         except Exception as e:
             debug_gl_raw = {'error': f'GL debug failed: {str(e)}'}
         
-        # Calculate rental net book value
-        rental_net_book_value = rental_gross - abs(rental_accumulated_dep)
+        # Calculate rental net book value (safe from None)
+        rental_net_book_value = (rental_gross or Decimal('0.00')) - abs(rental_accumulated_dep or Decimal('0.00'))
         
         # CRITICAL: Split GL account 131200 between Batteries and Used Equipment
         # Marissa's expected split: Batteries $52,116.39 + Used $155,100.30 = $207,216.69
@@ -304,10 +307,10 @@ def get_accounting_inventory():
             'account_131000_new': str(new_equipment_gl_balance),
             'account_131200_total': str(account_131200_total),
             'account_131200_split': {
-                'batteries_allocated': str(batteries_gl_amount),
-                'used_allocated': str(used_gl_amount),
-                'total_allocated': str(batteries_gl_amount + used_gl_amount),
-                'variance': str(account_131200_total - (batteries_gl_amount + used_gl_amount))
+                'batteries_allocated': str(batteries_gl_amount or Decimal('0.00')),
+                'used_allocated': str(used_gl_amount or Decimal('0.00')),
+                'total_allocated': str((batteries_gl_amount or Decimal('0.00')) + (used_gl_amount or Decimal('0.00'))),
+                'variance': str((account_131200_total or Decimal('0.00')) - ((batteries_gl_amount or Decimal('0.00')) + (used_gl_amount or Decimal('0.00'))))
             },
             'rental_calculation': {
                 'gross_183000': str(rental_gross),
@@ -341,13 +344,18 @@ def get_accounting_inventory():
         except Exception as e:
             summary['debug_info'] = {'error': f'Debug info generation failed: {str(e)}'}
         
-        # Add overall totals
+        # Add overall totals (safe from None)
+        try:
+            total_equipment = sum((cat.get('qty', 0) or 0) for cat in summary.values() if isinstance(cat, dict) and 'qty' in cat)
+        except (TypeError, AttributeError):
+            total_equipment = 0
+            
         summary['totals'] = {
-            'total_equipment': sum(cat['qty'] for cat in summary.values() if isinstance(cat, dict) and 'qty' in cat),
-            'ytd_depreciation_expense': str(ytd_depreciation),
+            'total_equipment': total_equipment,
+            'ytd_depreciation_expense': str(ytd_depreciation or Decimal('0.00')),
             'ytd_depreciation_details': {
-                'transaction_count': ytd_depreciation_result[0]['Transaction_Count'] if ytd_depreciation_result else 0,
-                'date_range': f"{ytd_depreciation_result[0]['Earliest_Date']} to {ytd_depreciation_result[0]['Latest_Date']}" if ytd_depreciation_result else "No transactions"
+                'transaction_count': (ytd_depreciation_result[0]['Transaction_Count'] if ytd_depreciation_result and ytd_depreciation_result[0] else 0) or 0,
+                'date_range': f"{ytd_depreciation_result[0]['Earliest_Date']} to {ytd_depreciation_result[0]['Latest_Date']}" if ytd_depreciation_result and ytd_depreciation_result[0] else "No transactions"
             }
         }
         
@@ -366,5 +374,19 @@ def get_accounting_inventory():
         
         return jsonify(summary)
         
+    except TypeError as e:
+        logger.error(f"TypeError in inventory report: {str(e)}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+        return jsonify({
+            'error': f'TypeError: {str(e)}',
+            'traceback': traceback.format_exc().split('\n'),
+            'error_type': 'TypeError - likely None comparison'
+        }), 500
     except Exception as e:
-        return jsonify({'error': f'Error generating inventory report: {str(e)}'}), 500
+        logger.error(f"General error in inventory report: {str(e)}")
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+        return jsonify({
+            'error': f'Error generating inventory report: {str(e)}',
+            'traceback': traceback.format_exc().split('\n'),
+            'error_type': 'GeneralException'
+        }), 500
