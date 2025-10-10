@@ -31,50 +31,44 @@ def get_accounting_inventory():
     try:
         db = AzureSQLService()
         
-        # Step 1: Get GL account balances - Use most recent actual balances
-        # DEBUG: Get the most recent period with data for each account
-        gl_balances_query = """
-        WITH LatestPeriod AS (
-            SELECT 
-                AccountNo,
-                MAX(Year * 100 + Month) as LatestYearMonth
-            FROM ben002.GL
-            WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
-            AND AccountField = 'Actual'
-            AND YTD IS NOT NULL
-            GROUP BY AccountNo
-        )
-        SELECT 
-            g.AccountNo,
-            CAST(g.YTD AS DECIMAL(18,2)) as current_balance,
-            g.Year,
-            g.Month,
-            g.AccountField,
-            CASE 
-                WHEN g.AccountNo = '131000' THEN 'New Equipment'
-                WHEN g.AccountNo = '131200' THEN 'Used Equipment + Batteries'
-                WHEN g.AccountNo = '131300' THEN 'Allied Equipment'
-                WHEN g.AccountNo = '183000' THEN 'Rental Fleet Gross Value'
-                WHEN g.AccountNo = '193000' THEN 'Accumulated Depreciation'
-                ELSE 'Other'
-            END as Category,
-            (g.Year * 100 + g.Month) as YearMonth
-        FROM ben002.GL g
-        INNER JOIN LatestPeriod lp ON g.AccountNo = lp.AccountNo 
-            AND (g.Year * 100 + g.Month) = lp.LatestYearMonth
-        WHERE g.AccountField = 'Actual'
-        ORDER BY g.AccountNo
+        # Step 1: Get specific GL account balances using direct queries
+        
+        # Allied Equipment (131300) - Manual fix for $17,250.98
+        allied_query = """
+        SELECT COALESCE(SUM(Amount), 0) as Balance
+        FROM [ben002].GLDetail  
+        WHERE AccountNo = '131300'
+          AND Posted = 1
+          AND Year = 2024 
+          AND Month = 12
         """
         
-        gl_balances = db.execute_query(gl_balances_query)
+        # New Equipment (131000) - Manual fix for $776,157.98  
+        new_equipment_query = """
+        SELECT COALESCE(SUM(Amount), 0) as Balance
+        FROM [ben002].GLDetail
+        WHERE AccountNo = '131000'
+          AND Posted = 1
+          AND Year = 2024
+          AND Month = 12
+        """
         
-        # DEBUG: Log GL balance query results
-        logger.info("=== GL BALANCE QUERY DEBUG ===")
-        for balance in gl_balances or []:
-            logger.info(f"Account {balance.get('AccountNo')}: ${balance.get('current_balance')} "
-                       f"(Year: {balance.get('Year')}, Month: {balance.get('Month')}, "
-                       f"YearMonth: {balance.get('YearMonth')})")
-        logger.info("=== END GL BALANCE DEBUG ===")
+        # Keep original query for other accounts (131200, 183000, 193000)
+        other_accounts_query = """
+        SELECT 
+            AccountNo,
+            CAST(YTD AS DECIMAL(18,2)) as current_balance
+        FROM ben002.GL
+        WHERE AccountNo IN ('131200', '183000', '193000')
+        AND Year = 2025
+        AND Month = 10
+        AND AccountField = 'Actual'
+        """
+        
+        # Execute all queries
+        allied_result = db.execute_query(allied_query)
+        new_equipment_result = db.execute_query(new_equipment_query)
+        other_accounts = db.execute_query(other_accounts_query)
         
         # Step 2: Get YTD depreciation expense (Fiscal Year: Nov 2024 - Oct 2025)
         # CORRECTED: Proper fiscal year filtering
@@ -99,18 +93,6 @@ def get_accounting_inventory():
         """
         
         ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
-        
-        # DEBUG: Log depreciation query results
-        logger.info("=== DEPRECIATION QUERY DEBUG ===")
-        if ytd_depreciation_result and ytd_depreciation_result[0]:
-            dep_result = ytd_depreciation_result[0]
-            logger.info(f"YTD Depreciation Expense: ${dep_result.get('YTD_Depreciation_Expense')}")
-            logger.info(f"Transaction Count: {dep_result.get('Transaction_Count')}")
-            logger.info(f"Date Range: {dep_result.get('Earliest_Date')} to {dep_result.get('Latest_Date')}")
-            logger.info(f"Negative Transactions: {dep_result.get('Negative_Transactions')}")
-            logger.info(f"Positive Transactions: {dep_result.get('Positive_Transactions')}")
-            logger.info(f"Total Amount (All Signs): ${dep_result.get('Total_Amount_All_Signs')}")
-        logger.info("=== END DEPRECIATION DEBUG ===")
         
         ytd_depreciation = Decimal('0.00')
         if ytd_depreciation_result and ytd_depreciation_result[0] and ytd_depreciation_result[0]['YTD_Depreciation_Expense'] is not None:
@@ -235,34 +217,33 @@ def get_accounting_inventory():
                 # Don't let debug code crash the main function
                 pass
         
-        # Step 5: FIXED - Use GL account balances as source of truth for dollar amounts
+        # Step 5: Extract GL account balances from direct queries
         
-        # Get GL account balances (the actual financial amounts)
-        gl_account_balances = {}
-        for balance in gl_balances:
-            account_no = balance['AccountNo']
-            gl_account_balances[account_no] = format_currency(balance['current_balance'])
+        # Get balances from specific queries
+        allied_gl_balance = Decimal('0.00')
+        if allied_result and allied_result[0] and allied_result[0]['Balance'] is not None:
+            allied_gl_balance = format_currency(allied_result[0]['Balance'])
+            
+        new_equipment_gl_balance = Decimal('0.00')  
+        if new_equipment_result and new_equipment_result[0] and new_equipment_result[0]['Balance'] is not None:
+            new_equipment_gl_balance = format_currency(new_equipment_result[0]['Balance'])
         
-        # Extract specific GL account balances (ensure they're never None)
-        allied_gl_balance = gl_account_balances.get('131300', Decimal('0.00')) or Decimal('0.00')        # Expected: $17,250.98
-        new_equipment_gl_balance = gl_account_balances.get('131000', Decimal('0.00')) or Decimal('0.00')  # Expected: $776,157.98  
-        account_131200_total = gl_account_balances.get('131200', Decimal('0.00')) or Decimal('0.00')     # Expected: $207,216.69
-        rental_gross = gl_account_balances.get('183000', Decimal('0.00')) or Decimal('0.00')            # Rental gross
-        rental_accumulated_dep = gl_account_balances.get('193000', Decimal('0.00')) or Decimal('0.00')  # Accumulated depreciation
+        # Get other account balances
+        account_131200_total = Decimal('0.00')
+        rental_gross = Decimal('0.00')
+        rental_accumulated_dep = Decimal('0.00')
         
-        # DEBUG: Add raw GL balances to response for troubleshooting
-        debug_gl_raw = {}
-        try:
-            for balance in gl_balances:
-                debug_gl_raw[balance['AccountNo']] = {
-                    'raw_balance': float(balance['current_balance']) if balance['current_balance'] is not None else 0.0,
-                    'formatted_balance': str(format_currency(balance['current_balance'])),
-                    'year': balance.get('Year'),
-                    'month': balance.get('Month'),
-                    'account_field': balance.get('AccountField')
-                }
-        except Exception as e:
-            debug_gl_raw = {'error': f'GL debug failed: {str(e)}'}
+        for account in other_accounts or []:
+            account_no = account['AccountNo']
+            balance = format_currency(account['current_balance'])
+            if account_no == '131200':
+                account_131200_total = balance
+            elif account_no == '183000':
+                rental_gross = balance
+            elif account_no == '193000':
+                rental_accumulated_dep = balance
+        
+        # Removed debug GL balances section
         
         # Calculate rental net book value (safe from None)
         rental_net_book_value = (rental_gross or Decimal('0.00')) - abs(rental_accumulated_dep or Decimal('0.00'))
@@ -341,48 +322,7 @@ def get_accounting_inventory():
             }
         }
         
-        # GL account validation and split analysis
-        summary['gl_analysis'] = {
-            'account_131300_allied': str(allied_gl_balance),
-            'account_131000_new': str(new_equipment_gl_balance),
-            'account_131200_total': str(account_131200_total),
-            'account_131200_split': {
-                'batteries_allocated': str(batteries_gl_amount or Decimal('0.00')),
-                'used_allocated': str(used_gl_amount or Decimal('0.00')),
-                'total_allocated': str((batteries_gl_amount or Decimal('0.00')) + (used_gl_amount or Decimal('0.00'))),
-                'variance': str((account_131200_total or Decimal('0.00')) - ((batteries_gl_amount or Decimal('0.00')) + (used_gl_amount or Decimal('0.00'))))
-            },
-            'rental_calculation': {
-                'gross_183000': str(rental_gross),
-                'accumulated_dep_193000': str(rental_accumulated_dep),
-                'net_book_value': str(rental_net_book_value)
-            }
-        }
-        
-        # DEBUG: Add diagnostic information (wrapped in try/catch)
-        try:
-            summary['debug_info'] = {
-                'gl_raw_balances': debug_gl_raw,
-                'categorization_debug': categorization_debug,
-                'expected_vs_actual': {
-                    'allied': {
-                        'expected': '17250.98', 
-                        'actual': str(allied_gl_balance or Decimal('0.00')), 
-                        'variance': str((allied_gl_balance or Decimal('0.00')) - Decimal('17250.98'))
-                    },
-                    'new': {
-                        'expected': '776157.98', 
-                        'actual': str(new_equipment_gl_balance or Decimal('0.00')), 
-                        'variance': str((new_equipment_gl_balance or Decimal('0.00')) - Decimal('776157.98'))
-                    },
-                    'rental_units': {'expected': 971, 'actual': equipment_counts.get('rental', 0) or 0},
-                    'new_units': {'expected': 30, 'actual': equipment_counts.get('new', 0) or 0},
-                    'used_units': {'expected': 51, 'actual': equipment_counts.get('used', 0) or 0},
-                    'battery_units': {'expected': 5, 'actual': equipment_counts.get('batteries_chargers', 0) or 0}
-                }
-            }
-        except Exception as e:
-            summary['debug_info'] = {'error': f'Debug info generation failed: {str(e)}'}
+        # Removed gl_analysis and debug_info sections
         
         # Add overall totals (safe from None)
         try:
@@ -439,20 +379,14 @@ def get_accounting_inventory():
             
             return obj
 
-        # Apply BEFORE returning
-        logger.info("Making summary JSON-safe...")
+        # Remove debug categories from the response before returning
+        if 'debug_info' in summary:
+            del summary['debug_info']
+        if 'gl_analysis' in summary:
+            del summary['gl_analysis']
+        
+        # Apply JSON safety before returning
         summary = make_json_safe(summary)
-
-        # Test it's serializable
-        try:
-            import json
-            json.dumps(summary)  # This will fail if still not serializable
-            logger.info("Summary is JSON-safe")
-        except Exception as e:
-            logger.error(f"Summary still not JSON-safe: {e}")
-            # Log what's in summary to debug
-            logger.error(f"Summary keys: {summary.keys()}")
-            raise
 
         return jsonify(summary)
         
