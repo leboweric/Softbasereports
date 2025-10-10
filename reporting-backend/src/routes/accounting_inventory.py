@@ -43,29 +43,31 @@ def get_accounting_inventory():
         sample_data = db.execute_query(column_discovery_query)
         
         # Based on previous queries, EffectiveDate appears to be the date column
-        # Allied Equipment (131300) - Get cumulative balance (ALL transactions)
+        # Allied Equipment (131300) - Get balance through October 2025 period-end
         allied_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [ben002].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
+          AND EffectiveDate <= '2025-10-31'
         """
         
-        # New Equipment (131000) - Get cumulative balance (ALL transactions)
+        # New Equipment (131000) - Get balance through October 2025 period-end
         new_equipment_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [ben002].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
+          AND EffectiveDate <= '2025-10-31'
         """
         
-        # Get cumulative balances for other accounts (131200, 183000, 193000)
+        # Get balances through October 2025 for other accounts (131200, 183000, 193000)
         other_accounts_query = """
         SELECT 
             '131200' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [ben002].GLDetail
-        WHERE AccountNo = '131200' AND Posted = 1
+        WHERE AccountNo = '131200' AND Posted = 1 AND EffectiveDate <= '2025-10-31'
         
         UNION ALL
         
@@ -73,7 +75,7 @@ def get_accounting_inventory():
             '183000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [ben002].GLDetail
-        WHERE AccountNo = '183000' AND Posted = 1
+        WHERE AccountNo = '183000' AND Posted = 1 AND EffectiveDate <= '2025-10-31'
         
         UNION ALL
         
@@ -81,7 +83,7 @@ def get_accounting_inventory():
             '193000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [ben002].GLDetail
-        WHERE AccountNo = '193000' AND Posted = 1
+        WHERE AccountNo = '193000' AND Posted = 1 AND EffectiveDate <= '2025-10-31'
         """
         
         # Execute all queries
@@ -89,18 +91,21 @@ def get_accounting_inventory():
         new_equipment_result = db.execute_query(new_equipment_query)
         other_accounts = db.execute_query(other_accounts_query)
         
-        # Step 2: Get YTD depreciation expense - ONLY this one needs date filtering
-        # Fiscal Year: Nov 2024 - Oct 2025
+        # Step 2: Get YTD depreciation expense - FISCAL YEAR ONLY (Nov 2024 - Oct 2025)
+        # DEBUG: This should return MUCH less than $11M if date filter works
         ytd_depreciation_query = """
         SELECT 
-            COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation_Expense,
             COUNT(*) as Transaction_Count,
+            COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation_Expense,
             MIN(EffectiveDate) as Earliest_Date,
-            MAX(EffectiveDate) as Latest_Date
+            MAX(EffectiveDate) as Latest_Date,
+            -- Debug: Show what dates we're actually getting
+            COUNT(CASE WHEN EffectiveDate >= '2024-11-01' AND EffectiveDate < '2025-01-01' THEN 1 END) as Nov_Dec_2024_Count,
+            COUNT(CASE WHEN EffectiveDate >= '2025-01-01' AND EffectiveDate <= '2025-10-31' THEN 1 END) as Jan_Oct_2025_Count
         FROM ben002.GLDetail
         WHERE AccountNo = '193000'
         AND Posted = 1
-        AND ((EffectiveDate >= '2024-11-01' AND EffectiveDate <= '2024-12-31')
+        AND ((EffectiveDate >= '2024-11-01' AND EffectiveDate < '2025-01-01')
              OR (EffectiveDate >= '2025-01-01' AND EffectiveDate <= '2025-10-31'))
         """
         
