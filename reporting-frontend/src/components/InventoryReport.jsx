@@ -147,7 +147,12 @@ const InventoryReport = ({ user }) => {
 
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-5">
-        {Object.entries(inventoryData).filter(([key]) => key !== 'totals' && key !== 'notes').map(([category, data]) => (
+        {Object.entries(inventoryData).filter(([key]) => 
+          key !== 'totals' && 
+          key !== 'notes' && 
+          key !== 'debug_info' && 
+          key !== 'gl_analysis'
+        ).map(([category, data]) => (
           <Card key={category}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">

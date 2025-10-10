@@ -31,48 +31,87 @@ def get_accounting_inventory():
     try:
         db = AzureSQLService()
         
-        # Step 1: Get GL account balances (reverted to working version)
+        # Step 1: Get GL account balances - Use most recent actual balances
+        # DEBUG: Get the most recent period with data for each account
         gl_balances_query = """
+        WITH LatestPeriod AS (
+            SELECT 
+                AccountNo,
+                MAX(Year * 100 + Month) as LatestYearMonth
+            FROM ben002.GL
+            WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
+            AND AccountField = 'Actual'
+            AND YTD IS NOT NULL
+            GROUP BY AccountNo
+        )
         SELECT 
-            AccountNo,
-            CAST(YTD AS DECIMAL(18,2)) as current_balance,
-            Year,
-            Month,
-            AccountField,
+            g.AccountNo,
+            CAST(g.YTD AS DECIMAL(18,2)) as current_balance,
+            g.Year,
+            g.Month,
+            g.AccountField,
             CASE 
-                WHEN AccountNo = '131000' THEN 'New Equipment'
-                WHEN AccountNo = '131200' THEN 'Used Equipment + Batteries'
-                WHEN AccountNo = '131300' THEN 'Allied Equipment'
-                WHEN AccountNo = '183000' THEN 'Rental Fleet Gross Value'
-                WHEN AccountNo = '193000' THEN 'Accumulated Depreciation'
+                WHEN g.AccountNo = '131000' THEN 'New Equipment'
+                WHEN g.AccountNo = '131200' THEN 'Used Equipment + Batteries'
+                WHEN g.AccountNo = '131300' THEN 'Allied Equipment'
+                WHEN g.AccountNo = '183000' THEN 'Rental Fleet Gross Value'
+                WHEN g.AccountNo = '193000' THEN 'Accumulated Depreciation'
                 ELSE 'Other'
-            END as Category
-        FROM ben002.GL
-        WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
-        AND Year = 2025
-        AND Month = 10
-        AND AccountField = 'Actual'
-        ORDER BY AccountNo
+            END as Category,
+            (g.Year * 100 + g.Month) as YearMonth
+        FROM ben002.GL g
+        INNER JOIN LatestPeriod lp ON g.AccountNo = lp.AccountNo 
+            AND (g.Year * 100 + g.Month) = lp.LatestYearMonth
+        WHERE g.AccountField = 'Actual'
+        ORDER BY g.AccountNo
         """
         
         gl_balances = db.execute_query(gl_balances_query)
         
-        # Step 2: Get YTD depreciation expense (Nov 2024 - Oct 2025 only)
-        # FIXED: Better date filtering and validation
+        # DEBUG: Log GL balance query results
+        logger.info("=== GL BALANCE QUERY DEBUG ===")
+        for balance in gl_balances or []:
+            logger.info(f"Account {balance.get('AccountNo')}: ${balance.get('current_balance')} "
+                       f"(Year: {balance.get('Year')}, Month: {balance.get('Month')}, "
+                       f"YearMonth: {balance.get('YearMonth')})")
+        logger.info("=== END GL BALANCE DEBUG ===")
+        
+        # Step 2: Get YTD depreciation expense (Fiscal Year: Nov 2024 - Oct 2025)
+        # CORRECTED: Proper fiscal year filtering
         ytd_depreciation_query = """
         SELECT 
             CAST(SUM(CASE WHEN gld.Amount < 0 THEN ABS(gld.Amount) ELSE 0 END) AS DECIMAL(18,2)) as YTD_Depreciation_Expense,
             COUNT(*) as Transaction_Count,
             MIN(gld.EffectiveDate) as Earliest_Date,
-            MAX(gld.EffectiveDate) as Latest_Date
+            MAX(gld.EffectiveDate) as Latest_Date,
+            -- Debug: Show sample transactions
+            COUNT(CASE WHEN gld.Amount < 0 THEN 1 END) as Negative_Transactions,
+            COUNT(CASE WHEN gld.Amount >= 0 THEN 1 END) as Positive_Transactions,
+            SUM(gld.Amount) as Total_Amount_All_Signs
         FROM ben002.GLDetail gld
         WHERE gld.AccountNo = '193000'
-        AND gld.EffectiveDate >= '2024-11-01'
-        AND gld.EffectiveDate < '2025-11-01'
+        AND (
+            (gld.EffectiveDate >= '2024-11-01' AND gld.EffectiveDate <= '2024-12-31')
+            OR 
+            (gld.EffectiveDate >= '2025-01-01' AND gld.EffectiveDate <= '2025-10-31')
+        )
         AND gld.Posted = 1
         """
         
         ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
+        
+        # DEBUG: Log depreciation query results
+        logger.info("=== DEPRECIATION QUERY DEBUG ===")
+        if ytd_depreciation_result and ytd_depreciation_result[0]:
+            dep_result = ytd_depreciation_result[0]
+            logger.info(f"YTD Depreciation Expense: ${dep_result.get('YTD_Depreciation_Expense')}")
+            logger.info(f"Transaction Count: {dep_result.get('Transaction_Count')}")
+            logger.info(f"Date Range: {dep_result.get('Earliest_Date')} to {dep_result.get('Latest_Date')}")
+            logger.info(f"Negative Transactions: {dep_result.get('Negative_Transactions')}")
+            logger.info(f"Positive Transactions: {dep_result.get('Positive_Transactions')}")
+            logger.info(f"Total Amount (All Signs): ${dep_result.get('Total_Amount_All_Signs')}")
+        logger.info("=== END DEPRECIATION DEBUG ===")
+        
         ytd_depreciation = Decimal('0.00')
         if ytd_depreciation_result and ytd_depreciation_result[0] and ytd_depreciation_result[0]['YTD_Depreciation_Expense'] is not None:
             ytd_depreciation = format_currency(ytd_depreciation_result[0]['YTD_Depreciation_Expense'])
