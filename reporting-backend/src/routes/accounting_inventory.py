@@ -43,36 +43,45 @@ def get_accounting_inventory():
         sample_data = db.execute_query(column_discovery_query)
         
         # Based on previous queries, EffectiveDate appears to be the date column
-        # Allied Equipment (131300) - Manual fix for $17,250.98
+        # Allied Equipment (131300) - Get cumulative balance (ALL transactions)
         allied_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [ben002].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
-          AND EffectiveDate >= '2024-12-01'
-          AND EffectiveDate <= '2024-12-31'
         """
         
-        # New Equipment (131000) - Manual fix for $776,157.98  
+        # New Equipment (131000) - Get cumulative balance (ALL transactions)
         new_equipment_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [ben002].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
-          AND EffectiveDate >= '2024-12-01'
-          AND EffectiveDate <= '2024-12-31'
         """
         
-        # Keep original query for other accounts (131200, 183000, 193000)
+        # Get cumulative balances for other accounts (131200, 183000, 193000)
         other_accounts_query = """
         SELECT 
-            AccountNo,
-            CAST(YTD AS DECIMAL(18,2)) as current_balance
-        FROM ben002.GL
-        WHERE AccountNo IN ('131200', '183000', '193000')
-        AND Year = 2025
-        AND Month = 10
-        AND AccountField = 'Actual'
+            '131200' as AccountNo,
+            COALESCE(SUM(Amount), 0) as current_balance
+        FROM [ben002].GLDetail
+        WHERE AccountNo = '131200' AND Posted = 1
+        
+        UNION ALL
+        
+        SELECT 
+            '183000' as AccountNo,
+            COALESCE(SUM(Amount), 0) as current_balance
+        FROM [ben002].GLDetail
+        WHERE AccountNo = '183000' AND Posted = 1
+        
+        UNION ALL
+        
+        SELECT 
+            '193000' as AccountNo,
+            COALESCE(SUM(Amount), 0) as current_balance
+        FROM [ben002].GLDetail
+        WHERE AccountNo = '193000' AND Posted = 1
         """
         
         # Execute all queries
@@ -80,11 +89,11 @@ def get_accounting_inventory():
         new_equipment_result = db.execute_query(new_equipment_query)
         other_accounts = db.execute_query(other_accounts_query)
         
-        # Step 2: Get YTD depreciation expense (Fiscal Year: Nov 2024 - Oct 2025)
-        # FIXED: Use EffectiveDate with proper fiscal year filtering
+        # Step 2: Get YTD depreciation expense - ONLY this one needs date filtering
+        # Fiscal Year: Nov 2024 - Oct 2025
         ytd_depreciation_query = """
         SELECT 
-            CAST(SUM(CASE WHEN Amount < 0 THEN ABS(Amount) ELSE 0 END) AS DECIMAL(18,2)) as YTD_Depreciation_Expense,
+            COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation_Expense,
             COUNT(*) as Transaction_Count,
             MIN(EffectiveDate) as Earliest_Date,
             MAX(EffectiveDate) as Latest_Date
