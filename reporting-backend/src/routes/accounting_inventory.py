@@ -7,6 +7,7 @@ from src.services.azure_sql_service import AzureSQLService
 from decimal import Decimal, ROUND_HALF_UP
 import traceback
 import logging
+from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
 accounting_inventory_bp = Blueprint('accounting_inventory', __name__)
@@ -374,20 +375,46 @@ def get_accounting_inventory():
         
         # Convert all Decimals and None values to JSON-safe format
         def make_json_safe(obj):
-            """Recursively convert Decimals and None to JSON-safe values"""
+            """
+            Recursively convert ALL problematic types to JSON-safe values
+            Handles: Decimal, None, datetime, nested dicts, nested lists
+            """
             if obj is None:
-                return 0  # Convert None to 0 for numeric contexts
+                return None  # Keep None as is, but ensure it's not mixed with numbers in comparisons
+            
             if isinstance(obj, Decimal):
-                return float(obj)
+                return float(obj) if obj is not None else 0.0
+            
+            if isinstance(obj, (datetime, date)):
+                return obj.isoformat()
+            
             if isinstance(obj, dict):
-                return {k: make_json_safe(v) for k, v in obj.items()}
-            if isinstance(obj, list):
+                return {str(k): make_json_safe(v) for k, v in obj.items()}
+            
+            if isinstance(obj, (list, tuple)):
                 return [make_json_safe(item) for item in obj]
+            
+            # Handle sets
+            if isinstance(obj, set):
+                return list(obj)
+            
             return obj
-        
-        # Make summary JSON-safe before returning
+
+        # Apply BEFORE returning
+        logger.info("Making summary JSON-safe...")
         summary = make_json_safe(summary)
-        
+
+        # Test it's serializable
+        try:
+            import json
+            json.dumps(summary)  # This will fail if still not serializable
+            logger.info("Summary is JSON-safe")
+        except Exception as e:
+            logger.error(f"Summary still not JSON-safe: {e}")
+            # Log what's in summary to debug
+            logger.error(f"Summary keys: {summary.keys()}")
+            raise
+
         return jsonify(summary)
         
     except TypeError as e:
