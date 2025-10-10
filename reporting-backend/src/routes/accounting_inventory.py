@@ -70,41 +70,10 @@ def get_accounting_inventory():
         
         # Step 3: FIXED - Use Equipment table with proper filtering for exact counts
         
-        # Rental equipment - FIXED: Filter out customer-owned to get 971 units
-        rental_equipment_query = """
-        SELECT 
-            e.SerialNo as serial_number,
-            e.UnitNo,
-            e.Make,
-            e.Model,
-            e.Cost as book_value,
-            c.State as location_state,
-            c.Name as customer_name,
-            CASE 
-                WHEN rental_check.is_on_rental = 1 THEN 'On Rental'
-                ELSE 'Available'
-            END as current_status
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        LEFT JOIN (
-            SELECT DISTINCT 
-                wr.SerialNo,
-                1 as is_on_rental
-            FROM ben002.WORental wr
-            INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-            WHERE wo.Type = 'R' 
-            AND wo.ClosedDate IS NULL
-            AND wo.WONo NOT LIKE '9%'
-        ) rental_check ON e.SerialNo = rental_check.SerialNo
-        WHERE e.InventoryDept = 60  -- Rental department
-        AND (e.CustomerNo = 0 OR e.CustomerNo IS NULL)  -- FIXED: Only company-owned equipment
-        ORDER BY e.Make, e.Model, e.SerialNo
-        """
+        # REMOVED: Separate rental equipment query - now using all_equipment categorization
+        # rental_equipment = []  # Will be populated by categorization logic
         
-        rental_equipment = db.execute_query(rental_equipment_query)
-        
-        # Step 4: FIXED - Use business logic categorization to match Marissa's expected values
-        # Don't rely on department mapping - use actual equipment characteristics
+        # Step 4: SIMPLIFIED - Use department mapping with keyword overrides
         
         # Get ALL equipment and categorize by business rules
         all_equipment_query = """
@@ -141,35 +110,35 @@ def get_accounting_inventory():
         
         all_equipment = db.execute_query(all_equipment_query)
         
-        # Categorize using business logic
+        # SIMPLIFIED categorization logic based on department mapping
         def categorize_equipment_fixed(item):
-            """FIXED categorization logic to match Marissa's expectations"""
+            """SIMPLIFIED: Use department-based categorization first, then keywords"""
             make = (item['Make'] or '').lower()
             model = (item['Model'] or '').lower()
             inventory_dept = item['InventoryDept']
-            rental_itd = item['RentalITD'] or 0
-            customer_no = item['CustomerNo']
             
-            # Allied equipment (check make/model keywords)
+            # Check for keyword-based categories first (override department)
+            
+            # Allied equipment (keyword check overrides department)
             if 'allied' in make or 'allied' in model:
                 return 'allied'
             
-            # Batteries and Chargers (specific keyword matching)
+            # Batteries and Chargers (keyword check overrides department)
             battery_keywords = ['battery', 'charger', 'batt', 'charge']
             if any(keyword in model for keyword in battery_keywords):
                 return 'batteries_chargers'
             
-            # Rental equipment (Dept 60, company-owned only)
-            if inventory_dept == 60 and (customer_no == 0 or customer_no is None):
-                return 'rental'
-            
-            # New vs Used logic based on rental history and other factors
-            # This needs to be tuned to get ~30 new units at $776K and 51 used at $155K
-            if rental_itd == 0 and inventory_dept in [10, 20]:
-                # Never rented equipment in sales departments
-                return 'new'
+            # Department-based categorization (primary logic)
+            if inventory_dept == 60:
+                return 'rental'  # All dept 60 is rental
+            elif inventory_dept == 10:
+                return 'new'     # Dept 10 is new equipment  
+            elif inventory_dept == 30:
+                return 'allied'  # Dept 30 is allied equipment
+            elif inventory_dept == 20:
+                return 'used'    # Dept 20 is used equipment (minus batteries caught above)
             else:
-                # Previously rented or other
+                # Unknown department
                 return 'used'
         
         # Categorize all equipment
