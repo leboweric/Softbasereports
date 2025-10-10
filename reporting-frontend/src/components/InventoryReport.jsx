@@ -158,7 +158,7 @@ const InventoryReport = ({ user }) => {
             <CardContent>
               <div className="text-2xl font-bold">{data.qty}</div>
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(data.total_book_value)}
+                {formatCurrency(data.gl_account_balance || data.total_book_value)}
               </p>
             </CardContent>
           </Card>
@@ -181,8 +181,8 @@ const InventoryReport = ({ user }) => {
                 <p className="text-sm text-muted-foreground">Total Units</p>
               </div>
               <div>
-                <div className="text-3xl font-bold">{formatCurrency(inventoryData.totals.total_book_value)}</div>
-                <p className="text-sm text-muted-foreground">Total Book Value</p>
+                <div className="text-3xl font-bold">{formatCurrency(inventoryData.totals.ytd_depreciation_expense || 0)}</div>
+                <p className="text-sm text-muted-foreground">YTD Depreciation</p>
               </div>
             </div>
           </CardContent>
@@ -198,7 +198,7 @@ const InventoryReport = ({ user }) => {
               {getCategoryLabel(category)} ({data.qty} units)
             </CardTitle>
             <CardDescription>
-              Total Value: {formatCurrency(data.total_book_value)}
+              GL Account Value: {formatCurrency(data.gl_account_balance || data.total_book_value)}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -206,21 +206,20 @@ const InventoryReport = ({ user }) => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Control #</TableHead>
+                    <TableHead>Serial Number</TableHead>
                     <TableHead>Make/Model</TableHead>
                     <TableHead>Status</TableHead>
                     {category === 'rental' && <TableHead>Location</TableHead>}
                     <TableHead className="text-right">Book Value</TableHead>
-                    <TableHead className="text-right">Gross Book Value</TableHead>
-                    <TableHead className="text-right">Accum. Depreciation</TableHead>
-                    <TableHead className="text-right">Net Book Value</TableHead>
+                    <TableHead className="text-right">GL Account Balance</TableHead>
+                    {category === 'rental' && <TableHead className="text-right">Net Book Value</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.items.slice(0, 10).map((item, index) => (
                     <TableRow key={index}>
                       <TableCell className="font-mono text-sm">
-                        {item.control_number}
+                        {item.serial_number}
                       </TableCell>
                       <TableCell>
                         <div>
@@ -245,19 +244,18 @@ const InventoryReport = ({ user }) => {
                         {formatCurrency(item.book_value)}
                       </TableCell>
                       <TableCell className="text-right font-mono">
-                        {item.gross_book_value !== null ? formatCurrency(item.gross_book_value) : '-'}
+                        {formatCurrency(data.gl_account_balance)}
                       </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {item.accumulated_depreciation !== null ? formatCurrency(item.accumulated_depreciation) : '-'}
-                      </TableCell>
-                      <TableCell className="text-right font-mono">
-                        {item.net_book_value !== null ? formatCurrency(item.net_book_value) : '-'}
-                      </TableCell>
+                      {category === 'rental' && (
+                        <TableCell className="text-right font-mono">
+                          {formatCurrency(data.net_book_value)}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                   {data.items.length > 10 && (
                     <TableRow>
-                      <TableCell colSpan={category === 'rental' ? 8 : 7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={category === 'rental' ? 7 : 6} className="text-center text-muted-foreground">
                         ... and {data.items.length - 10} more items
                       </TableCell>
                     </TableRow>
