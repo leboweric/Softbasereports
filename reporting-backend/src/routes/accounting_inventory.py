@@ -27,7 +27,7 @@ def get_accounting_inventory():
     try:
         db = AzureSQLService()
         
-        # Step 1: Get GL account balances - TRY CURRENT PERIOD INSTEAD OF OCT 2025
+        # Step 1: Get GL account balances (reverted to working version)
         gl_balances_query = """
         SELECT 
             AccountNo,
@@ -45,8 +45,8 @@ def get_accounting_inventory():
             END as Category
         FROM ben002.GL
         WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
-        AND Year = 2024  -- TRY 2024 INSTEAD OF 2025
-        AND Month = 12   -- TRY DECEMBER INSTEAD OF OCTOBER
+        AND Year = 2025
+        AND Month = 10
         AND AccountField = 'Actual'
         ORDER BY AccountNo
         """
@@ -165,26 +165,30 @@ def get_accounting_inventory():
             category = categorize_equipment_fixed(item)
             categories[category].append(item)
             
-            # DEBUG tracking
-            categorization_debug['total_equipment_processed'] += 1
-            dept = item['InventoryDept']
-            if dept not in categorization_debug['by_department']:
-                categorization_debug['by_department'][dept] = 0
-            categorization_debug['by_department'][dept] += 1
-            
-            if category not in categorization_debug['by_category']:
-                categorization_debug['by_category'][category] = 0
-            categorization_debug['by_category'][category] += 1
-            
-            # Sample first few items for each category
-            if len(categorization_debug['sample_categorizations']) < 20:
-                categorization_debug['sample_categorizations'].append({
-                    'serial_no': item['serial_number'],
-                    'make': item['Make'],
-                    'model': item['Model'],
-                    'inventory_dept': item['InventoryDept'],
-                    'categorized_as': category
-                })
+            # DEBUG tracking (wrapped in try/catch)
+            try:
+                categorization_debug['total_equipment_processed'] += 1
+                dept = item.get('InventoryDept', 'Unknown')
+                if dept not in categorization_debug['by_department']:
+                    categorization_debug['by_department'][dept] = 0
+                categorization_debug['by_department'][dept] += 1
+                
+                if category not in categorization_debug['by_category']:
+                    categorization_debug['by_category'][category] = 0
+                categorization_debug['by_category'][category] += 1
+                
+                # Sample first few items for each category
+                if len(categorization_debug['sample_categorizations']) < 20:
+                    categorization_debug['sample_categorizations'].append({
+                        'serial_no': item.get('serial_number', 'Unknown'),
+                        'make': item.get('Make', 'Unknown'),
+                        'model': item.get('Model', 'Unknown'),
+                        'inventory_dept': item.get('InventoryDept', 'Unknown'),
+                        'categorized_as': category
+                    })
+            except Exception as e:
+                # Don't let debug code crash the main function
+                pass
         
         # Step 5: FIXED - Use GL account balances as source of truth for dollar amounts
         
@@ -203,14 +207,17 @@ def get_accounting_inventory():
         
         # DEBUG: Add raw GL balances to response for troubleshooting
         debug_gl_raw = {}
-        for balance in gl_balances:
-            debug_gl_raw[balance['AccountNo']] = {
-                'raw_balance': float(balance['current_balance']),
-                'formatted_balance': str(format_currency(balance['current_balance'])),
-                'year': balance.get('Year'),
-                'month': balance.get('Month'),
-                'account_field': balance.get('AccountField')
-            }
+        try:
+            for balance in gl_balances:
+                debug_gl_raw[balance['AccountNo']] = {
+                    'raw_balance': float(balance['current_balance']) if balance['current_balance'] is not None else 0.0,
+                    'formatted_balance': str(format_currency(balance['current_balance'])),
+                    'year': balance.get('Year'),
+                    'month': balance.get('Month'),
+                    'account_field': balance.get('AccountField')
+                }
+        except Exception as e:
+            debug_gl_raw = {'error': f'GL debug failed: {str(e)}'}
         
         # Calculate rental net book value
         rental_net_book_value = rental_gross - abs(rental_accumulated_dep)
@@ -307,19 +314,30 @@ def get_accounting_inventory():
             }
         }
         
-        # DEBUG: Add diagnostic information
-        summary['debug_info'] = {
-            'gl_raw_balances': debug_gl_raw,
-            'categorization_debug': categorization_debug,
-            'expected_vs_actual': {
-                'allied': {'expected': '17250.98', 'actual': str(allied_gl_balance), 'variance': str(allied_gl_balance - Decimal('17250.98'))},
-                'new': {'expected': '776157.98', 'actual': str(new_equipment_gl_balance), 'variance': str(new_equipment_gl_balance - Decimal('776157.98'))},
-                'rental_units': {'expected': 971, 'actual': equipment_counts['rental']},
-                'new_units': {'expected': 30, 'actual': equipment_counts['new']},
-                'used_units': {'expected': 51, 'actual': equipment_counts['used']},
-                'battery_units': {'expected': 5, 'actual': equipment_counts['batteries_chargers']}
+        # DEBUG: Add diagnostic information (wrapped in try/catch)
+        try:
+            summary['debug_info'] = {
+                'gl_raw_balances': debug_gl_raw,
+                'categorization_debug': categorization_debug,
+                'expected_vs_actual': {
+                    'allied': {
+                        'expected': '17250.98', 
+                        'actual': str(allied_gl_balance), 
+                        'variance': str(allied_gl_balance - Decimal('17250.98'))
+                    },
+                    'new': {
+                        'expected': '776157.98', 
+                        'actual': str(new_equipment_gl_balance), 
+                        'variance': str(new_equipment_gl_balance - Decimal('776157.98'))
+                    },
+                    'rental_units': {'expected': 971, 'actual': equipment_counts.get('rental', 0)},
+                    'new_units': {'expected': 30, 'actual': equipment_counts.get('new', 0)},
+                    'used_units': {'expected': 51, 'actual': equipment_counts.get('used', 0)},
+                    'battery_units': {'expected': 5, 'actual': equipment_counts.get('batteries_chargers', 0)}
+                }
             }
-        }
+        except Exception as e:
+            summary['debug_info'] = {'error': f'Debug info generation failed: {str(e)}'}
         
         # Add overall totals
         summary['totals'] = {
