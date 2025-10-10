@@ -69,7 +69,9 @@ def get_accounting_inventory():
         """
         
         ytd_depreciation_result = db.execute_query(ytd_depreciation_query)
-        ytd_depreciation = format_currency(ytd_depreciation_result[0]['YTD_Depreciation_Expense']) if ytd_depreciation_result else Decimal('0.00')
+        ytd_depreciation = Decimal('0.00')
+        if ytd_depreciation_result and ytd_depreciation_result[0] and ytd_depreciation_result[0]['YTD_Depreciation_Expense'] is not None:
+            ytd_depreciation = format_currency(ytd_depreciation_result[0]['YTD_Depreciation_Expense'])
         
         # Step 3: FIXED - Use Equipment table with proper filtering for exact counts
         
@@ -198,12 +200,12 @@ def get_accounting_inventory():
             account_no = balance['AccountNo']
             gl_account_balances[account_no] = format_currency(balance['current_balance'])
         
-        # Extract specific GL account balances
-        allied_gl_balance = gl_account_balances.get('131300', Decimal('0.00'))        # Expected: $17,250.98
-        new_equipment_gl_balance = gl_account_balances.get('131000', Decimal('0.00'))  # Expected: $776,157.98  
-        account_131200_total = gl_account_balances.get('131200', Decimal('0.00'))     # Expected: $207,216.69
-        rental_gross = gl_account_balances.get('183000', Decimal('0.00'))            # Rental gross
-        rental_accumulated_dep = gl_account_balances.get('193000', Decimal('0.00'))  # Accumulated depreciation
+        # Extract specific GL account balances (ensure they're never None)
+        allied_gl_balance = gl_account_balances.get('131300', Decimal('0.00')) or Decimal('0.00')        # Expected: $17,250.98
+        new_equipment_gl_balance = gl_account_balances.get('131000', Decimal('0.00')) or Decimal('0.00')  # Expected: $776,157.98  
+        account_131200_total = gl_account_balances.get('131200', Decimal('0.00')) or Decimal('0.00')     # Expected: $207,216.69
+        rental_gross = gl_account_balances.get('183000', Decimal('0.00')) or Decimal('0.00')            # Rental gross
+        rental_accumulated_dep = gl_account_balances.get('193000', Decimal('0.00')) or Decimal('0.00')  # Accumulated depreciation
         
         # DEBUG: Add raw GL balances to response for troubleshooting
         debug_gl_raw = {}
@@ -322,18 +324,18 @@ def get_accounting_inventory():
                 'expected_vs_actual': {
                     'allied': {
                         'expected': '17250.98', 
-                        'actual': str(allied_gl_balance), 
-                        'variance': str(allied_gl_balance - Decimal('17250.98'))
+                        'actual': str(allied_gl_balance or Decimal('0.00')), 
+                        'variance': str((allied_gl_balance or Decimal('0.00')) - Decimal('17250.98'))
                     },
                     'new': {
                         'expected': '776157.98', 
-                        'actual': str(new_equipment_gl_balance), 
-                        'variance': str(new_equipment_gl_balance - Decimal('776157.98'))
+                        'actual': str(new_equipment_gl_balance or Decimal('0.00')), 
+                        'variance': str((new_equipment_gl_balance or Decimal('0.00')) - Decimal('776157.98'))
                     },
-                    'rental_units': {'expected': 971, 'actual': equipment_counts.get('rental', 0)},
-                    'new_units': {'expected': 30, 'actual': equipment_counts.get('new', 0)},
-                    'used_units': {'expected': 51, 'actual': equipment_counts.get('used', 0)},
-                    'battery_units': {'expected': 5, 'actual': equipment_counts.get('batteries_chargers', 0)}
+                    'rental_units': {'expected': 971, 'actual': equipment_counts.get('rental', 0) or 0},
+                    'new_units': {'expected': 30, 'actual': equipment_counts.get('new', 0) or 0},
+                    'used_units': {'expected': 51, 'actual': equipment_counts.get('used', 0) or 0},
+                    'battery_units': {'expected': 5, 'actual': equipment_counts.get('batteries_chargers', 0) or 0}
                 }
             }
         except Exception as e:
