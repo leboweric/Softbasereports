@@ -133,3 +133,59 @@ def test_jwt():
             'error': str(e),
             'error_type': type(e).__name__
         }), 500
+
+@debug_bp.route('/api/debug/rbac-config', methods=['GET'])
+@jwt_required()
+def check_rbac_config():
+    """Debug endpoint to check current RBAC configuration for user"""
+    try:
+        from src.models.user import User
+        from src.config.rbac_config import ROLE_PERMISSIONS, NAVIGATION_CONFIG
+        from src.services.permission_service import PermissionService
+        
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(int(current_user_id))
+        
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get user's roles
+        user_roles = [{'name': role.name, 'level': role.level} for role in current_user.roles]
+        
+        # Get configured permissions for each role
+        role_configs = {}
+        for role in current_user.roles:
+            if role.name in ROLE_PERMISSIONS:
+                role_configs[role.name] = ROLE_PERMISSIONS[role.name]
+        
+        # Get computed navigation
+        navigation = PermissionService.get_user_navigation(current_user)
+        resources = PermissionService.get_user_resources(current_user)
+        
+        # Check specifically for minitrac
+        has_minitrac_resource = 'minitrac' in resources
+        minitrac_in_nav = 'minitrac' in navigation
+        
+        return jsonify({
+            'user': {
+                'id': current_user.id,
+                'username': current_user.username,
+                'email': current_user.email
+            },
+            'roles': user_roles,
+            'role_configurations': role_configs,
+            'computed_resources': resources,
+            'computed_navigation': navigation,
+            'minitrac_check': {
+                'has_resource': has_minitrac_resource,
+                'in_navigation': minitrac_in_nav,
+                'nav_config': NAVIGATION_CONFIG.get('minitrac', {})
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'traceback': str(e.__traceback__) if hasattr(e, '__traceback__') else None
+        }), 500
