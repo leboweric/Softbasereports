@@ -44,6 +44,7 @@ ROLE_PERMISSIONS = {
             'service_overview',
             'rental_overview',
             'accounting_overview',
+            'minitrac',
         ],
         'actions': ['view', 'export'],
     },
@@ -77,9 +78,48 @@ ROLE_PERMISSIONS = {
     'Accounting User': {
         'resources': [
             'accounting_overview', 'accounting_ar', 'accounting_ap',
-            'accounting_commissions', 'accounting_control', 'accounting_inventory'
+            'accounting_commissions', 'accounting_control', 'accounting_inventory',
+            'minitrac'
         ],
         'actions': ['view', 'export'],
+    },
+    'Accounting Manager': {
+        'resources': [
+            'accounting_overview', 'accounting_ar', 'accounting_ap',
+            'accounting_commissions', 'accounting_control', 'accounting_inventory',
+            'minitrac'
+        ],
+        'actions': ['view', 'create', 'edit', 'export'],
+    },
+    'Rental Manager': {
+        'resources': [
+            'rental_overview', 'rental_availability', 'minitrac'
+        ],
+        'actions': ['view', 'create', 'edit', 'export'],
+    },
+    'Parts Staff': {
+        'resources': [
+            'parts_work_orders', 'parts_inventory', 'minitrac'
+        ],
+        'actions': ['view'],
+    },
+    'Service Tech': {
+        'resources': [
+            'service_work_orders', 'minitrac'
+        ],
+        'actions': ['view', 'edit'],
+    },
+    'Sales Rep': {
+        'resources': [
+            'dashboard', 'accounting_commissions', 'minitrac'
+        ],
+        'actions': ['view'],
+    },
+    'Read Only': {
+        'resources': [
+            'dashboard', 'minitrac'
+        ],
+        'actions': ['view'],
     },
 }
 
