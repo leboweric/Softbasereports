@@ -43,31 +43,34 @@ def get_accounting_inventory():
         sample_data = db.execute_query(column_discovery_query)
         
         # Based on previous queries, EffectiveDate appears to be the date column
-        # Allied Equipment (131300) - Get balance through October 2025 period-end
+        # Allied Equipment (131300) - Get balance for period 3/1/25 - 10/31/25
         allied_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [ben002].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
+          AND EffectiveDate >= '2025-03-01'
           AND EffectiveDate <= '2025-10-31'
         """
         
-        # New Equipment (131000) - Get balance through October 2025 period-end
+        # New Equipment (131000) - Get balance for period 3/1/25 - 10/31/25
         new_equipment_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [ben002].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
+          AND EffectiveDate >= '2025-03-01'
           AND EffectiveDate <= '2025-10-31'
         """
         
-        # Get balances through October 2025 for other accounts (131200, 183000, 193000)
+        # Get balances for period 3/1/25 - 10/31/25 for other accounts (131200, 183000, 193000)
         other_accounts_query = """
         SELECT 
             '131200' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [ben002].GLDetail
-        WHERE AccountNo = '131200' AND Posted = 1 AND EffectiveDate <= '2025-10-31'
+        WHERE AccountNo = '131200' AND Posted = 1 
+          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         
         UNION ALL
         
@@ -75,7 +78,8 @@ def get_accounting_inventory():
             '183000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [ben002].GLDetail
-        WHERE AccountNo = '183000' AND Posted = 1 AND EffectiveDate <= '2025-10-31'
+        WHERE AccountNo = '183000' AND Posted = 1 
+          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         
         UNION ALL
         
@@ -83,7 +87,8 @@ def get_accounting_inventory():
             '193000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [ben002].GLDetail
-        WHERE AccountNo = '193000' AND Posted = 1 AND EffectiveDate <= '2025-10-31'
+        WHERE AccountNo = '193000' AND Posted = 1 
+          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         """
         
         # Execute all queries
@@ -91,8 +96,8 @@ def get_accounting_inventory():
         new_equipment_result = db.execute_query(new_equipment_query)
         other_accounts = db.execute_query(other_accounts_query)
         
-        # Step 2: Get YTD depreciation expense - FISCAL YEAR ONLY (Nov 1, 2024 - Oct 31, 2025)
-        # CRITICAL: This should return ~$3-4M, NOT $11M+ (which is total accumulated)
+        # Step 2: Get depreciation expense for period 3/1/25 - 10/31/25
+        # Period: March 1, 2025 through October 31, 2025 (8 months)
         ytd_depreciation_query = """
         SELECT 
             COUNT(*) as Transaction_Count,
@@ -100,12 +105,12 @@ def get_accounting_inventory():
             MIN(EffectiveDate) as Earliest_Date,
             MAX(EffectiveDate) as Latest_Date,
             -- Debug: Verify date filtering is working
-            COUNT(CASE WHEN EffectiveDate >= '2024-11-01' AND EffectiveDate <= '2025-10-31' THEN 1 END) as Fiscal_Year_Count,
-            COUNT(CASE WHEN EffectiveDate < '2024-11-01' OR EffectiveDate > '2025-10-31' THEN 1 END) as Outside_Fiscal_Year_Count
+            COUNT(CASE WHEN EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31' THEN 1 END) as Period_Count,
+            COUNT(CASE WHEN EffectiveDate < '2025-03-01' OR EffectiveDate > '2025-10-31' THEN 1 END) as Outside_Period_Count
         FROM ben002.GLDetail
         WHERE AccountNo = '193000'
         AND Posted = 1
-        AND EffectiveDate >= '2024-11-01' 
+        AND EffectiveDate >= '2025-03-01' 
         AND EffectiveDate <= '2025-10-31'
         """
         
@@ -119,8 +124,8 @@ def get_accounting_inventory():
                 result = ytd_depreciation_result[0]
                 logger.info(f"Query returned {result.get('Transaction_Count')} transactions")
                 logger.info(f"Date range: {result.get('Earliest_Date')} to {result.get('Latest_Date')}")
-                logger.info(f"Fiscal year transactions: {result.get('Fiscal_Year_Count')}")
-                logger.info(f"Outside fiscal year: {result.get('Outside_Fiscal_Year_Count')}")
+                logger.info(f"Period transactions: {result.get('Period_Count')}")
+                logger.info(f"Outside period: {result.get('Outside_Period_Count')}")
                 logger.info(f"YTD Depreciation: ${result.get('YTD_Depreciation_Expense')}")
             logger.info(f"=== END YTD DEPRECIATION DEBUG ===")
         except Exception as e:
@@ -380,7 +385,7 @@ def get_accounting_inventory():
             "Used Equipment + Batteries: Split of GL account 131200 total",
             "Rental: Net book value = GL 183000 - GL 193000",
             "Equipment categorization used for display lists only, not financial totals",
-            "YTD depreciation filtered to Nov 2024 - Oct 2025 fiscal year",
+            "Depreciation filtered to period March 1, 2025 - October 31, 2025",
             "All amounts formatted to penny precision for Excel export",
             "See gl_analysis section for GL account breakdown and validation"
         ]
