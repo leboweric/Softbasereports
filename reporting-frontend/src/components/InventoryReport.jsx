@@ -41,10 +41,31 @@ const InventoryReport = ({ user }) => {
 
   const exportToExcel = async () => {
     try {
-      // TODO: Implement Excel export functionality
-      alert('Excel export functionality will be implemented')
+      setLoading(true)
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/accounting/inventory/export'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `Inventory_Report_${new Date().toISOString().split('T')[0]}.xlsx`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      } else {
+        setError('Failed to export inventory data')
+      }
     } catch (error) {
       setError('Export failed: ' + error.message)
+    } finally {
+      setLoading(false)
     }
   }
 
