@@ -17,22 +17,21 @@ def get_shop_work_orders():
     try:
         db = AzureSQLService()
         
-        # DEBUG QUERY 1: Investigate work order types and locations
-        debug_type_location_query = """
+        # DEBUG QUERY 1: Investigate work order types
+        debug_type_query = """
         SELECT DISTINCT 
             Type,
-            Location,
             COUNT(*) as Count
         FROM [ben002].WO
         WHERE ClosedDate IS NULL
-        GROUP BY Type, Location
-        ORDER BY Count DESC
+        GROUP BY Type
+        ORDER BY COUNT(*) DESC
         """
         
-        debug_results = db.execute_query(debug_type_location_query)
-        logger.info("=== DEBUG: Work Order Types & Locations ===")
+        debug_results = db.execute_query(debug_type_query)
+        logger.info("=== DEBUG: Work Order Types ===")
         for row in debug_results:
-            logger.info(f"Type: {row['Type']}, Location: {row['Location']}, Count: {row['Count']}")
+            logger.info(f"Type: {row['Type']}, Count: {row['Count']}")
         
         # DEBUG QUERY 2: Investigate WOMisc descriptions for labor
         debug_misc_query = """
@@ -55,8 +54,7 @@ def get_shop_work_orders():
             wm.WONo,
             wm.Description,
             wm.Sell,
-            w.Type,
-            w.Location
+            w.Type
         FROM [ben002].WOMisc wm
         INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
         WHERE w.Type = 'SH'  -- Shop work orders only
@@ -68,7 +66,7 @@ def get_shop_work_orders():
         quotes_results = db.execute_query(debug_quotes_query)
         logger.info("=== DEBUG: Sample WOMisc Records with Quotes ===")
         for row in quotes_results:
-            logger.info(f"WO: {row['WONo']}, Type: {row['Type']}, Location: {row['Location']}, Description: '{row['Description']}', Sell: {row['Sell']}")
+            logger.info(f"WO: {row['WONo']}, Type: {row['Type']}, Description: '{row['Description']}', Sell: {row['Sell']}")
         
         query = """
         SELECT 
