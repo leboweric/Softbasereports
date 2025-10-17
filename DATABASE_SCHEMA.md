@@ -2,7 +2,7 @@
 
 **Database**: Azure SQL Server  
 **Schema**: ben002  
-**Last Updated**: 2025-08-29
+**Last Updated**: 2025-10-17
 
 ## CRITICAL ACCESS INFORMATION
 - **Azure SQL has IP firewall restrictions** - NO local access allowed
@@ -55,6 +55,46 @@
 - 'Sold' (needs filtering)
 - 'Disposed' (needs filtering)
 - 'Transferred' (needs filtering)
+
+**CRITICAL DISCOVERY**: RentalStatus field is NOT reliable for determining actual rental status!
+
+**Inventory Department Categories** (Updated 2025-10-17):
+- **Department 60**: Rental Equipment (Primary rental inventory)
+- **Department 10**: New Equipment 
+- **Department 20**: Used Equipment (includes batteries/chargers by keyword)
+- **Department 30**: Allied Equipment
+
+**Actual Rental Status Detection**:
+The RentalStatus field is unreliable. Use this pattern instead:
+```sql
+-- CORRECT way to find equipment on rental
+SELECT e.*, c.Name as customer_name, c.State as location_state
+FROM Equipment e
+LEFT JOIN Customer c ON e.CustomerNo = c.Number
+LEFT JOIN (
+    SELECT DISTINCT wr.SerialNo, 1 as is_on_rental
+    FROM WORental wr
+    INNER JOIN WO wo ON wr.WONo = wo.WONo
+    WHERE wo.Type = 'R' 
+    AND wo.ClosedDate IS NULL
+    AND wo.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
+) rental_check ON e.SerialNo = rental_check.SerialNo
+WHERE e.InventoryDept = 60  -- Rental department only
+AND (e.Customer = 0 OR e.Customer IS NULL)  -- Customer-owned filter
+```
+
+**Equipment Categorization Business Rules** (Updated 2025-10-17):
+1. **Allied Equipment**: Keyword 'allied' in Make/Model OR InventoryDept = 30
+2. **Batteries & Chargers**: Keywords 'battery', 'charger', 'batt', 'charge' in Model
+3. **Rental Equipment**: InventoryDept = 60 (overrides keywords)
+4. **New Equipment**: InventoryDept = 10 
+5. **Used Equipment**: InventoryDept = 20 (minus batteries caught by keywords)
+
+**QUOTES vs WORK ORDERS** (Critical Discovery):
+- **Quotes**: WO numbers starting with '9' (e.g., 91600003) - NOT actual rentals
+- **Work Orders**: Numbers starting with '13', '16', etc. (e.g., 130000713, 16001378)
+- **Impact**: Quotes can appear in WORental with Type='R' but aren't real rentals
+- **Solution**: Always filter `wo.WONo NOT LIKE '9%'` when finding rentals
 
 ---
 
@@ -300,6 +340,51 @@
 | Source | nvarchar | Transaction source |
 | CustomerNo | nvarchar | Customer reference |
 | VendorNo | nvarchar | Vendor reference |
+| Posted | bit | Posted flag (1 = posted, filter required) |
+
+**ACCOUNTING INVENTORY INSIGHTS** (Updated 2025-10-17):
+**Key GL Accounts for Equipment Inventory:**
+- **131000**: New Equipment (direct GL balance used)
+- **131200**: Used Equipment + Batteries (requires split allocation)
+- **131300**: Allied Equipment (direct GL balance used)
+- **183000**: Rental Equipment Gross Value
+- **193000**: Accumulated Depreciation (negative balance, subtract from 183000)
+
+**Inventory Report Date Filtering** (Period: March 1, 2025 - October 31, 2025):
+```sql
+-- Standard inventory GL balance query
+SELECT COALESCE(SUM(Amount), 0) as Balance
+FROM GLDetail  
+WHERE AccountNo = '131300'  -- or other account
+  AND Posted = 1            -- CRITICAL: Only posted transactions
+  AND EffectiveDate >= '2025-03-01'
+  AND EffectiveDate <= '2025-10-31'
+```
+
+**GL Account Split Logic for 131200:**
+- Total GL 131200 balance needs allocation between:
+  - Used Equipment: ~$155,100.30 (75% allocation)
+  - Batteries & Chargers: ~$52,116.39 (25% allocation)
+- Logic: Based on equipment categorization by keyword analysis
+
+**Rental Equipment Net Book Value Calculation:**
+```sql
+-- Rental equipment shows net book value
+Rental_Net_Value = GL_183000_Balance - ABS(GL_193000_Balance)
+```
+
+**YTD Depreciation Calculation:**
+```sql
+-- YTD Depreciation for period March 1 - October 31, 2025
+SELECT COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation
+FROM GLDetail
+WHERE AccountNo = '193000'  -- Accumulated Depreciation
+AND Posted = 1
+AND EffectiveDate >= '2025-03-01' 
+AND EffectiveDate <= '2025-10-31'
+```
+
+**CRITICAL**: Always use Posted = 1 filter and specific date ranges for accounting reports!
 
 ---
 
@@ -335,6 +420,55 @@
 | EndDate | datetime | Contract end |
 | DeliveryCharge | decimal | Delivery fee |
 | PickupCharge | decimal | Pickup fee |
+
+---
+
+### PostgreSQL Integration Tables (Railway)
+
+#### minitrac_equipment (28,000+ rows)
+**Purpose**: Self-hosted Minitrac equipment database (replaces $600/month subscription)  
+**Database**: PostgreSQL on Railway  
+**Last Import**: 2025-10-17
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | PostgreSQL primary key |
+| equipment_id | varchar | Original Minitrac equipment ID |
+| make | varchar | Equipment manufacturer |
+| model | varchar | Equipment model |
+| serial_number | varchar | Serial number |
+| year | integer | Model year |
+| category | varchar | Equipment category |
+| subcategory | varchar | Equipment subcategory |
+| description | text | Full description |
+| specifications | jsonb | Technical specifications |
+| attachments | jsonb | Available attachments |
+| created_at | timestamp | Record creation |
+| updated_at | timestamp | Last update |
+
+**Usage Patterns**:
+- Full-text search across make, model, description
+- Category-based filtering for equipment types
+- JSON specifications for technical details
+- Replaces external Minitrac subscription service
+
+#### work_order_notes (custom table)
+**Purpose**: Custom work order notes not in Softbase  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+| wo_no | varchar | Work order number (links to WO.WONo) |
+| note_text | text | Note content |
+| created_by | varchar | User who created note |
+| created_at | timestamp | Creation timestamp |
+| updated_at | timestamp | Last update |
+
+**Usage**:
+- Auto-save functionality with 1-second debounce
+- Included in work order CSV exports
+- Supplements Softbase work order data
 
 ---
 
@@ -376,8 +510,58 @@ JOIN Customer c ON w.BillTo = c.Number
 
 ### Rental Customer Path
 ```sql
--- Find actual rental customer (not owner)
-Equipment → WORental → WO (Type='R') → Customer
+-- Find actual rental customer (not owner) - UPDATED 2025-10-17
+Equipment → WORental → WO (Type='R' AND WONo NOT LIKE '9%' AND ClosedDate IS NULL) → Customer
+```
+
+### Equipment Rental Availability (CORRECTED PATTERN)
+```sql
+-- CORRECT way to determine rental availability
+-- Based on "WIP > Open Rental Orders" logic in Softbase Equipment Setup
+SELECT 
+    e.SerialNo,
+    e.Make,
+    e.Model,
+    CASE 
+        WHEN rental_check.is_on_rental = 1 THEN 'On Rental'
+        ELSE 'Available'
+    END as rental_status,
+    c.Name as customer_name,
+    c.State as location_state
+FROM Equipment e
+LEFT JOIN Customer c ON e.CustomerNo = c.Number
+LEFT JOIN (
+    SELECT DISTINCT 
+        wr.SerialNo,
+        1 as is_on_rental
+    FROM WORental wr
+    INNER JOIN WO wo ON wr.WONo = wo.WONo
+    WHERE wo.Type = 'R' 
+    AND wo.ClosedDate IS NULL        -- Open work orders only
+    AND wo.WONo NOT LIKE '9%'        -- Exclude quotes
+) rental_check ON e.SerialNo = rental_check.SerialNo
+WHERE e.InventoryDept = 60           -- Rental department equipment only
+AND (e.Customer = 0 OR e.Customer IS NULL)  -- Exclude customer-owned
+```
+
+### Equipment Categorization for Inventory Reports
+```sql
+-- Business rules for equipment categorization (Updated 2025-10-17)
+CASE 
+    -- Keyword overrides (highest priority)
+    WHEN LOWER(e.Make) LIKE '%allied%' OR LOWER(e.Model) LIKE '%allied%' THEN 'allied'
+    WHEN LOWER(e.Model) LIKE '%battery%' OR LOWER(e.Model) LIKE '%charger%' 
+         OR LOWER(e.Model) LIKE '%batt%' OR LOWER(e.Model) LIKE '%charge%' THEN 'batteries_chargers'
+    
+    -- Department-based categorization (secondary)
+    WHEN e.InventoryDept = 60 THEN 'rental'
+    WHEN e.InventoryDept = 10 THEN 'new'
+    WHEN e.InventoryDept = 30 THEN 'allied'
+    WHEN e.InventoryDept = 20 THEN 'used'
+    
+    -- Default fallback
+    ELSE 'used'
+END as equipment_category
 ```
 
 ### Work Order Costs
@@ -423,8 +607,9 @@ WITH InvoiceBalances AS (
 -- Then calculate aging buckets...
 ```
 
-## Common Gotchas and Important Notes
+## Common Gotchas and Important Notes (UPDATED 2025-10-17)
 
+### Critical Database Rules
 1. **Customer Joins**: ALWAYS use Customer.Number, never Customer.Id
 2. **Parts Calculations**: Always multiply WOParts.Sell * Qty for extended amounts
 3. **AR Grouping**: Group by CustomerNo and InvoiceNo only, NOT by Due date
@@ -433,18 +618,81 @@ WITH InvoiceBalances AS (
 6. **Parts Table**: Use Parts table, NOT NationalParts (which is empty)
 7. **Deletion Flags**: Check both DeletionTime and IsDeleted fields
 8. **Work Order Status**: Use ClosedDate IS NULL for open orders
-9. **Rental Status**: Multiple fields affect rental availability (RentalStatus, rental rates, rental history)
 
-## Data Quality Issues
+### NEW CRITICAL DISCOVERIES (2025-10-17)
+9. **🚨 RentalStatus Field is UNRELIABLE**: Don't trust Equipment.RentalStatus for rental detection
+10. **🚨 Quotes vs Work Orders**: ALWAYS filter `WONo NOT LIKE '9%'` to exclude quotes from rental detection
+11. **🚨 GLDetail Filtering**: ALWAYS include `Posted = 1` filter for accounting reports
+12. **🚨 Inventory Department Logic**: Department 60 = Rental, 10 = New, 20 = Used, 30 = Allied
+13. **🚨 Equipment Categorization**: Keywords override department for Allied/Batteries classification
+14. **🚨 GL Account 131200**: Requires manual split between Used Equipment and Batteries (~75%/25%)
+15. **🚨 Rental Net Book Value**: Use GL 183000 - ABS(GL 193000) for accurate rental asset values
+16. **🚨 Date Range Filtering**: Accounting reports use March 1, 2025 - October 31, 2025 period
+17. **🚨 Excel Export Issues**: Avoid variable name conflicts in iteration loops (category_info vs category_definitions)
 
+### Rental Availability Detection Rules
+- **NEVER** use Equipment.RentalStatus alone
+- **ALWAYS** check for open rental work orders in WORental/WO join
+- **ALWAYS** exclude quotes with `WONo NOT LIKE '9%'`
+- **ALWAYS** filter to InventoryDept = 60 for rental equipment
+- **ALWAYS** exclude customer-owned equipment with Customer = 0 filter
+
+### GL Account Balance Rules for Inventory
+- Use specific date ranges (not "current balance")
+- Always filter Posted = 1 transactions
+- Account for depreciation in rental equipment calculations
+- Split GL 131200 between Used Equipment and Batteries categories
+- Use net book value for rental equipment display totals
+
+## Data Quality Issues (UPDATED 2025-10-17)
+
+### Legacy Issues (Still Present)
 - Some equipment marked as "Sold" still appears in inventory
-- RentalStatus values are inconsistent 
+- RentalStatus values are inconsistent and unreliable
 - Not all sold units have consistent status marking
 - Some units have rental rates but aren't actually for rent
-- Equipment.InventoryDept may or may not indicate rental department
 
-## Last Known Row Counts (as of 2025-08-03)
+### RESOLVED Issues (Solutions Found)
+- ✅ **Equipment.InventoryDept**: NOW RELIABLE for primary categorization (Dept 60=Rental, 10=New, 20=Used, 30=Allied)
+- ✅ **Rental Detection**: Solution found using WORental + WO join with quote exclusion
+- ✅ **GL Account Balancing**: Proper date filtering and Posted=1 requirements documented
+- ✅ **Equipment Categorization**: Business rules established with keyword overrides
 
+### NEW Issues Discovered (2025-10-17)
+- **Quote Contamination**: Quotes appear in WORental table and must be filtered out
+- **GL 131200 Split**: No systematic way to split between Used Equipment and Batteries (manual allocation required)
+- **Depreciation Calculation**: Complex interaction between GL 183000 and 193000 for rental assets
+- **Date Range Dependencies**: Accounting reports depend on specific fiscal period filters
+
+## Major System Insights (2025-10-17)
+
+### Rental Availability Discovery
+**Key Learning**: "Never assume data values - always verify actual database content"
+- The RentalStatus field was completely unreliable for rental detection
+- Solution required analysis of actual Softbase Equipment Setup screen logic
+- Critical discovery: Quotes vs Work Orders distinction essential for accuracy
+
+### Equipment Categorization Discovery  
+**Key Learning**: Department-based categorization works but requires keyword overrides
+- Department 60 provides clean data for rental equipment
+- Keyword analysis required for Allied equipment and Batteries/Chargers
+- Categorization used for display lists, GL balances used for financial totals
+
+### GL Account Balance Discovery
+**Key Learning**: Equipment book values ≠ GL account balances for financial reporting
+- Dollar amounts MUST come from GL account balances, not equipment Cost fields
+- Different logic for different categories (direct GL vs calculated net book value)
+- Specific date range filtering essential for period-accurate reporting
+
+### Excel Export Technical Discovery
+**Key Learning**: Variable name conflicts can cause silent failures
+- Python iteration variable name conflicts caused corrupted Excel files
+- BytesIO handling requires proper stream positioning
+- Flask send_file requires specific MIME types and headers
+
+## Last Known Row Counts (as of 2025-10-17)
+
+### Azure SQL Server (Softbase Evolution)
 - Equipment: 21,291
 - Customer: 2,227
 - InvoiceReg: 5,148
@@ -454,3 +702,33 @@ WITH InvoiceBalances AS (
 - ARDetail: 8,413
 - APDetail: 3,331
 - GLDetail: 64,180
+
+### PostgreSQL (Railway - Custom Data)
+- minitrac_equipment: ~28,000
+- work_order_notes: ~500+ (growing)
+
+## Recent Major Features Implemented (2025-10-17)
+
+### Inventory Report System
+- **Year-End Inventory Report**: GL-based inventory categorization
+- **Equipment Categorization**: 5-category system (Allied, New, Rental, Used, Batteries)
+- **Excel Export**: Multi-sheet Excel generation with proper formatting
+- **GL Account Integration**: Real-time GL account balance queries
+
+### Rental Availability System  
+- **Corrected Rental Detection**: Fixed quote contamination issues
+- **Department 60 Focus**: Rental equipment properly identified
+- **Customer Location Tracking**: Current rental customer and state information
+- **Equipment Status Logic**: Matches Softbase Equipment Setup screen
+
+### Minitrac Integration
+- **Self-Hosted Database**: 28,000+ equipment records imported
+- **Full-Text Search**: Advanced search capabilities across specifications
+- **Cost Savings**: $600/month subscription replaced with self-hosted solution
+- **JSON Specifications**: Structured technical data storage
+
+### Work Order Enhancement
+- **Custom Notes System**: PostgreSQL-based note storage
+- **Auto-Save Functionality**: 1-second debounce for seamless UX  
+- **CSV Export Integration**: Notes included in work order exports
+- **User Attribution**: Track note creation and modification
