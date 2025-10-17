@@ -182,22 +182,44 @@ AND (e.Customer = 0 OR e.Customer IS NULL)  -- Customer-owned filter
 | ClosedDate | datetime | Date closed/invoiced |
 | Technician | nvarchar | Assigned technician |
 | RentalContractNo | int | Linked rental contract |
-| Status | nvarchar | Current status |
-| Location | nvarchar | Service location |
+| DeletionTime | datetime | Soft delete timestamp |
+| IsDeleted | bit | Deletion flag |
+
+**CRITICAL DISCOVERY (2025-10-17): Status and Location columns DO NOT EXIST!**
+- ❌ **Status column**: Does not exist despite documentation
+- ❌ **Location column**: Does not exist despite documentation  
+- ✅ **Verified columns**: WONo, Type, BillTo, UnitNo, SerialNo, OpenDate, CompletedDate, ClosedDate, Technician
 
 **Work Order Types**:
-- S = Service
-- SH = Shop (Service)
-- PM = Preventive Maintenance (Service)
-- P = Parts
-- R = Rental
-- E = Equipment
-- I = Internal
+- **S** = Service (field service)
+- **SH** = Shop (internal shop operations) - **USE THIS for shop work order filtering**
+- **PM** = Preventive Maintenance (service)
+- **P** = Parts only
+- **R** = Rental 
+- **E** = Equipment
+- **I** = Internal
+
+**🚨 CRITICAL: Quote vs Work Order Detection**
+**Quotes are NOT work orders but appear in WO table!**
+- **Quotes**: WONo starts with '9' (e.g., 94500009, 94500032, 94500036)
+- **Work Orders**: WONo starts with '1' or other digits (e.g., 140000582, 140001000, 145000017)
+- **ALWAYS filter**: `WHERE WONo NOT LIKE '9%'` to exclude quotes from work order queries
+- **Impact**: Without quote exclusion, you get 3x more records than expected
 
 **Lifecycle**:
-- Open: OpenDate set, ClosedDate NULL
-- Completed: CompletedDate set, ClosedDate NULL (awaiting invoice)
-- Closed: ClosedDate set (invoiced)
+- **Open**: OpenDate set, ClosedDate NULL
+- **Completed**: CompletedDate set, ClosedDate NULL (awaiting invoice)
+- **Closed**: ClosedDate set (invoiced)
+
+**Shop Work Order Filtering (Updated 2025-10-17)**:
+```sql
+-- CORRECT pattern for shop work orders
+WHERE Type = 'SH'                -- Shop work orders only (not 'S', 'PM')  
+  AND ClosedDate IS NULL         -- Open work orders only
+  AND WONo NOT LIKE '9%'         -- CRITICAL: Exclude quotes!
+  
+-- Expected result: ~41 open shop work orders (not 955 or 102)
+```
 
 ---
 
@@ -629,6 +651,17 @@ WITH InvoiceBalances AS (
 15. **🚨 Rental Net Book Value**: Use GL 183000 - ABS(GL 193000) for accurate rental asset values
 16. **🚨 Date Range Filtering**: Accounting reports use March 1, 2025 - October 31, 2025 period
 17. **🚨 Excel Export Issues**: Avoid variable name conflicts in iteration loops (category_info vs category_definitions)
+18. **🚨 WO.Status Column DOESN'T EXIST**: Despite documentation, Status column is not in WO table
+19. **🚨 WO.Location Column DOESN'T EXIST**: Despite documentation, Location column is not in WO table
+20. **🚨 Shop Work Order Detection**: Use Type = 'SH' for shop work orders (not Type IN ('S', 'SH', 'PM'))
+21. **🚨 Quote Contamination in WO Table**: WONo starting with '9' are quotes, not work orders - ALWAYS exclude
+
+### Work Order Query Rules (NEW - 2025-10-17)
+- **NEVER** assume Status or Location columns exist in WO table
+- **ALWAYS** exclude quotes with `WONo NOT LIKE '9%'` for ANY work order query
+- **ALWAYS** use Type = 'SH' specifically for shop work orders (not broader Type filters)
+- **ALWAYS** verify column existence before using in queries
+- **Quote Impact**: Without quote exclusion, work order counts can be 2-3x higher than expected
 
 ### Rental Availability Detection Rules
 - **NEVER** use Equipment.RentalStatus alone
@@ -689,6 +722,25 @@ WITH InvoiceBalances AS (
 - Python iteration variable name conflicts caused corrupted Excel files
 - BytesIO handling requires proper stream positioning
 - Flask send_file requires specific MIME types and headers
+
+### WO Table Schema Discovery (NEW - 2025-10-17)
+**Key Learning**: Documentation severely mismatches actual table structure
+- **Status Column**: Documented but DOESN'T EXIST - caused SQL errors
+- **Location Column**: Documented but DOESN'T EXIST - caused SQL errors  
+- **Quote Contamination**: WONo starting with '9' are quotes masquerading as work orders
+- **Shop Work Orders**: Type = 'SH' specifically (not broader Type IN ('S', 'SH', 'PM'))
+- **Impact**: Without proper filtering, work order counts 2-3x higher than expected
+
+**Pattern Recognition**: Same quote exclusion logic needed across the system:
+- ✅ **Rental Work Orders**: Fixed with `WONo NOT LIKE '9%'`
+- ✅ **Shop Work Orders**: Fixed with `WONo NOT LIKE '9%'`
+- 🎯 **Future Work Order Queries**: ALWAYS exclude quotes
+
+**Column Verification Process**: 
+1. Never trust documentation for column existence
+2. Test queries with minimal column sets first
+3. Add columns incrementally to verify existence
+4. Document actual working column combinations
 
 ## Last Known Row Counts (as of 2025-10-17)
 
