@@ -119,10 +119,8 @@ def get_shop_work_orders():
             SELECT 
                 WONo,
                 SUM(Sell) as QuotedAmount
-            FROM [ben002].WOMisc
-            WHERE Description LIKE '%SHOP%LABOR%' 
-               OR Description LIKE '%REPAIR%LABOR%'
-               OR Description LIKE '%SHOP REPAIR LABOR%'
+            FROM [ben002].WOQuote
+            WHERE Type = 'L'  -- L = Labor quotes
             GROUP BY WONo
         ) quoted ON w.WONo = quoted.WONo
         
