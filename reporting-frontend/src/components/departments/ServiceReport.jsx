@@ -732,8 +732,22 @@ const ServiceReport = ({ user, onNavigate }) => {
                     <CardTitle className="text-sm font-medium">Hours at Risk</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-red-600">{shopWorkOrders.summary.hours_at_risk.toFixed(1)}</div>
-                    <p className="text-xs text-muted-foreground">Total hours in red/critical</p>
+                    <div className="text-3xl font-bold text-red-600">{shopWorkOrders.summary.hours_at_risk || 0}</div>
+                    <div className="text-sm text-gray-600 mb-3">Total hours over budget</div>
+                    
+                    {/* Dollar value section */}
+                    {shopWorkOrders.summary.unbillable_labor_value && (
+                      <div className="mt-3 pt-3 border-t-2 border-red-200">
+                        <div className="text-sm text-gray-600 mb-1">Unbillable Labor Value</div>
+                        <div className="text-3xl font-bold text-red-600">
+                          ${shopWorkOrders.summary.unbillable_labor_value.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </div>
+                        <div className="text-xs text-gray-500">@ $189/hour labor rate</div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
