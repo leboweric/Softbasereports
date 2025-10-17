@@ -118,7 +118,7 @@ def get_shop_work_orders():
         LEFT JOIN (
             SELECT 
                 WONo,
-                SUM(Sell) as QuotedAmount
+                SUM(Amount) as QuotedAmount
             FROM [ben002].WOQuote
             WHERE Type = 'L'  -- L = Labor quotes
             GROUP BY WONo
