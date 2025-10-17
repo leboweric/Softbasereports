@@ -402,33 +402,50 @@ def debug_tables():
 @jwt_required()
 def debug_woquote():
     """
-    Debug: Simple WOQuote query
+    Debug: Show WOQuote data with common column names
     """
     try:
         db = AzureSQLService()
         
-        # Try basic SELECT * first
+        # Try common column names that might exist
         query = """
-        SELECT *
+        SELECT 
+            WONo,
+            Type,
+            Description,
+            CAST(Amount AS FLOAT) as Amount,
+            CAST(ExtendedPrice AS FLOAT) as ExtendedPrice,
+            CAST(Total AS FLOAT) as Total,
+            CAST(Price AS FLOAT) as Price,
+            CAST(Rate AS FLOAT) as Rate
         FROM [ben002].WOQuote
         WHERE WONo = '140000582'
         """
         
         results = db.execute_query(query)
         
+        records = []
+        for row in results:
+            records.append({
+                'WONo': row[0],
+                'Type': row[1],
+                'Description': row[2],
+                'Amount': row[3],
+                'ExtendedPrice': row[4],
+                'Total': row[5],
+                'Price': row[6],
+                'Rate': row[7]
+            })
+        
         return jsonify({
             'success': True,
-            'wo_number': '140000582',
-            'record_count': len(results) if results else 0,
-            'message': 'Query succeeded. Check Railway logs for actual data.'
+            'record_count': len(records),
+            'records': records
         })
         
     except Exception as e:
-        error_msg = str(e)
-        logger.error(f"WOQuote query error: {error_msg}")
-        
-        # If table doesn't exist
-        if 'Invalid object name' in error_msg:
-            return jsonify({'error': 'WOQuote table does not exist'}), 404
-        
-        return jsonify({'error': error_msg}), 500
+        # If a column doesn't exist, the error will tell us which one
+        return jsonify({
+            'error': str(e),
+            'hint': 'Error shows which column name is wrong'
+        }), 500
