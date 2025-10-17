@@ -17,6 +17,59 @@ def get_shop_work_orders():
     try:
         db = AzureSQLService()
         
+        # DEBUG QUERY 1: Investigate work order types and locations
+        debug_type_location_query = """
+        SELECT DISTINCT 
+            Type,
+            Location,
+            COUNT(*) as Count
+        FROM [ben002].WO
+        WHERE ClosedDate IS NULL
+        GROUP BY Type, Location
+        ORDER BY Count DESC
+        """
+        
+        debug_results = db.execute_query(debug_type_location_query)
+        logger.info("=== DEBUG: Work Order Types & Locations ===")
+        for row in debug_results:
+            logger.info(f"Type: {row['Type']}, Location: {row['Location']}, Count: {row['Count']}")
+        
+        # DEBUG QUERY 2: Investigate WOMisc descriptions for labor
+        debug_misc_query = """
+        SELECT DISTINCT TOP 30 Description 
+        FROM [ben002].WOMisc 
+        WHERE Description LIKE '%LABOR%'
+           OR Description LIKE '%SHOP%'
+           OR Description LIKE '%REPAIR%'
+        ORDER BY Description
+        """
+        
+        misc_results = db.execute_query(debug_misc_query)
+        logger.info("=== DEBUG: WOMisc Labor Descriptions ===")
+        for row in misc_results:
+            logger.info(f"Description: '{row['Description']}'")
+        
+        # DEBUG QUERY 3: Check specific work orders with quotes
+        debug_quotes_query = """
+        SELECT TOP 20
+            wm.WONo,
+            wm.Description,
+            wm.Sell,
+            w.Type,
+            w.Location
+        FROM [ben002].WOMisc wm
+        INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
+        WHERE w.Type IN ('S', 'SH', 'PM')
+          AND w.ClosedDate IS NULL
+          AND wm.Sell > 0
+        ORDER BY wm.Sell DESC
+        """
+        
+        quotes_results = db.execute_query(debug_quotes_query)
+        logger.info("=== DEBUG: Sample WOMisc Records with Quotes ===")
+        for row in quotes_results:
+            logger.info(f"WO: {row['WONo']}, Type: {row['Type']}, Location: {row['Location']}, Description: '{row['Description']}', Sell: {row['Sell']}")
+        
         query = """
         SELECT 
             w.WONo,
@@ -115,6 +168,15 @@ def get_shop_work_orders():
         # Calculate hours at risk (RED + CRITICAL)
         hours_at_risk = sum(wo['actual_hours'] for wo in work_orders 
                           if wo['alert_level'] in ['RED', 'CRITICAL'])
+        
+        # DEBUG: Log final results summary
+        logger.info(f"=== DEBUG: Final Results Summary ===")
+        logger.info(f"Total work orders found: {total_work_orders}")
+        logger.info(f"Critical alerts: {critical_count}")
+        logger.info(f"Red alerts: {red_count}")
+        logger.info(f"Yellow alerts: {yellow_count}")
+        logger.info(f"Work orders with quotes: {len([wo for wo in work_orders if wo['quoted_amount'] > 0])}")
+        logger.info(f"Work orders with NO_QUOTE: {len([wo for wo in work_orders if wo['alert_level'] == 'NO_QUOTE'])}")
         
         return jsonify({
             'work_orders': work_orders,
