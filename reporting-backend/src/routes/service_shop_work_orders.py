@@ -396,3 +396,51 @@ def debug_tables():
     except Exception as e:
         logger.error(f"Error listing tables: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@service_shop_bp.route('/api/reports/departments/service/shop-work-orders/debug-woquote', methods=['GET'])
+@jwt_required()
+def debug_woquote():
+    """
+    Debug: See actual WOQuote records and column structure
+    """
+    try:
+        db = AzureSQLService()
+        
+        # Get WOQuote records for our known work order
+        query = """
+        SELECT TOP 10 *
+        FROM [ben002].WOQuote
+        WHERE WONo = '140000582'
+        """
+        
+        results = db.execute_query(query)
+        
+        # Get column names
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        columns = [desc[0] for desc in cursor.description]
+        
+        # Build result list
+        quotes = []
+        for row in results:
+            quote_dict = {}
+            for i, col in enumerate(columns):
+                val = row[i]
+                if val is not None:
+                    quote_dict[col] = str(val)
+                else:
+                    quote_dict[col] = None
+            quotes.append(quote_dict)
+        
+        return jsonify({
+            'wo_number': '140000582',
+            'columns': columns,
+            'quote_records': quotes,
+            'record_count': len(quotes)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
