@@ -497,7 +497,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="shop-work-orders">Cash Burn</TabsTrigger>
-          <TabsTrigger value="work-orders">Closed/Not Invoiced</TabsTrigger>
+          <TabsTrigger value="work-orders">Stalled Cash</TabsTrigger>
           <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
           <TabsTrigger value="invoice-billing">Grede Billing</TabsTrigger>
         </TabsList>
@@ -895,8 +895,8 @@ const ServiceReport = ({ user, onNavigate }) => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Work Orders Awaiting Invoice Details</CardTitle>
-                  <CardDescription>Detailed list of all completed work orders that have not been invoiced</CardDescription>
+                  <CardTitle>Stalled Cash Work Orders Details</CardTitle>
+                  <CardDescription>Detailed list of all completed work orders with stalled cash flow</CardDescription>
                 </div>
                 {awaitingInvoiceDetails && (
                   <Button onClick={exportToCSV} size="sm" variant="outline">
