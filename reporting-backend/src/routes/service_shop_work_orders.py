@@ -262,3 +262,46 @@ def debug_womisc_descriptions():
     except Exception as e:
         logger.error(f"Error in debug query: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@service_shop_bp.route('/api/reports/departments/service/shop-work-orders/debug-wo-fields', methods=['GET'])
+@jwt_required()
+def debug_wo_fields():
+    """
+    Debug: Check WO table for quote-related fields
+    """
+    try:
+        db = AzureSQLService()
+        
+        # Get WO record for known quoted work order
+        query = """
+        SELECT TOP 5 *
+        FROM [ben002].WO
+        WHERE Type = 'SH'
+          AND WONo NOT LIKE '9%'
+          AND ClosedDate IS NULL
+        ORDER BY WONo DESC
+        """
+        
+        results = db.execute_query(query)
+        
+        # Get column names
+        cursor = db.get_connection().cursor()
+        cursor.execute(query)
+        columns = [desc[0] for desc in cursor.description]
+        
+        work_orders = []
+        for row in results:
+            wo_dict = {}
+            for i, col in enumerate(columns):
+                wo_dict[col] = str(row[i]) if row[i] is not None else None
+            work_orders.append(wo_dict)
+        
+        return jsonify({
+            'columns': columns,
+            'sample_work_orders': work_orders
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
