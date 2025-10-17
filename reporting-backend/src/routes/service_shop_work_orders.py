@@ -176,11 +176,21 @@ def get_shop_work_orders():
         critical_count = len([wo for wo in work_orders if wo['alert_level'] == 'CRITICAL'])
         red_count = len([wo for wo in work_orders if wo['alert_level'] == 'RED'])
         yellow_count = len([wo for wo in work_orders if wo['alert_level'] == 'YELLOW'])
+        no_quote_count = len([wo for wo in work_orders if wo['alert_level'] == 'NO_QUOTE'])
         warning_count = red_count + yellow_count
         
-        # Calculate hours at risk (RED + CRITICAL)
-        hours_at_risk = sum(wo['actual_hours'] for wo in work_orders 
-                          if wo['alert_level'] in ['RED', 'CRITICAL'])
+        # Calculate hours at risk and unbillable labor value
+        critical_and_red = [wo for wo in work_orders if wo['alert_level'] in ['CRITICAL', 'RED']]
+        
+        hours_at_risk = 0
+        for wo in critical_and_red:
+            if wo['quoted_hours'] > 0:
+                hours_over = wo['actual_hours'] - wo['quoted_hours']
+                if hours_over > 0:
+                    hours_at_risk += hours_over
+        
+        LABOR_RATE = 189
+        unbillable_labor_value = hours_at_risk * LABOR_RATE
         
         # DEBUG: Log final results summary
         logger.info(f"=== DEBUG: Final Results Summary ===")
@@ -198,8 +208,10 @@ def get_shop_work_orders():
                 'critical_count': critical_count,
                 'red_count': red_count,
                 'yellow_count': yellow_count,
+                'no_quote_count': no_quote_count,
                 'warning_count': warning_count,
-                'hours_at_risk': hours_at_risk
+                'hours_at_risk': round(hours_at_risk, 1),
+                'unbillable_labor_value': round(unbillable_labor_value, 2)
             }
         })
         
