@@ -74,6 +74,7 @@ from src.routes.gl_inventory_report import gl_inventory_report_bp
 from src.routes.equipment_gl_linker import equipment_gl_linker_bp
 from src.routes.final_gl_inventory_report import final_gl_inventory_report_bp
 from src.routes.parts_inventory import parts_inventory_bp
+from src.routes.service_shop_work_orders import service_shop_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
 
@@ -170,6 +171,7 @@ app.register_blueprint(gl_inventory_report_bp)
 app.register_blueprint(equipment_gl_linker_bp)
 app.register_blueprint(final_gl_inventory_report_bp)
 app.register_blueprint(parts_inventory_bp)
+app.register_blueprint(service_shop_bp)
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration

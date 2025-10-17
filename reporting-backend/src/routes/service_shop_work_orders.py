@@ -208,3 +208,57 @@ def get_shop_work_orders():
     except Exception as e:
         logger.error(f"Error fetching shop work orders: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@service_shop_bp.route('/api/reports/departments/service/shop-work-orders/debug-misc', methods=['GET'])
+@jwt_required()
+def debug_womisc_descriptions():
+    """
+    Debug endpoint: See actual WOMisc descriptions for open shop work orders
+    """
+    try:
+        db = AzureSQLService()
+        
+        # Get actual WOMisc records for open shop WOs
+        query = """
+        SELECT DISTINCT TOP 50
+            wm.WONo,
+            wm.Description,
+            wm.Sell,
+            w.Type
+        FROM [ben002].WOMisc wm
+        INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
+        LEFT JOIN [ben002].Customer c ON w.BillTo = c.Number
+        WHERE w.Type = 'SH'
+          AND w.ClosedDate IS NULL
+          AND w.WONo NOT LIKE '9%'
+          AND c.Name NOT IN (
+            'NEW EQUIP PREP - EXPENSE',
+            'RENTAL FLEET - EXPENSE', 
+            'USED EQUIP. PREP-EXPENSE',
+            'SVC REWORK/SVC WARRANTY',
+            'NEW EQ. INTNL RNTL/DEMO'
+          )
+        ORDER BY wm.WONo DESC
+        """
+        
+        results = db.execute_query(query)
+        
+        misc_items = []
+        if results:
+            for row in results:
+                misc_items.append({
+                    'WONo': row['WONo'],
+                    'Description': row['Description'],
+                    'Sell': float(row['Sell']) if row['Sell'] else 0,
+                    'Type': row['Type']
+                })
+        
+        return jsonify({
+            'count': len(misc_items),
+            'items': misc_items
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in debug query: {str(e)}")
+        return jsonify({'error': str(e)}), 500
