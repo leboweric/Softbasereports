@@ -402,47 +402,47 @@ def debug_tables():
 @jwt_required()
 def debug_woquote():
     """
-    Debug: Show WOQuote data (ExtendedPrice removed)
+    Debug: Get actual WOQuote column names from SQL Server metadata
     """
     try:
         db = AzureSQLService()
         
-        # Remove ExtendedPrice, try others
-        query = """
-        SELECT 
-            WONo,
-            Type,
-            Description,
-            CAST(Amount AS FLOAT) as Amount,
-            CAST(Total AS FLOAT) as Total,
-            CAST(Price AS FLOAT) as Price,
-            CAST(Rate AS FLOAT) as Rate
+        # Query 1: Get all column names from SQL Server system tables
+        columns_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002' 
+          AND TABLE_NAME = 'WOQuote'
+        ORDER BY ORDINAL_POSITION
+        """
+        
+        column_results = db.execute_query(columns_query)
+        
+        columns = []
+        for row in column_results:
+            columns.append({
+                'name': row[0],
+                'type': row[1]
+            })
+        
+        # Query 2: Get actual data using the correct columns
+        data_query = """
+        SELECT TOP 3 *
         FROM [ben002].WOQuote
         WHERE WONo = '140000582'
         """
         
-        results = db.execute_query(query)
-        
-        records = []
-        for row in results:
-            records.append({
-                'WONo': row[0],
-                'Type': row[1],
-                'Description': row[2],
-                'Amount': row[3],
-                'Total': row[4],
-                'Price': row[5],
-                'Rate': row[6]
-            })
+        data_results = db.execute_query(data_query)
         
         return jsonify({
             'success': True,
-            'record_count': len(records),
-            'records': records
+            'columns': columns,
+            'column_names': [c['name'] for c in columns],
+            'record_count': len(data_results),
+            'message': 'Check column_names to see all available columns'
         })
         
     except Exception as e:
         return jsonify({
-            'error': str(e),
-            'hint': 'Shows which column is invalid'
+            'error': str(e)
         }), 500
