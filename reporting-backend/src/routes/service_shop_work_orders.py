@@ -353,3 +353,38 @@ def debug_find_quote():
     except Exception as e:
         logger.error(f"Error finding quote: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@service_shop_bp.route('/api/reports/departments/service/shop-work-orders/debug-tables', methods=['GET'])
+@jwt_required()
+def debug_tables():
+    """
+    Debug: Find all tables in the database
+    """
+    try:
+        db = AzureSQLService()
+        
+        # Query to list all tables
+        query = """
+        SELECT TABLE_NAME 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = 'ben002'
+          AND TABLE_TYPE = 'BASE TABLE'
+        ORDER BY TABLE_NAME
+        """
+        
+        results = db.execute_query(query)
+        
+        all_tables = [row[0] for row in results]
+        
+        # Filter for potentially relevant tables
+        rate_tables = [t for t in all_tables if any(keyword in t.lower() for keyword in ['flat', 'rate', 'quote', 'estimate', 'labor', 'service', 'charge'])]
+        
+        return jsonify({
+            'all_tables': all_tables,
+            'potentially_relevant': rate_tables
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
