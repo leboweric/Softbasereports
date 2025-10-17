@@ -155,6 +155,14 @@ def get_current_user():
     resources = PermissionService.get_user_resources(current_user)
     permissions_summary = PermissionService.get_user_permissions_summary(current_user)
     
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔍 User {current_user.email} navigation: {list(navigation.keys())}")
+    logger.info(f"🔍 User {current_user.email} resources: {resources}")
+    logger.info(f"🔍 User {current_user.email} roles: {[r.name for r in current_user.roles]}")
+    logger.info(f"🔍 Database Explorer in navigation: {'database-explorer' in navigation}")
+    
     return jsonify({
         'user': current_user.to_dict(),
         'organization': current_user.organization.to_dict(),
