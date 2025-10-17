@@ -359,29 +359,39 @@ def debug_find_quote():
 @jwt_required()
 def debug_tables():
     """
-    Debug: Find all tables using SQL Server system tables
+    Debug: List ALL tables in database (no schema filter)
     """
     try:
         db = AzureSQLService()
         
-        # SQL Server compatible query
+        # Just get ALL tables, no schema filter
         query = """
-        SELECT name 
+        SELECT 
+            SCHEMA_NAME(schema_id) as SchemaName,
+            name as TableName
         FROM sys.tables 
-        WHERE schema_id = SCHEMA_ID('ben002')
-        ORDER BY name
+        ORDER BY SchemaName, name
         """
         
         results = db.execute_query(query)
         
-        all_tables = [row[0] for row in results]
+        all_tables = []
+        for row in results:
+            all_tables.append({
+                'schema': row[0],
+                'table': row[1]
+            })
         
-        # Filter for potentially relevant tables
-        rate_tables = [t for t in all_tables if any(keyword in t.lower() for keyword in ['flat', 'rate', 'quote', 'estimate', 'labor', 'service', 'charge'])]
+        # Filter for ben002 schema
+        ben002_tables = [t['table'] for t in all_tables if t['schema'] == 'ben002']
+        
+        # Filter for relevant keywords
+        rate_tables = [t for t in ben002_tables if any(keyword in t.lower() for keyword in ['flat', 'rate', 'quote', 'estimate', 'labor', 'service', 'charge'])]
         
         return jsonify({
             'total_tables': len(all_tables),
             'all_tables': all_tables,
+            'ben002_tables': ben002_tables,
             'potentially_relevant': rate_tables
         })
         
