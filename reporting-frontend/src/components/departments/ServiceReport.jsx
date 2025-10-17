@@ -58,6 +58,9 @@ const ServiceReport = ({ user, onNavigate }) => {
   // Invoice delay analysis state
   const [invoiceDelayData, setInvoiceDelayData] = useState(null)
   const [invoiceDelayLoading, setInvoiceDelayLoading] = useState(false)
+  // Shop work orders state
+  const [shopWorkOrders, setShopWorkOrders] = useState(null)
+  const [shopWorkOrdersLoading, setShopWorkOrdersLoading] = useState(false)
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -90,6 +93,10 @@ const ServiceReport = ({ user, onNavigate }) => {
   }, [])
 
   useEffect(() => {
+    // Fetch shop work orders when switching to shop work orders tab
+    if (activeTab === 'shop-work-orders' && !shopWorkOrders) {
+      fetchShopWorkOrders()
+    }
     // Fetch awaiting invoice details when switching to work orders tab
     if (activeTab === 'work-orders' && !awaitingInvoiceDetails) {
       fetchAwaitingInvoiceDetails()
@@ -318,6 +325,29 @@ const ServiceReport = ({ user, onNavigate }) => {
     }
   }
 
+  const fetchShopWorkOrders = async () => {
+    setShopWorkOrdersLoading(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/service/shop-work-orders'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setShopWorkOrders(data)
+      } else {
+        console.error('Failed to fetch shop work orders')
+      }
+    } catch (error) {
+      console.error('Error fetching shop work orders:', error)
+    } finally {
+      setShopWorkOrdersLoading(false)
+    }
+  }
+
 
   const lookupWorkOrder = async () => {
     if (!woLookup.trim()) return
@@ -466,7 +496,8 @@ const ServiceReport = ({ user, onNavigate }) => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="work-orders">Work Orders</TabsTrigger>
+          <TabsTrigger value="shop-work-orders">Open Shop WOs</TabsTrigger>
+          <TabsTrigger value="work-orders">Closed/Not Invoiced</TabsTrigger>
           <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
           <TabsTrigger value="invoice-billing">Grede Billing</TabsTrigger>
         </TabsList>
@@ -656,6 +687,157 @@ const ServiceReport = ({ user, onNavigate }) => {
           </ResponsiveContainer>
         </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="shop-work-orders" className="space-y-6">
+          {/* Shop Work Orders with Cost Overrun Alerts */}
+          {shopWorkOrdersLoading ? (
+            <Card>
+              <CardContent className="flex items-center justify-center h-64">
+                <LoadingSpinner />
+              </CardContent>
+            </Card>
+          ) : shopWorkOrders ? (
+            <>
+              {/* Summary Cards */}
+              <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Open Shop WOs</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{shopWorkOrders.summary.total_work_orders}</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Critical Alerts</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">{shopWorkOrders.summary.critical_count}</div>
+                    <p className="text-xs text-muted-foreground">≥100% over budget</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Warnings</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-orange-600">{shopWorkOrders.summary.warning_count}</div>
+                    <p className="text-xs text-muted-foreground">80-99% of budget</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Hours at Risk</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">{shopWorkOrders.summary.hours_at_risk.toFixed(1)}</div>
+                    <p className="text-xs text-muted-foreground">Total hours in red/critical</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Work Orders Table */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-orange-600" />
+                    Open Shop Work Orders - Cost Overrun Alerts
+                  </CardTitle>
+                  <CardDescription>
+                    Real-time monitoring of actual vs quoted labor hours to prevent cost overruns
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>WO#</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Equipment</TableHead>
+                          <TableHead>Open Date</TableHead>
+                          <TableHead className="text-right">Quoted Hours</TableHead>
+                          <TableHead className="text-right">Actual Hours</TableHead>
+                          <TableHead className="text-center">% Used</TableHead>
+                          <TableHead className="text-center">Alert</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {shopWorkOrders.work_orders.map((wo) => {
+                          const getAlertBadge = (alertLevel, percentUsed) => {
+                            switch (alertLevel) {
+                              case 'CRITICAL':
+                                return <Badge variant="destructive" className="gap-1">🚨 CRITICAL</Badge>
+                              case 'RED':
+                                return <Badge variant="destructive" className="gap-1">🔴 RED</Badge>
+                              case 'YELLOW':
+                                return <Badge variant="warning" className="gap-1">🟡 YELLOW</Badge>
+                              case 'GREEN':
+                                return <Badge variant="secondary" className="gap-1">✅ GREEN</Badge>
+                              case 'NO_QUOTE':
+                                return <Badge variant="outline" className="gap-1">⚪ NO QUOTE</Badge>
+                              default:
+                                return <Badge variant="outline">-</Badge>
+                            }
+                          }
+
+                          const getRowClassName = (alertLevel) => {
+                            switch (alertLevel) {
+                              case 'CRITICAL':
+                                return 'bg-red-100 border-red-300'
+                              case 'RED':
+                                return 'bg-red-50 border-red-200'
+                              case 'YELLOW':
+                                return 'bg-yellow-50 border-yellow-200'
+                              default:
+                                return ''
+                            }
+                          }
+
+                          return (
+                            <TableRow 
+                              key={wo.wo_number}
+                              className={getRowClassName(wo.alert_level)}
+                            >
+                              <TableCell className="font-medium">{wo.wo_number}</TableCell>
+                              <TableCell className="max-w-[200px] truncate" title={wo.customer_name}>
+                                {wo.customer_name}
+                              </TableCell>
+                              <TableCell className="max-w-[150px] truncate">
+                                {wo.unit_no ? `${wo.unit_no}` : ''}
+                                {wo.serial_no ? ` (${wo.serial_no})` : ''}
+                              </TableCell>
+                              <TableCell>{new Date(wo.open_date).toLocaleDateString()}</TableCell>
+                              <TableCell className="text-right font-mono">
+                                {wo.quoted_hours ? wo.quoted_hours.toFixed(1) : '-'}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {wo.actual_hours.toFixed(1)}
+                              </TableCell>
+                              <TableCell className="text-center font-mono">
+                                {wo.percent_used ? `${wo.percent_used.toFixed(0)}%` : '-'}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {getAlertBadge(wo.alert_level, wo.percent_used)}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="text-center py-8 text-muted-foreground">
+                No shop work orders data available
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="work-orders" className="space-y-6">
