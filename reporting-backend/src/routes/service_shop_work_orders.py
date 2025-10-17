@@ -25,7 +25,6 @@ def get_shop_work_orders():
             w.UnitNo,
             w.SerialNo,
             w.OpenDate,
-            w.Status,
             
             -- Quoted labor
             COALESCE(quoted.QuotedAmount, 0) as QuotedAmount,
@@ -74,7 +73,7 @@ def get_shop_work_orders():
         
         GROUP BY 
             w.WONo, w.BillTo, c.Name, w.UnitNo, w.SerialNo, 
-            w.OpenDate, w.Status, quoted.QuotedAmount
+            w.OpenDate, quoted.QuotedAmount
         
         ORDER BY 
             CASE 
@@ -99,7 +98,6 @@ def get_shop_work_orders():
                     'unit_no': row['UnitNo'],
                     'serial_no': row['SerialNo'],
                     'open_date': row['OpenDate'].isoformat() if row['OpenDate'] else None,
-                    'status': row['Status'],
                     'quoted_amount': float(row['QuotedAmount']) if row['QuotedAmount'] else 0,
                     'quoted_hours': float(row['QuotedHours']) if row['QuotedHours'] else 0,
                     'actual_hours': float(row['ActualHours']) if row['ActualHours'] else 0,
