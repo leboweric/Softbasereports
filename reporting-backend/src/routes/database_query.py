@@ -1,0 +1,58 @@
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required
+from src.services.azure_sql_service import AzureSQLService
+import logging
+
+logger = logging.getLogger(__name__)
+
+database_query_bp = Blueprint('database_query', __name__)
+
+@database_query_bp.route('/api/database/execute-query', methods=['POST'])
+@jwt_required()
+def execute_query():
+    """
+    Execute a custom SQL query for database exploration
+    """
+    try:
+        data = request.get_json()
+        query = data.get('query', '').strip()
+        
+        if not query:
+            return jsonify({'error': 'Query cannot be empty'}), 400
+        
+        # Security: Only allow SELECT statements
+        if not query.upper().startswith('SELECT'):
+            return jsonify({'error': 'Only SELECT queries are allowed'}), 400
+        
+        db = AzureSQLService()
+        results = db.execute_query(query)
+        
+        # Get column names
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query)
+        columns = [desc[0] for desc in cursor.description] if cursor.description else []
+        
+        # Convert results to list of dicts
+        result_list = []
+        for row in results:
+            row_dict = {}
+            for i, col in enumerate(columns):
+                val = row[i]
+                # Convert to JSON-safe types
+                if val is None:
+                    row_dict[col] = None
+                else:
+                    row_dict[col] = str(val)
+            result_list.append(row_dict)
+        
+        return jsonify({
+            'success': True,
+            'columns': columns,
+            'results': result_list,
+            'row_count': len(result_list)
+        })
+        
+    except Exception as e:
+        logger.error(f"Query execution failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
