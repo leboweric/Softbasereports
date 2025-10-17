@@ -59,6 +59,7 @@ def get_shop_work_orders():
         INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
+          AND w.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
           AND wm.Sell > 0
         ORDER BY wm.Sell DESC
         """
@@ -121,6 +122,7 @@ def get_shop_work_orders():
         
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
+          AND w.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
         
         GROUP BY 
             w.WONo, w.BillTo, c.Name, w.UnitNo, w.SerialNo, 
