@@ -305,3 +305,71 @@ def debug_wo_fields():
     except Exception as e:
         logger.error(f"Error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@service_shop_bp.route('/api/reports/departments/service/shop-work-orders/debug-find-quote', methods=['GET'])
+@jwt_required()
+def debug_find_quote():
+    """
+    Debug: Search for quoted labor amount $3938 for WO 140000582
+    """
+    try:
+        db = AzureSQLService()
+        
+        results = {}
+        
+        # Search WOMisc for this amount
+        query1 = """
+        SELECT 'WOMisc' as TableName, WONo, Description, Cost, Sell
+        FROM [ben002].WOMisc
+        WHERE WONo = '140000582'
+          AND (Sell = 3938 OR Sell = 3938.00 OR Cost = 3938 OR Cost = 3938.00)
+        """
+        results['womisc'] = db.execute_query(query1)
+        
+        # Search WOLabor for total that might equal this
+        query2 = """
+        SELECT 'WOLabor' as TableName, WONo, MechanicName, Hours, Cost, Sell
+        FROM [ben002].WOLabor
+        WHERE WONo = '140000582'
+        """
+        results['wolabor'] = db.execute_query(query2)
+        
+        # Search WO table for any amount fields
+        query3 = """
+        SELECT *
+        FROM [ben002].WO
+        WHERE WONo = '140000582'
+        """
+        wo_results = db.execute_query(query3)
+        results['wo'] = wo_results
+        
+        # Get all WOMisc records for this WO
+        query4 = """
+        SELECT Description, Cost, Sell, Taxable
+        FROM [ben002].WOMisc
+        WHERE WONo = '140000582'
+        ORDER BY Description
+        """
+        all_misc = db.execute_query(query4)
+        
+        misc_items = []
+        for row in all_misc:
+            misc_items.append({
+                'Description': row[0],
+                'Cost': float(row[1]) if row[1] else 0,
+                'Sell': float(row[2]) if row[2] else 0,
+                'Taxable': row[3]
+            })
+        
+        return jsonify({
+            'wo_number': '140000582',
+            'target_amount': 3938.00,
+            'all_womisc_items': misc_items,
+            'total_womisc_sell': sum(item['Sell'] for item in misc_items),
+            'message': 'Check if SHOP REPAIR LABOR appears in all_womisc_items with Sell = 3938'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
