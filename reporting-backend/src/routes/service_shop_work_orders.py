@@ -311,65 +311,45 @@ def debug_wo_fields():
 @jwt_required()
 def debug_find_quote():
     """
-    Debug: Search for quoted labor amount $3938 for WO 140000582
+    Debug: Get ALL WOMisc records for WO 140000582 (known to have $3938 quote)
     """
     try:
         db = AzureSQLService()
         
-        results = {}
-        
-        # Search WOMisc for this amount
-        query1 = """
-        SELECT 'WOMisc' as TableName, WONo, Description, Cost, Sell
+        # Simple query - just get everything from WOMisc for this WO
+        query = """
+        SELECT 
+            WONo,
+            Description,
+            Sell
         FROM [ben002].WOMisc
         WHERE WONo = '140000582'
-          AND (Sell = 3938 OR Sell = 3938.00 OR Cost = 3938 OR Cost = 3938.00)
+        ORDER BY Sell DESC
         """
-        results['womisc'] = db.execute_query(query1)
         
-        # Search WOLabor for total that might equal this
-        query2 = """
-        SELECT 'WOLabor' as TableName, WONo, MechanicName, Hours, Cost, Sell
-        FROM [ben002].WOLabor
-        WHERE WONo = '140000582'
-        """
-        results['wolabor'] = db.execute_query(query2)
-        
-        # Search WO table for any amount fields
-        query3 = """
-        SELECT *
-        FROM [ben002].WO
-        WHERE WONo = '140000582'
-        """
-        wo_results = db.execute_query(query3)
-        results['wo'] = wo_results
-        
-        # Get all WOMisc records for this WO
-        query4 = """
-        SELECT Description, Cost, Sell, Taxable
-        FROM [ben002].WOMisc
-        WHERE WONo = '140000582'
-        ORDER BY Description
-        """
-        all_misc = db.execute_query(query4)
+        results = db.execute_query(query)
         
         misc_items = []
-        for row in all_misc:
+        total = 0
+        
+        for row in results:
+            sell_amount = float(row[2]) if row[2] else 0
             misc_items.append({
-                'Description': row[0],
-                'Cost': float(row[1]) if row[1] else 0,
-                'Sell': float(row[2]) if row[2] else 0,
-                'Taxable': row[3]
+                'WONo': row[0],
+                'Description': row[1],
+                'Sell': sell_amount
             })
+            total += sell_amount
         
         return jsonify({
             'wo_number': '140000582',
             'target_amount': 3938.00,
+            'items_found': len(misc_items),
             'all_womisc_items': misc_items,
-            'total_womisc_sell': sum(item['Sell'] for item in misc_items),
-            'message': 'Check if SHOP REPAIR LABOR appears in all_womisc_items with Sell = 3938'
+            'total_sell': total,
+            'has_shop_repair_labor': any('SHOP' in item['Description'].upper() and 'REPAIR' in item['Description'].upper() for item in misc_items)
         })
         
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
+        logger.error(f"Error finding quote: {str(e)}")
         return jsonify({'error': str(e)}), 500
