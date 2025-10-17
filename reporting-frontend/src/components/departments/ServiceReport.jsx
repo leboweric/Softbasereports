@@ -496,7 +496,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="shop-work-orders">Open Shop WOs</TabsTrigger>
+          <TabsTrigger value="shop-work-orders">Cash Burn</TabsTrigger>
           <TabsTrigger value="work-orders">Closed/Not Invoiced</TabsTrigger>
           <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
           <TabsTrigger value="invoice-billing">Grede Billing</TabsTrigger>
@@ -690,7 +690,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         </TabsContent>
 
         <TabsContent value="shop-work-orders" className="space-y-6">
-          {/* Shop Work Orders with Cost Overrun Alerts */}
+          {/* Cash Burn Work Orders with Cost Overrun Alerts */}
           {shopWorkOrdersLoading ? (
             <Card>
               <CardContent className="flex items-center justify-center h-64">
@@ -703,7 +703,7 @@ const ServiceReport = ({ user, onNavigate }) => {
               <div className="grid gap-4 md:grid-cols-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Open Shop WOs</CardTitle>
+                    <CardTitle className="text-sm font-medium">Total Cash Burn WOs</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{shopWorkOrders.summary.total_work_orders}</div>
@@ -743,7 +743,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-orange-600" />
-                    Open Shop Work Orders - Cost Overrun Alerts
+                    Cash Burn Work Orders - Cost Overrun Alerts
                   </CardTitle>
                   <CardDescription>
                     Real-time monitoring of actual vs quoted labor hours to prevent cost overruns
@@ -834,7 +834,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           ) : (
             <Card>
               <CardContent className="text-center py-8 text-muted-foreground">
-                No shop work orders data available
+                No cash burn work orders data available
               </CardContent>
             </Card>
           )}
