@@ -212,7 +212,7 @@ const InventoryReport = ({ user }) => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Serial Number</TableHead>
+                    <TableHead>Control Number</TableHead>
                     <TableHead>Make/Model</TableHead>
                     <TableHead>Status</TableHead>
                     {category === 'rental' && <TableHead>Location</TableHead>}
