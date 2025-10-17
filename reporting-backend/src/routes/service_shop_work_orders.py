@@ -57,9 +57,17 @@ def get_shop_work_orders():
             w.Type
         FROM [ben002].WOMisc wm
         INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
+        LEFT JOIN [ben002].Customer c ON w.BillTo = c.Number
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
           AND w.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
+          AND c.Name NOT IN (
+            'NEW EQUIP PREP - EXPENSE',
+            'RENTAL FLEET - EXPENSE', 
+            'USED EQUIP. PREP-EXPENSE',
+            'SVC REWORK/SVC WARRANTY',
+            'NEW EQ. INTNL RNTL/DEMO'
+          )  -- Exclude internal expense accounts
           AND wm.Sell > 0
         ORDER BY wm.Sell DESC
         """
@@ -123,6 +131,13 @@ def get_shop_work_orders():
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
           AND w.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
+          AND c.Name NOT IN (
+            'NEW EQUIP PREP - EXPENSE',
+            'RENTAL FLEET - EXPENSE', 
+            'USED EQUIP. PREP-EXPENSE',
+            'SVC REWORK/SVC WARRANTY',
+            'NEW EQ. INTNL RNTL/DEMO'
+          )  -- Exclude internal expense accounts
         
         GROUP BY 
             w.WONo, w.BillTo, c.Name, w.UnitNo, w.SerialNo, 
