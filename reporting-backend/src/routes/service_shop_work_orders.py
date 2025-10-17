@@ -359,18 +359,17 @@ def debug_find_quote():
 @jwt_required()
 def debug_tables():
     """
-    Debug: Find all tables in the database
+    Debug: Find all tables using SQL Server system tables
     """
     try:
         db = AzureSQLService()
         
-        # Query to list all tables
+        # SQL Server compatible query
         query = """
-        SELECT TABLE_NAME 
-        FROM INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_SCHEMA = 'ben002'
-          AND TABLE_TYPE = 'BASE TABLE'
-        ORDER BY TABLE_NAME
+        SELECT name 
+        FROM sys.tables 
+        WHERE schema_id = SCHEMA_ID('ben002')
+        ORDER BY name
         """
         
         results = db.execute_query(query)
@@ -381,10 +380,11 @@ def debug_tables():
         rate_tables = [t for t in all_tables if any(keyword in t.lower() for keyword in ['flat', 'rate', 'quote', 'estimate', 'labor', 'service', 'charge'])]
         
         return jsonify({
+            'total_tables': len(all_tables),
             'all_tables': all_tables,
             'potentially_relevant': rate_tables
         })
         
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
+        logger.error(f"Error listing tables: {str(e)}")
         return jsonify({'error': str(e)}), 500
