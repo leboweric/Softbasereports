@@ -59,7 +59,7 @@ def get_shop_work_orders():
             w.Location
         FROM [ben002].WOMisc wm
         INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
-        WHERE w.Type IN ('S', 'SH', 'PM')
+        WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
           AND wm.Sell > 0
         ORDER BY wm.Sell DESC
@@ -121,7 +121,7 @@ def get_shop_work_orders():
         
         LEFT JOIN [ben002].WOLabor l ON w.WONo = l.WONo
         
-        WHERE w.Type IN ('S', 'SH', 'PM')
+        WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
         
         GROUP BY 
