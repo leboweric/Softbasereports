@@ -13,6 +13,7 @@ import InvoiceExplorer from './components/departments/InvoiceExplorer'
 import AIQueryTester from './components/AIQueryTester'
 import TableDiscovery from './components/TableDiscovery'
 import MinitracSearch from './components/MinitracSearch'
+import DatabaseExplorer from './components/DatabaseExplorer'
 import UserManagementEnhanced from './components/UserManagementEnhanced'
 import { UserManagement } from './components/admin/UserManagement'
 import { apiUrl } from '@/lib/api'
@@ -66,7 +67,7 @@ function App() {
         const navigation = getAccessibleNavigation(userWithNavigation)
         if (!navigation[currentPage]) {
           // Redirect to first available page using same order as Layout.jsx
-          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
+          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'database-explorer', 'user-management']
           const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
           setCurrentPage(firstAvailablePage)
         }
@@ -96,7 +97,7 @@ function App() {
     // Navigation data retrieved
     
     // Use same order as Layout.jsx to ensure Dashboard is first choice
-    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
+    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'database-explorer', 'user-management']
     const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
     // Setting default page
     setCurrentPage(firstAvailablePage)
@@ -136,7 +137,7 @@ function App() {
     // Check if user has access to current page
     if (!navigation[currentPage]) {
       // Redirect to first available page using same order as Layout.jsx
-      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'user-management']
+      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'database-explorer', 'user-management']
       const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0]
       if (firstAvailablePage && firstAvailablePage !== currentPage) {
         setCurrentPage(firstAvailablePage)
@@ -173,6 +174,8 @@ function App() {
         return <TableDiscovery user={user} organization={organization} />
       case 'minitrac':
         return <MinitracSearch user={user} organization={organization} />
+      case 'database-explorer':
+        return <DatabaseExplorer user={user} organization={organization} />
       case 'user-management':
         return <UserManagement user={user} />
       case 'settings':
