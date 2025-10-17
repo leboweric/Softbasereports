@@ -402,19 +402,18 @@ def debug_tables():
 @jwt_required()
 def debug_woquote():
     """
-    Debug: Show WOQuote data with common column names
+    Debug: Show WOQuote data (ExtendedPrice removed)
     """
     try:
         db = AzureSQLService()
         
-        # Try common column names that might exist
+        # Remove ExtendedPrice, try others
         query = """
         SELECT 
             WONo,
             Type,
             Description,
             CAST(Amount AS FLOAT) as Amount,
-            CAST(ExtendedPrice AS FLOAT) as ExtendedPrice,
             CAST(Total AS FLOAT) as Total,
             CAST(Price AS FLOAT) as Price,
             CAST(Rate AS FLOAT) as Rate
@@ -431,10 +430,9 @@ def debug_woquote():
                 'Type': row[1],
                 'Description': row[2],
                 'Amount': row[3],
-                'ExtendedPrice': row[4],
-                'Total': row[5],
-                'Price': row[6],
-                'Rate': row[7]
+                'Total': row[4],
+                'Price': row[5],
+                'Rate': row[6]
             })
         
         return jsonify({
@@ -444,8 +442,7 @@ def debug_woquote():
         })
         
     except Exception as e:
-        # If a column doesn't exist, the error will tell us which one
         return jsonify({
             'error': str(e),
-            'hint': 'Error shows which column name is wrong'
+            'hint': 'Shows which column is invalid'
         }), 500
