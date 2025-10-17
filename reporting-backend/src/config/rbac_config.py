@@ -25,6 +25,7 @@ RESOURCES = {
     'accounting_control': 'Control number reports',
     'accounting_inventory': 'Year-end inventory report',
     'minitrac': 'Minitrac equipment database',
+    'database_explorer': 'Database query and exploration tool',
     'user_management': 'User and role management',
 }
 
@@ -188,6 +189,13 @@ NAVIGATION_CONFIG = {
         'path': 'minitrac',
         'required_resource': 'minitrac',
         'order': 6,
+    },
+    'database-explorer': {
+        'label': 'Database Explorer',
+        'icon': 'Database',
+        'path': 'database-explorer',
+        'required_resource': 'database_explorer',
+        'order': 7,
     },
     'user-management': {
         'label': 'User Management',

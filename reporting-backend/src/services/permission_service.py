@@ -60,7 +60,7 @@ class PermissionService:
             if user and user.role == 'admin':
                 # Return all navigation items for legacy admin users
                 return {nav_id: nav_config for nav_id, nav_config in NAVIGATION_CONFIG.items() 
-                       if nav_id not in {'ai-query', 'database-explorer'}}
+                       if nav_id not in {'ai-query'}}
             else:
                 return {}
         
@@ -68,7 +68,7 @@ class PermissionService:
         accessible_nav = {}
         
         # Explicitly exclude removed navigation items
-        excluded_nav_items = {'ai-query', 'database-explorer'}
+        excluded_nav_items = {'ai-query'}
         
         for nav_id, nav_config in NAVIGATION_CONFIG.items():
             # Skip excluded items
