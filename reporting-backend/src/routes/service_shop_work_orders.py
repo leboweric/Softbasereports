@@ -402,45 +402,33 @@ def debug_tables():
 @jwt_required()
 def debug_woquote():
     """
-    Debug: See actual WOQuote records and column structure
+    Debug: Simple WOQuote query
     """
     try:
         db = AzureSQLService()
         
-        # Get WOQuote records for our known work order
+        # Try basic SELECT * first
         query = """
-        SELECT TOP 10 *
+        SELECT *
         FROM [ben002].WOQuote
         WHERE WONo = '140000582'
         """
         
         results = db.execute_query(query)
         
-        # Get column names
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute(query)
-        columns = [desc[0] for desc in cursor.description]
-        
-        # Build result list
-        quotes = []
-        for row in results:
-            quote_dict = {}
-            for i, col in enumerate(columns):
-                val = row[i]
-                if val is not None:
-                    quote_dict[col] = str(val)
-                else:
-                    quote_dict[col] = None
-            quotes.append(quote_dict)
-        
         return jsonify({
+            'success': True,
             'wo_number': '140000582',
-            'columns': columns,
-            'quote_records': quotes,
-            'record_count': len(quotes)
+            'record_count': len(results) if results else 0,
+            'message': 'Query succeeded. Check Railway logs for actual data.'
         })
         
     except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        error_msg = str(e)
+        logger.error(f"WOQuote query error: {error_msg}")
+        
+        # If table doesn't exist
+        if 'Invalid object name' in error_msg:
+            return jsonify({'error': 'WOQuote table does not exist'}), 404
+        
+        return jsonify({'error': error_msg}), 500
