@@ -297,6 +297,36 @@ WHERE Type = 'SH'                -- Shop work orders only (not 'S', 'PM')
 
 ---
 
+#### WOQuote (CRITICAL DISCOVERY - 2025-10-18)
+**Purpose**: Stores quoted/estimated amounts for work orders  
+**Critical**: This is where quoted labor amounts are stored, NOT in WOMisc!
+
+| Column | Type | Notes |
+|--------|------|-------|
+| WONo | nvarchar | Work order number |
+| Type | char | Quote type (L=Labor, P=Parts, M=Misc) |
+| Description | nvarchar | Quote item description |
+| Amount | decimal | Quoted amount (use this for calculations) |
+| Branch | int | Branch code |
+| Dept | int | Department code |
+| SaleCode | nvarchar | Sale code |
+
+**Important Discovery (2025-10-18)**:
+- Quoted labor for shop work orders is stored here with Type = 'L'
+- The Amount column contains the quoted dollar amount
+- DO NOT look for quoted labor in WOMisc - it's not there!
+- Standard shop labor rate: $189/hour
+
+**Example Query for Shop Work Order Quotes**:
+```sql
+SELECT WONo, SUM(Amount) as QuotedAmount
+FROM [ben002].WOQuote
+WHERE Type = 'L'  -- L = Labor quotes only
+GROUP BY WONo
+```
+
+---
+
 #### WORental
 **Purpose**: Links work orders to rental equipment
 
@@ -601,6 +631,55 @@ LEFT JOIN WOMisc m ON w.WONo = m.WONo
 GROUP BY w.WONo
 ```
 
+### Shop Work Order Cost Overrun Detection (NEW - 2025-10-18)
+```sql
+-- Monitor actual vs quoted labor hours for shop work orders
+SELECT 
+    w.WONo,
+    w.BillTo as CustomerNo,
+    c.Name as CustomerName,
+    
+    -- Quoted labor from WOQuote table (NOT WOMisc!)
+    COALESCE(quoted.QuotedAmount, 0) as QuotedAmount,
+    CASE 
+        WHEN quoted.QuotedAmount > 0 THEN quoted.QuotedAmount / 189.0
+        ELSE 0
+    END as QuotedHours,
+    
+    -- Actual labor hours from WOLabor
+    COALESCE(SUM(l.Hours), 0) as ActualHours,
+    
+    -- Cost overrun percentage
+    CASE 
+        WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 0
+        ELSE (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100
+    END as PercentUsed
+
+FROM [ben002].WO w
+LEFT JOIN [ben002].Customer c ON w.BillTo = c.Number
+LEFT JOIN (
+    SELECT WONo, SUM(Amount) as QuotedAmount
+    FROM [ben002].WOQuote
+    WHERE Type = 'L'  -- L = Labor quotes
+    GROUP BY WONo
+) quoted ON w.WONo = quoted.WONo
+LEFT JOIN [ben002].WOLabor l ON w.WONo = l.WONo
+
+WHERE w.Type = 'SH'  -- Shop work orders only
+  AND w.ClosedDate IS NULL
+  AND w.WONo NOT LIKE '9%'  -- Exclude quotes
+
+GROUP BY w.WONo, w.BillTo, c.Name, quoted.QuotedAmount
+```
+
+**Key Insights**:
+- Standard shop labor rate: $189/hour
+- Quoted amounts stored in WOQuote.Amount column, NOT WOMisc.Sell
+- Alert levels: CRITICAL ≥100%, RED ≥90%, YELLOW ≥80%, GREEN <80%
+- Hours at Risk = Sum of (ActualHours - QuotedHours) for CRITICAL/RED work orders
+- Unbillable Labor Value = Hours at Risk × $189
+```
+
 ### Current Rentals
 ```sql
 -- Find equipment currently on rent
@@ -655,6 +734,9 @@ WITH InvoiceBalances AS (
 19. **🚨 WO.Location Column DOESN'T EXIST**: Despite documentation, Location column is not in WO table
 20. **🚨 Shop Work Order Detection**: Use Type = 'SH' for shop work orders (not Type IN ('S', 'SH', 'PM'))
 21. **🚨 Quote Contamination in WO Table**: WONo starting with '9' are quotes, not work orders - ALWAYS exclude
+22. **🚨 Quoted Labor Location**: Quoted labor amounts are in WOQuote table (Type='L'), NOT in WOMisc!
+23. **🚨 WOQuote Column Names**: Use 'Amount' column for quoted values, not 'Sell' or 'ExtendedPrice'
+24. **🚨 Standard Shop Labor Rate**: $189/hour used for converting quoted amounts to hours
 
 ### Work Order Query Rules (NEW - 2025-10-17)
 - **NEVER** assume Status or Location columns exist in WO table
@@ -730,6 +812,16 @@ WITH InvoiceBalances AS (
 - **Quote Contamination**: WONo starting with '9' are quotes masquerading as work orders
 - **Shop Work Orders**: Type = 'SH' specifically (not broader Type IN ('S', 'SH', 'PM'))
 - **Impact**: Without proper filtering, work order counts 2-3x higher than expected
+
+### WOQuote Table Discovery (NEW - 2025-10-18)  
+**Key Learning**: Quoted labor amounts are NOT stored where expected
+- **Initial Assumption**: Quoted labor would be in WOMisc table - WRONG!
+- **Discovery Process**: Created multiple debug endpoints to search for $3,938 quote
+- **Solution Found**: WOQuote table stores all quoted amounts with Type codes
+- **Type Codes**: L=Labor, P=Parts, M=Miscellaneous
+- **Column Name**: Use 'Amount' column, not 'Sell' or other common names
+- **Business Impact**: Enabled Cash Burn report with unbillable labor value calculations
+- **Hours at Risk**: Can now calculate exact hours over budget and dollar impact
 
 **Pattern Recognition**: Same quote exclusion logic needed across the system:
 - ✅ **Rental Work Orders**: Fixed with `WONo NOT LIKE '9%'`
