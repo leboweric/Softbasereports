@@ -497,7 +497,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="shop-work-orders">Cash Burn</TabsTrigger>
-          <TabsTrigger value="work-orders">Stalled Cash</TabsTrigger>
+          <TabsTrigger value="work-orders">Cash Stalled</TabsTrigger>
           <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
           <TabsTrigger value="invoice-billing">Grede Billing</TabsTrigger>
         </TabsList>
@@ -909,7 +909,7 @@ const ServiceReport = ({ user, onNavigate }) => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Stalled Cash Work Orders Details</CardTitle>
+                  <CardTitle>Cash Stalled Work Orders Details</CardTitle>
                   <CardDescription>Detailed list of all completed work orders with stalled cash flow</CardDescription>
                 </div>
                 {awaitingInvoiceDetails && (
