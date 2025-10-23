@@ -7079,6 +7079,80 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching service customers: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
     
+    @reports_bp.route('/departments/service/customers/debug', methods=['GET'])
+    @jwt_required()
+    def get_service_customers_debug():
+        """Debug endpoint to check customer filtering"""
+        try:
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            
+            if not start_date or not end_date:
+                return jsonify({'error': 'Start date and end date are required'}), 400
+            
+            db = get_db()
+            
+            # Test 1: All invoices in date range
+            query1 = """
+            SELECT COUNT(*) as total_invoices
+            FROM ben002.InvoiceReg i
+            WHERE i.InvoiceDate >= %s AND i.InvoiceDate <= %s
+              AND i.DeletionTime IS NULL
+            """
+            total_invoices = db.execute_query(query1, [start_date, end_date])
+            
+            # Test 2: Service-related invoices (original filter)
+            query2 = """
+            SELECT COUNT(*) as service_invoices
+            FROM ben002.InvoiceReg i
+            WHERE i.InvoiceDate >= %s AND i.InvoiceDate <= %s
+              AND i.DeletionTime IS NULL
+              AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
+                   OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
+                   OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
+              AND i.GrandTotal > 0
+            """
+            service_invoices = db.execute_query(query2, [start_date, end_date])
+            
+            # Test 3: Simple customer count
+            query3 = """
+            SELECT COUNT(DISTINCT c.Number) as customer_count
+            FROM ben002.Customer c
+            INNER JOIN ben002.InvoiceReg i ON c.Number = i.BillTo
+            WHERE i.InvoiceDate >= %s AND i.InvoiceDate <= %s
+              AND i.DeletionTime IS NULL
+              AND i.GrandTotal > 0
+            """
+            customer_count = db.execute_query(query3, [start_date, end_date])
+            
+            # Test 4: Grede specifically
+            query4 = """
+            SELECT 
+                c.Number as CustomerNo,
+                c.Name as CustomerName,
+                COUNT(DISTINCT i.InvoiceNo) as InvoiceCount
+            FROM ben002.Customer c
+            INNER JOIN ben002.InvoiceReg i ON c.Number = i.BillTo
+            WHERE i.InvoiceDate >= %s AND i.InvoiceDate <= %s
+              AND i.DeletionTime IS NULL
+              AND i.GrandTotal > 0
+              AND c.Number = '55760'  -- Grede's customer number
+            GROUP BY c.Number, c.Name
+            """
+            grede_data = db.execute_query(query4, [start_date, end_date])
+            
+            return jsonify({
+                'date_range': f"{start_date} to {end_date}",
+                'total_invoices': total_invoices[0]['total_invoices'] if total_invoices else 0,
+                'service_filtered_invoices': service_invoices[0]['service_invoices'] if service_invoices else 0,
+                'unique_customers': customer_count[0]['customer_count'] if customer_count else 0,
+                'grede_data': grede_data[0] if grede_data else None
+            })
+            
+        except Exception as e:
+            logger.error(f"Debug error: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+    
     @reports_bp.route('/departments/service/invoice-diagnostic', methods=['GET'])
     @jwt_required()
     def get_invoice_diagnostic():

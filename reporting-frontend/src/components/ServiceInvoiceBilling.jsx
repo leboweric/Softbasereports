@@ -466,15 +466,39 @@ const ServiceInvoiceBilling = () => {
             Debug: Customers loaded: {customers.length}, Loading: {customersLoading.toString()}, 
             Selected: {selectedCustomer}, Start: {startDate}, End: {endDate}
             {startDate && endDate && (
-              <Button 
-                onClick={fetchCustomers} 
-                size="sm" 
-                variant="outline" 
-                className="ml-2"
-                disabled={customersLoading}
-              >
-                Reload Customers
-              </Button>
+              <>
+                <Button 
+                  onClick={fetchCustomers} 
+                  size="sm" 
+                  variant="outline" 
+                  className="ml-2"
+                  disabled={customersLoading}
+                >
+                  Reload Customers
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    try {
+                      const token = localStorage.getItem('token')
+                      const url = apiUrl(`/api/reports/departments/service/customers/debug?start_date=${startDate}&end_date=${endDate}`)
+                      const response = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      })
+                      const data = await response.json()
+                      console.log('DEBUG API Response:', data)
+                      alert(JSON.stringify(data, null, 2))
+                    } catch (error) {
+                      console.error('Debug error:', error)
+                      alert('Debug failed: ' + error.message)
+                    }
+                  }} 
+                  size="sm" 
+                  variant="outline" 
+                  className="ml-2"
+                >
+                  Debug API
+                </Button>
+              </>
             )}
           </div>
 
