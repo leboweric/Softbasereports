@@ -1,8 +1,19 @@
+# Railway Nixpacks configuration for faster builds
 [phases.setup]
-nixPkgs = ["python311", "gcc", "freetds"]
+nixPkgs = ['python311', 'gcc', 'pkg-config']
 
 [phases.install]
-cmds = ["cd reporting-backend && pip install -r requirements.txt"]
+cmds = [
+    'cd reporting-backend',
+    'pip install --upgrade pip setuptools wheel',
+    'pip install --no-cache-dir -r requirements.txt'
+]
+
+[phases.build]
+cmds = ['echo "Build phase complete"']
 
 [start]
-cmd = "cd reporting-backend && gunicorn --bind 0.0.0.0:$PORT --workers 4 --timeout 120 src.main:app"
+cmd = 'cd reporting-backend && gunicorn -w 4 -b 0.0.0.0:$PORT app:app'
+
+[variables]
+NIXPACKS_PYTHON_VERSION = '3.11'
