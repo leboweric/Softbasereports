@@ -498,6 +498,39 @@ const ServiceInvoiceBilling = () => {
                 >
                   Debug API
                 </Button>
+                <Button 
+                  onClick={async () => {
+                    try {
+                      const token = localStorage.getItem('token')
+                      const url = apiUrl(`/api/reports/departments/service/customers?start_date=${startDate}&end_date=${endDate}`)
+                      console.log('Testing customer API URL:', url)
+                      const response = await fetch(url, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      })
+                      console.log('Response status:', response.status)
+                      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+                      
+                      if (response.ok) {
+                        const data = await response.json()
+                        console.log('Customer API Response:', data)
+                        console.log('Customer array length:', Array.isArray(data) ? data.length : 'Not an array')
+                        alert(`Found ${Array.isArray(data) ? data.length : 'invalid'} customers:\n\n${JSON.stringify(data?.slice(0, 3), null, 2)}...`)
+                      } else {
+                        const errorData = await response.text()
+                        console.error('Customer API Error:', response.status, errorData)
+                        alert(`Error ${response.status}: ${errorData}`)
+                      }
+                    } catch (error) {
+                      console.error('Customer test error:', error)
+                      alert('Customer test failed: ' + error.message)
+                    }
+                  }} 
+                  size="sm" 
+                  variant="outline" 
+                  className="ml-2"
+                >
+                  Test Customer API
+                </Button>
               </>
             )}
           </div>
