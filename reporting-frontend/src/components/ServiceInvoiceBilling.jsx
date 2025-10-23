@@ -119,6 +119,8 @@ const ServiceInvoiceBilling = () => {
       const token = localStorage.getItem('token')
       const url = apiUrl(`/api/reports/departments/service/customers?start_date=${startDate}&end_date=${endDate}`)
       
+      console.log('Fetching customers from:', url) // Debug log
+      
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -127,14 +129,43 @@ const ServiceInvoiceBilling = () => {
       
       if (response.ok) {
         const data = await response.json()
-        setCustomers(data || [])
+        console.log('Customers response:', data) // Debug log
+        
+        // Ensure data is an array
+        if (Array.isArray(data)) {
+          setCustomers(data)
+        } else {
+          console.error('Invalid customers response format:', data)
+          // Fallback: create "All Customers" option
+          setCustomers([{
+            value: 'ALL',
+            label: 'All Customers',
+            invoiceCount: 0,
+            totalRevenue: 0
+          }])
+        }
       } else {
-        console.error('Failed to fetch customers')
-        setCustomers([])
+        const errorData = await response.json()
+        console.error('Failed to fetch customers:', response.status, errorData)
+        setError(`Failed to load customers: ${errorData.error || response.statusText}`)
+        // Fallback: create "All Customers" option
+        setCustomers([{
+          value: 'ALL',
+          label: 'All Customers',
+          invoiceCount: 0,
+          totalRevenue: 0
+        }])
       }
     } catch (error) {
       console.error('Error fetching customers:', error)
-      setCustomers([])
+      setError(`Error loading customers: ${error.message}`)
+      // Fallback: create "All Customers" option
+      setCustomers([{
+        value: 'ALL',
+        label: 'All Customers',
+        invoiceCount: 0,
+        totalRevenue: 0
+      }])
     } finally {
       setCustomersLoading(false)
     }
@@ -395,20 +426,28 @@ const ServiceInvoiceBilling = () => {
               <Select 
                 value={selectedCustomer} 
                 onValueChange={setSelectedCustomer}
-                disabled={customersLoading || !customers.length}
+                disabled={customersLoading}
               >
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder={customersLoading ? "Loading..." : "Select customer"} />
+                  <SelectValue placeholder={
+                    customersLoading ? "Loading customers..." : 
+                    customers.length === 0 ? "No customers found" :
+                    "Select customer"
+                  } />
                 </SelectTrigger>
                 <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.value} value={customer.value}>
-                      {customer.label}
-                      {customer.value !== 'ALL' && customer.invoiceCount && (
-                        <span className="text-gray-500 ml-2">({customer.invoiceCount} invoices)</span>
-                      )}
-                    </SelectItem>
-                  ))}
+                  {customers.length === 0 && !customersLoading ? (
+                    <SelectItem value="ALL">All Customers</SelectItem>
+                  ) : (
+                    customers.map((customer) => (
+                      <SelectItem key={customer.value} value={customer.value}>
+                        {customer.label}
+                        {customer.value !== 'ALL' && customer.invoiceCount && (
+                          <span className="text-gray-500 ml-2">({customer.invoiceCount} invoices)</span>
+                        )}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -421,6 +460,23 @@ const ServiceInvoiceBilling = () => {
           {error && (
             <div className="text-red-600 text-sm">{error}</div>
           )}
+
+          {/* Debug info - remove in production */}
+          <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
+            Debug: Customers loaded: {customers.length}, Loading: {customersLoading.toString()}, 
+            Selected: {selectedCustomer}, Start: {startDate}, End: {endDate}
+            {startDate && endDate && (
+              <Button 
+                onClick={fetchCustomers} 
+                size="sm" 
+                variant="outline" 
+                className="ml-2"
+                disabled={customersLoading}
+              >
+                Reload Customers
+              </Button>
+            )}
+          </div>
 
           {loading && (
             <div className="flex justify-center py-8">
