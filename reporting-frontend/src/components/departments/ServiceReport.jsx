@@ -499,7 +499,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           <TabsTrigger value="shop-work-orders">Cash Burn</TabsTrigger>
           <TabsTrigger value="work-orders">Cash Stalled</TabsTrigger>
           <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
-          <TabsTrigger value="invoice-billing">Grede Billing</TabsTrigger>
+          <TabsTrigger value="invoice-billing">Customer Billing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
