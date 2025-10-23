@@ -127,6 +127,7 @@ const ServiceInvoiceBilling = () => {
       
       if (response.ok) {
         const data = await response.json()
+        console.log('Customer API success:', data?.length || 0, 'customers') // Basic debug log
         
         // Ensure data is an array
         if (Array.isArray(data)) {
@@ -423,10 +424,11 @@ const ServiceInvoiceBilling = () => {
               <Select 
                 value={selectedCustomer} 
                 onValueChange={setSelectedCustomer}
-                disabled={customersLoading}
+                disabled={customersLoading || !startDate || !endDate}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder={
+                    !startDate || !endDate ? "Select dates first" :
                     customersLoading ? "Loading customers..." : 
                     customers.length === 0 ? "No customers found" :
                     "Select customer"
