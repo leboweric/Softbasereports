@@ -119,8 +119,6 @@ const ServiceInvoiceBilling = () => {
       const token = localStorage.getItem('token')
       const url = apiUrl(`/api/reports/departments/service/customers?start_date=${startDate}&end_date=${endDate}`)
       
-      console.log('Fetching customers from:', url) // Debug log
-      
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -129,7 +127,6 @@ const ServiceInvoiceBilling = () => {
       
       if (response.ok) {
         const data = await response.json()
-        console.log('Customers response:', data) // Debug log
         
         // Ensure data is an array
         if (Array.isArray(data)) {
@@ -460,80 +457,6 @@ const ServiceInvoiceBilling = () => {
           {error && (
             <div className="text-red-600 text-sm">{error}</div>
           )}
-
-          {/* Debug info - remove in production */}
-          <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-            Debug: Customers loaded: {customers.length}, Loading: {customersLoading.toString()}, 
-            Selected: {selectedCustomer}, Start: {startDate}, End: {endDate}
-            {startDate && endDate && (
-              <>
-                <Button 
-                  onClick={fetchCustomers} 
-                  size="sm" 
-                  variant="outline" 
-                  className="ml-2"
-                  disabled={customersLoading}
-                >
-                  Reload Customers
-                </Button>
-                <Button 
-                  onClick={async () => {
-                    try {
-                      const token = localStorage.getItem('token')
-                      const url = apiUrl(`/api/reports/departments/service/customers/debug?start_date=${startDate}&end_date=${endDate}`)
-                      const response = await fetch(url, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                      })
-                      const data = await response.json()
-                      console.log('DEBUG API Response:', data)
-                      alert(JSON.stringify(data, null, 2))
-                    } catch (error) {
-                      console.error('Debug error:', error)
-                      alert('Debug failed: ' + error.message)
-                    }
-                  }} 
-                  size="sm" 
-                  variant="outline" 
-                  className="ml-2"
-                >
-                  Debug API
-                </Button>
-                <Button 
-                  onClick={async () => {
-                    try {
-                      const token = localStorage.getItem('token')
-                      const url = apiUrl(`/api/reports/departments/service/customers?start_date=${startDate}&end_date=${endDate}`)
-                      console.log('Testing customer API URL:', url)
-                      const response = await fetch(url, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                      })
-                      console.log('Response status:', response.status)
-                      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
-                      
-                      if (response.ok) {
-                        const data = await response.json()
-                        console.log('Customer API Response:', data)
-                        console.log('Customer array length:', Array.isArray(data) ? data.length : 'Not an array')
-                        alert(`Found ${Array.isArray(data) ? data.length : 'invalid'} customers:\n\n${JSON.stringify(data?.slice(0, 3), null, 2)}...`)
-                      } else {
-                        const errorData = await response.text()
-                        console.error('Customer API Error:', response.status, errorData)
-                        alert(`Error ${response.status}: ${errorData}`)
-                      }
-                    } catch (error) {
-                      console.error('Customer test error:', error)
-                      alert('Customer test failed: ' + error.message)
-                    }
-                  }} 
-                  size="sm" 
-                  variant="outline" 
-                  className="ml-2"
-                >
-                  Test Customer API
-                </Button>
-              </>
-            )}
-          </div>
 
           {loading && (
             <div className="flex justify-center py-8">
