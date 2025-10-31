@@ -55,6 +55,28 @@ import {
 import { apiUrl } from '@/lib/api'
 import WorkOrderTypes from './WorkOrderTypes'
 
+// Utility function to calculate linear regression trendline
+const calculateLinearTrend = (data, xKey, yKey) => {
+  if (!data || data.length < 2) return []
+  
+  const validData = data.filter(item => item[yKey] !== null && item[yKey] !== undefined)
+  if (validData.length < 2) return []
+  
+  const n = validData.length
+  const sumX = validData.reduce((sum, _, index) => sum + index, 0)
+  const sumY = validData.reduce((sum, item) => sum + item[yKey], 0)
+  const sumXY = validData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
+  const sumXX = validData.reduce((sum, _, index) => sum + (index * index), 0)
+  
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  const intercept = (sumY - slope * sumX) / n
+  
+  return validData.map((item, index) => ({
+    ...item,
+    trendValue: slope * index + intercept
+  }))
+}
+
 const Dashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -947,7 +969,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={dashboardData?.monthly_sales || []} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_sales || [], 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -979,6 +1001,7 @@ const Dashboard = ({ user }) => {
                 <Legend />
                 <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} />
                 <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#10b981" strokeWidth={2} dot={{ fill: '#10b981' }} name="Gross Margin %" />
+                <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                 {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales.slice(0, -1)
@@ -1029,7 +1052,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={dashboardData?.monthly_sales_no_equipment || []} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_sales_no_equipment || [], 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1142,6 +1165,7 @@ const Dashboard = ({ user }) => {
                 <Legend />
                 <Bar yAxisId="left" dataKey="amount" fill="#10b981" name="Revenue" shape={<CustomBarNoEquipment />} />
                 <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b' }} name="Gross Margin %" />
+                <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                 {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
@@ -1187,7 +1211,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={dashboardData?.monthly_quotes || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={calculateLinearTrend(dashboardData?.monthly_quotes || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1211,6 +1235,7 @@ const Dashboard = ({ user }) => {
                   return null
                 }} />
                 <Bar dataKey="amount" fill="#f59e0b" shape={<CustomBarQuotes />} />
+                <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Quotes Trend" dot={false} />
                 {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
@@ -1268,7 +1293,7 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={dashboardData?.monthly_equipment_sales || []} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                  <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_equipment_sales || [], 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1321,6 +1346,7 @@ const Dashboard = ({ user }) => {
                     <Legend />
                     <Bar yAxisId="left" dataKey="amount" fill="#06b6d4" name="Revenue" />
                     <Line yAxisId="right" type="monotone" dataKey="margin" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b' }} name="Gross Margin %" />
+                    <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                     {dashboardData?.monthly_equipment_sales && dashboardData.monthly_equipment_sales.length > 0 && (() => {
                       const completeMonths = dashboardData.monthly_equipment_sales.slice(0, -1)
                       const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
@@ -1520,7 +1546,7 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <LineChart data={dashboardData?.monthly_active_customers?.slice(0, -1) || []} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <LineChart data={calculateLinearTrend(dashboardData?.monthly_active_customers?.slice(0, -1) || [], 'month', 'customers')} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
@@ -1543,6 +1569,15 @@ const Dashboard = ({ user }) => {
                       stroke="#3b82f6" 
                       strokeWidth={2}
                       name="Active Customers"
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="trendValue" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="Customer Trend"
+                      dot={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
