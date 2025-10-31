@@ -711,15 +711,19 @@ const ServiceReport = ({ user, onNavigate }) => {
                 const avgMargin = historicalMonths.length > 0 ? 
                   historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
                 
-                // Add average values and calculate trendline
+                // Add average values to each data point for reference line rendering
                 const dataWithAverage = data.map(item => ({
                   ...item,
                   avgRevenue: avgRevenue,
                   avgMargin: avgMargin
                 }))
                 
-                // Add trendline for revenue
-                return calculateLinearTrend(dataWithAverage, 'month', 'amount')
+                // Calculate trendline on complete dataset, then merge with average data
+                const trendData = calculateLinearTrend(data, 'month', 'amount')
+                return dataWithAverage.map((item, index) => ({
+                  ...item,
+                  trendValue: trendData[index]?.trendValue
+                }))
               }
               
               return data
