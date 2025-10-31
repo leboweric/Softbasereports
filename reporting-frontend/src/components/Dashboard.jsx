@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -98,6 +98,8 @@ const Dashboard = ({ user }) => {
   const [invoiceDelayLoading, setInvoiceDelayLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('sales')
 
+  const isMountedRef = useRef(true)
+
   // Sort monthly sales data chronologically for accurate trendline calculations
   const sortedMonthlySales = React.useMemo(() => {
     if (!dashboardData?.monthly_sales) {
@@ -167,10 +169,16 @@ const Dashboard = ({ user }) => {
     
     // Set up auto-refresh every 5 minutes for real-time updates
     const interval = setInterval(() => {
-      fetchForecastData() // Update forecast more frequently for real-time adjustments
+      // Only fetch if component is still mounted
+      if (isMountedRef.current) {
+        fetchForecastData()
+      }
     }, 5 * 60 * 1000) // 5 minutes
     
-    return () => clearInterval(interval)
+    return () => {
+      isMountedRef.current = false
+      clearInterval(interval)
+    }
   }, [])
 
   useEffect(() => {
@@ -276,8 +284,12 @@ const Dashboard = ({ user }) => {
       if (response.ok) {
         const data = await response.json()
         console.log('Forecast data fetched:', data)
-        setForecastData(data)
-        setForecastLastUpdated(new Date())
+        
+        // Only update state if component is still mounted
+        if (isMountedRef.current) {
+          setForecastData(data)
+          setForecastLastUpdated(new Date())
+        }
       }
     } catch (error) {
       console.error('Error fetching forecast data:', error)
