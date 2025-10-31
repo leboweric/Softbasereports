@@ -1211,7 +1211,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={calculateLinearTrend(dashboardData?.monthly_quotes || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_quotes || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1249,7 +1249,7 @@ const Dashboard = ({ user }) => {
                     />
                   )
                 })()}
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
             </Card>
