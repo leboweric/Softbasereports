@@ -743,10 +743,55 @@ const Dashboard = ({ user }) => {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {formatCurrency(dashboardData?.total_sales || 0)}
+                  {paceData?.adaptive_comparisons?.performance_indicators?.is_best_month_ever && (
+                    <span className="ml-2 text-lg">⭐</span>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {dashboardData?.period || 'Current Period'}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    {dashboardData?.period || 'Current Period'}
+                  </p>
+                  {paceData && (
+                    <div className="space-y-1">
+                      {/* Primary pace (previous month) */}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">vs Previous Month:</span>
+                        <span className={`font-medium ${paceData.pace.percentage > 0 ? 'text-green-600' : paceData.pace.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                          {paceData.pace.percentage > 0 ? '+' : ''}{paceData.pace.percentage}%
+                        </span>
+                      </div>
+                      
+                      {/* Available average comparison */}
+                      {paceData.adaptive_comparisons?.vs_available_average?.percentage !== null && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">
+                            vs {paceData.adaptive_comparisons.available_months_count}-Month Avg:
+                          </span>
+                          <span className={`font-medium ${paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_available_average.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                            {paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_available_average.percentage}%
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Same month last year */}
+                      {paceData.adaptive_comparisons?.vs_same_month_last_year?.percentage !== null && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">vs Same Month Last Year:</span>
+                          <span className={`font-medium ${paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                            {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_same_month_last_year.percentage}%
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Best month indicator */}
+                      {paceData.adaptive_comparisons?.performance_indicators?.is_best_month_ever && (
+                        <div className="text-xs font-medium text-green-600">
+                          🎉 Best Month Ever!
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -766,6 +811,108 @@ const Dashboard = ({ user }) => {
             </Card>
           </div>
 
+          {/* Enhanced Pace Analysis Card */}
+          {paceData?.adaptive_comparisons && (
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Sales Pace Analysis
+                  {paceData.adaptive_comparisons.performance_indicators?.is_best_month_ever && (
+                    <Badge variant="success" className="ml-2">Best Month Ever! 🏆</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Multiple comparison perspectives ({paceData.adaptive_comparisons.available_months_count} months of data available)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {/* Previous Month Comparison */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm text-muted-foreground">vs Previous Month</h4>
+                    <div className="flex items-center gap-2">
+                      <div className={`text-2xl font-bold ${paceData.pace.percentage > 0 ? 'text-green-600' : paceData.pace.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                        {paceData.pace.percentage > 0 ? '+' : ''}{paceData.pace.percentage}%
+                      </div>
+                      {paceData.pace.percentage > 0 ? (
+                        <TrendingUp className="h-4 w-4 text-green-600" />
+                      ) : paceData.pace.percentage < 0 ? (
+                        <TrendingDown className="h-4 w-4 text-red-600" />
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {paceData.pace.comparison_base === 'full_previous_month' ? 'vs Full Previous Month' : 'vs Same Day Previous Month'}
+                    </p>
+                  </div>
+
+                  {/* Available Average Comparison */}
+                  {paceData.adaptive_comparisons.vs_available_average?.percentage !== null && (
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm text-muted-foreground">vs Average Performance</h4>
+                      <div className="flex items-center gap-2">
+                        <div className={`text-2xl font-bold ${paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_available_average.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                          {paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_available_average.percentage}%
+                        </div>
+                        {paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? (
+                          <TrendingUp className="h-4 w-4 text-green-600" />
+                        ) : paceData.adaptive_comparisons.vs_available_average.percentage < 0 ? (
+                          <TrendingDown className="h-4 w-4 text-red-600" />
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Avg: {formatCurrency(paceData.adaptive_comparisons.vs_available_average.average_monthly_sales)}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Same Month Last Year or Performance Indicators */}
+                  <div className="space-y-2">
+                    {paceData.adaptive_comparisons.vs_same_month_last_year?.percentage !== null ? (
+                      <>
+                        <h4 className="font-medium text-sm text-muted-foreground">vs Same Month Last Year</h4>
+                        <div className="flex items-center gap-2">
+                          <div className={`text-2xl font-bold ${paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                            {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_same_month_last_year.percentage}%
+                          </div>
+                          {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? (
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                          ) : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? (
+                            <TrendingDown className="h-4 w-4 text-red-600" />
+                          ) : null}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Last Year: {formatCurrency(paceData.adaptive_comparisons.vs_same_month_last_year.last_year_sales)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <h4 className="font-medium text-sm text-muted-foreground">Performance Range</h4>
+                        <div className="space-y-1">
+                          {paceData.adaptive_comparisons.performance_indicators?.vs_best_percentage !== null && (
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">vs Best:</span>
+                              <span className={`ml-2 font-medium ${paceData.adaptive_comparisons.performance_indicators.vs_best_percentage > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                {paceData.adaptive_comparisons.performance_indicators.vs_best_percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.performance_indicators.vs_best_percentage}%
+                              </span>
+                            </div>
+                          )}
+                          {paceData.adaptive_comparisons.performance_indicators?.vs_worst_percentage !== null && (
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">vs Worst:</span>
+                              <span className="ml-2 font-medium text-green-600">
+                                +{paceData.adaptive_comparisons.performance_indicators.vs_worst_percentage}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Charts - First Row */}
           <div className="grid gap-4 md:grid-cols-2">
