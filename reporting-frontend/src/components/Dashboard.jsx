@@ -256,27 +256,11 @@ const Dashboard = ({ user }) => {
         setPaceData(data)
       } else {
         console.error('Pace endpoint returned error:', response.status)
-        // Set mock data for testing
-        setPaceData({
-          pace: {
-            percentage: 5.2,
-            percentage_no_equipment: 3.8,
-            ahead_behind: 'ahead',
-            ahead_behind_no_equipment: 'ahead'
-          }
-        })
+        setPaceData(null) // Let the UI handle the null state gracefully
       }
     } catch (error) {
       console.error('Error fetching pace data:', error)
-      // Set mock data for testing
-      setPaceData({
-        pace: {
-          percentage: 5.2,
-          percentage_no_equipment: 3.8,
-          ahead_behind: 'ahead',
-          ahead_behind_no_equipment: 'ahead'
-        }
-      })
+      setPaceData(null) // Let the UI handle the null state gracefully
     }
   }
 
