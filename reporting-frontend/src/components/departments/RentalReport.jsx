@@ -234,7 +234,8 @@ const RentalReport = ({ user }) => {
       paceData && paceData.pace_percentage !== undefined
     
     // Use adaptive comparison for more meaningful pace display
-    const displayPercentage = paceData?.adaptive_comparisons?.vs_available_average?.percentage ?? paceData?.pace_percentage
+    const rawPercentage = paceData?.adaptive_comparisons?.vs_available_average?.percentage ?? paceData?.pace_percentage
+    const displayPercentage = rawPercentage !== undefined ? Math.round(rawPercentage * 10) / 10 : undefined
     const showBestMonthIndicator = paceData?.adaptive_comparisons?.performance_indicators?.is_best_month_ever
     
     return (
