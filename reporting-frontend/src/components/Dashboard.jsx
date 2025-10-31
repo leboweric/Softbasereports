@@ -186,7 +186,7 @@ const Dashboard = ({ user }) => {
     if (activeTab === 'workorders' && !invoiceDelayData) {
       fetchInvoiceDelayAnalysis()
     }
-  }, [activeTab])
+  }, [activeTab, invoiceDelayData])
 
   const fetchDashboardData = async (forceRefresh = false) => {
     const startTime = Date.now()
