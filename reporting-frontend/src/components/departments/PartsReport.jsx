@@ -406,36 +406,20 @@ const PartsReport = ({ user, onNavigate }) => {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const isCurrentMonth = payload && 
       payload.month === monthNames[currentMonth - 1] && 
-      paceData && paceData.pace_percentage !== undefined
-    
-    // Use adaptive comparison for more meaningful pace display
-    const rawPercentage = paceData?.adaptive_comparisons?.vs_available_average?.percentage ?? paceData?.pace_percentage
-    const displayPercentage = rawPercentage !== undefined ? Math.round(rawPercentage * 10) / 10 : undefined
-    const showBestMonthIndicator = paceData?.adaptive_comparisons?.performance_indicators?.is_best_month_ever
+      paceData
     
     return (
       <g>
         <rect x={x} y={y} width={width} height={height} fill={fill} />
-        {isCurrentMonth && displayPercentage !== undefined && (
+        {isCurrentMonth && paceData && (
           <g>
-            {/* Best month star indicator */}
-            {showBestMonthIndicator && (
-              <text 
-                x={x + width / 2} 
-                y={y - 35} 
-                textAnchor="middle" 
-                fontSize="16"
-              >
-                ⭐
-              </text>
-            )}
             {/* Pace indicator */}
             <rect 
               x={x} 
               y={y - 20} 
               width={width} 
               height={18} 
-              fill={displayPercentage > 0 ? '#10b981' : displayPercentage < 0 ? '#ef4444' : '#6b7280'}
+              fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
               rx={4}
             />
             <text 
@@ -446,18 +430,18 @@ const PartsReport = ({ user, onNavigate }) => {
               fontSize="11" 
               fontWeight="bold"
             >
-              {displayPercentage > 0 ? '+' : ''}{displayPercentage}%
+              {paceData.pace_percentage > 0 ? '+' : ''}{paceData.pace_percentage}%
             </text>
             {/* Arrow icon */}
-            {displayPercentage !== 0 && (
+            {paceData.pace_percentage !== 0 && (
               <text 
                 x={x + width / 2} 
                 y={y - 25} 
                 textAnchor="middle" 
-                fill={displayPercentage > 0 ? '#10b981' : displayPercentage < 0 ? '#ef4444' : '#6b7280'}
+                fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
                 fontSize="16"
               >
-                {displayPercentage > 0 ? '↑' : displayPercentage < 0 ? '↓' : '→'}
+                {paceData.pace_percentage > 0 ? '↑' : '↓'}
               </text>
             )}
           </g>
