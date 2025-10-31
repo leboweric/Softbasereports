@@ -185,31 +185,38 @@ const Dashboard = ({ user }) => {
     setLoading(true)
     try {
       const token = localStorage.getItem('token')
-      // Try optimized endpoint first, fall back to regular if it fails
-      const url = forceRefresh 
+      
+      // Try optimized endpoint first
+      const optimizedUrl = forceRefresh 
         ? apiUrl('/api/reports/dashboard/summary-optimized?refresh=true')
         : apiUrl('/api/reports/dashboard/summary-optimized')
       
-      const response = await fetch(url, {
+      let response = await fetch(optimizedUrl, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
-      }).catch(() => {
-        // If optimized endpoint fails, fall back to regular endpoint
-        return fetch(apiUrl('/api/reports/dashboard/summary'), {
+      })
+      
+      // Only fall back if we get a 404 (endpoint doesn't exist)
+      // Don't fall back for network errors or other HTTP errors
+      if (!response.ok && response.status === 404) {
+        console.log('Optimized endpoint not found (404), falling back to regular endpoint')
+        response = await fetch(apiUrl('/api/reports/dashboard/summary'), {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         })
-      })
+      }
 
       if (response.ok) {
         const data = await response.json()
         setDashboardData(data)
+        
         // Calculate load time
         const totalTime = (Date.now() - startTime) / 1000
         setLoadTime(data.query_time || totalTime)
         setFromCache(data.from_cache || false)
+        
         // Log query time if available
         if (data.query_time) {
           const cacheStatus = data.from_cache ? 'from cache' : 'fresh data'
@@ -222,9 +229,13 @@ const Dashboard = ({ user }) => {
         fetchForecastData()
         // Fetch customer risk data
         fetchCustomerRiskData()
+      } else {
+        console.error('Dashboard API failed:', response.status, response.statusText)
+        // Optionally set an error state here for user feedback
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
+      // This catches network errors, JSON parsing errors, etc.
     } finally {
       setLoading(false)
     }
