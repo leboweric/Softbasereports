@@ -1385,6 +1385,9 @@ def get_dashboard_summary_optimized():
     # Check for cache refresh parameter
     force_refresh = request.args.get('refresh', '').lower() == 'true'
     
+    # Log cache status
+    logger.info(f"Dashboard request - force_refresh: {force_refresh}, cache_enabled: {cache_service.enabled}")
+    
     try:
         db = AzureSQLService()
         queries = DashboardQueries(db)
@@ -1515,7 +1518,7 @@ def get_dashboard_summary_optimized():
             'from_cache': not force_refresh and cache_service.enabled
         }
         
-        logger.info(f"Optimized dashboard loaded in {response_data['query_time']} seconds (cache: {response_data['from_cache']})")
+        logger.info(f"✅ Dashboard loaded in {response_data['query_time']} seconds (from_cache: {response_data['from_cache']})")
         return jsonify(response_data)
         
     except Exception as e:
