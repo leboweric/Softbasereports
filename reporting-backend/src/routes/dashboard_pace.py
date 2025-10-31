@@ -65,10 +65,6 @@ def get_sales_pace():
             previous_sales = float(prev_results[0]['total_sales'] or 0)
             previous_no_equip = float(prev_results[0]['sales_no_equipment'] or 0)
         
-        # Calculate pace percentages
-        pace_pct = ((current_sales / previous_sales) - 1) * 100 if previous_sales > 0 else 0
-        pace_pct_no_equip = ((current_no_equip / previous_no_equip) - 1) * 100 if previous_no_equip > 0 else 0
-        
         # Get full month totals for context
         full_month_query = f"""
         SELECT 
@@ -82,6 +78,22 @@ def get_sales_pace():
         full_month_results = db.execute_query(full_month_query)
         previous_full_month = float(full_month_results[0]['total_sales'] or 0) if full_month_results else 0
         previous_full_month_no_equip = float(full_month_results[0]['sales_no_equipment'] or 0) if full_month_results else 0
+        
+        # Calculate pace percentages with improved logic for record months
+        # If current month-to-date exceeds previous full month, use full month as comparison base
+        if current_sales > previous_full_month and previous_full_month > 0:
+            pace_pct = ((current_sales / previous_full_month) - 1) * 100
+            comparison_base = "full_previous_month"
+        else:
+            pace_pct = ((current_sales / previous_sales) - 1) * 100 if previous_sales > 0 else 0
+            comparison_base = "same_day_previous_month"
+            
+        if current_no_equip > previous_full_month_no_equip and previous_full_month_no_equip > 0:
+            pace_pct_no_equip = ((current_no_equip / previous_full_month_no_equip) - 1) * 100
+            comparison_base_no_equip = "full_previous_month"
+        else:
+            pace_pct_no_equip = ((current_no_equip / previous_no_equip) - 1) * 100 if previous_no_equip > 0 else 0
+            comparison_base_no_equip = "same_day_previous_month"
         
         # Project current month based on pace
         days_in_month = 31  # Approximate, could be calculated exactly
@@ -176,7 +188,11 @@ def get_sales_pace():
                 'percentage': round(pace_pct, 1),
                 'percentage_no_equipment': round(pace_pct_no_equip, 1),
                 'ahead_behind': 'ahead' if pace_pct > 0 else 'behind' if pace_pct < 0 else 'on pace',
-                'ahead_behind_no_equipment': 'ahead' if pace_pct_no_equip > 0 else 'behind' if pace_pct_no_equip < 0 else 'on pace'
+                'ahead_behind_no_equipment': 'ahead' if pace_pct_no_equip > 0 else 'behind' if pace_pct_no_equip < 0 else 'on pace',
+                'comparison_base': comparison_base,
+                'comparison_base_no_equipment': comparison_base_no_equip,
+                'exceeded_previous_month': current_sales > previous_full_month,
+                'exceeded_previous_month_no_equipment': current_no_equip > previous_full_month_no_equip
             },
             'quotes': {
                 'current_month_to_date': current_quotes,

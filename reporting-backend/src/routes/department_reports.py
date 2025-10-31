@@ -59,21 +59,41 @@ def register_department_routes(reports_bp):
                 AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
             """
             
+            # Get full previous month total for comparison
+            full_month_query = f"""
+            SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {prev_year}
+                AND MONTH(InvoiceDate) = {prev_month}
+                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
+            """
+            
             current_result = db.execute_query(current_query)
             prev_result = db.execute_query(prev_query)
+            full_month_result = db.execute_query(full_month_query)
             
             current_revenue = float(current_result[0]['total_revenue'] or 0) if current_result else 0
             previous_revenue = float(prev_result[0]['total_revenue'] or 0) if prev_result else 0
+            previous_full_month = float(full_month_result[0]['total_revenue'] or 0) if full_month_result else 0
             
-            # Calculate pace percentage
-            pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
+            # Calculate pace percentage with improved logic for record months
+            # If current month-to-date exceeds previous full month, use full month as comparison base
+            if current_revenue > previous_full_month and previous_full_month > 0:
+                pace_percentage = round(((current_revenue / previous_full_month) - 1) * 100, 1)
+                comparison_base = "full_previous_month"
+            else:
+                pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
+                comparison_base = "same_day_previous_month"
             
             return jsonify({
                 'pace_percentage': pace_percentage,
                 'current_revenue': current_revenue,
                 'previous_revenue': previous_revenue,
+                'previous_full_month': previous_full_month,
                 'current_month': current_month,
-                'current_day': current_day
+                'current_day': current_day,
+                'comparison_base': comparison_base,
+                'exceeded_previous_month': current_revenue > previous_full_month
             })
             
         except Exception as e:
@@ -610,21 +630,41 @@ def register_department_routes(reports_bp):
                 AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
             """
             
+            # Get full previous month total for comparison
+            full_month_query = f"""
+            SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {prev_year}
+                AND MONTH(InvoiceDate) = {prev_month}
+                AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
+            """
+            
             current_result = db.execute_query(current_query)
             prev_result = db.execute_query(prev_query)
+            full_month_result = db.execute_query(full_month_query)
             
             current_sales = float(current_result[0]['total_sales'] or 0) if current_result else 0
             previous_sales = float(prev_result[0]['total_sales'] or 0) if prev_result else 0
+            previous_full_month = float(full_month_result[0]['total_sales'] or 0) if full_month_result else 0
             
-            # Calculate pace percentage
-            pace_percentage = round(((current_sales / previous_sales) - 1) * 100, 1) if previous_sales > 0 else 0
+            # Calculate pace percentage with improved logic for record months
+            # If current month-to-date exceeds previous full month, use full month as comparison base
+            if current_sales > previous_full_month and previous_full_month > 0:
+                pace_percentage = round(((current_sales / previous_full_month) - 1) * 100, 1)
+                comparison_base = "full_previous_month"
+            else:
+                pace_percentage = round(((current_sales / previous_sales) - 1) * 100, 1) if previous_sales > 0 else 0
+                comparison_base = "same_day_previous_month"
             
             return jsonify({
                 'pace_percentage': pace_percentage,
                 'current_sales': current_sales,
                 'previous_sales': previous_sales,
+                'previous_full_month': previous_full_month,
                 'current_month': current_month,
-                'current_day': current_day
+                'current_day': current_day,
+                'comparison_base': comparison_base,
+                'exceeded_previous_month': current_sales > previous_full_month
             })
             
         except Exception as e:
@@ -2122,21 +2162,41 @@ def register_department_routes(reports_bp):
                 AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
             """
             
+            # Get full previous month total for comparison
+            full_month_query = f"""
+            SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {prev_year}
+                AND MONTH(InvoiceDate) = {prev_month}
+                AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
+            """
+            
             current_result = db.execute_query(current_query)
             prev_result = db.execute_query(prev_query)
+            full_month_result = db.execute_query(full_month_query)
             
             current_revenue = float(current_result[0]['total_revenue'] or 0) if current_result else 0
             previous_revenue = float(prev_result[0]['total_revenue'] or 0) if prev_result else 0
+            previous_full_month = float(full_month_result[0]['total_revenue'] or 0) if full_month_result else 0
             
-            # Calculate pace percentage
-            pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
+            # Calculate pace percentage with improved logic for record months
+            # If current month-to-date exceeds previous full month, use full month as comparison base
+            if current_revenue > previous_full_month and previous_full_month > 0:
+                pace_percentage = round(((current_revenue / previous_full_month) - 1) * 100, 1)
+                comparison_base = "full_previous_month"
+            else:
+                pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
+                comparison_base = "same_day_previous_month"
             
             return jsonify({
                 'pace_percentage': pace_percentage,
                 'current_revenue': current_revenue,
                 'previous_revenue': previous_revenue,
+                'previous_full_month': previous_full_month,
                 'current_month': current_month,
-                'current_day': current_day
+                'current_day': current_day,
+                'comparison_base': comparison_base,
+                'exceeded_previous_month': current_revenue > previous_full_month
             })
             
         except Exception as e:
