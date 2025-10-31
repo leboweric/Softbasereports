@@ -620,18 +620,33 @@ class DashboardQueries:
             previous_month_end = first_of_month - timedelta(days=1)
             previous_month_end_str = previous_month_end.strftime('%Y-%m-%d')
             
-            # Current open work orders query
+            # Current open work orders query - OPTIMIZED with CTEs
             query = """
+            WITH LaborTotals AS (
+                SELECT WONo, SUM(Sell) as labor_total 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ),
+            PartsTotals AS (
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ),
+            MiscTotals AS (
+                SELECT WONo, SUM(Sell) as misc_total 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            )
             SELECT 
                 CASE 
-                    WHEN Type = 'S' THEN 'Service'
-                    WHEN Type = 'R' THEN 'Rental'
-                    WHEN Type = 'P' THEN 'Parts'
-                    WHEN Type = 'PM' THEN 'Preventive Maintenance'
-                    WHEN Type = 'SH' THEN 'Shop'
-                    WHEN Type = 'E' THEN 'Equipment'
-                    WHEN Type IS NULL THEN 'Unspecified'
-                    ELSE Type
+                    WHEN w.Type = 'S' THEN 'Service'
+                    WHEN w.Type = 'R' THEN 'Rental'
+                    WHEN w.Type = 'P' THEN 'Parts'
+                    WHEN w.Type = 'PM' THEN 'Preventive Maintenance'
+                    WHEN w.Type = 'SH' THEN 'Shop'
+                    WHEN w.Type = 'E' THEN 'Equipment'
+                    WHEN w.Type IS NULL THEN 'Unspecified'
+                    ELSE w.Type
                 END as type_name,
                 COUNT(*) as count,
                 SUM(
@@ -640,50 +655,41 @@ class DashboardQueries:
                     COALESCE(m.misc_total, 0)
                 ) as total_value
             FROM ben002.WO w
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
-                GROUP BY WONo
-            ) l ON w.WONo = l.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
-                GROUP BY WONo
-            ) p ON w.WONo = p.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
-                GROUP BY WONo
-            ) m ON w.WONo = m.WONo
+            LEFT JOIN LaborTotals l ON w.WONo = l.WONo
+            LEFT JOIN PartsTotals p ON w.WONo = p.WONo
+            LEFT JOIN MiscTotals m ON w.WONo = m.WONo
             WHERE w.CompletedDate IS NULL
             AND w.ClosedDate IS NULL
-            GROUP BY Type
+            GROUP BY w.Type
             ORDER BY total_value DESC
             """
             
-            # Previous month open work orders value query
+            # Previous month open work orders value query - OPTIMIZED with CTEs
             previous_query = f"""
+            WITH LaborTotals AS (
+                SELECT WONo, SUM(Sell) as labor_total 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ),
+            PartsTotals AS (
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ),
+            MiscTotals AS (
+                SELECT WONo, SUM(Sell) as misc_total 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            )
             SELECT SUM(
                 COALESCE(l.labor_total, 0) + 
                 COALESCE(p.parts_total, 0) + 
                 COALESCE(m.misc_total, 0)
             ) as previous_total_value
             FROM ben002.WO w
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
-                GROUP BY WONo
-            ) l ON w.WONo = l.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
-                GROUP BY WONo
-            ) p ON w.WONo = p.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
-                GROUP BY WONo
-            ) m ON w.WONo = m.WONo
+            LEFT JOIN LaborTotals l ON w.WONo = l.WONo
+            LEFT JOIN PartsTotals p ON w.WONo = p.WONo
+            LEFT JOIN MiscTotals m ON w.WONo = m.WONo
             WHERE w.OpenDate <= '{previous_month_end_str}'
             AND (w.CompletedDate IS NULL OR w.CompletedDate > '{previous_month_end_str}')
             AND (w.ClosedDate IS NULL OR w.ClosedDate > '{previous_month_end_str}')
@@ -733,39 +739,42 @@ class DashboardQueries:
         """Get completed SERVICE, SHOP, and PM work orders awaiting invoice"""
         try:
             query = """
-            WITH CompletedWOs AS (
+            WITH LaborTotals AS (
+                SELECT WONo, SUM(Sell) as labor_sell 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ),
+            LaborQuotes AS (
+                SELECT WONo, SUM(Amount) as quote_amount 
+                FROM ben002.WOQuote 
+                WHERE Type = 'L'
+                GROUP BY WONo
+            ),
+            PartsTotals AS (
+                SELECT WONo, SUM(Sell * Qty) as parts_sell 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ),
+            MiscTotals AS (
+                SELECT WONo, SUM(Sell) as misc_sell 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            ),
+            CompletedWOs AS (
                 SELECT 
                     w.WONo,
                     w.Type,
                     w.CompletedDate,
                     w.BillTo,
                     DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysSinceCompleted,
-                    -- Include labor quotes for flat rate labor
                     COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) as labor_total,
                     COALESCE(p.parts_sell, 0) as parts_total,
                     COALESCE(m.misc_sell, 0) as misc_total
                 FROM ben002.WO w
-                LEFT JOIN (
-                    SELECT WONo, SUM(Sell) as labor_sell 
-                    FROM ben002.WOLabor 
-                    GROUP BY WONo
-                ) l ON w.WONo = l.WONo
-                LEFT JOIN (
-                    SELECT WONo, SUM(Amount) as quote_amount 
-                    FROM ben002.WOQuote 
-                    WHERE Type = 'L'
-                    GROUP BY WONo
-                ) lq ON w.WONo = lq.WONo
-                LEFT JOIN (
-                    SELECT WONo, SUM(Sell * Qty) as parts_sell 
-                    FROM ben002.WOParts 
-                    GROUP BY WONo
-                ) p ON w.WONo = p.WONo
-                LEFT JOIN (
-                    SELECT WONo, SUM(Sell) as misc_sell 
-                    FROM ben002.WOMisc 
-                    GROUP BY WONo
-                ) m ON w.WONo = m.WONo
+                LEFT JOIN LaborTotals l ON w.WONo = l.WONo
+                LEFT JOIN LaborQuotes lq ON w.WONo = lq.WONo
+                LEFT JOIN PartsTotals p ON w.WONo = p.WONo
+                LEFT JOIN MiscTotals m ON w.WONo = m.WONo
                 WHERE w.CompletedDate IS NOT NULL
                   AND w.ClosedDate IS NULL
                   AND w.InvoiceDate IS NULL
@@ -1074,10 +1083,25 @@ class DashboardQueries:
         """Get monthly work orders by type since March"""
         try:
             query = """
+            WITH LaborTotals AS (
+                SELECT WONo, SUM(Sell) as labor_total 
+                FROM ben002.WOLabor 
+                GROUP BY WONo
+            ),
+            PartsTotals AS (
+                SELECT WONo, SUM(Sell * Qty) as parts_total 
+                FROM ben002.WOParts 
+                GROUP BY WONo
+            ),
+            MiscTotals AS (
+                SELECT WONo, SUM(Sell) as misc_total 
+                FROM ben002.WOMisc 
+                GROUP BY WONo
+            )
             SELECT 
-                YEAR(OpenDate) as year,
-                MONTH(OpenDate) as month,
-                Type,
+                YEAR(w.OpenDate) as year,
+                MONTH(w.OpenDate) as month,
+                w.Type,
                 COUNT(*) as count,
                 SUM(
                     COALESCE(l.labor_total, 0) + 
@@ -1085,25 +1109,13 @@ class DashboardQueries:
                     COALESCE(m.misc_total, 0)
                 ) as total_value
             FROM ben002.WO w
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
-                GROUP BY WONo
-            ) l ON w.WONo = l.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
-                GROUP BY WONo
-            ) p ON w.WONo = p.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
-                GROUP BY WONo
-            ) m ON w.WONo = m.WONo
+            LEFT JOIN LaborTotals l ON w.WONo = l.WONo
+            LEFT JOIN PartsTotals p ON w.WONo = p.WONo
+            LEFT JOIN MiscTotals m ON w.WONo = m.WONo
             WHERE w.OpenDate >= '2025-03-01'
             AND w.OpenDate IS NOT NULL
-            GROUP BY YEAR(OpenDate), MONTH(OpenDate), Type
-            ORDER BY YEAR(OpenDate), MONTH(OpenDate)
+            GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate), w.Type
+            ORDER BY YEAR(w.OpenDate), MONTH(w.OpenDate)
             """
             
             results = self.db.execute_query(query)
