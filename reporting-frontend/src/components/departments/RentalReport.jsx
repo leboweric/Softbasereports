@@ -45,6 +45,28 @@ import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
 import RentalAvailability from './RentalAvailability'
 
+// Utility function to calculate linear regression trendline
+const calculateLinearTrend = (data, xKey, yKey) => {
+  if (!data || data.length < 2) return []
+  
+  const validData = data.filter(item => item[yKey] !== null && item[yKey] !== undefined)
+  if (validData.length < 2) return []
+  
+  const n = validData.length
+  const sumX = validData.reduce((sum, _, index) => sum + index, 0)
+  const sumY = validData.reduce((sum, item) => sum + item[yKey], 0)
+  const sumXY = validData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
+  const sumXX = validData.reduce((sum, _, index) => sum + (index * index), 0)
+  
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  const intercept = (sumY - slope * sumX) / n
+  
+  return validData.map((item, index) => ({
+    ...item,
+    trendValue: slope * index + intercept
+  }))
+}
+
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -767,11 +789,14 @@ const RentalReport = ({ user }) => {
                   const avgRevenue = historicalMonths.length > 0 ? 
                     historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
                   
-                  // Add average values to each data point for reference line rendering
-                  return data.map(item => ({
+                  // Add average values and calculate trendline
+                  const dataWithAverage = data.map(item => ({
                     ...item,
                     avgRevenue: avgRevenue
                   }))
+                  
+                  // Add trendline for revenue
+                  return calculateLinearTrend(dataWithAverage, 'month', 'amount')
                 }
                 
                 return data
@@ -822,6 +847,17 @@ const RentalReport = ({ user }) => {
                   name="Avg Revenue"
                   dot={false}
                   legendType="none"
+                />
+                {/* Revenue Trendline */}
+                <Line 
+                  yAxisId="revenue"
+                  type="monotone"
+                  dataKey="trendValue"
+                  stroke="#8b5cf6"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  name="Revenue Trend"
+                  dot={false}
                 />
                 {/* Add ReferenceLine for the label */}
                 {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
