@@ -231,12 +231,12 @@ const Dashboard = ({ user }) => {
           console.log(`Dashboard loaded in ${data.query_time} seconds (${cacheStatus})`)
         }
         
-        // Fetch pace data
-        fetchPaceData()
-        // Fetch forecast data
-        fetchForecastData()
-        // Fetch customer risk data
-        fetchCustomerRiskData()
+        // Fetch supplementary data in parallel for better performance
+        await Promise.allSettled([
+          fetchPaceData(),
+          fetchForecastData(),
+          fetchCustomerRiskData()
+        ])
       } else {
         console.error('Dashboard API failed:', response.status, response.statusText)
         // Optionally set an error state here for user feedback
