@@ -46,6 +46,28 @@ import PartsInventoryByLocation from './PartsInventoryByLocation'
 import PartsInventoryTurns from './PartsInventoryTurns'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 
+// Utility function to calculate linear regression trendline
+const calculateLinearTrend = (data, xKey, yKey) => {
+  if (!data || data.length < 2) return []
+  
+  const validData = data.filter(item => item[yKey] !== null && item[yKey] !== undefined)
+  if (validData.length < 2) return []
+  
+  const n = validData.length
+  const sumX = validData.reduce((sum, _, index) => sum + index, 0)
+  const sumY = validData.reduce((sum, item) => sum + item[yKey], 0)
+  const sumXY = validData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
+  const sumXX = validData.reduce((sum, _, index) => sum + (index * index), 0)
+  
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  const intercept = (sumY - slope * sumX) / n
+  
+  return validData.map((item, index) => ({
+    ...item,
+    trendValue: slope * index + intercept
+  }))
+}
+
 
 const PartsReport = ({ user, onNavigate }) => {
   const { navigation } = usePermissions()
@@ -729,7 +751,7 @@ const PartsReport = ({ user, onNavigate }) => {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={partsData?.monthlyPartsRevenue || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+                <ComposedChart data={calculateLinearTrend(partsData?.monthlyPartsRevenue || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -767,6 +789,7 @@ const PartsReport = ({ user, onNavigate }) => {
                     }}
                   />
                   <Bar dataKey="amount" fill="#10b981" shape={<CustomBar />} />
+                  <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                   {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
                     // Only calculate average for complete months (exclude current month - August)
                     const completeMonths = partsData.monthlyPartsRevenue.slice(0, -1)
@@ -780,7 +803,7 @@ const PartsReport = ({ user, onNavigate }) => {
                       />
                     )
                   })()}
-                </BarChart>
+                </ComposedChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>

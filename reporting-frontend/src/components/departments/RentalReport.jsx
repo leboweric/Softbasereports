@@ -45,6 +45,28 @@ import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
 import RentalAvailability from './RentalAvailability'
 
+// Utility function to calculate linear regression trendline
+const calculateLinearTrend = (data, xKey, yKey) => {
+  if (!data || data.length < 2) return []
+  
+  const validData = data.filter(item => item[yKey] !== null && item[yKey] !== undefined)
+  if (validData.length < 2) return []
+  
+  const n = validData.length
+  const sumX = validData.reduce((sum, _, index) => sum + index, 0)
+  const sumY = validData.reduce((sum, item) => sum + item[yKey], 0)
+  const sumXY = validData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
+  const sumXX = validData.reduce((sum, _, index) => sum + (index * index), 0)
+  
+  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  const intercept = (sumY - slope * sumX) / n
+  
+  return validData.map((item, index) => ({
+    ...item,
+    trendValue: slope * index + intercept
+  }))
+}
+
 
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
@@ -735,7 +757,7 @@ const RentalReport = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={monthlyRevenueData || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(monthlyRevenueData || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -766,6 +788,7 @@ const RentalReport = ({ user }) => {
                   }}
                 />
                 <Bar dataKey="amount" fill="#9333ea" shape={<CustomBar />} />
+                <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                 {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = monthlyRevenueData.slice(0, -1)
@@ -779,7 +802,7 @@ const RentalReport = ({ user }) => {
                     />
                   )
                 })()}
-              </BarChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
       </Card>
