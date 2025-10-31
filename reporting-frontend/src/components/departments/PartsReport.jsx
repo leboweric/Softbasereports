@@ -46,27 +46,6 @@ import PartsInventoryByLocation from './PartsInventoryByLocation'
 import PartsInventoryTurns from './PartsInventoryTurns'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 
-// Utility function to calculate linear regression trendline
-const calculateLinearTrend = (data, xKey, yKey) => {
-  if (!data || data.length < 2) return []
-  
-  const validData = data.filter(item => item[yKey] !== null && item[yKey] !== undefined)
-  if (validData.length < 2) return []
-  
-  const n = validData.length
-  const sumX = validData.reduce((sum, _, index) => sum + index, 0)
-  const sumY = validData.reduce((sum, item) => sum + item[yKey], 0)
-  const sumXY = validData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
-  const sumXX = validData.reduce((sum, _, index) => sum + (index * index), 0)
-  
-  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
-  const intercept = (sumY - slope * sumX) / n
-  
-  return validData.map((item, index) => ({
-    ...item,
-    trendValue: slope * index + intercept
-  }))
-}
 
 const PartsReport = ({ user, onNavigate }) => {
   const { navigation } = usePermissions()
@@ -750,20 +729,10 @@ const PartsReport = ({ user, onNavigate }) => {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={calculateLinearTrend(partsData?.monthlyPartsRevenue || [], 'month', 'amount')} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
+                <BarChart data={partsData?.monthlyPartsRevenue || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
-                  <YAxis 
-                    yAxisId="revenue"
-                    orientation="left"
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                  />
-                  <YAxis
-                    yAxisId="margin"
-                    orientation="right"
-                    domain={[0, 100]}
-                    tickFormatter={(value) => `${value}%`}
-                  />
+                  <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
                   <RechartsTooltip 
                     content={({ active, payload, label }) => {
                       if (active && payload && payload.length && partsData?.monthlyPartsRevenue) {
@@ -797,62 +766,21 @@ const PartsReport = ({ user, onNavigate }) => {
                       return null
                     }}
                   />
-                  <Legend />
-                  <Bar yAxisId="revenue" dataKey="amount" fill="#10b981" name="Revenue" shape={<CustomBar />} />
-                  {/* Average Revenue Line */}
-                  <ReferenceLine 
-                    yAxisId="revenue"
-                    y={(() => {
-                      const data = partsData?.monthlyPartsRevenue || []
-                      if (data.length === 0) return 0
-                      
-                      const currentDate = new Date()
-                      const currentMonthIndex = currentDate.getMonth()
-                      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                      const currentMonthName = monthNames[currentMonthIndex]
-                      const currentMonthDataIndex = data.findIndex(item => item.month === currentMonthName)
-                      
-                      const historicalMonths = currentMonthDataIndex > 0 
-                        ? data.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                        : data.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                      
-                      return historicalMonths.length > 0 ? 
-                        historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                    })()} 
-                    stroke="#666"
-                    strokeDasharray="5 5"
-                    strokeWidth={2}
-                  />
-                  {/* Revenue Trendline */}
-                  <Line 
-                    yAxisId="revenue"
-                    type="monotone"
-                    dataKey="trendValue"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    name="Revenue Trend"
-                    dot={false}
-                    legendType="none"
-                  />
-                  <Line 
-                    yAxisId="margin" 
-                    type="monotone" 
-                    dataKey="margin" 
-                    stroke="#f59e0b" 
-                    strokeWidth={3}
-                    name="Gross Margin %"
-                    dot={(props) => {
-                      const { payload } = props;
-                      // Only render dots for months with actual margin data
-                      if (payload.margin !== null && payload.margin !== undefined) {
-                        return <circle {...props} fill="#f59e0b" r={4} />;
-                      }
-                      return null;
-                    }}
-                    connectNulls={false}
-                  />
-                </ComposedChart>
+                  <Bar dataKey="amount" fill="#10b981" shape={<CustomBar />} />
+                  {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
+                    // Only calculate average for complete months (exclude current month - August)
+                    const completeMonths = partsData.monthlyPartsRevenue.slice(0, -1)
+                    const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    return (
+                      <ReferenceLine 
+                        y={average} 
+                        stroke="#666" 
+                        strokeDasharray="3 3"
+                        label={{ value: "Average", position: "insideTopRight" }}
+                      />
+                    )
+                  })()}
+                </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>

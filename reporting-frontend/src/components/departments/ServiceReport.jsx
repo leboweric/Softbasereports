@@ -39,27 +39,6 @@ import { apiUrl } from '@/lib/api'
 import ServiceInvoiceBilling from '../ServiceInvoiceBilling'
 import WorkOrderTypes from '../WorkOrderTypes'
 
-// Utility function to calculate linear regression trendline
-const calculateLinearTrend = (data, xKey, yKey) => {
-  if (!data || data.length < 2) return []
-  
-  const validData = data.filter(item => item[yKey] !== null && item[yKey] !== undefined)
-  if (validData.length < 2) return []
-  
-  const n = validData.length
-  const sumX = validData.reduce((sum, _, index) => sum + index, 0)
-  const sumY = validData.reduce((sum, item) => sum + item[yKey], 0)
-  const sumXY = validData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
-  const sumXX = validData.reduce((sum, _, index) => sum + (index * index), 0)
-  
-  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
-  const intercept = (sumY - slope * sumX) / n
-  
-  return validData.map((item, index) => ({
-    ...item,
-    trendValue: slope * index + intercept
-  }))
-}
 
 const ServiceReport = ({ user, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
@@ -676,52 +655,10 @@ const ServiceReport = ({ user, onNavigate }) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <ComposedChart data={(() => {
-              const data = serviceData?.monthlyLaborRevenue || []
-              
-              // Calculate trendline first on raw data (like Dashboard)
-              const trendlineData = calculateLinearTrend(data, 'month', 'amount')
-              
-              // Calculate averages for reference lines
-              if (data.length > 0) {
-                const currentDate = new Date()
-                const currentMonthIndex = currentDate.getMonth()
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                const currentMonthName = monthNames[currentMonthIndex]
-                const currentMonthDataIndex = data.findIndex(item => item.month === currentMonthName)
-                
-                const historicalMonths = currentMonthDataIndex > 0 
-                  ? data.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                  : data.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                
-                const avgRevenue = historicalMonths.length > 0 ? 
-                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                const avgMargin = historicalMonths.length > 0 ? 
-                  historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
-                
-                // Return trendline data with averages added
-                return trendlineData.map(item => ({
-                  ...item,
-                  avgRevenue: avgRevenue,
-                  avgMargin: avgMargin
-                }))
-              }
-              
-              return trendlineData
-            })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
+            <BarChart data={serviceData?.monthlyLaborRevenue || []} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
-              <YAxis 
-                yAxisId="revenue"
-                orientation="left"
-                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-              />
-              <YAxis
-                yAxisId="margin"
-                orientation="right"
-                domain={[0, 100]}
-                tickFormatter={(value) => `${value}%`}
-              />
+              <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
               <RechartsTooltip 
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length && serviceData?.monthlyLaborRevenue) {
@@ -755,74 +692,21 @@ const ServiceReport = ({ user, onNavigate }) => {
                   return null
                 }}
               />
-              <Legend />
-              <Bar yAxisId="revenue" dataKey="amount" fill="#3b82f6" name="Revenue" shape={<CustomBar />} />
-              {/* Average Revenue Line */}
-              <Line 
-                yAxisId="revenue"
-                type="monotone"
-                dataKey="avgRevenue"
-                stroke="#666"
-                strokeDasharray="5 5"
-                strokeWidth={2}
-                name="Avg Revenue"
-                dot={false}
-                legendType="none"
-              />
-              {/* Revenue Trendline */}
-              <Line 
-                yAxisId="revenue"
-                type="monotone"
-                dataKey="trendValue"
-                stroke="#8b5cf6"
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                name="Revenue Trend"
-                dot={false}
-              />
-              {/* Add ReferenceLine for the label */}
+              <Bar dataKey="amount" fill="#3b82f6" shape={<CustomBar />} />
               {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
-                const currentDate = new Date()
-                const currentMonthIndex = currentDate.getMonth()
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                const currentMonthName = monthNames[currentMonthIndex]
-                const currentMonthDataIndex = serviceData.monthlyLaborRevenue.findIndex(item => item.month === currentMonthName)
-                const historicalMonths = currentMonthDataIndex > 0 
-                  ? serviceData.monthlyLaborRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                  : serviceData.monthlyLaborRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                const avgRevenue = historicalMonths.length > 0 ? 
-                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                
-                if (avgRevenue > 0) {
-                  return (
-                    <ReferenceLine 
-                      yAxisId="revenue"
-                      y={avgRevenue} 
-                      stroke="none"
-                      label={{ value: "Average", position: "insideTopRight" }}
-                    />
-                  )
-                }
-                return null
+                // Only calculate average for complete months (exclude current month - August)
+                const completeMonths = serviceData.monthlyLaborRevenue.slice(0, -1)
+                const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                return (
+                  <ReferenceLine 
+                    y={average} 
+                    stroke="#666" 
+                    strokeDasharray="3 3"
+                    label={{ value: "Average", position: "insideTopRight" }}
+                  />
+                )
               })()}
-              <Line 
-                yAxisId="margin" 
-                type="monotone" 
-                dataKey="margin" 
-                stroke="#10b981" 
-                strokeWidth={3}
-                name="Gross Margin %"
-                dot={(props) => {
-                  const { payload } = props;
-                  // Only render dots for months with actual margin data
-                  if (payload.margin !== null && payload.margin !== undefined) {
-                    return <circle {...props} fill="#10b981" r={4} />;
-                  }
-                  return null;
-                }}
-                connectNulls={false}
-              />
-            </ComposedChart>
+            </BarChart>
           </ResponsiveContainer>
         </CardContent>
           </Card>
