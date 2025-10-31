@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -97,6 +97,70 @@ const Dashboard = ({ user }) => {
   const [invoiceDelayData, setInvoiceDelayData] = useState(null)
   const [invoiceDelayLoading, setInvoiceDelayLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('sales')
+
+  // Sort monthly sales data chronologically for accurate trendline calculations
+  const sortedMonthlySales = React.useMemo(() => {
+    if (!dashboardData?.monthly_sales) {
+      return [];
+    }
+
+    const monthOrder = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return [...dashboardData.monthly_sales].sort((a, b) => {
+      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+    });
+  }, [dashboardData]);
+
+  // Sort monthly sales (no equipment) data chronologically
+  const sortedMonthlySalesNoEquipment = React.useMemo(() => {
+    if (!dashboardData?.monthly_sales_no_equipment) {
+      return [];
+    }
+
+    const monthOrder = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return [...dashboardData.monthly_sales_no_equipment].sort((a, b) => {
+      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+    });
+  }, [dashboardData]);
+
+  // Sort monthly quotes data chronologically
+  const sortedMonthlyQuotes = React.useMemo(() => {
+    if (!dashboardData?.monthly_quotes) {
+      return [];
+    }
+
+    const monthOrder = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return [...dashboardData.monthly_quotes].sort((a, b) => {
+      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+    });
+  }, [dashboardData]);
+
+  // Sort monthly equipment sales data chronologically
+  const sortedMonthlyEquipmentSales = React.useMemo(() => {
+    if (!dashboardData?.monthly_equipment_sales) {
+      return [];
+    }
+
+    const monthOrder = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return [...dashboardData.monthly_equipment_sales].sort((a, b) => {
+      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+    });
+  }, [dashboardData]);
 
   useEffect(() => {
     fetchDashboardData()
@@ -969,7 +1033,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_sales || [], 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(sortedMonthlySales, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1052,7 +1116,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_sales_no_equipment || [], 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(sortedMonthlySalesNoEquipment, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1211,7 +1275,7 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_quotes || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(sortedMonthlyQuotes, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1293,7 +1357,7 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={calculateLinearTrend(dashboardData?.monthly_equipment_sales || [], 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlyEquipmentSales, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
