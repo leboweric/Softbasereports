@@ -695,6 +695,9 @@ const ServiceReport = ({ user, onNavigate }) => {
             <ComposedChart data={(() => {
               const data = serviceData?.monthlyLaborRevenue || []
               
+              // Calculate trendline first on raw data (like Dashboard)
+              const trendlineData = calculateLinearTrend(data, 'month', 'amount')
+              
               // Calculate averages for reference lines
               if (data.length > 0) {
                 const currentDate = new Date()
@@ -712,23 +715,16 @@ const ServiceReport = ({ user, onNavigate }) => {
                 const avgMargin = historicalMonths.length > 0 ? 
                   historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
                 
-                // Add average values to each data point for reference line rendering
-                const dataWithAverage = data.map(item => ({
+                // Return trendline data with averages added
+                return trendlineData.map(item => ({
                   ...item,
                   avgRevenue: avgRevenue,
                   avgMargin: avgMargin
                 }))
-                
-                // Calculate trendline on complete dataset, then merge with average data
-                const trendData = calculateLinearTrend(data, 'month', 'amount')
-                return dataWithAverage.map((item, index) => ({
-                  ...item,
-                  trendValue: trendData[index]?.trendValue
-                }))
               }
               
-              return data
-            })()}  margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
+              return trendlineData
+            })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis 

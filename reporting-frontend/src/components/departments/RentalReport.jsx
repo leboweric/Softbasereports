@@ -772,40 +772,7 @@ const RentalReport = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={(() => {
-                const data = monthlyRevenueData || []
-                
-                // Calculate averages for reference lines
-                if (data.length > 0) {
-                  const currentDate = new Date()
-                  const currentMonthIndex = currentDate.getMonth()
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                  const currentMonthName = monthNames[currentMonthIndex]
-                  const currentMonthDataIndex = data.findIndex(item => item.month === currentMonthName)
-                  
-                  const historicalMonths = currentMonthDataIndex > 0 
-                    ? data.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                    : data.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                  
-                  const avgRevenue = historicalMonths.length > 0 ? 
-                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                  
-                  // Add average values to each data point for reference line rendering
-                  const dataWithAverage = data.map(item => ({
-                    ...item,
-                    avgRevenue: avgRevenue
-                  }))
-                  
-                  // Calculate trendline on complete dataset, then merge with average data
-                  const trendData = calculateLinearTrend(data, 'month', 'amount')
-                  return dataWithAverage.map((item, index) => ({
-                    ...item,
-                    trendValue: trendData[index]?.trendValue
-                  }))
-                }
-                
-                return data
-              })()}  margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(monthlyRevenueData || [], 'month', 'amount')} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis 
@@ -842,16 +809,28 @@ const RentalReport = ({ user }) => {
                 <Legend />
                 <Bar yAxisId="revenue" dataKey="amount" fill="#9333ea" name="Revenue" maxBarSize={60} shape={<CustomBar />} />
                 {/* Average Revenue Line */}
-                <Line 
+                <ReferenceLine 
                   yAxisId="revenue"
-                  type="monotone"
-                  dataKey="avgRevenue"
+                  y={(() => {
+                    const data = monthlyRevenueData || []
+                    if (data.length === 0) return 0
+                    
+                    const currentDate = new Date()
+                    const currentMonthIndex = currentDate.getMonth()
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    const currentMonthName = monthNames[currentMonthIndex]
+                    const currentMonthDataIndex = data.findIndex(item => item.month === currentMonthName)
+                    
+                    const historicalMonths = currentMonthDataIndex > 0 
+                      ? data.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
+                      : data.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                    
+                    return historicalMonths.length > 0 ? 
+                      historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                  })()} 
                   stroke="#666"
                   strokeDasharray="5 5"
                   strokeWidth={2}
-                  name="Avg Revenue"
-                  dot={false}
-                  legendType="none"
                 />
                 {/* Revenue Trendline */}
                 <Line 
@@ -864,31 +843,6 @@ const RentalReport = ({ user }) => {
                   name="Revenue Trend"
                   dot={false}
                 />
-                {/* Add ReferenceLine for the label */}
-                {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
-                  const currentDate = new Date()
-                  const currentMonthIndex = currentDate.getMonth()
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                  const currentMonthName = monthNames[currentMonthIndex]
-                  const currentMonthDataIndex = monthlyRevenueData.findIndex(item => item.month === currentMonthName)
-                  const historicalMonths = currentMonthDataIndex > 0 
-                    ? monthlyRevenueData.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                    : monthlyRevenueData.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                  const avgRevenue = historicalMonths.length > 0 ? 
-                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                  
-                  if (avgRevenue > 0) {
-                    return (
-                      <ReferenceLine 
-                        yAxisId="revenue"
-                        y={avgRevenue} 
-                        stroke="none"
-                        label={{ value: "Average", position: "insideTopRight" }}
-                      />
-                    )
-                  }
-                  return null
-                })()}
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
