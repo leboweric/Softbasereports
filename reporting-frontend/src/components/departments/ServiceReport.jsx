@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
@@ -84,6 +84,22 @@ const ServiceReport = ({ user, onNavigate }) => {
   // Shop work orders state
   const [shopWorkOrders, setShopWorkOrders] = useState(null)
   const [shopWorkOrdersLoading, setShopWorkOrdersLoading] = useState(false)
+
+  // Sort monthly revenue data chronologically for correct trendline calculation
+  const sortedMonthlyRevenue = React.useMemo(() => {
+    if (!serviceData?.monthlyLaborRevenue) {
+      return [];
+    }
+
+    const monthOrder = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return [...serviceData.monthlyLaborRevenue].sort((a, b) => {
+      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+    });
+  }, [serviceData]);
 
   // Helper function to calculate percentage change
   const calculatePercentageChange = (current, previous) => {
@@ -677,7 +693,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <ComposedChart data={calculateLinearTrend(serviceData?.monthlyLaborRevenue || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+            <ComposedChart data={calculateLinearTrend(sortedMonthlyRevenue, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />

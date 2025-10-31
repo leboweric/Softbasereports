@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -81,6 +81,21 @@ const RentalReport = ({ user }) => {
   const [unitsOnHold, setUnitsOnHold] = useState(0)
   const [paceData, setPaceData] = useState(null)
   
+  // Sort monthly revenue data chronologically for correct trendline calculation
+  const sortedMonthlyRevenue = React.useMemo(() => {
+    if (!monthlyRevenueData) {
+      return [];
+    }
+
+    const monthOrder = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    return [...monthlyRevenueData].sort((a, b) => {
+      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+    });
+  }, [monthlyRevenueData]);
 
   useEffect(() => {
     fetchRentalData()
@@ -757,7 +772,7 @@ const RentalReport = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(monthlyRevenueData || [], 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={calculateLinearTrend(sortedMonthlyRevenue, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
