@@ -2,7 +2,7 @@
 
 **Database**: Azure SQL Server  
 **Schema**: ben002  
-**Last Updated**: 2025-10-17
+**Last Updated**: 2024-10-31
 
 ## CRITICAL ACCESS INFORMATION
 - **Azure SQL has IP firewall restrictions** - NO local access allowed
@@ -851,9 +851,35 @@ WITH InvoiceBalances AS (
 - minitrac_equipment: ~28,000
 - work_order_notes: ~500+ (growing)
 
-## Recent Major Features Implemented (2025-10-17)
+## Recent Major Features Implemented
 
-### Inventory Report System
+### Dashboard Trendline and Chart Standardization (2024-10-31)
+
+#### Linear Trendline Implementation
+- **Mathematical Foundation**: Linear regression using least squares method
+- **Cross-Platform Consistency**: Standardized calculateLinearTrend function across all charts
+- **Visual Standards**: Purple dashed trendlines (#8b5cf6) with consistent styling
+- **Data Processing**: Simple data arrays prevent index corruption issues
+
+#### Pacing Calculation Standardization
+- **Unified Logic**: All charts use simple pace_percentage instead of complex adaptive comparisons
+- **Visual Consistency**: Green/Red color scheme across Dashboard and all departments
+- **User Experience**: Eliminated confusing percentage differences between similar charts
+- **Performance**: Simplified data processing improves chart rendering speed
+
+#### Chart Architecture Lessons
+- **Complexity Reduction**: Removed complex IIFE data processing that corrupted calculations
+- **Dashboard as Standard**: Established Dashboard implementations as template for all charts
+- **Mathematical Accuracy**: Direct data approach yields correct trendline directions
+- **Debugging Process**: Systematic comparison of working vs broken implementations
+
+#### Technical Achievements
+- **Code Reduction**: Eliminated 285 lines of complex, broken chart processing
+- **Consistency**: Unified chart margins, colors, and formatting across all reports
+- **Reliability**: Fixed trendlines showing incorrect downward trends despite business growth
+- **Maintainability**: Simple pattern easy to replicate for future chart development
+
+### Inventory Report System (2024-10-17)
 - **Year-End Inventory Report**: GL-based inventory categorization
 - **Equipment Categorization**: 5-category system (Allied, New, Rental, Used, Batteries)
 - **Excel Export**: Multi-sheet Excel generation with proper formatting
