@@ -68,22 +68,58 @@ def register_department_routes(reports_bp):
                 AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
             """
             
+            # Get adaptive comparison data
+            adaptive_query = f"""
+            WITH MonthlyTotals AS (
+                SELECT 
+                    YEAR(InvoiceDate) as year,
+                    MONTH(InvoiceDate) as month,
+                    SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+                    AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
+                    AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
+                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            )
+            SELECT 
+                AVG(total_revenue) as avg_monthly_revenue,
+                MAX(total_revenue) as best_monthly_revenue,
+                MIN(total_revenue) as worst_monthly_revenue,
+                COUNT(*) as months_available,
+                MAX(CASE WHEN month = {current_month} THEN total_revenue END) as same_month_last_year
+            FROM MonthlyTotals
+            """
+            
             current_result = db.execute_query(current_query)
             prev_result = db.execute_query(prev_query)
             full_month_result = db.execute_query(full_month_query)
+            adaptive_result = db.execute_query(adaptive_query)
             
             current_revenue = float(current_result[0]['total_revenue'] or 0) if current_result else 0
             previous_revenue = float(prev_result[0]['total_revenue'] or 0) if prev_result else 0
             previous_full_month = float(full_month_result[0]['total_revenue'] or 0) if full_month_result else 0
             
-            # Calculate pace percentage with improved logic for record months
-            # If current month-to-date exceeds previous full month, use full month as comparison base
+            # Extract adaptive data
+            adaptive_data = adaptive_result[0] if adaptive_result else {}
+            avg_monthly_revenue = float(adaptive_data.get('avg_monthly_revenue') or 0)
+            best_monthly_revenue = float(adaptive_data.get('best_monthly_revenue') or 0)
+            worst_monthly_revenue = float(adaptive_data.get('worst_monthly_revenue') or 0)
+            months_available = int(adaptive_data.get('months_available') or 0)
+            same_month_last_year = float(adaptive_data.get('same_month_last_year') or 0)
+            
+            # Calculate multiple pace percentages for adaptive comparison
+            # 1. Previous month comparison (existing logic)
             if current_revenue > previous_full_month and previous_full_month > 0:
                 pace_percentage = round(((current_revenue / previous_full_month) - 1) * 100, 1)
                 comparison_base = "full_previous_month"
             else:
                 pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
                 comparison_base = "same_day_previous_month"
+            
+            # 2. Additional adaptive comparisons
+            pace_pct_avg = round(((current_revenue / avg_monthly_revenue) - 1) * 100, 1) if avg_monthly_revenue > 0 else None
+            pace_pct_same_month_ly = round(((current_revenue / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
+            is_best_month = current_revenue > best_monthly_revenue
             
             return jsonify({
                 'pace_percentage': pace_percentage,
@@ -93,7 +129,27 @@ def register_department_routes(reports_bp):
                 'current_month': current_month,
                 'current_day': current_day,
                 'comparison_base': comparison_base,
-                'exceeded_previous_month': current_revenue > previous_full_month
+                'exceeded_previous_month': current_revenue > previous_full_month,
+                'adaptive_comparisons': {
+                    'available_months_count': months_available,
+                    'vs_available_average': {
+                        'percentage': pace_pct_avg,
+                        'average_monthly_revenue': avg_monthly_revenue,
+                        'ahead_behind': 'ahead' if pace_pct_avg and pace_pct_avg > 0 else 'behind' if pace_pct_avg and pace_pct_avg < 0 else 'on pace' if pace_pct_avg is not None else None
+                    },
+                    'vs_same_month_last_year': {
+                        'percentage': pace_pct_same_month_ly,
+                        'last_year_revenue': same_month_last_year if same_month_last_year > 0 else None,
+                        'ahead_behind': 'ahead' if pace_pct_same_month_ly and pace_pct_same_month_ly > 0 else 'behind' if pace_pct_same_month_ly and pace_pct_same_month_ly < 0 else 'on pace' if pace_pct_same_month_ly is not None else None
+                    },
+                    'performance_indicators': {
+                        'is_best_month_ever': is_best_month,
+                        'best_month_revenue': best_monthly_revenue,
+                        'worst_month_revenue': worst_monthly_revenue,
+                        'vs_best_percentage': round(((current_revenue / best_monthly_revenue) - 1) * 100, 1) if best_monthly_revenue > 0 else None,
+                        'vs_worst_percentage': round(((current_revenue / worst_monthly_revenue) - 1) * 100, 1) if worst_monthly_revenue > 0 else None
+                    }
+                }
             })
             
         except Exception as e:
