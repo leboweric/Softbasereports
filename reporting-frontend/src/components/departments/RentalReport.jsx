@@ -211,18 +211,33 @@ const RentalReport = ({ user }) => {
       payload.month === monthNames[currentMonth - 1] && 
       paceData && paceData.pace_percentage !== undefined
     
+    // Use adaptive comparison for more meaningful pace display
+    const displayPercentage = paceData?.adaptive_comparisons?.vs_available_average?.percentage ?? paceData?.pace_percentage
+    const showBestMonthIndicator = paceData?.adaptive_comparisons?.performance_indicators?.is_best_month_ever
+    
     return (
       <g>
         <rect x={x} y={y} width={width} height={height} fill={fill} />
-        {isCurrentMonth && (
+        {isCurrentMonth && displayPercentage !== undefined && (
           <g>
+            {/* Best month star indicator */}
+            {showBestMonthIndicator && (
+              <text 
+                x={x + width / 2} 
+                y={y - 35} 
+                textAnchor="middle" 
+                fontSize="16"
+              >
+                ⭐
+              </text>
+            )}
             {/* Pace indicator */}
             <rect 
               x={x} 
               y={y - 20} 
               width={width} 
               height={18} 
-              fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
+              fill={displayPercentage > 0 ? '#10b981' : displayPercentage < 0 ? '#ef4444' : '#6b7280'}
               rx={4}
             />
             <text 
@@ -233,18 +248,18 @@ const RentalReport = ({ user }) => {
               fontSize="11" 
               fontWeight="bold"
             >
-              {paceData.pace_percentage > 0 ? '+' : ''}{paceData.pace_percentage}%
+              {displayPercentage > 0 ? '+' : ''}{displayPercentage}%
             </text>
             {/* Arrow icon */}
-            {paceData.pace_percentage !== 0 && (
+            {displayPercentage !== 0 && (
               <text 
                 x={x + width / 2} 
                 y={y - 25} 
                 textAnchor="middle" 
-                fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
+                fill={displayPercentage > 0 ? '#10b981' : displayPercentage < 0 ? '#ef4444' : '#6b7280'}
                 fontSize="16"
               >
-                {paceData.pace_percentage > 0 ? '↑' : '↓'}
+                {displayPercentage > 0 ? '↑' : displayPercentage < 0 ? '↓' : '→'}
               </text>
             )}
           </g>
