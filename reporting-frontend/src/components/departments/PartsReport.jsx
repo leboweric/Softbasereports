@@ -47,22 +47,49 @@ import PartsInventoryTurns from './PartsInventoryTurns'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 
 // Utility function to calculate linear regression trendline
-const calculateLinearTrend = (data, xKey, yKey) => {
-  if (!data || data.length < 2) return []
+const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
+  if (!data || data.length < 2) return data || []
   
   const validData = data.filter(item => item[yKey] !== null && item[yKey] !== undefined)
-  if (validData.length < 2) return []
+  if (validData.length < 2) return data
   
-  const n = validData.length
-  const sumX = validData.reduce((sum, _, index) => sum + index, 0)
-  const sumY = validData.reduce((sum, item) => sum + item[yKey], 0)
-  const sumXY = validData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
-  const sumXX = validData.reduce((sum, _, index) => sum + (index * index), 0)
+  // Determine which data to use for trendline calculation
+  let trendData = validData
   
-  const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX)
+  if (excludeCurrentMonth && validData.length > 1) {
+    // Exclude the last data point (assumed to be current incomplete month)
+    trendData = validData.slice(0, -1)
+  }
+  
+  // Need at least 2 points for a trendline
+  if (trendData.length < 2) {
+    return data.map(item => ({
+      ...item,
+      trendValue: null
+    }))
+  }
+  
+  // Calculate linear regression using trendData (excluding current month)
+  const n = trendData.length
+  const sumX = trendData.reduce((sum, _, index) => sum + index, 0)
+  const sumY = trendData.reduce((sum, item) => sum + item[yKey], 0)
+  const sumXY = trendData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
+  const sumXX = trendData.reduce((sum, _, index) => sum + (index * index), 0)
+  
+  const denominator = (n * sumXX - sumX * sumX)
+  if (denominator === 0) {
+    return data.map(item => ({
+      ...item,
+      trendValue: null
+    }))
+  }
+  
+  const slope = (n * sumXY - sumX * sumY) / denominator
   const intercept = (sumY - slope * sumX) / n
   
-  return validData.map((item, index) => ({
+  // Apply trendline to ALL data points (including current month)
+  // This extends the trendline through the current month
+  return data.map((item, index) => ({
     ...item,
     trendValue: slope * index + intercept
   }))
