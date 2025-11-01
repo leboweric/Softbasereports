@@ -34,3 +34,94 @@ export const fetchApi = async (path, options = {}) => {
   
   return response;
 };
+
+// Helper function to get JWT token
+const getToken = () => localStorage.getItem('token');
+
+// Admin API functions for tenant management
+export const adminApi = {
+  async getOrganizations() {
+    const res = await fetch(apiUrl('/api/admin/organizations'), {
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error('Failed to fetch organizations');
+    return res.json();
+  },
+
+  async createOrganization(data) {
+    const res = await fetch(apiUrl('/api/admin/organizations'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || 'Failed to create organization');
+    }
+    return res.json();
+  },
+
+  async updateOrganization(id, data) {
+    const res = await fetch(apiUrl(`/api/admin/organizations/${id}`), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}`,
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || 'Failed to update organization');
+    }
+    return res.json();
+  },
+
+  async getOrganization(id) {
+    const res = await fetch(apiUrl(`/api/admin/organizations/${id}`), {
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error('Failed to fetch organization');
+    return res.json();
+  },
+
+  async deleteOrganization(id) {
+    const res = await fetch(apiUrl(`/api/admin/organizations/${id}`), {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.message || 'Failed to delete organization');
+    }
+    return res.json();
+  },
+
+  async getOrganizationUsers(id) {
+    const res = await fetch(apiUrl(`/api/admin/organizations/${id}/users`), {
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error('Failed to fetch organization users');
+    return res.json();
+  },
+
+  async testConnection(id) {
+    const res = await fetch(apiUrl(`/api/admin/organizations/${id}/test-connection`), {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    // Don't throw error on non-ok, as 500 is a valid test result
+    return res.json();
+  },
+
+  async getSupportedPlatforms() {
+    const res = await fetch(apiUrl('/api/admin/platforms'), {
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error('Failed to fetch supported platforms');
+    return res.json();
+  },
+};

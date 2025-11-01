@@ -2,7 +2,7 @@
 
 **Database**: Azure SQL Server  
 **Schema**: ben002  
-**Last Updated**: 2024-10-31
+**Last Updated**: 2024-11-01 - Added Multi-Tenant Architecture Schema
 
 ## CRITICAL ACCESS INFORMATION
 - **Azure SQL has IP firewall restrictions** - NO local access allowed
@@ -521,6 +521,305 @@ AND EffectiveDate <= '2025-10-31'
 - Auto-save functionality with 1-second debounce
 - Included in work order CSV exports
 - Supplements Softbase work order data
+
+---
+
+## Multi-Tenant Architecture Schema (November 2024)
+
+### Overview
+The multi-tenant architecture was implemented to support multiple customer organizations within a single application instance, each with isolated data access and customized configurations.
+
+### Core Multi-Tenant Tables
+
+#### organizations
+**Purpose**: Tenant organization master records  
+**Database**: PostgreSQL on Railway (primary auth/metadata), SQLite (local development)  
+**Primary Key**: id (serial/integer)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial/integer | Primary key |
+| name | varchar(100) | Organization name (required, unique) |
+| platform_type | varchar(50) | Platform type ('evolution', 'minitrac', etc.) |
+| db_server | varchar(255) | Database server hostname |
+| db_name | varchar(100) | Database name |
+| db_username | varchar(100) | Database username |
+| db_password_encrypted | text | Fernet-encrypted database password |
+| subscription_tier | varchar(50) | Subscription level ('basic', 'professional', 'enterprise') |
+| max_users | integer | Maximum allowed users |
+| is_active | boolean | Organization active status |
+| created_at | timestamp | Creation timestamp |
+| updated_at | timestamp | Last update timestamp |
+
+**Security Notes**:
+- Database passwords encrypted using Fernet encryption
+- Encryption key stored in environment variable `CREDENTIAL_ENCRYPTION_KEY`
+- Never store plaintext database credentials
+
+**Subscription Tiers**:
+- **basic**: 5 users, 100 reports/month, 50 AI queries/month, 10MB exports
+- **professional**: 25 users, 1000 reports/month, 500 AI queries/month, 100MB exports
+- **enterprise**: Unlimited users/reports/AI, 1GB exports
+
+#### users (enhanced)
+**Purpose**: User accounts with organization association  
+**Database**: PostgreSQL on Railway, SQLite (local)  
+**Primary Key**: id
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial/integer | Primary key |
+| username | varchar(80) | Username (unique across all organizations) |
+| email | varchar(120) | Email address (unique across all organizations) |
+| password_hash | varchar(128) | Bcrypt password hash |
+| first_name | varchar(50) | User's first name |
+| last_name | varchar(50) | User's last name |
+| organization_id | integer | Foreign key to organizations.id |
+| is_active | boolean | User active status |
+| created_at | timestamp | Account creation |
+| updated_at | timestamp | Last update |
+
+**Relationships**:
+- `organization_id` → `organizations.id` (many-to-one)
+- Many-to-many with `roles` via `user_roles` association table
+
+**Multi-Tenant Isolation**:
+- Users belong to exactly one organization
+- Cannot access data from other organizations
+- Username/email uniqueness enforced globally
+
+#### roles (RBAC)
+**Purpose**: Role-based access control system  
+**Database**: PostgreSQL on Railway, SQLite (local)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial/integer | Primary key |
+| name | varchar(64) | Role name (unique) |
+| description | varchar(255) | Role description |
+
+**Standard Roles**:
+- **Super Admin**: Cross-tenant administration access
+- **Organization Admin**: Full access within organization
+- **Manager**: Department management access
+- **User**: Standard application access
+- **Read Only**: View-only access
+
+#### user_roles (association table)
+**Purpose**: Many-to-many relationship between users and roles
+
+| Column | Type | Notes |
+|--------|------|-------|
+| user_id | integer | Foreign key to users.id |
+| role_id | integer | Foreign key to roles.id |
+
+**Constraints**:
+- Primary key: (user_id, role_id)
+- Unique combination enforced
+
+### Multi-Tenant Security Implementation
+
+#### Tenant Middleware
+**File**: `src/middleware/tenant_middleware.py`
+
+**Key Components**:
+1. **@require_organization**: Ensures user belongs to active organization
+2. **@require_super_admin**: Restricts access to Super Admin role only
+3. **@require_feature**: Checks subscription tier feature access
+4. **Tenant Context**: Sets `g.current_user`, `g.current_organization`, `g.tenant_id`
+
+**Security Patterns**:
+```python
+# Tenant isolation at query level
+def apply_tenant_filter(query, model_class):
+    if hasattr(g, 'tenant_id') and hasattr(model_class, 'organization_id'):
+        return query.filter(model_class.organization_id == g.tenant_id)
+    return query
+```
+
+#### Credential Management
+**File**: `src/services/credential_manager.py`
+
+**Encryption Process**:
+- Uses Fernet symmetric encryption
+- 32-byte base64-encoded key from environment
+- Automatic key generation if not provided
+- Decrypt-on-demand for database connections
+
+**Example Usage**:
+```python
+cm = get_credential_manager()
+encrypted = cm.encrypt_password("plaintext_password")
+decrypted = cm.decrypt_password(encrypted)
+```
+
+### Tenant Admin API Endpoints
+
+#### Organization Management
+**Base URL**: `/api/admin`  
+**Authentication**: JWT + Super Admin role required
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/organizations` | GET | List all organizations |
+| `/organizations` | POST | Create new organization |
+| `/organizations/{id}` | GET | Get single organization |
+| `/organizations/{id}` | PUT | Update organization |
+| `/organizations/{id}` | DELETE | Soft delete organization |
+| `/organizations/{id}/users` | GET | List organization users |
+| `/organizations/{id}/test-connection` | POST | Test database connection |
+| `/platforms` | GET | Get supported platforms |
+
+**Security Features**:
+- All endpoints require Super Admin role
+- Automatic password encryption on create/update
+- Soft delete preserves data integrity
+- Connection testing validates credentials
+
+### Database Connection Patterns
+
+#### Platform Factory Pattern
+**File**: `src/services/database_connections.py`
+
+**Supported Platforms**:
+- **evolution**: Azure SQL Server (Softbase Evolution)
+- **minitrac**: PostgreSQL (Minitrac systems)
+- **custom**: Generic SQL Server connections
+
+**Connection Flow**:
+1. Retrieve organization from tenant context
+2. Decrypt database credentials
+3. Create platform-specific connection
+4. Apply tenant-specific configurations
+
+#### Multi-Database Architecture
+```
+┌─────────────────┐     ┌──────────────────┐
+│   App Database  │     │  Tenant Database │
+│   (PostgreSQL)  │────▶│   (SQL Server)   │
+│                 │     │                  │
+│ • Users/Roles   │     │ • Business Data  │
+│ • Organizations │     │ • Work Orders    │
+│ • Metadata      │     │ • Invoices       │
+└─────────────────┘     └──────────────────┘
+```
+
+### Schema Migration Strategy
+
+#### Backward Compatibility
+- Existing single-tenant installations continue working
+- New `organization_id` fields added as nullable
+- Default organization created for existing users
+- Graceful degradation when multi-tenant features disabled
+
+#### Migration Pattern
+```python
+# Example migration for existing table
+def upgrade():
+    # Add organization_id column
+    op.add_column('existing_table', 
+                  sa.Column('organization_id', sa.Integer(), nullable=True))
+    
+    # Create default organization
+    default_org = Organization(name='Default Organization', ...)
+    
+    # Assign existing records to default organization
+    op.execute("UPDATE existing_table SET organization_id = 1 WHERE organization_id IS NULL")
+    
+    # Make organization_id required after data migration
+    op.alter_column('existing_table', 'organization_id', nullable=False)
+```
+
+### Performance Considerations
+
+#### Query Optimization
+- **Row-Level Security**: Filter by `organization_id` in all tenant data queries
+- **Index Strategy**: Composite indexes on `(organization_id, primary_key)`
+- **Connection Pooling**: Separate pools per tenant database
+- **Caching**: Tenant metadata cached in application memory
+
+#### Resource Isolation
+- **Memory**: Separate connection pools per tenant
+- **CPU**: Query governors prevent tenant monopolization  
+- **Storage**: Database-level separation for enterprise customers
+- **Network**: Rate limiting per organization
+
+### Testing Strategy
+
+#### Unit Tests
+**File**: `tests/test_tenant_admin.py`
+
+**Test Coverage**:
+- Organization CRUD operations
+- Password encryption/decryption
+- Access control (Super Admin requirement)
+- Feature-based authorization
+- Database connection validation
+- Error handling and edge cases
+
+#### Manual Testing
+**File**: `manual_test_tenant_admin.py`
+
+**Test Scenarios**:
+- End-to-end API workflow
+- Authentication and authorization
+- Data isolation verification
+- Error condition handling
+- Performance under load
+
+### Security Best Practices
+
+#### Data Isolation
+- **Mandatory Filters**: All queries include organization_id filter
+- **Connection Isolation**: Separate database connections per tenant
+- **Session Management**: Tenant context in Flask's `g` object
+- **Cross-Tenant Prevention**: Explicit checks prevent data leakage
+
+#### Access Control
+- **Role-Based**: Multiple permission levels
+- **Feature-Based**: Subscription tier enforcement
+- **API-Level**: Endpoint-specific authorization
+- **Database-Level**: Query-level tenant filtering
+
+#### Credential Security
+- **Encryption at Rest**: Fernet encryption for all passwords
+- **Encryption in Transit**: HTTPS for all API communications
+- **Key Management**: Environment-based encryption keys
+- **Audit Trail**: All admin actions logged
+
+### Lessons Learned
+
+#### Implementation Insights
+1. **RBAC Complexity**: SQLAlchemy many-to-many relationships require careful setup
+2. **Testing Challenges**: JWT authentication in test environment needs special configuration
+3. **Import Dependencies**: RBAC models must be in separate module to avoid circular imports
+4. **Role Assignment**: Use relationship properties, not manual association table entries
+
+#### Security Discoveries
+1. **Decorator Order**: `@require_organization` must come before `@require_super_admin`
+2. **Context Availability**: Tenant context only available after middleware execution
+3. **Error Handling**: Graceful degradation when tenant context unavailable
+4. **Connection Validation**: Test credentials before storing in database
+
+#### Performance Optimizations
+1. **Lazy Loading**: Database connections created on-demand
+2. **Connection Reuse**: Pool connections per tenant
+3. **Metadata Caching**: Organization settings cached in memory
+4. **Query Efficiency**: Tenant filters applied at query level, not application level
+
+### Future Roadmap
+
+#### Phase 2 Enhancements
+- **Database-per-Tenant**: Separate databases for enterprise customers
+- **Custom Domains**: Tenant-specific subdomains
+- **White-Label UI**: Customizable branding per organization
+- **Advanced Analytics**: Cross-tenant reporting for Super Admins
+
+#### Scalability Improvements
+- **Horizontal Scaling**: Microservices architecture
+- **Data Partitioning**: Time-based and tenant-based partitioning
+- **CDN Integration**: Static asset distribution
+- **Monitoring**: Per-tenant performance metrics
 
 ---
 

@@ -14,7 +14,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   // Navigation data processed
 
   // Build navigation items with HARDCODED ORDER to fix menu
-  const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'database-explorer', 'user-management']
+  const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
   
   const navItems = hasNavigation 
     ? desiredOrder
