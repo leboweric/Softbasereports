@@ -174,4 +174,35 @@ class TenantMiddleware:
             "schema_prefix": f"org_{org.id}_",
             "isolation_level": "row_level"
         }
+    
+    @staticmethod
+    def require_super_admin(f):
+        """
+        Decorator to require Super Admin role for accessing an endpoint.
+        Must be used after @require_organization decorator.
+        """
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Verify JWT is present
+            verify_jwt_in_request()
+            
+            # Get current user from context (set by @require_organization)
+            current_user = g.get('current_user')
+            
+            if not current_user:
+                return jsonify({'message': 'User not found'}), 401
+            
+            # Check if user has Super Admin role
+            user_roles = [role.name for role in current_user.roles]
+            
+            if 'Super Admin' not in user_roles:
+                return jsonify({
+                    'message': 'Access denied. Super Admin role required.',
+                    'required_role': 'Super Admin',
+                    'your_roles': user_roles
+                }), 403
+            
+            return f(*args, **kwargs)
+        
+        return decorated_function
 
