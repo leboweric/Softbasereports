@@ -48,32 +48,33 @@ import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsCon
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
-  if (!data || data.length < 2) return data || []
+  if (!data || data.length === 0) return []
 
-  // Find the index of the first month with actual data (revenue > 0)
-  const firstDataIndex = data.findIndex(item => item[yKey] > 0)
+  // Ensure all data has a numeric value for the yKey, otherwise default to 0
+  const cleanedData = data.map(item => ({
+    ...item,
+    [yKey]: parseFloat(item[yKey]) || 0
+  }))
 
-  // If no data found, return data with null trendValues
+  // Find the index of the first month with actual data
+  const firstDataIndex = cleanedData.findIndex(item => item[yKey] > 0)
+
   if (firstDataIndex === -1) {
-    return data.map(item => ({ ...item, trendValue: null }))
+    return cleanedData.map(item => ({ ...item, trendValue: null }))
   }
 
-  // Get data starting from first month with actual revenue
-  const dataFromFirstMonth = data.slice(firstDataIndex)
+  // Get data from the first month with actual revenue
+  const dataFromFirstMonth = cleanedData.slice(firstDataIndex)
 
-  // Determine which data to use for trendline calculation
   let trendData = dataFromFirstMonth
   if (excludeCurrentMonth && dataFromFirstMonth.length > 1) {
-    // Exclude the last month (current incomplete month)
     trendData = dataFromFirstMonth.slice(0, -1)
   }
 
-  // Need at least 2 points for a trendline
   if (trendData.length < 2) {
-    return data.map(item => ({ ...item, trendValue: null }))
+    return cleanedData.map(item => ({ ...item, trendValue: null }))
   }
 
-  // Calculate linear regression on trendData
   const n = trendData.length
   const sumX = trendData.reduce((sum, _, index) => sum + index, 0)
   const sumY = trendData.reduce((sum, item) => sum + item[yKey], 0)
@@ -82,21 +83,16 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 
   const denominator = (n * sumXX - sumX * sumX)
   if (denominator === 0) {
-    return data.map(item => ({ ...item, trendValue: null }))
+    return cleanedData.map(item => ({ ...item, trendValue: null }))
   }
 
   const slope = (n * sumXY - sumX * sumY) / denominator
   const intercept = (sumY - slope * sumX) / n
 
-  // Apply trendline to all data points
-  return data.map((item, index) => {
-    // For months before the first data month, no trendline
+  return cleanedData.map((item, index) => {
     if (index < firstDataIndex) {
       return { ...item, trendValue: null }
     }
-    
-    // For months with data, calculate trendline value
-    // Use the adjusted index (relative to firstDataIndex)
     const adjustedIndex = index - firstDataIndex
     return {
       ...item,
