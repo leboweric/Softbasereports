@@ -2,6 +2,7 @@
 from flask import jsonify
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
 from flask import request
 from src.services.azure_sql_service import AzureSQLService
 from src.utils.auth_decorators import require_permission, require_department
@@ -621,8 +622,9 @@ def register_department_routes(reports_bp):
             if len(monthlyLaborRevenue) < 12:
                 all_months = []
                 current_date = datetime.now()
+                # Generate the last 12 months in chronological order
                 for i in range(11, -1, -1):
-                    month_date = current_date - timedelta(days=i*30)
+                    month_date = current_date - relativedelta(months=i)
                     all_months.append(month_date.strftime("%b"))
                 
                 existing_months = [item['month'] for item in monthlyLaborRevenue]
@@ -830,8 +832,9 @@ def register_department_routes(reports_bp):
             if len(monthlyPartsRevenue) < 12:
                 all_months = []
                 current_date = datetime.now()
+                # Generate the last 12 months in chronological order
                 for i in range(11, -1, -1):
-                    month_date = current_date - timedelta(days=i*30)
+                    month_date = current_date - relativedelta(months=i)
                     all_months.append(month_date.strftime("%b"))
                 
                 existing_months = [item['month'] for item in monthlyPartsRevenue]
