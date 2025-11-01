@@ -59,32 +59,30 @@ import WorkOrderTypes from './WorkOrderTypes'
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
   if (!data || data.length < 2) return data || []
 
-  // Find the index of the first month with actual data
+  // Find the index of the first month with actual data (revenue > 0)
   const firstDataIndex = data.findIndex(item => item[yKey] > 0)
 
-  // If no data or only one data point, no trendline can be calculated
+  // If no data found, return data with null trendValues
   if (firstDataIndex === -1) {
     return data.map(item => ({ ...item, trendValue: null }))
   }
 
-  // Slice the data to start from the first month with actual data
-  const validData = data.slice(firstDataIndex)
-
-  if (validData.length < 2) {
-    return data.map(item => ({ ...item, trendValue: null }))
-  }
+  // Get data starting from first month with actual revenue
+  const dataFromFirstMonth = data.slice(firstDataIndex)
 
   // Determine which data to use for trendline calculation
-  let trendData = validData
-  if (excludeCurrentMonth && validData.length > 1) {
-    trendData = validData.slice(0, -1)
+  let trendData = dataFromFirstMonth
+  if (excludeCurrentMonth && dataFromFirstMonth.length > 1) {
+    // Exclude the last month (current incomplete month)
+    trendData = dataFromFirstMonth.slice(0, -1)
   }
 
+  // Need at least 2 points for a trendline
   if (trendData.length < 2) {
     return data.map(item => ({ ...item, trendValue: null }))
   }
 
-  // Calculate linear regression using trendData
+  // Calculate linear regression on trendData
   const n = trendData.length
   const sumX = trendData.reduce((sum, _, index) => sum + index, 0)
   const sumY = trendData.reduce((sum, item) => sum + item[yKey], 0)
@@ -99,14 +97,19 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
   const slope = (n * sumXY - sumX * sumY) / denominator
   const intercept = (sumY - slope * sumX) / n
 
-  // Apply trendline to all data points, starting from the first month with data
+  // Apply trendline to all data points
   return data.map((item, index) => {
+    // For months before the first data month, no trendline
     if (index < firstDataIndex) {
       return { ...item, trendValue: null }
     }
+    
+    // For months with data, calculate trendline value
+    // Use the adjusted index (relative to firstDataIndex)
+    const adjustedIndex = index - firstDataIndex
     return {
       ...item,
-      trendValue: slope * (index - firstDataIndex) + intercept
+      trendValue: slope * adjustedIndex + intercept
     }
   })
 }
