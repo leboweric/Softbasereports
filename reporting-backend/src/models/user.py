@@ -10,8 +10,23 @@ from src.models.rbac import user_roles
 class Organization(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
-    softbase_api_key = db.Column(db.String(255), nullable=True)  # Store API credentials
+    
+    # Legacy Softbase API fields (keep for backward compatibility)
+    softbase_api_key = db.Column(db.String(255), nullable=True)
     softbase_endpoint = db.Column(db.String(255), nullable=True)
+    
+    # Multi-tenant database connection fields
+    platform_type = db.Column(db.String(20), nullable=True)  # 'evolution' or 'legacy'
+    db_server = db.Column(db.String(255), nullable=True)
+    db_name = db.Column(db.String(255), nullable=True)
+    db_username = db.Column(db.String(255), nullable=True)
+    db_password_encrypted = db.Column(db.Text, nullable=True)
+    
+    # Subscription management
+    subscription_tier = db.Column(db.String(50), default='basic')  # 'basic', 'professional', 'enterprise'
+    max_users = db.Column(db.Integer, default=5)
+    
+    # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
     
@@ -25,8 +40,12 @@ class Organization(db.Model):
         return {
             'id': self.id,
             'name': self.name,
+            'platform_type': self.platform_type,
+            'subscription_tier': self.subscription_tier,
+            'max_users': self.max_users,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'is_active': self.is_active
+            # Note: Database credentials are intentionally NOT included in API responses for security
         }
 
 class User(db.Model):
