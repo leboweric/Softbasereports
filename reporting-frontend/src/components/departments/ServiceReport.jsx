@@ -38,6 +38,7 @@ import {
 import { apiUrl } from '@/lib/api'
 import ServiceInvoiceBilling from '../ServiceInvoiceBilling'
 import WorkOrderTypes from '../WorkOrderTypes'
+import PMReport from '../PMReport'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -568,6 +569,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="pms">PM's</TabsTrigger>
           <TabsTrigger value="shop-work-orders">Cash Burn</TabsTrigger>
           <TabsTrigger value="work-orders">Cash Stalled</TabsTrigger>
           <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
@@ -1494,6 +1496,10 @@ const ServiceReport = ({ user, onNavigate }) => {
           ) : null}
         </TabsContent>
         
+        <TabsContent value="pms" className="space-y-6">
+          <PMReport user={user} />
+        </TabsContent>
+
         <TabsContent value="invoice-billing" className="space-y-6">
           <ServiceInvoiceBilling />
         </TabsContent>
