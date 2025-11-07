@@ -271,7 +271,7 @@ const PMReport = ({ user }) => {
                     <SortableHeader label="Last Labor" sortKey="last_labor_date" />
                     <SortableHeader label="Next PM Date" sortKey="next_pm_date" />
                     <SortableHeader label="Technician" sortKey="technician" />
-                    <TableHead>Status</TableHead>
+                    <SortableHeader label="Status" sortKey="status" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
