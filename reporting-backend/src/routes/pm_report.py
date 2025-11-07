@@ -64,7 +64,7 @@ def get_pms_due():
             OR pm.NextPMDate <= DATEADD(day, 90, GETDATE())
         )
         ORDER BY 
-            CASE WHEN pm.NextPMDate IS NULL THEN 0 ELSE 1 END,
+            CASE WHEN pm.NextPMDate IS NULL THEN 2 ELSE 1 END,
             pm.NextPMDate ASC,
             pm.Mechanic,
             c.Name
