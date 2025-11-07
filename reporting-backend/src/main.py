@@ -41,6 +41,7 @@ from src.routes.sales_forecast import sales_forecast_bp
 from src.routes.ai_predictions import ai_predictions_bp
 from src.routes.ai_query_test import ai_query_test_bp
 from src.routes.equipment_diagnostic import equipment_diagnostic_bp
+from src.routes.equipment_pm_diagnostic import equipment_pm_diagnostic_bp
 from src.routes.full_schema_export import full_schema_export_bp
 from src.routes.simple_schema_export import simple_schema_export_bp
 from src.routes.table_discovery import table_discovery_bp
@@ -142,6 +143,7 @@ app.register_blueprint(sales_forecast_bp)
 app.register_blueprint(ai_predictions_bp)
 app.register_blueprint(ai_query_test_bp, url_prefix='/api/ai-test')
 app.register_blueprint(equipment_diagnostic_bp)
+app.register_blueprint(equipment_pm_diagnostic_bp)
 app.register_blueprint(full_schema_export_bp)
 app.register_blueprint(simple_schema_export_bp)
 app.register_blueprint(table_discovery_bp)
