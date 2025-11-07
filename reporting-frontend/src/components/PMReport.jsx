@@ -93,6 +93,8 @@ const PMReport = ({ user }) => {
       'WO Number': pm.wo_number,
       'Customer': pm.customer_name,
       'Customer Phone': pm.customer_phone || '',
+      'City': pm.customer_city || '',
+      'State': pm.customer_state || '',
       'Equipment Unit': pm.equipment_unit || '',
       'Make': pm.equipment_make || '',
       'Model': pm.equipment_model || '',
@@ -259,6 +261,7 @@ const PMReport = ({ user }) => {
                   <TableRow>
                     <SortableHeader label="WO #" sortKey="wo_number" />
                     <SortableHeader label="Customer" sortKey="customer_name" />
+                    <SortableHeader label="City" sortKey="customer_city" />
                     <SortableHeader label="Equipment" sortKey="equipment_unit" />
                     <TableHead>Make/Model</TableHead>
                     <SortableHeader label="Technician" sortKey="technician" />
@@ -276,6 +279,14 @@ const PMReport = ({ user }) => {
                           <span className="font-medium">{pm.customer_name}</span>
                           {pm.customer_phone && (
                             <span className="text-xs text-muted-foreground">{pm.customer_phone}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>{pm.customer_city || 'N/A'}</span>
+                          {pm.customer_state && (
+                            <span className="text-xs text-muted-foreground">{pm.customer_state}</span>
                           )}
                         </div>
                       </TableCell>
