@@ -687,81 +687,7 @@ const RentalReport = ({ user }) => {
             </Card>
           )}
 
-          {/* Top section with small cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {/* Rental Units Available Card */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Rental Units Available</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{inventoryCount}</div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Units ready to rent
-                </p>
-                <Button 
-                  onClick={handleDownloadForklifts}
-                  disabled={downloadingForklifts}
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {downloadingForklifts ? 'Downloading...' : 'Download Available Equipment'}
-                </Button>
-              </CardContent>
-            </Card>
 
-
-            {/* Units on Hold Card */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Units on Hold</CardTitle>
-                <PauseCircle className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{unitsOnHold}</div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Reserved or maintenance
-                </p>
-                <Button 
-                  onClick={handleDownloadUnitsOnHold}
-                  disabled={downloadingUnitsOnHold}
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {downloadingUnitsOnHold ? 'Downloading...' : 'Download On Hold Equipment'}
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Number of Units on Rent Card */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Number of Units on Rent</CardTitle>
-                <Truck className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{unitsOnRent}</div>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Currently rented out
-                </p>
-                <Button 
-                  onClick={handleDownloadUnitsOnRent}
-                  disabled={downloadingUnitsOnRent}
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {downloadingUnitsOnRent ? 'Downloading...' : 'Download Rental Details'}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
 
       {/* Monthly Revenue & Margin */}
       <Card>
@@ -805,7 +731,7 @@ const RentalReport = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(sortedMonthlyRevenue, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={sortedMonthlyRevenue} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -836,7 +762,6 @@ const RentalReport = ({ user }) => {
                   }}
                 />
                 <Bar dataKey="amount" fill="#9333ea" shape={<CustomBar />} />
-                <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                 {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = monthlyRevenueData.slice(0, -1)

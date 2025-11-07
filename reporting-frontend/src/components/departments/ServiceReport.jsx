@@ -726,16 +726,7 @@ const ServiceReport = ({ user, onNavigate }) => {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <ComposedChart data={(() => {
-              const trendData = calculateLinearTrend(sortedMonthlyRevenue, 'month', 'amount')
-              console.log('ServiceReport - sortedMonthlyRevenue:', sortedMonthlyRevenue)
-              console.log('ServiceReport - trendData:', trendData)
-              if (trendData && trendData.length > 0) {
-                const firstDataPoint = trendData.find(d => d.trendValue !== null)
-                console.log('ServiceReport - first trendline point:', firstDataPoint)
-              }
-              return trendData
-            })()} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+            <ComposedChart data={sortedMonthlyRevenue} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -773,7 +764,6 @@ const ServiceReport = ({ user, onNavigate }) => {
                 }}
               />
               <Bar dataKey="amount" fill="#3b82f6" shape={<CustomBar />} />
-              <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
               {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
                 // Only calculate average for complete months (exclude current month - August)
                 const completeMonths = serviceData.monthlyLaborRevenue.slice(0, -1)
