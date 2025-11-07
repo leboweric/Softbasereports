@@ -35,7 +35,7 @@ def get_pms_due():
         db = AzureSQLService()
         
         # Build the query to get PM work orders
-        # PM work orders are identified by Type = 'PM' or ServiceType containing 'PM'/'Preventive'
+        # PM work orders are identified by Type = 'PM'
         query = """
         SELECT 
             wo.WONo,
@@ -44,7 +44,6 @@ def get_pms_due():
             wo.CompletedDate,
             wo.ClosedDate,
             wo.Type,
-            wo.ServiceType,
             wo.UnitNo,
             wo.Technician,
             wo.Comments,
@@ -70,12 +69,7 @@ def get_pms_due():
         LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
         LEFT JOIN ben002.Equipment e ON wo.UnitNo = e.UnitNo
         WHERE wo.ClosedDate IS NULL  -- Only open work orders
-        AND (
-            wo.Type = 'PM' 
-            OR wo.ServiceType LIKE '%PM%' 
-            OR wo.ServiceType LIKE '%Preventive%'
-            OR wo.ServiceType LIKE '%Maintenance%'
-        )
+        AND wo.Type = 'PM'  -- PM work orders only
         AND wo.ScheduleDate IS NOT NULL  -- Must have a schedule date
         """
         
@@ -124,7 +118,7 @@ def get_pms_due():
                     'equipment_serial': row.get('SerialNo'),
                     'equipment_year': row.get('ModelYear'),
                     'technician': row.get('Technician', 'Unassigned'),
-                    'service_type': row.get('ServiceType'),
+                    'service_type': 'Preventive Maintenance',  # All PM type work orders
                     'schedule_date': row.get('ScheduleDate').strftime('%Y-%m-%d') if row.get('ScheduleDate') else None,
                     'open_date': row.get('OpenDate').strftime('%Y-%m-%d') if row.get('OpenDate') else None,
                     'days_until_due': days_until,
