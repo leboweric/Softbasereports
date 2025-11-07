@@ -18,7 +18,7 @@ import * as XLSX from 'xlsx'
 const PMReport = ({ user }) => {
   const [pmData, setPmData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [sortConfig, setSortConfig] = useState({ key: 'schedule_date', direction: 'asc' })
+  const [sortConfig, setSortConfig] = useState({ key: 'next_pm_date', direction: 'asc' })
 
   useEffect(() => {
     fetchPMData()
@@ -28,7 +28,7 @@ const PMReport = ({ user }) => {
     try {
       setLoading(true)
       const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/service/pms-due?status=all&days_ahead=90'), {
+      const response = await fetch(apiUrl('/api/reports/service/pms-due'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -90,20 +90,23 @@ const PMReport = ({ user }) => {
 
     // Prepare data for export
     const exportData = sortedPMs.map(pm => ({
-      'WO Number': pm.wo_number,
-      'Customer': pm.customer_name,
+      'Serial No': pm.serial_no || '',
+      'Customer': pm.customer_name || '',
       'Customer Phone': pm.customer_phone || '',
       'City': pm.customer_city || '',
       'State': pm.customer_state || '',
-      'Equipment Unit': pm.equipment_unit || '',
-      'Make': pm.equipment_make || '',
-      'Model': pm.equipment_model || '',
-      'Serial Number': pm.equipment_serial || '',
-      'Technician': pm.technician,
-      'Service Type': pm.service_type || '',
-      'Due Date': pm.schedule_date,
+      'Contact': pm.customer_contact || '',
+      'Unit No': pm.unit_no || '',
+      'Make': pm.make || '',
+      'Model': pm.model || '',
+      'Frequency (days)': pm.frequency || '',
+      'Last Labor Date': pm.last_labor_date || '',
+      'Next PM Date': pm.next_pm_date || '',
+      'Technician': pm.technician || '',
       'Days Until Due': pm.days_until_due,
       'Status': pm.status,
+      'Open WO': pm.open_pm_wo ? 'Yes' : 'No',
+      'WO Number': pm.wo_no || '',
       'Comments': pm.comments || ''
     }))
 
@@ -260,21 +263,21 @@ const PMReport = ({ user }) => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <SortableHeader label="WO #" sortKey="wo_number" />
+                    <SortableHeader label="Serial No" sortKey="serial_no" />
                     <SortableHeader label="Customer" sortKey="customer_name" />
                     <SortableHeader label="City" sortKey="customer_city" />
-                    <SortableHeader label="Equipment" sortKey="equipment_unit" />
                     <TableHead>Make/Model</TableHead>
+                    <SortableHeader label="Frequency" sortKey="frequency" />
+                    <SortableHeader label="Last Labor" sortKey="last_labor_date" />
+                    <SortableHeader label="Next PM Date" sortKey="next_pm_date" />
                     <SortableHeader label="Technician" sortKey="technician" />
-                    <SortableHeader label="Due Date" sortKey="schedule_date" />
-                    <SortableHeader label="Days" sortKey="days_until_due" />
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sortedPMs.map((pm) => (
-                    <TableRow key={pm.wo_number}>
-                      <TableCell className="font-medium">{pm.wo_number}</TableCell>
+                    <TableRow key={pm.id}>
+                      <TableCell className="font-mono text-xs">{pm.serial_no}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-medium">{pm.customer_name}</span>
@@ -292,40 +295,34 @@ const PMReport = ({ user }) => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{pm.equipment_unit || 'N/A'}</span>
-                          {pm.equipment_serial && (
-                            <span className="text-xs text-muted-foreground">S/N: {pm.equipment_serial}</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         <div className="text-sm">
-                          {pm.equipment_make && pm.equipment_model ? (
+                          {pm.make && pm.model ? (
                             <>
-                              <div>{pm.equipment_make}</div>
-                              <div className="text-muted-foreground">{pm.equipment_model}</div>
+                              <div>{pm.make}</div>
+                              <div className="text-muted-foreground">{pm.model}</div>
                             </>
                           ) : (
                             'N/A'
                           )}
                         </div>
                       </TableCell>
+                      <TableCell className="text-center">{pm.frequency || '-'}</TableCell>
+                      <TableCell>{pm.last_labor_date ? new Date(pm.last_labor_date).toLocaleDateString() : 'N/A'}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>{pm.next_pm_date ? new Date(pm.next_pm_date).toLocaleDateString() : 'Not scheduled'}</span>
+                          {pm.days_until_due !== null && (
+                            <span className="text-xs text-muted-foreground">
+                              {pm.days_until_due < 0 ? Math.abs(pm.days_until_due) + ' days ago' : pm.days_until_due + ' days'}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3 text-muted-foreground" />
-                          {pm.technician}
+                          {pm.technician || 'Unassigned'}
                         </div>
-                      </TableCell>
-                      <TableCell>{pm.schedule_date || 'Not scheduled'}</TableCell>
-                      <TableCell>
-                        {pm.days_until_due !== null ? (
-                          <span className={pm.days_until_due < 0 ? 'text-destructive font-semibold' : ''}>
-                            {pm.days_until_due < 0 ? Math.abs(pm.days_until_due) + ' days ago' : pm.days_until_due + ' days'}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
                       </TableCell>
                       <TableCell>{getStatusBadge(pm.status)}</TableCell>
                     </TableRow>
