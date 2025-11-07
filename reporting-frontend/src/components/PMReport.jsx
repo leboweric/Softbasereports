@@ -142,6 +142,7 @@ const PMReport = ({ user }) => {
       'Overdue': { variant: 'destructive', icon: AlertTriangle },
       'Due Soon': { variant: 'warning', icon: Calendar },
       'Scheduled': { variant: 'secondary', icon: Calendar },
+      'Not Scheduled': { variant: 'outline', icon: Calendar },
       'Completed': { variant: 'success', icon: Calendar }
     }
     
@@ -316,11 +317,15 @@ const PMReport = ({ user }) => {
                           {pm.technician}
                         </div>
                       </TableCell>
-                      <TableCell>{pm.schedule_date}</TableCell>
+                      <TableCell>{pm.schedule_date || 'Not scheduled'}</TableCell>
                       <TableCell>
-                        <span className={pm.days_until_due < 0 ? 'text-destructive font-semibold' : ''}>
-                          {pm.days_until_due < 0 ? Math.abs(pm.days_until_due) + ' days ago' : pm.days_until_due + ' days'}
-                        </span>
+                        {pm.days_until_due !== null ? (
+                          <span className={pm.days_until_due < 0 ? 'text-destructive font-semibold' : ''}>
+                            {pm.days_until_due < 0 ? Math.abs(pm.days_until_due) + ' days ago' : pm.days_until_due + ' days'}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>{getStatusBadge(pm.status)}</TableCell>
                     </TableRow>

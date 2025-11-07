@@ -56,11 +56,15 @@ def get_pms_due():
             e.Model,
             e.SerialNo,
             e.ModelYear,
-            -- Calculate days until due (negative means overdue)
-            DATEDIFF(day, GETDATE(), wo.ScheduleDate) as DaysUntilDue,
+            -- Calculate days until due (negative means overdue, NULL if no schedule date)
+            CASE 
+                WHEN wo.ScheduleDate IS NOT NULL THEN DATEDIFF(day, GETDATE(), wo.ScheduleDate)
+                ELSE NULL
+            END as DaysUntilDue,
             -- Status indicator
             CASE 
                 WHEN wo.ClosedDate IS NOT NULL THEN 'Completed'
+                WHEN wo.ScheduleDate IS NULL THEN 'Not Scheduled'
                 WHEN DATEDIFF(day, GETDATE(), wo.ScheduleDate) < 0 THEN 'Overdue'
                 WHEN DATEDIFF(day, GETDATE(), wo.ScheduleDate) <= 7 THEN 'Due Soon'
                 ELSE 'Scheduled'
@@ -70,19 +74,19 @@ def get_pms_due():
         LEFT JOIN ben002.Equipment e ON wo.UnitNo = e.UnitNo
         WHERE wo.ClosedDate IS NULL  -- Only open work orders
         AND wo.Type = 'PM'  -- PM work orders only
-        AND wo.ScheduleDate IS NOT NULL  -- Must have a schedule date
         """
         
         # Add status filter
         if status_filter == 'overdue':
-            query += " AND DATEDIFF(day, GETDATE(), wo.ScheduleDate) < 0"
+            query += " AND wo.ScheduleDate IS NOT NULL AND DATEDIFF(day, GETDATE(), wo.ScheduleDate) < 0"
         elif status_filter == 'due':
-            query += f" AND DATEDIFF(day, GETDATE(), wo.ScheduleDate) BETWEEN 0 AND {days_ahead}"
+            query += f" AND wo.ScheduleDate IS NOT NULL AND DATEDIFF(day, GETDATE(), wo.ScheduleDate) BETWEEN 0 AND {days_ahead}"
         else:
-            # 'all' - show overdue and upcoming within days_ahead
-            query += f" AND DATEDIFF(day, GETDATE(), wo.ScheduleDate) <= {days_ahead}"
+            # 'all' - show all open PMs (with or without schedule date)
+            # If they have a schedule date, only show if within days_ahead or overdue
+            query += f" AND (wo.ScheduleDate IS NULL OR DATEDIFF(day, GETDATE(), wo.ScheduleDate) <= {days_ahead})"
         
-        query += " ORDER BY wo.ScheduleDate ASC"
+        query += " ORDER BY CASE WHEN wo.ScheduleDate IS NULL THEN 1 ELSE 0 END, wo.ScheduleDate ASC"
         
         results = db.execute_query(query)
         
