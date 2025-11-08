@@ -48,6 +48,25 @@ const PMRoutePlanner = ({ user }) => {
     }
   }
 
+  // Normalize state name to 2-letter abbreviation
+  const normalizeState = (state) => {
+    if (!state) return ''
+    
+    const stateMap = {
+      'MINNESOTA': 'MN',
+      'WISCONSIN': 'WI',
+      'IOWA': 'IA',
+      'NORTH DAKOTA': 'ND',
+      'SOUTH DAKOTA': 'SD',
+      'ILLINOIS': 'IL',
+      'MICHIGAN': 'MI',
+      'NEBRASKA': 'NE'
+    }
+    
+    const normalized = state.trim().toUpperCase()
+    return stateMap[normalized] || normalized
+  }
+
   // Normalize city name to handle variations
   const normalizeCity = (city) => {
     if (!city) return 'Unknown Location'
@@ -75,13 +94,13 @@ const PMRoutePlanner = ({ user }) => {
     urgentPMs.forEach(pm => {
       const originalCity = pm.customer_city || 'Unknown Location'
       const normalizedCity = normalizeCity(originalCity)
-      const state = pm.customer_state || ''
-      const cityKey = `${normalizedCity}, ${state}`.trim().replace(/,\s*$/, '')
+      const normalizedState = normalizeState(pm.customer_state || '')
+      const cityKey = `${normalizedCity}, ${normalizedState}`.trim().replace(/,\s*$/, '')
       
       if (!cityMap.has(cityKey)) {
         cityMap.set(cityKey, {
           city: normalizedCity,
-          state: state,
+          state: normalizedState,
           cityKey: cityKey,
           pms: [],
           overdue: 0,
