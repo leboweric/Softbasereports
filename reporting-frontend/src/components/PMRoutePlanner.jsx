@@ -120,14 +120,14 @@ const PMRoutePlanner = ({ user }) => {
       }
     })
     
-    // Convert to array and sort alphabetically by city name
+    // Convert to array and sort by total PMs (most PMs first)
     return Array.from(cityMap.values())
       .map(cluster => ({
         ...cluster,
         total: cluster.pms.length,
         zipCodes: Array.from(cluster.zipCodes).sort()
       }))
-      .sort((a, b) => a.cityKey.localeCompare(b.cityKey))
+      .sort((a, b) => b.total - a.total)
   }, [pmData])
 
   const toggleCity = (cityKey) => {
@@ -229,7 +229,7 @@ const PMRoutePlanner = ({ user }) => {
               </CardTitle>
               <CardDescription className="mt-2">
                 Plan efficient routes by grouping PMs in the same geographic area. 
-                Cities are organized alphabetically for easy lookup.
+                Cities with the most overdue/due soon PMs appear first.
               </CardDescription>
             </div>
             <div className="flex gap-2">
