@@ -48,6 +48,18 @@ const PMRoutePlanner = ({ user }) => {
     }
   }
 
+  // Normalize city name to handle variations
+  const normalizeCity = (city) => {
+    if (!city) return 'Unknown Location'
+    
+    return city
+      .trim() // Remove leading/trailing spaces
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .toUpperCase() // Standardize capitalization for comparison
+      .replace(/^ST\.?\s+/i, 'SAINT ') // Convert "St" or "St." to "Saint"
+      .replace(/\s+ST\.?\s+/gi, ' SAINT ') // Convert middle "St" or "St." to "Saint"
+  }
+
   // Group PMs by city, focusing on overdue and due soon
   const cityClusters = useMemo(() => {
     if (!pmData?.pms) return []
@@ -61,13 +73,14 @@ const PMRoutePlanner = ({ user }) => {
     const cityMap = new Map()
     
     urgentPMs.forEach(pm => {
-      const city = pm.customer_city || 'Unknown Location'
+      const originalCity = pm.customer_city || 'Unknown Location'
+      const normalizedCity = normalizeCity(originalCity)
       const state = pm.customer_state || ''
-      const cityKey = `${city}, ${state}`.trim().replace(/,\s*$/, '')
+      const cityKey = `${normalizedCity}, ${state}`.trim().replace(/,\s*$/, '')
       
       if (!cityMap.has(cityKey)) {
         cityMap.set(cityKey, {
-          city: city,
+          city: normalizedCity,
           state: state,
           cityKey: cityKey,
           pms: [],
