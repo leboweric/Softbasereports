@@ -24,7 +24,7 @@ def get_pms_due():
         SELECT 
             pm.Id,
             pm.SerialNo,
-            pm.BillTo as CustomerNo,
+            pm.ShipTo as CustomerNo,
             c.Name as CustomerName,
             c.Address as CustomerAddress,
             c.City as CustomerCity,
@@ -56,7 +56,7 @@ def get_pms_due():
                 ELSE DATEDIFF(day, GETDATE(), pm.NextPMDate)
             END as DaysUntilDue
         FROM ben002.PM pm
-        LEFT JOIN ben002.Customer c ON pm.BillTo = c.Number
+        LEFT JOIN ben002.Customer c ON pm.ShipTo = c.Number
         LEFT JOIN ben002.Equipment e ON pm.SerialNo = e.SerialNo
         WHERE pm.PMCancelled = 0
         AND (
