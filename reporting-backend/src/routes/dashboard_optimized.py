@@ -82,18 +82,29 @@ class DashboardQueries:
             SELECT 
                 COUNT(DISTINCT CASE 
                     WHEN InvoiceDate >= '{self.thirty_days_ago}' 
-                    THEN BillToName 
+                    THEN CASE 
+                        WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                        WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                        ELSE BillToName
+                    END
                     ELSE NULL 
                 END) as active_customers,
                 COUNT(DISTINCT CASE 
                     WHEN InvoiceDate >= '{sixty_days_ago}' AND InvoiceDate < '{self.thirty_days_ago}' 
-                    THEN BillToName 
+                    THEN CASE 
+                        WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                        WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                        ELSE BillToName
+                    END
                     ELSE NULL 
                 END) as previous_month_customers
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '{sixty_days_ago}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
+            AND BillToName NOT LIKE '%Wells Fargo%'
+            AND BillToName NOT LIKE '%Maintenance contract%'
+            AND BillToName NOT LIKE '%Rental Fleet%'
             """
             result = self.db.execute_query(query)
             if result:
@@ -1321,11 +1332,18 @@ class DashboardQueries:
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
-                COUNT(DISTINCT BillToName) as active_customers
+                COUNT(DISTINCT CASE 
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                    ELSE BillToName
+                END) as active_customers
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             AND BillToName IS NOT NULL
             AND BillToName != ''
+            AND BillToName NOT LIKE '%Wells Fargo%'
+            AND BillToName NOT LIKE '%Maintenance contract%'
+            AND BillToName NOT LIKE '%Rental Fleet%'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
@@ -1639,7 +1657,11 @@ def export_active_customers():
         # Query to get detailed active customers with their activity
         query = f"""
         SELECT 
-            BillToName as customer_name,
+            CASE 
+                WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END as customer_name,
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             MIN(InvoiceDate) as first_invoice_date,
             MAX(InvoiceDate) as last_invoice_date,
@@ -1650,8 +1672,16 @@ def export_active_customers():
             AND InvoiceDate <= '{end_date}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
+            AND BillToName NOT LIKE '%Wells Fargo%'
+            AND BillToName NOT LIKE '%Maintenance contract%'
+            AND BillToName NOT LIKE '%Rental Fleet%'
             AND GrandTotal > 0
-        GROUP BY BillToName
+        GROUP BY 
+            CASE 
+                WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END
         ORDER BY total_sales DESC
         """
         
