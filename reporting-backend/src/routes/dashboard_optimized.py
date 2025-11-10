@@ -1036,14 +1036,29 @@ class DashboardQueries:
             total_result = self.db.execute_query(total_sales_query)
             total_fiscal_sales = float(total_result[0]['total_sales']) if total_result and total_result[0]['total_sales'] else 0
             
+            # Calculate date ranges for risk analysis
+            recent_90_start = (datetime.now() - timedelta(days=90)).strftime('%Y-%m-%d')
+            recent_30_start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+            
             query = f"""
             SELECT TOP 10
+                Customer as customer_id,
                 CASE 
                     WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END as customer_name,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
-                SUM(GrandTotal) as total_sales
+                SUM(GrandTotal) as total_sales,
+                MAX(InvoiceDate) as last_invoice_date,
+                MIN(InvoiceDate) as first_invoice_date,
+                DATEDIFF(day, MAX(InvoiceDate), GETDATE()) as days_since_last_invoice,
+                DATEDIFF(day, MIN(InvoiceDate), MAX(InvoiceDate)) as customer_lifespan_days,
+                -- Recent activity metrics for risk analysis
+                SUM(CASE WHEN InvoiceDate >= '{recent_30_start}' THEN GrandTotal ELSE 0 END) as recent_30_sales,
+                COUNT(CASE WHEN InvoiceDate >= '{recent_30_start}' THEN 1 ELSE NULL END) as recent_30_invoices,
+                SUM(CASE WHEN InvoiceDate >= '{recent_90_start}' THEN GrandTotal ELSE 0 END) as recent_90_sales,
+                COUNT(CASE WHEN InvoiceDate >= '{recent_90_start}' THEN 1 ELSE NULL END) as recent_90_invoices
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= '{self.fiscal_year_start}'
             AND BillToName IS NOT NULL
@@ -1052,8 +1067,10 @@ class DashboardQueries:
             AND BillToName NOT LIKE '%Maintenance contract%'
             AND BillToName NOT LIKE '%Rental Fleet%'
             GROUP BY 
+                Customer,
                 CASE 
                     WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END
             ORDER BY SUM(GrandTotal) DESC
@@ -1066,12 +1083,54 @@ class DashboardQueries:
                 for i, customer in enumerate(results):
                     customer_sales = float(customer['total_sales'])
                     percentage = (customer_sales / total_fiscal_sales * 100) if total_fiscal_sales > 0 else 0
+                    
+                    # Calculate risk metrics
+                    customer_lifespan_days = int(customer['customer_lifespan_days']) or 1
+                    customer_lifespan_months = max(customer_lifespan_days / 30.0, 1)
+                    expected_monthly_sales = customer_sales / customer_lifespan_months
+                    expected_monthly_invoices = int(customer['invoice_count']) / customer_lifespan_months
+                    
+                    recent_30_sales = float(customer['recent_30_sales'])
+                    recent_30_invoices = int(customer['recent_30_invoices'])
+                    recent_90_sales = float(customer['recent_90_sales'])
+                    days_since_last_invoice = int(customer['days_since_last_invoice']) if customer.get('days_since_last_invoice') else 0
+                    
+                    # Determine risk level and factors
+                    risk_factors = []
+                    risk_level = 'none'
+                    
+                    if days_since_last_invoice > 90:
+                        risk_factors.append(f"No activity for {days_since_last_invoice} days")
+                        risk_level = 'high'
+                    elif days_since_last_invoice > 60:
+                        risk_factors.append(f"No activity for {days_since_last_invoice} days")
+                        risk_level = 'medium'
+                    
+                    if recent_30_invoices == 0 and expected_monthly_invoices > 1:
+                        risk_factors.append("No invoices in last 30 days (usually active monthly)")
+                        if risk_level == 'none':
+                            risk_level = 'medium'
+                    
+                    if recent_30_sales < (expected_monthly_sales * 0.5) and expected_monthly_sales > 1000:
+                        decline_pct = ((expected_monthly_sales - recent_30_sales) / expected_monthly_sales * 100)
+                        risk_factors.append(f"Sales dropped {decline_pct:.0f}% below normal")
+                        risk_level = 'high'
+                    
                     top_customers.append({
                         'rank': i + 1,
+                        'customer_id': customer['customer_id'],
                         'name': customer['customer_name'],
                         'sales': customer_sales,
                         'invoice_count': int(customer['invoice_count']),
-                        'percentage': round(percentage, 1)
+                        'percentage': round(percentage, 1),
+                        'last_invoice_date': customer['last_invoice_date'].strftime('%Y-%m-%d') if customer.get('last_invoice_date') else None,
+                        'days_since_last_invoice': days_since_last_invoice,
+                        # Risk analysis data
+                        'risk_level': risk_level,
+                        'risk_factors': risk_factors,
+                        'recent_30_sales': recent_30_sales,
+                        'recent_90_sales': recent_90_sales,
+                        'expected_monthly_sales': expected_monthly_sales
                     })
             
             return top_customers

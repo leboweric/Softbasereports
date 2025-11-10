@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -55,6 +57,7 @@ import {
 import { apiUrl } from '@/lib/api'
 import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
+import CustomerDetailModal from './CustomerDetailModal'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -131,6 +134,12 @@ const Dashboard = ({ user }) => {
   const [invoiceDelayData, setInvoiceDelayData] = useState(null)
   const [invoiceDelayLoading, setInvoiceDelayLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('sales')
+  // Customer search and filter
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('')
+  const [customerRiskFilter, setCustomerRiskFilter] = useState('all') // 'all', 'at-risk', 'healthy'
+  // Customer detail modal
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [customerDetailModalOpen, setCustomerDetailModalOpen] = useState(false)
 
   const isMountedRef = useRef(true)
 
@@ -197,6 +206,37 @@ const Dashboard = ({ user }) => {
       return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
     });
   }, [dashboardData]);
+
+  // Filter customers based on search and risk filter
+  const filteredCustomers = React.useMemo(() => {
+    if (!dashboardData?.top_customers) return [];
+    
+    let filtered = dashboardData.top_customers;
+    
+    // Apply search filter
+    if (customerSearchTerm) {
+      filtered = filtered.filter(customer => 
+        customer.name.toLowerCase().includes(customerSearchTerm.toLowerCase())
+      );
+    }
+    
+    // Apply risk filter
+    if (customerRiskFilter !== 'all') {
+      filtered = filtered.filter(customer => {
+        // Use risk data from customer object if available, otherwise fall back to getCustomerRisk
+        const riskLevel = customer.risk_level || getCustomerRisk(customer.name)?.risk_level || 'none';
+        
+        if (customerRiskFilter === 'at-risk') {
+          return riskLevel !== 'none';
+        } else if (customerRiskFilter === 'healthy') {
+          return riskLevel === 'none';
+        }
+        return true;
+      });
+    }
+    
+    return filtered;
+  }, [dashboardData, customerSearchTerm, customerRiskFilter, customerRiskData]);
 
   useEffect(() => {
     fetchDashboardData()
@@ -1477,6 +1517,9 @@ const Dashboard = ({ user }) => {
     {/* Customers Tab */}
     <TabsContent value="customers" className="space-y-4">
           {/* Customer Metrics */}
+          <div className="mb-2 text-xs text-gray-500">
+            As of {dashboardData?.last_updated ? new Date(dashboardData.last_updated).toLocaleString() : 'Loading...'}
+          </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1525,29 +1568,96 @@ const Dashboard = ({ user }) => {
                 </p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">At-Risk Customers</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-orange-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">
+                  {customerRiskData?.customers?.filter(c => c.risk_level !== 'none')?.length || 0}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {customerRiskData?.customers?.filter(c => c.risk_level === 'high')?.length || 0} high risk, {customerRiskData?.customers?.filter(c => c.risk_level === 'medium')?.length || 0} medium risk
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Customer Health</CardTitle>
+                <TrendingUp className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {customerRiskData?.customers ? Math.round((customerRiskData.customers.filter(c => c.risk_level === 'none').length / customerRiskData.customers.length) * 100) : 0}%
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Customers with healthy activity
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Customer Charts */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Top 10 Customers</CardTitle>
-                <CardDescription>
-                  By fiscal YTD sales (since March)
-                  {customerRiskData && (
-                    <span className="text-xs text-blue-600 block mt-1">
-                      Risk analysis: {customerRiskData.customers?.length || 0} customers analyzed, 
-                      {customerRiskData.customers?.filter(c => c.risk_level !== 'none')?.length || 0} at risk
-                    </span>
-                  )}
-                </CardDescription>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <CardTitle>Top 10 Customers</CardTitle>
+                    <CardDescription>
+                      By fiscal YTD sales (since March)
+                      {customerRiskData && (
+                        <span className="text-xs text-blue-600 block mt-1">
+                          <AlertTriangle className="inline h-3 w-3 mr-1" />
+                          {customerRiskData.customers?.filter(c => c.risk_level !== 'none')?.length || 0} of {customerRiskData.customers?.length || 0} customers at risk
+                        </span>
+                      )}
+                    </CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => downloadActiveCustomers()}
+                    className="h-8 px-2 ml-2"
+                    title="Export top customers"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Export
+                  </Button>
+                </div>
+                
+                {/* Search and Filter */}
+                <div className="flex gap-2 mt-4">
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Search customers..."
+                      value={customerSearchTerm}
+                      onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <Select value={customerRiskFilter} onValueChange={setCustomerRiskFilter}>
+                    <SelectTrigger className="w-[140px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Customers</SelectItem>
+                      <SelectItem value="at-risk">At Risk</SelectItem>
+                      <SelectItem value="healthy">Healthy</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {dashboardData?.top_customers?.map((customer) => {
-                    const riskData = getCustomerRisk(customer.name)
-                    const riskLevel = riskData?.risk_level || 'none'
-                    const riskFactors = riskData?.risk_factors || []
+                  {filteredCustomers.length > 0 ? filteredCustomers.map((customer) => {
+                    // Use integrated risk data from customer object, fallback to separate API if needed
+                    const riskLevel = customer.risk_level || getCustomerRisk(customer.name)?.risk_level || 'none'
+                    const riskFactors = customer.risk_factors || getCustomerRisk(customer.name)?.risk_factors || []
+                    const riskData = customer.risk_level ? customer : getCustomerRisk(customer.name)
                     
                     return (
                       <div key={customer.rank} className="flex items-center relative group">
@@ -1561,13 +1671,27 @@ const Dashboard = ({ user }) => {
                             riskLevel === 'low' ? 'text-yellow-600' :
                             'text-gray-900'
                           }`}>
-                            {customer.name}
+                            <button
+                              onClick={() => {
+                                setSelectedCustomer(customer)
+                                setCustomerDetailModalOpen(true)
+                              }}
+                              className="hover:underline cursor-pointer text-left"
+                            >
+                              {customer.name}
+                            </button>
                             {riskLevel !== 'none' && (
-                              <span className={`ml-1 inline-block w-2 h-2 rounded-full ${
-                                riskLevel === 'high' ? 'bg-red-500' :
-                                riskLevel === 'medium' ? 'bg-orange-500' :
-                                'bg-yellow-500'
-                              }`} />
+                              <span 
+                                className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                  riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+                                  riskLevel === 'medium' ? 'bg-orange-100 text-orange-800' :
+                                  'bg-yellow-100 text-yellow-800'
+                                }`}
+                                title={riskFactors.join(', ')}
+                              >
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                {riskLevel.toUpperCase()}
+                              </span>
                             )}
                           </p>
                           <p className="text-xs text-gray-500">
@@ -1622,8 +1746,35 @@ const Dashboard = ({ user }) => {
                         )}
                       </div>
                     )
-                  }) || (
-                    <p className="text-sm text-gray-500">No customer data available</p>
+                  }) : (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <Users className="h-12 w-12 text-gray-300 mb-3" />
+                      <p className="text-sm font-medium text-gray-900 mb-1">
+                        {customerSearchTerm || customerRiskFilter !== 'all' 
+                          ? 'No customers match your filters' 
+                          : 'No customer data available'
+                        }
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {customerSearchTerm || customerRiskFilter !== 'all'
+                          ? 'Try adjusting your search or filter criteria'
+                          : 'Customer data will appear here once invoices are processed'
+                        }
+                      </p>
+                      {(customerSearchTerm || customerRiskFilter !== 'all') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-3"
+                          onClick={() => {
+                            setCustomerSearchTerm('')
+                            setCustomerRiskFilter('all')
+                          }}
+                        >
+                          Clear Filters
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -2306,6 +2457,16 @@ const Dashboard = ({ user }) => {
           <ForecastAccuracy />
         </TabsContent>
   </Tabs>
+
+      {/* Customer Detail Modal */}
+      <CustomerDetailModal
+        customer={selectedCustomer}
+        isOpen={customerDetailModalOpen}
+        onClose={() => {
+          setCustomerDetailModalOpen(false)
+          setSelectedCustomer(null)
+        }}
+      />
     </div>
   )
 }
