@@ -618,3 +618,156 @@ def get_performance_rating(mape):
         return 'Fair'
     else:
         return 'Needs Improvement'
+
+
+@sales_forecast_bp.route('/api/dashboard/forecast-accuracy/generate-test-data', methods=['POST'])
+@jwt_required()
+def generate_test_data():
+    """Generate test forecast data for October 2025 for demonstration purposes"""
+    try:
+        postgres_db = get_postgres_db()
+        azure_db = AzureSQLService()
+        
+        if not postgres_db:
+            return jsonify({'error': 'PostgreSQL not available'}), 500
+        
+        # Get October 2025 actual sales
+        actual_query = """
+        SELECT 
+            SUM(GrandTotal) as actual_total,
+            COUNT(*) as actual_invoices
+        FROM ben002.InvoiceReg
+        WHERE YEAR(InvoiceDate) = 2025
+            AND MONTH(InvoiceDate) = 10
+        """
+        
+        actual_result = azure_db.execute_query(actual_query)[0]
+        actual_total = float(actual_result['actual_total'] or 285000.00)  # Default if no data
+        actual_invoices = int(actual_result['actual_invoices'] or 165)
+        
+        # Clear existing October 2025 test data
+        delete_query = """
+        DELETE FROM forecast_history
+        WHERE target_year = 2025 AND target_month = 10
+        """
+        postgres_db.execute_update(delete_query)
+        
+        # Create test forecasts for days 5, 10, 15, 20, 25
+        test_days = [5, 10, 15, 20, 25]
+        days_in_month = 31
+        forecasts_created = 0
+        
+        for day in test_days:
+            # Calculate MTD sales (actual sales up to that day)
+            progress_pct = day / days_in_month
+            mtd_sales = actual_total * progress_pct * (0.9 + (day % 3) * 0.1)
+            
+            # Early forecasts less accurate, later ones more accurate
+            if day <= 10:
+                accuracy_factor = 0.85 + (day * 0.015)
+            else:
+                accuracy_factor = 0.95 + (day * 0.002)
+            
+            projected_total = mtd_sales / progress_pct * accuracy_factor
+            
+            # Confidence intervals (wider early, narrower later)
+            confidence_width = max(0.05, 0.20 - (day * 0.006))
+            forecast_low = projected_total * (1 - confidence_width)
+            forecast_high = projected_total * (1 + confidence_width)
+            
+            # Check if actual falls within range
+            within_range = forecast_low <= actual_total <= forecast_high
+            
+            # Calculate accuracy metrics
+            absolute_error = abs(projected_total - actual_total)
+            accuracy_pct = (absolute_error / actual_total * 100) if actual_total > 0 else 0
+            
+            # Typical completion percentage
+            avg_pct_complete = (day / days_in_month) * 100 * (0.95 + (day % 2) * 0.05)
+            
+            # Insert forecast
+            insert_query = """
+            INSERT INTO forecast_history (
+                forecast_date,
+                forecast_timestamp,
+                target_year,
+                target_month,
+                days_into_month,
+                projected_total,
+                forecast_low,
+                forecast_high,
+                confidence_level,
+                mtd_sales,
+                mtd_invoices,
+                month_progress_pct,
+                days_remaining,
+                pipeline_value,
+                avg_pct_complete,
+                actual_total,
+                actual_invoices,
+                accuracy_pct,
+                absolute_error,
+                within_range
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
+            """
+            
+            from datetime import date as dt_date
+            forecast_date = dt_date(2025, 10, day)
+            forecast_timestamp = datetime(2025, 10, day, 12, 0, 0)
+            
+            params = (
+                forecast_date,
+                forecast_timestamp,
+                2025,
+                10,
+                day,
+                round(projected_total, 2),
+                round(forecast_low, 2),
+                round(forecast_high, 2),
+                '68%',
+                round(mtd_sales, 2),
+                int(actual_invoices * progress_pct),
+                round(progress_pct * 100, 2),
+                days_in_month - day,
+                round(actual_total * 0.3, 2),
+                round(avg_pct_complete, 2),
+                round(actual_total, 2),
+                actual_invoices,
+                round(accuracy_pct, 2),
+                round(absolute_error, 2),
+                within_range
+            )
+            
+            postgres_db.execute_insert_returning(insert_query, params)
+            forecasts_created += 1
+        
+        # Get summary stats
+        summary_query = """
+        SELECT 
+            COUNT(*) as count,
+            AVG(accuracy_pct) as avg_mape,
+            SUM(CASE WHEN within_range THEN 1 ELSE 0 END)::float / COUNT(*) * 100 as within_range_pct
+        FROM forecast_history
+        WHERE target_year = 2025 AND target_month = 10
+        """
+        
+        summary = postgres_db.execute_query(summary_query)[0]
+        
+        return jsonify({
+            'success': True,
+            'message': f'Created {forecasts_created} test forecasts for October 2025',
+            'actual_total': round(actual_total, 2),
+            'actual_invoices': actual_invoices,
+            'summary': {
+                'total_forecasts': summary['count'],
+                'avg_mape': round(float(summary['avg_mape']), 2),
+                'within_range_pct': round(float(summary['within_range_pct']), 1)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to generate test data: {str(e)}")
+        return jsonify({'error': f'Failed to generate test data: {str(e)}'}), 500
