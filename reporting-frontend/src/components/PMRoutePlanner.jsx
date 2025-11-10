@@ -20,6 +20,8 @@ const PMRoutePlanner = ({ user }) => {
   const [pmData, setPmData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [expandedCities, setExpandedCities] = useState({})
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [technicianFilter, setTechnicianFilter] = useState('all')
 
   useEffect(() => {
     fetchPMData()
@@ -79,14 +81,41 @@ const PMRoutePlanner = ({ user }) => {
       .replace(/\s+ST\.?\s+/gi, ' SAINT ') // Convert middle "St" or "St." to "Saint"
   }
 
+  // Get unique technicians for filter dropdown
+  const uniqueTechnicians = useMemo(() => {
+    if (!pmData?.pms) return []
+    const techs = new Set()
+    pmData.pms.forEach(pm => {
+      if (pm.technician && pm.technician.trim()) {
+        techs.add(pm.technician.trim())
+      }
+    })
+    return Array.from(techs).sort()
+  }, [pmData])
+
   // Group PMs by city, focusing on overdue and due soon
   const cityClusters = useMemo(() => {
     if (!pmData?.pms) return []
     
     // Filter to only overdue and due soon PMs
-    const urgentPMs = pmData.pms.filter(pm => 
+    let urgentPMs = pmData.pms.filter(pm => 
       pm.status === 'Overdue' || pm.status === 'Due Soon'
     )
+    
+    // Apply customer search filter
+    if (customerSearch.trim()) {
+      const searchLower = customerSearch.toLowerCase()
+      urgentPMs = urgentPMs.filter(pm => 
+        pm.customer_name?.toLowerCase().includes(searchLower)
+      )
+    }
+    
+    // Apply technician filter
+    if (technicianFilter !== 'all') {
+      urgentPMs = urgentPMs.filter(pm => 
+        pm.technician === technicianFilter
+      )
+    }
     
     // Group by city
     const cityMap = new Map()
@@ -128,7 +157,7 @@ const PMRoutePlanner = ({ user }) => {
         zipCodes: Array.from(cluster.zipCodes).sort()
       }))
       .sort((a, b) => b.total - a.total)
-  }, [pmData])
+  }, [pmData, customerSearch, technicianFilter])
 
   const toggleCity = (cityKey) => {
     setExpandedCities(prev => ({
@@ -271,6 +300,47 @@ const PMRoutePlanner = ({ user }) => {
                 <p className="text-2xl font-bold text-warning">{totalDueSoon}</p>
               </div>
             </div>
+          </div>
+          
+          {/* Search and Filter Controls */}
+          <div className="mt-6 flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Search by Customer</label>
+              <input
+                type="text"
+                placeholder="Type customer name..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Filter by Technician</label>
+              <select
+                value={technicianFilter}
+                onChange={(e) => setTechnicianFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="all">All Technicians</option>
+                {uniqueTechnicians.map(tech => (
+                  <option key={tech} value={tech}>{tech || 'Unassigned'}</option>
+                ))}
+              </select>
+            </div>
+            {(customerSearch || technicianFilter !== 'all') && (
+              <div className="flex items-end">
+                <Button 
+                  onClick={() => {
+                    setCustomerSearch('')
+                    setTechnicianFilter('all')
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Clear Filters
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
