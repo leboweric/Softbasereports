@@ -131,6 +131,49 @@ class PostgreSQLService:
         CREATE INDEX IF NOT EXISTS idx_wo_number ON work_order_notes(wo_number);
         """
         
+        create_forecast_history_table = """
+        CREATE TABLE IF NOT EXISTS forecast_history (
+            id SERIAL PRIMARY KEY,
+            
+            -- When was this forecast made?
+            forecast_date DATE NOT NULL,
+            forecast_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            
+            -- What period is being forecasted?
+            target_year INTEGER NOT NULL,
+            target_month INTEGER NOT NULL,
+            days_into_month INTEGER NOT NULL,
+            
+            -- Forecast values
+            projected_total NUMERIC(18,2) NOT NULL,
+            forecast_low NUMERIC(18,2),
+            forecast_high NUMERIC(18,2),
+            confidence_level VARCHAR(10),
+            
+            -- Context at time of forecast
+            mtd_sales NUMERIC(18,2),
+            mtd_invoices INTEGER,
+            month_progress_pct NUMERIC(5,2),
+            days_remaining INTEGER,
+            pipeline_value NUMERIC(18,2),
+            avg_pct_complete NUMERIC(5,2),
+            
+            -- Actual outcome (filled in after month ends)
+            actual_total NUMERIC(18,2) NULL,
+            actual_invoices INTEGER NULL,
+            accuracy_pct NUMERIC(5,2) NULL,
+            absolute_error NUMERIC(18,2) NULL,
+            within_range BOOLEAN NULL,
+            
+            -- Metadata
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NULL
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_forecast_target ON forecast_history(target_year, target_month);
+        CREATE INDEX IF NOT EXISTS idx_forecast_date ON forecast_history(forecast_date);
+        """
+        
         try:
             with self.get_connection() as conn:
                 if not conn:
@@ -139,8 +182,12 @@ class PostgreSQLService:
                 
                 with conn.cursor() as cursor:
                     cursor.execute(create_notes_table)
-                    conn.commit()
                     logger.info("Work order notes table created/verified successfully")
+                    
+                    cursor.execute(create_forecast_history_table)
+                    logger.info("Forecast history table created/verified successfully")
+                    
+                    conn.commit()
                     return True
         except Exception as e:
             logger.error(f"Failed to create tables: {str(e)}")

@@ -54,6 +54,7 @@ import {
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import WorkOrderTypes from './WorkOrderTypes'
+import ForecastAccuracy from './ForecastAccuracy'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -850,11 +851,12 @@ const Dashboard = ({ user }) => {
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="sales" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full max-w-lg grid-cols-4">
+        <TabsList className="grid w-full max-w-3xl grid-cols-5">
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
           <TabsTrigger value="forecast">AI Forecasts</TabsTrigger>
+          <TabsTrigger value="accuracy">Forecast Accuracy</TabsTrigger>
         </TabsList>
 
         {/* Sales Tab */}
@@ -2297,6 +2299,11 @@ const Dashboard = ({ user }) => {
               </Card>
             </div>
           </div>
+        </TabsContent>
+
+        {/* Forecast Accuracy Tab */}
+        <TabsContent value="accuracy" className="space-y-4">
+          <ForecastAccuracy />
         </TabsContent>
   </Tabs>
     </div>

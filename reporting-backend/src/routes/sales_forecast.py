@@ -1,9 +1,14 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
+from src.services.postgres_service import get_postgres_db
 from datetime import datetime, timedelta
+import calendar
 import numpy as np
 from statistics import stdev, mean
+import logging
+
+logger = logging.getLogger(__name__)
 
 sales_forecast_bp = Blueprint('sales_forecast', __name__)
 
@@ -18,7 +23,7 @@ def get_sales_forecast():
         current_month = now.month
         current_day = now.day
         
-        # Get historical daily sales patterns for all available months
+        # Get historical daily sales patterns (last 12 months for better patterns)
         daily_pattern_query = """
         WITH DailySales AS (
             SELECT 
@@ -28,7 +33,7 @@ def get_sales_forecast():
                 SUM(GrandTotal) as daily_total,
                 COUNT(*) as invoice_count
             FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
+            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
                 AND InvoiceDate < CAST(GETDATE() AS DATE)
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DAY(InvoiceDate)
         ),
@@ -107,6 +112,13 @@ def get_sales_forecast():
             current_day
         )
         
+        # Save forecast to history for accuracy tracking
+        try:
+            save_forecast_to_history(forecast_result)
+        except Exception as e:
+            logger.error(f"Failed to save forecast to history: {str(e)}")
+            # Don't fail the request if history save fails
+        
         return jsonify(forecast_result)
         
     except Exception as e:
@@ -116,7 +128,7 @@ def analyze_sales_patterns(daily_patterns, current_month_data, quotes_data, curr
     """Analyze historical patterns and generate forecast"""
     
     # Current month progress
-    days_in_month = 31 if current_month in [1, 3, 5, 7, 8, 10, 12] else 30 if current_month != 2 else 28
+    days_in_month = calendar.monthrange(current_year, current_month)[1]
     month_progress = current_day / days_in_month
     
     mtd_sales = float(current_month_data['mtd_sales'] or 0)
@@ -152,7 +164,7 @@ def analyze_sales_patterns(daily_patterns, current_month_data, quotes_data, curr
         pct_complete_std = 5  # Default uncertainty
     
     # Generate forecasts
-    if avg_pct_complete > 0:
+    if avg_pct_complete > 5:  # Need at least 5% completion for reliable projection
         # Base projection
         projected_total = mtd_sales / (avg_pct_complete / 100)
         
@@ -286,3 +298,323 @@ def get_recent_month_totals(daily_patterns, current_year, current_month):
 def format_currency(value):
     """Format value as currency"""
     return f"${value:,.0f}"
+
+def save_forecast_to_history(forecast_result):
+    """Save forecast to PostgreSQL for accuracy tracking"""
+    try:
+        postgres_db = get_postgres_db()
+        if not postgres_db:
+            logger.warning("PostgreSQL not available - skipping forecast history save")
+            return
+        
+        current = forecast_result['current_month']
+        forecast = forecast_result['forecast']
+        analysis = forecast_result['analysis']
+        
+        insert_query = """
+        INSERT INTO forecast_history (
+            forecast_date,
+            forecast_timestamp,
+            target_year,
+            target_month,
+            days_into_month,
+            projected_total,
+            forecast_low,
+            forecast_high,
+            confidence_level,
+            mtd_sales,
+            mtd_invoices,
+            month_progress_pct,
+            days_remaining,
+            pipeline_value,
+            avg_pct_complete
+        ) VALUES (
+            CURRENT_DATE,
+            CURRENT_TIMESTAMP,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        RETURNING id
+        """
+        
+        params = (
+            current['year'],
+            current['month'],
+            current['day'],
+            forecast['projected_total'],
+            forecast['forecast_low'],
+            forecast['forecast_high'],
+            forecast['confidence_level'],
+            current['mtd_sales'],
+            current.get('mtd_invoices', 0),  # May not be in response
+            current['month_progress_pct'],
+            current['days_remaining'],
+            forecast['expected_from_pipeline'],
+            analysis['typical_pct_complete_by_today']
+        )
+        
+        result = postgres_db.execute_insert_returning(insert_query, params)
+        if result:
+            logger.info(f"Saved forecast to history with ID: {result['id']}")
+        
+    except Exception as e:
+        logger.error(f"Error saving forecast to history: {str(e)}")
+        raise
+
+
+@sales_forecast_bp.route('/api/dashboard/forecast-accuracy/backfill', methods=['POST'])
+@jwt_required()
+def backfill_forecast_actuals():
+    """Backfill actual totals for completed months in forecast history"""
+    try:
+        postgres_db = get_postgres_db()
+        azure_db = AzureSQLService()
+        
+        if not postgres_db:
+            return jsonify({'error': 'PostgreSQL not available'}), 500
+        
+        # Get all forecasts that don't have actuals yet
+        pending_query = """
+        SELECT DISTINCT target_year, target_month
+        FROM forecast_history
+        WHERE actual_total IS NULL
+        ORDER BY target_year, target_month
+        """
+        
+        pending_months = postgres_db.execute_query(pending_query)
+        
+        if not pending_months:
+            return jsonify({
+                'message': 'No pending forecasts to backfill',
+                'updated_count': 0
+            })
+        
+        updated_count = 0
+        now = datetime.now()
+        
+        for month_record in pending_months:
+            target_year = month_record['target_year']
+            target_month = month_record['target_month']
+            
+            # Only backfill if the month has ended
+            target_date = datetime(target_year, target_month, 1)
+            next_month = target_date + timedelta(days=32)
+            next_month = next_month.replace(day=1)
+            
+            if now < next_month:
+                logger.info(f"Skipping {target_year}-{target_month} - month not yet complete")
+                continue
+            
+            # Get actual totals from Azure SQL
+            actual_query = f"""
+            SELECT 
+                SUM(GrandTotal) as actual_total,
+                COUNT(*) as actual_invoices
+            FROM ben002.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {target_year}
+                AND MONTH(InvoiceDate) = {target_month}
+            """
+            
+            actual_result = azure_db.execute_query(actual_query)[0]
+            actual_total = float(actual_result['actual_total'] or 0)
+            actual_invoices = int(actual_result['actual_invoices'] or 0)
+            
+            # Update all forecasts for this month
+            update_query = """
+            UPDATE forecast_history
+            SET 
+                actual_total = %s,
+                actual_invoices = %s,
+                accuracy_pct = CASE 
+                    WHEN %s > 0 THEN 
+                        ABS(projected_total - %s) / %s * 100
+                    ELSE NULL
+                END,
+                absolute_error = ABS(projected_total - %s),
+                within_range = CASE 
+                    WHEN %s BETWEEN COALESCE(forecast_low, projected_total) 
+                        AND COALESCE(forecast_high, projected_total) THEN TRUE
+                    ELSE FALSE
+                END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE target_year = %s
+                AND target_month = %s
+                AND actual_total IS NULL
+            """
+            
+            params = (
+                actual_total,
+                actual_invoices,
+                actual_total, actual_total, actual_total,  # For accuracy_pct calculation
+                actual_total,  # For absolute_error
+                actual_total,  # For within_range check
+                target_year,
+                target_month
+            )
+            
+            rows_updated = postgres_db.execute_update(update_query, params)
+            updated_count += rows_updated
+            logger.info(f"Updated {rows_updated} forecasts for {target_year}-{target_month} with actual: ${actual_total:,.2f}")
+        
+        return jsonify({
+            'message': f'Successfully backfilled actuals for {len(pending_months)} months',
+            'updated_count': updated_count,
+            'months_processed': [f"{m['target_year']}-{m['target_month']}" for m in pending_months]
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to backfill forecast actuals: {str(e)}")
+        return jsonify({'error': f'Failed to backfill actuals: {str(e)}'}), 500
+
+
+@sales_forecast_bp.route('/api/dashboard/forecast-accuracy', methods=['GET'])
+@jwt_required()
+def get_forecast_accuracy():
+    """Get forecast accuracy metrics and historical performance"""
+    try:
+        postgres_db = get_postgres_db()
+        
+        if not postgres_db:
+            return jsonify({'error': 'PostgreSQL not available'}), 500
+        
+        # Get overall accuracy metrics
+        metrics_query = """
+        SELECT 
+            COUNT(*) as total_forecasts,
+            COUNT(CASE WHEN actual_total IS NOT NULL THEN 1 END) as completed_forecasts,
+            AVG(accuracy_pct) as mean_absolute_percentage_error,
+            MIN(accuracy_pct) as best_accuracy,
+            MAX(accuracy_pct) as worst_accuracy,
+            AVG(CASE WHEN within_range THEN 1.0 ELSE 0.0 END) * 100 as within_range_pct,
+            AVG(projected_total - actual_total) as avg_bias
+        FROM forecast_history
+        WHERE actual_total IS NOT NULL
+        """
+        
+        metrics = postgres_db.execute_query(metrics_query)
+        
+        # Get accuracy by month
+        monthly_query = """
+        SELECT 
+            target_year,
+            target_month,
+            COUNT(*) as forecast_count,
+            AVG(projected_total) as avg_projected,
+            MAX(actual_total) as actual_total,
+            AVG(accuracy_pct) as mape,
+            AVG(projected_total - actual_total) as bias,
+            AVG(CASE WHEN within_range THEN 1.0 ELSE 0.0 END) * 100 as within_range_pct
+        FROM forecast_history
+        WHERE actual_total IS NOT NULL
+        GROUP BY target_year, target_month
+        ORDER BY target_year DESC, target_month DESC
+        LIMIT 12
+        """
+        
+        monthly_accuracy = postgres_db.execute_query(monthly_query)
+        
+        # Get accuracy trend by days into month
+        days_trend_query = """
+        SELECT 
+            days_into_month,
+            COUNT(*) as forecast_count,
+            AVG(accuracy_pct) as avg_accuracy,
+            AVG(CASE WHEN within_range THEN 1.0 ELSE 0.0 END) * 100 as within_range_pct
+        FROM forecast_history
+        WHERE actual_total IS NOT NULL
+        GROUP BY days_into_month
+        ORDER BY days_into_month
+        """
+        
+        days_trend = postgres_db.execute_query(days_trend_query)
+        
+        # Get recent forecasts with details
+        recent_query = """
+        SELECT 
+            forecast_date,
+            target_year,
+            target_month,
+            days_into_month,
+            projected_total,
+            forecast_low,
+            forecast_high,
+            actual_total,
+            accuracy_pct,
+            within_range,
+            mtd_sales,
+            month_progress_pct
+        FROM forecast_history
+        WHERE actual_total IS NOT NULL
+        ORDER BY forecast_date DESC
+        LIMIT 20
+        """
+        
+        recent_forecasts = postgres_db.execute_query(recent_query)
+        
+        # Format results
+        result = {
+            'summary': {
+                'total_forecasts': metrics[0]['total_forecasts'] if metrics else 0,
+                'completed_forecasts': metrics[0]['completed_forecasts'] if metrics else 0,
+                'mape': round(float(metrics[0]['mean_absolute_percentage_error'] or 0), 2) if metrics else None,
+                'best_accuracy': round(float(metrics[0]['best_accuracy'] or 0), 2) if metrics else None,
+                'worst_accuracy': round(float(metrics[0]['worst_accuracy'] or 0), 2) if metrics else None,
+                'within_range_pct': round(float(metrics[0]['within_range_pct'] or 0), 1) if metrics else None,
+                'avg_bias': round(float(metrics[0]['avg_bias'] or 0), 2) if metrics else None,
+                'performance_rating': get_performance_rating(float(metrics[0]['mean_absolute_percentage_error'] or 0)) if metrics else 'Unknown'
+            },
+            'monthly_accuracy': [
+                {
+                    'year': m['target_year'],
+                    'month': m['target_month'],
+                    'forecast_count': m['forecast_count'],
+                    'avg_projected': round(float(m['avg_projected']), 2),
+                    'actual_total': round(float(m['actual_total']), 2),
+                    'mape': round(float(m['mape']), 2),
+                    'bias': round(float(m['bias']), 2),
+                    'within_range_pct': round(float(m['within_range_pct']), 1)
+                }
+                for m in monthly_accuracy
+            ],
+            'accuracy_by_day': [
+                {
+                    'day': d['days_into_month'],
+                    'forecast_count': d['forecast_count'],
+                    'avg_accuracy': round(float(d['avg_accuracy']), 2),
+                    'within_range_pct': round(float(d['within_range_pct']), 1)
+                }
+                for d in days_trend
+            ],
+            'recent_forecasts': [
+                {
+                    'forecast_date': str(f['forecast_date']),
+                    'target_month': f"{f['target_year']}-{f['target_month']:02d}",
+                    'days_into_month': f['days_into_month'],
+                    'projected': round(float(f['projected_total']), 2),
+                    'actual': round(float(f['actual_total']), 2),
+                    'accuracy_pct': round(float(f['accuracy_pct']), 2),
+                    'within_range': bool(f['within_range']),
+                    'error': round(float(f['projected_total']) - float(f['actual_total']), 2)
+                }
+                for f in recent_forecasts
+            ]
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Failed to get forecast accuracy: {str(e)}")
+        return jsonify({'error': f'Failed to get accuracy metrics: {str(e)}'}), 500
+
+
+def get_performance_rating(mape):
+    """Get performance rating based on MAPE"""
+    if mape is None or mape == 0:
+        return 'Unknown'
+    elif mape < 10:
+        return 'Excellent'
+    elif mape < 20:
+        return 'Good'
+    elif mape < 30:
+        return 'Fair'
+    else:
+        return 'Needs Improvement'
