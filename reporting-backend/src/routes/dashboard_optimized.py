@@ -136,10 +136,17 @@ class DashboardQueries:
             # If Customer table doesn't exist, try counting unique customers from invoices
             try:
                 query = """
-                SELECT COUNT(DISTINCT BillToName) as total_customers
+                SELECT COUNT(DISTINCT CASE 
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                    ELSE BillToName
+                END) as total_customers
                 FROM ben002.InvoiceReg
                 WHERE BillToName IS NOT NULL
                 AND BillToName != ''
+                AND BillToName NOT LIKE '%Wells Fargo%'
+                AND BillToName NOT LIKE '%Maintenance contract%'
+                AND BillToName NOT LIKE '%Rental Fleet%'
                 """
                 result = self.db.execute_query(query)
                 return int(result[0]['total_customers']) if result else 0
@@ -1737,7 +1744,11 @@ def analyze_customer_risk():
         # Simplified query to avoid compatibility issues
         risk_analysis_query = f"""
         SELECT TOP 10
-            BillToName as customer_name,
+            CASE 
+                WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END as customer_name,
             COUNT(DISTINCT InvoiceNo) as total_invoices,
             SUM(GrandTotal) as total_sales,
             AVG(GrandTotal) as avg_invoice_value,
@@ -1753,8 +1764,16 @@ def analyze_customer_risk():
         WHERE InvoiceDate >= '{fiscal_year_start_str}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
+            AND BillToName NOT LIKE '%Wells Fargo%'
+            AND BillToName NOT LIKE '%Maintenance contract%'
+            AND BillToName NOT LIKE '%Rental Fleet%'
             AND GrandTotal > 0
-        GROUP BY BillToName
+        GROUP BY 
+            CASE 
+                WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END
         ORDER BY SUM(GrandTotal) DESC
         """
         
