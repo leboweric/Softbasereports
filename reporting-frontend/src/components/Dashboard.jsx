@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -52,7 +53,8 @@ import {
   Wrench,
   ShoppingCart,
   Brain,
-  Clock
+  Clock,
+  HelpCircle
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import WorkOrderTypes from './WorkOrderTypes'
@@ -1571,7 +1573,23 @@ const Dashboard = ({ user }) => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">At-Risk Customers</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium">At-Risk Customers</CardTitle>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold mb-1">Customers with concerning behavior:</p>
+                      <ul className="text-xs space-y-0.5">
+                        <li>• Inactive for 60+ days</li>
+                        <li>• Missing expected monthly orders</li>
+                        <li>• Sales dropped 50%+ below normal</li>
+                      </ul>
+                      <p className="text-xs mt-1 opacity-80">Based on Top 10 customers only</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </div>
                 <AlertTriangle className="h-4 w-4 text-orange-500" />
               </CardHeader>
               <CardContent>
@@ -1586,7 +1604,21 @@ const Dashboard = ({ user }) => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Customer Health</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-medium">Customer Health</CardTitle>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="font-semibold mb-1">Percentage of Top 10 customers with healthy activity</p>
+                      <p className="text-xs mt-1">
+                        Healthy = No risk factors detected (active purchasing, normal sales volume, regular orders)
+                      </p>
+                      <p className="text-xs mt-1 opacity-80">Based on Top 10 customers only</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </div>
                 <TrendingUp className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
