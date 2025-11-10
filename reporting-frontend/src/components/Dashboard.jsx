@@ -855,8 +855,8 @@ const Dashboard = ({ user }) => {
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
-          <TabsTrigger value="forecast">AI Forecasts</TabsTrigger>
-          <TabsTrigger value="accuracy">Forecast Accuracy</TabsTrigger>
+          <TabsTrigger value="forecast">AI Sales Forecast</TabsTrigger>
+          <TabsTrigger value="accuracy">AI Forecast Accuracy</TabsTrigger>
         </TabsList>
 
         {/* Sales Tab */}
