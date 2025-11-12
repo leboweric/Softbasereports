@@ -9,7 +9,7 @@ const PartsEmployeePerformance = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dateRange, setDateRange] = useState('contest');
-  const [customStartDate, setCustomStartDate] = useState('2025-08-07');
+  const [customStartDate, setCustomStartDate] = useState('2025-11-01');
   const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showCustomDates, setShowCustomDates] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -26,8 +26,8 @@ const PartsEmployeePerformance = () => {
       let url;
       
       if (dateRange === 'contest') {
-        // Contest period: August 7, 2025 to today
-        url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=2025-08-07&end_date=${new Date().toISOString().split('T')[0]}`);
+        // Contest period: November 1, 2025 to today
+        url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=2025-11-01&end_date=${new Date().toISOString().split('T')[0]}`);
       } else if (dateRange === 'custom') {
         url = apiUrl(`/api/reports/departments/parts/employee-performance?start_date=${customStartDate}&end_date=${customEndDate}`);
       } else {
@@ -66,7 +66,7 @@ const PartsEmployeePerformance = () => {
     try {
       let url;
       if (dateRange === 'contest') {
-        url = apiUrl(`/api/reports/departments/parts/employee-invoice-details?employee_id=${employeeId}&start_date=2025-08-07&end_date=${new Date().toISOString().split('T')[0]}`);
+        url = apiUrl(`/api/reports/departments/parts/employee-invoice-details?employee_id=${employeeId}&start_date=2025-11-01&end_date=${new Date().toISOString().split('T')[0]}`);
       } else if (dateRange === 'custom') {
         url = apiUrl(`/api/reports/departments/parts/employee-invoice-details?employee_id=${employeeId}&start_date=${customStartDate}&end_date=${customEndDate}`);
       } else {
@@ -166,7 +166,7 @@ const PartsEmployeePerformance = () => {
               <span className="text-2xl">🏆</span>
               Parts Counter Sales Contest (CSTPRT Only)
               <span className="text-sm font-normal text-gray-600 ml-2">
-                (Aug 7 - Today)
+                (Nov 1 - Today)
               </span>
             </CardTitle>
           </CardHeader>
@@ -264,7 +264,7 @@ const PartsEmployeePerformance = () => {
               <CardTitle>Parts Counter Performance (CSTPRT Sale Code)</CardTitle>
               {dateRange === 'contest' && (
                 <p className="text-sm text-amber-600 font-semibold mt-1">
-                  🏆 Contest Period: August 7, 2025 - Today (Counter Sales Only)
+                  🏆 Contest Period: November 1, 2025 - Today (Counter Sales Only)
                 </p>
               )}
             </div>
@@ -277,7 +277,7 @@ const PartsEmployeePerformance = () => {
                 }}
                 className="px-3 py-1 border rounded-md text-sm"
               >
-                <option value="contest">🏆 Contest (Aug 7 - Today)</option>
+                <option value="contest">🏆 Contest (Nov 1 - Today)</option>
                 <option value="7">Last 7 Days</option>
                 <option value="30">Last 30 Days</option>
                 <option value="60">Last 60 Days</option>
