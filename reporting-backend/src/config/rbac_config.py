@@ -26,6 +26,7 @@ RESOURCES = {
     'accounting_inventory': 'Year-end inventory report',
     'minitrac': 'Minitrac equipment database',
     'knowledge_base': 'Technical troubleshooting knowledge base',
+    'currie': 'Currie Financial Model quarterly reporting',
     'database_explorer': 'Database query and exploration tool',
     'user_management': 'User and role management',
 }
@@ -46,6 +47,7 @@ ROLE_PERMISSIONS = {
             'service_overview',
             'rental_overview',
             'accounting_overview',
+            'currie',
             'minitrac',
         ],
         'actions': ['view', 'export'],
@@ -81,6 +83,7 @@ ROLE_PERMISSIONS = {
         'resources': [
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
+            'currie',
             'minitrac'
         ],
         'actions': ['view', 'export'],
@@ -89,6 +92,7 @@ ROLE_PERMISSIONS = {
         'resources': [
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
+            'currie',
             'minitrac'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
@@ -191,19 +195,26 @@ NAVIGATION_CONFIG = {
         'required_resource': 'knowledge_base',
         'order': 6,
     },
+    'currie': {
+        'label': 'Currie',
+        'icon': 'FileSpreadsheet',
+        'path': 'currie',
+        'required_resource': 'currie',
+        'order': 7,
+    },
     'minitrac': {
         'label': 'Minitrac',
         'icon': 'Search',
         'path': 'minitrac',
         'required_resource': 'minitrac',
-        'order': 7,
+        'order': 8,
     },
     'database-explorer': {
         'label': 'Database Explorer',
         'icon': 'Database',
         'path': 'database-explorer',
         'required_resource': 'database_explorer',
-        'order': 8,
+        'order': 9,
     },
     'user-management': {
         'label': 'User Management',
