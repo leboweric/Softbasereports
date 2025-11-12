@@ -126,9 +126,11 @@ const PMReport = ({ user }) => {
     const exportData = pms.map(pm => ({
       'Serial No': pm.serial_no || '',
       'Customer': pm.customer_name || '',
-      'Customer Phone': pm.customer_phone || '',
+      'Ship To Address': pm.customer_address || '',
       'City': pm.customer_city || '',
       'State': pm.customer_state || '',
+      'Zip': pm.customer_zip || '',
+      'Customer Phone': pm.customer_phone || '',
       'Contact': pm.customer_contact || '',
       'Unit No': pm.unit_no || '',
       'Make': pm.make || '',
@@ -148,10 +150,26 @@ const PMReport = ({ user }) => {
     const ws = XLSX.utils.json_to_sheet(exportData)
 
     ws['!cols'] = [
-      { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 8 },
-      { wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 10 },
-      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
-      { wch: 8 }, { wch: 10 }, { wch: 40 }
+      { wch: 12 },  // Serial No
+      { wch: 25 },  // Customer
+      { wch: 30 },  // Ship To Address
+      { wch: 15 },  // City
+      { wch: 8 },   // State
+      { wch: 10 },  // Zip
+      { wch: 15 },  // Customer Phone
+      { wch: 20 },  // Contact
+      { wch: 12 },  // Unit No
+      { wch: 15 },  // Make
+      { wch: 15 },  // Model
+      { wch: 10 },  // Frequency
+      { wch: 15 },  // Last Labor Date
+      { wch: 15 },  // Next PM Date
+      { wch: 15 },  // Technician
+      { wch: 12 },  // Days Until Due
+      { wch: 12 },  // Status
+      { wch: 8 },   // Open WO
+      { wch: 10 },  // WO Number
+      { wch: 40 }   // Comments
     ]
 
     XLSX.utils.book_append_sheet(wb, ws, 'PMs')
@@ -214,6 +232,7 @@ const PMReport = ({ user }) => {
             <TableRow>
               <SortableHeader label="Serial No" sortKey="serial_no" />
               <SortableHeader label="Customer" sortKey="customer_name" />
+              <TableHead>Ship To Address</TableHead>
               <SortableHeader label="City" sortKey="customer_city" />
               <TableHead>Make/Model</TableHead>
               <SortableHeader label="Frequency" sortKey="frequency" />
@@ -232,6 +251,11 @@ const PMReport = ({ user }) => {
                     {pm.customer_phone && (
                       <span className="text-xs text-muted-foreground">{pm.customer_phone}</span>
                     )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm">
+                    {pm.customer_address || 'N/A'}
                   </div>
                 </TableCell>
                 <TableCell>
