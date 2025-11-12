@@ -38,7 +38,7 @@ def get_pm_technician_performance():
         query = """
         WITH TechPMs AS (
             SELECT 
-                l.Employee as technician,
+                l.MechanicName as technician,
                 l.WONo,
                 l.DateOfLabor,
                 l.Hours,
@@ -51,8 +51,8 @@ def get_pm_technician_performance():
             WHERE wo.Type = 'PM'
                 AND l.DateOfLabor >= %s
                 AND l.DateOfLabor <= %s
-                AND l.Employee IS NOT NULL
-                AND l.Employee != ''
+                AND l.MechanicName IS NOT NULL
+                AND l.MechanicName != ''
         )
         SELECT 
             technician,
@@ -164,7 +164,7 @@ def get_pm_technician_details():
         FROM ben002.WOLabor l
         INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
         WHERE wo.Type = 'PM'
-            AND l.Employee = %s
+            AND l.MechanicName = %s
             AND l.DateOfLabor >= %s
             AND l.DateOfLabor <= %s
         ORDER BY l.DateOfLabor DESC
