@@ -1,7 +1,10 @@
 from flask import Blueprint, jsonify, request
-from datetime import datetime, timedelta
-from src.services.azure_sql_service import AzureSQLService
 from flask_jwt_extended import jwt_required
+from src.services.azure_sql_service import AzureSQLService
+import logging
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 pm_technician_performance_bp = Blueprint('pm_technician_performance', __name__)
 
@@ -9,32 +12,23 @@ pm_technician_performance_bp = Blueprint('pm_technician_performance', __name__)
 @jwt_required()
 def get_pm_technician_performance():
     """
-    Get PM completion performance by technician for contest tracking
+    Get PM technician performance metrics for the contest period.
+    Shows completed PMs by technician with performance statistics.
     """
     try:
-        # Get query parameters
-        days = request.args.get('days', type=int)
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
+        start = request.args.get('start_date', '2025-11-01')
+        end = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
         
-        # Calculate date range
-        if start_date and end_date:
-            start = start_date
-            end = end_date
-            period_label = f"{start} to {end}"
-        elif days:
-            end = datetime.now().date()
-            start = end - timedelta(days=days)
-            period_label = f"Last {days} days"
+        # Determine period label
+        if start == '2025-11-01' and end >= '2026-01-31':
+            period_label = "Q1 FY2026 Contest Period"
         else:
-            # Default to contest period (Nov 1, 2025 to today)
-            start = "2025-11-01"
-            end = datetime.now().date()
             period_label = f"{start} to {end}"
         
         sql_service = AzureSQLService()
         
         # Query to get PM completions by technician
+        # Pattern copied from department_reports.py WO queries
         query = """
         WITH TechPMs AS (
             SELECT 
@@ -42,7 +36,7 @@ def get_pm_technician_performance():
                 l.WONo,
                 l.DateOfLabor,
                 l.Hours,
-                wo.Customer,
+                wo.BillTo,
                 wo.UnitNo,
                 wo.SerialNo,
                 wo.Model
@@ -75,50 +69,57 @@ def get_pm_technician_performance():
                     'totalEmployees': 0,
                     'totalPMs': 0,
                     'topPerformer': None,
-                    'avgPerEmployee': 0,
-                    'period': period_label
-                }
+                    'avgPMsPerTech': 0
+                },
+                'period': period_label
             })
         
-        # Calculate totals
-        total_pms = sum(row['total_pms'] for row in results)
-        total_employees = len(results)
-        
-        # Format employee data
+        # Process results
         employees = []
+        total_pms = 0
+        top_performer = None
+        max_pms = 0
+        
         for row in results:
-            tech_pms = row['total_pms']
-            days_worked = row['days_worked'] or 1
-            total_hours = row['total_hours'] or 0
+            tech_name = row['technician']
+            pms = int(row['total_pms'])
+            days_worked = int(row['days_worked']) if row['days_worked'] else 0
+            total_hours = float(row['total_hours']) if row['total_hours'] else 0
+            last_pm = row['last_pm_date']
+            days_inactive = int(row['days_inactive']) if row['days_inactive'] else 0
+            
+            total_pms += pms
+            
+            if pms > max_pms:
+                max_pms = pms
+                top_performer = tech_name
             
             employees.append({
-                'employeeId': row['technician'],
-                'employeeName': row['technician'],
-                'totalPMs': tech_pms,
-                'percentOfTotal': round((tech_pms / total_pms * 100), 1) if total_pms > 0 else 0,
+                'name': tech_name,
+                'totalPMs': pms,
                 'daysWorked': days_worked,
-                'avgDailyPMs': round(tech_pms / days_worked, 1),
+                'avgPMsPerDay': round(pms / days_worked, 2) if days_worked > 0 else 0,
                 'totalHours': round(total_hours, 1),
-                'avgTimePerPM': round(total_hours / tech_pms, 1) if tech_pms > 0 else 0,
-                'lastPMDate': row['last_pm_date'].strftime('%Y-%m-%d') if row['last_pm_date'] else None,
-                'daysInactive': row['days_inactive'] or 0
+                'avgTimePerPM': round(total_hours / pms, 2) if pms > 0 else 0,
+                'lastPMDate': last_pm.strftime('%Y-%m-%d') if last_pm else None,
+                'daysInactive': days_inactive
             })
         
-        # Summary data
-        summary = {
-            'totalEmployees': total_employees,
-            'totalPMs': total_pms,
-            'topPerformer': employees[0] if employees else None,
-            'avgPerEmployee': round(total_pms / total_employees, 1) if total_employees > 0 else 0,
-            'period': period_label
-        }
+        avg_pms = round(total_pms / len(employees), 1) if employees else 0
         
         return jsonify({
             'employees': employees,
-            'summary': summary
+            'summary': {
+                'totalEmployees': len(employees),
+                'totalPMs': total_pms,
+                'topPerformer': top_performer,
+                'avgPMsPerTech': avg_pms
+            },
+            'period': period_label
         })
         
     except Exception as e:
+        logger.error(f"PM technician performance query failed: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -126,22 +127,16 @@ def get_pm_technician_performance():
 @jwt_required()
 def get_pm_technician_details():
     """
-    Get detailed PM list for a specific technician
+    Get detailed PM list for a specific technician.
     """
     try:
         technician = request.args.get('technician')
-        days = request.args.get('days', type=int)
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-        
         if not technician:
-            return jsonify({'error': 'Technician parameter required'}), 400
+            return jsonify({'error': 'Technician name required'}), 400
         
-        # Calculate date range
-        if start_date and end_date:
-            start = start_date
-            end = end_date
-        elif days:
+        # Parse date range
+        days = request.args.get('days', type=int)
+        if days:
             end = datetime.now().date()
             start = end - timedelta(days=days)
         else:
@@ -150,19 +145,21 @@ def get_pm_technician_details():
         
         sql_service = AzureSQLService()
         
+        # Query pattern copied from department_reports.py
         query = """
         SELECT 
             l.WONo,
             l.DateOfLabor,
             l.Hours,
-            wo.Customer,
+            wo.BillTo,
+            c.Name as CustomerName,
             wo.UnitNo,
             wo.SerialNo,
             wo.Model,
-            wo.Make,
-            wo.BillToPhone as CustomerPhone
+            wo.Make
         FROM ben002.WOLabor l
         INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
+        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
         WHERE wo.Type = 'PM'
             AND l.MechanicName = %s
             AND l.DateOfLabor >= %s
@@ -178,12 +175,12 @@ def get_pm_technician_details():
                 'woNo': row['WONo'],
                 'laborDate': row['DateOfLabor'].strftime('%Y-%m-%d') if row['DateOfLabor'] else None,
                 'hours': round(row['Hours'], 1) if row['Hours'] else 0,
-                'customer': row['Customer'],
+                'billTo': row['BillTo'],
+                'customerName': row['CustomerName'],
                 'unitNo': row['UnitNo'],
                 'serialNo': row['SerialNo'],
                 'model': row['Model'],
-                'make': row['Make'],
-                'customerPhone': row['CustomerPhone']
+                'make': row['Make']
             })
         
         return jsonify({'pms': pms})
