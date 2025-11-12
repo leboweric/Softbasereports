@@ -13,6 +13,13 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
@@ -20,6 +27,7 @@ const PMReport = ({ user }) => {
   const [pmData, setPmData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [sortConfig, setSortConfig] = useState({ key: 'next_pm_date', direction: 'asc' })
+  const [selectedTechnician, setSelectedTechnician] = useState('all')
   
   // Collapse state for each section
   const [isOverdueOpen, setIsOverdueOpen] = useState(true)
@@ -81,17 +89,33 @@ const PMReport = ({ user }) => {
     })
   }
 
-  // Group PMs by status
+  // Get unique technicians for filter dropdown
+  const technicians = useMemo(() => {
+    if (!pmData?.pms) return []
+    const uniqueTechs = [...new Set(pmData.pms.map(pm => pm.technician).filter(Boolean))]
+    return uniqueTechs.sort()
+  }, [pmData])
+
+  // Filter PMs by selected technician
+  const filteredPMs = useMemo(() => {
+    if (!pmData?.pms) return []
+    if (selectedTechnician === 'all') return pmData.pms
+    return pmData.pms.filter(pm => pm.technician === selectedTechnician)
+  }, [pmData, selectedTechnician])
+
+  // Group PMs by status (after technician filter)
   const groupedPMs = useMemo(() => {
-    if (!pmData?.pms) return { overdue: [], dueSoon: [], scheduled: [], notScheduled: [] }
+    if (!filteredPMs || filteredPMs.length === 0) {
+      return { overdue: [], dueSoon: [], scheduled: [], notScheduled: [] }
+    }
     
     return {
-      overdue: pmData.pms.filter(pm => pm.status === 'Overdue'),
-      dueSoon: pmData.pms.filter(pm => pm.status === 'Due Soon'),
-      scheduled: pmData.pms.filter(pm => pm.status === 'Scheduled'),
-      notScheduled: pmData.pms.filter(pm => pm.status === 'Not Scheduled')
+      overdue: filteredPMs.filter(pm => pm.status === 'Overdue'),
+      dueSoon: filteredPMs.filter(pm => pm.status === 'Due Soon'),
+      scheduled: filteredPMs.filter(pm => pm.status === 'Scheduled'),
+      notScheduled: filteredPMs.filter(pm => pm.status === 'Not Scheduled')
     }
-  }, [pmData])
+  }, [filteredPMs])
 
   const exportToExcel = (pms, filename) => {
     if (!pms || pms.length === 0) {
@@ -135,11 +159,12 @@ const PMReport = ({ user }) => {
   }
 
   const exportAllToExcel = () => {
-    if (!pmData?.pms || pmData.pms.length === 0) {
+    if (!filteredPMs || filteredPMs.length === 0) {
       alert('No data to export')
       return
     }
-    exportToExcel(pmData.pms, `All_PMs_${new Date().toISOString().split('T')[0]}.xlsx`)
+    const techName = selectedTechnician === 'all' ? 'All_Techs' : selectedTechnician.replace(/\s+/g, '_')
+    exportToExcel(filteredPMs, `PM_Report_${techName}_${new Date().toISOString().split('T')[0]}.xlsx`)
   }
 
   const getStatusBadge = (status, count) => {
@@ -275,6 +300,37 @@ const PMReport = ({ user }) => {
 
   return (
     <div className="space-y-6">
+      {/* Technician Filter and Export */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex-1">
+              <CardTitle>PM Report by Technician</CardTitle>
+              <CardDescription>
+                Filter PMs by technician and download individual tech reports
+              </CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Select value={selectedTechnician} onValueChange={setSelectedTechnician}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select technician" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Technicians</SelectItem>
+                  {technicians.map(tech => (
+                    <SelectItem key={tech} value={tech}>{tech}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={exportAllToExcel} variant="outline">
+                <Download className="mr-2 h-4 w-4" />
+                Export {selectedTechnician === 'all' ? 'All' : selectedTechnician}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
@@ -283,7 +339,10 @@ const PMReport = ({ user }) => {
             <Wrench className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pmData.summary.total}</div>
+            <div className="text-2xl font-bold">{filteredPMs.length}</div>
+            {selectedTechnician !== 'all' && (
+              <p className="text-xs text-muted-foreground mt-1">of {pmData.summary.total} total</p>
+            )}
           </CardContent>
         </Card>
 
@@ -293,7 +352,10 @@ const PMReport = ({ user }) => {
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{pmData.summary.overdue}</div>
+            <div className="text-2xl font-bold text-destructive">{groupedPMs.overdue.length}</div>
+            {selectedTechnician !== 'all' && (
+              <p className="text-xs text-muted-foreground mt-1">of {pmData.summary.overdue} total</p>
+            )}
           </CardContent>
         </Card>
 
@@ -303,7 +365,10 @@ const PMReport = ({ user }) => {
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">{pmData.summary.due_soon}</div>
+            <div className="text-2xl font-bold text-warning">{groupedPMs.dueSoon.length}</div>
+            {selectedTechnician !== 'all' && (
+              <p className="text-xs text-muted-foreground mt-1">of {pmData.summary.due_soon} total</p>
+            )}
           </CardContent>
         </Card>
 
