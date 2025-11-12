@@ -19,14 +19,8 @@ postgres_db = get_postgres_db()
 
 def is_admin():
     """Check if current user has admin permissions"""
-    try:
-        current_user = get_jwt_identity()
-        # Check if user has knowledge_base edit permission
-        # For now, allow Service Manager role or Super Admin
-        # You can enhance this with proper permission check
-        return True  # TODO: Implement proper permission check
-    except:
-        return False
+    # RBAC disabled - allow all authenticated users
+    return True
 
 @knowledge_base_bp.route('/api/knowledge-base/articles', methods=['GET'])
 @jwt_required()
@@ -182,10 +176,8 @@ def get_article(article_id):
 @knowledge_base_bp.route('/api/knowledge-base/articles', methods=['POST'])
 @jwt_required()
 def create_article():
-    """Create a new knowledge base article (admin only)"""
+    """Create a new knowledge base article"""
     try:
-        if not is_admin():
-            return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.json
         current_user = get_jwt_identity()
@@ -236,10 +228,8 @@ def create_article():
 @knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>', methods=['PUT'])
 @jwt_required()
 def update_article(article_id):
-    """Update an existing article (admin only)"""
+    """Update an existing article"""
     try:
-        if not is_admin():
-            return jsonify({'error': 'Unauthorized'}), 403
         
         data = request.json
         current_user = get_jwt_identity()
@@ -288,10 +278,8 @@ def update_article(article_id):
 @knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>', methods=['DELETE'])
 @jwt_required()
 def delete_article(article_id):
-    """Delete an article (admin only)"""
+    """Delete an article"""
     try:
-        if not is_admin():
-            return jsonify({'error': 'Unauthorized'}), 403
         
         query = "DELETE FROM knowledge_base WHERE id = %s"
         rows_affected = postgres_db.execute_update(query, [article_id])

@@ -31,8 +31,8 @@ const KnowledgeBase = () => {
   }, [articles, searchTerm, selectedCategory, selectedMake]);
 
   const checkAdminStatus = () => {
-    const userRole = localStorage.getItem('userRole');
-    setIsAdmin(userRole === 'admin' || userRole === 'super_admin');
+    // RBAC disabled - allow all authenticated users
+    setIsAdmin(true);
   };
 
   const fetchArticles = async () => {
