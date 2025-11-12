@@ -148,7 +148,7 @@ const PMReport = ({ user }) => {
         'Contact': pm.customer_contact || '',
         'Phone': pm.customer_phone || '',
         'City': pm.customer_city || '',
-        'Due Date': pm.next_pm_date || '',
+        'Due Date': pm.next_pm_date ? new Date(pm.next_pm_date).toLocaleDateString() : '',
         'Days Past Due': isOverdue ? daysPastDue : '',
         'Overdue': isOverdue ? 'Yes' : 'No',
         'Unit Number': pm.unit_no || '',
@@ -160,6 +160,16 @@ const PMReport = ({ user }) => {
 
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.json_to_sheet(exportData)
+
+    // Make header row bold
+    const range = XLSX.utils.decode_range(ws['!ref'])
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
+      if (!ws[cellAddress]) continue
+      ws[cellAddress].s = {
+        font: { bold: true }
+      }
+    }
 
     // Auto-size columns based on content
     const maxWidths = {}
