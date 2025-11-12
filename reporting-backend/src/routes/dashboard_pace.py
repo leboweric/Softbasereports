@@ -134,6 +134,11 @@ def get_sales_pace():
             pace_pct_prev_month_no_equip = ((current_no_equip / previous_no_equip) - 1) * 100 if previous_no_equip > 0 else 0
             comparison_base_no_equip = "same_day_previous_month"
         
+        # Project current month based on pace (calculate BEFORE using in comparisons)
+        days_in_month = 31  # Approximate, could be calculated exactly
+        projected_total = (current_sales / current_day) * days_in_month if current_day > 0 else 0
+        projected_no_equip = (current_no_equip / current_day) * days_in_month if current_day > 0 else 0
+        
         # 2. Available months average comparison (use projected total for fair comparison)
         pace_pct_avg = ((projected_total / avg_monthly_sales) - 1) * 100 if avg_monthly_sales > 0 else 0
         pace_pct_avg_no_equip = ((projected_no_equip / avg_monthly_sales_no_equip) - 1) * 100 if avg_monthly_sales_no_equip > 0 else 0
@@ -149,11 +154,6 @@ def get_sales_pace():
         # Maintain backward compatibility - use previous month as primary pace
         pace_pct = pace_pct_prev_month
         pace_pct_no_equip = pace_pct_prev_month_no_equip
-        
-        # Project current month based on pace
-        days_in_month = 31  # Approximate, could be calculated exactly
-        projected_total = (current_sales / current_day) * days_in_month if current_day > 0 else 0
-        projected_no_equip = (current_no_equip / current_day) * days_in_month if current_day > 0 else 0
         
         # Get quotes pace data
         current_quotes_query = f"""
