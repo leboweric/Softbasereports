@@ -48,7 +48,7 @@ def get_pm_technician_performance():
                 wo.Model
             FROM ben002.WOLabor l
             INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
-            WHERE wo.WOType = 'PM'
+            WHERE wo.Type = 'PM'
                 AND l.LaborDate >= %s
                 AND l.LaborDate <= %s
                 AND l.Employee IS NOT NULL
@@ -163,7 +163,7 @@ def get_pm_technician_details():
             wo.BillToPhone as CustomerPhone
         FROM ben002.WOLabor l
         INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
-        WHERE wo.WOType = 'PM'
+        WHERE wo.Type = 'PM'
             AND l.Employee = %s
             AND l.LaborDate >= %s
             AND l.LaborDate <= %s
