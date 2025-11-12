@@ -131,6 +131,31 @@ class PostgreSQLService:
         CREATE INDEX IF NOT EXISTS idx_wo_number ON work_order_notes(wo_number);
         """
         
+        create_knowledge_base_table = """
+        CREATE TABLE IF NOT EXISTS knowledge_base (
+            id SERIAL PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            equipment_make VARCHAR(100),
+            equipment_model VARCHAR(100),
+            issue_category VARCHAR(100) NOT NULL,
+            symptoms TEXT NOT NULL,
+            root_cause TEXT NOT NULL,
+            solution TEXT NOT NULL,
+            related_wo_numbers VARCHAR(500),
+            image_urls TEXT,
+            created_by VARCHAR(100) NOT NULL,
+            created_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_by VARCHAR(100),
+            updated_date TIMESTAMP,
+            view_count INTEGER DEFAULT 0
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_kb_category ON knowledge_base(issue_category);
+        CREATE INDEX IF NOT EXISTS idx_kb_make ON knowledge_base(equipment_make);
+        CREATE INDEX IF NOT EXISTS idx_kb_created ON knowledge_base(created_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_kb_views ON knowledge_base(view_count DESC);
+        """
+        
         create_forecast_history_table = """
         CREATE TABLE IF NOT EXISTS forecast_history (
             id SERIAL PRIMARY KEY,
@@ -183,6 +208,9 @@ class PostgreSQLService:
                 with conn.cursor() as cursor:
                     cursor.execute(create_notes_table)
                     logger.info("Work order notes table created/verified successfully")
+                    
+                    cursor.execute(create_knowledge_base_table)
+                    logger.info("Knowledge base table created/verified successfully")
                     
                     cursor.execute(create_forecast_history_table)
                     logger.info("Forecast history table created/verified successfully")

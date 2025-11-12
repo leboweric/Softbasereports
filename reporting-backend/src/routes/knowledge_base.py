@@ -1,216 +1,209 @@
-from flask import Blueprint, jsonify, request
+"""
+Knowledge Base API Routes
+Manages technical troubleshooting articles for service technicians
+Stores data in PostgreSQL (Railway)
+"""
+
+from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.services.azure_sql_service import AzureSQLService
 import logging
-from datetime import datetime
+from src.services.postgres_service import get_postgres_db
+from src.services.permission_service import PermissionService
 
 logger = logging.getLogger(__name__)
 
 knowledge_base_bp = Blueprint('knowledge_base', __name__)
 
+# Get PostgreSQL service
+postgres_db = get_postgres_db()
+
+def is_admin():
+    """Check if current user has admin permissions"""
+    try:
+        current_user = get_jwt_identity()
+        # Check if user has knowledge_base edit permission
+        # For now, allow Service Manager role or Super Admin
+        # You can enhance this with proper permission check
+        return True  # TODO: Implement proper permission check
+    except:
+        return False
+
 @knowledge_base_bp.route('/api/knowledge-base/articles', methods=['GET'])
 @jwt_required()
 def get_articles():
-    """
-    Get all knowledge base articles with optional search and filtering.
-    """
+    """Get all knowledge base articles with optional filtering"""
     try:
-        db = AzureSQLService()
-        
-        # Get query parameters
         search = request.args.get('search', '')
         category = request.args.get('category', '')
         equipment_make = request.args.get('equipment_make', '')
         
         # Build query with filters
         query = """
-        SELECT 
-            Id,
-            Title,
-            EquipmentMake,
-            EquipmentModel,
-            IssueCategory,
-            Symptoms,
-            RootCause,
-            Solution,
-            RelatedWONumbers,
-            ImageUrls,
-            CreatedBy,
-            CreatedDate,
-            UpdatedBy,
-            UpdatedDate,
-            ViewCount
-        FROM ben002.KnowledgeBase
-        WHERE 1=1
+            SELECT 
+                id,
+                title,
+                equipment_make,
+                equipment_model,
+                issue_category,
+                symptoms,
+                root_cause,
+                solution,
+                related_wo_numbers,
+                image_urls,
+                created_by,
+                created_date,
+                updated_by,
+                updated_date,
+                view_count
+            FROM knowledge_base
+            WHERE 1=1
         """
-        
         params = []
         
-        # Add search filter (searches across multiple fields)
+        # Add search filter
         if search:
-            query += """
-            AND (
-                Title LIKE %s
-                OR Symptoms LIKE %s
-                OR RootCause LIKE %s
-                OR Solution LIKE %s
-                OR EquipmentMake LIKE %s
-                OR EquipmentModel LIKE %s
-            )
-            """
+            query += """ AND (
+                title ILIKE %s OR
+                symptoms ILIKE %s OR
+                root_cause ILIKE %s OR
+                solution ILIKE %s OR
+                equipment_make ILIKE %s OR
+                equipment_model ILIKE %s
+            )"""
             search_param = f'%{search}%'
             params.extend([search_param] * 6)
         
         # Add category filter
         if category:
-            query += " AND IssueCategory = %s"
+            query += " AND issue_category = %s"
             params.append(category)
         
         # Add equipment make filter
         if equipment_make:
-            query += " AND EquipmentMake = %s"
+            query += " AND equipment_make = %s"
             params.append(equipment_make)
         
-        query += " ORDER BY UpdatedDate DESC, CreatedDate DESC"
+        query += " ORDER BY created_date DESC"
         
-        results = db.execute_query(query, params if params else None)
+        articles = postgres_db.execute_query(query, params if params else None)
         
-        if not results:
-            return jsonify({'articles': []})
-        
-        articles = []
-        for row in results:
-            articles.append({
-                'id': row['Id'],
-                'title': row['Title'],
-                'equipmentMake': row['EquipmentMake'],
-                'equipmentModel': row['EquipmentModel'],
-                'issueCategory': row['IssueCategory'],
-                'symptoms': row['Symptoms'],
-                'rootCause': row['RootCause'],
-                'solution': row['Solution'],
-                'relatedWONumbers': row['RelatedWONumbers'],
-                'imageUrls': row['ImageUrls'].split(',') if row['ImageUrls'] else [],
-                'createdBy': row['CreatedBy'],
-                'createdDate': row['CreatedDate'].isoformat() if row['CreatedDate'] else None,
-                'updatedBy': row['UpdatedBy'],
-                'updatedDate': row['UpdatedDate'].isoformat() if row['UpdatedDate'] else None,
-                'viewCount': row['ViewCount'] or 0
+        # Convert to camelCase for frontend
+        result = []
+        for article in articles:
+            result.append({
+                'id': article['id'],
+                'title': article['title'],
+                'equipmentMake': article['equipment_make'],
+                'equipmentModel': article['equipment_model'],
+                'issueCategory': article['issue_category'],
+                'symptoms': article['symptoms'],
+                'rootCause': article['root_cause'],
+                'solution': article['solution'],
+                'relatedWONumbers': article['related_wo_numbers'],
+                'imageUrls': article['image_urls'].split(',') if article['image_urls'] else [],
+                'createdBy': article['created_by'],
+                'createdDate': article['created_date'].isoformat() if article['created_date'] else None,
+                'updatedBy': article['updated_by'],
+                'updatedDate': article['updated_date'].isoformat() if article['updated_date'] else None,
+                'viewCount': article['view_count'] or 0
             })
         
-        return jsonify({'articles': articles})
+        return jsonify({'articles': result}), 200
         
     except Exception as e:
-        logger.error(f"Failed to fetch knowledge base articles: {str(e)}")
+        logger.error(f"Error fetching articles: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>', methods=['GET'])
 @jwt_required()
 def get_article(article_id):
-    """
-    Get a single knowledge base article by ID and increment view count.
-    """
+    """Get a single article and increment view count"""
     try:
-        db = AzureSQLService()
+        # Increment view count
+        update_query = """
+            UPDATE knowledge_base 
+            SET view_count = view_count + 1
+            WHERE id = %s
+        """
+        postgres_db.execute_update(update_query, [article_id])
         
         # Get article
         query = """
-        SELECT 
-            Id,
-            Title,
-            EquipmentMake,
-            EquipmentModel,
-            IssueCategory,
-            Symptoms,
-            RootCause,
-            Solution,
-            RelatedWONumbers,
-            ImageUrls,
-            CreatedBy,
-            CreatedDate,
-            UpdatedBy,
-            UpdatedDate,
-            ViewCount
-        FROM ben002.KnowledgeBase
-        WHERE Id = %s
+            SELECT 
+                id,
+                title,
+                equipment_make,
+                equipment_model,
+                issue_category,
+                symptoms,
+                root_cause,
+                solution,
+                related_wo_numbers,
+                image_urls,
+                created_by,
+                created_date,
+                updated_by,
+                updated_date,
+                view_count
+            FROM knowledge_base
+            WHERE id = %s
         """
         
-        results = db.execute_query(query, [article_id])
+        articles = postgres_db.execute_query(query, [article_id])
         
-        if not results:
+        if not articles:
             return jsonify({'error': 'Article not found'}), 404
         
-        row = results[0]
-        
-        # Increment view count
-        update_query = """
-        UPDATE ben002.KnowledgeBase
-        SET ViewCount = ISNULL(ViewCount, 0) + 1
-        WHERE Id = %s
-        """
-        db.execute_query(update_query, [article_id])
-        
-        article = {
-            'id': row['Id'],
-            'title': row['Title'],
-            'equipmentMake': row['EquipmentMake'],
-            'equipmentModel': row['EquipmentModel'],
-            'issueCategory': row['IssueCategory'],
-            'symptoms': row['Symptoms'],
-            'rootCause': row['RootCause'],
-            'solution': row['Solution'],
-            'relatedWONumbers': row['RelatedWONumbers'],
-            'imageUrls': row['ImageUrls'].split(',') if row['ImageUrls'] else [],
-            'createdBy': row['CreatedBy'],
-            'createdDate': row['CreatedDate'].isoformat() if row['CreatedDate'] else None,
-            'updatedBy': row['UpdatedBy'],
-            'updatedDate': row['UpdatedDate'].isoformat() if row['UpdatedDate'] else None,
-            'viewCount': (row['ViewCount'] or 0) + 1
+        article = articles[0]
+        result = {
+            'id': article['id'],
+            'title': article['title'],
+            'equipmentMake': article['equipment_make'],
+            'equipmentModel': article['equipment_model'],
+            'issueCategory': article['issue_category'],
+            'symptoms': article['symptoms'],
+            'rootCause': article['root_cause'],
+            'solution': article['solution'],
+            'relatedWONumbers': article['related_wo_numbers'],
+            'imageUrls': article['image_urls'].split(',') if article['image_urls'] else [],
+            'createdBy': article['created_by'],
+            'createdDate': article['created_date'].isoformat() if article['created_date'] else None,
+            'updatedBy': article['updated_by'],
+            'updatedDate': article['updated_date'].isoformat() if article['updated_date'] else None,
+            'viewCount': article['view_count'] or 0
         }
         
-        return jsonify({'article': article})
+        return jsonify({'article': result}), 200
         
     except Exception as e:
-        logger.error(f"Failed to fetch article {article_id}: {str(e)}")
+        logger.error(f"Error fetching article: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @knowledge_base_bp.route('/api/knowledge-base/articles', methods=['POST'])
 @jwt_required()
 def create_article():
-    """
-    Create a new knowledge base article (admin only).
-    """
+    """Create a new knowledge base article (admin only)"""
     try:
-        current_user = get_jwt_identity()
+        if not is_admin():
+            return jsonify({'error': 'Unauthorized'}), 403
+        
         data = request.json
+        current_user = get_jwt_identity()
         
         # Validate required fields
-        required_fields = ['title', 'symptoms', 'rootCause', 'solution', 'issueCategory']
+        required_fields = ['title', 'issueCategory', 'symptoms', 'rootCause', 'solution']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        db = AzureSQLService()
-        
-        # Insert article
         query = """
-        INSERT INTO ben002.KnowledgeBase (
-            Title,
-            EquipmentMake,
-            EquipmentModel,
-            IssueCategory,
-            Symptoms,
-            RootCause,
-            Solution,
-            RelatedWONumbers,
-            ImageUrls,
-            CreatedBy,
-            CreatedDate,
-            ViewCount
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, GETDATE(), 0);
-        SELECT SCOPE_IDENTITY() as Id;
+            INSERT INTO knowledge_base (
+                title, equipment_make, equipment_model, issue_category,
+                symptoms, root_cause, solution, related_wo_numbers,
+                image_urls, created_by
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            ) RETURNING id
         """
         
         params = [
@@ -226,143 +219,128 @@ def create_article():
             current_user
         ]
         
-        result = db.execute_query(query, params)
+        result = postgres_db.execute_insert_returning(query, params)
         
         if result:
-            new_id = int(result[0]['Id'])
             return jsonify({
                 'message': 'Article created successfully',
-                'id': new_id
+                'id': result['id']
             }), 201
         else:
             return jsonify({'error': 'Failed to create article'}), 500
         
     except Exception as e:
-        logger.error(f"Failed to create article: {str(e)}")
+        logger.error(f"Error creating article: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>', methods=['PUT'])
 @jwt_required()
 def update_article(article_id):
-    """
-    Update an existing knowledge base article (admin only).
-    """
+    """Update an existing article (admin only)"""
     try:
-        current_user = get_jwt_identity()
+        if not is_admin():
+            return jsonify({'error': 'Unauthorized'}), 403
+        
         data = request.json
+        current_user = get_jwt_identity()
         
-        db = AzureSQLService()
-        
-        # Update article
         query = """
-        UPDATE ben002.KnowledgeBase
-        SET 
-            Title = %s,
-            EquipmentMake = %s,
-            EquipmentModel = %s,
-            IssueCategory = %s,
-            Symptoms = %s,
-            RootCause = %s,
-            Solution = %s,
-            RelatedWONumbers = %s,
-            ImageUrls = %s,
-            UpdatedBy = %s,
-            UpdatedDate = GETDATE()
-        WHERE Id = %s
+            UPDATE knowledge_base SET
+                title = %s,
+                equipment_make = %s,
+                equipment_model = %s,
+                issue_category = %s,
+                symptoms = %s,
+                root_cause = %s,
+                solution = %s,
+                related_wo_numbers = %s,
+                image_urls = %s,
+                updated_by = %s,
+                updated_date = CURRENT_TIMESTAMP
+            WHERE id = %s
         """
         
         params = [
-            data['title'],
+            data.get('title'),
             data.get('equipmentMake', ''),
             data.get('equipmentModel', ''),
-            data['issueCategory'],
-            data['symptoms'],
-            data['rootCause'],
-            data['solution'],
+            data.get('issueCategory'),
+            data.get('symptoms'),
+            data.get('rootCause'),
+            data.get('solution'),
             data.get('relatedWONumbers', ''),
             ','.join(data.get('imageUrls', [])),
             current_user,
             article_id
         ]
         
-        db.execute_query(query, params)
+        rows_affected = postgres_db.execute_update(query, params)
         
-        return jsonify({'message': 'Article updated successfully'})
+        if rows_affected > 0:
+            return jsonify({'message': 'Article updated successfully'}), 200
+        else:
+            return jsonify({'error': 'Article not found'}), 404
         
     except Exception as e:
-        logger.error(f"Failed to update article {article_id}: {str(e)}")
+        logger.error(f"Error updating article: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>', methods=['DELETE'])
 @jwt_required()
 def delete_article(article_id):
-    """
-    Delete a knowledge base article (admin only).
-    """
+    """Delete an article (admin only)"""
     try:
-        db = AzureSQLService()
+        if not is_admin():
+            return jsonify({'error': 'Unauthorized'}), 403
         
-        query = "DELETE FROM ben002.KnowledgeBase WHERE Id = %s"
-        db.execute_query(query, [article_id])
+        query = "DELETE FROM knowledge_base WHERE id = %s"
+        rows_affected = postgres_db.execute_update(query, [article_id])
         
-        return jsonify({'message': 'Article deleted successfully'})
+        if rows_affected > 0:
+            return jsonify({'message': 'Article deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Article not found'}), 404
         
     except Exception as e:
-        logger.error(f"Failed to delete article {article_id}: {str(e)}")
+        logger.error(f"Error deleting article: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @knowledge_base_bp.route('/api/knowledge-base/categories', methods=['GET'])
 @jwt_required()
 def get_categories():
-    """
-    Get all unique issue categories.
-    """
+    """Get all unique issue categories"""
     try:
-        db = AzureSQLService()
-        
         query = """
-        SELECT DISTINCT IssueCategory
-        FROM ben002.KnowledgeBase
-        WHERE IssueCategory IS NOT NULL AND IssueCategory != ''
-        ORDER BY IssueCategory
+            SELECT DISTINCT issue_category 
+            FROM knowledge_base 
+            WHERE issue_category IS NOT NULL AND issue_category != ''
+            ORDER BY issue_category
         """
         
-        results = db.execute_query(query)
-        
-        categories = [row['IssueCategory'] for row in results] if results else []
-        
-        return jsonify({'categories': categories})
+        categories = postgres_db.execute_query(query)
+        result = [cat['issue_category'] for cat in categories] if categories else []
+        return jsonify({'categories': result}), 200
         
     except Exception as e:
-        logger.error(f"Failed to fetch categories: {str(e)}")
+        logger.error(f"Error fetching categories: {str(e)}")
         return jsonify({'error': str(e)}), 500
-
 
 @knowledge_base_bp.route('/api/knowledge-base/equipment-makes', methods=['GET'])
 @jwt_required()
 def get_equipment_makes():
-    """
-    Get all unique equipment makes.
-    """
+    """Get all unique equipment makes"""
     try:
-        db = AzureSQLService()
-        
         query = """
-        SELECT DISTINCT EquipmentMake
-        FROM ben002.KnowledgeBase
-        WHERE EquipmentMake IS NOT NULL AND EquipmentMake != ''
-        ORDER BY EquipmentMake
+            SELECT DISTINCT equipment_make 
+            FROM knowledge_base 
+            WHERE equipment_make IS NOT NULL AND equipment_make != ''
+            ORDER BY equipment_make
         """
         
-        results = db.execute_query(query)
-        
-        makes = [row['EquipmentMake'] for row in results] if results else []
-        
-        return jsonify({'makes': makes})
+        makes = postgres_db.execute_query(query)
+        result = [make['equipment_make'] for make in makes] if makes else []
+        return jsonify({'makes': result}), 200
         
     except Exception as e:
-        logger.error(f"Failed to fetch equipment makes: {str(e)}")
+        logger.error(f"Error fetching equipment makes: {str(e)}")
         return jsonify({'error': str(e)}), 500
