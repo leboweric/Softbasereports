@@ -131,7 +131,14 @@ const PMReport = ({ user }) => {
       return
     }
 
-    const exportData = pms.map(pm => {
+    // Sort PMs alphabetically by customer name before exporting
+    const sortedPMs = [...pms].sort((a, b) => {
+      const nameA = (a.customer_name || '').toLowerCase()
+      const nameB = (b.customer_name || '').toLowerCase()
+      return nameA.localeCompare(nameB)
+    })
+
+    const exportData = sortedPMs.map(pm => {
       const daysPastDue = pm.days_until_due !== null && pm.days_until_due < 0 ? Math.abs(pm.days_until_due) : 0
       const isOverdue = daysPastDue > 0
       
