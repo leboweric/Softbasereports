@@ -134,17 +134,17 @@ def get_sales_pace():
             pace_pct_prev_month_no_equip = ((current_no_equip / previous_no_equip) - 1) * 100 if previous_no_equip > 0 else 0
             comparison_base_no_equip = "same_day_previous_month"
         
-        # 2. Available months average comparison
-        pace_pct_avg = ((current_sales / avg_monthly_sales) - 1) * 100 if avg_monthly_sales > 0 else 0
-        pace_pct_avg_no_equip = ((current_no_equip / avg_monthly_sales_no_equip) - 1) * 100 if avg_monthly_sales_no_equip > 0 else 0
+        # 2. Available months average comparison (use projected total for fair comparison)
+        pace_pct_avg = ((projected_total / avg_monthly_sales) - 1) * 100 if avg_monthly_sales > 0 else 0
+        pace_pct_avg_no_equip = ((projected_no_equip / avg_monthly_sales_no_equip) - 1) * 100 if avg_monthly_sales_no_equip > 0 else 0
         
-        # 3. Same month last year comparison (if available)
-        pace_pct_same_month_ly = ((current_sales / same_month_last_year) - 1) * 100 if same_month_last_year > 0 else None
-        pace_pct_same_month_ly_no_equip = ((current_no_equip / same_month_last_year_no_equip) - 1) * 100 if same_month_last_year_no_equip > 0 else None
+        # 3. Same month last year comparison (if available) - use projected total for fair comparison
+        pace_pct_same_month_ly = ((projected_total / same_month_last_year) - 1) * 100 if same_month_last_year > 0 else None
+        pace_pct_same_month_ly_no_equip = ((projected_no_equip / same_month_last_year_no_equip) - 1) * 100 if same_month_last_year_no_equip > 0 else None
         
-        # 4. Performance indicators
-        is_best_month = current_sales > best_monthly_sales
-        is_best_month_no_equip = current_no_equip > best_monthly_sales_no_equip
+        # 4. Performance indicators - use projected total for fair comparison
+        is_best_month = projected_total > best_monthly_sales
+        is_best_month_no_equip = projected_no_equip > best_monthly_sales_no_equip
         
         # Maintain backward compatibility - use previous month as primary pace
         pace_pct = pace_pct_prev_month
