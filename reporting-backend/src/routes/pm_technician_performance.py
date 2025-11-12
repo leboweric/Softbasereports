@@ -1,13 +1,13 @@
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta
 from src.services.azure_sql_service import AzureSQLService
-from src.middleware.auth_middleware import token_required
+from flask_jwt_extended import jwt_required
 
 pm_technician_performance_bp = Blueprint('pm_technician_performance', __name__)
 
 @pm_technician_performance_bp.route('/api/reports/service/pm-technician-performance', methods=['GET'])
-@token_required
-def get_pm_technician_performance(current_user):
+@jwt_required()
+def get_pm_technician_performance():
     """
     Get PM completion performance by technician for contest tracking
     """
@@ -123,8 +123,8 @@ def get_pm_technician_performance(current_user):
 
 
 @pm_technician_performance_bp.route('/api/reports/service/pm-technician-details', methods=['GET'])
-@token_required
-def get_pm_technician_details(current_user):
+@jwt_required()
+def get_pm_technician_details():
     """
     Get detailed PM list for a specific technician
     """
