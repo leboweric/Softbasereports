@@ -83,6 +83,7 @@ from src.routes.tenant_admin import tenant_admin_bp
 from src.routes.scheduled_tasks import scheduled_tasks_bp
 from src.routes.customer_details import customer_details_bp
 from src.routes.pm_technician_performance import pm_technician_performance_bp
+from src.routes.knowledge_base import knowledge_base_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
 
@@ -188,6 +189,7 @@ app.register_blueprint(tenant_admin_bp, url_prefix='/api/admin')
 app.register_blueprint(scheduled_tasks_bp)
 app.register_blueprint(customer_details_bp)
 app.register_blueprint(pm_technician_performance_bp)
+app.register_blueprint(knowledge_base_bp)
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration

@@ -17,6 +17,7 @@ import DatabaseExplorer from './components/DatabaseExplorer'
 import UserManagementEnhanced from './components/UserManagementEnhanced'
 import { UserManagement } from './components/admin/UserManagement'
 import { TenantManagement } from './components/admin/TenantManagement'
+import KnowledgeBase from './components/KnowledgeBase'
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -181,6 +182,8 @@ function App() {
         return <UserManagement user={user} />
       case 'tenant-admin':
         return <TenantManagement user={user} />
+      case 'knowledge-base':
+        return <KnowledgeBase user={user} organization={organization} />
       case 'settings':
         return <div className="p-8 text-center text-gray-500">Settings coming soon...</div>
       default:

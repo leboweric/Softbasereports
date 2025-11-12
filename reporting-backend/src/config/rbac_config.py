@@ -25,6 +25,7 @@ RESOURCES = {
     'accounting_control': 'Control number reports',
     'accounting_inventory': 'Year-end inventory report',
     'minitrac': 'Minitrac equipment database',
+    'knowledge_base': 'Technical troubleshooting knowledge base',
     'database_explorer': 'Database query and exploration tool',
     'user_management': 'User and role management',
 }
@@ -66,13 +67,13 @@ ROLE_PERMISSIONS = {
     },
     'Service Manager': {
         'resources': [
-            'service_work_orders', 'service_overview', 'minitrac'
+            'service_work_orders', 'service_overview', 'knowledge_base', 'minitrac'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
     'Service User': {
         'resources': [
-            'service_work_orders', 'minitrac'
+            'service_work_orders', 'knowledge_base', 'minitrac'
         ],
         'actions': ['view'],
     },
@@ -106,7 +107,7 @@ ROLE_PERMISSIONS = {
     },
     'Service Tech': {
         'resources': [
-            'service_work_orders', 'minitrac'
+            'service_work_orders', 'knowledge_base', 'minitrac'
         ],
         'actions': ['view', 'edit'],
     },
@@ -183,19 +184,26 @@ NAVIGATION_CONFIG = {
             'inventory': {'label': 'Inventory', 'resource': 'accounting_inventory'},
         }
     },
+    'knowledge-base': {
+        'label': 'Knowledge Base',
+        'icon': 'Book',
+        'path': 'knowledge-base',
+        'required_resource': 'knowledge_base',
+        'order': 6,
+    },
     'minitrac': {
         'label': 'Minitrac',
         'icon': 'Search',
         'path': 'minitrac',
         'required_resource': 'minitrac',
-        'order': 6,
+        'order': 7,
     },
     'database-explorer': {
         'label': 'Database Explorer',
         'icon': 'Database',
         'path': 'database-explorer',
         'required_resource': 'database_explorer',
-        'order': 7,
+        'order': 8,
     },
     'user-management': {
         'label': 'User Management',
