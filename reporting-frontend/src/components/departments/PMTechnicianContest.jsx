@@ -500,7 +500,8 @@ const PMTechnicianContest = () => {
                     </tr>
                   )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
