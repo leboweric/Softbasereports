@@ -117,10 +117,15 @@ def register_department_routes(reports_bp):
                 pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
                 comparison_base = "same_day_previous_month"
             
-            # 2. Additional adaptive comparisons
-            pace_pct_avg = round(((current_revenue / avg_monthly_revenue) - 1) * 100, 1) if avg_monthly_revenue > 0 else None
-            pace_pct_same_month_ly = round(((current_revenue / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
-            is_best_month = current_revenue > best_monthly_revenue
+            # Calculate projected month total for fair comparison
+            import calendar
+            days_in_month = calendar.monthrange(current_year, current_month)[1]
+            projected_revenue = (current_revenue / current_day) * days_in_month if current_day > 0 else 0
+            
+            # 2. Additional adaptive comparisons (use projected total for fair comparison)
+            pace_pct_avg = round(((projected_revenue / avg_monthly_revenue) - 1) * 100, 1) if avg_monthly_revenue > 0 else None
+            pace_pct_same_month_ly = round(((projected_revenue / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
+            is_best_month = projected_revenue > best_monthly_revenue
             
             return jsonify({
                 'pace_percentage': pace_percentage,
@@ -745,10 +750,15 @@ def register_department_routes(reports_bp):
                 pace_percentage = round(((current_sales / previous_sales) - 1) * 100, 1) if previous_sales > 0 else 0
                 comparison_base = "same_day_previous_month"
             
-            # 2. Additional adaptive comparisons
-            pace_pct_avg = round(((current_sales / avg_monthly_sales) - 1) * 100, 1) if avg_monthly_sales > 0 else None
-            pace_pct_same_month_ly = round(((current_sales / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
-            is_best_month = current_sales > best_monthly_sales
+            # Calculate projected month total for fair comparison
+            import calendar
+            days_in_month = calendar.monthrange(current_year, current_month)[1]
+            projected_sales = (current_sales / current_day) * days_in_month if current_day > 0 else 0
+            
+            # 2. Additional adaptive comparisons (use projected total for fair comparison)
+            pace_pct_avg = round(((projected_sales / avg_monthly_sales) - 1) * 100, 1) if avg_monthly_sales > 0 else None
+            pace_pct_same_month_ly = round(((projected_sales / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
+            is_best_month = projected_sales > best_monthly_sales
             
             return jsonify({
                 'pace_percentage': pace_percentage,
@@ -2334,10 +2344,15 @@ def register_department_routes(reports_bp):
                 pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
                 comparison_base = "same_day_previous_month"
             
-            # 2. Additional adaptive comparisons
-            pace_pct_avg = round(((current_revenue / avg_monthly_revenue) - 1) * 100, 1) if avg_monthly_revenue > 0 else None
-            pace_pct_same_month_ly = round(((current_revenue / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
-            is_best_month = current_revenue > best_monthly_revenue
+            # Calculate projected month total for fair comparison
+            import calendar
+            days_in_month = calendar.monthrange(current_year, current_month)[1]
+            projected_revenue = (current_revenue / current_day) * days_in_month if current_day > 0 else 0
+            
+            # 2. Additional adaptive comparisons (use projected total for fair comparison)
+            pace_pct_avg = round(((projected_revenue / avg_monthly_revenue) - 1) * 100, 1) if avg_monthly_revenue > 0 else None
+            pace_pct_same_month_ly = round(((projected_revenue / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
+            is_best_month = projected_revenue > best_monthly_revenue
             
             return jsonify({
                 'pace_percentage': pace_percentage,
