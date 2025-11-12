@@ -113,9 +113,9 @@ const PMTechnicianContest = () => {
       [''],
       ['Total Technicians:', data.summary.totalEmployees],
       ['Total PMs Completed:', data.summary.totalPMs],
-      ['Top Performer:', data.summary.topPerformer?.employeeName || 'N/A'],
-      ['Top Performer PMs:', data.summary.topPerformer?.totalPMs || 0],
-      ['Average per Technician:', data.summary.avgPerEmployee],
+      ['Top Performer:', data.summary.topPerformer || 'N/A'],
+      ['Top Performer PMs:', data.employees[0]?.totalPMs || 0],
+      ['Average per Technician:', data.summary.avgPMsPerTech],
     ];
     const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
     XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
@@ -134,18 +134,21 @@ const PMTechnicianContest = () => {
       'Days Inactive'
     ];
 
-    const perfRows = data.employees.map((tech, index) => [
-      index + 1,
-      tech.employeeName || tech.employeeId,
-      tech.totalPMs,
-      tech.percentOfTotal + '%',
-      tech.daysWorked,
-      tech.avgDailyPMs,
-      tech.totalHours,
-      tech.avgTimePerPM,
-      tech.lastPMDate || 'N/A',
-      tech.daysInactive
-    ]);
+    const perfRows = data.employees.map((tech, index) => {
+      const percentOfTotal = data.summary.totalPMs > 0 ? ((tech.totalPMs / data.summary.totalPMs) * 100).toFixed(1) : 0;
+      return [
+        index + 1,
+        tech.name,
+        tech.totalPMs,
+        percentOfTotal + '%',
+        tech.daysWorked,
+        tech.avgPMsPerDay,
+        tech.totalHours,
+        tech.avgTimePerPM,
+        tech.lastPMDate || 'N/A',
+        tech.daysInactive
+      ];
+    });
 
     const perfData = [perfHeaders, ...perfRows];
     const perfWs = XLSX.utils.aoa_to_sheet(perfData);
@@ -216,9 +219,11 @@ const PMTechnicianContest = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {data.employees.slice(0, 3).map((tech, index) => (
+              {data.employees.slice(0, 3).map((tech, index) => {
+                const percentOfTotal = summary.totalPMs > 0 ? ((tech.totalPMs / summary.totalPMs) * 100).toFixed(1) : 0;
+                return (
                 <div
-                  key={tech.employeeId}
+                  key={tech.name}
                   className={`p-4 rounded-lg text-center ${
                     index === 0 ? 'bg-yellow-100 border-2 border-yellow-400' :
                     index === 1 ? 'bg-gray-100 border-2 border-gray-400' :
@@ -229,19 +234,19 @@ const PMTechnicianContest = () => {
                     {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
                   </div>
                   <div className="font-bold text-lg">
-                    {tech.employeeName || tech.employeeId}
+                    {tech.name}
                   </div>
                   <div className="text-2xl font-bold mt-2">
                     {tech.totalPMs} PMs
                   </div>
                   <div className="text-sm text-gray-600 mt-1">
-                    {tech.percentOfTotal}% of total • {tech.avgDailyPMs} avg/day
+                    {percentOfTotal}% of total • {tech.avgPMsPerDay} avg/day
                   </div>
                   <div className="text-xs text-gray-500 mt-2">
                     {tech.totalHours} hours • {tech.avgTimePerPM} hrs/PM
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </CardContent>
         </Card>
@@ -278,10 +283,10 @@ const PMTechnicianContest = () => {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">
-              {summary.topPerformer?.employeeName || summary.topPerformer?.employeeId || 'N/A'}
+              {summary.topPerformer || 'N/A'}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {summary.topPerformer?.totalPMs || 0} PMs completed
+              {employees[0]?.totalPMs || 0} PMs completed
             </p>
           </CardContent>
         </Card>
@@ -293,7 +298,7 @@ const PMTechnicianContest = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {summary.avgPerEmployee}
+              {summary.avgPMsPerTech}
             </div>
             <p className="text-xs text-muted-foreground">Average PMs</p>
           </CardContent>
@@ -376,11 +381,13 @@ const PMTechnicianContest = () => {
                 </tr>
               </thead>
               <tbody>
-                {employees.map((tech, index) => (
-                  <React.Fragment key={tech.employeeId}>
+                {employees.map((tech, index) => {
+                  const percentOfTotal = summary.totalPMs > 0 ? ((tech.totalPMs / summary.totalPMs) * 100).toFixed(1) : 0;
+                  return (
+                  <React.Fragment key={tech.name}>
                   <tr 
-                    className={`border-b hover:bg-gray-50 cursor-pointer ${index === 0 ? 'bg-green-50' : ''} ${selectedTechnician === tech.employeeId ? 'bg-blue-50' : ''}`}
-                    onClick={() => toggleTechnicianDetails(tech.employeeId)}
+                    className={`border-b hover:bg-gray-50 cursor-pointer ${index === 0 ? 'bg-green-50' : ''} ${selectedTechnician === tech.name ? 'bg-blue-50' : ''}`}
+                    onClick={() => toggleTechnicianDetails(tech.name)}
                   >
                     <td className="p-2">
                       {index === 0 && <span className="text-xl">🏆</span>}
@@ -389,22 +396,22 @@ const PMTechnicianContest = () => {
                       {index > 2 && <span className="text-gray-500">{index + 1}</span>}
                     </td>
                     <td className="p-2 font-medium">
-                      <div className="font-semibold">{tech.employeeName || tech.employeeId}</div>
+                      <div className="font-semibold">{tech.name}</div>
                     </td>
                     <td className="p-2 text-right font-semibold text-lg">
                       {tech.totalPMs}
                     </td>
                     <td className="p-2 text-right">
                       <span className={`px-2 py-1 rounded text-xs ${
-                        tech.percentOfTotal >= 20 ? 'bg-green-100 text-green-800' :
-                        tech.percentOfTotal >= 10 ? 'bg-blue-100 text-blue-800' :
+                        percentOfTotal >= 20 ? 'bg-green-100 text-green-800' :
+                        percentOfTotal >= 10 ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {tech.percentOfTotal}%
+                        {percentOfTotal}%
                       </span>
                     </td>
                     <td className="p-2 text-right">{tech.daysWorked}</td>
-                    <td className="p-2 text-right">{tech.avgDailyPMs}</td>
+                    <td className="p-2 text-right">{tech.avgPMsPerDay}</td>
                     <td className="p-2 text-right">{tech.totalHours}</td>
                     <td className="p-2 text-right">{tech.avgTimePerPM}</td>
                     <td className="p-2 text-right text-xs">
@@ -422,28 +429,28 @@ const PMTechnicianContest = () => {
                       )}
                     </td>
                     <td className="p-2 text-center">
-                      {selectedTechnician === tech.employeeId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      {selectedTechnician === tech.name ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </td>
                   </tr>
                   
                   {/* PM Details Row */}
-                  {selectedTechnician === tech.employeeId && (
+                  {selectedTechnician === tech.name && (
                     <tr>
                       <td colSpan="11" className="p-0">
                         <div className="bg-gray-50 p-4 border-t border-b">
                           <div className="flex items-center gap-2 mb-3">
                             <Wrench className="h-5 w-5 text-blue-600" />
                             <h4 className="font-semibold text-lg">
-                              PM Details for {tech.employeeName || tech.employeeId}
+                              PM Details for {tech.name}
                             </h4>
                             <span className="text-sm text-gray-500">
-                              ({pmDetails[tech.employeeId]?.length || 0} PMs)
+                              ({pmDetails[tech.name]?.length || 0} PMs)
                             </span>
                           </div>
                           
-                          {loadingPMs[tech.employeeId] ? (
+                          {loadingPMs[tech.name] ? (
                             <div className="text-center py-4">Loading PM details...</div>
-                          ) : pmDetails[tech.employeeId] && pmDetails[tech.employeeId].length > 0 ? (
+                          ) : pmDetails[tech.name] && pmDetails[tech.name].length > 0 ? (
                             <div className="overflow-x-auto">
                               <table className="w-full text-xs">
                                 <thead>
@@ -460,7 +467,7 @@ const PMTechnicianContest = () => {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {pmDetails[tech.employeeId].map((pm, idx) => (
+                                  {pmDetails[tech.name].map((pm, idx) => (
                                     <tr key={`${pm.woNo}-${idx}`} className={`border-b ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                                       <td className="p-2 font-mono">{pm.woNo}</td>
                                       <td className="p-2">{pm.laborDate ? new Date(pm.laborDate).toLocaleDateString() : 'N/A'}</td>
