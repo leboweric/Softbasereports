@@ -40,7 +40,7 @@ def get_pm_technician_performance():
             SELECT 
                 l.Employee as technician,
                 l.WONo,
-                l.LaborDate,
+                l.DateOfLabor,
                 l.Hours,
                 wo.Customer,
                 wo.UnitNo,
@@ -49,18 +49,18 @@ def get_pm_technician_performance():
             FROM ben002.WOLabor l
             INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
             WHERE wo.Type = 'PM'
-                AND l.LaborDate >= %s
-                AND l.LaborDate <= %s
+                AND l.DateOfLabor >= %s
+                AND l.DateOfLabor <= %s
                 AND l.Employee IS NOT NULL
                 AND l.Employee != ''
         )
         SELECT 
             technician,
             COUNT(DISTINCT WONo) as total_pms,
-            COUNT(DISTINCT CAST(LaborDate as DATE)) as days_worked,
+            COUNT(DISTINCT CAST(DateOfLabor as DATE)) as days_worked,
             SUM(Hours) as total_hours,
-            MAX(LaborDate) as last_pm_date,
-            DATEDIFF(day, MAX(LaborDate), GETDATE()) as days_inactive
+            MAX(DateOfLabor) as last_pm_date,
+            DATEDIFF(day, MAX(DateOfLabor), GETDATE()) as days_inactive
         FROM TechPMs
         GROUP BY technician
         ORDER BY total_pms DESC
@@ -153,7 +153,7 @@ def get_pm_technician_details():
         query = """
         SELECT 
             l.WONo,
-            l.LaborDate,
+            l.DateOfLabor,
             l.Hours,
             wo.Customer,
             wo.UnitNo,
@@ -165,9 +165,9 @@ def get_pm_technician_details():
         INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
         WHERE wo.Type = 'PM'
             AND l.Employee = %s
-            AND l.LaborDate >= %s
-            AND l.LaborDate <= %s
-        ORDER BY l.LaborDate DESC
+            AND l.DateOfLabor >= %s
+            AND l.DateOfLabor <= %s
+        ORDER BY l.DateOfLabor DESC
         """
         
         results = sql_service.execute_query(query, [technician, start, end])
@@ -176,7 +176,7 @@ def get_pm_technician_details():
         for row in results:
             pms.append({
                 'woNo': row['WONo'],
-                'laborDate': row['LaborDate'].strftime('%Y-%m-%d') if row['LaborDate'] else None,
+                'laborDate': row['DateOfLabor'].strftime('%Y-%m-%d') if row['DateOfLabor'] else None,
                 'hours': round(row['Hours'], 1) if row['Hours'] else 0,
                 'customer': row['Customer'],
                 'unitNo': row['UnitNo'],
