@@ -49,8 +49,8 @@ def get_pm_technician_performance():
             FROM ben002.WOLabor l
             INNER JOIN ben002.WorkOrder wo ON l.WONo = wo.WONo
             WHERE wo.WOType = 'PM'
-                AND l.LaborDate >= ?
-                AND l.LaborDate <= ?
+                AND l.LaborDate >= %s
+                AND l.LaborDate <= %s
                 AND l.Employee IS NOT NULL
                 AND l.Employee != ''
         )
@@ -66,7 +66,7 @@ def get_pm_technician_performance():
         ORDER BY total_pms DESC
         """
         
-        results = sql_service.execute_query(query, (start, end))
+        results = sql_service.execute_query(query, [start, end])
         
         if not results:
             return jsonify({
@@ -164,13 +164,13 @@ def get_pm_technician_details():
         FROM ben002.WOLabor l
         INNER JOIN ben002.WorkOrder wo ON l.WONo = wo.WONo
         WHERE wo.WOType = 'PM'
-            AND l.Employee = ?
-            AND l.LaborDate >= ?
-            AND l.LaborDate <= ?
+            AND l.Employee = %s
+            AND l.LaborDate >= %s
+            AND l.LaborDate <= %s
         ORDER BY l.LaborDate DESC
         """
         
-        results = sql_service.execute_query(query, (technician, start, end))
+        results = sql_service.execute_query(query, [technician, start, end])
         
         pms = []
         for row in results:
