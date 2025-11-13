@@ -542,6 +542,29 @@ const Currie = () => {
                 </div>
               </div>
             </div>
+            
+            {/* Parts Inventory Metrics */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Parts Inventory</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Fill Rate:</span>
+                  <span className="font-medium text-green-600">{metrics.parts_inventory?.fill_rate?.toFixed(1) || '0.0'}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Inventory Turnover:</span>
+                  <span className="font-medium">{metrics.parts_inventory?.inventory_turnover?.toFixed(2) || '0.00'}x</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Inventory Value:</span>
+                  <span className="font-medium">{formatCurrency(metrics.parts_inventory?.inventory_value || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Obsolete Parts:</span>
+                  <span className="font-medium text-red-600">{metrics.parts_inventory?.aging?.obsolete_count || 0}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
