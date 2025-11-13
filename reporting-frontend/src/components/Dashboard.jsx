@@ -951,6 +951,18 @@ const Dashboard = ({ user }) => {
                   {paceData.adaptive_comparisons.performance_indicators?.is_best_month_ever && (
                     <Badge variant="success" className="ml-2">Best Month Ever! 🏆</Badge>
                   )}
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <div className="space-y-2 text-xs">
+                        <p><strong>vs Previous Month:</strong> Compares same days (e.g., Nov 1-13 vs Oct 1-13)</p>
+                        <p><strong>vs Average Performance:</strong> Projects your full month based on current pace, then compares to average of complete months</p>
+                        <p><strong>vs Same Month Last Year:</strong> Projects your full month vs same month in previous year</p>
+                      </div>
+                    </TooltipContent>
+                  </UITooltip>
                 </CardTitle>
                 <CardDescription>
                   Multiple comparison perspectives ({paceData.adaptive_comparisons.available_months_count} months of data available)
@@ -972,7 +984,7 @@ const Dashboard = ({ user }) => {
                       ) : null}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {paceData.pace.comparison_base === 'full_previous_month' ? 'vs Full Previous Month' : 'vs Same Day Previous Month'}
+                      {paceData.pace.comparison_base === 'full_previous_month' ? 'Month-to-date vs full previous month' : 'Same-day comparison (e.g., Nov 1-13 vs Oct 1-13)'}
                     </p>
                   </div>
 
@@ -990,6 +1002,9 @@ const Dashboard = ({ user }) => {
                           <TrendingDown className="h-4 w-4 text-red-600" />
                         ) : null}
                       </div>
+                      <p className="text-xs text-muted-foreground">
+                        Projected full month vs {paceData.adaptive_comparisons.available_months_count}-month avg
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         Avg: {formatCurrency(paceData.adaptive_comparisons.vs_available_average.average_monthly_sales)}
                       </p>
