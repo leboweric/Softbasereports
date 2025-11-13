@@ -17,44 +17,44 @@ const Currie = () => {
     const currentMonth = now.getMonth(); // 0-11
     const currentYear = now.getFullYear();
     
-    // Determine fiscal year quarter (March start)
-    let quarter, fiscalYear;
-    if (currentMonth >= 2 && currentMonth <= 4) { // Mar-May = Q1
+    // Determine calendar year quarter (January start)
+    let quarter, calendarYear;
+    if (currentMonth >= 0 && currentMonth <= 2) { // Jan-Mar = Q1
       quarter = 1;
-      fiscalYear = currentYear;
-    } else if (currentMonth >= 5 && currentMonth <= 7) { // Jun-Aug = Q2
+      calendarYear = currentYear;
+    } else if (currentMonth >= 3 && currentMonth <= 5) { // Apr-Jun = Q2
       quarter = 2;
-      fiscalYear = currentYear;
-    } else if (currentMonth >= 8 && currentMonth <= 10) { // Sep-Nov = Q3
+      calendarYear = currentYear;
+    } else if (currentMonth >= 6 && currentMonth <= 8) { // Jul-Sep = Q3
       quarter = 3;
-      fiscalYear = currentYear;
-    } else { // Dec-Feb = Q4
+      calendarYear = currentYear;
+    } else { // Oct-Dec = Q4
       quarter = 4;
-      fiscalYear = currentMonth >= 11 ? currentYear : currentYear - 1;
+      calendarYear = currentYear;
     }
     
-    setQuarter(quarter, fiscalYear);
+    setQuarter(quarter, calendarYear);
   }, []);
 
-  const setQuarter = (quarter, fiscalYear) => {
+  const setQuarter = (quarter, calendarYear) => {
     let start, end;
     
     switch(quarter) {
-      case 1: // Q1: Mar-May
-        start = `${fiscalYear}-03-01`;
-        end = `${fiscalYear}-05-31`;
+      case 1: // Q1: Jan-Mar
+        start = `${calendarYear}-01-01`;
+        end = `${calendarYear}-03-31`;
         break;
-      case 2: // Q2: Jun-Aug
-        start = `${fiscalYear}-06-01`;
-        end = `${fiscalYear}-08-31`;
+      case 2: // Q2: Apr-Jun
+        start = `${calendarYear}-04-01`;
+        end = `${calendarYear}-06-30`;
         break;
-      case 3: // Q3: Sep-Nov
-        start = `${fiscalYear}-09-01`;
-        end = `${fiscalYear}-11-30`;
+      case 3: // Q3: Jul-Sep
+        start = `${calendarYear}-07-01`;
+        end = `${calendarYear}-09-30`;
         break;
-      case 4: // Q4: Dec-Feb
-        start = `${fiscalYear}-12-01`;
-        end = `${fiscalYear + 1}-02-28`;
+      case 4: // Q4: Oct-Dec
+        start = `${calendarYear}-10-01`;
+        end = `${calendarYear}-12-31`;
         break;
     }
     
@@ -237,28 +237,28 @@ const Currie = () => {
             </div>
             <div className="flex space-x-2 pt-6">
               <button
-                onClick={() => setQuarter(1, 2026)}
+                onClick={() => setQuarter(1, 2025)}
                 className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
               >
-                Q1 FY2026
+                Q1 2025
               </button>
               <button
-                onClick={() => setQuarter(2, 2026)}
+                onClick={() => setQuarter(2, 2025)}
                 className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
               >
-                Q2 FY2026
+                Q2 2025
               </button>
               <button
-                onClick={() => setQuarter(3, 2026)}
+                onClick={() => setQuarter(3, 2025)}
                 className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
               >
-                Q3 FY2026
+                Q3 2025
               </button>
               <button
-                onClick={() => setQuarter(4, 2026)}
+                onClick={() => setQuarter(4, 2025)}
                 className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
               >
-                Q4 FY2026
+                Q4 2025
               </button>
             </div>
             <button
