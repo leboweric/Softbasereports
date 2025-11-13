@@ -227,10 +227,17 @@ class DashboardQueries:
             
             existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_sales}
             monthly_sales = []
+            current_month_str = self.current_date.strftime("%b")
+            current_year = self.current_date.year
+            
             for month_info in all_months:
                 key = f"{month_info['year']}-{month_info['month']}"
                 if key in existing_data:
-                    monthly_sales.append(existing_data[key])
+                    item = existing_data[key].copy()
+                    # Set current month margin to null (incomplete data)
+                    if month_info['month'] == current_month_str and month_info['year'] == current_year:
+                        item['margin'] = None
+                    monthly_sales.append(item)
                 else:
                     monthly_sales.append({
                         'month': month_info['month'],
@@ -298,10 +305,17 @@ class DashboardQueries:
             
             existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_sales}
             monthly_sales = []
+            current_month_str = self.current_date.strftime("%b")
+            current_year = self.current_date.year
+            
             for month_info in all_months:
                 key = f"{month_info['year']}-{month_info['month']}"
                 if key in existing_data:
-                    monthly_sales.append(existing_data[key])
+                    item = existing_data[key].copy()
+                    # Set current month margin to null (incomplete data)
+                    if month_info['month'] == current_month_str and month_info['year'] == current_year:
+                        item['margin'] = None
+                    monthly_sales.append(item)
                 else:
                     monthly_sales.append({
                         'month': month_info['month'],
@@ -526,10 +540,17 @@ class DashboardQueries:
             
             existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_equipment}
             monthly_equipment = []
+            current_month_str = self.current_date.strftime("%b")
+            current_year = self.current_date.year
+            
             for month_info in all_months:
                 key = f"{month_info['year']}-{month_info['month']}"
                 if key in existing_data:
-                    monthly_equipment.append(existing_data[key])
+                    item = existing_data[key].copy()
+                    # Set current month margin to null (incomplete data)
+                    if month_info['month'] == current_month_str and month_info['year'] == current_year:
+                        item['margin'] = None
+                    monthly_equipment.append(item)
                 else:
                     monthly_equipment.append({
                         'month': month_info['month'],
