@@ -296,42 +296,75 @@ def get_trucking_revenue(start_date, end_date):
 
 
 def calculate_totals(data):
-    """Calculate total sales, COGS, and GP across all categories"""
-    totals = {
-        'sales': 0,
-        'cogs': 0,
+    """Calculate total sales, COGS, and GP across all categories with subtotals"""
+    
+    # Calculate subtotals for each section
+    total_new_equipment = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+    if 'new_equipment' in data:
+        for category in data['new_equipment'].values():
+            total_new_equipment['sales'] += category.get('sales', 0)
+            total_new_equipment['cogs'] += category.get('cogs', 0)
+        total_new_equipment['gross_profit'] = total_new_equipment['sales'] - total_new_equipment['cogs']
+    
+    total_rental = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+    if 'rental' in data:
+        for category in data['rental'].values():
+            total_rental['sales'] += category.get('sales', 0)
+            total_rental['cogs'] += category.get('cogs', 0)
+        total_rental['gross_profit'] = total_rental['sales'] - total_rental['cogs']
+    
+    total_service = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+    if 'service' in data:
+        for category in data['service'].values():
+            total_service['sales'] += category.get('sales', 0)
+            total_service['cogs'] += category.get('cogs', 0)
+        total_service['gross_profit'] = total_service['sales'] - total_service['cogs']
+    
+    total_parts = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+    if 'parts' in data:
+        for category in data['parts'].values():
+            total_parts['sales'] += category.get('sales', 0)
+            total_parts['cogs'] += category.get('cogs', 0)
+        total_parts['gross_profit'] = total_parts['sales'] - total_parts['cogs']
+    
+    # Calculate combined totals
+    total_sales_dept = {
+        'sales': total_new_equipment['sales'],
+        'cogs': total_new_equipment['cogs'],
+        'gross_profit': total_new_equipment['gross_profit']
+    }
+    
+    total_aftermarket = {
+        'sales': total_service['sales'] + total_parts['sales'],
+        'cogs': total_service['cogs'] + total_parts['cogs'],
+        'gross_profit': 0
+    }
+    total_aftermarket['gross_profit'] = total_aftermarket['sales'] - total_aftermarket['cogs']
+    
+    # Grand total
+    grand_total = {
+        'sales': total_new_equipment['sales'] + total_rental['sales'] + total_service['sales'] + total_parts['sales'],
+        'cogs': total_new_equipment['cogs'] + total_rental['cogs'] + total_service['cogs'] + total_parts['cogs'],
         'gross_profit': 0
     }
     
-    # Sum equipment sales
-    if 'new_equipment' in data:
-        for category in data['new_equipment'].values():
-            totals['sales'] += category.get('sales', 0)
-            totals['cogs'] += category.get('cogs', 0)
-    
-    # Sum rental
-    if 'rental' in data:
-        for category in data['rental'].values():
-            totals['sales'] += category.get('sales', 0)
-            totals['cogs'] += category.get('cogs', 0)
-    
-    # Sum service
-    if 'service' in data:
-        for category in data['service'].values():
-            totals['sales'] += category.get('sales', 0)
-            totals['cogs'] += category.get('cogs', 0)
-    
-    # Sum parts
-    if 'parts' in data:
-        for category in data['parts'].values():
-            totals['sales'] += category.get('sales', 0)
-            totals['cogs'] += category.get('cogs', 0)
-    
-    # Add trucking
+    # Add trucking to grand total
     if 'trucking' in data:
-        totals['sales'] += data['trucking'].get('sales', 0)
-        totals['cogs'] += data['trucking'].get('cogs', 0)
+        grand_total['sales'] += data['trucking'].get('sales', 0)
+        grand_total['cogs'] += data['trucking'].get('cogs', 0)
     
-    totals['gross_profit'] = totals['sales'] - totals['cogs']
+    grand_total['gross_profit'] = grand_total['sales'] - grand_total['cogs']
     
-    return totals
+    return {
+        'total_new_equipment': total_new_equipment,
+        'total_sales_dept': total_sales_dept,
+        'total_rental': total_rental,
+        'total_service': total_service,
+        'total_parts': total_parts,
+        'total_aftermarket': total_aftermarket,
+        'grand_total': grand_total,
+        # Keep legacy format for backward compatibility
+        'sales': grand_total['sales'],
+        'cogs': grand_total['cogs'],
+        'gross_profit': grand_total['gross_profit']
+    }
