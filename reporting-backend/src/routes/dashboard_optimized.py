@@ -1080,13 +1080,28 @@ class DashboardQueries:
             recent_30_start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
             
             query = f"""
+            WITH NormalizedInvoices AS (
+                SELECT 
+                    Customer,
+                    InvoiceNo,
+                    InvoiceDate,
+                    GrandTotal,
+                    CASE 
+                        WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                        WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                        ELSE BillToName
+                    END as normalized_customer_name
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= '{self.fiscal_year_start}'
+                AND BillToName IS NOT NULL
+                AND BillToName != ''
+                AND BillToName NOT LIKE '%Wells Fargo%'
+                AND BillToName NOT LIKE '%Maintenance contract%'
+                AND BillToName NOT LIKE '%Rental Fleet%'
+            )
             SELECT TOP 10
                 MIN(Customer) as customer_id,
-                CASE 
-                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
-                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-                    ELSE BillToName
-                END as customer_name,
+                normalized_customer_name as customer_name,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales,
                 MAX(InvoiceDate) as last_invoice_date,
@@ -1098,19 +1113,8 @@ class DashboardQueries:
                 COUNT(CASE WHEN InvoiceDate >= '{recent_30_start}' THEN 1 ELSE NULL END) as recent_30_invoices,
                 SUM(CASE WHEN InvoiceDate >= '{recent_90_start}' THEN GrandTotal ELSE 0 END) as recent_90_sales,
                 COUNT(CASE WHEN InvoiceDate >= '{recent_90_start}' THEN 1 ELSE NULL END) as recent_90_invoices
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.fiscal_year_start}'
-            AND BillToName IS NOT NULL
-            AND BillToName != ''
-            AND BillToName NOT LIKE '%Wells Fargo%'
-            AND BillToName NOT LIKE '%Maintenance contract%'
-            AND BillToName NOT LIKE '%Rental Fleet%'
-            GROUP BY 
-                CASE 
-                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
-                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-                    ELSE BillToName
-                END
+            FROM NormalizedInvoices
+            GROUP BY normalized_customer_name
             ORDER BY SUM(GrandTotal) DESC
             """
             
