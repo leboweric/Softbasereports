@@ -754,36 +754,33 @@ def get_parts_inventory_metrics(start_date, end_date):
         filled_orders = int(fill_rate_result[0]['FilledOrders'] or 0) if fill_rate_result else 0
         fill_rate = (filled_orders / total_orders * 100) if total_orders > 0 else 0
         
-        # 2. Inventory Turnover - annualized
-        turnover_query = f"""
-        WITH PartMovement AS (
-            SELECT 
-                p.PartNo,
-                MAX(p.OnHand) as CurrentStock,
-                MAX(p.Cost) as Cost,
-                COALESCE(SUM(wp.Qty), 0) as TotalQtyMoved
-            FROM ben002.Parts p
-            LEFT JOIN ben002.WOParts wp ON p.PartNo = wp.PartNo
-            LEFT JOIN ben002.WO w ON wp.WONo = w.WONo
-            WHERE w.OpenDate >= %s AND w.OpenDate <= %s
-            GROUP BY p.PartNo
-        )
+        # 2. Inventory Value - TOTAL current inventory (not period-specific)
+        inventory_query = """
+        SELECT SUM(OnHand * Cost) as TotalInventoryValue
+        FROM ben002.Parts
+        WHERE OnHand > 0 AND Cost > 0
+        """
+        
+        inventory_result = sql_service.execute_query(inventory_query, [])
+        inventory_value = float(inventory_result[0]['TotalInventoryValue'] or 0) if inventory_result else 0
+        
+        # 3. Inventory Turnover - annualized based on period movement
+        turnover_query = """
         SELECT 
-            SUM(CurrentStock * Cost) as TotalInventoryValue,
-            SUM(TotalQtyMoved * Cost) as TotalCOGS
-        FROM PartMovement
-        WHERE CurrentStock > 0
+            SUM(wp.Qty * p.Cost) as TotalCOGS
+        FROM ben002.WOParts wp
+        INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+        LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+        WHERE w.OpenDate >= %s AND w.OpenDate <= %s
         """
         
         turnover_result = sql_service.execute_query(turnover_query, [start_date, end_date])
-        
-        inventory_value = float(turnover_result[0]['TotalInventoryValue'] or 0) if turnover_result else 0
         cogs = float(turnover_result[0]['TotalCOGS'] or 0) if turnover_result else 0
         
         # Annualize the turnover (COGS for period / avg inventory) * (365 / days in period)
         turnover_rate = (cogs / inventory_value * (365 / days_in_period)) if inventory_value > 0 else 0
         
-        # 3. Inventory Aging - parts with no movement in 90+ days
+        # 4. Inventory Aging - parts with no movement in 90+ days
         aging_query = f"""
         WITH PartMovement AS (
             SELECT 
