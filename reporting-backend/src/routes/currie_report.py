@@ -747,3 +747,117 @@ def get_labor_metrics(start_date, end_date):
     except Exception as e:
         logger.error(f"Error fetching labor metrics: {str(e)}")
         return {}
+
+
+@currie_bp.route('/api/currie/export-excel', methods=['GET'])
+@jwt_required()
+def export_currie_excel():
+    """Export Currie Financial Model to Excel using template"""
+    try:
+        import openpyxl
+        from openpyxl.utils import get_column_letter
+        from flask import send_file
+        import os
+        from datetime import datetime
+        import io
+        
+        # Get date range from query parameters
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        if not start_date or not end_date:
+            return jsonify({'error': 'start_date and end_date are required'}), 400
+        
+        # Get all the data
+        new_equipment = get_new_equipment_sales(start_date, end_date)
+        rental = get_rental_revenue(start_date, end_date)
+        service = get_service_revenue(start_date, end_date)
+        parts = get_parts_revenue(start_date, end_date)
+        trucking = get_trucking_revenue(start_date, end_date)
+        
+        # Calculate number of months
+        from datetime import datetime
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+        
+        # Calculate totals
+        totals = calculate_totals(new_equipment, rental, service, parts, trucking, months_diff)
+        
+        # Load template
+        template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'currie_template.xlsx')
+        wb = openpyxl.load_workbook(template_path)
+        
+        # Remove "New TB" sheet if it exists
+        if 'New TB' in wb.sheetnames:
+            del wb['New TB']
+        
+        # Get the Sales, COGS, GP sheet
+        ws = wb['Sales, COGS, GP']
+        
+        # Update dealership info
+        ws['B3'] = 'Bennett Material Handling'  # Dealership name
+        ws['B5'] = datetime.now().strftime('%m/%d/%Y')  # Date
+        ws['B7'] = months_diff  # Number of months
+        
+        # Helper function to write sales/cogs/gp data
+        def write_row(row, data):
+            ws[f'B{row}'] = data.get('sales', 0)
+            ws[f'C{row}'] = data.get('cogs', 0)
+            ws[f'D{row}'] = data.get('gross_profit', 0)
+        
+        # Write Equipment Sales (rows 10-19)
+        write_row(10, new_equipment.get('new_lift_truck_primary', {}))
+        write_row(11, new_equipment.get('new_lift_truck_other', {}))
+        write_row(12, new_equipment.get('new_allied', {}))
+        write_row(13, new_equipment.get('other_new_equipment', {}))
+        write_row(15, new_equipment.get('operator_training', {}))
+        write_row(16, new_equipment.get('used_equipment', {}))
+        write_row(17, new_equipment.get('ecommerce', {}))
+        write_row(18, new_equipment.get('systems', {}))
+        write_row(19, new_equipment.get('batteries', {}))
+        
+        # Write Rental (rows 21-23) - we only have consolidated rental
+        write_row(21, rental.get('rental_revenue', {}))
+        write_row(22, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Long term
+        write_row(23, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Re-rent
+        
+        # Write Service (rows 24-28)
+        write_row(24, service.get('customer_labor', {}))
+        write_row(25, service.get('internal_labor', {}))
+        write_row(26, service.get('warranty_labor', {}))
+        write_row(27, service.get('sublet', {}))
+        write_row(28, service.get('other_service', {}))
+        
+        # Write Parts (rows 30-36)
+        write_row(30, parts.get('counter_primary', {}))
+        write_row(31, parts.get('counter_other', {}))
+        write_row(32, parts.get('ro_primary', {}))
+        write_row(33, parts.get('ro_other', {}))
+        write_row(34, parts.get('internal_parts', {}))
+        write_row(35, parts.get('warranty_parts', {}))
+        write_row(36, parts.get('ecommerce_parts', {}))
+        
+        # Write Trucking (row 38)
+        write_row(38, trucking)
+        
+        # Save to BytesIO for download
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Generate filename with date range
+        filename = f"Currie_Financial_Model_{start_date}_to_{end_date}.xlsx"
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting Currie Excel: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to export Excel', 'message': str(e)}), 500
