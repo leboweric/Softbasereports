@@ -566,6 +566,9 @@ def get_currie_metrics():
         # 4. Labor Metrics
         metrics['labor_metrics'] = get_labor_metrics(start_date, end_date)
         
+        # 5. Parts Inventory Metrics
+        metrics['parts_inventory'] = get_parts_inventory_metrics(start_date, end_date)
+        
         return jsonify({
             'metrics': metrics,
             'date_range': {
@@ -709,6 +712,125 @@ def get_technician_count(start_date, end_date):
         
     except Exception as e:
         logger.error(f"Error counting technicians: {str(e)}")
+        return {}
+
+
+def get_parts_inventory_metrics(start_date, end_date):
+    """Get parts inventory metrics: fill rate, turnover, aging"""
+    try:
+        # Calculate days in period
+        from datetime import datetime
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        days_in_period = (end - start).days + 1
+        
+        # 1. Fill Rate - percentage of orders filled from stock
+        fill_rate_query = f"""
+        WITH PartsOrders AS (
+            SELECT 
+                wp.PartNo,
+                wp.BOQty as BackorderQty,
+                COALESCE(p.OnHand, 0) as CurrentStock,
+                CASE 
+                    WHEN wp.BOQty > 0 THEN 'Backordered'
+                    WHEN p.OnHand IS NULL OR p.OnHand = 0 THEN 'Out of Stock'
+                    WHEN p.OnHand < wp.Qty THEN 'Partial Stock'
+                    ELSE 'In Stock'
+                END as StockStatus
+            FROM ben002.WOParts wp
+            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+            WHERE w.OpenDate >= %s AND w.OpenDate <= %s
+        )
+        SELECT 
+            COUNT(*) as TotalOrders,
+            SUM(CASE WHEN StockStatus = 'In Stock' THEN 1 ELSE 0 END) as FilledOrders
+        FROM PartsOrders
+        """
+        
+        fill_rate_result = sql_service.execute_query(fill_rate_query, [start_date, end_date])
+        
+        total_orders = int(fill_rate_result[0]['TotalOrders'] or 0) if fill_rate_result else 0
+        filled_orders = int(fill_rate_result[0]['FilledOrders'] or 0) if fill_rate_result else 0
+        fill_rate = (filled_orders / total_orders * 100) if total_orders > 0 else 0
+        
+        # 2. Inventory Turnover - annualized
+        turnover_query = f"""
+        WITH PartMovement AS (
+            SELECT 
+                p.PartNo,
+                MAX(p.OnHand) as CurrentStock,
+                MAX(p.Cost) as Cost,
+                COALESCE(SUM(wp.Qty), 0) as TotalQtyMoved
+            FROM ben002.Parts p
+            LEFT JOIN ben002.WOParts wp ON p.PartNo = wp.PartNo
+            LEFT JOIN ben002.WO w ON wp.WONo = w.WONo
+            WHERE w.OpenDate >= %s AND w.OpenDate <= %s
+            GROUP BY p.PartNo
+        )
+        SELECT 
+            SUM(CurrentStock * Cost) as TotalInventoryValue,
+            SUM(TotalQtyMoved * Cost) as TotalCOGS
+        FROM PartMovement
+        WHERE CurrentStock > 0
+        """
+        
+        turnover_result = sql_service.execute_query(turnover_query, [start_date, end_date])
+        
+        inventory_value = float(turnover_result[0]['TotalInventoryValue'] or 0) if turnover_result else 0
+        cogs = float(turnover_result[0]['TotalCOGS'] or 0) if turnover_result else 0
+        
+        # Annualize the turnover (COGS for period / avg inventory) * (365 / days in period)
+        turnover_rate = (cogs / inventory_value * (365 / days_in_period)) if inventory_value > 0 else 0
+        
+        # 3. Inventory Aging - parts with no movement in 90+ days
+        aging_query = f"""
+        WITH PartMovement AS (
+            SELECT 
+                p.PartNo,
+                MAX(p.OnHand) as CurrentStock,
+                MAX(p.Cost) as Cost,
+                MAX(w.OpenDate) as LastMovementDate
+            FROM ben002.Parts p
+            LEFT JOIN ben002.WOParts wp ON p.PartNo = wp.PartNo
+            LEFT JOIN ben002.WO w ON wp.WONo = w.WONo
+            WHERE p.OnHand > 0
+            GROUP BY p.PartNo
+        )
+        SELECT 
+            COUNT(CASE WHEN DATEDIFF(day, LastMovementDate, GETDATE()) > 365 OR LastMovementDate IS NULL THEN 1 END) as Obsolete,
+            COUNT(CASE WHEN DATEDIFF(day, LastMovementDate, GETDATE()) BETWEEN 181 AND 365 THEN 1 END) as Slow,
+            COUNT(CASE WHEN DATEDIFF(day, LastMovementDate, GETDATE()) BETWEEN 91 AND 180 THEN 1 END) as Medium,
+            COUNT(CASE WHEN DATEDIFF(day, LastMovementDate, GETDATE()) <= 90 THEN 1 END) as Fast,
+            SUM(CASE WHEN DATEDIFF(day, LastMovementDate, GETDATE()) > 365 OR LastMovementDate IS NULL THEN CurrentStock * Cost ELSE 0 END) as ObsoleteValue
+        FROM PartMovement
+        """
+        
+        aging_result = sql_service.execute_query(aging_query, [])
+        
+        if aging_result and len(aging_result) > 0:
+            aging = aging_result[0]
+            return {
+                'fill_rate': round(fill_rate, 1),
+                'total_orders': total_orders,
+                'filled_orders': filled_orders,
+                'inventory_turnover': round(turnover_rate, 2),
+                'inventory_value': round(inventory_value, 2),
+                'aging': {
+                    'obsolete_count': int(aging.get('Obsolete', 0)),
+                    'slow_count': int(aging.get('Slow', 0)),
+                    'medium_count': int(aging.get('Medium', 0)),
+                    'fast_count': int(aging.get('Fast', 0)),
+                    'obsolete_value': round(float(aging.get('ObsoleteValue', 0)), 2)
+                }
+            }
+        
+        return {}
+        
+    except Exception as e:
+        logger.error(f"Error fetching parts inventory metrics: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {}
 
 
