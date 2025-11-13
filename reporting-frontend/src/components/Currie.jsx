@@ -6,6 +6,7 @@ const Currie = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [metrics, setMetrics] = useState(null);
+  const [expenses, setExpenses] = useState(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState(null);
@@ -92,6 +93,16 @@ const Currie = () => {
         }
       );
       setMetrics(metricsResponse.data.metrics);
+      
+      // Fetch expenses data
+      const expensesResponse = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/currie/expenses`,
+        {
+          params: { start_date: startDate, end_date: endDate },
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setExpenses(expensesResponse.data);
     } catch (err) {
       console.error('Error fetching Currie data:', err);
       setError(err.response?.data?.error || 'Failed to load Currie data');
@@ -564,6 +575,112 @@ const Currie = () => {
                   <span className="font-medium text-red-600">{metrics.parts_inventory?.aging?.obsolete_count || 0}</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expenses Section */}
+      {expenses && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">Operating Expenses</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Personnel Costs */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Personnel Costs</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Payroll:</span>
+                  <span className="font-medium">{formatCurrency(expenses.personnel?.payroll || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Payroll Taxes:</span>
+                  <span className="font-medium">{formatCurrency(expenses.personnel?.payroll_taxes || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Benefits:</span>
+                  <span className="font-medium">{formatCurrency(expenses.personnel?.benefits || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Commissions:</span>
+                  <span className="font-medium">{formatCurrency(expenses.personnel?.commissions || 0)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 mt-2">
+                  <span className="font-semibold">Total:</span>
+                  <span className="font-bold">{formatCurrency(expenses.personnel?.total || 0)}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Occupancy Costs */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Occupancy Costs</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Rent:</span>
+                  <span className="font-medium">{formatCurrency(expenses.occupancy?.rent || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Utilities:</span>
+                  <span className="font-medium">{formatCurrency(expenses.occupancy?.utilities || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Insurance:</span>
+                  <span className="font-medium">{formatCurrency(expenses.occupancy?.insurance || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Maintenance:</span>
+                  <span className="font-medium">{formatCurrency(expenses.occupancy?.building_maintenance || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Depreciation:</span>
+                  <span className="font-medium">{formatCurrency(expenses.occupancy?.depreciation || 0)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 mt-2">
+                  <span className="font-semibold">Total:</span>
+                  <span className="font-bold">{formatCurrency(expenses.occupancy?.total || 0)}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Operating Expenses */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Operating Expenses</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Advertising:</span>
+                  <span className="font-medium">{formatCurrency(expenses.operating?.advertising || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Computer/IT:</span>
+                  <span className="font-medium">{formatCurrency(expenses.operating?.computer_it || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Professional Services:</span>
+                  <span className="font-medium">{formatCurrency(expenses.operating?.professional_services || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Vehicle Expense:</span>
+                  <span className="font-medium">{formatCurrency(expenses.operating?.vehicle_expense || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Other:</span>
+                  <span className="font-medium">{formatCurrency(expenses.operating?.other || 0)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2 mt-2">
+                  <span className="font-semibold">Total:</span>
+                  <span className="font-bold">{formatCurrency(expenses.operating?.total || 0)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Grand Total */}
+          <div className="mt-4 bg-gray-900 text-white rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-bold">TOTAL OPERATING EXPENSES</span>
+              <span className="text-2xl font-bold">{formatCurrency(expenses.grand_total || 0)}</span>
             </div>
           </div>
         </div>
