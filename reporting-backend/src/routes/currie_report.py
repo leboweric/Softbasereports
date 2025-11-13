@@ -44,7 +44,7 @@ def get_sales_cogs_gp():
                 'start_date': start_date,
                 'end_date': end_date
             },
-            'new_equipment': get_new_equipment_sales(start_date, end_date),
+            'sales': get_new_equipment_sales(start_date, end_date),
             'rental': get_rental_revenue(start_date, end_date),
             'service': get_service_revenue(start_date, end_date),
             'parts': get_parts_revenue(start_date, end_date),
@@ -62,21 +62,21 @@ def get_sales_cogs_gp():
 
 
 def get_new_equipment_sales(start_date, end_date):
-    """Get new equipment sales broken down by category"""
+    """Get new equipment sales broken down by category using InvoiceReg table"""
     try:
-        # Query for new equipment sales from Invoice table
+        # Query for new equipment sales from InvoiceReg table
+        # Using SaleCode to identify equipment types
+        # LINDE/LINDEN = Primary Brand, others = Other Brands
         query = """
         SELECT 
-            i.Type,
-            i.Subtype,
-            SUM(i.TotalSale) as sales,
-            SUM(i.Cost) as cogs
-        FROM ben002.Invoice i
+            i.SaleCode,
+            SUM(COALESCE(i.EquipmentTaxable, 0) + COALESCE(i.EquipmentNonTax, 0)) as sales,
+            SUM(COALESCE(i.EquipmentCost, 0)) as cogs
+        FROM ben002.InvoiceReg i
         WHERE i.InvoiceDate >= %s 
           AND i.InvoiceDate <= %s
-          AND i.Type IN ('Equipment', 'Allied', 'Battery', 'System')
-          AND i.Status = 'Posted'
-        GROUP BY i.Type, i.Subtype
+          AND (COALESCE(i.EquipmentTaxable, 0) + COALESCE(i.EquipmentNonTax, 0)) > 0
+        GROUP BY i.SaleCode
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
@@ -94,32 +94,28 @@ def get_new_equipment_sales(start_date, end_date):
             'batteries': {'sales': 0, 'cogs': 0}
         }
         
-        # Map results to categories
+        # Map results to categories based on SaleCode
         for row in results:
             sales = float(row['sales'] or 0)
             cogs = float(row['cogs'] or 0)
-            inv_type = row['Type']
-            subtype = row['Subtype'] or ''
+            sale_code = (row['SaleCode'] or '').upper()
             
-            if inv_type == 'Equipment':
-                if 'Used' in subtype or 'Rental Disposal' in subtype:
-                    categories['used_equipment']['sales'] += sales
-                    categories['used_equipment']['cogs'] += cogs
-                elif 'Primary' in subtype or 'Forklift' in subtype:
-                    categories['new_lift_truck_primary']['sales'] += sales
-                    categories['new_lift_truck_primary']['cogs'] += cogs
-                else:
-                    categories['other_new_equipment']['sales'] += sales
-                    categories['other_new_equipment']['cogs'] += cogs
-            elif inv_type == 'Allied':
-                categories['new_allied']['sales'] += sales
-                categories['new_allied']['cogs'] += cogs
-            elif inv_type == 'Battery':
-                categories['batteries']['sales'] += sales
-                categories['batteries']['cogs'] += cogs
-            elif inv_type == 'System':
-                categories['systems']['sales'] += sales
-                categories['systems']['cogs'] += cogs
+            # Linde = Primary Brand
+            if sale_code in ('LINDE', 'LINDEN', 'NEWEQ'):
+                categories['new_lift_truck_primary']['sales'] += sales
+                categories['new_lift_truck_primary']['cogs'] += cogs
+            # Used equipment
+            elif sale_code in ('USEDEQ', 'RNTSALE'):
+                categories['used_equipment']['sales'] += sales
+                categories['used_equipment']['cogs'] += cogs
+            # Other new equipment (KOM, etc.)
+            elif sale_code in ('KOM', 'NEWEQP-R'):
+                categories['new_lift_truck_other']['sales'] += sales
+                categories['new_lift_truck_other']['cogs'] += cogs
+            # Default to other new equipment
+            else:
+                categories['other_new_equipment']['sales'] += sales
+                categories['other_new_equipment']['cogs'] += cogs
         
         # Calculate gross profit for each category
         for category in categories.values():
@@ -135,40 +131,33 @@ def get_new_equipment_sales(start_date, end_date):
 def get_rental_revenue(start_date, end_date):
     """Get rental revenue broken down by short-term, long-term, and re-rent"""
     try:
-        # Query rental revenue from Invoice table
+        # Query rental revenue from InvoiceReg table
         query = """
         SELECT 
-            i.Subtype,
-            SUM(i.TotalSale) as sales
-        FROM ben002.Invoice i
+            SUM(COALESCE(i.RentalTaxable, 0) + COALESCE(i.RentalNonTax, 0)) as sales,
+            SUM(COALESCE(i.RentalCost, 0)) as cogs
+        FROM ben002.InvoiceReg i
         WHERE i.InvoiceDate >= %s 
           AND i.InvoiceDate <= %s
-          AND i.Type = 'Rental'
-          AND i.Status = 'Posted'
-        GROUP BY i.Subtype
+          AND (COALESCE(i.RentalTaxable, 0) + COALESCE(i.RentalNonTax, 0)) > 0
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
         
         rental_data = {
-            'short_term': {'sales': 0, 'cogs': 0},  # COGS calculated from expenses
+            'short_term': {'sales': 0, 'cogs': 0},
             'long_term': {'sales': 0, 'cogs': 0},
             'rerent': {'sales': 0, 'cogs': 0}
         }
         
-        for row in results:
+        # For now, put all rental in short_term
+        # TODO: Distinguish between short/long/rerent based on SaleCode or other fields
+        if results and len(results) > 0:
+            row = results[0]
             sales = float(row['sales'] or 0)
-            subtype = (row['Subtype'] or '').lower()
-            
-            if 'short' in subtype or 'daily' in subtype or 'weekly' in subtype:
-                rental_data['short_term']['sales'] += sales
-            elif 'long' in subtype or 'monthly' in subtype:
-                rental_data['long_term']['sales'] += sales
-            elif 'rerent' in subtype or 're-rent' in subtype or 'subrent' in subtype:
-                rental_data['rerent']['sales'] += sales
-            else:
-                # Default to short-term
-                rental_data['short_term']['sales'] += sales
+            cogs = float(row['cogs'] or 0)
+            rental_data['short_term']['sales'] = sales
+            rental_data['short_term']['cogs'] = cogs
         
         # Calculate gross profit
         for category in rental_data.values():
@@ -184,19 +173,15 @@ def get_rental_revenue(start_date, end_date):
 def get_service_revenue(start_date, end_date):
     """Get service revenue broken down by customer, internal, warranty, sublet"""
     try:
-        # Query service labor from WOLabor table
+        # Query service labor from InvoiceReg table
         query = """
         SELECT 
-            wo.Type as wo_type,
-            wo.BillTo,
-            SUM(l.LaborSale) as labor_sales,
-            SUM(l.Hours * l.Rate) as labor_cost
-        FROM ben002.WOLabor l
-        JOIN ben002.WO wo ON l.WONumber = wo.Number
-        WHERE l.DateOfLabor >= %s 
-          AND l.DateOfLabor <= %s
-          AND wo.Status = 'Closed'
-        GROUP BY wo.Type, wo.BillTo
+            SUM(COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)) as sales,
+            SUM(COALESCE(i.LaborCost, 0)) as cogs
+        FROM ben002.InvoiceReg i
+        WHERE i.InvoiceDate >= %s 
+          AND i.InvoiceDate <= %s
+          AND (COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)) > 0
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
@@ -209,24 +194,14 @@ def get_service_revenue(start_date, end_date):
             'other': {'sales': 0, 'cogs': 0}
         }
         
-        for row in results:
-            sales = float(row['labor_sales'] or 0)
-            cogs = float(row['labor_cost'] or 0)
-            wo_type = (row['wo_type'] or '').lower()
-            bill_to = row['BillTo'] or ''
-            
-            if 'warranty' in wo_type:
-                service_data['warranty_labor']['sales'] += sales
-                service_data['warranty_labor']['cogs'] += cogs
-            elif 'internal' in wo_type or 'shop' in wo_type or not bill_to:
-                service_data['internal_labor']['sales'] += sales
-                service_data['internal_labor']['cogs'] += cogs
-            elif 'sublet' in wo_type:
-                service_data['sublet']['sales'] += sales
-                service_data['sublet']['cogs'] += cogs
-            else:
-                service_data['customer_labor']['sales'] += sales
-                service_data['customer_labor']['cogs'] += cogs
+        # For now, put all labor in customer_labor
+        # TODO: Distinguish between customer/internal/warranty based on SaleCode or WO Type
+        if results and len(results) > 0:
+            row = results[0]
+            sales = float(row['sales'] or 0)
+            cogs = float(row['cogs'] or 0)
+            service_data['customer_labor']['sales'] = sales
+            service_data['customer_labor']['cogs'] = cogs
         
         # Calculate gross profit
         for category in service_data.values():
@@ -242,19 +217,15 @@ def get_service_revenue(start_date, end_date):
 def get_parts_revenue(start_date, end_date):
     """Get parts revenue broken down by counter, RO, internal, warranty"""
     try:
-        # Query parts sales from WOParts and Invoice tables
+        # Query parts sales from InvoiceReg table
         query = """
         SELECT 
-            wo.Type as wo_type,
-            wo.BillTo,
-            SUM(p.PartsSale) as parts_sales,
-            SUM(p.PartsCost) as parts_cost
-        FROM ben002.WOParts p
-        JOIN ben002.WO wo ON p.WONumber = wo.Number
-        WHERE p.DateAdded >= %s 
-          AND p.DateAdded <= %s
-          AND wo.Status = 'Closed'
-        GROUP BY wo.Type, wo.BillTo
+            SUM(COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) as sales,
+            SUM(COALESCE(i.PartsCost, 0)) as cogs
+        FROM ben002.InvoiceReg i
+        WHERE i.InvoiceDate >= %s 
+          AND i.InvoiceDate <= %s
+          AND (COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) > 0
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
@@ -269,26 +240,14 @@ def get_parts_revenue(start_date, end_date):
             'ecommerce': {'sales': 0, 'cogs': 0}
         }
         
-        for row in results:
-            sales = float(row['parts_sales'] or 0)
-            cogs = float(row['parts_cost'] or 0)
-            wo_type = (row['wo_type'] or '').lower()
-            bill_to = row['BillTo'] or ''
-            
-            if 'warranty' in wo_type:
-                parts_data['warranty']['sales'] += sales
-                parts_data['warranty']['cogs'] += cogs
-            elif 'internal' in wo_type or 'shop' in wo_type or not bill_to:
-                parts_data['internal']['sales'] += sales
-                parts_data['internal']['cogs'] += cogs
-            elif 'counter' in wo_type or 'parts' in wo_type:
-                # Assume primary brand for now
-                parts_data['counter_primary']['sales'] += sales
-                parts_data['counter_primary']['cogs'] += cogs
-            else:
-                # Repair order parts
-                parts_data['ro_primary']['sales'] += sales
-                parts_data['ro_primary']['cogs'] += cogs
+        # For now, put all parts in counter_primary
+        # TODO: Distinguish between counter/RO/internal/warranty based on SaleCode
+        if results and len(results) > 0:
+            row = results[0]
+            sales = float(row['sales'] or 0)
+            cogs = float(row['cogs'] or 0)
+            parts_data['counter_primary']['sales'] = sales
+            parts_data['counter_primary']['cogs'] = cogs
         
         # Calculate gross profit
         for category in parts_data.values():
@@ -302,112 +261,77 @@ def get_parts_revenue(start_date, end_date):
 
 
 def get_trucking_revenue(start_date, end_date):
-    """Get trucking department revenue"""
+    """Get trucking/delivery revenue"""
     try:
-        # Query trucking revenue from Invoice table
+        # Query trucking revenue from InvoiceReg table
         query = """
         SELECT 
-            SUM(i.TotalSale) as sales,
-            SUM(i.Cost) as cogs
-        FROM ben002.Invoice i
+            SUM(COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as sales,
+            SUM(COALESCE(i.MiscCost, 0)) as cogs
+        FROM ben002.InvoiceReg i
         WHERE i.InvoiceDate >= %s 
           AND i.InvoiceDate <= %s
-          AND i.Type = 'Trucking'
-          AND i.Status = 'Posted'
+          AND (COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) > 0
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
         
+        trucking_data = {
+            'sales': 0,
+            'cogs': 0,
+            'gross_profit': 0
+        }
+        
         if results and len(results) > 0:
             row = results[0]
-            sales = float(row['sales'] or 0)
-            cogs = float(row['cogs'] or 0)
-            return {
-                'sales': sales,
-                'cogs': cogs,
-                'gross_profit': sales - cogs
-            }
+            trucking_data['sales'] = float(row['sales'] or 0)
+            trucking_data['cogs'] = float(row['cogs'] or 0)
+            trucking_data['gross_profit'] = trucking_data['sales'] - trucking_data['cogs']
         
-        return {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+        return trucking_data
         
     except Exception as e:
         logger.error(f"Error fetching trucking revenue: {str(e)}")
-        return {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+        return {}
 
 
 def calculate_totals(data):
-    """Calculate total sales, COGS, and gross profit across all categories"""
+    """Calculate total sales, COGS, and GP across all categories"""
     totals = {
-        'total_new_equipment': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
-        'total_sales_dept': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
-        'total_rental': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
-        'total_service': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
-        'total_parts': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
-        'total_aftermarket': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
-        'total_company': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
-        'avg_monthly_sales_gp': 0
+        'sales': 0,
+        'cogs': 0,
+        'gross_profit': 0
     }
     
-    # Sum new equipment
-    for category in data['new_equipment'].values():
-        totals['total_new_equipment']['sales'] += category['sales']
-        totals['total_new_equipment']['cogs'] += category['cogs']
-        totals['total_new_equipment']['gross_profit'] += category['gross_profit']
-    
-    # Total sales dept = new equipment
-    totals['total_sales_dept'] = totals['total_new_equipment'].copy()
+    # Sum equipment sales
+    if 'sales' in data:
+        for category in data['sales'].values():
+            totals['sales'] += category.get('sales', 0)
+            totals['cogs'] += category.get('cogs', 0)
     
     # Sum rental
-    for category in data['rental'].values():
-        totals['total_rental']['sales'] += category['sales']
-        totals['total_rental']['cogs'] += category['cogs']
-        totals['total_rental']['gross_profit'] += category['gross_profit']
+    if 'rental' in data:
+        for category in data['rental'].values():
+            totals['sales'] += category.get('sales', 0)
+            totals['cogs'] += category.get('cogs', 0)
     
     # Sum service
-    for category in data['service'].values():
-        totals['total_service']['sales'] += category['sales']
-        totals['total_service']['cogs'] += category['cogs']
-        totals['total_service']['gross_profit'] += category['gross_profit']
+    if 'service' in data:
+        for category in data['service'].values():
+            totals['sales'] += category.get('sales', 0)
+            totals['cogs'] += category.get('cogs', 0)
     
     # Sum parts
-    for category in data['parts'].values():
-        totals['total_parts']['sales'] += category['sales']
-        totals['total_parts']['cogs'] += category['cogs']
-        totals['total_parts']['gross_profit'] += category['gross_profit']
+    if 'parts' in data:
+        for category in data['parts'].values():
+            totals['sales'] += category.get('sales', 0)
+            totals['cogs'] += category.get('cogs', 0)
     
-    # Total aftermarket = rental + service + parts
-    totals['total_aftermarket']['sales'] = (
-        totals['total_rental']['sales'] +
-        totals['total_service']['sales'] +
-        totals['total_parts']['sales']
-    )
-    totals['total_aftermarket']['cogs'] = (
-        totals['total_rental']['cogs'] +
-        totals['total_service']['cogs'] +
-        totals['total_parts']['cogs']
-    )
-    totals['total_aftermarket']['gross_profit'] = (
-        totals['total_aftermarket']['sales'] - totals['total_aftermarket']['cogs']
-    )
+    # Add trucking
+    if 'trucking' in data:
+        totals['sales'] += data['trucking'].get('sales', 0)
+        totals['cogs'] += data['trucking'].get('cogs', 0)
     
-    # Total company = sales dept + aftermarket + trucking
-    totals['total_company']['sales'] = (
-        totals['total_sales_dept']['sales'] +
-        totals['total_aftermarket']['sales'] +
-        data['trucking']['sales']
-    )
-    totals['total_company']['cogs'] = (
-        totals['total_sales_dept']['cogs'] +
-        totals['total_aftermarket']['cogs'] +
-        data['trucking']['cogs']
-    )
-    totals['total_company']['gross_profit'] = (
-        totals['total_company']['sales'] - totals['total_company']['cogs']
-    )
-    
-    # Average monthly sales & GP
-    num_months = data['dealership_info']['num_months']
-    if num_months > 0:
-        totals['avg_monthly_sales_gp'] = totals['total_company']['sales'] / num_months
+    totals['gross_profit'] = totals['sales'] - totals['cogs']
     
     return totals
