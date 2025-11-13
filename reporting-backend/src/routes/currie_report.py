@@ -173,11 +173,75 @@ def get_rental_revenue(start_date, end_date):
 def get_service_revenue(start_date, end_date):
     """Get service revenue broken down by customer, internal, warranty, sublet"""
     try:
-        # Query service labor from InvoiceReg table
+        # Query service labor from InvoiceReg table with proper classification
+        # Based on SaleCode patterns found in existing reports
         query = """
         SELECT 
-            SUM(COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)) as sales,
-            SUM(COALESCE(i.LaborCost, 0)) as cogs
+            -- Customer Labor: Standard service codes (SVE, SVES)
+            SUM(CASE 
+                WHEN i.SaleCode IN ('SVE', 'SVES') 
+                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
+                ELSE 0 
+            END) as customer_sales,
+            SUM(CASE 
+                WHEN i.SaleCode IN ('SVE', 'SVES') 
+                THEN COALESCE(i.LaborCost, 0)
+                ELSE 0 
+            END) as customer_cogs,
+            
+            -- Internal Labor: Internal customer numbers
+            SUM(CASE 
+                WHEN i.BillTo IN ('900006', '900066') 
+                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
+                ELSE 0 
+            END) as internal_sales,
+            SUM(CASE 
+                WHEN i.BillTo IN ('900006', '900066') 
+                THEN COALESCE(i.LaborCost, 0)
+                ELSE 0 
+            END) as internal_cogs,
+            
+            -- Warranty Labor: Warranty codes
+            SUM(CASE 
+                WHEN (i.SaleCode LIKE '%WARR%' OR i.SaleCode = 'SVEW') 
+                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
+                ELSE 0 
+            END) as warranty_sales,
+            SUM(CASE 
+                WHEN (i.SaleCode LIKE '%WARR%' OR i.SaleCode = 'SVEW') 
+                THEN COALESCE(i.LaborCost, 0)
+                ELSE 0 
+            END) as warranty_cogs,
+            
+            -- Sublet: Sublet codes
+            SUM(CASE 
+                WHEN (i.SaleCode LIKE '%SUB%' OR i.SaleCode = 'SVE-STL') 
+                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
+                ELSE 0 
+            END) as sublet_sales,
+            SUM(CASE 
+                WHEN (i.SaleCode LIKE '%SUB%' OR i.SaleCode = 'SVE-STL') 
+                THEN COALESCE(i.LaborCost, 0)
+                ELSE 0 
+            END) as sublet_cogs,
+            
+            -- Other Service: Everything else with labor revenue
+            SUM(CASE 
+                WHEN i.SaleCode NOT IN ('SVE', 'SVES')
+                     AND i.BillTo NOT IN ('900006', '900066')
+                     AND i.SaleCode NOT LIKE '%WARR%' AND i.SaleCode != 'SVEW'
+                     AND i.SaleCode NOT LIKE '%SUB%' AND i.SaleCode != 'SVE-STL'
+                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
+                ELSE 0 
+            END) as other_sales,
+            SUM(CASE 
+                WHEN i.SaleCode NOT IN ('SVE', 'SVES')
+                     AND i.BillTo NOT IN ('900006', '900066')
+                     AND i.SaleCode NOT LIKE '%WARR%' AND i.SaleCode != 'SVEW'
+                     AND i.SaleCode NOT LIKE '%SUB%' AND i.SaleCode != 'SVE-STL'
+                THEN COALESCE(i.LaborCost, 0)
+                ELSE 0 
+            END) as other_cogs
         FROM ben002.InvoiceReg i
         WHERE i.InvoiceDate >= %s 
           AND i.InvoiceDate <= %s
@@ -194,14 +258,19 @@ def get_service_revenue(start_date, end_date):
             'other': {'sales': 0, 'cogs': 0}
         }
         
-        # For now, put all labor in customer_labor
-        # TODO: Distinguish between customer/internal/warranty based on SaleCode or WO Type
+        # Map query results to service_data
         if results and len(results) > 0:
             row = results[0]
-            sales = float(row['sales'] or 0)
-            cogs = float(row['cogs'] or 0)
-            service_data['customer_labor']['sales'] = sales
-            service_data['customer_labor']['cogs'] = cogs
+            service_data['customer_labor']['sales'] = float(row['customer_sales'] or 0)
+            service_data['customer_labor']['cogs'] = float(row['customer_cogs'] or 0)
+            service_data['internal_labor']['sales'] = float(row['internal_sales'] or 0)
+            service_data['internal_labor']['cogs'] = float(row['internal_cogs'] or 0)
+            service_data['warranty_labor']['sales'] = float(row['warranty_sales'] or 0)
+            service_data['warranty_labor']['cogs'] = float(row['warranty_cogs'] or 0)
+            service_data['sublet']['sales'] = float(row['sublet_sales'] or 0)
+            service_data['sublet']['cogs'] = float(row['sublet_cogs'] or 0)
+            service_data['other']['sales'] = float(row['other_sales'] or 0)
+            service_data['other']['cogs'] = float(row['other_cogs'] or 0)
         
         # Calculate gross profit
         for category in service_data.values():
@@ -217,11 +286,98 @@ def get_service_revenue(start_date, end_date):
 def get_parts_revenue(start_date, end_date):
     """Get parts revenue broken down by counter, RO, internal, warranty"""
     try:
-        # Query parts sales from InvoiceReg table
+        # Query parts sales from InvoiceReg table with proper classification
+        # Based on SaleCode patterns found in existing reports
         query = """
         SELECT 
-            SUM(COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) as sales,
-            SUM(COALESCE(i.PartsCost, 0)) as cogs
+            -- Counter Primary Brand: CSTPRT with Linde codes
+            SUM(CASE 
+                WHEN i.SaleCode = 'CSTPRT' AND (i.SaleCode LIKE '%LINDE%' OR i.SaleCode LIKE '%LINDEN%')
+                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
+                WHEN i.SaleCode = 'CSTPRT'
+                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
+                ELSE 0 
+            END) as counter_primary_sales,
+            SUM(CASE 
+                WHEN i.SaleCode = 'CSTPRT' AND (i.SaleCode LIKE '%LINDE%' OR i.SaleCode LIKE '%LINDEN%')
+                THEN COALESCE(i.PartsCost, 0)
+                WHEN i.SaleCode = 'CSTPRT'
+                THEN COALESCE(i.PartsCost, 0)
+                ELSE 0 
+            END) as counter_primary_cogs,
+            
+            -- Counter Other Brand: CSTPRT without Linde (for now, count as 0 since we can't distinguish)
+            0 as counter_other_sales,
+            0 as counter_other_cogs,
+            
+            -- RO Primary Brand: Parts with WONumber and Linde codes
+            -- Note: We're using SaleCode as proxy since WONumber field may not exist in InvoiceReg
+            SUM(CASE 
+                WHEN i.SaleCode IN ('LINDE', 'LINDEN') AND i.SaleCode != 'CSTPRT'
+                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
+                ELSE 0 
+            END) as ro_primary_sales,
+            SUM(CASE 
+                WHEN i.SaleCode IN ('LINDE', 'LINDEN') AND i.SaleCode != 'CSTPRT'
+                THEN COALESCE(i.PartsCost, 0)
+                ELSE 0 
+            END) as ro_primary_cogs,
+            
+            -- RO Other Brand: Other parts codes (not counter, not Linde)
+            SUM(CASE 
+                WHEN i.SaleCode NOT IN ('CSTPRT', 'LINDE', 'LINDEN')
+                     AND i.BillTo NOT IN ('900006', '900066')
+                     AND i.SaleCode NOT LIKE '%WARR%'
+                     AND i.SaleCode NOT LIKE '%ECOM%' AND i.SaleCode NOT LIKE '%WEB%'
+                     AND (COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) > 0
+                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
+                ELSE 0 
+            END) as ro_other_sales,
+            SUM(CASE 
+                WHEN i.SaleCode NOT IN ('CSTPRT', 'LINDE', 'LINDEN')
+                     AND i.BillTo NOT IN ('900006', '900066')
+                     AND i.SaleCode NOT LIKE '%WARR%'
+                     AND i.SaleCode NOT LIKE '%ECOM%' AND i.SaleCode NOT LIKE '%WEB%'
+                     AND (COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) > 0
+                THEN COALESCE(i.PartsCost, 0)
+                ELSE 0 
+            END) as ro_other_cogs,
+            
+            -- Internal Parts: Internal customer numbers
+            SUM(CASE 
+                WHEN i.BillTo IN ('900006', '900066')
+                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
+                ELSE 0 
+            END) as internal_sales,
+            SUM(CASE 
+                WHEN i.BillTo IN ('900006', '900066')
+                THEN COALESCE(i.PartsCost, 0)
+                ELSE 0 
+            END) as internal_cogs,
+            
+            -- Warranty Parts: Warranty codes
+            SUM(CASE 
+                WHEN i.SaleCode LIKE '%WARR%'
+                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
+                ELSE 0 
+            END) as warranty_sales,
+            SUM(CASE 
+                WHEN i.SaleCode LIKE '%WARR%'
+                THEN COALESCE(i.PartsCost, 0)
+                ELSE 0 
+            END) as warranty_cogs,
+            
+            -- E-Commerce Parts: Online sales codes
+            SUM(CASE 
+                WHEN (i.SaleCode LIKE '%ECOM%' OR i.SaleCode LIKE '%WEB%')
+                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
+                ELSE 0 
+            END) as ecommerce_sales,
+            SUM(CASE 
+                WHEN (i.SaleCode LIKE '%ECOM%' OR i.SaleCode LIKE '%WEB%')
+                THEN COALESCE(i.PartsCost, 0)
+                ELSE 0 
+            END) as ecommerce_cogs
         FROM ben002.InvoiceReg i
         WHERE i.InvoiceDate >= %s 
           AND i.InvoiceDate <= %s
@@ -240,14 +396,23 @@ def get_parts_revenue(start_date, end_date):
             'ecommerce': {'sales': 0, 'cogs': 0}
         }
         
-        # For now, put all parts in counter_primary
-        # TODO: Distinguish between counter/RO/internal/warranty based on SaleCode
+        # Map query results to parts_data
         if results and len(results) > 0:
             row = results[0]
-            sales = float(row['sales'] or 0)
-            cogs = float(row['cogs'] or 0)
-            parts_data['counter_primary']['sales'] = sales
-            parts_data['counter_primary']['cogs'] = cogs
+            parts_data['counter_primary']['sales'] = float(row['counter_primary_sales'] or 0)
+            parts_data['counter_primary']['cogs'] = float(row['counter_primary_cogs'] or 0)
+            parts_data['counter_other']['sales'] = float(row['counter_other_sales'] or 0)
+            parts_data['counter_other']['cogs'] = float(row['counter_other_cogs'] or 0)
+            parts_data['ro_primary']['sales'] = float(row['ro_primary_sales'] or 0)
+            parts_data['ro_primary']['cogs'] = float(row['ro_primary_cogs'] or 0)
+            parts_data['ro_other']['sales'] = float(row['ro_other_sales'] or 0)
+            parts_data['ro_other']['cogs'] = float(row['ro_other_cogs'] or 0)
+            parts_data['internal']['sales'] = float(row['internal_sales'] or 0)
+            parts_data['internal']['cogs'] = float(row['internal_cogs'] or 0)
+            parts_data['warranty']['sales'] = float(row['warranty_sales'] or 0)
+            parts_data['warranty']['cogs'] = float(row['warranty_cogs'] or 0)
+            parts_data['ecommerce']['sales'] = float(row['ecommerce_sales'] or 0)
+            parts_data['ecommerce']['cogs'] = float(row['ecommerce_cogs'] or 0)
         
         # Calculate gross profit
         for category in parts_data.values():
