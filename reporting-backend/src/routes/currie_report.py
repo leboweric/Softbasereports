@@ -715,12 +715,16 @@ def get_technician_count(start_date, end_date):
 def get_labor_metrics(start_date, end_date):
     """Get labor productivity metrics from WOLabor"""
     try:
+        # Use the same pattern as other successful queries: SUM(Sell) for labor value
         query = """
         SELECT 
             COUNT(DISTINCT l.WONo) as wo_count,
             SUM(l.Hours) as total_hours,
-            AVG(l.Rate) as avg_rate,
-            SUM(l.Hours * l.Rate) as total_labor_value
+            CASE 
+                WHEN SUM(l.Hours) > 0 THEN SUM(l.Sell) / SUM(l.Hours)
+                ELSE 0 
+            END as avg_rate,
+            SUM(l.Sell) as total_labor_value
         FROM ben002.WOLabor l
         INNER JOIN ben002.WO w ON l.WONo = w.WONo
         WHERE w.OpenDate >= %s 
