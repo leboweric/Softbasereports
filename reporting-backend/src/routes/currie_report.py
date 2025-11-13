@@ -52,7 +52,7 @@ def get_sales_cogs_gp():
         }
         
         # Calculate totals
-        data['totals'] = calculate_totals(data)
+        data['totals'] = calculate_totals(data, months_diff)
         
         return jsonify(data), 200
         
@@ -295,7 +295,7 @@ def get_trucking_revenue(start_date, end_date):
         return {}
 
 
-def calculate_totals(data):
+def calculate_totals(data, num_months):
     """Calculate total sales, COGS, and GP across all categories with subtotals"""
     
     # Calculate subtotals for each section
@@ -355,6 +355,9 @@ def calculate_totals(data):
     
     grand_total['gross_profit'] = grand_total['sales'] - grand_total['cogs']
     
+    # Calculate average monthly sales & GP
+    avg_monthly_sales_gp = grand_total['sales'] / num_months if num_months > 0 else 0
+    
     return {
         'total_new_equipment': total_new_equipment,
         'total_sales_dept': total_sales_dept,
@@ -363,6 +366,8 @@ def calculate_totals(data):
         'total_parts': total_parts,
         'total_aftermarket': total_aftermarket,
         'grand_total': grand_total,
+        'total_company': grand_total,  # Alias for grand_total
+        'avg_monthly_sales_gp': avg_monthly_sales_gp,
         # Keep legacy format for backward compatibility
         'sales': grand_total['sales'],
         'cogs': grand_total['cogs'],
