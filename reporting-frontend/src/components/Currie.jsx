@@ -138,9 +138,36 @@ const Currie = () => {
     });
   };
 
-  const exportToExcel = () => {
-    // TODO: Phase 4 - Generate Excel file matching Currie template
-    alert('Excel export coming in Phase 4!');
+  const exportToExcel = async () => {
+    if (!startDate || !endDate) {
+      alert('Please select a date range first');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/currie/export-excel`,
+        {
+          params: { start_date: startDate, end_date: endDate },
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        }
+      );
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Currie_Financial_Model_${startDate}_to_${endDate}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exporting Excel:', err);
+      alert('Failed to export Excel file. Please try again.');
+    }
   };
 
   if (loading && !data) {
