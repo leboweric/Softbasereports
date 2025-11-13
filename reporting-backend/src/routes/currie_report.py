@@ -778,7 +778,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         cogs = float(turnover_result[0]['TotalCOGS'] or 0) if turnover_result else 0
         
         # Annualize the turnover (COGS for period / avg inventory) * (365 / days in period)
-        turnover_rate = (cogs / inventory_value * (365 / days_in_period)) if inventory_value > 0 else 0
+        turnover_rate = (cogs / inventory_value * (365 / days_in_period)) if (inventory_value > 0 and days_in_period > 0) else 0
         
         # 4. Inventory Aging - parts with no movement in 90+ days
         aging_query = f"""
