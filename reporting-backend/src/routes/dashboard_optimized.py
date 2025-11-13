@@ -1082,7 +1082,6 @@ class DashboardQueries:
             query = f"""
             WITH NormalizedInvoices AS (
                 SELECT 
-                    Customer,
                     InvoiceNo,
                     InvoiceDate,
                     GrandTotal,
@@ -1090,7 +1089,7 @@ class DashboardQueries:
                         WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                         WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                         ELSE BillToName
-                    END as normalized_customer_name
+                    END as customer_name
                 FROM ben002.InvoiceReg
                 WHERE InvoiceDate >= '{self.fiscal_year_start}'
                 AND BillToName IS NOT NULL
@@ -1100,8 +1099,8 @@ class DashboardQueries:
                 AND BillToName NOT LIKE '%Rental Fleet%'
             )
             SELECT TOP 10
-                normalized_customer_name as customer_id,
-                normalized_customer_name as customer_name,
+                customer_name as customer_id,
+                customer_name,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales,
                 MAX(InvoiceDate) as last_invoice_date,
@@ -1114,7 +1113,7 @@ class DashboardQueries:
                 SUM(CASE WHEN InvoiceDate >= '{recent_90_start}' THEN GrandTotal ELSE 0 END) as recent_90_sales,
                 COUNT(CASE WHEN InvoiceDate >= '{recent_90_start}' THEN 1 ELSE NULL END) as recent_90_invoices
             FROM NormalizedInvoices
-            GROUP BY normalized_customer_name
+            GROUP BY customer_name
             ORDER BY SUM(GrandTotal) DESC
             """
             
