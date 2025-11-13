@@ -781,8 +781,17 @@ def export_currie_excel():
         end = datetime.strptime(end_date, '%Y-%m-%d')
         months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
         
+        # Build data structure for calculate_totals
+        data = {
+            'new_equipment': new_equipment,
+            'rental': rental,
+            'service': service,
+            'parts': parts,
+            'trucking': trucking
+        }
+        
         # Calculate totals
-        totals = calculate_totals(new_equipment, rental, service, parts, trucking, months_diff)
+        totals = calculate_totals(data, months_diff)
         
         # Load template
         template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'currie_template.xlsx')
