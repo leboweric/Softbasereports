@@ -1100,7 +1100,7 @@ class DashboardQueries:
                 AND BillToName NOT LIKE '%Rental Fleet%'
             )
             SELECT TOP 10
-                MIN(Customer) as customer_id,
+                normalized_customer_name as customer_id,
                 normalized_customer_name as customer_name,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales,
