@@ -1081,9 +1081,9 @@ class DashboardQueries:
             
             query = f"""
             SELECT TOP 10
-                Customer as customer_id,
+                MIN(Customer) as customer_id,
                 CASE 
-                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END as customer_name,
@@ -1106,9 +1106,8 @@ class DashboardQueries:
             AND BillToName NOT LIKE '%Maintenance contract%'
             AND BillToName NOT LIKE '%Rental Fleet%'
             GROUP BY 
-                Customer,
                 CASE 
-                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END
