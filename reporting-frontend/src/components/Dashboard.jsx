@@ -145,68 +145,28 @@ const Dashboard = ({ user }) => {
 
   const isMountedRef = useRef(true)
 
-  // Sort monthly sales data chronologically for accurate trendline calculations
+  // Backend already returns data in chronological order (ORDER BY year, month)
+  // No need to sort - just use the data as-is
   const sortedMonthlySales = React.useMemo(() => {
-    if (!dashboardData?.monthly_sales) {
-      return [];
-    }
-
-    const monthOrder = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
-    return [...dashboardData.monthly_sales].sort((a, b) => {
-      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
-    });
+    return dashboardData?.monthly_sales || [];
   }, [dashboardData]);
 
-  // Sort monthly sales (no equipment) data chronologically
+  // Backend already returns data in chronological order (ORDER BY year, month)
+  // No need to sort - just use the data as-is
   const sortedMonthlySalesNoEquipment = React.useMemo(() => {
-    if (!dashboardData?.monthly_sales_no_equipment) {
-      return [];
-    }
-
-    const monthOrder = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
-    return [...dashboardData.monthly_sales_no_equipment].sort((a, b) => {
-      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
-    });
+    return dashboardData?.monthly_sales_no_equipment || [];
   }, [dashboardData]);
 
-  // Sort monthly quotes data chronologically
+  // Backend already returns data in chronological order (ORDER BY year, month)
+  // No need to sort - just use the data as-is
   const sortedMonthlyQuotes = React.useMemo(() => {
-    if (!dashboardData?.monthly_quotes) {
-      return [];
-    }
-
-    const monthOrder = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
-    return [...dashboardData.monthly_quotes].sort((a, b) => {
-      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
-    });
+    return dashboardData?.monthly_quotes || [];
   }, [dashboardData]);
 
-  // Sort monthly equipment sales data chronologically
+  // Backend already returns data in chronological order (ORDER BY year, month)
+  // No need to sort - just use the data as-is
   const sortedMonthlyEquipmentSales = React.useMemo(() => {
-    if (!dashboardData?.monthly_equipment_sales) {
-      return [];
-    }
-
-    const monthOrder = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-
-    return [...dashboardData.monthly_equipment_sales].sort((a, b) => {
-      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
-    });
+    return dashboardData?.monthly_equipment_sales || [];
   }, [dashboardData]);
 
   // Filter customers based on search and risk filter
