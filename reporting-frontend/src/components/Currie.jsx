@@ -320,22 +320,10 @@ const Currie = () => {
                 </tr>
                 
                 <DataRow 
-                  label="Short Term Rental Sales"
-                  data={data.rental.short_term}
-                  onEdit={(field, value) => handleCellEdit('rental', 'short_term', field, value)}
+                  label="Rental Revenue"
+                  data={data.rental}
+                  onEdit={(field, value) => handleCellEdit('rental', null, field, value)}
                 />
-                <DataRow 
-                  label="Long Term Rental Sales"
-                  data={data.rental.long_term}
-                  onEdit={(field, value) => handleCellEdit('rental', 'long_term', field, value)}
-                />
-                <DataRow 
-                  label="Re-rent (Sub-rent)"
-                  data={data.rental.rerent}
-                  onEdit={(field, value) => handleCellEdit('rental', 'rerent', field, value)}
-                />
-                
-                <SubtotalRow label="TOTAL RENTAL" data={data.totals.total_rental} />
 
                 {/* SERVICE SECTION */}
                 <tr className="bg-gray-100 font-semibold">
