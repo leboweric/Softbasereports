@@ -1059,13 +1059,16 @@ class DashboardQueries:
             return []
     
     def get_top_customers(self):
-        """Get top 10 customers by fiscal YTD sales"""
+        """Get top 10 customers by YTD sales since March 2025"""
         try:
-            # First get total sales for the fiscal year (excluding non-customers)
+            # Data starts from March 2025 (Softbase migration)
+            ytd_start = '2025-03-01'
+            
+            # First get total sales since March 2025 (excluding non-customers)
             total_sales_query = f"""
             SELECT SUM(GrandTotal) as total_sales
             FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.fiscal_year_start}'
+            WHERE InvoiceDate >= '{ytd_start}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
             AND BillToName NOT LIKE '%Wells Fargo%'
@@ -1091,7 +1094,7 @@ class DashboardQueries:
                         ELSE BillToName
                     END as customer_name
                 FROM ben002.InvoiceReg
-                WHERE InvoiceDate >= '{self.fiscal_year_start}'
+                WHERE InvoiceDate >= '{ytd_start}'
                 AND BillToName IS NOT NULL
                 AND BillToName != ''
                 AND BillToName NOT LIKE '%Wells Fargo%'
