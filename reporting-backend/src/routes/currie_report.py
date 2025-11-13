@@ -532,3 +532,214 @@ def calculate_totals(data, num_months):
         'cogs': grand_total['cogs'],
         'gross_profit': grand_total['gross_profit']
     }
+
+
+@currie_bp.route('/api/currie/metrics', methods=['GET'])
+@jwt_required()
+def get_currie_metrics():
+    """Get metrics for Currie Financial Model"""
+    try:
+        # Get date range from query parameters
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        if not start_date or not end_date:
+            return jsonify({'error': 'start_date and end_date are required'}), 400
+        
+        # Calculate number of days in period
+        from datetime import datetime
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        num_days = (end - start).days + 1
+        
+        metrics = {}
+        
+        # 1. AR Aging
+        metrics['ar_aging'] = get_ar_aging()
+        
+        # 2. Service Calls Per Day
+        metrics['service_calls_per_day'] = get_service_calls_per_day(start_date, end_date, num_days)
+        
+        # 3. Technician Count
+        metrics['technician_count'] = get_technician_count(start_date, end_date)
+        
+        # 4. Labor Metrics
+        metrics['labor_metrics'] = get_labor_metrics(start_date, end_date)
+        
+        return jsonify({
+            'metrics': metrics,
+            'date_range': {
+                'start_date': start_date,
+                'end_date': end_date,
+                'num_days': num_days
+            },
+            'generated_at': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching Currie metrics: {str(e)}")
+        return jsonify({'error': 'Failed to fetch metrics', 'message': str(e)}), 500
+
+
+def get_ar_aging():
+    """Get AR aging buckets (reusing logic from department_reports)"""
+    try:
+        # Get total AR
+        total_ar_query = """
+        SELECT SUM(Amount) as total_ar
+        FROM ben002.ARDetail
+        WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
+            AND DeletionTime IS NULL
+        """
+        total_ar_result = sql_service.execute_query(total_ar_query, [])
+        total_ar = float(total_ar_result[0]['total_ar']) if total_ar_result and total_ar_result[0]['total_ar'] else 0
+        
+        # Get AR aging buckets
+        ar_query = """
+        WITH InvoiceBalances AS (
+            SELECT 
+                ar.InvoiceNo,
+                ar.CustomerNo,
+                MIN(ar.Due) as Due,
+                SUM(ar.Amount) as NetBalance
+            FROM ben002.ARDetail ar
+            WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                AND ar.DeletionTime IS NULL
+                AND ar.InvoiceNo IS NOT NULL
+            GROUP BY ar.InvoiceNo, ar.CustomerNo
+            HAVING SUM(ar.Amount) > 0.01
+        )
+        SELECT 
+            CASE 
+                WHEN Due IS NULL THEN 'No Due Date'
+                WHEN DATEDIFF(day, Due, GETDATE()) < 30 THEN 'Current'
+                WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 59 THEN '30-60'
+                WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 60 AND 89 THEN '60-90'
+                WHEN DATEDIFF(day, Due, GETDATE()) >= 90 THEN '90+'
+            END as AgingBucket,
+            SUM(NetBalance) as TotalAmount
+        FROM InvoiceBalances
+        GROUP BY 
+            CASE 
+                WHEN Due IS NULL THEN 'No Due Date'
+                WHEN DATEDIFF(day, Due, GETDATE()) < 30 THEN 'Current'
+                WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 30 AND 59 THEN '30-60'
+                WHEN DATEDIFF(day, Due, GETDATE()) BETWEEN 60 AND 89 THEN '60-90'
+                WHEN DATEDIFF(day, Due, GETDATE()) >= 90 THEN '90+'
+            END
+        """
+        
+        ar_results = sql_service.execute_query(ar_query, [])
+        
+        # Format results for Currie (Current, 31-60, 61-90, 91+)
+        ar_aging = {
+            'current': 0,
+            'days_31_60': 0,
+            'days_61_90': 0,
+            'days_91_plus': 0,
+            'total': total_ar
+        }
+        
+        for row in ar_results:
+            bucket = row['AgingBucket']
+            amount = float(row['TotalAmount'] or 0)
+            
+            if bucket == 'Current':
+                ar_aging['current'] = amount
+            elif bucket == '30-60':
+                ar_aging['days_31_60'] = amount
+            elif bucket == '60-90':
+                ar_aging['days_61_90'] = amount
+            elif bucket == '90+':
+                ar_aging['days_91_plus'] = amount
+        
+        return ar_aging
+        
+    except Exception as e:
+        logger.error(f"Error fetching AR aging: {str(e)}")
+        return {}
+
+
+def get_service_calls_per_day(start_date, end_date, num_days):
+    """Calculate average service calls per day"""
+    try:
+        query = """
+        SELECT COUNT(*) as total_service_calls
+        FROM ben002.WO
+        WHERE OpenDate >= %s 
+          AND OpenDate <= %s
+          AND SaleDept IN ('40', '45', '47')  -- Field Service (40), Shop Service (45), PM (47)
+        """
+        
+        results = sql_service.execute_query(query, [start_date, end_date])
+        
+        total_calls = int(results[0]['total_service_calls']) if results and results[0]['total_service_calls'] else 0
+        calls_per_day = total_calls / num_days if num_days > 0 else 0
+        
+        return {
+            'total_service_calls': total_calls,
+            'calls_per_day': round(calls_per_day, 2),
+            'num_days': num_days
+        }
+        
+    except Exception as e:
+        logger.error(f"Error calculating service calls per day: {str(e)}")
+        return {}
+
+
+def get_technician_count(start_date, end_date):
+    """Count unique technicians who worked during the period"""
+    try:
+        query = """
+        SELECT COUNT(DISTINCT Technician) as technician_count
+        FROM ben002.WO
+        WHERE OpenDate >= %s 
+          AND OpenDate <= %s
+          AND Technician IS NOT NULL
+          AND Technician != ''
+        """
+        
+        results = sql_service.execute_query(query, [start_date, end_date])
+        
+        count = int(results[0]['technician_count']) if results and results[0]['technician_count'] else 0
+        
+        return {
+            'active_technicians': count
+        }
+        
+    except Exception as e:
+        logger.error(f"Error counting technicians: {str(e)}")
+        return {}
+
+
+def get_labor_metrics(start_date, end_date):
+    """Get labor productivity metrics from WOLabor"""
+    try:
+        query = """
+        SELECT 
+            COUNT(DISTINCT l.WONo) as wo_count,
+            SUM(l.Hours) as total_hours,
+            AVG(l.Rate) as avg_rate,
+            SUM(l.Hours * l.Rate) as total_labor_value
+        FROM ben002.WOLabor l
+        INNER JOIN ben002.WO w ON l.WONo = w.WONo
+        WHERE w.OpenDate >= %s 
+          AND w.OpenDate <= %s
+        """
+        
+        results = sql_service.execute_query(query, [start_date, end_date])
+        
+        if results and len(results) > 0:
+            row = results[0]
+            return {
+                'work_orders_with_labor': int(row['wo_count'] or 0),
+                'total_billed_hours': float(row['total_hours'] or 0),
+                'average_labor_rate': float(row['avg_rate'] or 0),
+                'total_labor_value': float(row['total_labor_value'] or 0)
+            }
+        
+        return {}
+        
+    except Exception as e:
+        logger.error(f"Error fetching labor metrics: {str(e)}")
+        return {}
