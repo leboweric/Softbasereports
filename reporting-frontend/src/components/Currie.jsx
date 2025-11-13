@@ -5,6 +5,7 @@ import axios from 'axios';
 const Currie = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
+  const [metrics, setMetrics] = useState(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState(null);
@@ -71,14 +72,26 @@ const Currie = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(
+      
+      // Fetch sales/COGS data
+      const salesResponse = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/currie/sales-cogs-gp`,
         {
           params: { start_date: startDate, end_date: endDate },
           headers: { Authorization: `Bearer ${token}` }
         }
       );
-      setData(response.data);
+      setData(salesResponse.data);
+      
+      // Fetch metrics data
+      const metricsResponse = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/currie/metrics`,
+        {
+          params: { start_date: startDate, end_date: endDate },
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setMetrics(metricsResponse.data.metrics);
     } catch (err) {
       console.error('Error fetching Currie data:', err);
       setError(err.response?.data?.error || 'Failed to load Currie data');
@@ -423,6 +436,84 @@ const Currie = () => {
           <div className="bg-gray-50 border-t border-gray-200 p-4">
             <div className="text-sm text-gray-700">
               <span className="font-semibold">Average Monthly Sales & GP:</span> {formatCurrency(data.totals.avg_monthly_sales_gp)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Metrics Section */}
+      {metrics && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">Key Metrics</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* AR Aging */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">AR Aging</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Current (0-30):</span>
+                  <span className="font-medium">{formatCurrency(metrics.ar_aging?.current || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">31-60 days:</span>
+                  <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_31_60 || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">61-90 days:</span>
+                  <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_61_90 || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">91+ days:</span>
+                  <span className="font-medium text-red-600">{formatCurrency(metrics.ar_aging?.days_91_plus || 0)}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="font-semibold">Total AR:</span>
+                  <span className="font-semibold">{formatCurrency(metrics.ar_aging?.total || 0)}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Service Metrics */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Service Metrics</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Service Calls/Day:</span>
+                  <span className="font-medium">{metrics.service_calls_per_day?.calls_per_day?.toFixed(1) || '0.0'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Calls:</span>
+                  <span className="font-medium">{metrics.service_calls_per_day?.total_service_calls || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Active Technicians:</span>
+                  <span className="font-medium">{metrics.technician_count?.active_technicians || 0}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Labor Metrics */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Labor Productivity</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Billed Hours:</span>
+                  <span className="font-medium">{metrics.labor_metrics?.total_billed_hours?.toFixed(1) || '0.0'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Avg Labor Rate:</span>
+                  <span className="font-medium">{formatCurrency(metrics.labor_metrics?.average_labor_rate || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Labor Value:</span>
+                  <span className="font-medium">{formatCurrency(metrics.labor_metrics?.total_labor_value || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">WOs with Labor:</span>
+                  <span className="font-medium">{metrics.labor_metrics?.work_orders_with_labor || 0}</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
