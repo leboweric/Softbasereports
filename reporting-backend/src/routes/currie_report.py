@@ -129,7 +129,7 @@ def get_new_equipment_sales(start_date, end_date):
 
 
 def get_rental_revenue(start_date, end_date):
-    """Get rental revenue broken down by short-term, long-term, and re-rent"""
+    """Get rental revenue as a single consolidated category"""
     try:
         # Query rental revenue from InvoiceReg table
         query = """
@@ -145,23 +145,17 @@ def get_rental_revenue(start_date, end_date):
         results = sql_service.execute_query(query, [start_date, end_date])
         
         rental_data = {
-            'short_term': {'sales': 0, 'cogs': 0},
-            'long_term': {'sales': 0, 'cogs': 0},
-            'rerent': {'sales': 0, 'cogs': 0}
+            'sales': 0,
+            'cogs': 0,
+            'gross_profit': 0
         }
         
-        # For now, put all rental in short_term
-        # TODO: Distinguish between short/long/rerent based on SaleCode or other fields
+        # Softbase doesn't distinguish short/long/rerent, so we return a single category
         if results and len(results) > 0:
             row = results[0]
-            sales = float(row['sales'] or 0)
-            cogs = float(row['cogs'] or 0)
-            rental_data['short_term']['sales'] = sales
-            rental_data['short_term']['cogs'] = cogs
-        
-        # Calculate gross profit
-        for category in rental_data.values():
-            category['gross_profit'] = category['sales'] - category['cogs']
+            rental_data['sales'] = float(row['sales'] or 0)
+            rental_data['cogs'] = float(row['cogs'] or 0)
+            rental_data['gross_profit'] = rental_data['sales'] - rental_data['cogs']
         
         return rental_data
         
@@ -473,9 +467,9 @@ def calculate_totals(data, num_months):
     
     total_rental = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
     if 'rental' in data:
-        for category in data['rental'].values():
-            total_rental['sales'] += category.get('sales', 0)
-            total_rental['cogs'] += category.get('cogs', 0)
+        # Rental is now a single object, not a dict of categories
+        total_rental['sales'] = data['rental'].get('sales', 0)
+        total_rental['cogs'] = data['rental'].get('cogs', 0)
         total_rental['gross_profit'] = total_rental['sales'] - total_rental['cogs']
     
     total_service = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
