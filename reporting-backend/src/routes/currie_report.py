@@ -989,3 +989,57 @@ def export_currie_excel():
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to export Excel', 'message': str(e)}), 500
+
+
+@currie_bp.route('/api/currie/discover-gl-accounts', methods=['GET'])
+@jwt_required()
+def discover_gl_accounts():
+    """Debug endpoint to discover GL expense accounts"""
+    try:
+        # Get date range from query parameters
+        start_date = request.args.get('start_date', '2025-09-01')
+        end_date = request.args.get('end_date', '2025-11-30')
+        
+        query = """
+        SELECT 
+            AccountNo,
+            COUNT(*) as TransactionCount,
+            SUM(Amount) as TotalAmount
+        FROM ben002.GLDetail
+        WHERE Posted = 1
+          AND EffectiveDate >= %s
+          AND EffectiveDate <= %s
+          AND (
+            AccountNo LIKE '5%' OR 
+            AccountNo LIKE '6%' OR 
+            AccountNo LIKE '7%'
+          )
+        GROUP BY AccountNo
+        ORDER BY AccountNo
+        """
+        
+        results = sql_service.execute_query(query, [start_date, end_date])
+        
+        # Format for easy reading
+        accounts = []
+        for r in results:
+            accounts.append({
+                'account_no': r['AccountNo'],
+                'transaction_count': int(r['TransactionCount']),
+                'total_amount': float(r['TotalAmount'] or 0)
+            })
+        
+        return jsonify({
+            'date_range': {
+                'start': start_date,
+                'end': end_date
+            },
+            'total_accounts': len(accounts),
+            'accounts': accounts
+        })
+        
+    except Exception as e:
+        logger.error(f"Error discovering GL accounts: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
