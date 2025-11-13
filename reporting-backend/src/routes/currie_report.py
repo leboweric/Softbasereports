@@ -44,7 +44,7 @@ def get_sales_cogs_gp():
                 'start_date': start_date,
                 'end_date': end_date
             },
-            'sales': get_new_equipment_sales(start_date, end_date),
+            'new_equipment': get_new_equipment_sales(start_date, end_date),
             'rental': get_rental_revenue(start_date, end_date),
             'service': get_service_revenue(start_date, end_date),
             'parts': get_parts_revenue(start_date, end_date),
@@ -304,8 +304,8 @@ def calculate_totals(data):
     }
     
     # Sum equipment sales
-    if 'sales' in data:
-        for category in data['sales'].values():
+    if 'new_equipment' in data:
+        for category in data['new_equipment'].values():
             totals['sales'] += category.get('sales', 0)
             totals['cogs'] += category.get('cogs', 0)
     
