@@ -152,6 +152,8 @@ def get_pm_technician_details():
             l.DateOfLabor,
             l.Hours,
             wo.BillTo,
+            billToCustomer.Name as BillToName,
+            wo.Customer,
             c.Name as CustomerName,
             wo.UnitNo,
             wo.SerialNo,
@@ -159,7 +161,8 @@ def get_pm_technician_details():
             wo.Make
         FROM ben002.WOLabor l
         INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
-        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        LEFT JOIN ben002.Customer c ON wo.Customer = c.Number
+        LEFT JOIN ben002.Customer billToCustomer ON wo.BillTo = billToCustomer.Number
         WHERE wo.Type = 'PM'
             AND l.MechanicName = %s
             AND l.DateOfLabor >= %s
@@ -175,8 +178,10 @@ def get_pm_technician_details():
                 'woNo': row['WONo'],
                 'laborDate': row['DateOfLabor'].strftime('%Y-%m-%d') if row['DateOfLabor'] else None,
                 'hours': round(row['Hours'], 1) if row['Hours'] else 0,
-                'billTo': row['BillTo'],
+                'customer': row['Customer'],
                 'customerName': row['CustomerName'],
+                'billTo': row['BillTo'],
+                'billToName': row['BillToName'],
                 'unitNo': row['UnitNo'],
                 'serialNo': row['SerialNo'],
                 'model': row['Model'],
