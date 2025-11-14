@@ -473,7 +473,7 @@ const PMTechnicianContest = () => {
                                       <td className="p-2 font-mono">{pm.woNo}</td>
                                       <td className="p-2">{pm.laborDate ? new Date(pm.laborDate).toLocaleDateString() : 'N/A'}</td>
                                       <td className="p-2 text-right">{pm.hours}</td>
-                                      <td className="p-2">{pm.customerName || '-'}</td>
+                                      <td className="p-2">{pm.shipToName || '-'}</td>
                                       <td className="p-2">{pm.billToName || '-'}</td>
                                       <td className="p-2">{pm.unitNo || '-'}</td>
                                       <td className="p-2 font-mono text-xs">{pm.serialNo || '-'}</td>
