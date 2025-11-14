@@ -149,7 +149,7 @@ NAVIGATION_CONFIG = {
             'inventory-location': {'label': 'Inventory by Location', 'resource': 'parts_inventory'},
             'stock-alerts': {'label': 'Stock Alerts', 'resource': 'parts_stock_alerts'},
             'forecast': {'label': 'Forecast', 'resource': 'parts_forecast'},
-            'employee-performance': {'label': 'Employee Performance', 'resource': 'parts_employee_performance'},
+            'employee-performance': {'label': 'Parts Contest', 'resource': 'parts_employee_performance'},
             'velocity': {'label': 'Velocity', 'resource': 'parts_velocity'},
             'inventory-turns': {'label': 'Inventory Turns', 'resource': 'parts_inventory_turns'},
         }
