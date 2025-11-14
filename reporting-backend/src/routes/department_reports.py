@@ -534,6 +534,13 @@ def register_department_routes(reports_bp):
               AND w.InvoiceDate IS NULL
               AND w.DeletionTime IS NULL
               AND w.Type IN ('S', 'SH', 'PM')
+              AND c.Name NOT IN (
+                'NEW EQUIP PREP - EXPENSE',
+                'RENTAL FLEET - EXPENSE', 
+                'USED EQUIP. PREP-EXPENSE',
+                'SVC REWORK/SVC WARRANTY',
+                'NEW EQ. INTNL RNTL/DEMO'
+              )  -- Exclude internal expense accounts
             ORDER BY w.CompletedDate ASC
             """
             

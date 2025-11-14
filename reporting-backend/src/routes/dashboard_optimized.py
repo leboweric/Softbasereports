@@ -814,11 +814,19 @@ class DashboardQueries:
                 LEFT JOIN LaborQuotes lq ON w.WONo = lq.WONo
                 LEFT JOIN PartsTotals p ON w.WONo = p.WONo
                 LEFT JOIN MiscTotals m ON w.WONo = m.WONo
+                LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
                 WHERE w.CompletedDate IS NOT NULL
                   AND w.ClosedDate IS NULL
                   AND w.InvoiceDate IS NULL
                   AND w.DeletionTime IS NULL
                   AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, and PM work orders
+                  AND c.Name NOT IN (
+                    'NEW EQUIP PREP - EXPENSE',
+                    'RENTAL FLEET - EXPENSE', 
+                    'USED EQUIP. PREP-EXPENSE',
+                    'SVC REWORK/SVC WARRANTY',
+                    'NEW EQ. INTNL RNTL/DEMO'
+                  )  -- Exclude internal expense accounts
             )
             SELECT 
                 COUNT(*) as count,
