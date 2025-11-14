@@ -483,7 +483,7 @@ const PMTechnicianContest = () => {
                                   <tr className="font-semibold bg-blue-50">
                                     <td colSpan="2" className="p-2 text-right">Total:</td>
                                     <td className="p-2 text-right">
-                                      {pmDetails[tech.name].reduce((sum, pm) => sum + (pm.hours || 0), 0).toFixed(1)} hrs
+                                      {pmDetails[tech.name].reduce((sum, pm) => sum + (parseFloat(pm.hours) || 0), 0).toFixed(1)} hrs
                                     </td>
                                     <td colSpan="6" className="p-2">
                                       {pmDetails[tech.name].length} PMs completed
