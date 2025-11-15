@@ -88,12 +88,7 @@ def get_shop_work_orders():
             
             -- Quoted labor
             COALESCE(quoted.QuotedAmount, 0) as QuotedAmount,
-            -- Use Hours field if available, otherwise calculate from amount
-            CASE 
-                WHEN quoted.QuotedHours > 0 THEN quoted.QuotedHours
-                WHEN quoted.QuotedAmount > 0 THEN quoted.QuotedAmount / 189.0
-                ELSE 0
-            END as QuotedHours,
+            COALESCE(quoted.QuotedHours, 0) as QuotedHours,
             
             -- Actual labor hours
             COALESCE(SUM(l.Hours), 0) as ActualHours,
@@ -121,7 +116,7 @@ def get_shop_work_orders():
             SELECT 
                 WONo,
                 SUM(Amount) as QuotedAmount,
-                SUM(Hours) as QuotedHours
+                SUM(Amount) / 189.0 as QuotedHours  -- Calculate hours from amount
             FROM [ben002].WOQuote
             WHERE Type = 'L'  -- L = Labor quotes
             GROUP BY WONo
