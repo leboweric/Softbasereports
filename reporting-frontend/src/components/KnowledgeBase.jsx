@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
-import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip } from 'lucide-react';
 import FileUploadDropzone from './FileUploadDropzone';
 import SearchableSelect from './SearchableSelect';
 
@@ -368,6 +368,12 @@ const KnowledgeBase = () => {
                           <Eye className="h-3 w-3" />
                           {article.viewCount} views
                         </span>
+                        {article.attachmentCount > 0 && (
+                          <span className="flex items-center gap-1 text-gray-600">
+                            <Paperclip className="h-3 w-3" />
+                            {article.attachmentCount}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
