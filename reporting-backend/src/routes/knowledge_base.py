@@ -34,22 +34,24 @@ def get_articles():
         # Build query with filters
         query = """
             SELECT 
-                id,
-                title,
-                equipment_make,
-                equipment_model,
-                issue_category,
-                symptoms,
-                root_cause,
-                solution,
-                related_wo_numbers,
-                image_urls,
-                created_by,
-                created_date,
-                updated_by,
-                updated_date,
-                view_count
-            FROM knowledge_base
+                kb.id,
+                kb.title,
+                kb.equipment_make,
+                kb.equipment_model,
+                kb.issue_category,
+                kb.symptoms,
+                kb.root_cause,
+                kb.solution,
+                kb.related_wo_numbers,
+                kb.image_urls,
+                kb.created_by,
+                kb.created_date,
+                kb.updated_by,
+                kb.updated_date,
+                kb.view_count,
+                COUNT(att.id) as attachment_count
+            FROM knowledge_base kb
+            LEFT JOIN kb_attachments att ON kb.id = att.article_id
             WHERE 1=1
         """
         params = []
@@ -57,27 +59,33 @@ def get_articles():
         # Add search filter
         if search:
             query += """ AND (
-                title ILIKE %s OR
-                symptoms ILIKE %s OR
-                root_cause ILIKE %s OR
-                solution ILIKE %s OR
-                equipment_make ILIKE %s OR
-                equipment_model ILIKE %s
+                kb.title ILIKE %s OR
+                kb.symptoms ILIKE %s OR
+                kb.root_cause ILIKE %s OR
+                kb.solution ILIKE %s OR
+                kb.equipment_make ILIKE %s OR
+                kb.equipment_model ILIKE %s
             )"""
             search_param = f'%{search}%'
             params.extend([search_param] * 6)
         
         # Add category filter
         if category:
-            query += " AND issue_category = %s"
+            query += " AND kb.issue_category = %s"
             params.append(category)
         
         # Add equipment make filter
         if equipment_make:
-            query += " AND equipment_make = %s"
+            query += " AND kb.equipment_make = %s"
             params.append(equipment_make)
         
-        query += " ORDER BY created_date DESC"
+        query += """
+            GROUP BY kb.id, kb.title, kb.equipment_make, kb.equipment_model, 
+                     kb.issue_category, kb.symptoms, kb.root_cause, kb.solution, 
+                     kb.related_wo_numbers, kb.image_urls, kb.created_by, kb.created_date, 
+                     kb.updated_by, kb.updated_date, kb.view_count
+            ORDER BY kb.created_date DESC
+        """
         
         articles = postgres_db.execute_query(query, params if params else None)
         
@@ -99,7 +107,8 @@ def get_articles():
                 'createdDate': article['created_date'].isoformat() if article['created_date'] else None,
                 'updatedBy': article['updated_by'],
                 'updatedDate': article['updated_date'].isoformat() if article['updated_date'] else None,
-                'viewCount': article['view_count'] or 0
+                'viewCount': article['view_count'] or 0,
+                'attachmentCount': article['attachment_count'] or 0
             })
         
         return jsonify({'articles': result}), 200
