@@ -14,6 +14,7 @@ const KnowledgeBase = () => {
   const [selectedMake, setSelectedMake] = useState('');
   const [categories, setCategories] = useState([]);
   const [makes, setMakes] = useState([]);
+  const [models, setModels] = useState([]);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [showArticleModal, setShowArticleModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -91,6 +92,27 @@ const KnowledgeBase = () => {
     }
   };
 
+  const fetchModels = async (make = '') => {
+    try {
+      const url = make 
+        ? apiUrl(`/api/knowledge-base/equipment-models?make=${encodeURIComponent(make)}`)
+        : apiUrl('/api/knowledge-base/equipment-models');
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setModels(data.models);
+      }
+    } catch (err) {
+      console.error('Failed to fetch models:', err);
+    }
+  };
+
   const filterArticles = () => {
     let filtered = articles;
 
@@ -152,6 +174,10 @@ const KnowledgeBase = () => {
 
   const editArticle = (article) => {
     setEditingArticle(article);
+    // If article has a make, fetch models for that make
+    if (article.equipmentMake) {
+      fetchModels(article.equipmentMake);
+    }
     setShowEditModal(true);
   };
 
@@ -523,21 +549,38 @@ const KnowledgeBase = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Equipment Make</label>
-                    <input
-                      type="text"
+                    <select
                       value={editingArticle.equipmentMake}
-                      onChange={(e) => setEditingArticle({...editingArticle, equipmentMake: e.target.value})}
+                      onChange={(e) => {
+                        const newMake = e.target.value;
+                        setEditingArticle({...editingArticle, equipmentMake: newMake, equipmentModel: ''});
+                        if (newMake) {
+                          fetchModels(newMake);
+                        } else {
+                          setModels([]);
+                        }
+                      }}
                       className="w-full px-3 py-2 border rounded-md"
-                    />
+                    >
+                      <option value="">Select Make</option>
+                      {makes.map(make => (
+                        <option key={make} value={make}>{make}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Equipment Model</label>
-                    <input
-                      type="text"
+                    <select
                       value={editingArticle.equipmentModel}
                       onChange={(e) => setEditingArticle({...editingArticle, equipmentModel: e.target.value})}
                       className="w-full px-3 py-2 border rounded-md"
-                    />
+                      disabled={!editingArticle.equipmentMake}
+                    >
+                      <option value="">Select Model</option>
+                      {models.map(model => (
+                        <option key={model} value={model}>{model}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
