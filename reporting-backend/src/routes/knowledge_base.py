@@ -316,21 +316,62 @@ def get_categories():
 @knowledge_base_bp.route('/api/knowledge-base/equipment-makes', methods=['GET'])
 @jwt_required()
 def get_equipment_makes():
-    """Get all unique equipment makes"""
+    """Get all unique equipment makes from Softbase Equipment table"""
     try:
+        from src.services.azure_sql_service import AzureSQLService
+        
+        azure_db = AzureSQLService()
         query = """
-            SELECT DISTINCT equipment_make 
-            FROM knowledge_base 
-            WHERE equipment_make IS NOT NULL AND equipment_make != ''
-            ORDER BY equipment_make
+            SELECT DISTINCT Make
+            FROM ben002.Equipment
+            WHERE Make IS NOT NULL AND Make != ''
+            ORDER BY Make
         """
         
-        makes = postgres_db.execute_query(query)
-        result = [make['equipment_make'] for make in makes] if makes else []
-        return jsonify({'makes': result}), 200
+        results = azure_db.execute_query(query)
+        makes = [row['Make'] for row in results] if results else []
+        return jsonify({'makes': makes}), 200
         
     except Exception as e:
         logger.error(f"Error fetching equipment makes: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@knowledge_base_bp.route('/api/knowledge-base/equipment-models', methods=['GET'])
+@jwt_required()
+def get_equipment_models():
+    """Get all unique equipment models from Softbase Equipment table, optionally filtered by make"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        
+        make = request.args.get('make', '')
+        azure_db = AzureSQLService()
+        
+        if make:
+            # Filter models by make
+            query = """
+                SELECT DISTINCT Model
+                FROM ben002.Equipment
+                WHERE Make = %s
+                  AND Model IS NOT NULL 
+                  AND Model != ''
+                ORDER BY Model
+            """
+            results = azure_db.execute_query(query, [make])
+        else:
+            # Get all models
+            query = """
+                SELECT DISTINCT Model
+                FROM ben002.Equipment
+                WHERE Model IS NOT NULL AND Model != ''
+                ORDER BY Model
+            """
+            results = azure_db.execute_query(query)
+        
+        models = [row['Model'] for row in results] if results else []
+        return jsonify({'models': models}), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching equipment models: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>/attachments', methods=['POST'])
