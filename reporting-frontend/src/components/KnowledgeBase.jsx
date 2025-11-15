@@ -322,18 +322,13 @@ const KnowledgeBase = () => {
             </div>
 
             {/* Equipment Make Filter */}
-            <div className="relative">
-              <Wrench className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <select
+            <div>
+              <SearchableSelect
                 value={selectedMake}
-                onChange={(e) => setSelectedMake(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-md appearance-none"
-              >
-                <option value="">All Equipment Makes</option>
-                {makes.map(make => (
-                  <option key={make} value={make}>{make}</option>
-                ))}
-              </select>
+                onChange={setSelectedMake}
+                options={makes}
+                placeholder="All Equipment Makes"
+              />
             </div>
           </div>
 
