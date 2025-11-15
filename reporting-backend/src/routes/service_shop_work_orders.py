@@ -88,7 +88,12 @@ def get_shop_work_orders():
             
             -- Quoted labor
             COALESCE(quoted.QuotedAmount, 0) as QuotedAmount,
-            COALESCE(quoted.QuotedHours, 0) as QuotedHours,
+            -- Use Hours field if available, otherwise calculate from amount
+            CASE 
+                WHEN quoted.QuotedHours > 0 THEN quoted.QuotedHours
+                WHEN quoted.QuotedAmount > 0 THEN quoted.QuotedAmount / 189.0
+                ELSE 0
+            END as QuotedHours,
             
             -- Actual labor hours
             COALESCE(SUM(l.Hours), 0) as ActualHours,
