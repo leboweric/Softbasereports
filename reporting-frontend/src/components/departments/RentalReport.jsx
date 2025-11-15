@@ -731,7 +731,64 @@ const RentalReport = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={sortedMonthlyRevenue} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={(() => {
+                const data = sortedMonthlyRevenue || []
+                
+                if (data.length === 0) return data
+                
+                // Identify complete months (exclude current month)
+                const currentDate = new Date()
+                const currentMonthIndex = currentDate.getMonth()
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                const currentMonthName = monthNames[currentMonthIndex]
+                
+                // Filter complete months with positive revenue
+                const completeMonths = data.filter(item => 
+                  item.month !== currentMonthName && item.amount > 0
+                )
+                
+                // Calculate linear regression for trendline
+                let trendSlope = 0
+                let trendIntercept = 0
+                
+                if (completeMonths.length >= 2) {
+                  // Map complete months to their indices in the full dataset
+                  const completeMonthsWithIndex = completeMonths.map(cm => {
+                    const index = data.findIndex(d => d.month === cm.month)
+                    return { ...cm, dataIndex: index }
+                  })
+                  
+                  // Calculate means
+                  const n = completeMonthsWithIndex.length
+                  const sumX = completeMonthsWithIndex.reduce((sum, item, i) => sum + i, 0)
+                  const sumY = completeMonthsWithIndex.reduce((sum, item) => sum + item.amount, 0)
+                  const meanX = sumX / n
+                  const meanY = sumY / n
+                  
+                  // Calculate slope and intercept
+                  let numerator = 0
+                  let denominator = 0
+                  completeMonthsWithIndex.forEach((item, i) => {
+                    numerator += (i - meanX) * (item.amount - meanY)
+                    denominator += (i - meanX) * (i - meanX)
+                  })
+                  
+                  trendSlope = denominator !== 0 ? numerator / denominator : 0
+                  trendIntercept = meanY - trendSlope * meanX
+                }
+                
+                // Add trendline values to data
+                return data.map((item, index) => {
+                  const isComplete = completeMonths.some(cm => cm.month === item.month)
+                  const completeIndex = completeMonths.findIndex(cm => cm.month === item.month)
+                  const trendValue = isComplete && completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null
+                  
+                  return {
+                    ...item,
+                    trendline: trendValue
+                  }
+                })
+              })()} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -761,7 +818,18 @@ const RentalReport = ({ user }) => {
                     return null
                   }}
                 />
-                <Bar dataKey="amount" fill="#9333ea" shape={<CustomBar />} />
+                <Legend />
+                <Bar dataKey="amount" fill="#9333ea" shape={<CustomBar />} name="Revenue" />
+                {/* Trendline */}
+                <Line 
+                  type="monotone"
+                  dataKey="trendline"
+                  stroke="#7c3aed"
+                  strokeWidth={2}
+                  name="Trend"
+                  dot={false}
+                  connectNulls={false}
+                />
                 {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
                   // Only calculate average for complete months (exclude current month - August)
                   const completeMonths = monthlyRevenueData.slice(0, -1)
