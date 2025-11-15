@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiUrl } from '@/lib/api';
 import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle } from 'lucide-react';
 import FileUploadDropzone from './FileUploadDropzone';
+import SearchableSelect from './SearchableSelect';
 
 const KnowledgeBase = () => {
   const [articles, setArticles] = useState([]);
@@ -549,10 +550,9 @@ const KnowledgeBase = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Equipment Make</label>
-                    <select
+                    <SearchableSelect
                       value={editingArticle.equipmentMake}
-                      onChange={(e) => {
-                        const newMake = e.target.value;
+                      onChange={(newMake) => {
                         setEditingArticle({...editingArticle, equipmentMake: newMake, equipmentModel: ''});
                         if (newMake) {
                           fetchModels(newMake);
@@ -560,27 +560,19 @@ const KnowledgeBase = () => {
                           setModels([]);
                         }
                       }}
-                      className="w-full px-3 py-2 border rounded-md"
-                    >
-                      <option value="">Select Make</option>
-                      {makes.map(make => (
-                        <option key={make} value={make}>{make}</option>
-                      ))}
-                    </select>
+                      options={makes}
+                      placeholder="Select Make"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Equipment Model</label>
-                    <select
+                    <SearchableSelect
                       value={editingArticle.equipmentModel}
-                      onChange={(e) => setEditingArticle({...editingArticle, equipmentModel: e.target.value})}
-                      className="w-full px-3 py-2 border rounded-md"
+                      onChange={(newModel) => setEditingArticle({...editingArticle, equipmentModel: newModel})}
+                      options={models}
+                      placeholder="Select Model"
                       disabled={!editingArticle.equipmentMake}
-                    >
-                      <option value="">Select Model</option>
-                      {models.map(model => (
-                        <option key={model} value={model}>{model}</option>
-                      ))}
-                    </select>
+                    />
                   </div>
                 </div>
 
