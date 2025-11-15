@@ -332,3 +332,145 @@ def get_equipment_makes():
     except Exception as e:
         logger.error(f"Error fetching equipment makes: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>/attachments', methods=['POST'])
+@jwt_required()
+def upload_attachment(article_id):
+    """Upload a file attachment to an article"""
+    try:
+        current_user = get_jwt_identity()
+        
+        # Check if file is in request
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Read file data
+        file_data = file.read()
+        file_size = len(file_data)
+        
+        # Limit file size to 10MB
+        if file_size > 10 * 1024 * 1024:
+            return jsonify({'error': 'File size exceeds 10MB limit'}), 400
+        
+        # Insert attachment
+        query = """
+            INSERT INTO kb_attachments (
+                article_id, filename, file_data, file_size, mime_type, uploaded_by
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s
+            ) RETURNING id
+        """
+        
+        params = [
+            article_id,
+            file.filename,
+            file_data,
+            file_size,
+            file.content_type or 'application/octet-stream',
+            current_user
+        ]
+        
+        result = postgres_db.execute_insert_returning(query, params)
+        
+        if result:
+            return jsonify({
+                'message': 'Attachment uploaded successfully',
+                'id': result['id'],
+                'filename': file.filename,
+                'size': file_size
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to upload attachment'}), 500
+        
+    except Exception as e:
+        logger.error(f"Error uploading attachment: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@knowledge_base_bp.route('/api/knowledge-base/articles/<int:article_id>/attachments', methods=['GET'])
+@jwt_required()
+def get_attachments(article_id):
+    """Get all attachments for an article (metadata only, no file data)"""
+    try:
+        query = """
+            SELECT 
+                id, filename, file_size, mime_type, uploaded_by, uploaded_date
+            FROM kb_attachments
+            WHERE article_id = %s
+            ORDER BY uploaded_date DESC
+        """
+        
+        attachments = postgres_db.execute_query(query, [article_id])
+        
+        result = []
+        for att in attachments:
+            result.append({
+                'id': att['id'],
+                'filename': att['filename'],
+                'fileSize': att['file_size'],
+                'mimeType': att['mime_type'],
+                'uploadedBy': att['uploaded_by'],
+                'uploadedDate': att['uploaded_date'].isoformat() if att['uploaded_date'] else None
+            })
+        
+        return jsonify({'attachments': result}), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching attachments: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@knowledge_base_bp.route('/api/knowledge-base/attachments/<int:attachment_id>', methods=['GET'])
+@jwt_required()
+def download_attachment(attachment_id):
+    """Download a specific attachment"""
+    try:
+        from flask import send_file
+        import io
+        
+        query = """
+            SELECT filename, file_data, mime_type
+            FROM kb_attachments
+            WHERE id = %s
+        """
+        
+        attachments = postgres_db.execute_query(query, [attachment_id])
+        
+        if not attachments:
+            return jsonify({'error': 'Attachment not found'}), 404
+        
+        attachment = attachments[0]
+        
+        # Create file-like object from binary data
+        file_data = io.BytesIO(attachment['file_data'])
+        
+        return send_file(
+            file_data,
+            mimetype=attachment['mime_type'],
+            as_attachment=True,
+            download_name=attachment['filename']
+        )
+        
+    except Exception as e:
+        logger.error(f"Error downloading attachment: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@knowledge_base_bp.route('/api/knowledge-base/attachments/<int:attachment_id>', methods=['DELETE'])
+@jwt_required()
+def delete_attachment(attachment_id):
+    """Delete an attachment"""
+    try:
+        query = "DELETE FROM kb_attachments WHERE id = %s"
+        rows_affected = postgres_db.execute_update(query, [attachment_id])
+        
+        if rows_affected > 0:
+            return jsonify({'message': 'Attachment deleted successfully'}), 200
+        else:
+            return jsonify({'error': 'Attachment not found'}), 404
+        
+    except Exception as e:
+        logger.error(f"Error deleting attachment: {str(e)}")
+        return jsonify({'error': str(e)}), 500
