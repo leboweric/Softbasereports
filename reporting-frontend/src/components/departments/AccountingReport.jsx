@@ -244,11 +244,48 @@ const AccountingReport = ({ user }) => {
                     ? completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length 
                     : 0
                   
-                  // Add average to each data point for reference line rendering
-                  return data.map(item => ({
+                  // Calculate linear regression for trendline (excluding current month)
+                  // Assign x values to complete months only
+                  const completeMonthsWithIndex = data.map((item, index) => ({
                     ...item,
-                    avgExpenses: avgExpenses
-                  }))
+                    index,
+                    isComplete: completeMonths.some(cm => cm.month === item.month)
+                  })).filter(item => item.isComplete)
+                  
+                  let trendSlope = 0
+                  let trendIntercept = 0
+                  
+                  if (completeMonthsWithIndex.length >= 2) {
+                    // Calculate means
+                    const n = completeMonthsWithIndex.length
+                    const sumX = completeMonthsWithIndex.reduce((sum, item, i) => sum + i, 0)
+                    const sumY = completeMonthsWithIndex.reduce((sum, item) => sum + item.expenses, 0)
+                    const meanX = sumX / n
+                    const meanY = sumY / n
+                    
+                    // Calculate slope and intercept
+                    let numerator = 0
+                    let denominator = 0
+                    completeMonthsWithIndex.forEach((item, i) => {
+                      numerator += (i - meanX) * (item.expenses - meanY)
+                      denominator += (i - meanX) * (i - meanX)
+                    })
+                    
+                    trendSlope = denominator !== 0 ? numerator / denominator : 0
+                    trendIntercept = meanY - trendSlope * meanX
+                  }
+                  
+                  // Add average and trendline to each data point
+                  return data.map((item, index) => {
+                    const completeIndex = completeMonthsWithIndex.findIndex(cm => cm.month === item.month)
+                    const trendValue = completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null
+                    
+                    return {
+                      ...item,
+                      avgExpenses: avgExpenses,
+                      trendline: trendValue
+                    }
+                  })
                 }
                 
                 return data
@@ -307,9 +344,18 @@ const AccountingReport = ({ user }) => {
                   stroke="#666"
                   strokeDasharray="5 5"
                   strokeWidth={2}
-                  name="Avg Expenses"
+                  name="Average"
                   dot={false}
-                  legendType="none"
+                />
+                {/* Trendline */}
+                <Line 
+                  type="monotone"
+                  dataKey="trendline"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  name="Trend"
+                  dot={false}
+                  connectNulls={false}
                 />
                 {/* Add ReferenceLine for the label */}
                 {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
