@@ -88,26 +88,23 @@ def get_shop_work_orders():
             
             -- Quoted labor
             COALESCE(quoted.QuotedAmount, 0) as QuotedAmount,
-            CASE 
-                WHEN quoted.QuotedAmount > 0 THEN quoted.QuotedAmount / 189.0
-                ELSE 0
-            END as QuotedHours,
+            COALESCE(quoted.QuotedHours, 0) as QuotedHours,
             
             -- Actual labor hours
             COALESCE(SUM(l.Hours), 0) as ActualHours,
             
             -- Percentage used
             CASE 
-                WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 0
-                ELSE (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100
+                WHEN quoted.QuotedHours IS NULL OR quoted.QuotedHours = 0 THEN 0
+                ELSE (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100
             END as PercentUsed,
             
             -- Alert level
             CASE 
-                WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 'NO_QUOTE'
-                WHEN (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100 >= 100 THEN 'CRITICAL'
-                WHEN (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100 >= 90 THEN 'RED'
-                WHEN (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100 >= 80 THEN 'YELLOW'
+                WHEN quoted.QuotedHours IS NULL OR quoted.QuotedHours = 0 THEN 'NO_QUOTE'
+                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 100 THEN 'CRITICAL'
+                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 90 THEN 'RED'
+                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 80 THEN 'YELLOW'
                 ELSE 'GREEN'
             END as AlertLevel
 
@@ -118,7 +115,8 @@ def get_shop_work_orders():
         LEFT JOIN (
             SELECT 
                 WONo,
-                SUM(Amount) as QuotedAmount
+                SUM(Amount) as QuotedAmount,
+                SUM(Hours) as QuotedHours
             FROM [ben002].WOQuote
             WHERE Type = 'L'  -- L = Labor quotes
             GROUP BY WONo
@@ -139,14 +137,14 @@ def get_shop_work_orders():
         
         GROUP BY 
             w.WONo, w.BillTo, c.Name, w.UnitNo, w.SerialNo, 
-            w.OpenDate, quoted.QuotedAmount
+            w.OpenDate, quoted.QuotedAmount, quoted.QuotedHours
         
         ORDER BY 
             CASE 
-                WHEN quoted.QuotedAmount IS NULL THEN 4
-                WHEN (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100 >= 100 THEN 1
-                WHEN (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100 >= 90 THEN 2
-                WHEN (COALESCE(SUM(l.Hours), 0) / (quoted.QuotedAmount / 189.0)) * 100 >= 80 THEN 3
+                WHEN quoted.QuotedHours IS NULL THEN 4
+                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 100 THEN 1
+                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 90 THEN 2
+                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 80 THEN 3
                 ELSE 5
             END,
             w.OpenDate
