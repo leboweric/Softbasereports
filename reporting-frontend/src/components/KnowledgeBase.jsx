@@ -569,25 +569,36 @@ const KnowledgeBase = () => {
                       </div>
 
                       <div className="mt-3 space-y-3">
-                        {wo.notes && (
+                        {wo.comments && (
                           <div>
                             <span className="font-semibold text-sm flex items-center gap-1 text-blue-600">
                               <MessageSquare className="h-4 w-4" />
-                              Technician Notes
+                              Comments
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.notes}
+                              {wo.comments}
                             </p>
                           </div>
                         )}
-                        {wo.notes2 && (
+                        {wo.privateComments && (
                           <div>
                             <span className="font-semibold text-sm flex items-center gap-1 text-purple-600">
                               <MessageSquare className="h-4 w-4" />
-                              Additional Notes
+                              Private Comments
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.notes2}
+                              {wo.privateComments}
+                            </p>
+                          </div>
+                        )}
+                        {wo.shopComments && (
+                          <div>
+                            <span className="font-semibold text-sm flex items-center gap-1 text-orange-600">
+                              <MessageSquare className="h-4 w-4" />
+                              Shop Comments
+                            </span>
+                            <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
+                              {wo.shopComments}
                             </p>
                           </div>
                         )}
