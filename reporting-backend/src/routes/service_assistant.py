@@ -34,12 +34,30 @@ def chat():
         # Search work orders for relevant context
         wo_context = search_work_orders(user_message)
         
-        # Search web for external technical resources if internal data is limited
+        # Extract equipment info from work orders for web search
+        equipment_make = None
+        equipment_model = None
+        if wo_context:
+            # Get the most common make/model from the WO results
+            equipment_make = wo_context[0].get('make')
+            equipment_model = wo_context[0].get('model')
+        
+        # Check if this is an error code query
+        keywords = extract_keywords(user_message)
+        import re
+        error_code_pattern = re.compile(r'^[a-z]?[0-9]{2,5}[a-z]?$', re.IGNORECASE)
+        has_error_codes = any(error_code_pattern.match(k) for k in keywords[:5])
+        
+        # Search web for external technical resources
         web_context = []
         total_internal_results = len(kb_context) + len(wo_context)
-        if total_internal_results < 5:
-            logger.info(f"Limited internal results ({total_internal_results}), searching web for additional resources")
-            web_context = search_web_resources(user_message)
+        
+        # Always search web for error code queries (to get manufacturer documentation)
+        # Or if internal data is limited (< 5 results)
+        if has_error_codes or total_internal_results < 5:
+            reason = "error code query" if has_error_codes else f"limited internal results ({total_internal_results})"
+            logger.warning(f"[WEB SEARCH] Triggering web search: {reason}")
+            web_context = search_web_resources(user_message, equipment_make, equipment_model)
         
         # Build context for AI
         context = build_context(kb_context, wo_context, web_context)
@@ -411,15 +429,28 @@ def search_work_orders(query):
         return []
 
 
-def search_web_resources(query):
-    """Search web for manufacturer service manuals and technical documentation"""
+def search_web_resources(query, equipment_make=None, equipment_model=None):
+    """Search web for technical documentation and service manuals
+    
+    Args:
+        query: The user's question
+        equipment_make: Equipment make extracted from WO results (e.g., 'Linde')
+        equipment_model: Equipment model extracted from WO results (e.g., 'E20')
+    """
     try:
         keywords = extract_keywords(query)
+        
         if not keywords:
             return []
         
         # Build search query focused on technical documentation
         search_terms = ' '.join(keywords[:5])
+        
+        # If we have equipment info from WOs, include it for manufacturer-specific results
+        if equipment_make:
+            search_terms = f"{equipment_make} {equipment_model or ''} {search_terms}".strip()
+            logger.warning(f"[WEB SEARCH] Using equipment info from WOs: {equipment_make} {equipment_model}")
+        
         # Add technical terms to focus on service manuals and troubleshooting guides
         technical_query = f"{search_terms} service manual troubleshooting repair guide"
         
