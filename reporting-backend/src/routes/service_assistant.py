@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, Response, stream_with_context
-from src.middleware.auth import require_auth
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.services.azure_sql_service import AzureSQLService
 from src.services.postgres_service import PostgresService
 from src.services.openai_service import OpenAIQueryService
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 service_assistant_bp = Blueprint('service_assistant', __name__)
 
 @service_assistant_bp.route('/api/service-assistant/chat', methods=['POST'])
-@require_auth
+@jwt_required()
 def chat():
     """
     Chat with AI assistant about service issues
@@ -91,7 +91,7 @@ Context from Knowledge Base and Work Orders:
         assistant_message = response.choices[0].message.content
         
         return jsonify({
-            'message': assistant_message,
+            'response': assistant_message,
             'context': {
                 'kb_articles': kb_context,
                 'work_orders': wo_context
