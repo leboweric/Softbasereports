@@ -220,6 +220,38 @@ const KnowledgeBase = () => {
     setShowEditModal(true);
   };
 
+  const convertToArticle = (wo) => {
+    // Combine all comment fields into symptoms
+    const allComments = [
+      wo.comments,
+      wo.privateComments,
+      wo.shopComments
+    ].filter(Boolean).join('\n\n');
+
+    // Auto-generate title from make, model, and first line of comments
+    const firstCommentLine = wo.comments?.split('\n')[0] || 'Work Order';
+    const title = `${wo.make || 'Equipment'} ${wo.model || ''} - ${firstCommentLine}`.trim();
+
+    setEditingArticle({
+      title: title.substring(0, 200), // Limit title length
+      equipmentMake: wo.make || '',
+      equipmentModel: wo.model || '',
+      issueCategory: '', // User will select
+      symptoms: allComments,
+      rootCause: '', // User will fill in
+      solution: wo.workDescription || '', // Labor/parts performed
+      relatedWONumbers: wo.woNumber.toString(),
+      imageUrls: []
+    });
+
+    // If WO has a make, fetch models for that make
+    if (wo.make) {
+      fetchModels(wo.make);
+    }
+
+    setShowEditModal(true);
+  };
+
   const saveArticle = async () => {
     try {
       const url = editingArticle.id
@@ -622,6 +654,19 @@ const KnowledgeBase = () => {
                         )}
                         {wo.serialNumber && <span>S/N: {wo.serialNumber}</span>}
                       </div>
+
+                      {/* Convert to KB Article Button */}
+                      {isAdmin && (
+                        <div className="mt-4 pt-4 border-t">
+                          <button
+                            onClick={() => convertToArticle(wo)}
+                            className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center justify-center gap-2 text-sm font-medium"
+                          >
+                            <Book className="h-4 w-4" />
+                            Convert to Knowledge Base Article
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
