@@ -11,6 +11,17 @@ const ServiceAssistantAnalytics = () => {
   const [trendingTopics, setTrendingTopics] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Helper function to format UTC date to local date string
+  const formatLocalDate = (utcDateString) => {
+    if (!utcDateString) return 'N/A';
+    const date = new Date(utcDateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  };
+
   useEffect(() => {
     fetchAnalytics();
   }, []);
@@ -125,7 +136,7 @@ const ServiceAssistantAnalytics = () => {
                     <p className="text-sm text-gray-900">{q.question}</p>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Last asked: {new Date(q.lastAsked).toLocaleDateString()}
+                    Last asked: {formatLocalDate(q.lastAsked)}
                   </p>
                 </div>
                 <div className="flex flex-col items-end ml-4">
