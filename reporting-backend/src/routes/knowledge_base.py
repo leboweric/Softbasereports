@@ -544,10 +544,10 @@ def search_work_orders():
         # Build query - Search Notes and WOMisc for tech descriptions
         where_conditions = ["w.ClosedDate IS NOT NULL"]
         
-        # Add search filter - search in Notes and WOMisc descriptions
+        # Add search filter - search in Comments and WOMisc descriptions
         if search:
             safe_search = search.replace("'", "''")
-            where_conditions.append(f"(w.Notes LIKE '%{safe_search}%' OR w.Notes2 LIKE '%{safe_search}%' OR wm.Description LIKE '%{safe_search}%')")
+            where_conditions.append(f"(w.Comments LIKE '%{safe_search}%' OR w.PrivateComments LIKE '%{safe_search}%' OR w.ShopComments LIKE '%{safe_search}%' OR wm.Description LIKE '%{safe_search}%')")
         
         # Add equipment make filter
         if equipment_make:
@@ -577,8 +577,9 @@ def search_work_orders():
             w.UnitNo,
             w.ClosedDate,
             w.Type,
-            w.Notes,
-            w.Notes2,
+            w.Comments,
+            w.PrivateComments,
+            w.ShopComments,
             -- Concatenate all WOMisc descriptions
             STUFF((
                 SELECT CHAR(13) + CHAR(10) + Description
@@ -604,8 +605,9 @@ def search_work_orders():
                 'model': wo['Model'],
                 'serialNumber': wo['SerialNo'],
                 'unitNumber': wo['UnitNo'],
-                'notes': wo['Notes'],
-                'notes2': wo['Notes2'],
+                'comments': wo['Comments'],
+                'privateComments': wo['PrivateComments'],
+                'shopComments': wo['ShopComments'],
                 'workDescription': wo['workDescription'],
                 'dateClosed': wo['ClosedDate'].isoformat() if wo['ClosedDate'] else None,
                 'type': wo['Type']
