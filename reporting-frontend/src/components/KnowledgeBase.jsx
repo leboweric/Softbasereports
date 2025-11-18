@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiUrl } from '@/lib/api';
-import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip, FileText, MessageSquare } from 'lucide-react';
+import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip, FileText, MessageSquare, Bot, Send } from 'lucide-react';
 import FileUploadDropzone from './FileUploadDropzone';
 import SearchableSelect from './SearchableSelect';
 
@@ -29,6 +29,11 @@ const KnowledgeBase = () => {
   const [woSearchTerm, setWoSearchTerm] = useState('');
   const [woMakeFilter, setWoMakeFilter] = useState('');
   const [woCustomerFilter, setWoCustomerFilter] = useState('');
+
+  // Service Assistant state
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState(null);
   const [showWoModal, setShowWoModal] = useState(false);
 
@@ -318,6 +323,43 @@ const KnowledgeBase = () => {
     }
   };
 
+  const handleSendMessage = async (messageOverride = null) => {
+    const message = messageOverride || chatInput.trim();
+    if (!message || chatLoading) return;
+
+    // Add user message to chat
+    const userMessage = { role: 'user', content: message };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const response = await fetch(apiUrl('/api/service-assistant/chat'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message })
+      });
+
+      if (!response.ok) throw new Error('Failed to get response from assistant');
+
+      const data = await response.json();
+      const assistantMessage = { role: 'assistant', content: data.response };
+      setChatMessages(prev => [...prev, assistantMessage]);
+    } catch (err) {
+      console.error('Chat error:', err);
+      const errorMessage = { 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please try again.' 
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -362,7 +404,7 @@ const KnowledgeBase = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="articles" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="articles">
             <Book className="h-4 w-4 mr-2" />
             Knowledge Articles
@@ -370,6 +412,10 @@ const KnowledgeBase = () => {
           <TabsTrigger value="work-orders">
             <FileText className="h-4 w-4 mr-2" />
             Work Order History
+          </TabsTrigger>
+          <TabsTrigger value="assistant">
+            <Bot className="h-4 w-4 mr-2" />
+            Service Assistant
           </TabsTrigger>
         </TabsList>
 
@@ -683,6 +729,102 @@ const KnowledgeBase = () => {
               </Card>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="assistant" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5 text-blue-600" />
+                Service Assistant
+              </CardTitle>
+              <p className="text-sm text-gray-600">Ask questions about equipment issues, troubleshooting, or search our knowledge base and work order history.</p>
+            </CardHeader>
+            <CardContent className="p-6">
+              {/* Suggested Questions */}
+              {chatMessages.length === 0 && (
+                <div className="mb-6">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Try asking:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {[
+                      "How do I troubleshoot hydraulic pressure loss on a Linde forklift?",
+                      "What are common causes of engine overheating?",
+                      "Show me recent work orders for Toyota forklifts",
+                      "How do I replace the mast on a Crown forklift?"
+                    ].map((question, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setChatInput(question);
+                          handleSendMessage(question);
+                        }}
+                        className="text-left p-3 text-sm bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors text-blue-900"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Chat Messages */}
+              <div className="space-y-4 mb-4 max-h-[500px] overflow-y-auto">
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] rounded-lg p-4 ${
+                      msg.role === 'user' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-900'
+                    }`}>
+                      {msg.role === 'assistant' && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <Bot className="h-4 w-4" />
+                          <span className="font-semibold text-sm">Service Assistant</span>
+                        </div>
+                      )}
+                      <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="max-w-[80%] rounded-lg p-4 bg-gray-100 text-gray-900">
+                      <div className="flex items-center gap-2">
+                        <Bot className="h-4 w-4 animate-pulse" />
+                        <span className="text-sm">Thinking...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input Area */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Ask about equipment issues, troubleshooting, or search work orders..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={chatLoading}
+                />
+                <button
+                  onClick={() => handleSendMessage()}
+                  disabled={chatLoading || !chatInput.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Send className="h-4 w-4" />
+                  Send
+                </button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
