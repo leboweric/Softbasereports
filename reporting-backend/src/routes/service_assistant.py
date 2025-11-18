@@ -482,22 +482,29 @@ def search_web_resources(query, equipment_make=None, equipment_model=None):
         results = []
         
         # Extract search results
-        for item in data.get('items', []):
+        for idx, item in enumerate(data.get('items', []), 1):
             title = item.get('title', '')
             url = item.get('link', '')
             snippet = item.get('snippet', '')
+            
+            logger.warning(f"[WEB SEARCH] Result #{idx}: {title}")
+            logger.warning(f"[WEB SEARCH] URL: {url}")
+            logger.warning(f"[WEB SEARCH] Snippet: {snippet[:150]}...")  # First 150 chars
             
             # Filter for relevant domains (manufacturer sites, technical resources)
             relevant_domains = ['linde', 'yale', 'crown', 'toyota', 'hyster', 'clark', 'raymond', 
                               'jungheinrich', 'manual', 'service', 'repair', 'technical', 'pdf']
             
             if any(domain in url.lower() or domain in title.lower() or domain in snippet.lower() for domain in relevant_domains):
+                logger.warning(f"[WEB SEARCH] ✓ Result #{idx} is RELEVANT")
                 results.append({
                     'title': title,
                     'url': url,
                     'snippet': snippet,
                     'source': 'Web Search'
                 })
+            else:
+                logger.warning(f"[WEB SEARCH] ✗ Result #{idx} is NOT relevant")
         
         logger.warning(f"[WEB SEARCH] Found {len(results)} relevant resources out of {len(data.get('items', []))} total results")
         return results[:3]  # Limit to top 3 web results
