@@ -810,16 +810,23 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Monthly Parts Revenue and Margins - Last 12 months
+            # Filter to only include GL accounts 410003 (Counter) and 410012 (Customer Repair Order)
+            # This excludes internal parts, freight, PM contracts, shop supplies, etc.
             parts_revenue_query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
-                SUM(COALESCE(PartsCost, 0)) as parts_cost
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(gl.EffectiveDate) as year,
+                MONTH(gl.EffectiveDate) as month,
+                -- Revenue: GL accounts 410003 (Counter) and 410012 (Customer Repair Order)
+                SUM(CASE WHEN gl.AccountNo IN ('410003', '410012') THEN COALESCE(gl.Amount, 0) ELSE 0 END) as parts_revenue,
+                -- Cost: GL accounts 510003 (COS - Counter) and 510012 (COS - Customer Repair Order)
+                -- Note: Cost accounts are typically negative in GL, so we use ABS to get positive values
+                ABS(SUM(CASE WHEN gl.AccountNo IN ('510003', '510012') THEN COALESCE(gl.Amount, 0) ELSE 0 END)) as parts_cost
+            FROM ben002.GLDetail gl
+            WHERE gl.AccountNo IN ('410003', '410012', '510003', '510012')  -- Revenue and Cost accounts
+                AND gl.EffectiveDate >= DATEADD(month, -12, GETDATE())
+                AND gl.Posted = 1
+            GROUP BY YEAR(gl.EffectiveDate), MONTH(gl.EffectiveDate)
+            ORDER BY YEAR(gl.EffectiveDate), MONTH(gl.EffectiveDate)
             """
             
             parts_revenue_result = db.execute_query(parts_revenue_query)
