@@ -448,11 +448,30 @@ def search_web_resources(query, equipment_make=None, equipment_model=None):
         
         # If we have equipment info from WOs, include it for manufacturer-specific results
         if equipment_make:
-            search_terms = f"{equipment_make} {equipment_model or ''} {search_terms}".strip()
-            logger.warning(f"[WEB SEARCH] Using equipment info from WOs: {equipment_make} {equipment_model}")
+            # Clean the model string - remove fleet numbers (FL#XX), unit numbers, etc.
+            clean_model = equipment_model or ''
+            if clean_model:
+                # Remove patterns like "FL#54", "Unit 123", etc.
+                import re
+                clean_model = re.sub(r'\s*FL#\d+', '', clean_model)  # Remove FL#XX
+                clean_model = re.sub(r'\s*Unit\s*\d+', '', clean_model, flags=re.IGNORECASE)  # Remove Unit XX
+                clean_model = re.sub(r'\s*#\d+', '', clean_model)  # Remove #XX
+                clean_model = clean_model.strip()
+            
+            search_terms = f"{equipment_make} {clean_model} {search_terms}".strip()
+            logger.warning(f"[WEB SEARCH] Using equipment info from WOs: {equipment_make} {clean_model}")
         
-        # Add technical terms to focus on service manuals and troubleshooting guides
-        technical_query = f"{search_terms} service manual troubleshooting repair guide"
+        # For error code queries, build a more focused search
+        # Check if keywords are primarily error codes (alphanumeric patterns)
+        error_code_pattern = re.compile(r'^[A-Z]?\d{2,5}[A-Z]?$', re.IGNORECASE)
+        if all(error_code_pattern.match(kw) for kw in keywords[:3]):
+            # This is an error code query - use a more direct search
+            technical_query = f"{equipment_make or ''} {clean_model if equipment_make else ''} error code {' '.join(keywords[:3])}".strip()
+            logger.warning(f"[WEB SEARCH] Error code query detected, using focused search")
+        else:
+            # General query - add technical terms
+            technical_query = f"{search_terms} service manual troubleshooting repair guide"
+        
         logger.warning(f"[WEB SEARCH] Query: {technical_query}")
         
         # Get Google API credentials
