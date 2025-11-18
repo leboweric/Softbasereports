@@ -453,43 +453,53 @@ def search_web_resources(query, equipment_make=None, equipment_model=None):
         
         # Add technical terms to focus on service manuals and troubleshooting guides
         technical_query = f"{search_terms} service manual troubleshooting repair guide"
+        logger.warning(f"[WEB SEARCH] Query: {technical_query}")
         
-        # Use DuckDuckGo HTML search (no API key required)
-        search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(technical_query)}"
+        # Get Google API credentials
+        google_api_key = os.getenv('GOOGLE_API_KEY')
+        google_search_engine_id = os.getenv('GOOGLE_SEARCH_ENGINE_ID')
         
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        response = requests.get(search_url, headers=headers, timeout=5)
-        
-        if response.status_code != 200:
-            logger.warning(f"Web search failed with status {response.status_code}")
+        if not google_api_key or not google_search_engine_id:
+            logger.warning("[WEB SEARCH] Google API credentials not configured, skipping web search")
             return []
         
-        # Parse results (simple extraction from HTML)
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Use Google Custom Search API
+        search_url = "https://www.googleapis.com/customsearch/v1"
+        params = {
+            'key': google_api_key,
+            'cx': google_search_engine_id,
+            'q': technical_query,
+            'num': 5  # Number of results
+        }
         
+        response = requests.get(search_url, params=params, timeout=10)
+        
+        if response.status_code != 200:
+            logger.warning(f"[WEB SEARCH] Google API failed with status {response.status_code}: {response.text}")
+            return []
+        
+        data = response.json()
         results = []
-        result_links = soup.find_all('a', class_='result__a', limit=5)
         
-        for link in result_links:
-            title = link.get_text(strip=True)
-            url = link.get('href', '')
+        # Extract search results
+        for item in data.get('items', []):
+            title = item.get('title', '')
+            url = item.get('link', '')
+            snippet = item.get('snippet', '')
             
             # Filter for relevant domains (manufacturer sites, technical resources)
             relevant_domains = ['linde', 'yale', 'crown', 'toyota', 'hyster', 'clark', 'raymond', 
                               'jungheinrich', 'manual', 'service', 'repair', 'technical', 'pdf']
             
-            if any(domain in url.lower() or domain in title.lower() for domain in relevant_domains):
+            if any(domain in url.lower() or domain in title.lower() or domain in snippet.lower() for domain in relevant_domains):
                 results.append({
                     'title': title,
                     'url': url,
+                    'snippet': snippet,
                     'source': 'Web Search'
                 })
         
-        logger.info(f"Web search for '{search_terms}': found {len(results)} relevant resources")
+        logger.warning(f"[WEB SEARCH] Found {len(results)} relevant resources out of {len(data.get('items', []))} total results")
         return results[:3]  # Limit to top 3 web results
         
     except Exception as e:
