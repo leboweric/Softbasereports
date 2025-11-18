@@ -530,8 +530,8 @@ def delete_attachment(attachment_id):
 def search_work_orders():
     """Search work orders by keywords in descriptions and notes"""
     try:
-        from src.services.azure_sql_service import get_azure_sql_service
-        azure_sql = get_azure_sql_service()
+        from src.services.azure_sql_service import AzureSQLService
+        azure_sql = AzureSQLService()
         
         # Get search parameters
         search = request.args.get('search', '')
