@@ -500,7 +500,7 @@ const KnowledgeBase = () => {
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <input
                         type="text"
-                        placeholder="Search work order descriptions and tech notes..."
+                        placeholder="Search work order notes and descriptions..."
                         value={woSearchTerm}
                         onChange={(e) => setWoSearchTerm(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && searchWorkOrders()}
@@ -568,12 +568,34 @@ const KnowledgeBase = () => {
                         </div>
                       </div>
 
-                      <div className="mt-3">
-                        {wo.workDescription && (
+                      <div className="mt-3 space-y-3">
+                        {wo.notes && (
                           <div>
                             <span className="font-semibold text-sm flex items-center gap-1 text-blue-600">
                               <MessageSquare className="h-4 w-4" />
-                              Work Description
+                              Technician Notes
+                            </span>
+                            <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
+                              {wo.notes}
+                            </p>
+                          </div>
+                        )}
+                        {wo.notes2 && (
+                          <div>
+                            <span className="font-semibold text-sm flex items-center gap-1 text-purple-600">
+                              <MessageSquare className="h-4 w-4" />
+                              Additional Notes
+                            </span>
+                            <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
+                              {wo.notes2}
+                            </p>
+                          </div>
+                        )}
+                        {wo.workDescription && (
+                          <div>
+                            <span className="font-semibold text-sm flex items-center gap-1 text-gray-600">
+                              <MessageSquare className="h-4 w-4" />
+                              Labor/Parts Items
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
                               {wo.workDescription}
