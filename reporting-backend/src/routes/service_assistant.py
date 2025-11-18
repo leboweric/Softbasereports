@@ -154,10 +154,23 @@ Now answer the technician's question using the above context. Remember to cite s
 
 def extract_keywords(query):
     """Extract key technical terms from user query"""
+    import re
+    
+    # First, check for error codes (patterns like "error code 1410", "error 1410", "code 1410")
+    error_codes = re.findall(r'\b(?:error\s*)?(?:code\s*)?([0-9]{3,5})\b', query.lower())
+    
     # Remove common question words
-    stop_words = {'how', 'do', 'i', 'what', 'when', 'where', 'why', 'is', 'are', 'the', 'a', 'an', 'to', 'for', 'on', 'troubleshoot', 'fix', 'repair'}
+    stop_words = {'how', 'do', 'i', 'what', 'when', 'where', 'why', 'is', 'are', 'the', 'a', 'an', 'to', 'for', 'on', 'troubleshoot', 'fix', 'repair', 'mean', 'does'}
     words = query.lower().split()
     keywords = [w.strip('?.,!') for w in words if w.lower() not in stop_words and len(w) > 2]
+    
+    # Add error codes as priority keywords (they'll be searched first)
+    if error_codes:
+        # Remove 'error' and 'code' from keywords if error codes were found
+        keywords = [k for k in keywords if k not in ['error', 'code']]
+        # Prepend error codes so they're searched first
+        keywords = error_codes + keywords
+    
     return keywords
 
 def extract_equipment_info(query):
@@ -273,17 +286,46 @@ def search_work_orders(query):
         if not keywords:
             return []
         
+        # Check if first keyword is a numeric error code
+        import re
+        is_error_code = keywords and re.match(r'^[0-9]{3,5}$', keywords[0])
+        
         # Build search conditions for each keyword
         conditions = []
-        for keyword in keywords[:5]:  # Limit to 5 keywords
+        for idx, keyword in enumerate(keywords[:5]):  # Limit to 5 keywords
             safe_keyword = keyword.replace("'", "''")
-            conditions.append(f"""
-                (w.Comments LIKE '%{safe_keyword}%' OR
-                 w.PrivateComments LIKE '%{safe_keyword}%' OR
-                 w.ShopComments LIKE '%{safe_keyword}%' OR
-                 w.Make LIKE '%{safe_keyword}%' OR
-                 w.Model LIKE '%{safe_keyword}%')
-            """)
+            
+            # For error codes (first keyword if numeric), add more specific patterns
+            if idx == 0 and is_error_code:
+                conditions.append(f"""
+                    (w.Comments LIKE '%{safe_keyword}%' OR
+                     w.PrivateComments LIKE '%{safe_keyword}%' OR
+                     w.ShopComments LIKE '%{safe_keyword}%' OR
+                     w.Comments LIKE '%error%{safe_keyword}%' OR
+                     w.Comments LIKE '%code%{safe_keyword}%')
+                """)
+            else:
+                conditions.append(f"""
+                    (w.Comments LIKE '%{safe_keyword}%' OR
+                     w.PrivateComments LIKE '%{safe_keyword}%' OR
+                     w.ShopComments LIKE '%{safe_keyword}%' OR
+                     w.Make LIKE '%{safe_keyword}%' OR
+                     w.Model LIKE '%{safe_keyword}%')
+                """)
+        
+        # For error codes, prioritize results that have the code in comments
+        order_by = "w.ClosedDate DESC"
+        if is_error_code:
+            error_code = keywords[0].replace("'", "''")
+            order_by = f"""
+                CASE 
+                    WHEN w.Comments LIKE '%{error_code}%' THEN 1
+                    WHEN w.PrivateComments LIKE '%{error_code}%' THEN 2
+                    WHEN w.ShopComments LIKE '%{error_code}%' THEN 3
+                    ELSE 4
+                END,
+                w.ClosedDate DESC
+            """
         
         search_query = f"""
             SELECT TOP 20
@@ -299,7 +341,7 @@ def search_work_orders(query):
             WHERE 
                 w.ClosedDate IS NOT NULL
                 AND ({' OR '.join(conditions)})
-            ORDER BY w.ClosedDate DESC
+            ORDER BY {order_by}
         """
         
         results = azure_sql.execute_query(search_query)
