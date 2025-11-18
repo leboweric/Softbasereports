@@ -228,7 +228,8 @@ def search_kb_articles(query):
         if not keywords:
             return []
         
-        # Build OR conditions for each keyword
+        # Build AND conditions - each keyword must appear somewhere in the article
+        # For each keyword, check if it appears in ANY of the searchable fields
         conditions = []
         params = []
         for keyword in keywords[:5]:  # Limit to 5 keywords
@@ -243,11 +244,12 @@ def search_kb_articles(query):
             pattern = f'%{keyword}%'
             params.extend([pattern] * 6)
         
+        # Join with AND instead of OR - ALL keywords must be present
         search_query = f"""
             SELECT id, title, equipment_make, equipment_model, issue_category, 
                    symptoms, root_cause, solution, related_wo_numbers
             FROM knowledge_base
-            WHERE {' OR '.join(conditions)}
+            WHERE {' AND '.join(conditions)}
             ORDER BY created_date DESC
             LIMIT 10
         """
@@ -327,6 +329,7 @@ def search_work_orders(query):
                 w.ClosedDate DESC
             """
         
+        # Join conditions with AND instead of OR - ALL keywords must be present
         search_query = f"""
             SELECT TOP 20
                 w.WONo,
@@ -340,7 +343,7 @@ def search_work_orders(query):
             FROM [ben002].WO w
             WHERE 
                 w.ClosedDate IS NOT NULL
-                AND ({' OR '.join(conditions)})
+                AND ({' AND '.join(conditions)})
             ORDER BY {order_by}
         """
         
