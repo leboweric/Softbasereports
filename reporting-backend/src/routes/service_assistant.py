@@ -156,6 +156,8 @@ def extract_keywords(query):
     """Extract key technical terms from user query"""
     import re
     
+    logger.info(f"[KEYWORD EXTRACTION] Original query: '{query}'")
+    
     # Extract error codes - both numeric (1410, 335) and alphanumeric (L232, E20)
     # Pattern matches:
     # - Pure numbers: 1410, 335, 1862
@@ -164,11 +166,13 @@ def extract_keywords(query):
     error_codes = re.findall(r'\b(?:error\s*)?(?:code\s*)?([A-Z]?[0-9]{2,5}[A-Z]?)\b', query, re.IGNORECASE)
     # Convert to lowercase for consistent searching
     error_codes = [code.lower() for code in error_codes if code]
+    logger.info(f"[KEYWORD EXTRACTION] Error codes detected: {error_codes}")
     
     # Remove common question words
     stop_words = {'how', 'do', 'i', 'what', 'when', 'where', 'why', 'is', 'are', 'the', 'a', 'an', 'to', 'for', 'on', 'troubleshoot', 'fix', 'repair', 'mean', 'does', 'and', 'or'}
     words = query.lower().split()
     keywords = [w.strip('?.,!&') for w in words if w.lower() not in stop_words and len(w) > 2]
+    logger.info(f"[KEYWORD EXTRACTION] Initial keywords (before error code processing): {keywords}")
     
     # Add error codes as priority keywords (they'll be searched first)
     if error_codes:
@@ -179,6 +183,7 @@ def extract_keywords(query):
         # Prepend error codes so they're searched first
         keywords = error_codes + keywords
     
+    logger.info(f"[KEYWORD EXTRACTION] Final keywords: {keywords}")
     return keywords
 
 def extract_equipment_info(query):
@@ -262,8 +267,12 @@ def search_kb_articles(query):
             LIMIT 10
         """
         
+        logger.info(f"[KB SEARCH] Executing query with {len(conditions)} conditions for keywords: {keywords}")
         results = postgres.execute_query(search_query, tuple(params))
-        logger.info(f"KB search for keywords {keywords}: found {len(results) if results else 0} articles")
+        logger.info(f"[KB SEARCH] Found {len(results) if results else 0} articles")
+        
+        if results:
+            logger.info(f"[KB SEARCH] First result: KB #{results[0].get('id')} - {results[0].get('title')}")
         
         articles = []
         if results:
@@ -303,6 +312,8 @@ def search_work_orders(query):
         # Separate error codes from other keywords
         error_codes = [k for k in keywords[:5] if error_code_pattern.match(k)]
         other_keywords = [k for k in keywords[:5] if not error_code_pattern.match(k)]
+        
+        logger.info(f"[WO SEARCH] Error codes: {error_codes}, Other keywords: {other_keywords}")
         
         # Build search conditions
         conditions = []
@@ -370,8 +381,12 @@ def search_work_orders(query):
             ORDER BY {order_by}
         """
         
+        logger.info(f"[WO SEARCH] Executing SQL query: {search_query[:500]}...")
         results = azure_sql.execute_query(search_query)
-        logger.info(f"WO search for keywords {keywords}: found {len(results) if results else 0} work orders")
+        logger.info(f"[WO SEARCH] Found {len(results) if results else 0} work orders for keywords {keywords}")
+        
+        if results:
+            logger.info(f"[WO SEARCH] First result: WO #{results[0].get('WONo')} - {results[0].get('Comments', '')[:100]}...")
         
         work_orders = []
         if results:
