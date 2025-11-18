@@ -541,9 +541,9 @@ def search_work_orders():
         date_to = request.args.get('date_to', '')
         limit = int(request.args.get('limit', 100))
         
-        # Build query
-        query = """
-            SELECT TOP (@limit)
+        # Build query - use string formatting since pymssql doesn't support named params well
+        query = f"""
+            SELECT TOP {limit}
                 wo.WONo,
                 wo.BillTo,
                 wo.Make,
@@ -559,36 +559,33 @@ def search_work_orders():
             WHERE 1=1
         """
         
-        params = {'limit': limit}
-        
         # Add search filter for Comments and WorkPerformed
         if search:
-            query += """
+            # Escape single quotes for SQL injection prevention
+            safe_search = search.replace("'", "''")
+            query += f"""
                 AND (
-                    wo.Comments LIKE @search OR
-                    wo.WorkPerformed LIKE @search
+                    wo.Comments LIKE '%{safe_search}%' OR
+                    wo.WorkPerformed LIKE '%{safe_search}%'
                 )
             """
-            params['search'] = f'%{search}%'
         
         # Add equipment make filter
         if equipment_make:
-            query += " AND wo.Make = @equipment_make"
-            params['equipment_make'] = equipment_make
+            safe_make = equipment_make.replace("'", "''")
+            query += f" AND wo.Make = '{safe_make}'"
         
         # Add customer filter
         if customer:
-            query += " AND wo.Customer LIKE @customer"
-            params['customer'] = f'%{customer}%'
+            safe_customer = customer.replace("'", "''")
+            query += f" AND wo.Customer LIKE '%{safe_customer}%'"
         
         # Add date range filters
         if date_from:
-            query += " AND wo.ClosedDate >= @date_from"
-            params['date_from'] = date_from
+            query += f" AND wo.ClosedDate >= '{date_from}'"
         
         if date_to:
-            query += " AND wo.ClosedDate <= @date_to"
-            params['date_to'] = date_to
+            query += f" AND wo.ClosedDate <= '{date_to}'"
         
         # Only show closed work orders with comments or work performed
         query += """
@@ -597,7 +594,7 @@ def search_work_orders():
             ORDER BY wo.ClosedDate DESC
         """
         
-        work_orders = azure_sql.execute_query(query, params)
+        work_orders = azure_sql.execute_query(query)
         
         # Convert to camelCase for frontend
         result = []
