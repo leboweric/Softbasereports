@@ -653,3 +653,43 @@ def count_work_orders():
     except Exception as e:
         logger.error(f"Error counting work orders: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@knowledge_base_bp.route('/api/knowledge-base/work-orders/date-range', methods=['GET'])
+@jwt_required()
+def get_work_order_date_range():
+    """Get the oldest and newest work order dates"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        azure_sql = AzureSQLService()
+        
+        # Get oldest and newest work orders by CreatedDate
+        query = """
+        SELECT 
+            MIN(CreatedDate) as oldest_created,
+            MAX(CreatedDate) as newest_created,
+            MIN(ClosedDate) as oldest_closed,
+            MAX(ClosedDate) as newest_closed
+        FROM [ben002].WO
+        """
+        result = azure_sql.execute_query(query)
+        
+        if result and len(result) > 0:
+            data = result[0]
+            return jsonify({
+                'oldestCreated': data.get('oldest_created').isoformat() if data.get('oldest_created') else None,
+                'newestCreated': data.get('newest_created').isoformat() if data.get('newest_created') else None,
+                'oldestClosed': data.get('oldest_closed').isoformat() if data.get('oldest_closed') else None,
+                'newestClosed': data.get('newest_closed').isoformat() if data.get('newest_closed') else None
+            }), 200
+        else:
+            return jsonify({
+                'oldestCreated': None,
+                'newestCreated': None,
+                'oldestClosed': None,
+                'newestClosed': None
+            }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting work order date range: {str(e)}")
+        return jsonify({'error': str(e)}), 500
