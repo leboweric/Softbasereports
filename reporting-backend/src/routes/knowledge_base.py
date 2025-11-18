@@ -663,11 +663,11 @@ def get_work_order_date_range():
         from src.services.azure_sql_service import AzureSQLService
         azure_sql = AzureSQLService()
         
-        # Get oldest and newest work orders by CreatedDate
+        # Get oldest and newest work orders by ClosedDate and WONo
         query = """
         SELECT 
-            MIN(CreatedDate) as oldest_created,
-            MAX(CreatedDate) as newest_created,
+            MIN(WONo) as oldest_wo_number,
+            MAX(WONo) as newest_wo_number,
             MIN(ClosedDate) as oldest_closed,
             MAX(ClosedDate) as newest_closed
         FROM [ben002].WO
@@ -677,15 +677,15 @@ def get_work_order_date_range():
         if result and len(result) > 0:
             data = result[0]
             return jsonify({
-                'oldestCreated': data.get('oldest_created').isoformat() if data.get('oldest_created') else None,
-                'newestCreated': data.get('newest_created').isoformat() if data.get('newest_created') else None,
+                'oldestWONumber': data.get('oldest_wo_number'),
+                'newestWONumber': data.get('newest_wo_number'),
                 'oldestClosed': data.get('oldest_closed').isoformat() if data.get('oldest_closed') else None,
                 'newestClosed': data.get('newest_closed').isoformat() if data.get('newest_closed') else None
             }), 200
         else:
             return jsonify({
-                'oldestCreated': None,
-                'newestCreated': None,
+                'oldestWONumber': None,
+                'newestWONumber': None,
                 'oldestClosed': None,
                 'newestClosed': None
             }), 200
