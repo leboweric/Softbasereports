@@ -30,6 +30,7 @@ const KnowledgeBase = () => {
   const [woSearchTerm, setWoSearchTerm] = useState('');
   const [woMakeFilter, setWoMakeFilter] = useState('');
   const [woCustomerFilter, setWoCustomerFilter] = useState('');
+  const [woSearchKeywords, setWoSearchKeywords] = useState([]);
 
   // Service Assistant state
   const [chatMessages, setChatMessages] = useState([]);
@@ -176,6 +177,7 @@ const KnowledgeBase = () => {
 
       const data = await response.json();
       setWorkOrders(data.workOrders || []);
+      setWoSearchKeywords(data.searchKeywords || []);
     } catch (err) {
       console.error('Failed to search work orders:', err);
       setWorkOrders([]);
@@ -256,6 +258,20 @@ const KnowledgeBase = () => {
     }
 
     setShowEditModal(true);
+  };
+
+  // Helper function to highlight keywords in text
+  const highlightText = (text, keywords) => {
+    if (!text || !keywords || keywords.length === 0) return text;
+    
+    let highlightedText = text;
+    keywords.forEach(keyword => {
+      if (!keyword) return;
+      const regex = new RegExp(`(${keyword})`, 'gi');
+      highlightedText = highlightedText.replace(regex, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
+    });
+    
+    return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />;
   };
 
   const saveArticle = async () => {
@@ -655,7 +671,7 @@ const KnowledgeBase = () => {
                               Comments
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.comments}
+                              {highlightText(wo.comments, woSearchKeywords)}
                             </p>
                           </div>
                         )}
@@ -666,7 +682,7 @@ const KnowledgeBase = () => {
                               Private Comments
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.privateComments}
+                              {highlightText(wo.privateComments, woSearchKeywords)}
                             </p>
                           </div>
                         )}
@@ -677,7 +693,7 @@ const KnowledgeBase = () => {
                               Shop Comments
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.shopComments}
+                              {highlightText(wo.shopComments, woSearchKeywords)}
                             </p>
                           </div>
                         )}
@@ -688,7 +704,7 @@ const KnowledgeBase = () => {
                               Labor/Parts Items
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.workDescription}
+                              {highlightText(wo.workDescription, woSearchKeywords)}
                             </p>
                           </div>
                         )}

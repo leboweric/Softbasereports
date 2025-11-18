@@ -615,7 +615,8 @@ def search_work_orders():
         
         return jsonify({
             'workOrders': result,
-            'count': len(result)
+            'count': len(result),
+            'searchKeywords': search.split() if search else []  # Return keywords for highlighting
         }), 200
         
     except Exception as e:
