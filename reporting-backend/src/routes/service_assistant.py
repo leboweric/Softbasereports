@@ -180,6 +180,8 @@ def extract_keywords(query):
         keywords = [k for k in keywords if k not in ['error', 'code', 'codes']]
         # Remove any error codes that were already in keywords to avoid duplicates
         keywords = [k for k in keywords if k not in error_codes]
+        # Remove any remaining stop words that slipped through
+        keywords = [k for k in keywords if k not in stop_words]
         # Prepend error codes so they're searched first
         keywords = error_codes + keywords
     
