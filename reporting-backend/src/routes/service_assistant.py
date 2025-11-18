@@ -235,7 +235,7 @@ def search_kb_articles(query):
                    symptoms, root_cause, solution, related_wo_numbers
             FROM knowledge_base
             WHERE {' OR '.join(conditions)}
-            ORDER BY created_at DESC
+            ORDER BY created_date DESC
             LIMIT 10
         """
         

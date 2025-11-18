@@ -16,7 +16,7 @@ def get_analytics_summary():
         postgres = get_postgres_db()
         
         # Total queries
-        total_query = "SELECT COUNT(*) as total FROM service_assistant_queries"
+        total_query = "SELECT COUNT(*) as count FROM service_assistant_queries"
         total_result = postgres.execute_query(total_query)
         total_queries = total_result[0]['count'] if total_result else 0
         
