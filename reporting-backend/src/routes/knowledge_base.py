@@ -622,3 +622,34 @@ def search_work_orders():
     except Exception as e:
         logger.error(f"Error searching work orders: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@knowledge_base_bp.route('/api/knowledge-base/work-orders/count', methods=['GET'])
+@jwt_required()
+def count_work_orders():
+    """Get total count of work orders in the system"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        azure_sql = AzureSQLService()
+        
+        # Count all work orders
+        query_all = "SELECT COUNT(*) as total FROM [ben002].WO"
+        result_all = azure_sql.execute_query(query_all)
+        total_all = result_all[0]['total'] if result_all else 0
+        
+        # Count closed work orders
+        query_closed = "SELECT COUNT(*) as total FROM [ben002].WO WHERE ClosedDate IS NOT NULL"
+        result_closed = azure_sql.execute_query(query_closed)
+        total_closed = result_closed[0]['total'] if result_closed else 0
+        
+        # Count open work orders
+        total_open = total_all - total_closed
+        
+        return jsonify({
+            'totalWorkOrders': total_all,
+            'closedWorkOrders': total_closed,
+            'openWorkOrders': total_open
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error counting work orders: {str(e)}")
+        return jsonify({'error': str(e)}), 500
