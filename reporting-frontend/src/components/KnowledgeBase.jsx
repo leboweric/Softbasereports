@@ -498,11 +498,11 @@ const KnowledgeBase = () => {
                 <div className="md:col-span-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search work order comments and work performed..."
-                      value={woSearchTerm}
-                      onChange={(e) => setWoSearchTerm(e.target.value)}
+                      <input
+                        type="text"
+                        placeholder="Search work order descriptions and tech notes..."
+                        value={woSearchTerm}
+                        onChange={(e) => setWoSearchTerm(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && searchWorkOrders()}
                       className="w-full pl-10 pr-4 py-2 border rounded-md"
                     />
@@ -568,33 +568,21 @@ const KnowledgeBase = () => {
                         </div>
                       </div>
 
-                      <div className="mt-3 space-y-2">
-                        {wo.comments && (
+                      <div className="mt-3">
+                        {wo.workDescription && (
                           <div>
-                            <span className="font-semibold text-sm flex items-center gap-1">
-                              <AlertCircle className="h-4 w-4 text-orange-600" />
-                              Comments:
+                            <span className="font-semibold text-sm flex items-center gap-1 text-blue-600">
+                              <MessageSquare className="h-4 w-4" />
+                              Work Description
                             </span>
                             <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.comments}
-                            </p>
-                          </div>
-                        )}
-                        {wo.workPerformed && (
-                          <div>
-                            <span className="font-semibold text-sm flex items-center gap-1 text-green-600">
-                              <CheckCircle className="h-4 w-4" />
-                              Work Performed:
-                            </span>
-                            <p className="text-gray-700 text-sm mt-1 whitespace-pre-wrap">
-                              {wo.workPerformed}
+                              {wo.workDescription}
                             </p>
                           </div>
                         )}
                       </div>
 
                       <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
-                        {wo.technician && <span>Tech: {wo.technician}</span>}
                         {wo.type && <span>Type: {wo.type}</span>}
                         {wo.dateClosed && (
                           <span>Closed: {new Date(wo.dateClosed).toLocaleDateString()}</span>
