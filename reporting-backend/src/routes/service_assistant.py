@@ -156,18 +156,26 @@ def extract_keywords(query):
     """Extract key technical terms from user query"""
     import re
     
-    # First, check for error codes (patterns like "error code 1410", "error 1410", "code 1410")
-    error_codes = re.findall(r'\b(?:error\s*)?(?:code\s*)?([0-9]{3,5})\b', query.lower())
+    # Extract error codes - both numeric (1410, 335) and alphanumeric (L232, E20)
+    # Pattern matches:
+    # - Pure numbers: 1410, 335, 1862
+    # - Letter + numbers: L232, E20, H25
+    # - Numbers + letters: 1410A, 335B (less common but possible)
+    error_codes = re.findall(r'\b(?:error\s*)?(?:code\s*)?([A-Z]?[0-9]{2,5}[A-Z]?)\b', query, re.IGNORECASE)
+    # Convert to lowercase for consistent searching
+    error_codes = [code.lower() for code in error_codes if code]
     
     # Remove common question words
-    stop_words = {'how', 'do', 'i', 'what', 'when', 'where', 'why', 'is', 'are', 'the', 'a', 'an', 'to', 'for', 'on', 'troubleshoot', 'fix', 'repair', 'mean', 'does'}
+    stop_words = {'how', 'do', 'i', 'what', 'when', 'where', 'why', 'is', 'are', 'the', 'a', 'an', 'to', 'for', 'on', 'troubleshoot', 'fix', 'repair', 'mean', 'does', 'and', 'or'}
     words = query.lower().split()
-    keywords = [w.strip('?.,!') for w in words if w.lower() not in stop_words and len(w) > 2]
+    keywords = [w.strip('?.,!&') for w in words if w.lower() not in stop_words and len(w) > 2]
     
     # Add error codes as priority keywords (they'll be searched first)
     if error_codes:
         # Remove 'error' and 'code' from keywords if error codes were found
-        keywords = [k for k in keywords if k not in ['error', 'code']]
+        keywords = [k for k in keywords if k not in ['error', 'code', 'codes']]
+        # Remove any error codes that were already in keywords to avoid duplicates
+        keywords = [k for k in keywords if k not in error_codes]
         # Prepend error codes so they're searched first
         keywords = error_codes + keywords
     
@@ -288,48 +296,63 @@ def search_work_orders(query):
         if not keywords:
             return []
         
-        # Check if first keyword is a numeric error code
+        # Check if keywords are error codes (alphanumeric patterns)
         import re
-        is_error_code = keywords and re.match(r'^[0-9]{3,5}$', keywords[0])
+        error_code_pattern = re.compile(r'^[a-z]?[0-9]{2,5}[a-z]?$', re.IGNORECASE)
         
-        # Build search conditions for each keyword
+        # Separate error codes from other keywords
+        error_codes = [k for k in keywords[:5] if error_code_pattern.match(k)]
+        other_keywords = [k for k in keywords[:5] if not error_code_pattern.match(k)]
+        
+        # Build search conditions
         conditions = []
-        for idx, keyword in enumerate(keywords[:5]):  # Limit to 5 keywords
-            safe_keyword = keyword.replace("'", "''")
-            
-            # For error codes (first keyword if numeric), add more specific patterns
-            if idx == 0 and is_error_code:
-                conditions.append(f"""
-                    (w.Comments LIKE '%{safe_keyword}%' OR
-                     w.PrivateComments LIKE '%{safe_keyword}%' OR
-                     w.ShopComments LIKE '%{safe_keyword}%' OR
-                     w.Comments LIKE '%error%{safe_keyword}%' OR
-                     w.Comments LIKE '%code%{safe_keyword}%')
-                """)
-            else:
-                conditions.append(f"""
-                    (w.Comments LIKE '%{safe_keyword}%' OR
-                     w.PrivateComments LIKE '%{safe_keyword}%' OR
-                     w.ShopComments LIKE '%{safe_keyword}%' OR
-                     w.Make LIKE '%{safe_keyword}%' OR
-                     w.Model LIKE '%{safe_keyword}%')
-                """)
         
-        # For error codes, prioritize results that have the code in comments
+        # If we have multiple error codes, use OR logic between them
+        # (find WOs with ANY of the error codes)
+        if error_codes:
+            error_code_conditions = []
+            for code in error_codes:
+                safe_code = code.replace("'", "''")
+                error_code_conditions.append(f"""
+                    (w.Comments LIKE '%{safe_code}%' OR
+                     w.PrivateComments LIKE '%{safe_code}%' OR
+                     w.ShopComments LIKE '%{safe_code}%')
+                """)
+            # Join error codes with OR
+            conditions.append(f"({' OR '.join(error_code_conditions)})")
+        
+        # For other keywords, require ALL of them (AND logic)
+        for keyword in other_keywords:
+            safe_keyword = keyword.replace("'", "''")
+            conditions.append(f"""
+                (w.Comments LIKE '%{safe_keyword}%' OR
+                 w.PrivateComments LIKE '%{safe_keyword}%' OR
+                 w.ShopComments LIKE '%{safe_keyword}%' OR
+                 w.Make LIKE '%{safe_keyword}%' OR
+                 w.Model LIKE '%{safe_keyword}%')
+            """)
+        
+        # For error code searches, prioritize results that have codes in comments
         order_by = "w.ClosedDate DESC"
-        if is_error_code:
-            error_code = keywords[0].replace("'", "''")
+        if error_codes:
+            # Build CASE statement for all error codes
+            case_conditions = []
+            for idx, code in enumerate(error_codes, 1):
+                safe_code = code.replace("'", "''")
+                case_conditions.append(f"WHEN w.Comments LIKE '%{safe_code}%' THEN {idx}")
+            for idx, code in enumerate(error_codes, len(error_codes) + 1):
+                safe_code = code.replace("'", "''")
+                case_conditions.append(f"WHEN w.PrivateComments LIKE '%{safe_code}%' THEN {idx}")
+            
             order_by = f"""
                 CASE 
-                    WHEN w.Comments LIKE '%{error_code}%' THEN 1
-                    WHEN w.PrivateComments LIKE '%{error_code}%' THEN 2
-                    WHEN w.ShopComments LIKE '%{error_code}%' THEN 3
-                    ELSE 4
+                    {' '.join(case_conditions)}
+                    ELSE 999
                 END,
                 w.ClosedDate DESC
             """
         
-        # Join conditions with AND instead of OR - ALL keywords must be present
+        # Join all conditions with AND
         search_query = f"""
             SELECT TOP 20
                 w.WONo,
