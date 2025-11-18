@@ -1,8 +1,7 @@
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.services.azure_sql_service import AzureSQLService
-from src.services.postgres_service import PostgresService
-from src.services.openai_service import OpenAIQueryService
+from src.services.azure_sql_service import get_azure_sql_db
+from src.services.postgres_service import get_postgres_db
 import openai
 import os
 import json
@@ -106,7 +105,7 @@ Context from Knowledge Base and Work Orders:
 def search_kb_articles(query):
     """Search KB articles for relevant context"""
     try:
-        postgres = PostgresService()
+        postgres = get_postgres_db()
         
         # Search for relevant articles
         search_query = """
@@ -151,7 +150,7 @@ def search_kb_articles(query):
 def search_work_orders(query):
     """Search work orders for relevant context"""
     try:
-        azure_sql = AzureSQLService()
+        azure_sql = get_azure_sql_db()
         
         # Search for relevant work orders
         safe_query = query.replace("'", "''")
