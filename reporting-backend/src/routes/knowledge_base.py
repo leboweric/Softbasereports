@@ -541,46 +541,78 @@ def search_work_orders():
         date_to = request.args.get('date_to', '')
         limit = int(request.args.get('limit', 100))
         
-        # Build query - copy exact pattern from working queries
+        # Build query - Search WOMisc for tech descriptions
+        where_conditions = ["w.ClosedDate IS NOT NULL"]
+        
+        # Add search filter - search in WOMisc descriptions
+        if search:
+            safe_search = search.replace("'", "''")
+            where_conditions.append(f"wm.Description LIKE '%{safe_search}%'")
+        else:
+            # If no search term, just ensure WOMisc has descriptions
+            where_conditions.append("wm.Description IS NOT NULL AND wm.Description != ''")
+        
         query = f"""
-        SELECT TOP {limit}
+        SELECT DISTINCT TOP {limit}
             w.WONo,
             w.BillTo,
             w.Make,
             w.Model,
             w.SerialNo,
             w.UnitNo,
-            w.Comments,
-            w.WorkPerformed,
             w.ClosedDate,
-            w.Technician,
-            w.Type
+            w.Type,
+            -- Concatenate all WOMisc descriptions
+            STUFF((
+                SELECT CHAR(13) + CHAR(10) + Description
+                FROM [ben002].WOMisc wm2
+                WHERE wm2.WONo = w.WONo
+                FOR XML PATH(''), TYPE
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') as workDescription
         FROM [ben002].WO w
-        WHERE w.ClosedDate IS NOT NULL
-          AND (w.Comments IS NOT NULL OR w.WorkPerformed IS NOT NULL)
+        INNER JOIN [ben002].WOMisc wm ON w.WONo = wm.WONo
+        WHERE {' AND '.join(where_conditions)}
         """
-        
-        # Add search filter
-        if search:
-            safe_search = search.replace("'", "''")
-            query += f" AND (w.Comments LIKE '%{safe_search}%' OR w.WorkPerformed LIKE '%{safe_search}%')"
         
         # Add equipment make filter
         if equipment_make:
             safe_make = equipment_make.replace("'", "''")
-            query += f" AND w.Make = '{safe_make}'"
+            where_conditions.append(f"w.Make = '{safe_make}'")
         
         # Add customer filter
         if customer:
             safe_customer = customer.replace("'", "''")
-            query += f" AND w.BillTo LIKE '%{safe_customer}%'"
+            where_conditions.append(f"w.BillTo LIKE '%{safe_customer}%'")
         
         # Add date filters
         if date_from:
-            query += f" AND w.ClosedDate >= '{date_from}'"
+            where_conditions.append(f"w.ClosedDate >= '{date_from}'")
         
         if date_to:
-            query += f" AND w.ClosedDate <= '{date_to}'"
+            where_conditions.append(f"w.ClosedDate <= '{date_to}'")
+        
+        # Rebuild query with all conditions
+        query = f"""
+        SELECT DISTINCT TOP {limit}
+            w.WONo,
+            w.BillTo,
+            w.Make,
+            w.Model,
+            w.SerialNo,
+            w.UnitNo,
+            w.ClosedDate,
+            w.Type,
+            -- Concatenate all WOMisc descriptions
+            STUFF((
+                SELECT CHAR(13) + CHAR(10) + Description
+                FROM [ben002].WOMisc wm2
+                WHERE wm2.WONo = w.WONo
+                FOR XML PATH(''), TYPE
+            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') as workDescription
+        FROM [ben002].WO w
+        INNER JOIN [ben002].WOMisc wm ON w.WONo = wm.WONo
+        WHERE {' AND '.join(where_conditions)}
+        """
         
         query += " ORDER BY w.ClosedDate DESC"
         
@@ -596,10 +628,8 @@ def search_work_orders():
                 'model': wo['Model'],
                 'serialNumber': wo['SerialNo'],
                 'unitNumber': wo['UnitNo'],
-                'comments': wo['Comments'],
-                'workPerformed': wo['WorkPerformed'],
+                'workDescription': wo['workDescription'],
                 'dateClosed': wo['ClosedDate'].isoformat() if wo['ClosedDate'] else None,
-                'technician': wo['Technician'],
                 'type': wo['Type']
             })
         
