@@ -406,15 +406,12 @@ const KnowledgeBase = () => {
       <Tabs defaultValue="articles" className="w-full">
         <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="articles">
-            <Book className="h-4 w-4 mr-2" />
             Knowledge Articles
           </TabsTrigger>
           <TabsTrigger value="work-orders">
-            <FileText className="h-4 w-4 mr-2" />
             Work Order History
           </TabsTrigger>
           <TabsTrigger value="assistant">
-            <Bot className="h-4 w-4 mr-2" />
             Service Assistant
           </TabsTrigger>
         </TabsList>
