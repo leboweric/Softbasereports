@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiUrl } from '@/lib/api';
-import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip } from 'lucide-react';
+import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip, FileText } from 'lucide-react';
 import FileUploadDropzone from './FileUploadDropzone';
 import SearchableSelect from './SearchableSelect';
 
@@ -21,6 +22,15 @@ const KnowledgeBase = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingArticle, setEditingArticle] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Work Order History state
+  const [workOrders, setWorkOrders] = useState([]);
+  const [woLoading, setWoLoading] = useState(false);
+  const [woSearchTerm, setWoSearchTerm] = useState('');
+  const [woMakeFilter, setWoMakeFilter] = useState('');
+  const [woCustomerFilter, setWoCustomerFilter] = useState('');
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState(null);
+  const [showWoModal, setShowWoModal] = useState(false);
 
   useEffect(() => {
     fetchArticles();
@@ -138,6 +148,34 @@ const KnowledgeBase = () => {
     }
 
     setFilteredArticles(filtered);
+  };
+
+  const searchWorkOrders = async () => {
+    try {
+      setWoLoading(true);
+      
+      const params = new URLSearchParams();
+      if (woSearchTerm) params.append('search', woSearchTerm);
+      if (woMakeFilter) params.append('equipment_make', woMakeFilter);
+      if (woCustomerFilter) params.append('customer', woCustomerFilter);
+      params.append('limit', '100');
+      
+      const response = await fetch(apiUrl(`/api/knowledge-base/work-orders/search?${params.toString()}`), {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to search work orders');
+
+      const data = await response.json();
+      setWorkOrders(data.workOrders || []);
+    } catch (err) {
+      console.error('Failed to search work orders:', err);
+      setWorkOrders([]);
+    } finally {
+      setWoLoading(false);
+    }
   };
 
   const viewArticle = async (articleId) => {
@@ -290,8 +328,22 @@ const KnowledgeBase = () => {
         )}
       </div>
 
-      {/* Search and Filters */}
-      <Card>
+      {/* Tabs */}
+      <Tabs defaultValue="articles" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="articles">
+            <Book className="h-4 w-4 mr-2" />
+            Knowledge Articles
+          </TabsTrigger>
+          <TabsTrigger value="work-orders">
+            <FileText className="h-4 w-4 mr-2" />
+            Work Order History
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="articles" className="space-y-6 mt-6">
+          {/* Search and Filters */}
+          <Card>
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
@@ -435,6 +487,137 @@ const KnowledgeBase = () => {
           </Card>
         )}
       </div>
+        </TabsContent>
+
+        <TabsContent value="work-orders" className="space-y-6 mt-6">
+          {/* Work Order Search */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Keyword Search */}
+                <div className="md:col-span-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search work order descriptions and resolutions..."
+                      value={woSearchTerm}
+                      onChange={(e) => setWoSearchTerm(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && searchWorkOrders()}
+                      className="w-full pl-10 pr-4 py-2 border rounded-md"
+                    />
+                  </div>
+                </div>
+
+                {/* Equipment Make Filter */}
+                <div>
+                  <SearchableSelect
+                    value={woMakeFilter}
+                    onChange={setWoMakeFilter}
+                    options={makes}
+                    placeholder="All Makes"
+                  />
+                </div>
+
+                {/* Search Button */}
+                <div>
+                  <button
+                    onClick={searchWorkOrders}
+                    disabled={woLoading}
+                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 flex items-center justify-center gap-2"
+                  >
+                    <Search className="h-4 w-4" />
+                    {woLoading ? 'Searching...' : 'Search'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Results Count */}
+              {workOrders.length > 0 && (
+                <div className="mt-4 text-sm text-gray-600">
+                  Found {workOrders.length} work order{workOrders.length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Work Orders List */}
+          <div className="grid grid-cols-1 gap-4">
+            {workOrders.map(wo => (
+              <Card key={wo.woNumber} className="hover:shadow-lg transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Wrench className="h-5 w-5 text-blue-600" />
+                        <div>
+                          <h3 className="text-lg font-semibold">WO #{wo.woNumber}</h3>
+                          <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded">
+                              {wo.customer}
+                            </span>
+                            {wo.make && (
+                              <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                {wo.make} {wo.model}
+                              </span>
+                            )}
+                            {wo.unitNumber && (
+                              <span className="text-gray-500">Unit: {wo.unitNumber}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {wo.description && (
+                          <div>
+                            <span className="font-semibold text-sm flex items-center gap-1">
+                              <AlertCircle className="h-4 w-4 text-orange-600" />
+                              Problem:
+                            </span>
+                            <p className="text-gray-700 text-sm mt-1">
+                              {wo.description}
+                            </p>
+                          </div>
+                        )}
+                        {wo.resolution && (
+                          <div>
+                            <span className="font-semibold text-sm flex items-center gap-1 text-green-600">
+                              <CheckCircle className="h-4 w-4" />
+                              Resolution:
+                            </span>
+                            <p className="text-gray-700 text-sm mt-1">
+                              {wo.resolution}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
+                        {wo.technicianName && <span>Tech: {wo.technicianName}</span>}
+                        {wo.dateClosed && (
+                          <span>Closed: {new Date(wo.dateClosed).toLocaleDateString()}</span>
+                        )}
+                        {wo.serialNumber && <span>S/N: {wo.serialNumber}</span>}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            {workOrders.length === 0 && !woLoading && (
+              <Card>
+                <CardContent className="p-12 text-center text-gray-500">
+                  <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg">No work orders found</p>
+                  <p className="text-sm mt-2">Enter keywords to search past work orders</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* View Article Modal */}
       {showArticleModal && selectedArticle && (
