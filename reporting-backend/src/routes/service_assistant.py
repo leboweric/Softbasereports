@@ -6,6 +6,8 @@ import openai
 import os
 import json
 import logging
+import requests
+from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +34,15 @@ def chat():
         # Search work orders for relevant context
         wo_context = search_work_orders(user_message)
         
+        # Search web for external technical resources if internal data is limited
+        web_context = []
+        total_internal_results = len(kb_context) + len(wo_context)
+        if total_internal_results < 5:
+            logger.info(f"Limited internal results ({total_internal_results}), searching web for additional resources")
+            web_context = search_web_resources(user_message)
+        
         # Build context for AI
-        context = build_context(kb_context, wo_context)
+        context = build_context(kb_context, wo_context, web_context)
         
         # Get OpenAI API key
         api_key = os.getenv('OPENAI_API_KEY')
@@ -53,22 +62,34 @@ Your job is to help technicians by searching through the company's Knowledge Bas
 
 IMPORTANT INSTRUCTIONS:
 1. **ALWAYS cite specific sources** when providing information:
-   - Reference KB articles as "KB Article #[ID]"
-   - Reference work orders as "WO #[number]"
+   - Internal KB articles: "KB Article #[ID]"
+   - Internal work orders: "WO #[number]"
+   - External resources: "[Resource Title]" with URL
    - Example: "According to WO #12345, the technician found..."
+   - Example: "The Linde service manual indicates..."
 
-2. **Use the provided context**:
-   - If KB articles or work orders are provided below, USE THEM in your answer
-   - Quote specific symptoms, solutions, and technician notes from the context
+2. **Prioritize internal company data**:
+   - Start with KB articles and work orders from your company's database
+   - These contain actual repair history and proven solutions
+   - Quote specific symptoms, solutions, and technician notes
    - If multiple relevant WOs exist, mention the most relevant ones
 
-3. **Be specific and practical**:
+3. **Use external resources as supplementary information**:
+   - When external technical resources are provided, use them to supplement internal data
+   - Manufacturer service manuals and technical guides provide official procedures
+   - Clearly distinguish between company experience and manufacturer recommendations
+   - Provide URLs for external resources so technicians can access full documentation
+
+4. **Be specific and practical**:
    - Provide step-by-step troubleshooting based on actual past repairs
    - Mention specific parts, procedures, or findings from the work orders
    - If a pattern emerges from multiple WOs, point it out
+   - Combine internal experience with manufacturer best practices
 
-4. **When no specific data is available**:
-   - If the context says "No specific KB articles or work orders found", provide general troubleshooting advice
+5. **When limited data is available**:
+   - Use whatever context is provided (internal or external)
+   - If only external resources are available, rely on those
+   - If no specific data exists, provide general troubleshooting advice
    - Suggest what information would be helpful to search for
 
 ---
@@ -245,8 +266,63 @@ def search_work_orders(query):
         return []
 
 
-def build_context(kb_articles, work_orders):
-    """Build context string from KB articles and work orders"""
+def search_web_resources(query):
+    """Search web for manufacturer service manuals and technical documentation"""
+    try:
+        keywords = extract_keywords(query)
+        if not keywords:
+            return []
+        
+        # Build search query focused on technical documentation
+        search_terms = ' '.join(keywords[:5])
+        # Add technical terms to focus on service manuals and troubleshooting guides
+        technical_query = f"{search_terms} service manual troubleshooting repair guide"
+        
+        # Use DuckDuckGo HTML search (no API key required)
+        search_url = f"https://html.duckduckgo.com/html/?q={quote_plus(technical_query)}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        
+        response = requests.get(search_url, headers=headers, timeout=5)
+        
+        if response.status_code != 200:
+            logger.warning(f"Web search failed with status {response.status_code}")
+            return []
+        
+        # Parse results (simple extraction from HTML)
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        results = []
+        result_links = soup.find_all('a', class_='result__a', limit=5)
+        
+        for link in result_links:
+            title = link.get_text(strip=True)
+            url = link.get('href', '')
+            
+            # Filter for relevant domains (manufacturer sites, technical resources)
+            relevant_domains = ['linde', 'yale', 'crown', 'toyota', 'hyster', 'clark', 'raymond', 
+                              'jungheinrich', 'manual', 'service', 'repair', 'technical', 'pdf']
+            
+            if any(domain in url.lower() or domain in title.lower() for domain in relevant_domains):
+                results.append({
+                    'title': title,
+                    'url': url,
+                    'source': 'Web Search'
+                })
+        
+        logger.info(f"Web search for '{search_terms}': found {len(results)} relevant resources")
+        return results[:3]  # Limit to top 3 web results
+        
+    except Exception as e:
+        logger.error(f"Error searching web resources: {str(e)}")
+        return []
+
+
+def build_context(kb_articles, work_orders, web_resources=None):
+    """Build context string from KB articles, work orders, and web resources"""
     context_parts = []
     
     if kb_articles:
@@ -284,7 +360,15 @@ def build_context(kb_articles, work_orders):
                 context_parts.append(f"  Completed: {wo['closed_date'][:10]}")
             context_parts.append("")
     
-    if not kb_articles and not work_orders:
-        return "No specific KB articles or work orders found for this query. Provide general troubleshooting advice."
+    if web_resources:
+        context_parts.append("\n=== EXTERNAL TECHNICAL RESOURCES ===")
+        context_parts.append("(Manufacturer service manuals, technical guides, and documentation)\n")
+        for resource in web_resources:
+            context_parts.append(f"[External Resource] {resource['title']}")
+            context_parts.append(f"  URL: {resource['url']}")
+            context_parts.append("")
+    
+    if not kb_articles and not work_orders and not web_resources:
+        return "No specific KB articles, work orders, or external resources found for this query. Provide general troubleshooting advice."
     
     return "\n".join(context_parts)
