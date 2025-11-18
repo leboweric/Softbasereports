@@ -85,6 +85,7 @@ from src.routes.customer_details import customer_details_bp
 from src.routes.pm_technician_performance import pm_technician_performance_bp
 from src.routes.knowledge_base import knowledge_base_bp
 from src.routes.service_assistant import service_assistant_bp
+from src.routes.service_assistant_analytics import analytics_bp
 from src.routes.currie_report import currie_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
@@ -193,6 +194,7 @@ app.register_blueprint(customer_details_bp)
 app.register_blueprint(pm_technician_performance_bp)
 app.register_blueprint(knowledge_base_bp)
 app.register_blueprint(service_assistant_bp)
+app.register_blueprint(analytics_bp)
 app.register_blueprint(currie_bp)
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 

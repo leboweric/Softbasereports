@@ -131,6 +131,26 @@ class PostgreSQLService:
         CREATE INDEX IF NOT EXISTS idx_wo_number ON work_order_notes(wo_number);
         """
         
+        create_service_assistant_queries_table = """
+        CREATE TABLE IF NOT EXISTS service_assistant_queries (
+            id SERIAL PRIMARY KEY,
+            query_text TEXT NOT NULL,
+            keywords TEXT[],
+            equipment_make VARCHAR(100),
+            equipment_model VARCHAR(100),
+            kb_results_count INTEGER DEFAULT 0,
+            wo_results_count INTEGER DEFAULT 0,
+            web_results_count INTEGER DEFAULT 0,
+            response_text TEXT,
+            user_email VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_sa_created ON service_assistant_queries(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_sa_make ON service_assistant_queries(equipment_make);
+        CREATE INDEX IF NOT EXISTS idx_sa_keywords ON service_assistant_queries USING GIN(keywords);
+        """
+        
         create_knowledge_base_table = """
         CREATE TABLE IF NOT EXISTS knowledge_base (
             id SERIAL PRIMARY KEY,
@@ -208,6 +228,9 @@ class PostgreSQLService:
                 with conn.cursor() as cursor:
                     cursor.execute(create_notes_table)
                     logger.info("Work order notes table created/verified successfully")
+                    
+                    cursor.execute(create_service_assistant_queries_table)
+                    logger.info("Service assistant queries table created/verified successfully")
                     
                     cursor.execute(create_knowledge_base_table)
                     logger.info("Knowledge base table created/verified successfully")

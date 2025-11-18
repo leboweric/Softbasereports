@@ -125,6 +125,20 @@ Now answer the technician's question using the above context. Remember to cite s
         
         assistant_message = response.choices[0].message.content
         
+        # Log the query for analytics
+        try:
+            log_query(
+                query_text=user_message,
+                kb_results_count=len(kb_context),
+                wo_results_count=len(wo_context),
+                web_results_count=len(web_context),
+                response_text=assistant_message,
+                user_email=get_jwt_identity()
+            )
+        except Exception as log_error:
+            logger.error(f"Failed to log query: {str(log_error)}")
+            # Don't fail the request if logging fails
+        
         return jsonify({
             'response': assistant_message,
             'context': {
@@ -145,6 +159,52 @@ def extract_keywords(query):
     words = query.lower().split()
     keywords = [w.strip('?.,!') for w in words if w.lower() not in stop_words and len(w) > 2]
     return keywords
+
+def extract_equipment_info(query):
+    """Extract equipment make and model from query"""
+    query_lower = query.lower()
+    makes = ['linde', 'yale', 'crown', 'toyota', 'hyster', 'clark', 'raymond', 'jungheinrich', 'nissan', 'mitsubishi', 'komatsu', 'cat', 'caterpillar']
+    
+    found_make = None
+    for make in makes:
+        if make in query_lower:
+            found_make = make.capitalize()
+            break
+    
+    # Simple model extraction (look for patterns like H20, E50, etc.)
+    import re
+    model_match = re.search(r'\b[A-Z]\d{2,4}\b', query, re.IGNORECASE)
+    found_model = model_match.group(0).upper() if model_match else None
+    
+    return found_make, found_model
+
+def log_query(query_text, kb_results_count, wo_results_count, web_results_count, response_text, user_email):
+    """Log Service Assistant query for analytics"""
+    try:
+        postgres = get_postgres_db()
+        keywords = extract_keywords(query_text)
+        equipment_make, equipment_model = extract_equipment_info(query_text)
+        
+        insert_query = """
+            INSERT INTO service_assistant_queries 
+            (query_text, keywords, equipment_make, equipment_model, 
+             kb_results_count, wo_results_count, web_results_count, 
+             response_text, user_email)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        postgres.execute_update(
+            insert_query,
+            (query_text, keywords, equipment_make, equipment_model,
+             kb_results_count, wo_results_count, web_results_count,
+             response_text, user_email)
+        )
+        
+        logger.info(f"Logged query: '{query_text[:50]}...' from {user_email}")
+        
+    except Exception as e:
+        logger.error(f"Error logging query: {str(e)}")
+        raise
 
 def search_kb_articles(query):
     """Search KB articles for relevant context"""

@@ -5,6 +5,7 @@ import { apiUrl } from '@/lib/api';
 import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip, FileText, MessageSquare, Bot, Send } from 'lucide-react';
 import FileUploadDropzone from './FileUploadDropzone';
 import SearchableSelect from './SearchableSelect';
+import ServiceAssistantAnalytics from './ServiceAssistantAnalytics';
 
 const KnowledgeBase = () => {
   const [articles, setArticles] = useState([]);
@@ -404,7 +405,7 @@ const KnowledgeBase = () => {
 
       {/* Tabs */}
       <Tabs defaultValue="articles" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-4xl grid-cols-4">
           <TabsTrigger value="articles">
             Knowledge Articles
           </TabsTrigger>
@@ -413,6 +414,9 @@ const KnowledgeBase = () => {
           </TabsTrigger>
           <TabsTrigger value="assistant">
             Service Assistant
+          </TabsTrigger>
+          <TabsTrigger value="analytics">
+            Analytics
           </TabsTrigger>
         </TabsList>
 
@@ -822,6 +826,10 @@ const KnowledgeBase = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6 mt-6">
+          <ServiceAssistantAnalytics />
         </TabsContent>
       </Tabs>
 
