@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.services.azure_sql_service import get_azure_sql_db
+from src.services.azure_sql_service import AzureSQLService
 from src.services.postgres_service import get_postgres_db
 import openai
 import os
@@ -150,7 +150,7 @@ def search_kb_articles(query):
 def search_work_orders(query):
     """Search work orders for relevant context"""
     try:
-        azure_sql = get_azure_sql_db()
+        azure_sql = AzureSQLService()
         
         # Search for relevant work orders
         safe_query = query.replace("'", "''")
