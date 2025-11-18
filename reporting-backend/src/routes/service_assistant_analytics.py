@@ -89,10 +89,18 @@ def get_top_questions():
         questions = []
         if results:
             for row in results:
+                # Ensure UTC timezone is explicit in the ISO format
+                last_asked_str = None
+                if row['last_asked']:
+                    # PostgreSQL returns timezone-naive datetime, treat as UTC
+                    from datetime import timezone
+                    last_asked_utc = row['last_asked'].replace(tzinfo=timezone.utc)
+                    last_asked_str = last_asked_utc.isoformat()
+                
                 questions.append({
                     'question': row['query_text'],
                     'frequency': row['frequency'],
-                    'lastAsked': row['last_asked'].isoformat() if row['last_asked'] else None,
+                    'lastAsked': last_asked_str,
                     'avgResults': float(row['avg_results'] or 0)
                 })
         

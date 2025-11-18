@@ -14,11 +14,14 @@ const ServiceAssistantAnalytics = () => {
   // Helper function to format UTC date to local date string
   const formatLocalDate = (utcDateString) => {
     if (!utcDateString) return 'N/A';
+    // Parse the UTC timestamp and convert to local time
     const date = new Date(utcDateString);
+    // Format in local timezone
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: '2-digit',
-      day: '2-digit'
+      day: '2-digit',
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
     });
   };
 
