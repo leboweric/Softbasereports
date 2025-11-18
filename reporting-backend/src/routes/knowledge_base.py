@@ -524,3 +524,103 @@ def delete_attachment(attachment_id):
     except Exception as e:
         logger.error(f"Error deleting attachment: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@knowledge_base_bp.route('/api/knowledge-base/work-orders/search', methods=['GET'])
+@jwt_required()
+def search_work_orders():
+    """Search work orders by keywords in descriptions and notes"""
+    try:
+        from src.services.azure_sql_service import get_azure_sql_service
+        azure_sql = get_azure_sql_service()
+        
+        # Get search parameters
+        search = request.args.get('search', '')
+        equipment_make = request.args.get('equipment_make', '')
+        customer = request.args.get('customer', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        limit = int(request.args.get('limit', 100))
+        
+        # Build query
+        query = """
+            SELECT TOP (@limit)
+                wo.WONumber,
+                wo.Customer,
+                wo.Make,
+                wo.Model,
+                wo.SerialNumber,
+                wo.UnitNumber,
+                wo.Description,
+                wo.Resolution,
+                wo.DateClosed,
+                wo.TechnicianName,
+                wo.Status
+            FROM ben002.WO wo
+            WHERE 1=1
+        """
+        
+        params = {'limit': limit}
+        
+        # Add search filter for Description and Resolution
+        if search:
+            query += """
+                AND (
+                    wo.Description LIKE @search OR
+                    wo.Resolution LIKE @search
+                )
+            """
+            params['search'] = f'%{search}%'
+        
+        # Add equipment make filter
+        if equipment_make:
+            query += " AND wo.Make = @equipment_make"
+            params['equipment_make'] = equipment_make
+        
+        # Add customer filter
+        if customer:
+            query += " AND wo.Customer LIKE @customer"
+            params['customer'] = f'%{customer}%'
+        
+        # Add date range filters
+        if date_from:
+            query += " AND wo.DateClosed >= @date_from"
+            params['date_from'] = date_from
+        
+        if date_to:
+            query += " AND wo.DateClosed <= @date_to"
+            params['date_to'] = date_to
+        
+        # Only show closed work orders with descriptions
+        query += """
+            AND wo.Status = 'Closed'
+            AND (wo.Description IS NOT NULL OR wo.Resolution IS NOT NULL)
+            ORDER BY wo.DateClosed DESC
+        """
+        
+        work_orders = azure_sql.execute_query(query, params)
+        
+        # Convert to camelCase for frontend
+        result = []
+        for wo in work_orders:
+            result.append({
+                'woNumber': wo['WONumber'],
+                'customer': wo['Customer'],
+                'make': wo['Make'],
+                'model': wo['Model'],
+                'serialNumber': wo['SerialNumber'],
+                'unitNumber': wo['UnitNumber'],
+                'description': wo['Description'],
+                'resolution': wo['Resolution'],
+                'dateClosed': wo['DateClosed'].isoformat() if wo['DateClosed'] else None,
+                'technicianName': wo['TechnicianName'],
+                'status': wo['Status']
+            })
+        
+        return jsonify({
+            'workOrders': result,
+            'count': len(result)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error searching work orders: {str(e)}")
+        return jsonify({'error': str(e)}), 500
