@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { apiUrl } from '@/lib/api';
-import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip, FileText } from 'lucide-react';
+import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, CheckCircle, Paperclip, FileText, MessageSquare } from 'lucide-react';
 import FileUploadDropzone from './FileUploadDropzone';
 import SearchableSelect from './SearchableSelect';
 
