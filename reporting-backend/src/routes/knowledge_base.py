@@ -541,38 +541,13 @@ def search_work_orders():
         date_to = request.args.get('date_to', '')
         limit = int(request.args.get('limit', 100))
         
-        # Build query - Search WOMisc for tech descriptions
+        # Build query - Search Notes and WOMisc for tech descriptions
         where_conditions = ["w.ClosedDate IS NOT NULL"]
         
-        # Add search filter - search in WOMisc descriptions
+        # Add search filter - search in Notes and WOMisc descriptions
         if search:
             safe_search = search.replace("'", "''")
-            where_conditions.append(f"wm.Description LIKE '%{safe_search}%'")
-        else:
-            # If no search term, just ensure WOMisc has descriptions
-            where_conditions.append("wm.Description IS NOT NULL AND wm.Description != ''")
-        
-        query = f"""
-        SELECT DISTINCT TOP {limit}
-            w.WONo,
-            w.BillTo,
-            w.Make,
-            w.Model,
-            w.SerialNo,
-            w.UnitNo,
-            w.ClosedDate,
-            w.Type,
-            -- Concatenate all WOMisc descriptions
-            STUFF((
-                SELECT CHAR(13) + CHAR(10) + Description
-                FROM [ben002].WOMisc wm2
-                WHERE wm2.WONo = w.WONo
-                FOR XML PATH(''), TYPE
-            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') as workDescription
-        FROM [ben002].WO w
-        INNER JOIN [ben002].WOMisc wm ON w.WONo = wm.WONo
-        WHERE {' AND '.join(where_conditions)}
-        """
+            where_conditions.append(f"(w.Notes LIKE '%{safe_search}%' OR w.Notes2 LIKE '%{safe_search}%' OR wm.Description LIKE '%{safe_search}%')")
         
         # Add equipment make filter
         if equipment_make:
@@ -591,7 +566,7 @@ def search_work_orders():
         if date_to:
             where_conditions.append(f"w.ClosedDate <= '{date_to}'")
         
-        # Rebuild query with all conditions
+        # Build final query
         query = f"""
         SELECT DISTINCT TOP {limit}
             w.WONo,
@@ -602,6 +577,8 @@ def search_work_orders():
             w.UnitNo,
             w.ClosedDate,
             w.Type,
+            w.Notes,
+            w.Notes2,
             -- Concatenate all WOMisc descriptions
             STUFF((
                 SELECT CHAR(13) + CHAR(10) + Description
@@ -610,11 +587,10 @@ def search_work_orders():
                 FOR XML PATH(''), TYPE
             ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') as workDescription
         FROM [ben002].WO w
-        INNER JOIN [ben002].WOMisc wm ON w.WONo = wm.WONo
+        LEFT JOIN [ben002].WOMisc wm ON w.WONo = wm.WONo
         WHERE {' AND '.join(where_conditions)}
+        ORDER BY w.ClosedDate DESC
         """
-        
-        query += " ORDER BY w.ClosedDate DESC"
         
         work_orders = azure_sql.execute_query(query)
         
@@ -628,6 +604,8 @@ def search_work_orders():
                 'model': wo['Model'],
                 'serialNumber': wo['SerialNo'],
                 'unitNumber': wo['UnitNo'],
+                'notes': wo['Notes'],
+                'notes2': wo['Notes2'],
                 'workDescription': wo['workDescription'],
                 'dateClosed': wo['ClosedDate'].isoformat() if wo['ClosedDate'] else None,
                 'type': wo['Type']
