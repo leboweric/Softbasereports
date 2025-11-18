@@ -544,29 +544,29 @@ def search_work_orders():
         # Build query
         query = """
             SELECT TOP (@limit)
-                wo.WONumber,
-                wo.Customer,
+                wo.WONo,
+                wo.BillTo,
                 wo.Make,
                 wo.Model,
-                wo.SerialNumber,
-                wo.UnitNumber,
-                wo.Description,
-                wo.Resolution,
-                wo.DateClosed,
-                wo.TechnicianName,
-                wo.Status
+                wo.SerialNo,
+                wo.UnitNo,
+                wo.Comments,
+                wo.WorkPerformed,
+                wo.ClosedDate,
+                wo.Technician,
+                wo.Type
             FROM ben002.WO wo
             WHERE 1=1
         """
         
         params = {'limit': limit}
         
-        # Add search filter for Description and Resolution
+        # Add search filter for Comments and WorkPerformed
         if search:
             query += """
                 AND (
-                    wo.Description LIKE @search OR
-                    wo.Resolution LIKE @search
+                    wo.Comments LIKE @search OR
+                    wo.WorkPerformed LIKE @search
                 )
             """
             params['search'] = f'%{search}%'
@@ -583,18 +583,18 @@ def search_work_orders():
         
         # Add date range filters
         if date_from:
-            query += " AND wo.DateClosed >= @date_from"
+            query += " AND wo.ClosedDate >= @date_from"
             params['date_from'] = date_from
         
         if date_to:
-            query += " AND wo.DateClosed <= @date_to"
+            query += " AND wo.ClosedDate <= @date_to"
             params['date_to'] = date_to
         
-        # Only show closed work orders with descriptions
+        # Only show closed work orders with comments or work performed
         query += """
-            AND wo.Status = 'Closed'
-            AND (wo.Description IS NOT NULL OR wo.Resolution IS NOT NULL)
-            ORDER BY wo.DateClosed DESC
+            AND wo.ClosedDate IS NOT NULL
+            AND (wo.Comments IS NOT NULL OR wo.WorkPerformed IS NOT NULL)
+            ORDER BY wo.ClosedDate DESC
         """
         
         work_orders = azure_sql.execute_query(query, params)
@@ -603,17 +603,17 @@ def search_work_orders():
         result = []
         for wo in work_orders:
             result.append({
-                'woNumber': wo['WONumber'],
-                'customer': wo['Customer'],
+                'woNumber': wo['WONo'],
+                'billTo': wo['BillTo'],
                 'make': wo['Make'],
                 'model': wo['Model'],
-                'serialNumber': wo['SerialNumber'],
-                'unitNumber': wo['UnitNumber'],
-                'description': wo['Description'],
-                'resolution': wo['Resolution'],
-                'dateClosed': wo['DateClosed'].isoformat() if wo['DateClosed'] else None,
-                'technicianName': wo['TechnicianName'],
-                'status': wo['Status']
+                'serialNumber': wo['SerialNo'],
+                'unitNumber': wo['UnitNo'],
+                'comments': wo['Comments'],
+                'workPerformed': wo['WorkPerformed'],
+                'dateClosed': wo['ClosedDate'].isoformat() if wo['ClosedDate'] else None,
+                'technician': wo['Technician'],
+                'type': wo['Type']
             })
         
         return jsonify({
