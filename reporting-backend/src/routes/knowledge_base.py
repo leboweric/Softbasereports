@@ -541,58 +541,48 @@ def search_work_orders():
         date_to = request.args.get('date_to', '')
         limit = int(request.args.get('limit', 100))
         
-        # Build query - use string formatting since pymssql doesn't support named params well
+        # Build query - copy exact pattern from working queries
         query = f"""
-            SELECT TOP {limit}
-                wo.WONo,
-                wo.BillTo,
-                wo.Make,
-                wo.Model,
-                wo.SerialNo,
-                wo.UnitNo,
-                wo.Comments,
-                wo.WorkPerformed,
-                wo.ClosedDate,
-                wo.Technician,
-                wo.Type
-            FROM ben002.WO wo
-            WHERE 1=1
+        SELECT TOP {limit}
+            w.WONo,
+            w.BillTo,
+            w.Make,
+            w.Model,
+            w.SerialNo,
+            w.UnitNo,
+            w.Comments,
+            w.WorkPerformed,
+            w.ClosedDate,
+            w.Technician,
+            w.Type
+        FROM [ben002].WO w
+        WHERE w.ClosedDate IS NOT NULL
+          AND (w.Comments IS NOT NULL OR w.WorkPerformed IS NOT NULL)
         """
         
-        # Add search filter for Comments and WorkPerformed
+        # Add search filter
         if search:
-            # Escape single quotes for SQL injection prevention
             safe_search = search.replace("'", "''")
-            query += f"""
-                AND (
-                    wo.Comments LIKE '%{safe_search}%' OR
-                    wo.WorkPerformed LIKE '%{safe_search}%'
-                )
-            """
+            query += f" AND (w.Comments LIKE '%{safe_search}%' OR w.WorkPerformed LIKE '%{safe_search}%')"
         
         # Add equipment make filter
         if equipment_make:
             safe_make = equipment_make.replace("'", "''")
-            query += f" AND wo.Make = '{safe_make}'"
+            query += f" AND w.Make = '{safe_make}'"
         
         # Add customer filter
         if customer:
             safe_customer = customer.replace("'", "''")
-            query += f" AND wo.Customer LIKE '%{safe_customer}%'"
+            query += f" AND w.BillTo LIKE '%{safe_customer}%'"
         
-        # Add date range filters
+        # Add date filters
         if date_from:
-            query += f" AND wo.ClosedDate >= '{date_from}'"
+            query += f" AND w.ClosedDate >= '{date_from}'"
         
         if date_to:
-            query += f" AND wo.ClosedDate <= '{date_to}'"
+            query += f" AND w.ClosedDate <= '{date_to}'"
         
-        # Only show closed work orders with comments or work performed
-        query += """
-            AND wo.ClosedDate IS NOT NULL
-            AND (wo.Comments IS NOT NULL OR wo.WorkPerformed IS NOT NULL)
-            ORDER BY wo.ClosedDate DESC
-        """
+        query += " ORDER BY w.ClosedDate DESC"
         
         work_orders = azure_sql.execute_query(query)
         
