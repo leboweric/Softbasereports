@@ -206,13 +206,6 @@ NAVIGATION_CONFIG = {
         'required_resource': 'financial',
         'order': 7,
     },
-    'currie': {
-        'label': 'Currie',
-        'icon': 'FileSpreadsheet',
-        'path': 'currie',
-        'required_resource': 'currie',
-        'order': 71,
-    },
     'minitrac': {
         'label': 'Minitrac',
         'icon': 'Search',

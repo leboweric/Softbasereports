@@ -71,7 +71,7 @@ function App() {
         const navigation = getAccessibleNavigation(userWithNavigation)
         if (!navigation[currentPage]) {
           // Redirect to first available page using same order as Layout.jsx
-          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'currie', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
+          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
           const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
           setCurrentPage(firstAvailablePage)
         }
@@ -101,7 +101,7 @@ function App() {
     // Navigation data retrieved
     
     // Use same order as Layout.jsx to ensure Dashboard is first choice
-    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'currie', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
+    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
     const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
     // Setting default page
     setCurrentPage(firstAvailablePage)
@@ -141,7 +141,7 @@ function App() {
     // Check if user has access to current page
     if (!navigation[currentPage]) {
       // Redirect to first available page using same order as Layout.jsx
-      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'currie', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
+      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
       const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0]
       if (firstAvailablePage && firstAvailablePage !== currentPage) {
         setCurrentPage(firstAvailablePage)
