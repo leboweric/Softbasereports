@@ -108,7 +108,7 @@ def get_department_pl(start_date, end_date, dept_key, include_detail=False):
             query = f"""
             SELECT 
                 AccountNo,
-                SUM(ABS(Amount)) as total
+                -SUM(Amount) as total
             FROM ben002.GLDetail
             WHERE EffectiveDate >= %s 
               AND EffectiveDate <= %s
@@ -155,8 +155,8 @@ def get_department_pl(start_date, end_date, dept_key, include_detail=False):
             
             query = f"""
             SELECT 
-                SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN ABS(Amount) ELSE 0 END) as revenue,
-                SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN ABS(Amount) ELSE 0 END) as cogs
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as revenue,
+                SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END) as cogs
             FROM ben002.GLDetail
             WHERE EffectiveDate >= %s 
               AND EffectiveDate <= %s
@@ -218,7 +218,7 @@ def get_expense_data(start_date, end_date):
         query = f"""
         SELECT 
             AccountNo,
-            SUM(ABS(Amount)) as total
+            SUM(Amount) as total
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
