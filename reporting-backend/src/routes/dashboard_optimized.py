@@ -156,96 +156,105 @@ class DashboardQueries:
                 return 0
     
     def get_monthly_sales(self):
-        """Get monthly sales since March 2025 with gross margin (excluding NEWEQP-R service prep)"""
+        """Get monthly sales with trailing 13 months using GLDetail (Service + Parts + Rental)"""
         try:
+            # Use GLDetail for Service, Parts, Rental, and Equipment (same accounts as Currie report)
             query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                -- Exclude NEWEQP-R from GrandTotal (it's service prep, not a real equipment sale)
-                SUM(GrandTotal - 
-                    CASE 
-                        WHEN SaleCode = 'NEWEQP-R' 
-                        THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
-                        ELSE 0
-                    END
-                ) as amount,
-                -- Revenue excluding rental and NEWEQP-R for margin calculation
-                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) + 
-                    COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) + 
-                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0) +
-                    CASE 
-                        WHEN SaleCode != 'NEWEQP-R'
-                        THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
-                        ELSE 0
-                    END
-                ) as non_rental_revenue,
-                -- Cost excluding rental and NEWEQP-R
-                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + 
-                    CASE 
-                        WHEN SaleCode != 'NEWEQP-R'
-                        THEN COALESCE(EquipmentCost, 0)
-                        ELSE 0
-                    END
-                ) as total_cost
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                -- Service Revenue and Cost
+                ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as service_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as service_cost,
+                -- Parts Revenue and Cost
+                ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
+                -- Rental Revenue and Cost
+                ABS(SUM(CASE WHEN AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008') THEN Amount ELSE 0 END)) as rental_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') THEN Amount ELSE 0 END)) as rental_cost,
+                -- Equipment Revenue and Cost (New + Used)
+                ABS(SUM(CASE WHEN AccountNo IN ('413001', '426001', '412001', '414001', '412002', '413002', '414002', '426002', '431002', '410002') THEN Amount ELSE 0 END)) as equipment_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('513001', '526001', '512001', '514001', '512002', '513002', '514002', '526002', '531002', '510002') THEN Amount ELSE 0 END)) as equipment_cost
+            FROM ben002.GLDetail
+            WHERE AccountNo IN (
+                '410004', '410005', '510004', '510005',  -- Service
+                '410003', '410012', '510003', '510012',  -- Parts
+                '411001', '419000', '420000', '421000', '434012', '410008',  -- Rental revenue
+                '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000',  -- Rental cost
+                '413001', '426001', '412001', '414001', '412002', '413002', '414002', '426002', '431002', '410002',  -- Equipment revenue
+                '513001', '526001', '512001', '514001', '512002', '513002', '514002', '526002', '531002', '510002'  -- Equipment cost
+            )
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             results = self.db.execute_query(query)
             
+            # Create a dictionary to store data by year-month key
+            revenue_by_month = {}
+            for row in results:
+                year_month_key = (row['year'], row['month'])
+                revenue_by_month[year_month_key] = row
+            
+            # Get fiscal year months (trailing 13 months)
+            fiscal_year_months = get_fiscal_year_months()
+            
             monthly_sales = []
-            if results:
-                for row in results:
-                    month_date = datetime(row['year'], row['month'], 1)
-                    amount = float(row['amount'])
-                    non_rental_revenue = float(row['non_rental_revenue'] or 0)
-                    cost = float(row['total_cost'] or 0)
+            for year, month in fiscal_year_months:
+                month_date = datetime(year, month, 1)
+                # Include year in label if spanning multiple calendar years
+                if fiscal_year_months[0][0] != fiscal_year_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
+                else:
+                    month_str = month_date.strftime("%b")
+                
+                year_month_key = (year, month)
+                prior_year_key = (year - 1, month)
+                
+                # Get current year data
+                row = revenue_by_month.get(year_month_key)
+                prior_row = revenue_by_month.get(prior_year_key)
+                
+                if row:
+                    # Calculate total revenue and cost
+                    service_revenue = float(row['service_revenue'] or 0)
+                    service_cost = float(row['service_cost'] or 0)
+                    parts_revenue = float(row['parts_revenue'] or 0)
+                    parts_cost = float(row['parts_cost'] or 0)
+                    rental_revenue = float(row['rental_revenue'] or 0)
+                    rental_cost = float(row['rental_cost'] or 0)
+                    equipment_revenue = float(row['equipment_revenue'] or 0)
+                    equipment_cost = float(row['equipment_cost'] or 0)
                     
-                    # Calculate gross margin percentage excluding rental
+                    total_revenue = service_revenue + parts_revenue + rental_revenue + equipment_revenue
+                    total_cost = service_cost + parts_cost + rental_cost + equipment_cost
+                    
+                    # Calculate gross margin percentage
                     margin = None
-                    if non_rental_revenue > 0:
-                        margin = round(((non_rental_revenue - cost) / non_rental_revenue) * 100, 1)
-                    
-                    monthly_sales.append({
-                        'month': month_date.strftime("%b"),
-                        'year': row['year'],
-                        'amount': amount,
-                        'margin': margin
-                    })
-            
-            # Pad missing months from March onwards
-            start_date = datetime(2025, 3, 1)
-            all_months = []
-            date = start_date
-            while date <= self.current_date:
-                all_months.append({'month': date.strftime("%b"), 'year': date.year})
-                if date.month == 12:
-                    date = date.replace(year=date.year + 1, month=1)
+                    if total_revenue > 0:
+                        margin = round(((total_revenue - total_cost) / total_revenue) * 100, 1)
                 else:
-                    date = date.replace(month=date.month + 1)
-            
-            existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_sales}
-            monthly_sales = []
-            current_month_str = self.current_date.strftime("%b")
-            current_year = self.current_date.year
-            
-            for month_info in all_months:
-                key = f"{month_info['year']}-{month_info['month']}"
-                if key in existing_data:
-                    item = existing_data[key].copy()
-                    # Set current month margin to null (incomplete data)
-                    if month_info['month'] == current_month_str and month_info['year'] == current_year:
-                        item['margin'] = None
-                    monthly_sales.append(item)
+                    total_revenue = 0
+                    margin = None
+                
+                # Get prior year data for comparison
+                if prior_row:
+                    prior_service = float(prior_row['service_revenue'] or 0)
+                    prior_parts = float(prior_row['parts_revenue'] or 0)
+                    prior_rental = float(prior_row['rental_revenue'] or 0)
+                    prior_equipment = float(prior_row['equipment_revenue'] or 0)
+                    prior_total = prior_service + prior_parts + prior_rental + prior_equipment
                 else:
-                    monthly_sales.append({
-                        'month': month_info['month'],
-                        'year': month_info['year'],
-                        'amount': 0,
-                        'margin': None
-                    })
+                    prior_total = 0
+                
+                monthly_sales.append({
+                    'month': month_str,
+                    'year': year,
+                    'amount': total_revenue,
+                    'margin': margin,
+                    'prior_year_amount': prior_total
+                })
             
             return monthly_sales
         except Exception as e:
@@ -253,77 +262,97 @@ class DashboardQueries:
             return []
     
     def get_monthly_sales_excluding_equipment(self):
-        """Get monthly sales since March 2025 excluding equipment sales with gross margin"""
+        """Get monthly sales with trailing 13 months excluding equipment using GLDetail (Service + Parts + Rental only)"""
         try:
+            # Use GLDetail for Service, Parts, and Rental only (no equipment)
             query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as amount,
-                -- Revenue for margin calc: Parts + Labor + Misc (excluding Equipment and Rental)
-                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) + 
-                    COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) + 
-                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as margin_revenue,
-                -- Cost: Parts + Labor + Misc (no Equipment or Rental cost)
-                SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0)) as total_cost
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                -- Service Revenue and Cost
+                ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as service_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as service_cost,
+                -- Parts Revenue and Cost
+                ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
+                -- Rental Revenue and Cost
+                ABS(SUM(CASE WHEN AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008') THEN Amount ELSE 0 END)) as rental_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') THEN Amount ELSE 0 END)) as rental_cost
+            FROM ben002.GLDetail
+            WHERE AccountNo IN (
+                '410004', '410005', '510004', '510005',  -- Service
+                '410003', '410012', '510003', '510012',  -- Parts
+                '411001', '419000', '420000', '421000', '434012', '410008',  -- Rental revenue
+                '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000'  -- Rental cost
+            )
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             results = self.db.execute_query(query)
             
+            # Create a dictionary to store data by year-month key
+            revenue_by_month = {}
+            for row in results:
+                year_month_key = (row['year'], row['month'])
+                revenue_by_month[year_month_key] = row
+            
+            # Get fiscal year months (trailing 13 months)
+            fiscal_year_months = get_fiscal_year_months()
+            
             monthly_sales = []
-            if results:
-                for row in results:
-                    month_date = datetime(row['year'], row['month'], 1)
-                    amount = float(row['amount'])
-                    margin_revenue = float(row['margin_revenue'] or 0)
-                    cost = float(row['total_cost'] or 0)
+            for year, month in fiscal_year_months:
+                month_date = datetime(year, month, 1)
+                # Include year in label if spanning multiple calendar years
+                if fiscal_year_months[0][0] != fiscal_year_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
+                else:
+                    month_str = month_date.strftime("%b")
+                
+                year_month_key = (year, month)
+                prior_year_key = (year - 1, month)
+                
+                # Get current year data
+                row = revenue_by_month.get(year_month_key)
+                prior_row = revenue_by_month.get(prior_year_key)
+                
+                if row:
+                    # Calculate total revenue and cost (no equipment)
+                    service_revenue = float(row['service_revenue'] or 0)
+                    service_cost = float(row['service_cost'] or 0)
+                    parts_revenue = float(row['parts_revenue'] or 0)
+                    parts_cost = float(row['parts_cost'] or 0)
+                    rental_revenue = float(row['rental_revenue'] or 0)
+                    rental_cost = float(row['rental_cost'] or 0)
                     
-                    # Calculate gross margin percentage on Parts + Labor + Misc only
+                    total_revenue = service_revenue + parts_revenue + rental_revenue
+                    total_cost = service_cost + parts_cost + rental_cost
+                    
+                    # Calculate gross margin percentage
                     margin = None
-                    if margin_revenue > 0.01:  # Use small threshold to avoid division issues
-                        margin = round(((margin_revenue - cost) / margin_revenue) * 100, 1)
-                    
-                    monthly_sales.append({
-                        'month': month_date.strftime("%b"),
-                        'year': row['year'],
-                        'amount': amount,
-                        'margin': margin
-                    })
-            
-            # Pad missing months from March onwards
-            start_date = datetime(2025, 3, 1)
-            all_months = []
-            date = start_date
-            while date <= self.current_date:
-                all_months.append({'month': date.strftime("%b"), 'year': date.year})
-                if date.month == 12:
-                    date = date.replace(year=date.year + 1, month=1)
+                    if total_revenue > 0:
+                        margin = round(((total_revenue - total_cost) / total_revenue) * 100, 1)
                 else:
-                    date = date.replace(month=date.month + 1)
-            
-            existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_sales}
-            monthly_sales = []
-            current_month_str = self.current_date.strftime("%b")
-            current_year = self.current_date.year
-            
-            for month_info in all_months:
-                key = f"{month_info['year']}-{month_info['month']}"
-                if key in existing_data:
-                    item = existing_data[key].copy()
-                    # Set current month margin to null (incomplete data)
-                    if month_info['month'] == current_month_str and month_info['year'] == current_year:
-                        item['margin'] = None
-                    monthly_sales.append(item)
+                    total_revenue = 0
+                    margin = None
+                
+                # Get prior year data for comparison
+                if prior_row:
+                    prior_service = float(prior_row['service_revenue'] or 0)
+                    prior_parts = float(prior_row['parts_revenue'] or 0)
+                    prior_rental = float(prior_row['rental_revenue'] or 0)
+                    prior_total = prior_service + prior_parts + prior_rental
                 else:
-                    monthly_sales.append({
-                        'month': month_info['month'],
-                        'year': month_info['year'],
-                        'amount': 0,
-                        'margin': None
-                    })
+                    prior_total = 0
+                
+                monthly_sales.append({
+                    'month': month_str,
+                    'year': year,
+                    'amount': total_revenue,
+                    'margin': margin,
+                    'prior_year_amount': prior_total
+                })
             
             return monthly_sales
         except Exception as e:
