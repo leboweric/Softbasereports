@@ -84,11 +84,11 @@ EXPENSE_ACCOUNTS = {
         '603700', '603800', '603900', '604200', '650000', '706000', '999999'
     ]
 }
-
-
-def get_department_pl(start_date, end_date, dept_key, include_detail=False):
+def get_department_data(start_date, end_date, dept_key, include_detail=False):
     """
     Get P&L data for a specific department
+    Uses GL.MTD for full calendar months (exact Softbase match)
+    Uses GLDetail for custom date ranges (flexibility)
     
     Args:
         start_date: Start date for the report
@@ -98,6 +98,128 @@ def get_department_pl(start_date, end_date, dept_key, include_detail=False):
     
     Returns:
         Dictionary with revenue, cogs, gross_profit, gross_margin, and optionally account details
+    """
+    try:
+        # Check if this is a full calendar month
+        is_full_month, year, month = is_full_calendar_month(start_date, end_date)
+        
+        if is_full_month:
+            # Use GL.MTD for exact Softbase match
+            return get_department_data_from_gl_mtd(year, month, dept_key, include_detail)
+        else:
+            # Use GLDetail for custom date ranges
+            return get_department_data_from_gldetail(start_date, end_date, dept_key, include_detail)
+    except Exception as e:
+        logger.error(f"Error in get_department_data for {dept_key}: {e}")
+        raise
+
+def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False):
+    """
+    Get department P&L data from GL.MTD (monthly summary table)
+    This matches Softbase exactly for monthly reports
+    """
+    try:
+        dept_config = GL_ACCOUNTS[dept_key]
+        revenue_accounts = dept_config['revenue']
+        cogs_accounts = dept_config['cogs']
+        
+        # Build account lists for SQL IN clause
+        all_accounts = revenue_accounts + cogs_accounts
+        account_list = "', '".join(all_accounts)
+        
+        if include_detail:
+            # Get account-level detail from GL.MTD
+            query = f"""
+            SELECT 
+                AccountNo,
+                -MTD as total
+            FROM ben002.GL
+            WHERE Year = %s
+              AND Month = %s
+              AND AccountNo IN ('{account_list}')
+            """
+            
+            results = sql_service.execute_query(query, [year, month])
+            
+            revenue = 0
+            cogs = 0
+            revenue_detail = []
+            cogs_detail = []
+            
+            for row in results:
+                account_no = row['AccountNo']
+                total = float(row['total'] or 0)
+                
+                if account_no in revenue_accounts:
+                    revenue += total
+                    revenue_detail.append({'account': account_no, 'amount': total})
+                elif account_no in cogs_accounts:
+                    cogs += total
+                    cogs_detail.append({'account': account_no, 'amount': total})
+            
+            gross_profit = revenue - cogs
+            gross_margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+            
+            return {
+                'dept_code': dept_config['dept_code'],
+                'dept_name': dept_config['dept_name'],
+                'revenue': revenue,
+                'cogs': cogs,
+                'gross_profit': gross_profit,
+                'gross_margin': gross_margin,
+                'revenue_detail': revenue_detail,
+                'cogs_detail': cogs_detail
+            }
+        else:
+            # Get summary only from GL.MTD
+            revenue_list = "', '".join(revenue_accounts)
+            cogs_list = "', '".join(cogs_accounts)
+            
+            query = f"""
+            SELECT 
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN MTD ELSE 0 END) as revenue,
+                SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN MTD ELSE 0 END) as cogs
+            FROM ben002.GL
+            WHERE Year = %s
+              AND Month = %s
+              AND AccountNo IN ('{account_list}')
+            """
+            
+            results = sql_service.execute_query(query, [year, month])
+            
+            if results and len(results) > 0:
+                row = results[0]
+                revenue = float(row['revenue'] or 0)
+                cogs = float(row['cogs'] or 0)
+                gross_profit = revenue - cogs
+                gross_margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+                
+                return {
+                    'dept_code': dept_config['dept_code'],
+                    'dept_name': dept_config['dept_name'],
+                    'revenue': revenue,
+                    'cogs': cogs,
+                    'gross_profit': gross_profit,
+                    'gross_margin': gross_margin
+                }
+        
+        return {
+            'dept_code': dept_config['dept_code'],
+            'dept_name': dept_config['dept_name'],
+            'revenue': 0,
+            'cogs': 0,
+            'gross_profit': 0,
+            'gross_margin': 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching P&L from GL.MTD for {dept_key}: {str(e)}")
+        raise
+
+def get_department_data_from_gldetail(start_date, end_date, dept_key, include_detail=False):
+    """
+    Get department P&L data from GLDetail (transaction-level detail)
+    Used for custom date ranges that aren't full calendar months
     """
     try:
         dept_config = GL_ACCOUNTS[dept_key]
