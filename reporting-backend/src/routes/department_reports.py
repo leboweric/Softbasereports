@@ -644,9 +644,11 @@ def register_department_routes(reports_bp):
                 else:
                     month_str = month_date.strftime("%b")
                 year_month_key = (year, month)
+                prior_year_key = (year - 1, month)  # Same month, previous year
                 
                 # Get data for this month if it exists
                 row = revenue_by_month.get(year_month_key)
+                prior_row = revenue_by_month.get(prior_year_key)
                 
                 if row:
                     # Combined
@@ -672,22 +674,35 @@ def register_department_routes(reports_bp):
                     shop_revenue = 0
                     shop_margin = None
                 
+                # Get prior year data for comparison
+                if prior_row:
+                    prior_labor_revenue = float(prior_row['labor_revenue'] or 0)
+                    prior_field_revenue = float(prior_row['field_revenue'] or 0)
+                    prior_shop_revenue = float(prior_row['shop_revenue'] or 0)
+                else:
+                    prior_labor_revenue = 0
+                    prior_field_revenue = 0
+                    prior_shop_revenue = 0
+                
                 monthlyLaborRevenue.append({
                     'month': month_str,
                     'amount': labor_revenue,
-                    'margin': combined_margin
+                    'margin': combined_margin,
+                    'prior_year_amount': prior_labor_revenue
                 })
                 
                 monthlyFieldRevenue.append({
                     'month': month_str,
                     'amount': field_revenue,
-                    'margin': field_margin
+                    'margin': field_margin,
+                    'prior_year_amount': prior_field_revenue
                 })
                 
                 monthlyShopRevenue.append({
                     'month': month_str,
                     'amount': shop_revenue,
-                    'margin': shop_margin
+                    'margin': shop_margin,
+                    'prior_year_amount': prior_shop_revenue
                 })
             
             # No need for padding logic anymore - we generate exactly 12 months above
@@ -904,9 +919,11 @@ def register_department_routes(reports_bp):
                 else:
                     month_str = month_date.strftime("%b")
                 year_month_key = (year, month)
+                prior_year_key = (year - 1, month)  # Same month, previous year
                 
                 # Get data for this month if it exists
                 row = revenue_by_month.get(year_month_key)
+                prior_row = revenue_by_month.get(prior_year_key)
                 
                 if row:
                     # Combined
@@ -932,22 +949,35 @@ def register_department_routes(reports_bp):
                     repair_order_revenue = 0
                     repair_order_margin = None
                 
+                # Get prior year data for comparison
+                if prior_row:
+                    prior_parts_revenue = float(prior_row['parts_revenue'] or 0)
+                    prior_counter_revenue = float(prior_row['counter_revenue'] or 0)
+                    prior_repair_order_revenue = float(prior_row['repair_order_revenue'] or 0)
+                else:
+                    prior_parts_revenue = 0
+                    prior_counter_revenue = 0
+                    prior_repair_order_revenue = 0
+                
                 monthlyPartsRevenue.append({
                     'month': month_str,
                     'amount': parts_revenue,
-                    'margin': combined_margin
+                    'margin': combined_margin,
+                    'prior_year_amount': prior_parts_revenue
                 })
                 
                 monthlyCounterRevenue.append({
                     'month': month_str,
                     'amount': counter_revenue,
-                    'margin': counter_margin
+                    'margin': counter_margin,
+                    'prior_year_amount': prior_counter_revenue
                 })
                 
                 monthlyRepairOrderRevenue.append({
                     'month': month_str,
                     'amount': repair_order_revenue,
-                    'margin': repair_order_margin
+                    'margin': repair_order_margin,
+                    'prior_year_amount': prior_repair_order_revenue
                 })
             
             # No need for padding logic anymore - we generate exactly 12 months above
@@ -4787,23 +4817,33 @@ def register_department_routes(reports_bp):
                     month_str = month_date.strftime("%b")
                 
                 year_month_key = (year, month)
+                prior_year_key = (year - 1, month)  # Same month, previous year
                 
+                # Get current year data
                 if year_month_key in data_by_month:
                     data = data_by_month[year_month_key]
-                    monthly_data.append({
-                        'month': month_str,
-                        'amount': data['rental_revenue'],
-                        'cost': data['rental_cost'],
-                        'margin': data['margin_percentage']
-                    })
+                    rental_revenue = data['rental_revenue']
+                    rental_cost = data['rental_cost']
+                    margin = data['margin_percentage']
                 else:
-                    # Add empty data for missing months
-                    monthly_data.append({
-                        'month': month_str,
-                        'amount': 0,
-                        'cost': 0,
-                        'margin': None
-                    })
+                    rental_revenue = 0
+                    rental_cost = 0
+                    margin = None
+                
+                # Get prior year data for comparison
+                if prior_year_key in data_by_month:
+                    prior_data = data_by_month[prior_year_key]
+                    prior_rental_revenue = prior_data['rental_revenue']
+                else:
+                    prior_rental_revenue = 0
+                
+                monthly_data.append({
+                    'month': month_str,
+                    'amount': rental_revenue,
+                    'cost': rental_cost,
+                    'margin': margin,
+                    'prior_year_amount': prior_rental_revenue
+                })
             
             return jsonify({
                 'monthlyRentalRevenue': monthly_data
