@@ -361,6 +361,7 @@ def get_other_income(start_date, end_date):
 def is_full_calendar_month(start_date, end_date):
     """
     Check if the date range represents a full calendar month
+    Excludes the current month to ensure GL.MTD is only used for closed/completed months
     
     Args:
         start_date: Start date string (YYYY-MM-DD)
@@ -372,6 +373,7 @@ def is_full_calendar_month(start_date, end_date):
     try:
         start = datetime.strptime(start_date, '%Y-%m-%d')
         end = datetime.strptime(end_date, '%Y-%m-%d')
+        now = datetime.now()
         
         # Check if start is first day of month
         if start.day != 1:
@@ -384,6 +386,10 @@ def is_full_calendar_month(start_date, end_date):
         
         # Check if both dates are in the same month
         if start.year != end.year or start.month != end.month:
+            return False, None, None
+        
+        # Exclude current month - always use GLDetail for in-process months
+        if start.year == now.year and start.month == now.month:
             return False, None, None
         
         return True, start.year, start.month
