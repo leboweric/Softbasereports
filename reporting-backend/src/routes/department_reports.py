@@ -614,7 +614,7 @@ def register_department_routes(reports_bp):
                 ABS(SUM(CASE WHEN AccountNo = '510005' THEN Amount ELSE 0 END)) as shop_cost
             FROM ben002.GLDetail
             WHERE AccountNo IN ('410004', '410005', '510004', '510005')
-                AND EffectiveDate >= DATEADD(month, -12, GETDATE())
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -874,7 +874,7 @@ def register_department_routes(reports_bp):
                 ABS(SUM(CASE WHEN AccountNo = '510012' THEN Amount ELSE 0 END)) as repair_order_cost
             FROM ben002.GLDetail
             WHERE AccountNo IN ('410003', '410012', '510003', '510012')
-                AND EffectiveDate >= DATEADD(month, -12, GETDATE())
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -4735,7 +4735,7 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
                     SUM(COALESCE(RentalCost, 0)) as rental_cost
                 FROM ben002.InvoiceReg
-                WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+                WHERE InvoiceDate >= DATEADD(month, -13, GETDATE())
                     AND (SaleCode LIKE 'RENT%' OR (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0)
                 GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             )

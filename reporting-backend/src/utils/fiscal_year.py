@@ -47,32 +47,32 @@ def get_current_fiscal_year_dates():
     return fiscal_year_start, fiscal_year_end
 
 
-def get_fiscal_year_months(as_of_date=None, use_previous_year=True):
+def get_fiscal_year_months(as_of_date=None, trailing_months=13):
     """
-    Get a list of the 12 months in the fiscal year in chronological order.
+    Get a list of trailing months for chart display in chronological order.
     
     Args:
         as_of_date: Optional datetime to use instead of current date
-        use_previous_year: If True, return the previous completed fiscal year.
-                          If False, return the current fiscal year.
-                          Default is True for chart display purposes.
+        trailing_months: Number of months to return (default: 13 for current month + previous 12)
         
     Returns:
-        list: List of (year, month) tuples representing the fiscal year months
+        list: List of (year, month) tuples representing the trailing months
+        
+    Example:
+        For November 19, 2025 with trailing_months=13:
+        Returns: [(2024, 10), (2024, 11), (2024, 12), (2025, 1), ..., (2025, 11)]
+        That's: Oct '24, Nov '24, Dec '24, Jan '25, ..., Nov '25
     """
     if as_of_date is None:
         as_of_date = datetime.now()
     
-    fiscal_year_start, _ = get_current_fiscal_year_dates()
-    
-    # For charts, we typically want to show the previous completed fiscal year
-    # unless we're well into the current fiscal year (e.g., past 3 months)
-    if use_previous_year:
-        fiscal_year_start = fiscal_year_start - relativedelta(years=1)
+    # Start from (trailing_months - 1) months ago to include current month
+    # For trailing_months=13: start 12 months ago, then add 13 months total
+    start_date = as_of_date - relativedelta(months=trailing_months - 1)
     
     months = []
-    for i in range(12):
-        month_date = fiscal_year_start + relativedelta(months=i)
+    for i in range(trailing_months):
+        month_date = start_date + relativedelta(months=i)
         months.append((month_date.year, month_date.month))
     
     return months
