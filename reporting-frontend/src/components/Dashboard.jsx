@@ -1399,9 +1399,9 @@ const Dashboard = ({ user }) => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle>New Equipment Sales</CardTitle>
+                    <CardTitle>Linde New Equipment Sales</CardTitle>
                     <CardDescription>
-                      New equipment revenue and gross margin
+                      Linde new truck revenue and gross margin
                     </CardDescription>
                   </div>
                   {dashboardData?.monthly_equipment_sales && dashboardData.monthly_equipment_sales.length > 0 && (() => {
