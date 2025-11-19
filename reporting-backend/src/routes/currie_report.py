@@ -200,81 +200,47 @@ def get_rental_revenue(start_date, end_date):
 
 
 def get_service_revenue(start_date, end_date):
-    """Get service revenue broken down by customer, internal, warranty, sublet"""
+    """Get service revenue broken down by customer, internal, warranty, sublet using GLDetail"""
     try:
-        # Query service labor from InvoiceReg table with proper classification
-        # Based on SaleCode patterns found in existing reports
+        # Query service revenue from GLDetail table with exact GL accounts
         query = """
         SELECT 
-            -- Customer Labor: Standard service codes (SVE, SVES)
-            SUM(CASE 
-                WHEN i.SaleCode IN ('SVE', 'SVES') 
-                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
-                ELSE 0 
-            END) as customer_sales,
-            SUM(CASE 
-                WHEN i.SaleCode IN ('SVE', 'SVES') 
-                THEN COALESCE(i.LaborCost, 0)
-                ELSE 0 
-            END) as customer_cogs,
+            -- Customer Labor: Field (410004) + Shop (410005) + Full Maint (410007)
+            SUM(CASE WHEN AccountNo IN ('410004', '410005', '410007') THEN ABS(Amount) ELSE 0 END) as customer_sales,
+            SUM(CASE WHEN AccountNo IN ('510004', '510005', '510007') THEN ABS(Amount) ELSE 0 END) as customer_cogs,
             
-            -- Internal Labor: Internal customer numbers
-            SUM(CASE 
-                WHEN i.BillTo IN ('900006', '900066') 
-                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
-                ELSE 0 
-            END) as internal_sales,
-            SUM(CASE 
-                WHEN i.BillTo IN ('900006', '900066') 
-                THEN COALESCE(i.LaborCost, 0)
-                ELSE 0 
-            END) as internal_cogs,
+            -- Internal Labor: Internal Field (423000) + Internal Shop (425000)
+            SUM(CASE WHEN AccountNo IN ('423000', '425000') THEN ABS(Amount) ELSE 0 END) as internal_sales,
+            SUM(CASE WHEN AccountNo = '523000' THEN ABS(Amount) ELSE 0 END) as internal_cogs,
             
-            -- Warranty Labor: Warranty codes
-            SUM(CASE 
-                WHEN (i.SaleCode LIKE '%WARR%' OR i.SaleCode = 'SVEW') 
-                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
-                ELSE 0 
-            END) as warranty_sales,
-            SUM(CASE 
-                WHEN (i.SaleCode LIKE '%WARR%' OR i.SaleCode = 'SVEW') 
-                THEN COALESCE(i.LaborCost, 0)
-                ELSE 0 
-            END) as warranty_cogs,
+            -- Warranty Labor: All warranty accounts (435000-435004)
+            SUM(CASE WHEN AccountNo IN ('435000', '435001', '435002', '435003', '435004') THEN ABS(Amount) ELSE 0 END) as warranty_sales,
+            SUM(CASE WHEN AccountNo IN ('535001', '535002', '535003', '535004', '535005') THEN ABS(Amount) ELSE 0 END) as warranty_cogs,
             
-            -- Sublet: Sublet codes
-            SUM(CASE 
-                WHEN (i.SaleCode LIKE '%SUB%' OR i.SaleCode = 'SVE-STL') 
-                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
-                ELSE 0 
-            END) as sublet_sales,
-            SUM(CASE 
-                WHEN (i.SaleCode LIKE '%SUB%' OR i.SaleCode = 'SVE-STL') 
-                THEN COALESCE(i.LaborCost, 0)
-                ELSE 0 
-            END) as sublet_cogs,
+            -- Sublet: Sublet labor (432000)
+            SUM(CASE WHEN AccountNo = '432000' THEN ABS(Amount) ELSE 0 END) as sublet_sales,
+            SUM(CASE WHEN AccountNo = '532000' THEN ABS(Amount) ELSE 0 END) as sublet_cogs,
             
-            -- Other Service: Everything else with labor revenue
-            SUM(CASE 
-                WHEN i.SaleCode NOT IN ('SVE', 'SVES')
-                     AND i.BillTo NOT IN ('900006', '900066')
-                     AND i.SaleCode NOT LIKE '%WARR%' AND i.SaleCode != 'SVEW'
-                     AND i.SaleCode NOT LIKE '%SUB%' AND i.SaleCode != 'SVE-STL'
-                THEN COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)
-                ELSE 0 
-            END) as other_sales,
-            SUM(CASE 
-                WHEN i.SaleCode NOT IN ('SVE', 'SVES')
-                     AND i.BillTo NOT IN ('900006', '900066')
-                     AND i.SaleCode NOT LIKE '%WARR%' AND i.SaleCode != 'SVEW'
-                     AND i.SaleCode NOT LIKE '%SUB%' AND i.SaleCode != 'SVE-STL'
-                THEN COALESCE(i.LaborCost, 0)
-                ELSE 0 
-            END) as other_cogs
-        FROM ben002.InvoiceReg i
-        WHERE i.InvoiceDate >= %s 
-          AND i.InvoiceDate <= %s
-          AND (COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)) > 0
+            -- Other Service: Other (428000) + PM Contracts (429002)
+            SUM(CASE WHEN AccountNo IN ('428000', '429002') THEN ABS(Amount) ELSE 0 END) as other_sales,
+            SUM(CASE WHEN AccountNo IN ('528000', '529001') THEN ABS(Amount) ELSE 0 END) as other_cogs
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND AccountNo IN (
+              -- Customer Labor
+              '410004', '410005', '410007', '510004', '510005', '510007',
+              -- Internal Labor
+              '423000', '425000', '523000',
+              -- Warranty Labor
+              '435000', '435001', '435002', '435003', '435004',
+              '535001', '535002', '535003', '535004', '535005',
+              -- Sublet
+              '432000', '532000',
+              -- Other Service
+              '428000', '429002', '528000', '529001'
+          )
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
