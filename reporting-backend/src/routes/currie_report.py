@@ -950,7 +950,7 @@ def export_currie_excel():
         write_row(19, new_equipment.get('batteries', {}))
         
         # Write Rental (rows 21-23) - we only have consolidated rental
-        write_row(21, rental.get('rental_revenue', {}))
+        write_row(21, rental)  # rental is already the data dict with sales/cogs/gp
         write_row(22, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Long term
         write_row(23, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Re-rent
         
@@ -959,15 +959,15 @@ def export_currie_excel():
         write_row(25, service.get('internal_labor', {}))
         write_row(26, service.get('warranty_labor', {}))
         write_row(27, service.get('sublet', {}))
-        write_row(28, service.get('other_service', {}))
+        write_row(28, service.get('other', {}))  # Fixed: function returns 'other' not 'other_service'
         
         # Write Parts (rows 30-36)
         write_row(30, parts.get('counter_primary', {}))
         write_row(31, parts.get('counter_other', {}))
         write_row(32, parts.get('ro_primary', {}))
         write_row(33, parts.get('ro_other', {}))
-        write_row(34, parts.get('internal_parts', {}))
-        write_row(35, parts.get('warranty_parts', {}))
+        write_row(34, parts.get('internal', {}))  # Fixed: function returns 'internal' not 'internal_parts'
+        write_row(35, parts.get('warranty', {}))  # Fixed: function returns 'warranty' not 'warranty_parts'
         write_row(36, parts.get('ecommerce_parts', {}))
         
         # Write Trucking (row 38)
