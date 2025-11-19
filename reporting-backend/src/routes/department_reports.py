@@ -595,6 +595,8 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Monthly Labor Revenue and Margins - Last 12 months
+            # Exclude internal repairs, freight, PM contracts, sublet, warranty, etc.
+            # This should match GL accounts 410004 (Field) and 410005 (Shop)
             labor_revenue_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
@@ -603,6 +605,19 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(LaborCost, 0)) as labor_cost
             FROM ben002.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
+                -- Exclude internal customers (Internal Repair Field/Shop)
+                AND BillTo NOT IN ('900006', '900066')
+                -- Exclude warranty transactions
+                AND (SaleCode NOT LIKE '%WARR%' OR SaleCode IS NULL)
+                -- Exclude PM contract labor
+                AND (SaleCode NOT LIKE '%PM%' OR SaleCode IS NULL)
+                -- Exclude sublet labor
+                AND (SaleCode NOT LIKE '%SUBLET%' OR SaleCode IS NULL)
+                -- Exclude freight
+                AND (SaleCode NOT LIKE '%FREIGHT%' OR SaleCode IS NULL)
+                -- Exclude GM Service if identifiable
+                AND (SaleCode NOT LIKE '%GM%' OR SaleCode IS NULL)
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
