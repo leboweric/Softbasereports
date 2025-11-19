@@ -44,6 +44,7 @@ import {
 import PartsEmployeePerformance from './PartsEmployeePerformance'
 import PartsInventoryByLocation from './PartsInventoryByLocation'
 import PartsInventoryTurns from './PartsInventoryTurns'
+import RevenueChart from './RevenueChart'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 
 // Utility function to calculate linear regression trendline
@@ -752,8 +753,38 @@ const PartsReport = ({ user, onNavigate }) => {
             </Card>
           )}
 
-          {/* Monthly Parts Revenue */}
-          <Card>
+          {/* Monthly Parts Revenue Charts */}
+          <RevenueChart
+            data={partsData?.monthlyPartsRevenue}
+            title="Combined Parts Revenue & Margin"
+            description="Total external customer parts sales (Counter + Repair Order) over the last 12 months"
+            tooltipInfo={
+              <>
+                <p className="font-semibold mb-1">Includes:</p>
+                <p className="text-xs mb-2">• Counter sales (GL 410003)<br/>• Customer repair order parts (GL 410012)</p>
+                <p className="font-semibold mb-1">Excludes:</p>
+                <p className="text-xs">• Internal parts repairs<br/>• Freight charges<br/>• PM contract parts<br/>• Shop supplies<br/>• Warranty parts</p>
+              </>
+            }
+            barColor="#10b981"
+          />
+
+          <RevenueChart
+            data={partsData?.monthlyCounterRevenue}
+            title="Counter Sales (GL 410003)"
+            description="Walk-in and over-the-counter parts sales over the last 12 months"
+            barColor="#10b981"
+          />
+
+          <RevenueChart
+            data={partsData?.monthlyRepairOrderRevenue}
+            title="Customer Repair Order Parts (GL 410012)"
+            description="Parts sold through service repair orders over the last 12 months"
+            barColor="#059669"
+          />
+
+          {/* Placeholder Card (will be replaced) */}
+          <Card style={{display: 'none'}}>
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>

@@ -602,10 +602,15 @@ def register_department_routes(reports_bp):
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
-                -- Revenue accounts (negative amounts in GL = revenue)
+                -- Combined revenue
                 ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as labor_revenue,
-                -- Cost accounts (positive amounts in GL = cost)
-                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as labor_cost
+                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as labor_cost,
+                -- Field (410004 / 510004)
+                ABS(SUM(CASE WHEN AccountNo = '410004' THEN Amount ELSE 0 END)) as field_revenue,
+                ABS(SUM(CASE WHEN AccountNo = '510004' THEN Amount ELSE 0 END)) as field_cost,
+                -- Shop (410005 / 510005)
+                ABS(SUM(CASE WHEN AccountNo = '410005' THEN Amount ELSE 0 END)) as shop_revenue,
+                ABS(SUM(CASE WHEN AccountNo = '510005' THEN Amount ELSE 0 END)) as shop_cost
             FROM ben002.GLDetail
             WHERE AccountNo IN ('410004', '410005', '510004', '510005')
                 AND EffectiveDate >= DATEADD(month, -12, GETDATE())
@@ -617,24 +622,47 @@ def register_department_routes(reports_bp):
             labor_revenue_result = db.execute_query(labor_revenue_query)
             
             monthlyLaborRevenue = []
+            monthlyFieldRevenue = []
+            monthlyShopRevenue = []
             current_date = datetime.now()
             current_year = current_date.year
             current_month = current_date.month
             
             for row in labor_revenue_result:
                 month_date = datetime(row['year'], row['month'], 1)
+                month_str = month_date.strftime("%b")
+                
+                # Combined
                 labor_revenue = float(row['labor_revenue'] or 0)
                 labor_cost = float(row['labor_cost'] or 0)
+                combined_margin = round(((labor_revenue - labor_cost) / labor_revenue) * 100, 1) if labor_revenue > 0 else None
                 
-                # Calculate gross margin percentage for all months with revenue
-                margin_percentage = None
-                if labor_revenue > 0:
-                    margin_percentage = round(((labor_revenue - labor_cost) / labor_revenue) * 100, 1)
+                # Field
+                field_revenue = float(row['field_revenue'] or 0)
+                field_cost = float(row['field_cost'] or 0)
+                field_margin = round(((field_revenue - field_cost) / field_revenue) * 100, 1) if field_revenue > 0 else None
+                
+                # Shop
+                shop_revenue = float(row['shop_revenue'] or 0)
+                shop_cost = float(row['shop_cost'] or 0)
+                shop_margin = round(((shop_revenue - shop_cost) / shop_revenue) * 100, 1) if shop_revenue > 0 else None
                 
                 monthlyLaborRevenue.append({
-                    'month': month_date.strftime("%b"),
+                    'month': month_str,
                     'amount': labor_revenue,
-                    'margin': margin_percentage
+                    'margin': combined_margin
+                })
+                
+                monthlyFieldRevenue.append({
+                    'month': month_str,
+                    'amount': field_revenue,
+                    'margin': field_margin
+                })
+                
+                monthlyShopRevenue.append({
+                    'month': month_str,
+                    'amount': shop_revenue,
+                    'margin': shop_margin
                 })
             
             # Pad with zeros for missing months
@@ -646,17 +674,20 @@ def register_department_routes(reports_bp):
                     month_date = current_date - relativedelta(months=i)
                     all_months.append(month_date.strftime("%b"))
                 
-                existing_months = [item['month'] for item in monthlyLaborRevenue]
-                for month in all_months:
-                    if month not in existing_months:
-                        monthlyLaborRevenue.append({
-                            'month': month, 
-                            'amount': 0,
-                            'margin': None  # Use None/null for no data instead of 0
-                        })
+                for month_list in [monthlyLaborRevenue, monthlyFieldRevenue, monthlyShopRevenue]:
+                    existing_months = [item['month'] for item in month_list]
+                    for month in all_months:
+                        if month not in existing_months:
+                            month_list.append({
+                                'month': month, 
+                                'amount': 0,
+                                'margin': None
+                            })
             
             return jsonify({
-                'monthlyLaborRevenue': monthlyLaborRevenue
+                'monthlyLaborRevenue': monthlyLaborRevenue,
+                'monthlyFieldRevenue': monthlyFieldRevenue,
+                'monthlyShopRevenue': monthlyShopRevenue
             })
             
         except Exception as e:
@@ -824,10 +855,15 @@ def register_department_routes(reports_bp):
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
-                -- Revenue accounts (negative amounts in GL = revenue)
+                -- Combined revenue
                 ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
-                -- Cost accounts (positive amounts in GL = cost)
-                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost
+                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
+                -- Counter (410003 / 510003)
+                ABS(SUM(CASE WHEN AccountNo = '410003' THEN Amount ELSE 0 END)) as counter_revenue,
+                ABS(SUM(CASE WHEN AccountNo = '510003' THEN Amount ELSE 0 END)) as counter_cost,
+                -- Repair Order (410012 / 510012)
+                ABS(SUM(CASE WHEN AccountNo = '410012' THEN Amount ELSE 0 END)) as repair_order_revenue,
+                ABS(SUM(CASE WHEN AccountNo = '510012' THEN Amount ELSE 0 END)) as repair_order_cost
             FROM ben002.GLDetail
             WHERE AccountNo IN ('410003', '410012', '510003', '510012')
                 AND EffectiveDate >= DATEADD(month, -12, GETDATE())
@@ -843,20 +879,44 @@ def register_department_routes(reports_bp):
             current_year = current_date.year
             current_month = current_date.month
             
+            monthlyCounterRevenue = []
+            monthlyRepairOrderRevenue = []
+            
             for row in parts_revenue_result:
                 month_date = datetime(row['year'], row['month'], 1)
+                month_str = month_date.strftime("%b")
+                
+                # Combined
                 parts_revenue = float(row['parts_revenue'] or 0)
                 parts_cost = float(row['parts_cost'] or 0)
+                combined_margin = round(((parts_revenue - parts_cost) / parts_revenue) * 100, 1) if parts_revenue > 0 else None
                 
-                # Calculate gross margin percentage for all months with revenue
-                margin_percentage = None
-                if parts_revenue > 0:
-                    margin_percentage = round(((parts_revenue - parts_cost) / parts_revenue) * 100, 1)
+                # Counter
+                counter_revenue = float(row['counter_revenue'] or 0)
+                counter_cost = float(row['counter_cost'] or 0)
+                counter_margin = round(((counter_revenue - counter_cost) / counter_revenue) * 100, 1) if counter_revenue > 0 else None
+                
+                # Repair Order
+                repair_order_revenue = float(row['repair_order_revenue'] or 0)
+                repair_order_cost = float(row['repair_order_cost'] or 0)
+                repair_order_margin = round(((repair_order_revenue - repair_order_cost) / repair_order_revenue) * 100, 1) if repair_order_revenue > 0 else None
                 
                 monthlyPartsRevenue.append({
-                    'month': month_date.strftime("%b"),
+                    'month': month_str,
                     'amount': parts_revenue,
-                    'margin': margin_percentage
+                    'margin': combined_margin
+                })
+                
+                monthlyCounterRevenue.append({
+                    'month': month_str,
+                    'amount': counter_revenue,
+                    'margin': counter_margin
+                })
+                
+                monthlyRepairOrderRevenue.append({
+                    'month': month_str,
+                    'amount': repair_order_revenue,
+                    'margin': repair_order_margin
                 })
             
             # Pad with zeros for missing months
@@ -868,17 +928,20 @@ def register_department_routes(reports_bp):
                     month_date = current_date - relativedelta(months=i)
                     all_months.append(month_date.strftime("%b"))
                 
-                existing_months = [item['month'] for item in monthlyPartsRevenue]
-                for month in all_months:
-                    if month not in existing_months:
-                        monthlyPartsRevenue.append({
-                            'month': month, 
-                            'amount': 0,
-                            'margin': None  # Use None/null for no data instead of 0
-                        })
+                for month_list in [monthlyPartsRevenue, monthlyCounterRevenue, monthlyRepairOrderRevenue]:
+                    existing_months = [item['month'] for item in month_list]
+                    for month in all_months:
+                        if month not in existing_months:
+                            month_list.append({
+                                'month': month, 
+                                'amount': 0,
+                                'margin': None
+                            })
             
             return jsonify({
-                'monthlyPartsRevenue': monthlyPartsRevenue
+                'monthlyPartsRevenue': monthlyPartsRevenue,
+                'monthlyCounterRevenue': monthlyCounterRevenue,
+                'monthlyRepairOrderRevenue': monthlyRepairOrderRevenue
             })
             
         except Exception as e:

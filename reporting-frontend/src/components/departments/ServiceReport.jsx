@@ -47,6 +47,7 @@ import WorkOrderTypes from '../WorkOrderTypes'
 import PMReport from '../PMReport'
 import PMRoutePlanner from '../PMRoutePlanner'
 import PMTechnicianContest from './PMTechnicianContest'
+import RevenueChart from './RevenueChart'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -690,8 +691,38 @@ const ServiceReport = ({ user, onNavigate }) => {
             </Card>
           )}
 
-          {/* Monthly Labor Revenue */}
-          <Card>
+          {/* Monthly Labor Revenue Charts */}
+          <RevenueChart
+            data={serviceData?.monthlyLaborRevenue}
+            title="Combined Service Revenue & Margin"
+            description="Total external customer service revenue (Field + Shop) over the last 12 months"
+            tooltipInfo={
+              <>
+                <p className="font-semibold mb-1">Includes:</p>
+                <p className="text-xs mb-2">• Field service (GL 410004)<br/>• Shop service (GL 410005)</p>
+                <p className="font-semibold mb-1">Excludes:</p>
+                <p className="text-xs">• Internal repairs<br/>• Freight charges<br/>• PM contract labor<br/>• Sublet labor<br/>• Warranty labor<br/>• GM Service</p>
+              </>
+            }
+            barColor="#3b82f6"
+          />
+
+          <RevenueChart
+            data={serviceData?.monthlyFieldRevenue}
+            title="Field Service (GL 410004)"
+            description="On-site field service revenue over the last 12 months"
+            barColor="#3b82f6"
+          />
+
+          <RevenueChart
+            data={serviceData?.monthlyShopRevenue}
+            title="Shop Service (GL 410005)"
+            description="In-shop service revenue over the last 12 months"
+            barColor="#1e40af"
+          />
+
+          {/* Placeholder Card (will be replaced) */}
+          <Card style={{display: 'none'}}>
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
