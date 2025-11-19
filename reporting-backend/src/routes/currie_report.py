@@ -55,6 +55,21 @@ def get_sales_cogs_gp():
         # Calculate totals
         data['totals'] = calculate_totals(data, months_diff)
         
+        # Get expenses for bottom summary section
+        expenses = get_gl_expenses(start_date, end_date)
+        data['expenses'] = expenses
+        
+        # Get other income and interest
+        other_income_interest = get_other_income_and_interest(start_date, end_date)
+        data['other_income'] = other_income_interest.get('other_income', 0)
+        data['interest_expense'] = other_income_interest.get('interest_expense', 0)
+        data['fi_income'] = other_income_interest.get('fi_income', 0)
+        
+        # Calculate bottom summary totals
+        total_operating_profit = data['totals']['total_company']['gross_profit'] - expenses['grand_total'] + data['other_income'] + data['interest_expense']
+        data['total_operating_profit'] = total_operating_profit
+        data['pre_tax_income'] = total_operating_profit + data['fi_income']
+        
         return jsonify(data), 200
         
     except Exception as e:
@@ -430,12 +445,24 @@ def calculate_totals(data, num_months):
     """Calculate total sales, COGS, and GP across all categories with subtotals"""
     
     # Calculate subtotals for each section
+    # TOTAL NEW EQUIPMENT = only first 4 items (matches Excel row 14)
     total_new_equipment = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
     if 'new_equipment' in data:
-        for category in data['new_equipment'].values():
-            total_new_equipment['sales'] += category.get('sales', 0)
-            total_new_equipment['cogs'] += category.get('cogs', 0)
+        # Only sum the first 4 equipment categories for TOTAL NEW EQUIPMENT subtotal
+        new_eq_categories = ['new_lift_truck_primary', 'new_lift_truck_other', 'new_allied', 'other_new_equipment']
+        for cat in new_eq_categories:
+            if cat in data['new_equipment']:
+                total_new_equipment['sales'] += data['new_equipment'][cat].get('sales', 0)
+                total_new_equipment['cogs'] += data['new_equipment'][cat].get('cogs', 0)
         total_new_equipment['gross_profit'] = total_new_equipment['sales'] - total_new_equipment['cogs']
+    
+    # TOTAL SALES DEPT = all equipment items (matches Excel row 20)
+    total_sales_dept = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+    if 'new_equipment' in data:
+        for category in data['new_equipment'].values():
+            total_sales_dept['sales'] += category.get('sales', 0)
+            total_sales_dept['cogs'] += category.get('cogs', 0)
+        total_sales_dept['gross_profit'] = total_sales_dept['sales'] - total_sales_dept['cogs']
     
     total_rental = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
     if 'rental' in data:
@@ -459,12 +486,6 @@ def calculate_totals(data, num_months):
         total_parts['gross_profit'] = total_parts['sales'] - total_parts['cogs']
     
     # Calculate combined totals
-    total_sales_dept = {
-        'sales': total_new_equipment['sales'],
-        'cogs': total_new_equipment['cogs'],
-        'gross_profit': total_new_equipment['gross_profit']
-    }
-    
     total_aftermarket = {
         'sales': total_service['sales'] + total_parts['sales'],
         'cogs': total_service['cogs'] + total_parts['cogs'],
@@ -472,10 +493,10 @@ def calculate_totals(data, num_months):
     }
     total_aftermarket['gross_profit'] = total_aftermarket['sales'] - total_aftermarket['cogs']
     
-    # Grand total
+    # Grand total uses total_sales_dept (all equipment) not just total_new_equipment (first 4)
     grand_total = {
-        'sales': total_new_equipment['sales'] + total_rental['sales'] + total_service['sales'] + total_parts['sales'],
-        'cogs': total_new_equipment['cogs'] + total_rental['cogs'] + total_service['cogs'] + total_parts['cogs'],
+        'sales': total_sales_dept['sales'] + total_rental['sales'] + total_service['sales'] + total_parts['sales'],
+        'cogs': total_sales_dept['cogs'] + total_rental['cogs'] + total_service['cogs'] + total_parts['cogs'],
         'gross_profit': 0
     }
     
@@ -490,12 +511,13 @@ def calculate_totals(data, num_months):
     avg_monthly_sales_gp = grand_total['sales'] / num_months if num_months > 0 else 0
     
     return {
-        'total_new_equipment': total_new_equipment,
-        'total_sales_dept': total_sales_dept,
+        'total_new_equipment': total_new_equipment,  # Subtotal for first 4 items only (Excel row 14)
+        'total_sales_dept': total_sales_dept,        # Grand total for all equipment (Excel row 20)
         'total_rental': total_rental,
         'total_service': total_service,
         'total_parts': total_parts,
         'total_aftermarket': total_aftermarket,
+        'total_net_sales_gp': grand_total,  # Same as total_company but matches Excel naming
         'grand_total': grand_total,
         'total_company': grand_total,  # Alias for grand_total
         'avg_monthly_sales_gp': avg_monthly_sales_gp,
@@ -540,6 +562,36 @@ def get_currie_metrics():
         
         # 5. Parts Inventory Metrics
         metrics['parts_inventory'] = get_parts_inventory_metrics(start_date, end_date)
+        
+        # 6. Absorption Rate
+        # Get revenue and expense data to calculate absorption rate
+        num_months = (end - start).days / 30.44  # Average days per month
+        data = {
+            'rental': get_rental_revenue(start_date, end_date),
+            'service': get_service_revenue(start_date, end_date),
+            'parts': get_parts_revenue(start_date, end_date)
+        }
+        totals = calculate_totals(data, max(1, int(num_months)))
+        expenses = get_gl_expenses(start_date, end_date)
+        
+        # Absorption Rate = (Aftermarket GP / Total Expenses) × 100
+        aftermarket_gp = totals.get('total_aftermarket', {}).get('gross_profit', 0)
+        rental_gp = totals.get('total_rental', {}).get('gross_profit', 0)
+        total_aftermarket_gp = aftermarket_gp + rental_gp
+        
+        total_expenses = (
+            expenses.get('personnel', {}).get('total', 0) +
+            expenses.get('operating', {}).get('total', 0) +
+            expenses.get('occupancy', {}).get('total', 0)
+        )
+        
+        absorption_rate = (total_aftermarket_gp / total_expenses * 100) if total_expenses > 0 else 0
+        
+        metrics['absorption_rate'] = {
+            'rate': round(absorption_rate, 1),
+            'aftermarket_gp': round(total_aftermarket_gp, 2),
+            'total_expenses': round(total_expenses, 2)
+        }
         
         return jsonify({
             'metrics': metrics,
@@ -859,18 +911,22 @@ def export_currie_excel():
         if not start_date or not end_date:
             return jsonify({'error': 'start_date and end_date are required'}), 400
         
+        # Calculate number of months and days
+        from datetime import datetime
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+        num_days = (end - start).days + 1
+        
         # Get all the data
         new_equipment = get_new_equipment_sales(start_date, end_date)
         rental = get_rental_revenue(start_date, end_date)
         service = get_service_revenue(start_date, end_date)
         parts = get_parts_revenue(start_date, end_date)
         trucking = get_trucking_revenue(start_date, end_date)
-        
-        # Calculate number of months
-        from datetime import datetime
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+        expenses = get_gl_expenses(start_date, end_date)
+        ar_aging = get_ar_aging()
+        service_calls_per_day = get_service_calls_per_day(start_date, end_date, num_days)
         
         # Build data structure for calculate_totals
         data = {
@@ -888,9 +944,7 @@ def export_currie_excel():
         template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'currie_template.xlsx')
         wb = openpyxl.load_workbook(template_path)
         
-        # Remove "New TB" sheet if it exists
-        if 'New TB' in wb.sheetnames:
-            del wb['New TB']
+        # DO NOT delete "New TB" sheet - other formulas reference it
         
         # Get the Sales, COGS, GP sheet
         ws = wb['Sales, COGS, GP']
@@ -918,7 +972,7 @@ def export_currie_excel():
         write_row(19, new_equipment.get('batteries', {}))
         
         # Write Rental (rows 21-23) - we only have consolidated rental
-        write_row(21, rental.get('rental_revenue', {}))
+        write_row(21, rental)  # rental is already the data dict with sales/cogs/gp
         write_row(22, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Long term
         write_row(23, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Re-rent
         
@@ -927,15 +981,15 @@ def export_currie_excel():
         write_row(25, service.get('internal_labor', {}))
         write_row(26, service.get('warranty_labor', {}))
         write_row(27, service.get('sublet', {}))
-        write_row(28, service.get('other_service', {}))
+        write_row(28, service.get('other', {}))  # Fixed: function returns 'other' not 'other_service'
         
         # Write Parts (rows 30-36)
         write_row(30, parts.get('counter_primary', {}))
         write_row(31, parts.get('counter_other', {}))
         write_row(32, parts.get('ro_primary', {}))
         write_row(33, parts.get('ro_other', {}))
-        write_row(34, parts.get('internal_parts', {}))
-        write_row(35, parts.get('warranty_parts', {}))
+        write_row(34, parts.get('internal', {}))  # Fixed: function returns 'internal' not 'internal_parts'
+        write_row(35, parts.get('warranty', {}))  # Fixed: function returns 'warranty' not 'warranty_parts'
         write_row(36, parts.get('ecommerce_parts', {}))
         
         # Write Trucking (row 38)
@@ -966,6 +1020,22 @@ def export_currie_excel():
         
         # Row 47: Pre-Tax Income = Operating Profit + F&I Income
         ws['D47'] = total_operating_profit + other_income_interest.get('fi_income', 0)
+        
+        # Write Expenses to "Expenses, Miscellaneous" sheet
+        expenses_ws = wb['Expenses, Miscellaneous']
+        
+        # Expense totals (rows 4-6, column B = "New" column)
+        expenses_ws['B4'] = expenses.get('personnel', {}).get('total', 0)  # Personnel
+        expenses_ws['B5'] = expenses.get('operating', {}).get('total', 0)  # Operating
+        expenses_ws['B6'] = expenses.get('occupancy', {}).get('total', 0)  # Occupancy
+        # B7 has a formula =SUM(B4:B6) which will calculate automatically
+        
+        # AR Aging (rows 22-26, column B)
+        expenses_ws['B22'] = ar_aging.get('current', 0)  # Current
+        expenses_ws['B23'] = ar_aging.get('days_31_60', 0)  # 31-60 days
+        expenses_ws['B24'] = ar_aging.get('days_61_90', 0)  # 61-90 days
+        expenses_ws['B25'] = ar_aging.get('days_91_plus', 0)  # 91+ days
+        # B26 has a formula =SUM(B22:B25) which will calculate automatically
         
         # Save to BytesIO for download
         output = io.BytesIO()
@@ -1349,3 +1419,57 @@ def get_currie_expenses():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+def get_other_income_and_interest(start_date, end_date):
+    """
+    Get Other Income (Expenses), Interest (Expense), and F&I Income
+    These appear in the bottom summary section of the Currie report
+    
+    Matches Excel template formulas:
+    - Other Income (Expenses) = -SUM(601400, 602500, 603400, 604200, 999999)
+    - Interest (Expense) = -601800
+    - F & I Income = 440000
+    """
+    try:
+        query = """
+        SELECT 
+            SUM(CASE WHEN AccountNo IN ('601400', '602500', '603400', '604200', '999999') THEN Amount ELSE 0 END) as other_expenses,
+            SUM(CASE WHEN AccountNo = '601800' THEN Amount ELSE 0 END) as interest_expense,
+            SUM(CASE WHEN AccountNo = '440000' THEN Amount ELSE 0 END) as fi_income
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND (
+            AccountNo IN ('601400', '602500', '603400', '604200', '999999', '601800', '440000')
+          )
+        """
+        
+        result = sql_service.execute_query(query, [start_date, end_date])
+        
+        if result and len(result) > 0:
+            row = result[0]
+            # Return as negative because these are expenses that reduce operating profit
+            # Excel formulas use -SUM() to make them negative
+            return {
+                'other_income': -float(row.get('other_expenses') or 0),  # Negative because it's an expense
+                'interest_expense': -float(row.get('interest_expense') or 0),  # Negative because it's an expense
+                'fi_income': float(row.get('fi_income') or 0)  # Positive because it's income
+            }
+        else:
+            return {
+                'other_income': 0,
+                'interest_expense': 0,
+                'fi_income': 0
+            }
+            
+    except Exception as e:
+        logger.error(f"Error fetching other income and interest: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'other_income': 0,
+            'interest_expense': 0,
+            'fi_income': 0
+        }

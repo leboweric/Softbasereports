@@ -336,6 +336,9 @@ const Currie = () => {
                   data={data.new_equipment.other_new_equipment}
                   onEdit={(field, value) => handleCellEdit('new_equipment', 'other_new_equipment', field, value)}
                 />
+                
+                <SubtotalRow label="TOTAL NEW EQUIPMENT" data={data.totals.total_new_equipment} />
+                
                 <DataRow 
                   label="Operator Training"
                   data={data.new_equipment.operator_training}
@@ -362,7 +365,7 @@ const Currie = () => {
                   onEdit={(field, value) => handleCellEdit('new_equipment', 'batteries', field, value)}
                 />
                 
-                <SubtotalRow label="TOTAL NEW EQUIPMENT" data={data.totals.total_new_equipment} />
+                <SubtotalRow label="TOTAL SALES DEPT." data={data.totals.total_sales_dept} />
 
                 {/* RENTAL SECTION */}
                 <tr className="bg-gray-100 font-semibold">
@@ -450,7 +453,6 @@ const Currie = () => {
                 />
                 
                 <SubtotalRow label="TOTAL PARTS" data={data.totals.total_parts} />
-                <SubtotalRow label="TOTAL AFTERMARKET" data={data.totals.total_aftermarket} />
 
                 {/* TRUCKING SECTION */}
                 <tr className="bg-gray-100 font-semibold">
@@ -463,8 +465,35 @@ const Currie = () => {
                   onEdit={(field, value) => handleCellEdit('trucking', null, field, value)}
                 />
 
-                {/* COMPANY TOTAL */}
-                <TotalRow label="TOTAL COMPANY" data={data.totals.total_company} />
+                {/* COMPANY TOTALS AND BOTTOM SUMMARY */}
+                <SubtotalRow label="TOTAL AFTERMARKET SALES, COGS & GP" data={data.totals.total_aftermarket} />
+                <SubtotalRow label="TOTAL NET SALES & GP" data={data.totals.total_net_sales_gp} />
+                
+                {/* Bottom Summary Section */}
+                <tr className="border-t-2 border-gray-400">
+                  <td className="px-4 py-2 font-semibold">Total Company Expenses</td>
+                  <td className="px-4 py-2 text-right" colSpan="4">{formatCurrency(data.expenses?.grand_total || 0)}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2">Other Income (Expenses)</td>
+                  <td className="px-4 py-2 text-right" colSpan="4">{formatCurrency(data.other_income || 0)}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2">Interest (Expense)</td>
+                  <td className="px-4 py-2 text-right" colSpan="4">{formatCurrency(data.interest_expense || 0)}</td>
+                </tr>
+                <tr className="bg-gray-200 font-semibold">
+                  <td className="px-4 py-2">Total operating profit</td>
+                  <td className="px-4 py-2 text-right" colSpan="4">{formatCurrency(data.total_operating_profit || 0)}</td>
+                </tr>
+                <tr>
+                  <td className="px-4 py-2">F & I Income</td>
+                  <td className="px-4 py-2 text-right" colSpan="4">{formatCurrency(data.fi_income || 0)}</td>
+                </tr>
+                <tr className="bg-blue-600 text-white font-bold border-t-4 border-blue-900">
+                  <td className="px-4 py-3">Pre-Tax Income</td>
+                  <td className="px-4 py-3 text-right" colSpan="4">{formatCurrency(data.pre_tax_income || 0)}</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -572,6 +601,31 @@ const Currie = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Obsolete Parts:</span>
                   <span className="font-medium text-red-600">{metrics.parts_inventory?.aging?.obsolete_count || 0}</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Absorption Rate */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Absorption Rate</h3>
+              <div className="space-y-2 text-sm">
+                <div className="text-center py-4">
+                  <div className={`text-4xl font-bold ${
+                    (metrics.absorption_rate?.rate || 0) >= 100 ? 'text-green-600' : 
+                    (metrics.absorption_rate?.rate || 0) >= 80 ? 'text-yellow-600' : 
+                    'text-red-600'
+                  }`}>
+                    {metrics.absorption_rate?.rate?.toFixed(1) || '0.0'}%
+                  </div>
+                  <div className="text-gray-500 text-xs mt-1">Aftermarket GP / Expenses</div>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="text-gray-600">Aftermarket GP:</span>
+                  <span className="font-medium">{formatCurrency(metrics.absorption_rate?.aftermarket_gp || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Expenses:</span>
+                  <span className="font-medium">{formatCurrency(metrics.absorption_rate?.total_expenses || 0)}</span>
                 </div>
               </div>
             </div>
