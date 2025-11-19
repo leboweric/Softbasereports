@@ -575,6 +575,31 @@ const Currie = () => {
                 </div>
               </div>
             </div>
+            
+            {/* Absorption Rate */}
+            <div className="bg-white border rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Absorption Rate</h3>
+              <div className="space-y-2 text-sm">
+                <div className="text-center py-4">
+                  <div className={`text-4xl font-bold ${
+                    (metrics.absorption_rate?.rate || 0) >= 100 ? 'text-green-600' : 
+                    (metrics.absorption_rate?.rate || 0) >= 80 ? 'text-yellow-600' : 
+                    'text-red-600'
+                  }`}>
+                    {metrics.absorption_rate?.rate?.toFixed(1) || '0.0'}%
+                  </div>
+                  <div className="text-gray-500 text-xs mt-1">Aftermarket GP / Expenses</div>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="text-gray-600">Aftermarket GP:</span>
+                  <span className="font-medium">{formatCurrency(metrics.absorption_rate?.aftermarket_gp || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total Expenses:</span>
+                  <span className="font-medium">{formatCurrency(metrics.absorption_rate?.total_expenses || 0)}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -541,6 +541,36 @@ def get_currie_metrics():
         # 5. Parts Inventory Metrics
         metrics['parts_inventory'] = get_parts_inventory_metrics(start_date, end_date)
         
+        # 6. Absorption Rate
+        # Get revenue and expense data to calculate absorption rate
+        num_months = (end - start).days / 30.44  # Average days per month
+        data = {
+            'rental': get_rental_revenue(start_date, end_date),
+            'service': get_service_revenue(start_date, end_date),
+            'parts': get_parts_revenue(start_date, end_date)
+        }
+        totals = calculate_totals(data, max(1, int(num_months)))
+        expenses = get_gl_expenses(start_date, end_date)
+        
+        # Absorption Rate = (Aftermarket GP / Total Expenses) × 100
+        aftermarket_gp = totals.get('total_aftermarket', {}).get('gross_profit', 0)
+        rental_gp = totals.get('total_rental', {}).get('gross_profit', 0)
+        total_aftermarket_gp = aftermarket_gp + rental_gp
+        
+        total_expenses = (
+            expenses.get('personnel', {}).get('total', 0) +
+            expenses.get('operating', {}).get('total', 0) +
+            expenses.get('occupancy', {}).get('total', 0)
+        )
+        
+        absorption_rate = (total_aftermarket_gp / total_expenses * 100) if total_expenses > 0 else 0
+        
+        metrics['absorption_rate'] = {
+            'rate': round(absorption_rate, 1),
+            'aftermarket_gp': round(total_aftermarket_gp, 2),
+            'total_expenses': round(total_expenses, 2)
+        }
+        
         return jsonify({
             'metrics': metrics,
             'date_range': {
