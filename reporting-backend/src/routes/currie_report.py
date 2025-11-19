@@ -445,12 +445,24 @@ def calculate_totals(data, num_months):
     """Calculate total sales, COGS, and GP across all categories with subtotals"""
     
     # Calculate subtotals for each section
+    # TOTAL NEW EQUIPMENT = only first 4 items (matches Excel row 14)
     total_new_equipment = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
     if 'new_equipment' in data:
-        for category in data['new_equipment'].values():
-            total_new_equipment['sales'] += category.get('sales', 0)
-            total_new_equipment['cogs'] += category.get('cogs', 0)
+        # Only sum the first 4 equipment categories for TOTAL NEW EQUIPMENT subtotal
+        new_eq_categories = ['new_lift_truck_primary', 'new_lift_truck_other', 'new_allied', 'other_new_equipment']
+        for cat in new_eq_categories:
+            if cat in data['new_equipment']:
+                total_new_equipment['sales'] += data['new_equipment'][cat].get('sales', 0)
+                total_new_equipment['cogs'] += data['new_equipment'][cat].get('cogs', 0)
         total_new_equipment['gross_profit'] = total_new_equipment['sales'] - total_new_equipment['cogs']
+    
+    # TOTAL SALES DEPT = all equipment items (matches Excel row 20)
+    total_sales_dept = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+    if 'new_equipment' in data:
+        for category in data['new_equipment'].values():
+            total_sales_dept['sales'] += category.get('sales', 0)
+            total_sales_dept['cogs'] += category.get('cogs', 0)
+        total_sales_dept['gross_profit'] = total_sales_dept['sales'] - total_sales_dept['cogs']
     
     total_rental = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
     if 'rental' in data:
@@ -474,12 +486,6 @@ def calculate_totals(data, num_months):
         total_parts['gross_profit'] = total_parts['sales'] - total_parts['cogs']
     
     # Calculate combined totals
-    total_sales_dept = {
-        'sales': total_new_equipment['sales'],
-        'cogs': total_new_equipment['cogs'],
-        'gross_profit': total_new_equipment['gross_profit']
-    }
-    
     total_aftermarket = {
         'sales': total_service['sales'] + total_parts['sales'],
         'cogs': total_service['cogs'] + total_parts['cogs'],
@@ -487,10 +493,10 @@ def calculate_totals(data, num_months):
     }
     total_aftermarket['gross_profit'] = total_aftermarket['sales'] - total_aftermarket['cogs']
     
-    # Grand total
+    # Grand total uses total_sales_dept (all equipment) not just total_new_equipment (first 4)
     grand_total = {
-        'sales': total_new_equipment['sales'] + total_rental['sales'] + total_service['sales'] + total_parts['sales'],
-        'cogs': total_new_equipment['cogs'] + total_rental['cogs'] + total_service['cogs'] + total_parts['cogs'],
+        'sales': total_sales_dept['sales'] + total_rental['sales'] + total_service['sales'] + total_parts['sales'],
+        'cogs': total_sales_dept['cogs'] + total_rental['cogs'] + total_service['cogs'] + total_parts['cogs'],
         'gross_profit': 0
     }
     
@@ -504,17 +510,9 @@ def calculate_totals(data, num_months):
     # Calculate average monthly sales & GP
     avg_monthly_sales_gp = grand_total['sales'] / num_months if num_months > 0 else 0
     
-    # Calculate Total Sales Dept (includes all equipment items)
-    # In Excel: Total New Equipment + Operator Training + Used Equipment + E-Commerce + Systems + Batteries
-    total_sales_dept_full = {
-        'sales': total_new_equipment['sales'],
-        'cogs': total_new_equipment['cogs'],
-        'gross_profit': total_new_equipment['gross_profit']
-    }
-    
     return {
-        'total_new_equipment': total_new_equipment,  # Subtotal for first 4 items only
-        'total_sales_dept': total_sales_dept_full,   # Grand total for all equipment
+        'total_new_equipment': total_new_equipment,  # Subtotal for first 4 items only (Excel row 14)
+        'total_sales_dept': total_sales_dept,        # Grand total for all equipment (Excel row 20)
         'total_rental': total_rental,
         'total_service': total_service,
         'total_parts': total_parts,
