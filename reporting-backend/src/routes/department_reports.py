@@ -6,6 +6,7 @@ from dateutil.relativedelta import relativedelta
 from flask import request
 from src.services.azure_sql_service import AzureSQLService
 from src.utils.auth_decorators import require_permission, require_department
+from src.utils.fiscal_year import get_fiscal_year_months, get_fiscal_year_start_month
 import json
 import logging
 
@@ -624,9 +625,6 @@ def register_department_routes(reports_bp):
             monthlyLaborRevenue = []
             monthlyFieldRevenue = []
             monthlyShopRevenue = []
-            current_date = datetime.now()
-            current_year = current_date.year
-            current_month = current_date.month
             
             # Create a dictionary to store data by year-month key
             revenue_by_month = {}
@@ -634,12 +632,17 @@ def register_department_routes(reports_bp):
                 year_month_key = (row['year'], row['month'])
                 revenue_by_month[year_month_key] = row
             
-            # Generate exactly the last 12 months
-            for i in range(11, -1, -1):
-                month_date = current_date - relativedelta(months=i)
-                year = month_date.year
-                month = month_date.month
-                month_str = month_date.strftime("%b")
+            # Get fiscal year months (12 consecutive months starting with fiscal year start)
+            fiscal_year_months = get_fiscal_year_months()
+            
+            # Generate data for each fiscal year month
+            for year, month in fiscal_year_months:
+                month_date = datetime(year, month, 1)
+                # Include year in label if spanning multiple calendar years
+                if fiscal_year_months[0][0] != fiscal_year_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
+                else:
+                    month_str = month_date.strftime("%b")
                 year_month_key = (year, month)
                 
                 # Get data for this month if it exists
@@ -880,10 +883,6 @@ def register_department_routes(reports_bp):
             parts_revenue_result = db.execute_query(parts_revenue_query)
             
             monthlyPartsRevenue = []
-            current_date = datetime.now()
-            current_year = current_date.year
-            current_month = current_date.month
-            
             monthlyCounterRevenue = []
             monthlyRepairOrderRevenue = []
             
@@ -893,12 +892,17 @@ def register_department_routes(reports_bp):
                 year_month_key = (row['year'], row['month'])
                 revenue_by_month[year_month_key] = row
             
-            # Generate exactly the last 12 months
-            for i in range(11, -1, -1):
-                month_date = current_date - relativedelta(months=i)
-                year = month_date.year
-                month = month_date.month
-                month_str = month_date.strftime("%b")
+            # Get fiscal year months (12 consecutive months starting with fiscal year start)
+            fiscal_year_months = get_fiscal_year_months()
+            
+            # Generate data for each fiscal year month
+            for year, month in fiscal_year_months:
+                month_date = datetime(year, month, 1)
+                # Include year in label if spanning multiple calendar years
+                if fiscal_year_months[0][0] != fiscal_year_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
+                else:
+                    month_str = month_date.strftime("%b")
                 year_month_key = (year, month)
                 
                 # Get data for this month if it exists
@@ -4746,9 +4750,6 @@ def register_department_routes(reports_bp):
             
             results = db.execute_query(query)
             
-            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            
             # Convert results to dictionary for easy lookup
             data_by_month = {}
             for row in results:
@@ -4765,32 +4766,40 @@ def register_department_routes(reports_bp):
                 if not is_current_or_future and rental_revenue > 0:
                     margin_percentage = round(((rental_revenue - rental_cost) / rental_revenue) * 100, 1)
                 
-                month_key = f"{year}-{month}"
+                month_key = (year, month)
                 data_by_month[month_key] = {
-                    'month': month_names[month - 1],
-                    'amount': rental_revenue,
-                    'cost': rental_cost,
-                    'margin': margin_percentage
+                    'rental_revenue': rental_revenue,
+                    'rental_cost': rental_cost,
+                    'margin_percentage': margin_percentage
                 }
             
-            # Generate full 12-month range (6 months back, current month, 5 months forward)
-            monthly_data = []
-            current_date = datetime.now()
+            # Get fiscal year months (12 consecutive months starting with fiscal year start)
+            fiscal_year_months = get_fiscal_year_months()
             
-            for i in range(-6, 6):  # -6 to +5 gives us 12 months total
-                # Calculate the target date
-                target_date = current_date + timedelta(days=i * 30.5)  # Approximate month offset
-                target_month = (current_date.month + i - 1) % 12 + 1
-                target_year = current_date.year + (current_date.month + i - 1) // 12
-                
-                month_key = f"{target_year}-{target_month}"
-                
-                if month_key in data_by_month:
-                    monthly_data.append(data_by_month[month_key])
+            # Generate data for each fiscal year month
+            monthly_data = []
+            for year, month in fiscal_year_months:
+                month_date = datetime(year, month, 1)
+                # Include year in label if spanning multiple calendar years
+                if fiscal_year_months[0][0] != fiscal_year_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
                 else:
-                    # Add empty data for missing months (including future)
+                    month_str = month_date.strftime("%b")
+                
+                year_month_key = (year, month)
+                
+                if year_month_key in data_by_month:
+                    data = data_by_month[year_month_key]
                     monthly_data.append({
-                        'month': month_names[target_month - 1],
+                        'month': month_str,
+                        'amount': data['rental_revenue'],
+                        'cost': data['rental_cost'],
+                        'margin': data['margin_percentage']
+                    })
+                else:
+                    # Add empty data for missing months
+                    monthly_data.append({
+                        'month': month_str,
                         'amount': 0,
                         'cost': 0,
                         'margin': None

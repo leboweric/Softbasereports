@@ -229,6 +229,7 @@ def get_organization_settings():
             "name": org.name,
             "subscription_tier": org.subscription_tier,
             "max_users": org.max_users,
+            "fiscal_year_start_month": org.fiscal_year_start_month or 11,
             "features": _get_enabled_features(org.subscription_tier),
             "usage_limits": TenantMiddleware.get_usage_limits(),
             "api_settings": {
@@ -260,6 +261,16 @@ def update_organization_settings():
         # Update allowed settings
         if 'name' in data:
             org.name = data['name']
+        
+        if 'fiscal_year_start_month' in data:
+            fiscal_year_start_month = data['fiscal_year_start_month']
+            # Validate month is between 1-12
+            if not isinstance(fiscal_year_start_month, int) or fiscal_year_start_month < 1 or fiscal_year_start_month > 12:
+                return jsonify({
+                    "success": False,
+                    "error": "fiscal_year_start_month must be an integer between 1 and 12"
+                }), 400
+            org.fiscal_year_start_month = fiscal_year_start_month
         
         # Only allow subscription tier changes through proper upgrade process
         # This would typically be handled by a billing system

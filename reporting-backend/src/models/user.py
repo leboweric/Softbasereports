@@ -26,6 +26,9 @@ class Organization(db.Model):
     subscription_tier = db.Column(db.String(50), default='basic')  # 'basic', 'professional', 'enterprise'
     max_users = db.Column(db.Integer, default=5)
     
+    # Fiscal year configuration
+    fiscal_year_start_month = db.Column(db.Integer, default=11)  # 1-12, where 1=January, 11=November
+    
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
@@ -43,6 +46,7 @@ class Organization(db.Model):
             'platform_type': self.platform_type,
             'subscription_tier': self.subscription_tier,
             'max_users': self.max_users,
+            'fiscal_year_start_month': self.fiscal_year_start_month,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'is_active': self.is_active
             # Note: Database credentials are intentionally NOT included in API responses for security
