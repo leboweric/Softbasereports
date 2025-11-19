@@ -595,31 +595,23 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Monthly Labor Revenue and Margins - Last 12 months
-            # Exclude internal repairs, freight, PM contracts, sublet, warranty, etc.
-            # This should match GL accounts 410004 (Field) and 410005 (Shop)
+            # Using GLDetail for 100% accurate P&L matching
+            # Revenue: GL 410004 (Field) + GL 410005 (Shop)
+            # Cost: GL 510004 (Field Cost) + GL 510005 (Shop Cost)
             labor_revenue_query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue,
-                SUM(COALESCE(LaborCost, 0)) as labor_cost
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
-                -- Exclude internal customers (Internal Repair Field/Shop)
-                AND BillTo NOT IN ('900006', '900066')
-                -- Exclude warranty transactions
-                AND (SaleCode NOT LIKE '%WARR%' OR SaleCode IS NULL)
-                -- Exclude PM contract labor
-                AND (SaleCode NOT LIKE '%PM%' OR SaleCode IS NULL)
-                -- Exclude sublet labor
-                AND (SaleCode NOT LIKE '%SUBLET%' OR SaleCode IS NULL)
-                -- Exclude freight
-                AND (SaleCode NOT LIKE '%FREIGHT%' OR SaleCode IS NULL)
-                -- Exclude GM Service if identifiable
-                AND (SaleCode NOT LIKE '%GM%' OR SaleCode IS NULL)
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                -- Revenue accounts (negative amounts in GL = revenue)
+                ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as labor_revenue,
+                -- Cost accounts (positive amounts in GL = cost)
+                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as labor_cost
+            FROM ben002.GLDetail
+            WHERE AccountNo IN ('410004', '410005', '510004', '510005')
+                AND EffectiveDate >= DATEADD(month, -12, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             
             labor_revenue_result = db.execute_query(labor_revenue_query)
@@ -825,29 +817,23 @@ def register_department_routes(reports_bp):
             db = get_db()
             
             # Monthly Parts Revenue and Margins - Last 12 months
-            # Exclude internal parts, freight, PM contracts, shop supplies, warranty, etc.
-            # This should match GL accounts 410003 (Counter) and 410012 (Customer Repair Order)
+            # Using GLDetail for 100% accurate P&L matching
+            # Revenue: GL 410003 (Counter) + GL 410012 (Customer Repair Order)
+            # Cost: GL 510003 (Counter Cost) + GL 510012 (Customer Repair Order Cost)
             parts_revenue_query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
-                SUM(COALESCE(PartsCost, 0)) as parts_cost
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
-                -- Exclude internal customers (Internal Parts Repair Order)
-                AND BillTo NOT IN ('900006', '900066')
-                -- Exclude warranty transactions
-                AND (SaleCode NOT LIKE '%WARR%' OR SaleCode IS NULL)
-                -- Exclude PM contract parts
-                AND (SaleCode NOT LIKE '%PM%' OR SaleCode IS NULL)
-                -- Exclude shop supplies (if identifiable by SaleCode)
-                AND (SaleCode NOT LIKE '%SUPP%' OR SaleCode IS NULL)
-                -- Exclude freight (if identifiable by SaleCode)
-                AND (SaleCode NOT LIKE '%FREIGHT%' OR SaleCode IS NULL)
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                -- Revenue accounts (negative amounts in GL = revenue)
+                ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
+                -- Cost accounts (positive amounts in GL = cost)
+                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost
+            FROM ben002.GLDetail
+            WHERE AccountNo IN ('410003', '410012', '510003', '510012')
+                AND EffectiveDate >= DATEADD(month, -12, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             
             parts_revenue_result = db.execute_query(parts_revenue_query)
