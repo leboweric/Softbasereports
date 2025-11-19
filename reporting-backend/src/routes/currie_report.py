@@ -8,6 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.services.azure_sql_service import AzureSQLService
 from datetime import datetime, timedelta
 import logging
+import calendar
 
 logger = logging.getLogger(__name__)
 
@@ -1016,8 +1017,175 @@ def discover_gl_accounts():
         return jsonify({'error': str(e)}), 500
 
 
+def is_full_calendar_month(start_date, end_date):
+    """
+    Check if the date range represents a full calendar month
+    
+    Args:
+        start_date: Start date string (YYYY-MM-DD)
+        end_date: End date string (YYYY-MM-DD)
+    
+    Returns:
+        Tuple of (is_full_month, year, month) or (False, None, None)
+    """
+    try:
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        
+        # Check if start is first day of month
+        if start.day != 1:
+            return False, None, None
+        
+        # Check if end is last day of month
+        last_day = calendar.monthrange(start.year, start.month)[1]
+        if end.day != last_day:
+            return False, None, None
+        
+        # Check if both dates are in the same month
+        if start.year != end.year or start.month != end.month:
+            return False, None, None
+        
+        return True, start.year, start.month
+    except:
+        return False, None, None
+
 def get_gl_expenses(start_date, end_date):
-    """Get operating expenses from GL accounts"""
+    """
+    Get operating expenses from GL accounts
+    Uses GL.MTD for full calendar months (exact Softbase match)
+    Uses GLDetail for custom date ranges (flexibility)
+    """
+    try:
+        # Check if this is a full calendar month
+        is_full_month, year, month = is_full_calendar_month(start_date, end_date)
+        
+        if is_full_month:
+            # Use GL.MTD for exact Softbase match
+            return get_gl_expenses_from_gl_mtd(year, month)
+        else:
+            # Use GLDetail for custom date ranges
+            return get_gl_expenses_from_gldetail(start_date, end_date)
+    except Exception as e:
+        logger.error(f"Error in get_gl_expenses: {e}")
+        raise
+
+def get_gl_expenses_from_gl_mtd(year, month):
+    """
+    Get operating expenses from GL.MTD (monthly summary table)
+    This matches Softbase exactly for monthly reports
+    """
+    try:
+        # Personnel Costs
+        personnel_query = """
+        SELECT 
+            SUM(CASE WHEN AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400') THEN MTD ELSE 0 END) as personnel_total,
+            SUM(CASE WHEN AccountNo = '602600' THEN MTD ELSE 0 END) as payroll,
+            SUM(CASE WHEN AccountNo = '601100' THEN MTD ELSE 0 END) as payroll_taxes,
+            SUM(CASE WHEN AccountNo IN ('601500', '602700', '602701') THEN MTD ELSE 0 END) as benefits,
+            SUM(CASE WHEN AccountNo = '600400' THEN MTD ELSE 0 END) as commissions
+        FROM ben002.GL
+        WHERE Year = %s
+          AND Month = %s
+          AND AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400')
+        """
+        
+        # Occupancy Costs
+        occupancy_query = """
+        SELECT 
+            SUM(MTD) as occupancy_total,
+            SUM(CASE WHEN AccountNo IN ('600200', '600201') THEN MTD ELSE 0 END) as rent,
+            SUM(CASE WHEN AccountNo = '604000' THEN MTD ELSE 0 END) as utilities,
+            SUM(CASE WHEN AccountNo = '601700' THEN MTD ELSE 0 END) as insurance,
+            SUM(CASE WHEN AccountNo = '600300' THEN MTD ELSE 0 END) as building_maintenance,
+            SUM(CASE WHEN AccountNo = '600900' THEN MTD ELSE 0 END) as depreciation
+        FROM ben002.GL
+        WHERE Year = %s
+          AND Month = %s
+          AND AccountNo IN ('600200', '600201', '600300', '604000', '601700', '600900')
+        """
+        
+        # Operating Expenses
+        operating_query = """
+        SELECT 
+            SUM(MTD) as operating_total,
+            SUM(CASE WHEN AccountNo = '600000' THEN MTD ELSE 0 END) as advertising,
+            SUM(CASE WHEN AccountNo IN ('600500', '601300') THEN MTD ELSE 0 END) as computer_it,
+            SUM(CASE WHEN AccountNo IN ('603500', '603501', '602400') THEN MTD ELSE 0 END) as supplies,
+            SUM(CASE WHEN AccountNo = '603600' THEN MTD ELSE 0 END) as telephone,
+            SUM(CASE WHEN AccountNo = '603700' THEN MTD ELSE 0 END) as training,
+            SUM(CASE WHEN AccountNo = '603800' THEN MTD ELSE 0 END) as travel,
+            SUM(CASE WHEN AccountNo = '604100' THEN MTD ELSE 0 END) as vehicle_expense,
+            SUM(CASE WHEN AccountNo = '603000' THEN MTD ELSE 0 END) as professional_services,
+            SUM(CASE WHEN AccountNo IN ('601000', '601200', '602900', '603300', '603900', '602100', '602200') THEN MTD ELSE 0 END) as other
+        FROM ben002.GL
+        WHERE Year = %s
+          AND Month = %s
+          AND AccountNo IN (
+            '600000', '600500', '601000', '601200', '601300', '602100', '602200', 
+            '602400', '602900', '603000', '603300', '603500', '603501', '603600', 
+            '603700', '603800', '603900', '604100'
+          )
+        """
+        
+        personnel_result = sql_service.execute_query(personnel_query, [year, month])
+        occupancy_result = sql_service.execute_query(occupancy_query, [year, month])
+        operating_result = sql_service.execute_query(operating_query, [year, month])
+        
+        personnel = personnel_result[0] if personnel_result else {}
+        occupancy = occupancy_result[0] if occupancy_result else {}
+        operating = operating_result[0] if operating_result else {}
+        
+        return {
+            'personnel': {
+                'total': float(personnel.get('personnel_total') or 0),
+                'payroll': float(personnel.get('payroll') or 0),
+                'payroll_taxes': float(personnel.get('payroll_taxes') or 0),
+                'benefits': float(personnel.get('benefits') or 0),
+                'commissions': float(personnel.get('commissions') or 0)
+            },
+            'occupancy': {
+                'total': float(occupancy.get('occupancy_total') or 0),
+                'rent': float(occupancy.get('rent') or 0),
+                'utilities': float(occupancy.get('utilities') or 0),
+                'insurance': float(occupancy.get('insurance') or 0),
+                'building_maintenance': float(occupancy.get('building_maintenance') or 0),
+                'depreciation': float(occupancy.get('depreciation') or 0)
+            },
+            'operating': {
+                'total': float(operating.get('operating_total') or 0),
+                'advertising': float(operating.get('advertising') or 0),
+                'computer_it': float(operating.get('computer_it') or 0),
+                'supplies': float(operating.get('supplies') or 0),
+                'telephone': float(operating.get('telephone') or 0),
+                'training': float(operating.get('training') or 0),
+                'travel': float(operating.get('travel') or 0),
+                'vehicle_expense': float(operating.get('vehicle_expense') or 0),
+                'professional_services': float(operating.get('professional_services') or 0),
+                'other': float(operating.get('other') or 0)
+            },
+            'grand_total': (
+                float(personnel.get('personnel_total') or 0) +
+                float(occupancy.get('occupancy_total') or 0) +
+                float(operating.get('operating_total') or 0)
+            )
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching GL expenses from GL.MTD: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'personnel': {'total': 0},
+            'occupancy': {'total': 0},
+            'operating': {'total': 0},
+            'grand_total': 0
+        }
+
+def get_gl_expenses_from_gldetail(start_date, end_date):
+    """
+    Get operating expenses from GLDetail (transaction-level detail)
+    Used for custom date ranges that aren't full calendar months
+    """
     try:
         # Personnel Costs
         personnel_query = """
