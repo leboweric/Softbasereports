@@ -737,3 +737,120 @@ def get_pl_ytd():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@pl_report_bp.route('/api/reports/pl/export-excel', methods=['GET'])
+def export_pl_excel():
+    """
+    Export P&L report to Excel using accounting firm template format
+    
+    Query Parameters:
+        month: Month number (1-12)
+        year: Year
+    
+    Returns:
+        Excel file with P&L data in accounting firm format
+    """
+    try:
+        import openpyxl
+        from flask import send_file
+        import os
+        from datetime import datetime
+        import io
+        import calendar
+        
+        # Get month and year from query parameters
+        now = datetime.now()
+        month = request.args.get('month', now.month, type=int)
+        year = request.args.get('year', now.year, type=int)
+        
+        if not (1 <= month <= 12):
+            return jsonify({'error': 'month must be between 1 and 12'}), 400
+        
+        # Calculate MTD date range (first day to last day of month)
+        first_day = f"{year}-{month:02d}-01"
+        last_day_num = calendar.monthrange(year, month)[1]
+        last_day = f"{year}-{month:02d}-{last_day_num:02d}"
+        
+        # Calculate YTD date range (Jan 1 to end of current month)
+        ytd_start = f"{year}-01-01"
+        ytd_end = last_day
+        
+        # Get MTD and YTD GL data
+        mtd_query = """
+        SELECT 
+            AccountNo,
+            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' THEN Amount ELSE 0 END) as MTD
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+        GROUP BY AccountNo
+        """
+        
+        ytd_query = """
+        SELECT 
+            AccountNo,
+            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' THEN Amount ELSE 0 END) as YTD
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+        GROUP BY AccountNo
+        """
+        
+        mtd_results = sql_service.execute_query(mtd_query, [first_day, last_day])
+        ytd_results = sql_service.execute_query(ytd_query, [ytd_start, ytd_end])
+        
+        # Build dictionaries for quick lookup
+        mtd_data = {row['AccountNo']: float(row['MTD'] or 0) for row in mtd_results}
+        ytd_data = {row['AccountNo']: float(row['YTD'] or 0) for row in ytd_results}
+        
+        # Load the template
+        template_path = os.path.join(os.path.dirname(__file__), '../../templates/pl_template.xlsx')
+        wb = openpyxl.load_workbook(template_path)
+        ws = wb.active
+        
+        # Update month and year in header
+        month_name = calendar.month_name[month]
+        ws['A5'] = f"Month: {month}  Year: {year}"
+        
+        # Populate MTD and YTD data
+        # Start from row 12 and scan for account numbers in column C
+        for row_idx in range(12, ws.max_row + 1):
+            account_cell = ws[f'C{row_idx}']
+            account_no = account_cell.value
+            
+            if account_no and isinstance(account_no, (str, int)):
+                account_str = str(account_no).strip()
+                
+                # Write MTD value (column I)
+                mtd_value = mtd_data.get(account_str, 0)
+                ws[f'I{row_idx}'] = mtd_value
+                
+                # Write YTD value (column J)
+                ytd_value = ytd_data.get(account_str, 0)
+                ws[f'J{row_idx}'] = ytd_value
+        
+        # Save to BytesIO
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Generate filename
+        filename = f"ProfitLossReport_{year}_{month:02d}.xlsx"
+        
+        logger.info(f"P&L Excel export generated: {filename}")
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting P&L Excel: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to export P&L to Excel', 'message': str(e)}), 500
