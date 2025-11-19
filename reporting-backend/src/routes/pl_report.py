@@ -269,23 +269,23 @@ def get_expense_data(start_date, end_date):
         
         results = sql_service.execute_query(query, [start_date, end_date])
         
-        # Debug: Log all accounts returned from query
-        logger.info(f"="*80)
-        logger.info(f"EXPENSE QUERY DEBUG for {start_date} to {end_date}")
-        logger.info(f"Query returned {len(results if results else [])} accounts with Posted=1 filter")
+        # Debug: Print all accounts returned from query (using print to ensure it appears in logs)
+        print("="*80)
+        print(f"EXPENSE QUERY DEBUG for {start_date} to {end_date}")
+        print(f"Query returned {len(results if results else [])} accounts with Posted=1 filter")
         
-        # Log each account and amount
+        # Print each account and amount
         query_total = 0
         if results:
             for row in results:
                 acct = str(row['AccountNo']).strip()
                 amt = float(row['total'] or 0)
                 query_total += amt
-                logger.info(f"  Account {acct}: ${amt:,.2f}")
+                print(f"  Account {acct}: ${amt:,.2f}")
         
-        logger.info(f"Query Total (before category aggregation): ${query_total:,.2f}")
-        logger.info(f"Target from Softbase: $338,909.32")
-        logger.info(f"Difference: ${query_total - 338909.32:,.2f}")
+        print(f"Query Total (before category aggregation): ${query_total:,.2f}")
+        print(f"Target from Softbase: $338,909.32")
+        print(f"Difference: ${query_total - 338909.32:,.2f}")
         
         # Organize by category
         expense_data = {}
@@ -321,8 +321,8 @@ def get_expense_data(start_date, end_date):
         
         expense_data['total_expenses'] = total_expenses
         
-        logger.info(f"After category aggregation: ${total_expenses:,.2f}")
-        logger.info(f"="*80)
+        print(f"After category aggregation: ${total_expenses:,.2f}")
+        print("="*80)
         
         return expense_data
         
