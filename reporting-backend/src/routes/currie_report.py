@@ -313,104 +313,28 @@ def get_service_revenue(start_date, end_date):
 
 
 def get_parts_revenue(start_date, end_date):
-    """Get parts revenue broken down by counter, RO, internal, warranty"""
+    """Get parts revenue broken down by counter, RO, internal, warranty using GLDetail"""
     try:
-        # Query parts sales from InvoiceReg table with proper classification
-        # Based on SaleCode patterns found in existing reports
+        # Query parts sales and costs from GLDetail using approved GL accounts
         query = """
         SELECT 
-            -- Counter Primary Brand: CSTPRT with Linde codes
-            SUM(CASE 
-                WHEN i.SaleCode = 'CSTPRT' AND (i.SaleCode LIKE '%LINDE%' OR i.SaleCode LIKE '%LINDEN%')
-                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
-                WHEN i.SaleCode = 'CSTPRT'
-                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
-                ELSE 0 
-            END) as counter_primary_sales,
-            SUM(CASE 
-                WHEN i.SaleCode = 'CSTPRT' AND (i.SaleCode LIKE '%LINDE%' OR i.SaleCode LIKE '%LINDEN%')
-                THEN COALESCE(i.PartsCost, 0)
-                WHEN i.SaleCode = 'CSTPRT'
-                THEN COALESCE(i.PartsCost, 0)
-                ELSE 0 
-            END) as counter_primary_cogs,
-            
-            -- Counter Other Brand: CSTPRT without Linde (for now, count as 0 since we can't distinguish)
-            0 as counter_other_sales,
-            0 as counter_other_cogs,
-            
-            -- RO Primary Brand: Parts with WONumber and Linde codes
-            -- Note: We're using SaleCode as proxy since WONumber field may not exist in InvoiceReg
-            SUM(CASE 
-                WHEN i.SaleCode IN ('LINDE', 'LINDEN') AND i.SaleCode != 'CSTPRT'
-                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
-                ELSE 0 
-            END) as ro_primary_sales,
-            SUM(CASE 
-                WHEN i.SaleCode IN ('LINDE', 'LINDEN') AND i.SaleCode != 'CSTPRT'
-                THEN COALESCE(i.PartsCost, 0)
-                ELSE 0 
-            END) as ro_primary_cogs,
-            
-            -- RO Other Brand: Other parts codes (not counter, not Linde)
-            SUM(CASE 
-                WHEN i.SaleCode NOT IN ('CSTPRT', 'LINDE', 'LINDEN')
-                     AND i.BillTo NOT IN ('900006', '900066')
-                     AND i.SaleCode NOT LIKE '%WARR%'
-                     AND i.SaleCode NOT LIKE '%ECOM%' AND i.SaleCode NOT LIKE '%WEB%'
-                     AND (COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) > 0
-                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
-                ELSE 0 
-            END) as ro_other_sales,
-            SUM(CASE 
-                WHEN i.SaleCode NOT IN ('CSTPRT', 'LINDE', 'LINDEN')
-                     AND i.BillTo NOT IN ('900006', '900066')
-                     AND i.SaleCode NOT LIKE '%WARR%'
-                     AND i.SaleCode NOT LIKE '%ECOM%' AND i.SaleCode NOT LIKE '%WEB%'
-                     AND (COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) > 0
-                THEN COALESCE(i.PartsCost, 0)
-                ELSE 0 
-            END) as ro_other_cogs,
-            
-            -- Internal Parts: Internal customer numbers
-            SUM(CASE 
-                WHEN i.BillTo IN ('900006', '900066')
-                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
-                ELSE 0 
-            END) as internal_sales,
-            SUM(CASE 
-                WHEN i.BillTo IN ('900006', '900066')
-                THEN COALESCE(i.PartsCost, 0)
-                ELSE 0 
-            END) as internal_cogs,
-            
-            -- Warranty Parts: Warranty codes
-            SUM(CASE 
-                WHEN i.SaleCode LIKE '%WARR%'
-                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
-                ELSE 0 
-            END) as warranty_sales,
-            SUM(CASE 
-                WHEN i.SaleCode LIKE '%WARR%'
-                THEN COALESCE(i.PartsCost, 0)
-                ELSE 0 
-            END) as warranty_cogs,
-            
-            -- E-Commerce Parts: Online sales codes
-            SUM(CASE 
-                WHEN (i.SaleCode LIKE '%ECOM%' OR i.SaleCode LIKE '%WEB%')
-                THEN COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)
-                ELSE 0 
-            END) as ecommerce_sales,
-            SUM(CASE 
-                WHEN (i.SaleCode LIKE '%ECOM%' OR i.SaleCode LIKE '%WEB%')
-                THEN COALESCE(i.PartsCost, 0)
-                ELSE 0 
-            END) as ecommerce_cogs
-        FROM ben002.InvoiceReg i
-        WHERE i.InvoiceDate >= %s 
-          AND i.InvoiceDate <= %s
-          AND (COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) > 0
+            AccountNo,
+            SUM(ABS(Amount)) as total_amount
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND AccountNo IN (
+            -- Counter Parts (Primary Brand - all counter goes here)
+            '410003', '510003',
+            -- RO Parts (Primary Brand - all RO goes here)
+            '410012', '510012',
+            -- Internal Parts
+            '424000', '524000',
+            -- Warranty Parts
+            '410014', '510014'
+          )
+        GROUP BY AccountNo
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
@@ -425,23 +349,36 @@ def get_parts_revenue(start_date, end_date):
             'ecommerce': {'sales': 0, 'cogs': 0}
         }
         
-        # Map query results to parts_data
-        if results and len(results) > 0:
-            row = results[0]
-            parts_data['counter_primary']['sales'] = float(row['counter_primary_sales'] or 0)
-            parts_data['counter_primary']['cogs'] = float(row['counter_primary_cogs'] or 0)
-            parts_data['counter_other']['sales'] = float(row['counter_other_sales'] or 0)
-            parts_data['counter_other']['cogs'] = float(row['counter_other_cogs'] or 0)
-            parts_data['ro_primary']['sales'] = float(row['ro_primary_sales'] or 0)
-            parts_data['ro_primary']['cogs'] = float(row['ro_primary_cogs'] or 0)
-            parts_data['ro_other']['sales'] = float(row['ro_other_sales'] or 0)
-            parts_data['ro_other']['cogs'] = float(row['ro_other_cogs'] or 0)
-            parts_data['internal']['sales'] = float(row['internal_sales'] or 0)
-            parts_data['internal']['cogs'] = float(row['internal_cogs'] or 0)
-            parts_data['warranty']['sales'] = float(row['warranty_sales'] or 0)
-            parts_data['warranty']['cogs'] = float(row['warranty_cogs'] or 0)
-            parts_data['ecommerce']['sales'] = float(row['ecommerce_sales'] or 0)
-            parts_data['ecommerce']['cogs'] = float(row['ecommerce_cogs'] or 0)
+        # Map GL accounts to categories
+        for row in results:
+            account = row['AccountNo']
+            amount = float(row['total_amount'] or 0)
+            
+            # Counter Primary Brand (all counter sales)
+            if account == '410003':
+                parts_data['counter_primary']['sales'] += amount
+            elif account == '510003':
+                parts_data['counter_primary']['cogs'] += amount
+            
+            # RO Primary Brand (all RO sales)
+            elif account == '410012':
+                parts_data['ro_primary']['sales'] += amount
+            elif account == '510012':
+                parts_data['ro_primary']['cogs'] += amount
+            
+            # Internal Parts
+            elif account == '424000':
+                parts_data['internal']['sales'] += amount
+            elif account == '524000':
+                parts_data['internal']['cogs'] += amount
+            
+            # Warranty Parts
+            elif account == '410014':
+                parts_data['warranty']['sales'] += amount
+            elif account == '510014':
+                parts_data['warranty']['cogs'] += amount
+        
+        # Counter Other, RO Other, and E-commerce remain at $0
         
         # Calculate gross profit
         for category in parts_data.values():
