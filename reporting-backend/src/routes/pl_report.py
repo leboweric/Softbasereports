@@ -295,6 +295,10 @@ def get_pl_report():
         total_cogs = 0
         
         for dept_key in GL_ACCOUNTS.keys():
+            # Skip administrative department (internal allocations only, not real sales)
+            if dept_key == 'administrative':
+                continue
+                
             dept_data = get_department_pl(start_date, end_date, dept_key, include_detail)
             if dept_data:
                 departments[dept_key] = dept_data
