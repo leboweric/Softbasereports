@@ -55,6 +55,21 @@ def get_sales_cogs_gp():
         # Calculate totals
         data['totals'] = calculate_totals(data, months_diff)
         
+        # Get expenses for bottom summary section
+        expenses = get_gl_expenses(start_date, end_date)
+        data['expenses'] = expenses
+        
+        # Get other income and interest
+        other_income_interest = get_other_income_and_interest(start_date, end_date)
+        data['other_income'] = other_income_interest.get('other_income', 0)
+        data['interest_expense'] = other_income_interest.get('interest_expense', 0)
+        data['fi_income'] = other_income_interest.get('fi_income', 0)
+        
+        # Calculate bottom summary totals
+        total_operating_profit = data['totals']['total_company']['gross_profit'] - expenses['grand_total'] + data['other_income'] + data['interest_expense']
+        data['total_operating_profit'] = total_operating_profit
+        data['pre_tax_income'] = total_operating_profit + data['fi_income']
+        
         return jsonify(data), 200
         
     except Exception as e:
@@ -489,13 +504,22 @@ def calculate_totals(data, num_months):
     # Calculate average monthly sales & GP
     avg_monthly_sales_gp = grand_total['sales'] / num_months if num_months > 0 else 0
     
+    # Calculate Total Sales Dept (includes all equipment items)
+    # In Excel: Total New Equipment + Operator Training + Used Equipment + E-Commerce + Systems + Batteries
+    total_sales_dept_full = {
+        'sales': total_new_equipment['sales'],
+        'cogs': total_new_equipment['cogs'],
+        'gross_profit': total_new_equipment['gross_profit']
+    }
+    
     return {
-        'total_new_equipment': total_new_equipment,
-        'total_sales_dept': total_sales_dept,
+        'total_new_equipment': total_new_equipment,  # Subtotal for first 4 items only
+        'total_sales_dept': total_sales_dept_full,   # Grand total for all equipment
         'total_rental': total_rental,
         'total_service': total_service,
         'total_parts': total_parts,
         'total_aftermarket': total_aftermarket,
+        'total_net_sales_gp': grand_total,  # Same as total_company but matches Excel naming
         'grand_total': grand_total,
         'total_company': grand_total,  # Alias for grand_total
         'avg_monthly_sales_gp': avg_monthly_sales_gp,
@@ -1371,3 +1395,52 @@ def get_currie_expenses():
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+def get_other_income_and_interest(start_date, end_date):
+    """
+    Get Other Income (Expenses), Interest (Expense), and F&I Income
+    These appear in the bottom summary section of the Currie report
+    """
+    try:
+        query = """
+        SELECT 
+            SUM(CASE WHEN AccountNo BETWEEN '700000' AND '799999' THEN Amount ELSE 0 END) as other_income,
+            SUM(CASE WHEN AccountNo BETWEEN '800000' AND '899999' THEN Amount ELSE 0 END) as interest_expense,
+            SUM(CASE WHEN AccountNo = '440000' THEN Amount ELSE 0 END) as fi_income
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND (
+            (AccountNo BETWEEN '700000' AND '799999') OR
+            (AccountNo BETWEEN '800000' AND '899999') OR
+            (AccountNo = '440000')
+          )
+        """
+        
+        result = sql_service.execute_query(query, [start_date, end_date])
+        
+        if result and len(result) > 0:
+            row = result[0]
+            return {
+                'other_income': float(row.get('other_income') or 0),
+                'interest_expense': float(row.get('interest_expense') or 0),
+                'fi_income': float(row.get('fi_income') or 0)
+            }
+        else:
+            return {
+                'other_income': 0,
+                'interest_expense': 0,
+                'fi_income': 0
+            }
+            
+    except Exception as e:
+        logger.error(f"Error fetching other income and interest: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'other_income': 0,
+            'interest_expense': 0,
+            'fi_income': 0
+        }
