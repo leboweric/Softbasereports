@@ -358,17 +358,50 @@ def get_parts_revenue(start_date, end_date):
 
 
 def get_trucking_revenue(start_date, end_date):
-    """Get trucking/delivery revenue"""
+    """Get trucking/delivery revenue using GLDetail with all trucking GL accounts"""
     try:
-        # Query trucking revenue from InvoiceReg table
+        # Query trucking revenue from GLDetail table with exact GL accounts
         query = """
         SELECT 
-            SUM(COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as sales,
-            SUM(COALESCE(i.MiscCost, 0)) as cogs
-        FROM ben002.InvoiceReg i
-        WHERE i.InvoiceDate >= %s 
-          AND i.InvoiceDate <= %s
-          AND (COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) > 0
+            -- All Trucking Revenue Accounts
+            SUM(CASE WHEN AccountNo IN (
+                '410010',  -- Sales - Trucking
+                '421010',  -- SALES - FREIGHT - Trucking
+                '434001',  -- SALES - TRUCKING/DELIVERY - New Equip
+                '434002',  -- SALES - TRUCKING/DELIVERY - Used Equip
+                '434003',  -- SALES - TRUCKING/DELIVERY - Parts
+                '434010',  -- SALES - TRUCKING/DELIVERY - Trucking
+                '434011',  -- SALES - TRUCKING/DELIVERY - G&A
+                '434012',  -- SALES - TRUCKING/DELIVERY - RENTAL
+                '434013'   -- SALES - TRUCKING/DELIVERY - SERVICE
+            ) THEN ABS(Amount) ELSE 0 END) as sales,
+            
+            -- All Trucking Cost Accounts
+            SUM(CASE WHEN AccountNo IN (
+                '510010',  -- COS - Trucking
+                '521010',  -- COS - FREIGHT - Trucking
+                '534001',  -- COS - TRUCKING/DELIVERY - New Equip
+                '534002',  -- COS - TRUCKING/DELIVERY - Used Equip
+                '534003',  -- COS - TRUCKING/DELIVERY - Parts
+                '534010',  -- COS - TRUCKING/DELIVERY - Trucking
+                '534011',  -- COS - TRUCKING/DELIVERY - G&A
+                '534012',  -- COS - TRUCKING/DELIVERY - Customer
+                '534013',  -- COS - TRUCKING/DELIVERY - New Equipment Demo
+                '534014',  -- COS - TRUCKING/DELIVERY - Rental
+                '534015'   -- COS - TRUCKING/DELIVERY - Service
+            ) THEN ABS(Amount) ELSE 0 END) as cogs
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND AccountNo IN (
+              -- Revenue accounts
+              '410010', '421010', '434001', '434002', '434003', 
+              '434010', '434011', '434012', '434013',
+              -- Cost accounts
+              '510010', '521010', '534001', '534002', '534003', 
+              '534010', '534011', '534012', '534013', '534014', '534015'
+          )
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
