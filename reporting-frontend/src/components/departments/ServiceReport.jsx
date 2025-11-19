@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Clock, Download, FileText, TrendingUp, TrendingDown } from 'lucide-react'
+import { AlertTriangle, Clock, Download, FileText, TrendingUp, TrendingDown, Info } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,12 @@ import {
   Cell
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import ServiceInvoiceBilling from '../ServiceInvoiceBilling'
 import WorkOrderTypes from '../WorkOrderTypes'
 import PMReport from '../PMReport'
@@ -689,8 +695,23 @@ const ServiceReport = ({ user, onNavigate }) => {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle>Monthly Labor Revenue & Margin</CardTitle>
-              <CardDescription>Labor revenue and gross margin % over the last 12 months</CardDescription>
+              <div className="flex items-center gap-2">
+                <CardTitle>Monthly Labor Revenue & Margin</CardTitle>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <p className="font-semibold mb-1">Includes:</p>
+                      <p className="text-xs mb-2">• Field service (GL 410004)<br/>• Shop service (GL 410005)</p>
+                      <p className="font-semibold mb-1">Excludes:</p>
+                      <p className="text-xs">• Internal repairs<br/>• Freight charges<br/>• PM contract labor<br/>• Sublet labor<br/>• Warranty labor<br/>• GM Service</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <CardDescription>External customer service revenue and gross margin % over the last 12 months</CardDescription>
             </div>
             {serviceData?.monthlyLaborRevenue && serviceData.monthlyLaborRevenue.length > 0 && (() => {
               // Only include historical months (before current month)

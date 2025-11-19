@@ -757,8 +757,23 @@ const PartsReport = ({ user, onNavigate }) => {
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div>
-                  <CardTitle>Monthly Parts Revenue & Margin</CardTitle>
-                  <CardDescription>Parts revenue and gross margin % over the last 12 months</CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle>Monthly Parts Revenue & Margin</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-sm">
+                          <p className="font-semibold mb-1">Includes:</p>
+                          <p className="text-xs mb-2">• Counter sales (GL 410003)<br/>• Customer repair order parts (GL 410012)</p>
+                          <p className="font-semibold mb-1">Excludes:</p>
+                          <p className="text-xs">• Internal parts repairs<br/>• Freight charges<br/>• PM contract parts<br/>• Shop supplies<br/>• Warranty parts</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <CardDescription>External customer parts sales and gross margin % over the last 12 months</CardDescription>
                 </div>
                 {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
                   // Only include historical months (before current month)
