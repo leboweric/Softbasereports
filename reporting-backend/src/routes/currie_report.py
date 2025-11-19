@@ -62,21 +62,28 @@ def get_sales_cogs_gp():
 
 
 def get_new_equipment_sales(start_date, end_date):
-    """Get new equipment sales broken down by category using InvoiceReg table"""
+    """Get new equipment sales broken down by category using GLDetail table"""
     try:
-        # Query for new equipment sales from InvoiceReg table
-        # Using SaleCode to identify equipment types
-        # LINDE/LINDEN = Primary Brand, others = Other Brands
+        # Query for equipment sales and costs from GLDetail using approved GL accounts
         query = """
         SELECT 
-            i.SaleCode,
-            SUM(COALESCE(i.EquipmentTaxable, 0) + COALESCE(i.EquipmentNonTax, 0)) as sales,
-            SUM(COALESCE(i.EquipmentCost, 0)) as cogs
-        FROM ben002.InvoiceReg i
-        WHERE i.InvoiceDate >= %s 
-          AND i.InvoiceDate <= %s
-          AND (COALESCE(i.EquipmentTaxable, 0) + COALESCE(i.EquipmentNonTax, 0)) > 0
-        GROUP BY i.SaleCode
+            AccountNo,
+            SUM(ABS(Amount)) as total_amount
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND AccountNo IN (
+            -- New Equipment Revenue
+            '413001', '426001', '412001', '414001',
+            -- New Equipment Cost
+            '513001', '526001', '512001', '514001',
+            -- Used Equipment Revenue
+            '412002', '413002', '414002', '426002', '431002', '410002',
+            -- Used Equipment Cost
+            '512002', '513002', '514002', '526002', '531002', '510002'
+          )
+        GROUP BY AccountNo
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
@@ -94,28 +101,40 @@ def get_new_equipment_sales(start_date, end_date):
             'batteries': {'sales': 0, 'cogs': 0}
         }
         
-        # Map results to categories based on SaleCode
+        # Map GL accounts to categories
         for row in results:
-            sales = float(row['sales'] or 0)
-            cogs = float(row['cogs'] or 0)
-            sale_code = (row['SaleCode'] or '').upper()
+            account = row['AccountNo']
+            amount = float(row['total_amount'] or 0)
             
-            # Linde = Primary Brand
-            if sale_code in ('LINDE', 'LINDEN', 'NEWEQ'):
-                categories['new_lift_truck_primary']['sales'] += sales
-                categories['new_lift_truck_primary']['cogs'] += cogs
-            # Used equipment
-            elif sale_code in ('USEDEQ', 'RNTSALE'):
-                categories['used_equipment']['sales'] += sales
-                categories['used_equipment']['cogs'] += cogs
-            # Other new equipment (KOM, etc.)
-            elif sale_code in ('KOM', 'NEWEQP-R'):
-                categories['new_lift_truck_other']['sales'] += sales
-                categories['new_lift_truck_other']['cogs'] += cogs
-            # Default to other new equipment
-            else:
-                categories['other_new_equipment']['sales'] += sales
-                categories['other_new_equipment']['cogs'] += cogs
+            # New Lift Truck - Primary Brand (LINDE)
+            if account == '413001':
+                categories['new_lift_truck_primary']['sales'] += amount
+            elif account == '513001':
+                categories['new_lift_truck_primary']['cogs'] += amount
+            
+            # New Lift Truck - Other Brands (KOMATSU)
+            elif account == '426001':
+                categories['new_lift_truck_other']['sales'] += amount
+            elif account == '526001':
+                categories['new_lift_truck_other']['cogs'] += amount
+            
+            # New Allied Equipment
+            elif account == '412001':
+                categories['new_allied']['sales'] += amount
+            elif account == '512001':
+                categories['new_allied']['cogs'] += amount
+            
+            # Batteries
+            elif account == '414001':
+                categories['batteries']['sales'] += amount
+            elif account == '514001':
+                categories['batteries']['cogs'] += amount
+            
+            # Used Equipment (aggregate all used accounts)
+            elif account in ('412002', '413002', '414002', '426002', '431002', '410002'):
+                categories['used_equipment']['sales'] += amount
+            elif account in ('512002', '513002', '514002', '526002', '531002', '510002'):
+                categories['used_equipment']['cogs'] += amount
         
         # Calculate gross profit for each category
         for category in categories.values():
