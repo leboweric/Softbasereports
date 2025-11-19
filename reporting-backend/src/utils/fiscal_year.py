@@ -47,12 +47,15 @@ def get_current_fiscal_year_dates():
     return fiscal_year_start, fiscal_year_end
 
 
-def get_fiscal_year_months(as_of_date=None):
+def get_fiscal_year_months(as_of_date=None, use_previous_year=True):
     """
-    Get a list of the 12 months in the current fiscal year in chronological order.
+    Get a list of the 12 months in the fiscal year in chronological order.
     
     Args:
         as_of_date: Optional datetime to use instead of current date
+        use_previous_year: If True, return the previous completed fiscal year.
+                          If False, return the current fiscal year.
+                          Default is True for chart display purposes.
         
     Returns:
         list: List of (year, month) tuples representing the fiscal year months
@@ -61,6 +64,11 @@ def get_fiscal_year_months(as_of_date=None):
         as_of_date = datetime.now()
     
     fiscal_year_start, _ = get_current_fiscal_year_dates()
+    
+    # For charts, we typically want to show the previous completed fiscal year
+    # unless we're well into the current fiscal year (e.g., past 3 months)
+    if use_previous_year:
+        fiscal_year_start = fiscal_year_start - relativedelta(years=1)
     
     months = []
     for i in range(12):
