@@ -941,6 +941,32 @@ def export_currie_excel():
         # Write Trucking (row 38)
         write_row(38, trucking)
         
+        # Get other income/interest data for bottom section
+        other_income_interest = get_other_income_and_interest(start_date, end_date)
+        
+        # Calculate bottom section values (rows 42-47)
+        # Row 40 and 41 have formulas that calculate from the data above, leave them
+        # Row 42: Total Company Expenses
+        ws['D42'] = expenses['grand_total']
+        
+        # Row 43: Other Income (Expenses) - negative because it's an expense
+        ws['D43'] = other_income_interest.get('other_income', 0)
+        
+        # Row 44: Interest (Expense) - negative because it's an expense
+        ws['D44'] = other_income_interest.get('interest_expense', 0)
+        
+        # Row 45: Total operating profit = (Total Net Sales GP - Total Expenses + Other Income + Interest)
+        # We'll let the formula calculate this, but we could also write it directly
+        total_net_sales_gp = totals['total_net_sales_gp']['gross_profit']
+        total_operating_profit = total_net_sales_gp - expenses['grand_total'] + other_income_interest.get('other_income', 0) + other_income_interest.get('interest_expense', 0)
+        ws['D45'] = total_operating_profit
+        
+        # Row 46: F & I Income
+        ws['D46'] = other_income_interest.get('fi_income', 0)
+        
+        # Row 47: Pre-Tax Income = Operating Profit + F&I Income
+        ws['D47'] = total_operating_profit + other_income_interest.get('fi_income', 0)
+        
         # Save to BytesIO for download
         output = io.BytesIO()
         wb.save(output)
