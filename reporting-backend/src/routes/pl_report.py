@@ -268,18 +268,39 @@ def get_expense_data(start_date, end_date):
         
         results = sql_service.execute_query(query, [start_date, end_date])
         
+        # Debug: Log all accounts returned from query
+        logger.info(f"Expense query returned {len(results)} accounts")
+        
         # Organize by category
         expense_data = {}
         total_expenses = 0
+        matched_accounts = set()
         
         for category, accounts in EXPENSE_ACCOUNTS.items():
             category_total = 0
             for row in results:
-                if row['AccountNo'] in accounts:
-                    category_total += float(row['total'] or 0)
+                # Convert AccountNo to string for consistent comparison
+                account_no = str(row['AccountNo']).strip()
+                if account_no in accounts:
+                    amount = float(row['total'] or 0)
+                    category_total += amount
+                    matched_accounts.add(account_no)
             
             expense_data[category] = category_total
             total_expenses += category_total
+        
+        # Debug: Check for unmatched accounts
+        all_result_accounts = {str(row['AccountNo']).strip() for row in results}
+        unmatched = all_result_accounts - matched_accounts
+        if unmatched:
+            logger.warning(f"Unmatched expense accounts: {unmatched}")
+            # Add unmatched amounts to total
+            for row in results:
+                account_no = str(row['AccountNo']).strip()
+                if account_no in unmatched:
+                    amount = float(row['total'] or 0)
+                    total_expenses += amount
+                    logger.warning(f"  Adding unmatched {account_no}: ${amount:,.2f}")
         
         expense_data['total_expenses'] = total_expenses
         
