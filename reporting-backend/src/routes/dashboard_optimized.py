@@ -525,39 +525,51 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_equipment_sales(self):
-        """Get monthly NEW equipment sales since March 2025 with gross margin"""
+        """Get monthly Linde new truck sales with trailing 13 months using GLDetail (GL account 413001)"""
         try:
-            # Filter for NEW equipment sales only - common sale codes for new equipment
-            # Based on competing report showing "Dept: New Equipment"
+            # Use GLDetail for Linde new truck sales only (GL account 413001 revenue, 513001 cost)
             query = """
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue,
-                SUM(COALESCE(EquipmentCost, 0)) as equipment_cost,
-                COUNT(CASE 
-                    WHEN (EquipmentTaxable > 0 OR EquipmentNonTax > 0) 
-                    THEN InvoiceNo 
-                    ELSE NULL 
-                END) as invoice_count
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
-                AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
-                AND (
-                    SaleCode IN ('NEWEQ', 'LINDE', 'LINDEN', 'KOM', 'NEW')
-                    OR SaleCode LIKE 'NEW%'
-                    OR SaleDept = 80  -- New Equipment department based on typical setups
-                )
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                ABS(SUM(CASE WHEN AccountNo = '413001' THEN Amount ELSE 0 END)) as equipment_revenue,
+                ABS(SUM(CASE WHEN AccountNo = '513001' THEN Amount ELSE 0 END)) as equipment_cost
+            FROM ben002.GLDetail
+            WHERE AccountNo IN ('413001', '513001')  -- Linde new truck sales only
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             
             results = self.db.execute_query(query)
             
+            # Create a dictionary to store data by year-month key
+            revenue_by_month = {}
+            for row in results:
+                year_month_key = (row['year'], row['month'])
+                revenue_by_month[year_month_key] = row
+            
+            # Get fiscal year months (trailing 13 months)
+            fiscal_year_months = get_fiscal_year_months()
+            
             monthly_equipment = []
-            if results:
-                for row in results:
-                    month_date = datetime(row['year'], row['month'], 1)
+            for year, month in fiscal_year_months:
+                month_date = datetime(year, month, 1)
+                # Include year in label if spanning multiple calendar years
+                if fiscal_year_months[0][0] != fiscal_year_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
+                else:
+                    month_str = month_date.strftime("%b")
+                
+                year_month_key = (year, month)
+                prior_year_key = (year - 1, month)
+                
+                # Get current year data
+                row = revenue_by_month.get(year_month_key)
+                prior_row = revenue_by_month.get(prior_year_key)
+                
+                if row:
                     revenue = float(row['equipment_revenue'] or 0)
                     cost = float(row['equipment_cost'] or 0)
                     
@@ -565,47 +577,23 @@ class DashboardQueries:
                     margin = None
                     if revenue > 0:
                         margin = round(((revenue - cost) / revenue) * 100, 1)
-                    
-                    monthly_equipment.append({
-                        'month': month_date.strftime("%b"),
-                        'year': row['year'],
-                        'amount': revenue,
-                        'margin': margin,
-                        'units': int(row.get('invoice_count', 0) or 0)  # Use invoice count as proxy for units
-                    })
-            
-            # Pad missing months from March onwards
-            start_date = datetime(2025, 3, 1)
-            all_months = []
-            date = start_date
-            while date <= self.current_date:
-                all_months.append({'month': date.strftime("%b"), 'year': date.year})
-                if date.month == 12:
-                    date = date.replace(year=date.year + 1, month=1)
                 else:
-                    date = date.replace(month=date.month + 1)
-            
-            existing_data = {f"{item['year']}-{item['month']}": item for item in monthly_equipment}
-            monthly_equipment = []
-            current_month_str = self.current_date.strftime("%b")
-            current_year = self.current_date.year
-            
-            for month_info in all_months:
-                key = f"{month_info['year']}-{month_info['month']}"
-                if key in existing_data:
-                    item = existing_data[key].copy()
-                    # Set current month margin to null (incomplete data)
-                    if month_info['month'] == current_month_str and month_info['year'] == current_year:
-                        item['margin'] = None
-                    monthly_equipment.append(item)
+                    revenue = 0
+                    margin = None
+                
+                # Get prior year data for comparison
+                if prior_row:
+                    prior_revenue = float(prior_row['equipment_revenue'] or 0)
                 else:
-                    monthly_equipment.append({
-                        'month': month_info['month'],
-                        'year': month_info['year'],
-                        'amount': 0,
-                        'margin': None,
-                        'units': 0
-                    })
+                    prior_revenue = 0
+                
+                monthly_equipment.append({
+                    'month': month_str,
+                    'year': year,
+                    'amount': revenue,
+                    'margin': margin,
+                    'prior_year_amount': prior_revenue
+                })
             
             return monthly_equipment
         except Exception as e:
