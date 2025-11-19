@@ -234,4 +234,4 @@ NAVIGATION_CONFIG = {
         'required_resource': 'user_management',
         'order': 99,
     },
-}
+}# Force redeploy for Financial menu
