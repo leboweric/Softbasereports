@@ -148,17 +148,24 @@ def get_new_equipment_sales(start_date, end_date):
 
 
 def get_rental_revenue(start_date, end_date):
-    """Get rental revenue as a single consolidated category"""
+    """Get rental revenue as a single consolidated category using GLDetail"""
     try:
-        # Query rental revenue from InvoiceReg table
+        # Query rental revenue and costs from GLDetail using approved GL accounts
         query = """
         SELECT 
-            SUM(COALESCE(i.RentalTaxable, 0) + COALESCE(i.RentalNonTax, 0)) as sales,
-            SUM(COALESCE(i.RentalCost, 0)) as cogs
-        FROM ben002.InvoiceReg i
-        WHERE i.InvoiceDate >= %s 
-          AND i.InvoiceDate <= %s
-          AND (COALESCE(i.RentalTaxable, 0) + COALESCE(i.RentalNonTax, 0)) > 0
+            AccountNo,
+            SUM(ABS(Amount)) as total_amount
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND AccountNo IN (
+            -- Rental Revenue
+            '411001', '419000', '420000', '421000', '434012', '410008',
+            -- Rental Cost
+            '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000'
+          )
+        GROUP BY AccountNo
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
@@ -169,12 +176,21 @@ def get_rental_revenue(start_date, end_date):
             'gross_profit': 0
         }
         
-        # Softbase doesn't distinguish short/long/rerent, so we return a single category
-        if results and len(results) > 0:
-            row = results[0]
-            rental_data['sales'] = float(row['sales'] or 0)
-            rental_data['cogs'] = float(row['cogs'] or 0)
-            rental_data['gross_profit'] = rental_data['sales'] - rental_data['cogs']
+        # Revenue accounts
+        revenue_accounts = ['411001', '419000', '420000', '421000', '434012', '410008']
+        # Cost accounts
+        cost_accounts = ['510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000']
+        
+        for row in results:
+            account = row['AccountNo']
+            amount = float(row['total_amount'] or 0)
+            
+            if account in revenue_accounts:
+                rental_data['sales'] += amount
+            elif account in cost_accounts:
+                rental_data['cogs'] += amount
+        
+        rental_data['gross_profit'] = rental_data['sales'] - rental_data['cogs']
         
         return rental_data
         
