@@ -58,25 +58,28 @@ GL_ACCOUNTS = {
     }
 }
 
+# Other Income/Contra-Revenue Accounts (7xxxxx series)
+# These appear in Softbase under "Sales" category but are other income/adjustments
+OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000', '706000']
+
 # Expense Account Mappings (all in Administrative department)
+# Only including accounts that actually exist in Softbase (32 accounts)
 EXPENSE_ACCOUNTS = {
     'depreciation': ['600900'],
-    'salaries_wages': ['602000', '602001', '602300', '602301', '602302', '602600', '602610'],
-    'payroll_benefits': ['601100', '602700', '602701'],
+    'salaries_wages': ['602300', '602302', '602600', '602610'],
+    'payroll_benefits': ['601100', '602701'],
     'rent_facilities': ['600200', '600201', '600300', '602100'],
     'utilities': ['604000'],
     'insurance': ['601700'],
-    'marketing': ['600000', '603300'],
+    'marketing': ['603300'],
     'professional_fees': ['603000'],
-    'office_admin': ['600500', '601300', '602400', '602900', '603500', '603600'],
+    'office_admin': ['600500', '601300', '602900', '603500', '603600'],
     'vehicle_equipment': ['604100'],
     'interest_finance': ['601800', '602500'],
     'other_expenses': [
-        '600100', '600400', '600600', '600700', '600800', '601000', '601200', 
-        '601400', '601500', '601600', '601900', '602200', '602800', 
-        '603100', '603101', '603102', '603103', '603200', '603400', '603501', 
-        '603700', '603800', '603900', '604200', '701000', '702000', '703000', '704000', 
-        '705000', '706000', '999999'
+        '601200', '602200', '602800', 
+        '603100', '603101', '603501', 
+        '603700', '603800', '603900'
     ]
 }
 
@@ -196,6 +199,41 @@ def get_department_pl(start_date, end_date, dept_key, include_detail=False):
         return None
 
 
+def get_other_income(start_date, end_date):
+    """
+    Get other income/contra-revenue from 7xxxxx accounts
+    
+    Args:
+        start_date: Start date for the report
+        end_date: End date for the report
+    
+    Returns:
+        Total other income (negative value reduces revenue)
+    """
+    try:
+        account_list = "', '".join(OTHER_INCOME_ACCOUNTS)
+        
+        query = f"""
+        SELECT 
+            -SUM(Amount) as total
+        FROM ben002.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND AccountNo IN ('{account_list}')
+        """
+        
+        results = sql_service.execute_query(query, [start_date, end_date])
+        
+        if results and len(results) > 0:
+            return float(results[0]['total'] or 0)
+        return 0
+        
+    except Exception as e:
+        logger.error(f"Error fetching other income: {str(e)}")
+        return 0
+
+
 def get_expense_data(start_date, end_date):
     """
     Get all operating expenses
@@ -304,6 +342,10 @@ def get_pl_report():
                 # But exclude administrative from the department breakdown display
                 if dept_key != 'administrative':
                     departments[dept_key] = dept_data
+        
+        # Add other income (7xxxxx accounts - contra-revenue/other income)
+        other_income = get_other_income(start_date, end_date)
+        total_revenue += other_income
         
         # Get expense data
         expenses = get_expense_data(start_date, end_date)
