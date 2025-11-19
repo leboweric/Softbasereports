@@ -254,7 +254,7 @@ def get_expense_data(start_date, end_date):
         
         expense_list = "', '".join(all_expense_accounts)
         
-        # Try using Date field instead of EffectiveDate to match Softbase
+        # Use EffectiveDate (Date field caused query to return no results)
         query = f"""
         SELECT 
             AccountNo,
@@ -262,14 +262,13 @@ def get_expense_data(start_date, end_date):
             SUM(CASE WHEN Posted = 1 THEN Amount ELSE 0 END) as posted_total,
             SUM(CASE WHEN Posted = 0 THEN Amount ELSE 0 END) as unposted_total
         FROM ben002.GLDetail
-        WHERE Date >= %s 
-          AND Date <= %s
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
           AND AccountNo IN ('{expense_list}')
         GROUP BY AccountNo
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
-        logger.info(f"Using Date field for expense query (testing if this matches Softbase)")
         
         # Debug: Log all accounts returned from query
         logger.info(f"Expense query returned {len(results if results else [])} accounts")
