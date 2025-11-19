@@ -889,6 +889,13 @@ def export_currie_excel():
         if not start_date or not end_date:
             return jsonify({'error': 'start_date and end_date are required'}), 400
         
+        # Calculate number of months and days
+        from datetime import datetime
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
+        num_days = (end - start).days + 1
+        
         # Get all the data
         new_equipment = get_new_equipment_sales(start_date, end_date)
         rental = get_rental_revenue(start_date, end_date)
@@ -897,16 +904,7 @@ def export_currie_excel():
         trucking = get_trucking_revenue(start_date, end_date)
         expenses = get_gl_expenses(start_date, end_date)
         ar_aging = get_ar_aging()
-        
-        # Calculate service calls per day
-        num_days = (end - start).days + 1
         service_calls_per_day = get_service_calls_per_day(start_date, end_date, num_days)
-        
-        # Calculate number of months
-        from datetime import datetime
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
         
         # Build data structure for calculate_totals
         data = {
