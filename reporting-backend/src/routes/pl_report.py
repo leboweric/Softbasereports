@@ -6,6 +6,7 @@ Generates departmental and consolidated P&L reports using GLDetail with exact GL
 from flask import Blueprint, jsonify, request
 from datetime import datetime
 import logging
+import calendar
 from src.services.azure_sql_service import AzureSQLService
 
 logger = logging.getLogger(__name__)
@@ -235,9 +236,43 @@ def get_other_income(start_date, end_date):
         return 0
 
 
+def is_full_calendar_month(start_date, end_date):
+    """
+    Check if the date range represents a full calendar month
+    
+    Args:
+        start_date: Start date string (YYYY-MM-DD)
+        end_date: End date string (YYYY-MM-DD)
+    
+    Returns:
+        Tuple of (is_full_month, year, month) or (False, None, None)
+    """
+    try:
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        
+        # Check if start is first day of month
+        if start.day != 1:
+            return False, None, None
+        
+        # Check if end is last day of month
+        last_day = calendar.monthrange(start.year, start.month)[1]
+        if end.day != last_day:
+            return False, None, None
+        
+        # Check if both dates are in the same month
+        if start.year != end.year or start.month != end.month:
+            return False, None, None
+        
+        return True, start.year, start.month
+    except:
+        return False, None, None
+
 def get_expense_data(start_date, end_date):
     """
-    Get all operating expenses
+    Get expense data organized by category
+    Uses GL.MTD for full calendar months (exact Softbase match)
+    Uses GLDetail for custom date ranges (flexibility)
     
     Args:
         start_date: Start date for the report
@@ -245,6 +280,80 @@ def get_expense_data(start_date, end_date):
     
     Returns:
         Dictionary with expense categories and totals
+    """
+    try:
+        # Check if this is a full calendar month
+        is_full_month, year, month = is_full_calendar_month(start_date, end_date)
+        
+        if is_full_month:
+            # Use GL.MTD for exact Softbase match
+            return get_expense_data_from_gl_mtd(year, month)
+        else:
+            # Use GLDetail for custom date ranges
+            return get_expense_data_from_gldetail(start_date, end_date)
+    except Exception as e:
+        logger.error(f"Error in get_expense_data: {e}")
+        raise
+
+def get_expense_data_from_gl_mtd(year, month):
+    """
+    Get expense data from GL.MTD (monthly summary table)
+    This matches Softbase P&L exactly for monthly reports
+    """
+    try:
+        # Flatten all expense accounts
+        all_expense_accounts = []  
+        for category_accounts in EXPENSE_ACCOUNTS.values():
+            all_expense_accounts.extend(category_accounts)
+        
+        expense_list = "', '".join(all_expense_accounts)
+        
+        query = f"""
+        SELECT 
+            AccountNo,
+            MTD as total
+        FROM ben002.GL
+        WHERE Year = %s
+          AND Month = %s
+          AND AccountNo IN ('{expense_list}')
+        """
+        
+        results = sql_service.execute_query(query, [year, month])
+        
+        # Debug logging
+        print("="*80)
+        print(f"EXPENSE QUERY (GL.MTD) for {year}-{month:02d}")
+        print(f"Query returned {len(results if results else [])} accounts from GL.MTD")
+        
+        # Organize by category
+        expense_data = {}
+        total_expenses = 0
+        
+        for category, accounts in EXPENSE_ACCOUNTS.items():
+            category_total = 0
+            for row in results:
+                account_no = str(row['AccountNo']).strip()
+                if account_no in accounts:
+                    amount = float(row['total'] or 0)
+                    category_total += amount
+            
+            expense_data[category] = category_total
+            total_expenses += category_total
+        
+        print(f"Total expenses from GL.MTD: ${total_expenses:,.2f}")
+        print("="*80)
+        
+        expense_data['total_expenses'] = total_expenses
+        return expense_data
+        
+    except Exception as e:
+        logger.error(f"Error getting expense data from GL.MTD: {e}")
+        raise
+
+def get_expense_data_from_gldetail(start_date, end_date):
+    """
+    Get expense data from GLDetail (transaction-level detail)
+    Used for custom date ranges that aren't full calendar months
     """
     try:
         # Flatten all expense accounts
@@ -322,6 +431,7 @@ def get_expense_data(start_date, end_date):
         expense_data['total_expenses'] = total_expenses
         
         print(f"After category aggregation: ${total_expenses:,.2f}")
+        print("Note: Using GLDetail for custom date range (not full month)")
         print("="*80)
         
         return expense_data
