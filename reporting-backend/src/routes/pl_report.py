@@ -257,11 +257,12 @@ def get_expense_data(start_date, end_date):
         query = f"""
         SELECT 
             AccountNo,
-            SUM(Amount) as total
+            SUM(Amount) as total,
+            SUM(CASE WHEN Posted = 1 THEN Amount ELSE 0 END) as posted_total,
+            SUM(CASE WHEN Posted = 0 THEN Amount ELSE 0 END) as unposted_total
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
-          AND Posted = 1
           AND AccountNo IN ('{expense_list}')
         GROUP BY AccountNo
         """
@@ -270,6 +271,11 @@ def get_expense_data(start_date, end_date):
         
         # Debug: Log all accounts returned from query
         logger.info(f"Expense query returned {len(results)} accounts")
+        
+        # Check for unposted transactions
+        total_unposted = sum(float(row['unposted_total'] or 0) for row in results)
+        if total_unposted != 0:
+            logger.warning(f"Found ${total_unposted:,.2f} in UNPOSTED expense transactions")
         
         # Organize by category
         expense_data = {}
@@ -282,6 +288,7 @@ def get_expense_data(start_date, end_date):
                 # Convert AccountNo to string for consistent comparison
                 account_no = str(row['AccountNo']).strip()
                 if account_no in accounts:
+                    # Use total (posted + unposted) to match Softbase
                     amount = float(row['total'] or 0)
                     category_total += amount
                     matched_accounts.add(account_no)
