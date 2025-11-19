@@ -1013,26 +1013,25 @@ def export_currie_excel():
         ws['C41'] = total_net_sales['cogs']
         ws['D41'] = total_net_sales['gross_profit']
         
-        # Row 42: Total Company Expenses
-        ws['D42'] = expenses['grand_total']
+        # Row 42: Total Company Expenses (write to column B, not D)
+        ws['B42'] = expenses['grand_total']
         
-        # Row 43: Other Income (Expenses) - negative because it's an expense
-        ws['D43'] = other_income_interest.get('other_income', 0)
+        # Row 43: Other Income (Expenses) - negative because it's an expense (write to column B)
+        ws['B43'] = other_income_interest.get('other_income', 0)
         
-        # Row 44: Interest (Expense) - negative because it's an expense
-        ws['D44'] = other_income_interest.get('interest_expense', 0)
+        # Row 44: Interest (Expense) - negative because it's an expense (write to column B)
+        ws['B44'] = other_income_interest.get('interest_expense', 0)
         
-        # Row 45: Total operating profit = (Total Net Sales GP - Total Expenses + Other Income + Interest)
-        # We'll let the formula calculate this, but we could also write it directly
+        # Row 45: Total operating profit = (Total Net Sales GP - Total Expenses + Other Income + Interest) (write to column B)
         total_net_sales_gp = totals['total_net_sales_gp']['gross_profit']
         total_operating_profit = total_net_sales_gp - expenses['grand_total'] + other_income_interest.get('other_income', 0) + other_income_interest.get('interest_expense', 0)
-        ws['D45'] = total_operating_profit
+        ws['B45'] = total_operating_profit
         
-        # Row 46: F & I Income
-        ws['D46'] = other_income_interest.get('fi_income', 0)
+        # Row 46: F & I Income (write to column B)
+        ws['B46'] = other_income_interest.get('fi_income', 0)
         
-        # Row 47: Pre-Tax Income = Operating Profit + F&I Income
-        ws['D47'] = total_operating_profit + other_income_interest.get('fi_income', 0)
+        # Row 47: Pre-Tax Income = Operating Profit + F&I Income (write to column B)
+        ws['B47'] = total_operating_profit + other_income_interest.get('fi_income', 0)
         
         # Write Expenses to "Expenses, Miscellaneous" sheet
         expenses_ws = wb['Expenses, Miscellaneous']
