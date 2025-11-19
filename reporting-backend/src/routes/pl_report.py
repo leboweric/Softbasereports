@@ -77,10 +77,10 @@ EXPENSE_ACCOUNTS = {
     'vehicle_equipment': ['604100'],
     'interest_finance': ['601800', '602500'],
     'other_expenses': [
-        '600100', '600400', '600600', '600700', '600800', '601000', '601200', 
-        '601400', '601500', '601600', '601900', '602200', '602800', 
+        '600100', '600400', '600600', '600700', '600800', '600901', '600902', '601000', '601200', 
+        '601400', '601500', '601600', '601900', '602200', '602601', '602800', 
         '603100', '603101', '603102', '603103', '603200', '603400', '603501', 
-        '603700', '603800', '603900', '604200', '999999'
+        '603700', '603800', '603900', '604200', '650000', '706000', '999999'
     ]
 }
 
@@ -254,6 +254,7 @@ def get_expense_data(start_date, end_date):
         
         expense_list = "', '".join(all_expense_accounts)
         
+        # Try using Date field instead of EffectiveDate to match Softbase
         query = f"""
         SELECT 
             AccountNo,
@@ -261,16 +262,17 @@ def get_expense_data(start_date, end_date):
             SUM(CASE WHEN Posted = 1 THEN Amount ELSE 0 END) as posted_total,
             SUM(CASE WHEN Posted = 0 THEN Amount ELSE 0 END) as unposted_total
         FROM ben002.GLDetail
-        WHERE EffectiveDate >= %s 
-          AND EffectiveDate <= %s
+        WHERE Date >= %s 
+          AND Date <= %s
           AND AccountNo IN ('{expense_list}')
         GROUP BY AccountNo
         """
         
         results = sql_service.execute_query(query, [start_date, end_date])
+        logger.info(f"Using Date field for expense query (testing if this matches Softbase)")
         
         # Debug: Log all accounts returned from query
-        logger.info(f"Expense query returned {len(results)} accounts")
+        logger.info(f"Expense query returned {len(results if results else [])} accounts")
         
         # Check for unposted transactions
         total_unposted = sum(float(row['unposted_total'] or 0) for row in results)
