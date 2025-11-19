@@ -6,10 +6,11 @@ Generates departmental and consolidated P&L reports using GLDetail with exact GL
 from flask import Blueprint, jsonify, request
 from datetime import datetime
 import logging
-from ..database import sql_service
+from src.services.azure_sql_service import AzureSQLService
 
 logger = logging.getLogger(__name__)
 pl_report_bp = Blueprint('pl_report', __name__)
+sql_service = AzureSQLService()
 
 # GL Account Mappings by Department
 GL_ACCOUNTS = {
