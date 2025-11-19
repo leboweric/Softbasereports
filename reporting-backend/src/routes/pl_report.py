@@ -63,23 +63,24 @@ GL_ACCOUNTS = {
 OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000', '706000']
 
 # Expense Account Mappings (all in Administrative department)
-# Only including accounts that actually exist in Softbase (32 accounts)
+# Including all 6xxxxx accounts (some may have $0 in CSV but non-zero in GLDetail)
 EXPENSE_ACCOUNTS = {
     'depreciation': ['600900'],
-    'salaries_wages': ['602300', '602302', '602600', '602610'],
-    'payroll_benefits': ['601100', '602701'],
+    'salaries_wages': ['602000', '602001', '602300', '602301', '602302', '602600', '602610'],
+    'payroll_benefits': ['601100', '602700', '602701'],
     'rent_facilities': ['600200', '600201', '600300', '602100'],
     'utilities': ['604000'],
     'insurance': ['601700'],
-    'marketing': ['603300'],
+    'marketing': ['600000', '603300'],
     'professional_fees': ['603000'],
-    'office_admin': ['600500', '601300', '602900', '603500', '603600'],
+    'office_admin': ['600500', '601300', '602400', '602900', '603500', '603600'],
     'vehicle_equipment': ['604100'],
     'interest_finance': ['601800', '602500'],
     'other_expenses': [
-        '601200', '602200', '602800', 
-        '603100', '603101', '603501', 
-        '603700', '603800', '603900'
+        '600100', '600400', '600600', '600700', '600800', '601000', '601200', 
+        '601400', '601500', '601600', '601900', '602200', '602800', 
+        '603100', '603101', '603102', '603103', '603200', '603400', '603501', 
+        '603700', '603800', '603900', '604200', '999999'
     ]
 }
 
