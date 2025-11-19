@@ -613,7 +613,7 @@ def get_pl_report():
         total_cogs = 0
         
         for dept_key in GL_ACCOUNTS.keys():
-            dept_data = get_department_pl(start_date, end_date, dept_key, include_detail)
+            dept_data = get_department_data(start_date, end_date, dept_key, include_detail)
             if dept_data:
                 # Include all departments in totals
                 total_revenue += dept_data['revenue']
