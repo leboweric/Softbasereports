@@ -1399,21 +1399,24 @@ def get_other_income_and_interest(start_date, end_date):
     """
     Get Other Income (Expenses), Interest (Expense), and F&I Income
     These appear in the bottom summary section of the Currie report
+    
+    Matches Excel template formulas:
+    - Other Income (Expenses) = -SUM(601400, 602500, 603400, 604200, 999999)
+    - Interest (Expense) = -601800
+    - F & I Income = 440000
     """
     try:
         query = """
         SELECT 
-            SUM(CASE WHEN AccountNo BETWEEN '700000' AND '799999' THEN Amount ELSE 0 END) as other_income,
-            SUM(CASE WHEN AccountNo BETWEEN '800000' AND '899999' THEN Amount ELSE 0 END) as interest_expense,
+            SUM(CASE WHEN AccountNo IN ('601400', '602500', '603400', '604200', '999999') THEN Amount ELSE 0 END) as other_expenses,
+            SUM(CASE WHEN AccountNo = '601800' THEN Amount ELSE 0 END) as interest_expense,
             SUM(CASE WHEN AccountNo = '440000' THEN Amount ELSE 0 END) as fi_income
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
           AND (
-            (AccountNo BETWEEN '700000' AND '799999') OR
-            (AccountNo BETWEEN '800000' AND '899999') OR
-            (AccountNo = '440000')
+            AccountNo IN ('601400', '602500', '603400', '604200', '999999', '601800', '440000')
           )
         """
         
@@ -1421,10 +1424,12 @@ def get_other_income_and_interest(start_date, end_date):
         
         if result and len(result) > 0:
             row = result[0]
+            # Return as negative because these are expenses that reduce operating profit
+            # Excel formulas use -SUM() to make them negative
             return {
-                'other_income': float(row.get('other_income') or 0),
-                'interest_expense': float(row.get('interest_expense') or 0),
-                'fi_income': float(row.get('fi_income') or 0)
+                'other_income': -float(row.get('other_expenses') or 0),  # Negative because it's an expense
+                'interest_expense': -float(row.get('interest_expense') or 0),  # Negative because it's an expense
+                'fi_income': float(row.get('fi_income') or 0)  # Positive because it's income
             }
         else:
             return {

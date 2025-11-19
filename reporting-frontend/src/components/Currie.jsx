@@ -453,7 +453,6 @@ const Currie = () => {
                 />
                 
                 <SubtotalRow label="TOTAL PARTS" data={data.totals.total_parts} />
-                <SubtotalRow label="TOTAL AFTERMARKET" data={data.totals.total_aftermarket} />
 
                 {/* TRUCKING SECTION */}
                 <tr className="bg-gray-100 font-semibold">
