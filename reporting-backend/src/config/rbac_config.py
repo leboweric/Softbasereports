@@ -27,6 +27,7 @@ RESOURCES = {
     'minitrac': 'Minitrac equipment database',
     'knowledge_base': 'Technical troubleshooting knowledge base',
     'currie': 'Currie Financial Model quarterly reporting',
+    'financial': 'Financial reports including P&L and Currie',
     'database_explorer': 'Database query and exploration tool',
     'user_management': 'User and role management',
 }
@@ -47,6 +48,7 @@ ROLE_PERMISSIONS = {
             'service_overview',
             'rental_overview',
             'accounting_overview',
+            'financial',
             'currie',
             'minitrac',
         ],
@@ -83,6 +85,7 @@ ROLE_PERMISSIONS = {
         'resources': [
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
+            'financial',
             'currie',
             'minitrac'
         ],
@@ -92,6 +95,7 @@ ROLE_PERMISSIONS = {
         'resources': [
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
+            'financial',
             'currie',
             'minitrac'
         ],
@@ -195,12 +199,19 @@ NAVIGATION_CONFIG = {
         'required_resource': 'knowledge_base',
         'order': 6,
     },
+    'financial': {
+        'label': 'Financial',
+        'icon': 'FileSpreadsheet',
+        'path': 'financial',
+        'required_resource': 'financial',
+        'order': 7,
+    },
     'currie': {
         'label': 'Currie',
         'icon': 'FileSpreadsheet',
         'path': 'currie',
         'required_resource': 'currie',
-        'order': 7,
+        'order': 71,
     },
     'minitrac': {
         'label': 'Minitrac',
