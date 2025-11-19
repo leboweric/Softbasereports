@@ -4756,26 +4756,27 @@ def register_department_routes(reports_bp):
             current_month = datetime.now().month
             current_year = datetime.now().year
             
-            # Get monthly rental revenue and cost data
+            # Get monthly rental revenue and cost data from GLDetail
+            # Using same GL accounts as Currie report for consistency
+            # Revenue: 411001, 419000, 420000, 421000, 434012, 410008
+            # Cost: 510008, 511001, 519000, 520000, 521008, 537001, 539000, 534014, 545000
             query = """
-            WITH MonthlyData AS (
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
-                    SUM(COALESCE(RentalCost, 0)) as rental_cost
-                FROM ben002.InvoiceReg
-                WHERE InvoiceDate >= DATEADD(month, -13, GETDATE())
-                    AND (SaleCode LIKE 'RENT%' OR (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0)
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            )
             SELECT 
-                year,
-                month,
-                rental_revenue,
-                rental_cost
-            FROM MonthlyData
-            ORDER BY year, month
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                -- Rental revenue (credit accounts, stored as negative)
+                ABS(SUM(CASE WHEN AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008') 
+                             THEN Amount ELSE 0 END)) as rental_revenue,
+                -- Rental cost (debit accounts, stored as positive)
+                ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') 
+                             THEN Amount ELSE 0 END)) as rental_cost
+            FROM ben002.GLDetail
+            WHERE AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008',
+                                '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000')
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             
             results = db.execute_query(query)
