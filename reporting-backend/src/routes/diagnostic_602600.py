@@ -19,7 +19,7 @@ def diagnose_account_602600():
         
         results = {}
         
-        # 1. Get total for account 602600 with Posted=1 (what we currently use)
+        # 1. Get total for account 602600 from GLDetail with Posted=1 (what we currently use)
         query_posted = """
         SELECT 
             SUM(Amount) as total,
@@ -32,39 +32,33 @@ def diagnose_account_602600():
         """
         
         posted_result = sql_service.execute_query(query_posted, [start_date, end_date])
-        results['posted_total'] = float(posted_result[0]['total'] or 0) if posted_result else 0
-        results['posted_count'] = int(posted_result[0]['count'] or 0) if posted_result else 0
+        results['gldetail_posted_total'] = float(posted_result[0]['total'] or 0) if posted_result else 0
+        results['gldetail_posted_count'] = int(posted_result[0]['count'] or 0) if posted_result else 0
         
-        # 2. Get total for account 602600 WITHOUT Posted filter
-        query_all = """
-        SELECT 
-            SUM(Amount) as total,
-            COUNT(*) as count
-        FROM ben002.GLDetail
-        WHERE AccountNo = '602600'
-          AND EffectiveDate >= %s
-          AND EffectiveDate <= %s
+        # 2. Get total for account 602600 from GL table (main GL table)
+        # First, let's check what columns exist in GL table
+        query_gl_columns = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002'
+          AND TABLE_NAME = 'GL'
+        ORDER BY ORDINAL_POSITION
         """
         
-        all_result = sql_service.execute_query(query_all, [start_date, end_date])
-        results['all_total'] = float(all_result[0]['total'] or 0) if all_result else 0
-        results['all_count'] = int(all_result[0]['count'] or 0) if all_result else 0
+        gl_columns = sql_service.execute_query(query_gl_columns, [])
+        results['gl_table_columns'] = [{'name': c['COLUMN_NAME'], 'type': c['DATA_TYPE']} for c in gl_columns] if gl_columns else []
         
-        # 3. Check for unposted transactions
-        query_unposted = """
-        SELECT 
-            SUM(Amount) as total,
-            COUNT(*) as count
-        FROM ben002.GLDetail
-        WHERE AccountNo = '602600'
-          AND EffectiveDate >= %s
-          AND EffectiveDate <= %s
-          AND Posted = 0
-        """
-        
-        unposted_result = sql_service.execute_query(query_unposted, [start_date, end_date])
-        results['unposted_total'] = float(unposted_result[0]['total'] or 0) if unposted_result else 0
-        results['unposted_count'] = int(unposted_result[0]['count'] or 0) if unposted_result else 0
+        # 3. Try to query GL table (we'll use common column names)
+        try:
+            query_gl = """
+            SELECT TOP 5 *
+            FROM ben002.GL
+            WHERE AccountNo = '602600'
+            """
+            gl_sample = sql_service.execute_query(query_gl, [])
+            results['gl_table_sample'] = gl_sample if gl_sample else []
+        except Exception as e:
+            results['gl_table_error'] = str(e)
         
         # 4. Check for other GL tables
         query_tables = """
@@ -81,10 +75,8 @@ def diagnose_account_602600():
         # 5. Summary
         results['summary'] = {
             'target_from_softbase': 251631.06,
-            'current_query_result': results['posted_total'],
-            'discrepancy': 251631.06 - results['posted_total'],
-            'posted_vs_all_difference': results['all_total'] - results['posted_total'],
-            'unposted_amount': results['unposted_total']
+            'gldetail_result': results['gldetail_posted_total'],
+            'discrepancy': 251631.06 - results['gldetail_posted_total']
         }
         
         return jsonify({
