@@ -2,10 +2,10 @@
 Diagnostic endpoint to investigate account 602600 payroll discrepancy
 """
 from flask import Blueprint, jsonify, request
-from src.services.simple_sql_service import SimpleSQLService
+from src.services.azure_sql_service import AzureSQLService
 
 diagnostic_bp = Blueprint('diagnostic', __name__)
-sql_service = SimpleSQLService()
+sql_service = AzureSQLService()
 
 @diagnostic_bp.route('/diagnostic/account-602600', methods=['GET'])
 def diagnose_account_602600():
