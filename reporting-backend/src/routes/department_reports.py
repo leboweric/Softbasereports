@@ -628,24 +628,46 @@ def register_department_routes(reports_bp):
             current_year = current_date.year
             current_month = current_date.month
             
+            # Create a dictionary to store data by year-month key
+            revenue_by_month = {}
             for row in labor_revenue_result:
-                month_date = datetime(row['year'], row['month'], 1)
+                year_month_key = (row['year'], row['month'])
+                revenue_by_month[year_month_key] = row
+            
+            # Generate exactly the last 12 months
+            for i in range(11, -1, -1):
+                month_date = current_date - relativedelta(months=i)
+                year = month_date.year
+                month = month_date.month
                 month_str = month_date.strftime("%b")
+                year_month_key = (year, month)
                 
-                # Combined
-                labor_revenue = float(row['labor_revenue'] or 0)
-                labor_cost = float(row['labor_cost'] or 0)
-                combined_margin = round(((labor_revenue - labor_cost) / labor_revenue) * 100, 1) if labor_revenue > 0 else None
+                # Get data for this month if it exists
+                row = revenue_by_month.get(year_month_key)
                 
-                # Field
-                field_revenue = float(row['field_revenue'] or 0)
-                field_cost = float(row['field_cost'] or 0)
-                field_margin = round(((field_revenue - field_cost) / field_revenue) * 100, 1) if field_revenue > 0 else None
-                
-                # Shop
-                shop_revenue = float(row['shop_revenue'] or 0)
-                shop_cost = float(row['shop_cost'] or 0)
-                shop_margin = round(((shop_revenue - shop_cost) / shop_revenue) * 100, 1) if shop_revenue > 0 else None
+                if row:
+                    # Combined
+                    labor_revenue = float(row['labor_revenue'] or 0)
+                    labor_cost = float(row['labor_cost'] or 0)
+                    combined_margin = round(((labor_revenue - labor_cost) / labor_revenue) * 100, 1) if labor_revenue > 0 else None
+                    
+                    # Field
+                    field_revenue = float(row['field_revenue'] or 0)
+                    field_cost = float(row['field_cost'] or 0)
+                    field_margin = round(((field_revenue - field_cost) / field_revenue) * 100, 1) if field_revenue > 0 else None
+                    
+                    # Shop
+                    shop_revenue = float(row['shop_revenue'] or 0)
+                    shop_cost = float(row['shop_cost'] or 0)
+                    shop_margin = round(((shop_revenue - shop_cost) / shop_revenue) * 100, 1) if shop_revenue > 0 else None
+                else:
+                    # No data for this month
+                    labor_revenue = 0
+                    combined_margin = None
+                    field_revenue = 0
+                    field_margin = None
+                    shop_revenue = 0
+                    shop_margin = None
                 
                 monthlyLaborRevenue.append({
                     'month': month_str,
@@ -665,24 +687,7 @@ def register_department_routes(reports_bp):
                     'margin': shop_margin
                 })
             
-            # Pad with zeros for missing months
-            if len(monthlyLaborRevenue) < 12:
-                all_months = []
-                current_date = datetime.now()
-                # Generate the last 12 months in chronological order
-                for i in range(11, -1, -1):
-                    month_date = current_date - relativedelta(months=i)
-                    all_months.append(month_date.strftime("%b"))
-                
-                for month_list in [monthlyLaborRevenue, monthlyFieldRevenue, monthlyShopRevenue]:
-                    existing_months = [item['month'] for item in month_list]
-                    for month in all_months:
-                        if month not in existing_months:
-                            month_list.append({
-                                'month': month, 
-                                'amount': 0,
-                                'margin': None
-                            })
+            # No need for padding logic anymore - we generate exactly 12 months above
             
             return jsonify({
                 'monthlyLaborRevenue': monthlyLaborRevenue,
@@ -882,24 +887,46 @@ def register_department_routes(reports_bp):
             monthlyCounterRevenue = []
             monthlyRepairOrderRevenue = []
             
+            # Create a dictionary to store data by year-month key
+            revenue_by_month = {}
             for row in parts_revenue_result:
-                month_date = datetime(row['year'], row['month'], 1)
+                year_month_key = (row['year'], row['month'])
+                revenue_by_month[year_month_key] = row
+            
+            # Generate exactly the last 12 months
+            for i in range(11, -1, -1):
+                month_date = current_date - relativedelta(months=i)
+                year = month_date.year
+                month = month_date.month
                 month_str = month_date.strftime("%b")
+                year_month_key = (year, month)
                 
-                # Combined
-                parts_revenue = float(row['parts_revenue'] or 0)
-                parts_cost = float(row['parts_cost'] or 0)
-                combined_margin = round(((parts_revenue - parts_cost) / parts_revenue) * 100, 1) if parts_revenue > 0 else None
+                # Get data for this month if it exists
+                row = revenue_by_month.get(year_month_key)
                 
-                # Counter
-                counter_revenue = float(row['counter_revenue'] or 0)
-                counter_cost = float(row['counter_cost'] or 0)
-                counter_margin = round(((counter_revenue - counter_cost) / counter_revenue) * 100, 1) if counter_revenue > 0 else None
-                
-                # Repair Order
-                repair_order_revenue = float(row['repair_order_revenue'] or 0)
-                repair_order_cost = float(row['repair_order_cost'] or 0)
-                repair_order_margin = round(((repair_order_revenue - repair_order_cost) / repair_order_revenue) * 100, 1) if repair_order_revenue > 0 else None
+                if row:
+                    # Combined
+                    parts_revenue = float(row['parts_revenue'] or 0)
+                    parts_cost = float(row['parts_cost'] or 0)
+                    combined_margin = round(((parts_revenue - parts_cost) / parts_revenue) * 100, 1) if parts_revenue > 0 else None
+                    
+                    # Counter
+                    counter_revenue = float(row['counter_revenue'] or 0)
+                    counter_cost = float(row['counter_cost'] or 0)
+                    counter_margin = round(((counter_revenue - counter_cost) / counter_revenue) * 100, 1) if counter_revenue > 0 else None
+                    
+                    # Repair Order
+                    repair_order_revenue = float(row['repair_order_revenue'] or 0)
+                    repair_order_cost = float(row['repair_order_cost'] or 0)
+                    repair_order_margin = round(((repair_order_revenue - repair_order_cost) / repair_order_revenue) * 100, 1) if repair_order_revenue > 0 else None
+                else:
+                    # No data for this month
+                    parts_revenue = 0
+                    combined_margin = None
+                    counter_revenue = 0
+                    counter_margin = None
+                    repair_order_revenue = 0
+                    repair_order_margin = None
                 
                 monthlyPartsRevenue.append({
                     'month': month_str,
@@ -919,24 +946,7 @@ def register_department_routes(reports_bp):
                     'margin': repair_order_margin
                 })
             
-            # Pad with zeros for missing months
-            if len(monthlyPartsRevenue) < 12:
-                all_months = []
-                current_date = datetime.now()
-                # Generate the last 12 months in chronological order
-                for i in range(11, -1, -1):
-                    month_date = current_date - relativedelta(months=i)
-                    all_months.append(month_date.strftime("%b"))
-                
-                for month_list in [monthlyPartsRevenue, monthlyCounterRevenue, monthlyRepairOrderRevenue]:
-                    existing_months = [item['month'] for item in month_list]
-                    for month in all_months:
-                        if month not in existing_months:
-                            month_list.append({
-                                'month': month, 
-                                'amount': 0,
-                                'margin': None
-                            })
+            # No need for padding logic anymore - we generate exactly 12 months above
             
             return jsonify({
                 'monthlyPartsRevenue': monthlyPartsRevenue,
