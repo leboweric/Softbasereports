@@ -944,7 +944,9 @@ def export_currie_excel():
         template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'currie_template.xlsx')
         wb = openpyxl.load_workbook(template_path)
         
-        # DO NOT delete "New TB" sheet - other formulas reference it
+        # Delete "New TB" sheet since we're writing actual calculated values now
+        if 'New TB' in wb.sheetnames:
+            del wb['New TB']
         
         # Get the Sales, COGS, GP sheet
         ws = wb['Sales, COGS, GP']
