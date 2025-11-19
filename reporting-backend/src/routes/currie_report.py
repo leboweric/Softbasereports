@@ -865,6 +865,7 @@ def export_currie_excel():
         service = get_service_revenue(start_date, end_date)
         parts = get_parts_revenue(start_date, end_date)
         trucking = get_trucking_revenue(start_date, end_date)
+        expenses = get_gl_expenses(start_date, end_date)
         
         # Calculate number of months
         from datetime import datetime
@@ -888,9 +889,7 @@ def export_currie_excel():
         template_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'currie_template.xlsx')
         wb = openpyxl.load_workbook(template_path)
         
-        # Remove "New TB" sheet if it exists
-        if 'New TB' in wb.sheetnames:
-            del wb['New TB']
+        # DO NOT delete "New TB" sheet - other formulas reference it
         
         # Get the Sales, COGS, GP sheet
         ws = wb['Sales, COGS, GP']
@@ -940,6 +939,13 @@ def export_currie_excel():
         
         # Write Trucking (row 38)
         write_row(38, trucking)
+        
+        # Write Expenses to "Expenses, Miscellaneous" sheet
+        expenses_ws = wb['Expenses, Miscellaneous']
+        expenses_ws['B4'] = expenses.get('personnel', {}).get('total', 0)  # Personnel
+        expenses_ws['B5'] = expenses.get('operating', {}).get('total', 0)  # Operating
+        expenses_ws['B6'] = expenses.get('occupancy', {}).get('total', 0)  # Occupancy
+        # B7 has a formula =SUM(B4:B6) which will calculate automatically
         
         # Save to BytesIO for download
         output = io.BytesIO()
