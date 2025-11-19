@@ -866,6 +866,11 @@ def export_currie_excel():
         parts = get_parts_revenue(start_date, end_date)
         trucking = get_trucking_revenue(start_date, end_date)
         expenses = get_gl_expenses(start_date, end_date)
+        ar_aging = get_ar_aging()
+        
+        # Calculate service calls per day
+        num_days = (end - start).days + 1
+        service_calls_per_day = get_service_calls_per_day(start_date, end_date, num_days)
         
         # Calculate number of months
         from datetime import datetime
@@ -942,10 +947,19 @@ def export_currie_excel():
         
         # Write Expenses to "Expenses, Miscellaneous" sheet
         expenses_ws = wb['Expenses, Miscellaneous']
+        
+        # Expense totals (rows 4-6, column B = "New" column)
         expenses_ws['B4'] = expenses.get('personnel', {}).get('total', 0)  # Personnel
         expenses_ws['B5'] = expenses.get('operating', {}).get('total', 0)  # Operating
         expenses_ws['B6'] = expenses.get('occupancy', {}).get('total', 0)  # Occupancy
         # B7 has a formula =SUM(B4:B6) which will calculate automatically
+        
+        # AR Aging (rows 22-26, column B)
+        expenses_ws['B22'] = ar_aging.get('current', 0)  # Current
+        expenses_ws['B23'] = ar_aging.get('days_31_60', 0)  # 31-60 days
+        expenses_ws['B24'] = ar_aging.get('days_61_90', 0)  # 61-90 days
+        expenses_ws['B25'] = ar_aging.get('days_91_plus', 0)  # 91+ days
+        # B26 has a formula =SUM(B22:B25) which will calculate automatically
         
         # Save to BytesIO for download
         output = io.BytesIO()
