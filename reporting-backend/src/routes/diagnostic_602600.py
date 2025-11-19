@@ -1,5 +1,6 @@
 """
 Diagnostic endpoint to investigate account 602600 payroll discrepancy
+Uses only confirmed columns: AccountNo, Amount, EffectiveDate, Posted
 """
 from flask import Blueprint, jsonify, request
 from src.services.azure_sql_service import AzureSQLService
@@ -21,15 +22,18 @@ def diagnose_account_602600():
         # 1. Get total for account 602600 with Posted=1 (what we currently use)
         query_posted = """
         SELECT 
-            SUM(Amount) as total
+            SUM(Amount) as total,
+            COUNT(*) as count
         FROM ben002.GLDetail
         WHERE AccountNo = '602600'
-          AND EffectiveDate BETWEEN %s AND %s
+          AND EffectiveDate >= %s
+          AND EffectiveDate <= %s
           AND Posted = 1
         """
         
         posted_result = sql_service.execute_query(query_posted, [start_date, end_date])
         results['posted_total'] = float(posted_result[0]['total'] or 0) if posted_result else 0
+        results['posted_count'] = int(posted_result[0]['count'] or 0) if posted_result else 0
         
         # 2. Get total for account 602600 WITHOUT Posted filter
         query_all = """
@@ -38,36 +42,23 @@ def diagnose_account_602600():
             COUNT(*) as count
         FROM ben002.GLDetail
         WHERE AccountNo = '602600'
-          AND EffectiveDate BETWEEN %s AND %s
+          AND EffectiveDate >= %s
+          AND EffectiveDate <= %s
         """
         
         all_result = sql_service.execute_query(query_all, [start_date, end_date])
         results['all_total'] = float(all_result[0]['total'] or 0) if all_result else 0
         results['all_count'] = int(all_result[0]['count'] or 0) if all_result else 0
         
-        # 3. Check if using Date instead of EffectiveDate makes a difference
-        query_by_date = """
-        SELECT 
-            SUM(Amount) as total,
-            COUNT(*) as count
-        FROM ben002.GLDetail
-        WHERE AccountNo = '602600'
-          AND Date BETWEEN %s AND %s
-          AND Posted = 1
-        """
-        
-        date_result = sql_service.execute_query(query_by_date, [start_date, end_date])
-        results['date_field_total'] = float(date_result[0]['total'] or 0) if date_result else 0
-        results['date_field_count'] = int(date_result[0]['count'] or 0) if date_result else 0
-        
-        # 4. Check for unposted transactions
+        # 3. Check for unposted transactions
         query_unposted = """
         SELECT 
             SUM(Amount) as total,
             COUNT(*) as count
         FROM ben002.GLDetail
         WHERE AccountNo = '602600'
-          AND EffectiveDate BETWEEN %s AND %s
+          AND EffectiveDate >= %s
+          AND EffectiveDate <= %s
           AND Posted = 0
         """
         
@@ -75,7 +66,7 @@ def diagnose_account_602600():
         results['unposted_total'] = float(unposted_result[0]['total'] or 0) if unposted_result else 0
         results['unposted_count'] = int(unposted_result[0]['count'] or 0) if unposted_result else 0
         
-        # 5. Check for other GL tables
+        # 4. Check for other GL tables
         query_tables = """
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
@@ -87,13 +78,12 @@ def diagnose_account_602600():
         gl_tables = sql_service.execute_query(query_tables, [])
         results['gl_tables'] = [t['TABLE_NAME'] for t in gl_tables] if gl_tables else []
         
-        # 6. Summary
+        # 5. Summary
         results['summary'] = {
             'target_from_softbase': 251631.06,
             'current_query_result': results['posted_total'],
             'discrepancy': 251631.06 - results['posted_total'],
             'posted_vs_all_difference': results['all_total'] - results['posted_total'],
-            'effectivedate_vs_date_difference': results['date_field_total'] - results['posted_total'],
             'unposted_amount': results['unposted_total']
         }
         
