@@ -92,3 +92,71 @@ def debug_navigation():
     except Exception as e:
         logger.error(f"Navigation debug failed: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@database_query_bp.route('/api/database/test-gl-query', methods=['POST'])
+@jwt_required()
+def test_gl_query():
+    """
+    Test GLDetail query performance with different parameters
+    """
+    try:
+        import time
+        data = request.get_json()
+        
+        # Parameters
+        gl_accounts = data.get('gl_accounts', ['410003', '410004', '410005', '410012'])
+        months_back = data.get('months_back', 1)  # Default to 1 month
+        
+        db = AzureSQLService()
+        
+        # Build query
+        account_list = "', '".join(gl_accounts)
+        query = f"""
+        SELECT 
+            AccountNo,
+            YEAR(EffectiveDate) as year,
+            MONTH(EffectiveDate) as month,
+            COUNT(*) as transaction_count,
+            SUM(Amount) as total_amount
+        FROM ben002.GLDetail
+        WHERE AccountNo IN ('{account_list}')
+            AND EffectiveDate >= DATEADD(month, -{months_back}, GETDATE())
+            AND Posted = 1
+        GROUP BY AccountNo, YEAR(EffectiveDate), MONTH(EffectiveDate)
+        ORDER BY AccountNo, YEAR(EffectiveDate), MONTH(EffectiveDate)
+        """
+        
+        # Time the query
+        start_time = time.time()
+        results = db.execute_query(query)
+        end_time = time.time()
+        
+        execution_time = round((end_time - start_time) * 1000, 2)  # Convert to milliseconds
+        
+        # Format results
+        formatted_results = []
+        for row in results:
+            formatted_results.append({
+                'account': row['AccountNo'],
+                'year': row['year'],
+                'month': row['month'],
+                'transaction_count': row['transaction_count'],
+                'total_amount': float(row['total_amount'] or 0)
+            })
+        
+        return jsonify({
+            'success': True,
+            'execution_time_ms': execution_time,
+            'months_queried': months_back,
+            'gl_accounts': gl_accounts,
+            'result_count': len(formatted_results),
+            'results': formatted_results,
+            'query': query
+        })
+        
+    except Exception as e:
+        logger.error(f"GL query test failed: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
