@@ -206,7 +206,7 @@ const PLReport = ({ user, organization }) => {
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Profit & Loss Statement</h2>
                 <p className="text-sm text-gray-600 mt-1">
-                  {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}
+                  {startDate ? new Date(startDate + 'T00:00:00').toLocaleDateString() : ''} - {endDate ? new Date(endDate + 'T00:00:00').toLocaleDateString() : ''}
                 </p>
               </div>
               <button
