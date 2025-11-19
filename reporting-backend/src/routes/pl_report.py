@@ -254,16 +254,15 @@ def get_expense_data(start_date, end_date):
         
         expense_list = "', '".join(all_expense_accounts)
         
-        # Use EffectiveDate (Date field caused query to return no results)
+        # Use EffectiveDate and Posted = 1 to match revenue/COGS query logic
         query = f"""
         SELECT 
             AccountNo,
-            SUM(Amount) as total,
-            SUM(CASE WHEN Posted = 1 THEN Amount ELSE 0 END) as posted_total,
-            SUM(CASE WHEN Posted = 0 THEN Amount ELSE 0 END) as unposted_total
+            SUM(Amount) as total
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
+          AND Posted = 1
           AND AccountNo IN ('{expense_list}')
         GROUP BY AccountNo
         """
@@ -271,12 +270,7 @@ def get_expense_data(start_date, end_date):
         results = sql_service.execute_query(query, [start_date, end_date])
         
         # Debug: Log all accounts returned from query
-        logger.info(f"Expense query returned {len(results if results else [])} accounts")
-        
-        # Check for unposted transactions
-        total_unposted = sum(float(row['unposted_total'] or 0) for row in results)
-        if total_unposted != 0:
-            logger.warning(f"Found ${total_unposted:,.2f} in UNPOSTED expense transactions")
+        logger.info(f"Expense query returned {len(results if results else [])} accounts with Posted=1 filter")
         
         # Organize by category
         expense_data = {}
