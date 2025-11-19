@@ -68,7 +68,7 @@ def get_new_equipment_sales(start_date, end_date):
         query = """
         SELECT 
             AccountNo,
-            SUM(ABS(Amount)) as total_amount
+            SUM(Amount) as total_amount
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
@@ -108,33 +108,33 @@ def get_new_equipment_sales(start_date, end_date):
             
             # New Lift Truck - Primary Brand (LINDE)
             if account == '413001':
-                categories['new_lift_truck_primary']['sales'] += amount
+                categories['new_lift_truck_primary']['sales'] += -amount  # Revenue is credit (negative)
             elif account == '513001':
-                categories['new_lift_truck_primary']['cogs'] += amount
+                categories['new_lift_truck_primary']['cogs'] += amount  # COGS is debit (positive)
             
             # New Lift Truck - Other Brands (KOMATSU)
             elif account == '426001':
-                categories['new_lift_truck_other']['sales'] += amount
+                categories['new_lift_truck_other']['sales'] += -amount
             elif account == '526001':
                 categories['new_lift_truck_other']['cogs'] += amount
             
             # New Allied Equipment
             elif account == '412001':
-                categories['new_allied']['sales'] += amount
+                categories['new_allied']['sales'] += -amount
             elif account == '512001':
                 categories['new_allied']['cogs'] += amount
             
             # Batteries
             elif account == '414001':
-                categories['batteries']['sales'] += amount
+                categories['batteries']['sales'] += -amount
             elif account == '514001':
                 categories['batteries']['cogs'] += amount
             
             # Used Equipment (aggregate all used accounts)
             elif account in ('412002', '413002', '414002', '426002', '431002', '410002'):
-                categories['used_equipment']['sales'] += amount
+                categories['used_equipment']['sales'] += -amount  # Revenue is credit (negative)
             elif account in ('512002', '513002', '514002', '526002', '531002', '510002'):
-                categories['used_equipment']['cogs'] += amount
+                categories['used_equipment']['cogs'] += amount  # COGS is debit (positive)
         
         # Calculate gross profit for each category
         for category in categories.values():
@@ -154,7 +154,7 @@ def get_rental_revenue(start_date, end_date):
         query = """
         SELECT 
             AccountNo,
-            SUM(ABS(Amount)) as total_amount
+            SUM(Amount) as total_amount
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
@@ -186,9 +186,9 @@ def get_rental_revenue(start_date, end_date):
             amount = float(row['total_amount'] or 0)
             
             if account in revenue_accounts:
-                rental_data['sales'] += amount
+                rental_data['sales'] += -amount  # Revenue is credit (negative)
             elif account in cost_accounts:
-                rental_data['cogs'] += amount
+                rental_data['cogs'] += amount  # COGS is debit (positive)
         
         rental_data['gross_profit'] = rental_data['sales'] - rental_data['cogs']
         
@@ -206,24 +206,24 @@ def get_service_revenue(start_date, end_date):
         query = """
         SELECT 
             -- Customer Labor: Field (410004) + Shop (410005) + Full Maint (410007)
-            SUM(CASE WHEN AccountNo IN ('410004', '410005', '410007') THEN ABS(Amount) ELSE 0 END) as customer_sales,
-            SUM(CASE WHEN AccountNo IN ('510004', '510005', '510007') THEN ABS(Amount) ELSE 0 END) as customer_cogs,
+            -SUM(CASE WHEN AccountNo IN ('410004', '410005', '410007') THEN Amount ELSE 0 END) as customer_sales,
+            SUM(CASE WHEN AccountNo IN ('510004', '510005', '510007') THEN Amount ELSE 0 END) as customer_cogs,
             
-            -- Internal Labor: Internal Field (423000) + Internal Shop (425000)
-            SUM(CASE WHEN AccountNo IN ('423000', '425000') THEN ABS(Amount) ELSE 0 END) as internal_sales,
-            SUM(CASE WHEN AccountNo = '523000' THEN ABS(Amount) ELSE 0 END) as internal_cogs,
+            -- Internal Labor (Field GM, Shop GM)
+            -SUM(CASE WHEN AccountNo IN ('423000', '425000') THEN Amount ELSE 0 END) as internal_sales,
+            SUM(CASE WHEN AccountNo = '523000' THEN Amount ELSE 0 END) as internal_cogs,
             
-            -- Warranty Labor: All warranty accounts (435000-435004)
-            SUM(CASE WHEN AccountNo IN ('435000', '435001', '435002', '435003', '435004') THEN ABS(Amount) ELSE 0 END) as warranty_sales,
-            SUM(CASE WHEN AccountNo IN ('535001', '535002', '535003', '535004', '535005') THEN ABS(Amount) ELSE 0 END) as warranty_cogs,
+            -- Warranty Labor
+            -SUM(CASE WHEN AccountNo IN ('435000', '435001', '435002', '435003', '435004') THEN Amount ELSE 0 END) as warranty_sales,
+            SUM(CASE WHEN AccountNo IN ('535001', '535002', '535003', '535004', '535005') THEN Amount ELSE 0 END) as warranty_cogs,
             
-            -- Sublet: Sublet labor (432000)
-            SUM(CASE WHEN AccountNo = '432000' THEN ABS(Amount) ELSE 0 END) as sublet_sales,
-            SUM(CASE WHEN AccountNo = '532000' THEN ABS(Amount) ELSE 0 END) as sublet_cogs,
+            -- Sublet Sales
+            -SUM(CASE WHEN AccountNo = '432000' THEN Amount ELSE 0 END) as sublet_sales,
+            SUM(CASE WHEN AccountNo = '532000' THEN Amount ELSE 0 END) as sublet_cogs,
             
-            -- Other Service: Other (428000) + PM Contracts (429002)
-            SUM(CASE WHEN AccountNo IN ('428000', '429002') THEN ABS(Amount) ELSE 0 END) as other_sales,
-            SUM(CASE WHEN AccountNo IN ('528000', '529001') THEN ABS(Amount) ELSE 0 END) as other_cogs
+            -- Other Service Sales (PM Contracts, etc)
+            -SUM(CASE WHEN AccountNo IN ('428000', '429002') THEN Amount ELSE 0 END) as other_sales,
+            SUM(CASE WHEN AccountNo IN ('528000', '529001') THEN Amount ELSE 0 END) as other_cogs
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
@@ -285,7 +285,7 @@ def get_parts_revenue(start_date, end_date):
         query = """
         SELECT 
             AccountNo,
-            SUM(ABS(Amount)) as total_amount
+            SUM(Amount) as total_amount
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
@@ -322,25 +322,25 @@ def get_parts_revenue(start_date, end_date):
             
             # Counter Primary Brand (all counter sales)
             if account == '410003':
-                parts_data['counter_primary']['sales'] += amount
+                parts_data['counter_primary']['sales'] += -amount  # Revenue is credit (negative)
             elif account == '510003':
-                parts_data['counter_primary']['cogs'] += amount
+                parts_data['counter_primary']['cogs'] += amount  # COGS is debit (positive)
             
             # RO Primary Brand (all RO sales)
             elif account == '410012':
-                parts_data['ro_primary']['sales'] += amount
+                parts_data['ro_primary']['sales'] += -amount
             elif account == '510012':
                 parts_data['ro_primary']['cogs'] += amount
             
             # Internal Parts
             elif account == '424000':
-                parts_data['internal']['sales'] += amount
+                parts_data['internal']['sales'] += -amount
             elif account == '524000':
                 parts_data['internal']['cogs'] += amount
             
             # Warranty Parts
             elif account == '410014':
-                parts_data['warranty']['sales'] += amount
+                parts_data['warranty']['sales'] += -amount
             elif account == '510014':
                 parts_data['warranty']['cogs'] += amount
         
@@ -364,7 +364,7 @@ def get_trucking_revenue(start_date, end_date):
         query = """
         SELECT 
             -- All Trucking Revenue Accounts
-            SUM(CASE WHEN AccountNo IN (
+            -SUM(CASE WHEN AccountNo IN (
                 '410010',  -- Sales - Trucking
                 '421010',  -- SALES - FREIGHT - Trucking
                 '434001',  -- SALES - TRUCKING/DELIVERY - New Equip
@@ -374,7 +374,7 @@ def get_trucking_revenue(start_date, end_date):
                 '434011',  -- SALES - TRUCKING/DELIVERY - G&A
                 '434012',  -- SALES - TRUCKING/DELIVERY - RENTAL
                 '434013'   -- SALES - TRUCKING/DELIVERY - SERVICE
-            ) THEN ABS(Amount) ELSE 0 END) as sales,
+            ) THEN Amount ELSE 0 END) as sales,
             
             -- All Trucking Cost Accounts
             SUM(CASE WHEN AccountNo IN (
@@ -389,7 +389,7 @@ def get_trucking_revenue(start_date, end_date):
                 '534013',  -- COS - TRUCKING/DELIVERY - New Equipment Demo
                 '534014',  -- COS - TRUCKING/DELIVERY - Rental
                 '534015'   -- COS - TRUCKING/DELIVERY - Service
-            ) THEN ABS(Amount) ELSE 0 END) as cogs
+            ) THEN Amount ELSE 0 END) as cogs
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
