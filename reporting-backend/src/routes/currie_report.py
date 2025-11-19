@@ -1000,8 +1000,19 @@ def export_currie_excel():
         # Get other income/interest data for bottom section
         other_income_interest = get_other_income_and_interest(start_date, end_date)
         
-        # Calculate bottom section values (rows 42-47)
-        # Row 40 and 41 have formulas that calculate from the data above, leave them
+        # Calculate and write bottom section values (rows 40-47)
+        # Row 40: Total Aftermarket Sales, COGS & GP
+        total_aftermarket = totals['total_aftermarket']
+        ws['B40'] = total_aftermarket['sales']
+        ws['C40'] = total_aftermarket['cogs']
+        ws['D40'] = total_aftermarket['gross_profit']
+        
+        # Row 41: Total Net Sales & GP
+        total_net_sales = totals['total_net_sales_gp']
+        ws['B41'] = total_net_sales['sales']
+        ws['C41'] = total_net_sales['cogs']
+        ws['D41'] = total_net_sales['gross_profit']
+        
         # Row 42: Total Company Expenses
         ws['D42'] = expenses['grand_total']
         
