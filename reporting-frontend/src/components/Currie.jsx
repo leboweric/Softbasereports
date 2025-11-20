@@ -750,18 +750,9 @@ const Currie = () => {
                 {/* Absorption Rate */}
                 <div className="bg-white border rounded-lg p-4">
                   <h3 className="font-semibold text-gray-900 mb-3">Absorption Rate</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Service Absorption:</span>
-                      <span className="font-medium text-blue-600">{metrics.absorption_rate?.service_absorption?.toFixed(1) || '0.0'}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Parts Absorption:</span>
-                      <span className="font-medium text-blue-600">{metrics.absorption_rate?.parts_absorption?.toFixed(1) || '0.0'}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Absorption:</span>
-                      <span className="font-medium text-green-600">{metrics.absorption_rate?.total_absorption?.toFixed(1) || '0.0'}%</span>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-green-600">
+                      {metrics.absorption_rate?.total_absorption?.toFixed(1) || '0.0'}%
                     </div>
                   </div>
                 </div>
@@ -1247,19 +1238,7 @@ const Currie = () => {
         </div>
       )}
 
-      {/* Notes */}
-      {data && (
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">Implementation Notes</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• <strong>Phase 1:</strong> Sales, COGS, and Gross Profit data (current view)</li>
-            <li>• <strong>Rental COGS:</strong> Using simplified approach (direct costs only). Depreciation/interest calculation coming in Phase 2.</li>
-            <li>• <strong>Brand Classification:</strong> Linde equipment classified as "Primary Brand", all others as "Other Brands"</li>
-            <li>• <strong>Editable Cells:</strong> Click any value to edit manually. Changes are temporary until exported.</li>
-            <li>• <strong>Excel Export:</strong> Coming in Phase 4 - will match exact Currie template format</li>
-          </ul>
-        </div>
-      )}
+
     </div>
   );
 };
