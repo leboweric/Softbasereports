@@ -60,7 +60,6 @@ import { apiUrl } from '@/lib/api'
 import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
-import CashFlowWidget from './CashFlowWidget'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -941,9 +940,6 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
-
-          {/* Cash Flow Widget - Cash is King! */}
-          <CashFlowWidget />
 
           {/* Enhanced Pace Analysis Card */}
           {paceData?.adaptive_comparisons && (

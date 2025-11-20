@@ -22,6 +22,7 @@ import APReport from '@/components/APReport'
 import SalesCommissionReport from '@/components/SalesCommissionReport'
 import ControlNumberReport from '@/components/ControlNumberReport'
 import InventoryReport from '@/components/InventoryReport'
+import CashFlowWidget from '@/components/CashFlowWidget'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
@@ -128,6 +129,7 @@ const AccountingReport = ({ user }) => {
           <TabsTrigger value="commissions">Sales Commissions</TabsTrigger>
           <TabsTrigger value="control">Control Numbers</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="cashflow">Cash Flow</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -450,6 +452,10 @@ const AccountingReport = ({ user }) => {
         </TabsContent>
         <TabsContent value="inventory" className="space-y-6">
           <InventoryReport user={user} />
+        </TabsContent>
+
+        <TabsContent value="cashflow" className="space-y-6">
+          <CashFlowWidget />
         </TabsContent>
       </Tabs>
 
