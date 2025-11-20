@@ -903,6 +903,123 @@ const Currie = () => {
                   </div>
                 </div>
               </div>
+              
+              {/* Editable Miscellaneous Information Fields */}
+              <div className="mt-6 border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4 text-gray-900">Additional Information (Editable)</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Marketshare Information */}
+                  <div className="bg-gray-50 border rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Marketshare Information</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Sold Units</label>
+                        <input type="number" className="w-full border rounded px-3 py-2" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Lost Units</label>
+                        <input type="number" className="w-full border rounded px-3 py-2" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Size of Market</label>
+                        <input type="number" className="w-full border rounded px-3 py-2" placeholder="0" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Technician Productivity */}
+                  <div className="bg-gray-50 border rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Technician Productivity</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1"># of Units Under Maintenance Contract</label>
+                        <input type="number" className="w-full border rounded px-3 py-2" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Customer Labor Rate ($)</label>
+                        <input type="number" step="0.01" className="w-full border rounded px-3 py-2" placeholder="0.00" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Avg. Hourly Tech Pay Rate ($)</label>
+                        <input type="number" step="0.01" className="w-full border rounded px-3 py-2" placeholder="0.00" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Total Hours Billed</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Productive Hours</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Non-Productive Hours</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Total Hours Paid</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Inventory Aging */}
+                  <div className="bg-gray-50 border rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Inventory Aging (% over 12 months)</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">New Inventory Aging (%)</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Used Inventory Aging (%)</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Additional Technician Productivity */}
+                  <div className="bg-gray-50 border rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Additional Technician Productivity</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">PM Completion Rate (%)</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">First Call Completion Rate (%)</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Average Response Time (hours)</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Marketing */}
+                  <div className="bg-gray-50 border rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Marketing</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Marketing Expense ($)</label>
+                        <input type="number" step="0.01" className="w-full border rounded px-3 py-2" placeholder="0.00" />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Service Department */}
+                  <div className="bg-gray-50 border rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Service Department</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Service Calls per Day</label>
+                        <input type="number" step="0.1" className="w-full border rounded px-3 py-2" placeholder="0.0" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
