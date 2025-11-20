@@ -362,9 +362,11 @@ def get_monthly_depreciation(year, month):
 
 
 def get_cashflow_trend(year, month, months=12):
-    """Get cash balance trend for the last N months"""
+    """Get cash balance trend starting from March 2025 (Softbase cutover)"""
     try:
         trend_data = []
+        cutover_year = 2025
+        cutover_month = 3  # March 2025
         
         for i in range(months - 1, -1, -1):
             # Calculate the target month
@@ -375,6 +377,10 @@ def get_cashflow_trend(year, month, months=12):
             while target_month <= 0:
                 target_month += 12
                 target_year -= 1
+            
+            # Skip months before March 2025 (cutover)
+            if target_year < cutover_year or (target_year == cutover_year and target_month < cutover_month):
+                continue
             
             # Get cash balance for this month (ending balance)
             cash_balance = get_current_cash_balance(target_year, target_month)
