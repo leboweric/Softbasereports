@@ -1659,19 +1659,20 @@ def get_balance_sheet_data(as_of_date):
         # For balance sheet accounts, we want the cumulative Year-To-Date balance
         query = """
         SELECT 
-            AccountNo,
-            Description,
-            YTD as balance
-        FROM ben002.GL
-        WHERE Year = %s 
-          AND Month = %s
+            gl.AccountNo,
+            COALESCE(coa.Description, gl.AccountNo) as Description,
+            gl.YTD as balance
+        FROM ben002.GL gl
+        LEFT JOIN ben002.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
+        WHERE gl.Year = %s 
+          AND gl.Month = %s
           AND (
-            AccountNo LIKE '1%'  -- Assets
-            OR AccountNo LIKE '2%'  -- Liabilities
-            OR AccountNo LIKE '3%'  -- Equity
+            gl.AccountNo LIKE '1%'  -- Assets
+            OR gl.AccountNo LIKE '2%'  -- Liabilities
+            OR gl.AccountNo LIKE '3%'  -- Equity
           )
-          AND YTD != 0
-        ORDER BY AccountNo
+          AND gl.YTD != 0
+        ORDER BY gl.AccountNo
         """
         
         result = sql_service.execute_query(query, [year, month])
