@@ -1202,6 +1202,121 @@ def export_currie_excel():
         expenses_ws['B25'] = ar_aging.get('days_91_plus', 0)  # 91+ days
         # B26 has a formula =SUM(B22:B25) which will calculate automatically
         
+        # Write Balance Sheet data
+        balance_sheet_data = get_balance_sheet_data(end_date)
+        bs_ws = wb['Balance Sheet']
+        
+        # Helper function to sum account balances
+        def sum_accounts(account_list):
+            return sum(acc.get('balance', 0) for acc in account_list)
+        
+        # ASSETS
+        assets = balance_sheet_data['assets']
+        
+        # Cash (B6) - sum all cash accounts
+        bs_ws['B6'] = sum_accounts(assets['current_assets']['cash'])
+        
+        # Trade Accounts Receivable (B7) - sum AR accounts
+        bs_ws['B7'] = sum_accounts(assets['current_assets']['accounts_receivable'])
+        
+        # All Other Accounts Receivable (B8) - set to 0 or use other current assets if needed
+        bs_ws['B8'] = 0
+        
+        # Inventory breakdown
+        inventory_accounts = assets['current_assets']['inventory']
+        # Map inventory accounts by GL code patterns
+        new_equipment_primary = 0
+        new_allied_inventory = 0
+        used_equipment_inventory = 0
+        parts_inventory = 0
+        battery_inventory = 0
+        other_inventory = 0
+        
+        for acc in inventory_accounts:
+            account_no = acc['account']
+            balance = acc['balance']
+            # Map based on account numbers - adjust these mappings as needed
+            if account_no.startswith('1310'):  # New Equipment Primary
+                new_equipment_primary += balance
+            elif account_no.startswith('1311'):  # New Allied
+                new_allied_inventory += balance
+            elif account_no.startswith('1320'):  # Used Equipment
+                used_equipment_inventory += balance
+            elif account_no.startswith('1330'):  # Parts
+                parts_inventory += balance
+            elif account_no.startswith('1340'):  # Battery
+                battery_inventory += balance
+            else:
+                other_inventory += balance
+        
+        bs_ws['B11'] = new_equipment_primary  # New Equipment, primary brand
+        bs_ws['B13'] = new_allied_inventory  # New Allied Inventory
+        bs_ws['B15'] = used_equipment_inventory  # Used Equipment Inventory
+        bs_ws['B16'] = parts_inventory  # Parts Inventory
+        bs_ws['B17'] = battery_inventory  # Battery Inventory
+        bs_ws['B18'] = other_inventory  # Other Inventory
+        
+        # WIP (B21) - from other current assets
+        bs_ws['B21'] = 0  # Set to 0 or map from specific GL account if available
+        
+        # Other Current Assets (B23)
+        bs_ws['B23'] = sum_accounts(assets['current_assets']['other_current'])
+        
+        # Fixed Assets
+        # Rental Fleet (B27) and Other LT/Fixed Assets (B28)
+        fixed_assets_total = sum_accounts(assets['fixed_assets'])
+        rental_fleet = 0
+        other_fixed = fixed_assets_total
+        
+        # Try to identify rental fleet from account descriptions
+        for acc in assets['fixed_assets']:
+            if 'rental' in acc['description'].lower() or 'fleet' in acc['description'].lower():
+                rental_fleet += acc['balance']
+                other_fixed -= acc['balance']
+        
+        bs_ws['B27'] = rental_fleet  # Rental Fleet
+        bs_ws['B28'] = other_fixed  # Other Long Term or Fixed Assets
+        
+        # Other Assets (B29)
+        bs_ws['B29'] = sum_accounts(assets['other_assets'])
+        
+        # LIABILITIES
+        liabilities = balance_sheet_data['liabilities']
+        
+        # A/P Primary Brand (E7)
+        ap_primary = 0
+        notes_payable_current = 0
+        other_current_liabilities = 0
+        
+        for acc in liabilities['current_liabilities']:
+            account_no = acc['account']
+            balance = acc['balance']
+            if account_no.startswith('210'):  # A/P Primary
+                ap_primary += balance
+            elif account_no.startswith('220'):  # Notes Payable
+                notes_payable_current += balance
+            else:
+                other_current_liabilities += balance
+        
+        bs_ws['E7'] = ap_primary  # A/P Primary Brand
+        bs_ws['E9'] = notes_payable_current  # Notes Payable - due within 1 year
+        bs_ws['E12'] = other_current_liabilities  # Other Current Liabilities
+        
+        # Long Term notes Payable (E15)
+        bs_ws['E15'] = sum_accounts(liabilities['long_term_liabilities'])
+        
+        # Other Liabilities (E23)
+        bs_ws['E23'] = sum_accounts(liabilities['other_liabilities'])
+        
+        # EQUITY
+        equity = balance_sheet_data['equity']
+        
+        # Capital Stock (E27)
+        bs_ws['E27'] = sum_accounts(equity['capital_stock'])
+        
+        # Retained Earnings (E28)
+        bs_ws['E28'] = sum_accounts(equity['retained_earnings']) + sum_accounts(equity['distributions'])
+        
         # Save to BytesIO for download
         output = io.BytesIO()
         wb.save(output)
