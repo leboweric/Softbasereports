@@ -1676,6 +1676,11 @@ def get_balance_sheet_data(as_of_date):
         
         result = sql_service.execute_query(query, [year, month])
         
+        logger.info(f"Balance Sheet query for year={year}, month={month}")
+        logger.info(f"Query returned {len(result) if result else 0} rows")
+        if result:
+            logger.info(f"First row sample: {result[0]}")
+        
         # Categorize accounts
         assets = {
             'current_assets': {
