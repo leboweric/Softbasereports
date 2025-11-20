@@ -1,6 +1,10 @@
 """
 Cash Flow Dashboard Widget API
 Provides quick cash flow metrics for dashboard display
+
+Updated: Fixed cash position to use Ending balance instead of MTD
+Added: Non-operating activities breakdown
+Removed: Redundant Free CF and CapEx (always $0)
 """
 
 from flask import Blueprint, jsonify, request
@@ -20,7 +24,7 @@ sql_service = AzureSQLService()
 def get_cashflow_widget():
     """
     Get cash flow widget data for dashboard
-    Returns current cash position, operating cash flow, and 12-month trend
+    Returns current cash balance, operating cash flow, total cash movement, and 12-month trend
     """
     try:
         # Get current date or use provided date
@@ -30,33 +34,42 @@ def get_cashflow_widget():
         else:
             current_date = datetime.now()
         
-        current_year = current_date.year
-        current_month = current_date.month
+        # Always use last closed month (previous month)
+        # This ensures we show complete month-end data, not partial current month
+        last_closed_month = current_date.replace(day=1) - timedelta(days=1)
+        current_year = last_closed_month.year
+        current_month = last_closed_month.month
         
-        # Get current cash position
-        cash_position = get_current_cash_position(current_year, current_month)
+        # Get current cash balance (ending balance, not MTD)
+        cash_balance = get_current_cash_balance(current_year, current_month)
         
         # Get current month operating cash flow
-        current_month_cf = get_monthly_operating_cashflow(current_year, current_month)
+        operating_cf = get_monthly_operating_cashflow(current_year, current_month)
+        
+        # Get total cash movement for the month
+        total_cash_movement = get_total_cash_movement(current_year, current_month)
+        
+        # Calculate non-operating cash flow (difference)
+        non_operating_cf = total_cash_movement - operating_cf
+        
+        # Get breakdown of non-operating activities
+        non_operating_breakdown = get_non_operating_breakdown(current_year, current_month)
         
         # Get 12-month trend
         trend_data = get_cashflow_trend(current_year, current_month, months=12)
         
-        # Calculate free cash flow (Operating CF - CapEx)
-        capex = get_monthly_capex(current_year, current_month)
-        free_cashflow = current_month_cf - capex
-        
-        # Determine health status
-        health_status = 'healthy' if current_month_cf > 0 else 'warning' if current_month_cf > -50000 else 'critical'
+        # Determine health status based on operating CF
+        health_status = 'healthy' if operating_cf > 0 else 'warning' if operating_cf > -50000 else 'critical'
         
         return jsonify({
-            'cash_position': cash_position,
-            'operating_cashflow': current_month_cf,
-            'free_cashflow': free_cashflow,
-            'capex': capex,
+            'cash_balance': cash_balance,
+            'operating_cashflow': operating_cf,
+            'total_cash_movement': total_cash_movement,
+            'non_operating_cashflow': non_operating_cf,
+            'non_operating_breakdown': non_operating_breakdown,
             'health_status': health_status,
             'trend': trend_data,
-            'as_of_date': current_date.strftime('%Y-%m-%d')
+            'as_of_date': last_closed_month.strftime('%Y-%m-%d')
         }), 200
         
     except Exception as e:
@@ -66,15 +79,18 @@ def get_cashflow_widget():
         return jsonify({'error': str(e)}), 500
 
 
-def get_current_cash_position(year, month):
-    """Get current cash balance from GL accounts 110xxx-119xxx"""
+def get_current_cash_balance(year, month):
+    """
+    Get current cash balance from GL account 110000CASH
+    Uses Ending balance (actual cash on hand), not MTD (monthly change)
+    """
     try:
         query = """
-        SELECT SUM(MTD) as cash_balance
+        SELECT Ending as cash_balance
         FROM ben002.GL
         WHERE Year = %s
           AND Month = %s
-          AND AccountNo LIKE '11%'
+          AND AccountNo = '110000CASH'
         """
         
         result = sql_service.execute_query(query, [year, month])
@@ -84,14 +100,186 @@ def get_current_cash_position(year, month):
         return 0.0
         
     except Exception as e:
-        logger.error(f"Error getting cash position: {str(e)}")
+        logger.error(f"Error getting cash balance: {str(e)}")
         return 0.0
+
+
+def get_total_cash_movement(year, month):
+    """
+    Get total change in cash for the month
+    This is the MTD (Ending - Beginning) for cash accounts
+    """
+    try:
+        query = """
+        SELECT SUM(MTD) as cash_movement
+        FROM ben002.GL
+        WHERE Year = %s
+          AND Month = %s
+          AND AccountNo IN ('110000CASH', '110001', '110100')
+        """
+        
+        result = sql_service.execute_query(query, [year, month])
+        
+        if result and result[0]:
+            return float(result[0].get('cash_movement') or 0)
+        return 0.0
+        
+    except Exception as e:
+        logger.error(f"Error getting total cash movement: {str(e)}")
+        return 0.0
+
+
+def get_non_operating_breakdown(year, month):
+    """
+    Break down non-operating cash flows by category
+    Shows where the difference between total cash movement and operating CF comes from
+    """
+    try:
+        query = """
+        SELECT 
+            CASE 
+                -- Working Capital Changes
+                WHEN AccountNo LIKE '12%' THEN 'Accounts Receivable'
+                WHEN AccountNo LIKE '13%' THEN 'Inventory'
+                WHEN AccountNo LIKE '14%' THEN 'Other Current Assets'
+                WHEN AccountNo LIKE '20%' THEN 'Accounts Payable'
+                WHEN AccountNo LIKE '21%' THEN 'Other Current Liabilities'
+                
+                -- Investing Activities
+                WHEN AccountNo LIKE '18%' THEN 'Equipment/Fixed Assets'
+                WHEN AccountNo LIKE '19%' THEN 'Accumulated Depreciation'
+                
+                -- Financing Activities
+                WHEN AccountNo LIKE '22%' THEN 'Long-term Debt'
+                WHEN AccountNo LIKE '23%' THEN 'Notes Payable'
+                WHEN AccountNo LIKE '30%' THEN 'Owner Equity'
+                WHEN AccountNo LIKE '31%' THEN 'Retained Earnings'
+                WHEN AccountNo LIKE '32%' THEN 'Distributions'
+                
+                -- Other
+                ELSE 'Other'
+            END as category,
+            
+            CASE 
+                WHEN AccountNo LIKE '12%' OR AccountNo LIKE '13%' OR AccountNo LIKE '14%' 
+                     OR AccountNo LIKE '20%' OR AccountNo LIKE '21%' THEN 'Working Capital'
+                WHEN AccountNo LIKE '18%' OR AccountNo LIKE '19%' THEN 'Investing'
+                WHEN AccountNo LIKE '22%' OR AccountNo LIKE '23%' OR AccountNo LIKE '30%' 
+                     OR AccountNo LIKE '31%' OR AccountNo LIKE '32%' THEN 'Financing'
+                ELSE 'Other'
+            END as activity_type,
+            
+            SUM(MTD) as amount,
+            COUNT(*) as account_count
+            
+        FROM ben002.GL
+        WHERE Year = %s
+          AND Month = %s
+          -- Exclude cash accounts (we're analyzing what changed cash)
+          AND AccountNo NOT LIKE '11%'
+          -- Exclude income statement accounts (already in Operating CF)
+          AND AccountNo NOT LIKE '4%'  -- Revenue
+          AND AccountNo NOT LIKE '5%'  -- COGS
+          AND AccountNo NOT LIKE '6%'  -- Expenses
+          -- Only include accounts with activity
+          AND MTD != 0
+        GROUP BY 
+            CASE 
+                WHEN AccountNo LIKE '12%' THEN 'Accounts Receivable'
+                WHEN AccountNo LIKE '13%' THEN 'Inventory'
+                WHEN AccountNo LIKE '14%' THEN 'Other Current Assets'
+                WHEN AccountNo LIKE '20%' THEN 'Accounts Payable'
+                WHEN AccountNo LIKE '21%' THEN 'Other Current Liabilities'
+                WHEN AccountNo LIKE '18%' THEN 'Equipment/Fixed Assets'
+                WHEN AccountNo LIKE '19%' THEN 'Accumulated Depreciation'
+                WHEN AccountNo LIKE '22%' THEN 'Long-term Debt'
+                WHEN AccountNo LIKE '23%' THEN 'Notes Payable'
+                WHEN AccountNo LIKE '30%' THEN 'Owner Equity'
+                WHEN AccountNo LIKE '31%' THEN 'Retained Earnings'
+                WHEN AccountNo LIKE '32%' THEN 'Distributions'
+                ELSE 'Other'
+            END,
+            CASE 
+                WHEN AccountNo LIKE '12%' OR AccountNo LIKE '13%' OR AccountNo LIKE '14%' 
+                     OR AccountNo LIKE '20%' OR AccountNo LIKE '21%' THEN 'Working Capital'
+                WHEN AccountNo LIKE '18%' OR AccountNo LIKE '19%' THEN 'Investing'
+                WHEN AccountNo LIKE '22%' OR AccountNo LIKE '23%' OR AccountNo LIKE '30%' 
+                     OR AccountNo LIKE '31%' OR AccountNo LIKE '32%' THEN 'Financing'
+                ELSE 'Other'
+            END
+        ORDER BY ABS(SUM(MTD)) DESC
+        """
+        
+        result = sql_service.execute_query(query, [year, month])
+        
+        if not result:
+            return {
+                'breakdown': [],
+                'summary': {
+                    'working_capital': 0,
+                    'investing': 0,
+                    'financing': 0,
+                    'other': 0
+                }
+            }
+        
+        # Organize results
+        breakdown = []
+        summary = {
+            'working_capital': 0,
+            'investing': 0,
+            'financing': 0,
+            'other': 0
+        }
+        
+        for row in result:
+            category = row.get('category', 'Other')
+            activity_type = row.get('activity_type', 'Other')
+            amount = float(row.get('amount') or 0)
+            account_count = int(row.get('account_count') or 0)
+            
+            breakdown.append({
+                'category': category,
+                'activity_type': activity_type,
+                'amount': amount,
+                'account_count': account_count
+            })
+            
+            # Add to summary
+            if activity_type == 'Working Capital':
+                summary['working_capital'] += amount
+            elif activity_type == 'Investing':
+                summary['investing'] += amount
+            elif activity_type == 'Financing':
+                summary['financing'] += amount
+            else:
+                summary['other'] += amount
+        
+        return {
+            'breakdown': breakdown,
+            'summary': summary
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting non-operating breakdown: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'breakdown': [],
+            'summary': {
+                'working_capital': 0,
+                'investing': 0,
+                'financing': 0,
+                'other': 0
+            }
+        }
 
 
 def get_monthly_operating_cashflow(year, month):
     """
     Calculate operating cash flow for a month using indirect method
     Operating CF = Net Income + Depreciation + Changes in Working Capital
+    Note: Working capital changes set to 0 (simplified)
     """
     try:
         # Get Net Income (Revenue - COGS - Expenses)
@@ -171,23 +359,7 @@ def get_monthly_depreciation(year, month):
         return 0.0
 
 
-def get_monthly_capex(year, month):
-    """
-    Get capital expenditures for the month
-    This would typically come from fixed asset purchases (18xxxx accounts)
-    For now, we'll return 0 as a placeholder
-    """
-    try:
-        # In a full implementation, you'd query GLDetail for fixed asset purchases
-        # For now, return 0
-        return 0.0
-        
-    except Exception as e:
-        logger.error(f"Error getting capex: {str(e)}")
-        return 0.0
-
-
-def get_cashflow_trend(year, month, months=6):
+def get_cashflow_trend(year, month, months=12):
     """Get cash flow trend for the last N months"""
     try:
         trend_data = []
