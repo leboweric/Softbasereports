@@ -1655,13 +1655,13 @@ def get_balance_sheet_data(as_of_date):
         year = date_obj.year
         month = date_obj.month
         
-        # Query GL.MTD for balance sheet accounts
-        # For balance sheet accounts, we want the cumulative balance up to the specified month
+        # Query GL.YTD for balance sheet accounts
+        # For balance sheet accounts, we want the cumulative Year-To-Date balance
         query = """
         SELECT 
             AccountNo,
             Description,
-            MTD as balance
+            YTD as balance
         FROM ben002.GL
         WHERE Year = %s 
           AND Month = %s
@@ -1670,7 +1670,7 @@ def get_balance_sheet_data(as_of_date):
             OR AccountNo LIKE '2%'  -- Liabilities
             OR AccountNo LIKE '3%'  -- Equity
           )
-          AND MTD != 0
+          AND YTD != 0
         ORDER BY AccountNo
         """
         
