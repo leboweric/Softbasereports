@@ -29,7 +29,7 @@ const CashFlowWidget = () => {
       setLoading(true)
       const token = localStorage.getItem('token')
       
-      const response = await fetch(`${apiUrl}/api/cashflow/widget`, {
+      const response = await fetch(apiUrl('/api/cashflow/widget'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
