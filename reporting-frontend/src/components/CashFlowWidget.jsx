@@ -187,7 +187,7 @@ const CashFlowWidget = () => {
                   tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 />
                 <Tooltip 
-                  formatter={(value) => formatCurrency(value)}
+                  formatter={(value) => [formatCurrency(value), 'Cash Balance']}
                   labelFormatter={(label) => `Month: ${label}`}
                 />
                 <Line 
