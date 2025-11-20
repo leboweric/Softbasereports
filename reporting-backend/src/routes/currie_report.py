@@ -1338,36 +1338,28 @@ def export_currie_excel():
         for acc in liabilities['long_term_liabilities']:
             desc = acc['description'].upper()
             balance = acc['balance']
-            # Map by description
-            if 'STOCKHOLDER' in desc or 'SHAREHOLDER' in desc:
-                loans_from_stockholders += balance
-            elif 'RENTAL' in desc or 'FLEET' in desc or ('LEASE' in desc and 'OPERATING' in desc):
-                lt_rental_fleet_financing += balance
-            elif 'NOTES PAYABLE' in desc or 'SCALE BANK' in desc:
+            # Map by description to match web page
+            if 'NOTES PAYABLE' in desc or 'SCALE BANK' in desc:
                 long_term_notes += balance
+            elif 'STOCKHOLDER' in desc or 'SHAREHOLDER' in desc:
+                loans_from_stockholders += balance
+            elif 'RENTAL' in desc or 'FLEET' in desc:
+                lt_rental_fleet_financing += balance
             else:
                 other_long_term_debt += balance
         
-        # Check other_liabilities for rental fleet financing accounts (account numbers 27xxxx+)
-        other_liab_rental = 0
-        other_liab_remaining = 0
-        for acc in liabilities['other_liabilities']:
-            desc = acc['description'].upper()
-            balance = acc['balance']
-            if 'RENTAL' in desc or 'FLEET' in desc or ('LEASE' in desc and 'OPERATING' in desc):
-                other_liab_rental += balance
-            else:
-                other_liab_remaining += balance
+        # Subtract short term rental finance from LT rental fleet (to match frontend)
+        lt_rental_fleet_financing -= short_term_rental_finance
         
-        # Add other_liabilities rental accounts to LT Rental Fleet Financing
-        lt_rental_fleet_financing += other_liab_rental
+        # Other Liabilities
+        other_liab_remaining = sum_accounts(liabilities['other_liabilities'])
         
         bs_ws['E15'] = long_term_notes  # Long Term notes Payable
         bs_ws['E16'] = loans_from_stockholders  # Loans from Stockholders
-        bs_ws['E17'] = lt_rental_fleet_financing  # LT Rental Fleet Financing (includes from other_liabilities)
+        bs_ws['E17'] = lt_rental_fleet_financing  # LT Rental Fleet Financing
         bs_ws['E18'] = other_long_term_debt  # Other Long Term Debt
         
-        # Other Liabilities (E23) - excluding rental fleet financing which was moved to E17
+        # Other Liabilities (E23)
         bs_ws['E23'] = other_liab_remaining
         
         # EQUITY
