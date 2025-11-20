@@ -1341,7 +1341,7 @@ def export_currie_excel():
             # Map by description
             if 'STOCKHOLDER' in desc or 'SHAREHOLDER' in desc:
                 loans_from_stockholders += balance
-            elif 'RENTAL' in desc or 'FLEET' in desc or 'LEASE' in desc or 'CONTRACTS PAYABLE' in desc:
+            elif 'RENTAL' in desc or 'FLEET' in desc or ('LEASE' in desc and 'OPERATING' in desc):
                 lt_rental_fleet_financing += balance
             elif 'NOTES PAYABLE' in desc or 'SCALE BANK' in desc:
                 long_term_notes += balance
