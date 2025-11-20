@@ -762,249 +762,360 @@ const Currie = () => {
         </div>
       )}
 
-      {/* Balance Sheet Tab */}
-      {data && activeTab === 'balance' && data.balance_sheet && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          {/* Header */}
-          <div className="bg-blue-50 border-b border-blue-200 p-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="font-semibold">Dealership:</span> {data.dealership_info.name}
-              </div>
-              <div>
-                <span className="font-semibold">As of Date:</span> {data.balance_sheet.as_of_date}
-              </div>
-              <div>
-                <span className="font-semibold">Status:</span> 
-                {data.balance_sheet.balanced ? (
-                  <span className="text-green-600 font-semibold ml-2">✓ Balanced</span>
-                ) : (
-                  <span className="text-red-600 font-semibold ml-2">⚠ Not Balanced</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* ASSETS Column */}
-              <div>
-                <h2 className="text-xl font-bold mb-4 text-blue-900">ASSETS</h2>
-                
-                {/* Current Assets */}
-                <div className="mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Current Assets</h3>
-                  
-                  {/* Cash */}
-                  {data.balance_sheet.assets.current_assets.cash.length > 0 && (
-                    <div className="ml-4 mb-3">
-                      <div className="text-sm font-medium text-gray-700 mb-1">Cash</div>
-                      {data.balance_sheet.assets.current_assets.cash.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Accounts Receivable */}
-                  {data.balance_sheet.assets.current_assets.accounts_receivable.length > 0 && (
-                    <div className="ml-4 mb-3">
-                      <div className="text-sm font-medium text-gray-700 mb-1">Accounts Receivable</div>
-                      {data.balance_sheet.assets.current_assets.accounts_receivable.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Inventory */}
-                  {data.balance_sheet.assets.current_assets.inventory.length > 0 && (
-                    <div className="ml-4 mb-3">
-                      <div className="text-sm font-medium text-gray-700 mb-1">Inventory</div>
-                      {data.balance_sheet.assets.current_assets.inventory.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Other Current Assets */}
-                  {data.balance_sheet.assets.current_assets.other_current.length > 0 && (
-                    <div className="ml-4 mb-3">
-                      <div className="text-sm font-medium text-gray-700 mb-1">Other Current Assets</div>
-                      {data.balance_sheet.assets.current_assets.other_current.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
+      {/* Balance Sheet Tab - Reorganized to match Excel layout */}
+      {data && activeTab === 'balance' && data.balance_sheet && (() => {
+        // Calculate summarized line items to match Excel structure
+        const bs = data.balance_sheet;
+        
+        // Helper function to sum accounts by description pattern
+        const sumByPattern = (accounts, patterns) => {
+          return accounts.reduce((sum, acc) => {
+            const desc = acc.description.toUpperCase();
+            if (patterns.some(pattern => desc.includes(pattern))) {
+              return sum + acc.balance;
+            }
+            return sum;
+          }, 0);
+        };
+        
+        // ASSETS calculations
+        const cash = bs.assets.current_assets.cash.reduce((sum, acc) => sum + acc.balance, 0);
+        const tradeAR = sumByPattern(bs.assets.current_assets.accounts_receivable, ['TRADE']);
+        const allOtherAR = bs.assets.current_assets.accounts_receivable.reduce((sum, acc) => sum + acc.balance, 0) - tradeAR;
+        
+        // Inventory breakdown
+        const inventory = bs.assets.current_assets.inventory;
+        const newEquipPrimary = sumByPattern(inventory, ['NEW TRUCK']);
+        const newEquipOther = 0; // Placeholder
+        const newAllied = sumByPattern(inventory, ['NEW ALLIED']);
+        const otherNewEquip = 0; // Placeholder
+        const usedEquip = sumByPattern(inventory, ['USED TRUCK']);
+        const partsInv = sumByPattern(inventory, ['PARTS']) - sumByPattern(inventory, ['MISC']);
+        const batteryInv = sumByPattern(inventory, ['BATTRY', 'BATTERY', 'CHARGER']);
+        const wip = sumByPattern(inventory, ['WORK', 'PROCESS']);
+        const otherInv = inventory.reduce((sum, acc) => sum + acc.balance, 0) - 
+          (newEquipPrimary + newEquipOther + newAllied + otherNewEquip + usedEquip + partsInv + batteryInv + wip);
+        const totalInventories = newEquipPrimary + newEquipOther + newAllied + otherNewEquip + usedEquip + partsInv + batteryInv + otherInv;
+        
+        const otherCurrentAssets = bs.assets.current_assets.other_current.reduce((sum, acc) => sum + acc.balance, 0);
+        const totalCurrentAssets = cash + tradeAR + allOtherAR + totalInventories + wip + otherCurrentAssets;
+        
+        // Fixed Assets
+        const rentalFleetGross = sumByPattern(bs.assets.fixed_assets, ['RENTAL EQUIPMENT']);
+        const rentalFleetDeprec = sumByPattern(bs.assets.fixed_assets, ['RENTAL EQUIP', 'DEPREC']);
+        const rentalFleet = rentalFleetGross + rentalFleetDeprec;
+        const otherFixed = bs.assets.fixed_assets.reduce((sum, acc) => sum + acc.balance, 0) - rentalFleetGross - rentalFleetDeprec;
+        
+        // Other Assets
+        const otherAssets = bs.assets.other_assets.reduce((sum, acc) => sum + acc.balance, 0);
+        
+        // LIABILITIES calculations
+        const apPrimary = sumByPattern(bs.liabilities.current_liabilities, ['ACCOUNTS PAYABLE', 'TRADE']);
+        const apOther = 0; // Placeholder
+        const notesPayableCurrent = 0; // Placeholder
+        const shortTermRentalFinance = sumByPattern(bs.liabilities.current_liabilities, ['RENTAL FINANCE', 'FLOOR PLAN']);
+        const usedEquipFinancing = sumByPattern(bs.liabilities.current_liabilities, ['TRUCKS PURCHASED']);
+        const otherCurrentLiab = bs.liabilities.current_liabilities.reduce((sum, acc) => sum + acc.balance, 0) - 
+          (apPrimary + apOther + notesPayableCurrent + shortTermRentalFinance + usedEquipFinancing);
+        const totalCurrentLiab = apPrimary + apOther + notesPayableCurrent + shortTermRentalFinance + usedEquipFinancing + otherCurrentLiab;
+        
+        // Long-term Liabilities
+        const longTermNotes = sumByPattern(bs.liabilities.long_term_liabilities, ['NOTES PAYABLE', 'SCALE BANK']);
+        const loansFromStockholders = sumByPattern(bs.liabilities.long_term_liabilities, ['STOCKHOLDER', 'SHAREHOLDER']);
+        const ltRentalFleetFinancing = sumByPattern(bs.liabilities.long_term_liabilities, ['RENTAL', 'FLEET']) - shortTermRentalFinance;
+        const otherLongTermDebt = bs.liabilities.long_term_liabilities.reduce((sum, acc) => sum + acc.balance, 0) - 
+          (longTermNotes + loansFromStockholders + ltRentalFleetFinancing);
+        const totalLTLiab = longTermNotes + loansFromStockholders + ltRentalFleetFinancing + otherLongTermDebt;
+        
+        const otherLiabilities = bs.liabilities.other_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+        
+        // EQUITY calculations
+        const capitalStock = bs.equity.capital_stock.reduce((sum, acc) => sum + acc.balance, 0);
+        const retainedEarnings = bs.equity.retained_earnings.reduce((sum, acc) => sum + acc.balance, 0) + 
+          bs.equity.distributions.reduce((sum, acc) => sum + acc.balance, 0);
+        const totalNetWorth = capitalStock + retainedEarnings;
+        
+        return (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {/* Header */}
+            <div className="bg-blue-50 border-b border-blue-200 p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="font-semibold">Dealership:</span> {data.dealership_info.name}
+                </div>
+                <div>
+                  <span className="font-semibold">As of Date:</span> {bs.as_of_date}
+                </div>
+                <div>
+                  <span className="font-semibold">Status:</span> 
+                  {bs.balanced ? (
+                    <span className="text-green-600 font-semibold ml-2">✓ Balanced</span>
+                  ) : (
+                    <span className="text-red-600 font-semibold ml-2">⚠ Not Balanced</span>
                   )}
                 </div>
-                
-                {/* Fixed Assets */}
-                {data.balance_sheet.assets.fixed_assets.length > 0 && (
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* ASSETS Column */}
+                <div>
+                  <h2 className="text-xl font-bold mb-4 text-blue-900">ASSETS</h2>
+                  
+                  {/* Current Assets */}
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Current Assets</h3>
+                    
+                    <div className="ml-4 space-y-1">
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Cash</span>
+                        <span className="font-medium">{formatCurrency(cash)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Trade Accounts Receivable</span>
+                        <span className="font-medium">{formatCurrency(tradeAR)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">All Other Accounts Receivable</span>
+                        <span className="font-medium">{formatCurrency(allOtherAR)}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Inventory Section */}
+                    <div className="ml-4 mt-3">
+                      <div className="text-sm font-medium text-gray-700 italic mb-1">Inventory</div>
+                      <div className="ml-4 space-y-1">
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">New Equipment, primary brand</span>
+                          <span className="font-medium">{formatCurrency(newEquipPrimary)}</span>
+                        </div>
+                        {newEquipOther !== 0 && (
+                          <div className="flex justify-between text-sm py-1">
+                            <span className="text-gray-600">New Equipment, other brand</span>
+                            <span className="font-medium">{formatCurrency(newEquipOther)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">New Allied Inventory</span>
+                          <span className="font-medium">{formatCurrency(newAllied)}</span>
+                        </div>
+                        {otherNewEquip !== 0 && (
+                          <div className="flex justify-between text-sm py-1">
+                            <span className="text-gray-600">Other New Equipment</span>
+                            <span className="font-medium">{formatCurrency(otherNewEquip)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">Used Equipment Inventory</span>
+                          <span className="font-medium">{formatCurrency(usedEquip)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">Parts Inventory</span>
+                          <span className="font-medium">{formatCurrency(partsInv)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">Battery Inventory</span>
+                          <span className="font-medium">{formatCurrency(batteryInv)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">Other Inventory</span>
+                          <span className="font-medium">{formatCurrency(otherInv)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1 font-semibold border-t border-gray-300 mt-1 pt-1">
+                          <span className="text-gray-700 italic">Total Inventories</span>
+                          <span>{formatCurrency(totalInventories)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="ml-4 mt-2 space-y-1">
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">WIP</span>
+                        <span className="font-medium">{formatCurrency(wip)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Other Current Assets</span>
+                        <span className="font-medium">{formatCurrency(otherCurrentAssets)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1 font-semibold border-t border-gray-400 mt-1 pt-1">
+                        <span className="text-gray-800 italic">Total Current Assets</span>
+                        <span>{formatCurrency(totalCurrentAssets)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Fixed Assets */}
                   <div className="mb-6">
                     <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Fixed Assets</h3>
-                    <div className="ml-4">
-                      {data.balance_sheet.assets.fixed_assets.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
+                    <div className="ml-4 space-y-1">
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Rental Fleet</span>
+                        <span className="font-medium">{formatCurrency(rentalFleet)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Other Long Term or Fixed Assets</span>
+                        <span className="font-medium">{formatCurrency(otherFixed)}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-                
-                {/* Other Assets */}
-                {data.balance_sheet.assets.other_assets.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Other Assets</h3>
-                    <div className="ml-4">
-                      {data.balance_sheet.assets.other_assets.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                  
+                  {/* Other Assets */}
+                  {otherAssets !== 0 && (
+                    <div className="mb-6">
+                      <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Other Assets</h3>
+                      <div className="ml-4">
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">Other Assets</span>
+                          <span className="font-medium">{formatCurrency(otherAssets)}</span>
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                
-                {/* Total Assets */}
-                <div className="border-t-2 border-gray-900 pt-2 mt-4">
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>TOTAL ASSETS</span>
-                    <span>{formatCurrency(data.balance_sheet.assets.total)}</span>
+                  )}
+                  
+                  {/* Total Assets */}
+                  <div className="border-t-2 border-gray-900 pt-2 mt-4">
+                    <div className="flex justify-between font-bold text-lg">
+                      <span>Total Assets</span>
+                      <span>{formatCurrency(bs.assets.total)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              {/* LIABILITIES & EQUITY Column */}
-              <div>
-                <h2 className="text-xl font-bold mb-4 text-blue-900">LIABILITIES & EQUITY</h2>
                 
-                {/* Current Liabilities */}
-                {data.balance_sheet.liabilities.current_liabilities.length > 0 && (
+                {/* LIABILITIES & EQUITY Column */}
+                <div>
+                  <h2 className="text-xl font-bold mb-4 text-blue-900">LIABILITIES</h2>
+                  
+                  {/* Current Liabilities */}
                   <div className="mb-6">
                     <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Current Liabilities</h3>
-                    <div className="ml-4">
-                      {data.balance_sheet.liabilities.current_liabilities.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                    <div className="ml-4 space-y-1">
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">A/P Primary Brand</span>
+                        <span className="font-medium">{formatCurrency(apPrimary)}</span>
+                      </div>
+                      {apOther !== 0 && (
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">A/P Other</span>
+                          <span className="font-medium">{formatCurrency(apOther)}</span>
                         </div>
-                      ))}
+                      )}
+                      {notesPayableCurrent !== 0 && (
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">Notes Payable - due within 1 year</span>
+                          <span className="font-medium">{formatCurrency(notesPayableCurrent)}</span>
+                        </div>
+                      )}
+                      {shortTermRentalFinance !== 0 && (
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">Short Term Rental Finance</span>
+                          <span className="font-medium">{formatCurrency(shortTermRentalFinance)}</span>
+                        </div>
+                      )}
+                      {usedEquipFinancing !== 0 && (
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">Used Equipment Financing</span>
+                          <span className="font-medium">{formatCurrency(usedEquipFinancing)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Other Current Liabilities</span>
+                        <span className="font-medium">{formatCurrency(otherCurrentLiab)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1 font-semibold border-t border-gray-400 mt-1 pt-1">
+                        <span className="text-gray-800 italic">Total Current Liabilities</span>
+                        <span>{formatCurrency(totalCurrentLiab)}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-                
-                {/* Long-term Liabilities */}
-                {data.balance_sheet.liabilities.long_term_liabilities.length > 0 && (
+                  
+                  {/* Long-term Liabilities */}
                   <div className="mb-6">
                     <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Long-term Liabilities</h3>
-                    <div className="ml-4">
-                      {data.balance_sheet.liabilities.long_term_liabilities.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                    <div className="ml-4 space-y-1">
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Long Term notes Payable</span>
+                        <span className="font-medium">{formatCurrency(longTermNotes)}</span>
+                      </div>
+                      {loansFromStockholders !== 0 && (
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">Loans from Stockholders</span>
+                          <span className="font-medium">{formatCurrency(loansFromStockholders)}</span>
                         </div>
-                      ))}
+                      )}
+                      {ltRentalFleetFinancing !== 0 && (
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">LT Rental Fleet Financing</span>
+                          <span className="font-medium">{formatCurrency(ltRentalFleetFinancing)}</span>
+                        </div>
+                      )}
+                      {otherLongTermDebt !== 0 && (
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">Other Long Term Debt</span>
+                          <span className="font-medium">{formatCurrency(otherLongTermDebt)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm py-1 font-semibold border-t border-gray-400 mt-1 pt-1">
+                        <span className="text-gray-800 italic">Total LT Liabilities</span>
+                        <span>{formatCurrency(totalLTLiab)}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-                
-                {/* Other Liabilities */}
-                {data.balance_sheet.liabilities.other_liabilities.length > 0 && (
+                  
+                  {/* Other Liabilities */}
+                  {otherLiabilities !== 0 && (
+                    <div className="mb-6">
+                      <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Other Liabilities</h3>
+                      <div className="ml-4">
+                        <div className="flex justify-between text-sm py-1">
+                          <span className="text-gray-700">Other Liabilities</span>
+                          <span className="font-medium">{formatCurrency(otherLiabilities)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Total Liabilities */}
+                  <div className="border-t border-gray-600 pt-2 mb-6">
+                    <div className="flex justify-between font-semibold text-base">
+                      <span>Total Liabilities</span>
+                      <span>{formatCurrency(bs.liabilities.total)}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Net Worth/Owner Equity */}
                   <div className="mb-6">
-                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Other Liabilities</h3>
-                    <div className="ml-4">
-                      {data.balance_sheet.liabilities.other_liabilities.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
+                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Net Worth/Owner Equity</h3>
+                    <div className="ml-4 space-y-1">
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Capital Stock</span>
+                        <span className="font-medium">{formatCurrency(capitalStock)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1">
+                        <span className="text-gray-700">Retained Earnings</span>
+                        <span className="font-medium">{formatCurrency(retainedEarnings)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm py-1 font-semibold border-t border-gray-400 mt-1 pt-1">
+                        <span className="text-gray-800 italic">Total Net Worth</span>
+                        <span>{formatCurrency(totalNetWorth)}</span>
+                      </div>
                     </div>
                   </div>
-                )}
-                
-                {/* Total Liabilities */}
-                <div className="border-t border-gray-400 pt-2 mb-6">
-                  <div className="flex justify-between font-semibold">
-                    <span>TOTAL LIABILITIES</span>
-                    <span>{formatCurrency(data.balance_sheet.liabilities.total)}</span>
-                  </div>
-                </div>
-                
-                {/* Equity */}
-                <div className="mb-6">
-                  <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Owner's Equity</h3>
                   
-                  {/* Capital Stock */}
-                  {data.balance_sheet.equity.capital_stock.length > 0 && (
-                    <div className="ml-4 mb-2">
-                      {data.balance_sheet.equity.capital_stock.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
+                  {/* Total Liabilities & Net Worth */}
+                  <div className="border-t-2 border-gray-900 pt-2">
+                    <div className="flex justify-between font-bold text-lg">
+                      <span>Total Liabilities & Net Worth</span>
+                      <span>{formatCurrency(bs.liabilities.total + bs.equity.total)}</span>
                     </div>
-                  )}
-                  
-                  {/* Retained Earnings */}
-                  {data.balance_sheet.equity.retained_earnings.length > 0 && (
-                    <div className="ml-4 mb-2">
-                      {data.balance_sheet.equity.retained_earnings.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Distributions */}
-                  {data.balance_sheet.equity.distributions.length > 0 && (
-                    <div className="ml-4 mb-2">
-                      {data.balance_sheet.equity.distributions.map((acc, idx) => (
-                        <div key={idx} className="flex justify-between text-sm py-1">
-                          <span className="text-gray-600">{acc.description}</span>
-                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Total Equity */}
-                <div className="border-t border-gray-400 pt-2 mb-4">
-                  <div className="flex justify-between font-semibold">
-                    <span>TOTAL EQUITY</span>
-                    <span>{formatCurrency(data.balance_sheet.equity.total)}</span>
-                  </div>
-                </div>
-                
-                {/* Total Liabilities & Equity */}
-                <div className="border-t-2 border-gray-900 pt-2">
-                  <div className="flex justify-between font-bold text-lg">
-                    <span>TOTAL LIABILITIES & EQUITY</span>
-                    <span>{formatCurrency(data.balance_sheet.liabilities.total + data.balance_sheet.equity.total)}</span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
 
       {/* Metrics Section (OLD - Remove later) */}
       {false && metrics && (
