@@ -1036,11 +1036,72 @@ def export_currie_excel():
         # Write Expenses to "Expenses, Miscellaneous" sheet
         expenses_ws = wb['Expenses, Miscellaneous']
         
-        # Expense totals (rows 4-6, column B = "New" column)
-        expenses_ws['B4'] = expenses.get('personnel', {}).get('total', 0)  # Personnel
-        expenses_ws['B5'] = expenses.get('operating', {}).get('total', 0)  # Operating
-        expenses_ws['B6'] = expenses.get('occupancy', {}).get('total', 0)  # Occupancy
-        # B7 has a formula =SUM(B4:B6) which will calculate automatically
+        # Department allocation percentages (from Currie model)
+        dept_allocations = {
+            'new': 0.47517,
+            'used': 0.03209,
+            'rental': 0.20694,
+            'parts': 0.13121,
+            'service': 0.14953,
+            'trucking': 0.00507
+        }
+        
+        # Calculate department expenses for each category
+        personnel_total = expenses.get('personnel', {}).get('total', 0)
+        operating_total = expenses.get('operating', {}).get('total', 0)
+        occupancy_total = expenses.get('occupancy', {}).get('total', 0)
+        
+        # Allocate Personnel expenses (row 4)
+        personnel_new = personnel_total * dept_allocations['new']
+        personnel_used = personnel_total * dept_allocations['used']
+        personnel_parts = personnel_total * dept_allocations['parts']
+        personnel_service = personnel_total * dept_allocations['service']
+        personnel_rental = personnel_total * dept_allocations['rental']
+        personnel_trucking = personnel_total * dept_allocations['trucking']
+        personnel_ga = personnel_total - (personnel_new + personnel_used + personnel_parts + personnel_service + personnel_rental + personnel_trucking)
+        
+        expenses_ws['B4'] = personnel_new
+        expenses_ws['C4'] = personnel_used
+        expenses_ws['E4'] = personnel_parts
+        expenses_ws['F4'] = personnel_service
+        expenses_ws['G4'] = personnel_rental
+        expenses_ws['I4'] = personnel_trucking
+        expenses_ws['J4'] = personnel_ga
+        
+        # Allocate Operating expenses (row 5)
+        operating_new = operating_total * dept_allocations['new']
+        operating_used = operating_total * dept_allocations['used']
+        operating_parts = operating_total * dept_allocations['parts']
+        operating_service = operating_total * dept_allocations['service']
+        operating_rental = operating_total * dept_allocations['rental']
+        operating_trucking = operating_total * dept_allocations['trucking']
+        operating_ga = operating_total - (operating_new + operating_used + operating_parts + operating_service + operating_rental + operating_trucking)
+        
+        expenses_ws['B5'] = operating_new
+        expenses_ws['C5'] = operating_used
+        expenses_ws['E5'] = operating_parts
+        expenses_ws['F5'] = operating_service
+        expenses_ws['G5'] = operating_rental
+        expenses_ws['I5'] = operating_trucking
+        expenses_ws['J5'] = operating_ga
+        
+        # Allocate Occupancy expenses (row 6)
+        occupancy_new = occupancy_total * dept_allocations['new']
+        occupancy_used = occupancy_total * dept_allocations['used']
+        occupancy_parts = occupancy_total * dept_allocations['parts']
+        occupancy_service = occupancy_total * dept_allocations['service']
+        occupancy_rental = occupancy_total * dept_allocations['rental']
+        occupancy_trucking = occupancy_total * dept_allocations['trucking']
+        occupancy_ga = occupancy_total - (occupancy_new + occupancy_used + occupancy_parts + occupancy_service + occupancy_rental + occupancy_trucking)
+        
+        expenses_ws['B6'] = occupancy_new
+        expenses_ws['C6'] = occupancy_used
+        expenses_ws['E6'] = occupancy_parts
+        expenses_ws['F6'] = occupancy_service
+        expenses_ws['G6'] = occupancy_rental
+        expenses_ws['I6'] = occupancy_trucking
+        expenses_ws['J6'] = occupancy_ga
+        # Row 7 has formulas =SUM(B4:B6) etc. which will calculate automatically
         
         # AR Aging (rows 22-26, column B)
         expenses_ws['B22'] = ar_aging.get('current', 0)  # Current
