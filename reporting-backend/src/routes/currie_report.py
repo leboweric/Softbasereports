@@ -1329,27 +1329,32 @@ def export_currie_excel():
         bs_ws['E11'] = used_equipment_financing  # Used Equipment Financing
         bs_ws['E12'] = other_current_liabilities  # Other Current Liabilities
         
-        # Long-term Liabilities breakdown
+        # Long-term Liabilities breakdown - MATCH FRONTEND EXACTLY
+        # Frontend: const longTermNotes = sumByPattern(['NOTES PAYABLE', 'SCALE BANK']);
         long_term_notes = 0
-        loans_from_stockholders = 0
-        lt_rental_fleet_financing = 0
-        other_long_term_debt = 0
-        
         for acc in liabilities['long_term_liabilities']:
             desc = acc['description'].upper()
-            balance = acc['balance']
-            # Map by description to match web page
             if 'NOTES PAYABLE' in desc or 'SCALE BANK' in desc:
-                long_term_notes += balance
-            elif 'STOCKHOLDER' in desc or 'SHAREHOLDER' in desc:
-                loans_from_stockholders += balance
-            elif 'RENTAL' in desc or 'FLEET' in desc:
-                lt_rental_fleet_financing += balance
-            else:
-                other_long_term_debt += balance
+                long_term_notes += acc['balance']
         
-        # Subtract short term rental finance from LT rental fleet (to match frontend)
+        # Frontend: const loansFromStockholders = sumByPattern(['STOCKHOLDER', 'SHAREHOLDER']);
+        loans_from_stockholders = 0
+        for acc in liabilities['long_term_liabilities']:
+            desc = acc['description'].upper()
+            if 'STOCKHOLDER' in desc or 'SHAREHOLDER' in desc:
+                loans_from_stockholders += acc['balance']
+        
+        # Frontend: const ltRentalFleetFinancing = sumByPattern(['RENTAL', 'FLEET']) - shortTermRentalFinance;
+        lt_rental_fleet_financing = 0
+        for acc in liabilities['long_term_liabilities']:
+            desc = acc['description'].upper()
+            if 'RENTAL' in desc or 'FLEET' in desc:
+                lt_rental_fleet_financing += acc['balance']
         lt_rental_fleet_financing -= short_term_rental_finance
+        
+        # Frontend: const otherLongTermDebt = total - (longTermNotes + loansFromStockholders + ltRentalFleetFinancing);
+        total_long_term_liabilities = sum(acc['balance'] for acc in liabilities['long_term_liabilities'])
+        other_long_term_debt = total_long_term_liabilities - (long_term_notes + loans_from_stockholders + lt_rental_fleet_financing)
         
         # Other Liabilities
         other_liab_remaining = sum_accounts(liabilities['other_liabilities'])
