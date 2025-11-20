@@ -753,10 +753,246 @@ const Currie = () => {
       )}
 
       {/* Balance Sheet Tab */}
-      {data && activeTab === 'balance' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden p-6">
-          <h2 className="text-xl font-bold mb-4">Balance Sheet</h2>
-          <p className="text-gray-600">Balance Sheet data coming soon...</p>
+      {data && activeTab === 'balance' && data.balance_sheet && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {/* Header */}
+          <div className="bg-blue-50 border-b border-blue-200 p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="font-semibold">Dealership:</span> {data.dealership_info.name}
+              </div>
+              <div>
+                <span className="font-semibold">As of Date:</span> {data.balance_sheet.as_of_date}
+              </div>
+              <div>
+                <span className="font-semibold">Status:</span> 
+                {data.balance_sheet.balanced ? (
+                  <span className="text-green-600 font-semibold ml-2">✓ Balanced</span>
+                ) : (
+                  <span className="text-red-600 font-semibold ml-2">⚠ Not Balanced</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* ASSETS Column */}
+              <div>
+                <h2 className="text-xl font-bold mb-4 text-blue-900">ASSETS</h2>
+                
+                {/* Current Assets */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Current Assets</h3>
+                  
+                  {/* Cash */}
+                  {data.balance_sheet.assets.current_assets.cash.length > 0 && (
+                    <div className="ml-4 mb-3">
+                      <div className="text-sm font-medium text-gray-700 mb-1">Cash</div>
+                      {data.balance_sheet.assets.current_assets.cash.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Accounts Receivable */}
+                  {data.balance_sheet.assets.current_assets.accounts_receivable.length > 0 && (
+                    <div className="ml-4 mb-3">
+                      <div className="text-sm font-medium text-gray-700 mb-1">Accounts Receivable</div>
+                      {data.balance_sheet.assets.current_assets.accounts_receivable.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Inventory */}
+                  {data.balance_sheet.assets.current_assets.inventory.length > 0 && (
+                    <div className="ml-4 mb-3">
+                      <div className="text-sm font-medium text-gray-700 mb-1">Inventory</div>
+                      {data.balance_sheet.assets.current_assets.inventory.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Other Current Assets */}
+                  {data.balance_sheet.assets.current_assets.other_current.length > 0 && (
+                    <div className="ml-4 mb-3">
+                      <div className="text-sm font-medium text-gray-700 mb-1">Other Current Assets</div>
+                      {data.balance_sheet.assets.current_assets.other_current.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1 pl-4">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Fixed Assets */}
+                {data.balance_sheet.assets.fixed_assets.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Fixed Assets</h3>
+                    <div className="ml-4">
+                      {data.balance_sheet.assets.fixed_assets.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Other Assets */}
+                {data.balance_sheet.assets.other_assets.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Other Assets</h3>
+                    <div className="ml-4">
+                      {data.balance_sheet.assets.other_assets.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Total Assets */}
+                <div className="border-t-2 border-gray-900 pt-2 mt-4">
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>TOTAL ASSETS</span>
+                    <span>{formatCurrency(data.balance_sheet.assets.total)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* LIABILITIES & EQUITY Column */}
+              <div>
+                <h2 className="text-xl font-bold mb-4 text-blue-900">LIABILITIES & EQUITY</h2>
+                
+                {/* Current Liabilities */}
+                {data.balance_sheet.liabilities.current_liabilities.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Current Liabilities</h3>
+                    <div className="ml-4">
+                      {data.balance_sheet.liabilities.current_liabilities.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Long-term Liabilities */}
+                {data.balance_sheet.liabilities.long_term_liabilities.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Long-term Liabilities</h3>
+                    <div className="ml-4">
+                      {data.balance_sheet.liabilities.long_term_liabilities.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Other Liabilities */}
+                {data.balance_sheet.liabilities.other_liabilities.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Other Liabilities</h3>
+                    <div className="ml-4">
+                      {data.balance_sheet.liabilities.other_liabilities.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Total Liabilities */}
+                <div className="border-t border-gray-400 pt-2 mb-6">
+                  <div className="flex justify-between font-semibold">
+                    <span>TOTAL LIABILITIES</span>
+                    <span>{formatCurrency(data.balance_sheet.liabilities.total)}</span>
+                  </div>
+                </div>
+                
+                {/* Equity */}
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-2 bg-gray-100 px-3 py-2">Owner's Equity</h3>
+                  
+                  {/* Capital Stock */}
+                  {data.balance_sheet.equity.capital_stock.length > 0 && (
+                    <div className="ml-4 mb-2">
+                      {data.balance_sheet.equity.capital_stock.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Retained Earnings */}
+                  {data.balance_sheet.equity.retained_earnings.length > 0 && (
+                    <div className="ml-4 mb-2">
+                      {data.balance_sheet.equity.retained_earnings.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Distributions */}
+                  {data.balance_sheet.equity.distributions.length > 0 && (
+                    <div className="ml-4 mb-2">
+                      {data.balance_sheet.equity.distributions.map((acc, idx) => (
+                        <div key={idx} className="flex justify-between text-sm py-1">
+                          <span className="text-gray-600">{acc.description}</span>
+                          <span className="font-medium">{formatCurrency(acc.balance)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Total Equity */}
+                <div className="border-t border-gray-400 pt-2 mb-4">
+                  <div className="flex justify-between font-semibold">
+                    <span>TOTAL EQUITY</span>
+                    <span>{formatCurrency(data.balance_sheet.equity.total)}</span>
+                  </div>
+                </div>
+                
+                {/* Total Liabilities & Equity */}
+                <div className="border-t-2 border-gray-900 pt-2">
+                  <div className="flex justify-between font-bold text-lg">
+                    <span>TOTAL LIABILITIES & EQUITY</span>
+                    <span>{formatCurrency(data.balance_sheet.liabilities.total + data.balance_sheet.equity.total)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
