@@ -582,11 +582,12 @@ const Currie = () => {
                       <th className="px-4 py-3 text-right font-semibold">New</th>
                       <th className="px-4 py-3 text-right font-semibold">Used</th>
                       <th className="px-4 py-3 text-right font-semibold">Total Sales Dept</th>
-                      <th className="px-4 py-3 text-right font-semibold">Parts</th>
-                      <th className="px-4 py-3 text-right font-semibold">Service</th>
-                      <th className="px-4 py-3 text-right font-semibold">Rental</th>
+                      <th className="px-4 py-3 text-right font-semibold">Parts Dept</th>
+                      <th className="px-4 py-3 text-right font-semibold">Service Dept</th>
+                      <th className="px-4 py-3 text-right font-semibold">Short Term Rental</th>
+                      <th className="px-4 py-3 text-right font-semibold">Long Term Rental</th>
                       <th className="px-4 py-3 text-right font-semibold">Trucking</th>
-                      <th className="px-4 py-3 text-right font-semibold">G&A</th>
+                      <th className="px-4 py-3 text-right font-semibold">G&A Dept</th>
                       <th className="px-4 py-3 text-right font-semibold">Total</th>
                     </tr>
                   </thead>
@@ -600,6 +601,7 @@ const Currie = () => {
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.parts)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.service)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.rental)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(0)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.trucking)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.ga)}</td>
                       <td className="px-4 py-2 text-right font-bold">{formatCurrency(data.department_expenses.personnel.total)}</td>
@@ -613,6 +615,7 @@ const Currie = () => {
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.parts)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.service)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.rental)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(0)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.trucking)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.ga)}</td>
                       <td className="px-4 py-2 text-right font-bold">{formatCurrency(data.department_expenses.operating.total)}</td>
@@ -626,6 +629,7 @@ const Currie = () => {
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.parts)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.service)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.rental)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(0)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.trucking)}</td>
                       <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.ga)}</td>
                       <td className="px-4 py-2 text-right font-bold">{formatCurrency(data.department_expenses.occupancy.total)}</td>
@@ -639,6 +643,7 @@ const Currie = () => {
                       <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.parts)}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.service)}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.rental)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(0)}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.trucking)}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.ga)}</td>
                       <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.total)}</td>
@@ -649,15 +654,15 @@ const Currie = () => {
             )}
           </div>
 
-          {/* Metrics Section */}
+          {/* Miscellaneous Information Section */}
           {metrics && (
             <div className="p-6 border-t border-gray-200">
-              <h2 className="text-xl font-bold mb-4">Key Metrics</h2>
+              <h2 className="text-xl font-bold mb-4">Miscellaneous Information</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* AR Aging */}
+                {/* Accounts Receivable Aging */}
                 <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">AR Aging</h3>
+                  <h3 className="font-semibold text-gray-900 mb-3">Accounts Receivable Aging</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">Current (0-30):</span>
