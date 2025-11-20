@@ -287,7 +287,7 @@ const CashFlowWidget = () => {
         {/* 12-Month Trend Chart */}
         {data.trend && data.trend.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium mb-4">12-Month Cash Flow Trend</h4>
+            <h4 className="text-sm font-medium mb-4">12-Month Cash Balance Trend</h4>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={data.trend}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -303,13 +303,12 @@ const CashFlowWidget = () => {
                   formatter={(value) => formatCurrency(value)}
                   labelFormatter={(label) => `Month: ${label}`}
                 />
-                <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
                 <Line 
                   type="monotone" 
                   dataKey="cashflow" 
-                  stroke="#10b981" 
+                  stroke="#3b82f6" 
                   strokeWidth={2}
-                  dot={{ fill: '#10b981', r: 4 }}
+                  dot={{ fill: '#3b82f6', r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>

@@ -362,7 +362,7 @@ def get_monthly_depreciation(year, month):
 
 
 def get_cashflow_trend(year, month, months=12):
-    """Get cash flow trend for the last N months"""
+    """Get cash balance trend for the last N months"""
     try:
         trend_data = []
         
@@ -376,19 +376,19 @@ def get_cashflow_trend(year, month, months=12):
                 target_month += 12
                 target_year -= 1
             
-            # Get operating cash flow for this month
-            cf = get_monthly_operating_cashflow(target_year, target_month)
+            # Get cash balance for this month (ending balance)
+            cash_balance = get_current_cash_balance(target_year, target_month)
             
             # Format month label
             month_label = f"{target_year}-{target_month:02d}"
             
             trend_data.append({
                 'month': month_label,
-                'cashflow': cf
+                'cashflow': cash_balance  # Keep field name for frontend compatibility
             })
         
         return trend_data
         
     except Exception as e:
-        logger.error(f"Error getting cash flow trend: {str(e)}")
+        logger.error(f"Error getting cash balance trend: {str(e)}")
         return []
