@@ -1222,10 +1222,12 @@ def export_currie_excel():
         # All Other Accounts Receivable (B8) - set to 0 or use other current assets if needed
         bs_ws['B8'] = 0
         
-        # Inventory breakdown - map by account description
+        # Inventory breakdown - map by account description to match Currie web page exactly
         inventory_accounts = assets['current_assets']['inventory']
         new_equipment_primary = 0
+        new_equipment_other = 0
         new_allied_inventory = 0
+        other_new_equipment = 0
         used_equipment_inventory = 0
         parts_inventory = 0
         battery_inventory = 0
@@ -1235,21 +1237,24 @@ def export_currie_excel():
             desc = acc['description'].upper()
             balance = acc['balance']
             # Map based on account descriptions to match web page display
-            if 'NEW TRUCK' in desc or 'NEW EQUIPMENT' in desc:
+            if 'NEW TRUCK' in desc:
                 new_equipment_primary += balance
             elif 'NEW ALLIED' in desc:
                 new_allied_inventory += balance
-            elif 'USED TRUCK' in desc or 'USED EQUIPMENT' in desc:
+            elif 'USED TRUCK' in desc:
                 used_equipment_inventory += balance
-            elif 'PARTS' in desc and 'NEW' not in desc:
+            elif 'PARTS' in desc and 'MISC' not in desc:
                 parts_inventory += balance
             elif 'BATTRY' in desc or 'BATTERY' in desc or 'CHARGER' in desc:
                 battery_inventory += balance
             else:
+                # Everything else goes to Other Inventory (Sublet Labor, Misc Parts, Reserve, etc.)
                 other_inventory += balance
         
         bs_ws['B11'] = new_equipment_primary  # New Equipment, primary brand
+        bs_ws['B12'] = new_equipment_other  # New Equipment, other brand (currently $0)
         bs_ws['B13'] = new_allied_inventory  # New Allied Inventory
+        bs_ws['B14'] = other_new_equipment  # Other New Equipment (currently $0)
         bs_ws['B15'] = used_equipment_inventory  # Used Equipment Inventory
         bs_ws['B16'] = parts_inventory  # Parts Inventory
         bs_ws['B17'] = battery_inventory  # Battery Inventory
@@ -1289,30 +1294,61 @@ def export_currie_excel():
         # Other Assets (B29)
         bs_ws['B29'] = sum_accounts(assets['other_assets'])
         
-        # LIABILITIES
+        # LIABILITIES - match Currie web page structure exactly
         liabilities = balance_sheet_data['liabilities']
         
-        # A/P Primary Brand (E7)
+        # Current Liabilities breakdown
         ap_primary = 0
+        ap_other = 0
         notes_payable_current = 0
+        short_term_rental_finance = 0
+        used_equipment_financing = 0
         other_current_liabilities = 0
         
         for acc in liabilities['current_liabilities']:
-            account_no = acc['account']
+            desc = acc['description'].upper()
             balance = acc['balance']
-            if account_no.startswith('210'):  # A/P Primary
+            # Map by description to match web page
+            if 'ACCOUNTS PAYABLE' in desc and 'TRADE' in desc:
                 ap_primary += balance
-            elif account_no.startswith('220'):  # Notes Payable
-                notes_payable_current += balance
+            elif 'RENTAL FINANCE' in desc or 'FLOOR PLAN' in desc:
+                short_term_rental_finance += balance
+            elif 'TRUCKS PURCHASED' in desc or 'USED EQUIPMENT' in desc:
+                used_equipment_financing += balance
             else:
+                # All other current liabilities
                 other_current_liabilities += balance
         
-        bs_ws['E7'] = ap_primary  # A/P Primary Brand
-        bs_ws['E9'] = notes_payable_current  # Notes Payable - due within 1 year
+        bs_ws['E7'] = ap_primary  # A/P Primary Brand (ACCOUNTS PAYABLE - TRADE)
+        bs_ws['E8'] = ap_other  # A/P Other (currently $0)
+        bs_ws['E9'] = notes_payable_current  # Notes Payable - due within 1 year (currently $0)
+        bs_ws['E10'] = short_term_rental_finance  # Short Term Rental Finance
+        bs_ws['E11'] = used_equipment_financing  # Used Equipment Financing
         bs_ws['E12'] = other_current_liabilities  # Other Current Liabilities
         
-        # Long Term notes Payable (E15)
-        bs_ws['E15'] = sum_accounts(liabilities['long_term_liabilities'])
+        # Long-term Liabilities breakdown
+        long_term_notes = 0
+        loans_from_stockholders = 0
+        lt_rental_fleet_financing = 0
+        other_long_term_debt = 0
+        
+        for acc in liabilities['long_term_liabilities']:
+            desc = acc['description'].upper()
+            balance = acc['balance']
+            # Map by description
+            if 'STOCKHOLDER' in desc or 'SHAREHOLDER' in desc:
+                loans_from_stockholders += balance
+            elif 'RENTAL' in desc or 'FLEET' in desc:
+                lt_rental_fleet_financing += balance
+            elif 'NOTES PAYABLE' in desc or 'SCALE BANK' in desc:
+                long_term_notes += balance
+            else:
+                other_long_term_debt += balance
+        
+        bs_ws['E15'] = long_term_notes  # Long Term notes Payable
+        bs_ws['E16'] = loans_from_stockholders  # Loans from Stockholders
+        bs_ws['E17'] = lt_rental_fleet_financing  # LT Rental Fleet Financing
+        bs_ws['E18'] = other_long_term_debt  # Other Long Term Debt
         
         # Other Liabilities (E23)
         bs_ws['E23'] = sum_accounts(liabilities['other_liabilities'])
