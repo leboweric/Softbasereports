@@ -1247,8 +1247,9 @@ def export_currie_excel():
                 parts_inventory += balance
             elif 'BATTRY' in desc or 'BATTERY' in desc or 'CHARGER' in desc:
                 battery_inventory += balance
-            else:
-                # Everything else goes to Other Inventory (Sublet Labor, Misc Parts, Reserve, etc.)
+            elif not ('WORK' in desc and 'PROCESS' in desc):
+                # Everything else goes to Other Inventory EXCEPT WIP (Sublet Labor, Misc Parts, Reserve, etc.)
+                # WIP is handled separately below
                 other_inventory += balance
         
         bs_ws['B11'] = new_equipment_primary  # New Equipment, primary brand
