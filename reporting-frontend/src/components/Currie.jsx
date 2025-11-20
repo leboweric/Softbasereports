@@ -780,8 +780,9 @@ const Currie = () => {
         
         // ASSETS calculations
         const cash = bs.assets.current_assets.cash.reduce((sum, acc) => sum + acc.balance, 0);
-        const tradeAR = sumByPattern(bs.assets.current_assets.accounts_receivable, ['TRADE']);
-        const allOtherAR = bs.assets.current_assets.accounts_receivable.reduce((sum, acc) => sum + acc.balance, 0) - tradeAR;
+        // Match backend: All AR goes to Trade AR, All Other AR is 0
+        const tradeAR = bs.assets.current_assets.accounts_receivable.reduce((sum, acc) => sum + acc.balance, 0);
+        const allOtherAR = 0;
         
         // Inventory breakdown
         const inventory = bs.assets.current_assets.inventory;
@@ -792,19 +793,37 @@ const Currie = () => {
         const usedEquip = sumByPattern(inventory, ['USED TRUCK']);
         const partsInv = sumByPattern(inventory, ['PARTS']) - sumByPattern(inventory, ['MISC']);
         const batteryInv = sumByPattern(inventory, ['BATTRY', 'BATTERY', 'CHARGER']);
+        // WIP is separate from inventory in the Excel structure
         const wip = sumByPattern(inventory, ['WORK', 'PROCESS']);
+        // Other Inventory = everything else EXCEPT WIP (WIP is shown separately)
         const otherInv = inventory.reduce((sum, acc) => sum + acc.balance, 0) - 
           (newEquipPrimary + newEquipOther + newAllied + otherNewEquip + usedEquip + partsInv + batteryInv + wip);
+        // Total Inventories does NOT include WIP
         const totalInventories = newEquipPrimary + newEquipOther + newAllied + otherNewEquip + usedEquip + partsInv + batteryInv + otherInv;
         
         const otherCurrentAssets = bs.assets.current_assets.other_current.reduce((sum, acc) => sum + acc.balance, 0);
         const totalCurrentAssets = cash + tradeAR + allOtherAR + totalInventories + wip + otherCurrentAssets;
         
-        // Fixed Assets
-        const rentalFleetGross = sumByPattern(bs.assets.fixed_assets, ['RENTAL EQUIPMENT']);
-        const rentalFleetDeprec = sumByPattern(bs.assets.fixed_assets, ['RENTAL EQUIP', 'DEPREC']);
+        // Fixed Assets - match backend logic exactly
+        let rentalFleetGross = 0;
+        let rentalFleetDeprec = 0;
+        let otherFixed = 0;
+        
+        bs.assets.fixed_assets.forEach(acc => {
+          const desc = acc.description.toUpperCase();
+          // Match backend: Look for accounts with BOTH 'RENTAL' AND 'EQUIP' in description
+          if (desc.includes('RENTAL') && desc.includes('EQUIP')) {
+            if (desc.includes('DEPREC') || desc.includes('ACCUM')) {
+              rentalFleetDeprec += acc.balance;
+            } else {
+              rentalFleetGross += acc.balance;
+            }
+          } else {
+            otherFixed += acc.balance;
+          }
+        });
+        
         const rentalFleet = rentalFleetGross + rentalFleetDeprec;
-        const otherFixed = bs.assets.fixed_assets.reduce((sum, acc) => sum + acc.balance, 0) - rentalFleetGross - rentalFleetDeprec;
         
         // Other Assets
         const otherAssets = bs.assets.other_assets.reduce((sum, acc) => sum + acc.balance, 0);
