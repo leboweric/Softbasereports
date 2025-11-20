@@ -70,6 +70,95 @@ def get_sales_cogs_gp():
         data['total_operating_profit'] = total_operating_profit
         data['pre_tax_income'] = total_operating_profit + data['fi_income']
         
+        # Add department-allocated expenses for Expenses & Metrics tab
+        dept_allocations = {
+            'new': 0.47517,
+            'used': 0.03209,
+            'rental': 0.20694,
+            'parts': 0.13121,
+            'service': 0.14953,
+            'trucking': 0.00507
+        }
+        
+        personnel_total = expenses.get('personnel', {}).get('total', 0)
+        operating_total = expenses.get('operating', {}).get('total', 0)
+        occupancy_total = expenses.get('occupancy', {}).get('total', 0)
+        
+        # Calculate department allocations
+        personnel_new = personnel_total * dept_allocations['new']
+        personnel_used = personnel_total * dept_allocations['used']
+        personnel_parts = personnel_total * dept_allocations['parts']
+        personnel_service = personnel_total * dept_allocations['service']
+        personnel_rental = personnel_total * dept_allocations['rental']
+        personnel_trucking = personnel_total * dept_allocations['trucking']
+        personnel_ga = personnel_total * (1 - sum(dept_allocations.values()))
+        
+        operating_new = operating_total * dept_allocations['new']
+        operating_used = operating_total * dept_allocations['used']
+        operating_parts = operating_total * dept_allocations['parts']
+        operating_service = operating_total * dept_allocations['service']
+        operating_rental = operating_total * dept_allocations['rental']
+        operating_trucking = operating_total * dept_allocations['trucking']
+        operating_ga = operating_total * (1 - sum(dept_allocations.values()))
+        
+        occupancy_new = occupancy_total * dept_allocations['new']
+        occupancy_used = occupancy_total * dept_allocations['used']
+        occupancy_parts = occupancy_total * dept_allocations['parts']
+        occupancy_service = occupancy_total * dept_allocations['service']
+        occupancy_rental = occupancy_total * dept_allocations['rental']
+        occupancy_trucking = occupancy_total * dept_allocations['trucking']
+        occupancy_ga = occupancy_total * (1 - sum(dept_allocations.values()))
+        
+        data['department_expenses'] = {
+            'personnel': {
+                'new': personnel_new,
+                'used': personnel_used,
+                'total_sales_dept': personnel_new + personnel_used,
+                'parts': personnel_parts,
+                'service': personnel_service,
+                'rental': personnel_rental,
+                'trucking': personnel_trucking,
+                'ga': personnel_ga,
+                'total': personnel_total
+            },
+            'operating': {
+                'new': operating_new,
+                'used': operating_used,
+                'total_sales_dept': operating_new + operating_used,
+                'parts': operating_parts,
+                'service': operating_service,
+                'rental': operating_rental,
+                'trucking': operating_trucking,
+                'ga': operating_ga,
+                'total': operating_total
+            },
+            'occupancy': {
+                'new': occupancy_new,
+                'used': occupancy_used,
+                'total_sales_dept': occupancy_new + occupancy_used,
+                'parts': occupancy_parts,
+                'service': occupancy_service,
+                'rental': occupancy_rental,
+                'trucking': occupancy_trucking,
+                'ga': occupancy_ga,
+                'total': occupancy_total
+            },
+            'total': {
+                'new': personnel_new + operating_new + occupancy_new,
+                'used': personnel_used + operating_used + occupancy_used,
+                'total_sales_dept': (personnel_new + personnel_used) + (operating_new + operating_used) + (occupancy_new + occupancy_used),
+                'parts': personnel_parts + operating_parts + occupancy_parts,
+                'service': personnel_service + operating_service + occupancy_service,
+                'rental': personnel_rental + operating_rental + occupancy_rental,
+                'trucking': personnel_trucking + operating_trucking + occupancy_trucking,
+                'ga': personnel_ga + operating_ga + occupancy_ga,
+                'total': personnel_total + operating_total + occupancy_total
+            }
+        }
+        
+        # Add AR Aging data
+        data['ar_aging'] = get_ar_aging()
+        
         return jsonify(data), 200
         
     except Exception as e:
