@@ -4,6 +4,7 @@ import axios from 'axios';
 
 const Currie = () => {
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [data, setData] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [expenses, setExpenses] = useState(null);
@@ -156,6 +157,7 @@ const Currie = () => {
       return;
     }
 
+    setExporting(true);
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
@@ -179,6 +181,8 @@ const Currie = () => {
     } catch (err) {
       console.error('Error exporting Excel:', err);
       alert('Failed to export Excel file. Please try again.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -205,10 +209,13 @@ const Currie = () => {
           </div>
           <button
             onClick={exportToExcel}
-            className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            disabled={exporting}
+            className={`flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all ${
+              exporting ? 'opacity-75 cursor-not-allowed' : ''
+            }`}
           >
-            <Download className="w-4 h-4 mr-2" />
-            Export to Excel
+            <Download className={`w-4 h-4 mr-2 ${exporting ? 'animate-bounce' : ''}`} />
+            {exporting ? 'Generating Excel...' : 'Export to Excel'}
           </button>
         </div>
       </div>
