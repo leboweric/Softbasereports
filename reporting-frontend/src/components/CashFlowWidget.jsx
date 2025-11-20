@@ -120,18 +120,18 @@ const CashFlowWidget = () => {
           <div>
             <CardTitle>Cash Flow Overview</CardTitle>
             <CardDescription>
-              As of {new Date(data.as_of_date).toLocaleDateString('en-US', { 
+              As of {data.as_of_date ? new Date(data.as_of_date + 'T12:00:00').toLocaleDateString('en-US', { 
                 year: 'numeric', 
                 month: 'long', 
                 day: 'numeric' 
-              })}
+              }) : 'Loading...'}
             </CardDescription>
           </div>
           {getHealthBadge(data.health_status)}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* Cash Balance */}
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
             <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 mb-2">
@@ -168,120 +168,7 @@ const CashFlowWidget = () => {
             </div>
           </div>
 
-          {/* Total Cash Movement */}
-          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
-            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400 mb-2">
-              {data.total_cash_movement >= 0 ? (
-                <TrendingUp className="h-4 w-4" />
-              ) : (
-                <TrendingDown className="h-4 w-4" />
-              )}
-              <span className="text-sm font-medium">Monthly Change</span>
-            </div>
-            <div className={`text-2xl font-bold ${
-              data.total_cash_movement >= 0 
-                ? 'text-purple-900 dark:text-purple-100' 
-                : 'text-red-900 dark:text-red-100'
-            }`}>
-              {formatCurrency(data.total_cash_movement)}
-            </div>
-            <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-              Total cash movement
-            </div>
-          </div>
 
-          {/* Other Activities */}
-          <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
-                <DollarSign className="h-4 w-4" />
-                <span className="text-sm font-medium">Other Activities</span>
-              </div>
-              {data.non_operating_breakdown && data.non_operating_breakdown.breakdown.length > 0 && (
-                <button 
-                  onClick={() => setShowBreakdown(!showBreakdown)}
-                  className="text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors"
-                  aria-label={showBreakdown ? "Hide breakdown" : "Show breakdown"}
-                >
-                  {showBreakdown ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
-              )}
-            </div>
-            <div className={`text-2xl font-bold ${
-              data.non_operating_cashflow >= 0 
-                ? 'text-orange-900 dark:text-orange-100' 
-                : 'text-red-900 dark:text-red-100'
-            }`}>
-              {formatCurrency(data.non_operating_cashflow)}
-            </div>
-            <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-              Investing & financing
-            </div>
-            
-            {/* Breakdown Details */}
-            {showBreakdown && data.non_operating_breakdown && (
-              <div className="mt-4 pt-4 border-t border-orange-200 dark:border-orange-800 space-y-2">
-                {/* Summary by Activity Type */}
-                <div className="space-y-1">
-                  {data.non_operating_breakdown.summary.working_capital !== 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-orange-700 dark:text-orange-300">Working Capital:</span>
-                      <span className="font-medium text-orange-900 dark:text-orange-100">
-                        {formatCurrency(data.non_operating_breakdown.summary.working_capital)}
-                      </span>
-                    </div>
-                  )}
-                  {data.non_operating_breakdown.summary.investing !== 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-orange-700 dark:text-orange-300">Investing:</span>
-                      <span className="font-medium text-orange-900 dark:text-orange-100">
-                        {formatCurrency(data.non_operating_breakdown.summary.investing)}
-                      </span>
-                    </div>
-                  )}
-                  {data.non_operating_breakdown.summary.financing !== 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-orange-700 dark:text-orange-300">Financing:</span>
-                      <span className="font-medium text-orange-900 dark:text-orange-100">
-                        {formatCurrency(data.non_operating_breakdown.summary.financing)}
-                      </span>
-                    </div>
-                  )}
-                  {data.non_operating_breakdown.summary.other !== 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-orange-700 dark:text-orange-300">Other:</span>
-                      <span className="font-medium text-orange-900 dark:text-orange-100">
-                        {formatCurrency(data.non_operating_breakdown.summary.other)}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Detailed Breakdown */}
-                {data.non_operating_breakdown.breakdown.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-orange-600 dark:text-orange-400 cursor-pointer hover:text-orange-700 dark:hover:text-orange-300">
-                      View detailed breakdown
-                    </summary>
-                    <div className="mt-2 space-y-1 text-xs max-h-48 overflow-y-auto">
-                      {data.non_operating_breakdown.breakdown.map((item, idx) => (
-                        <div key={idx} className="flex justify-between py-1">
-                          <span className="text-orange-700 dark:text-orange-300">{item.category}:</span>
-                          <span className="font-medium text-orange-900 dark:text-orange-100">
-                            {formatCurrency(item.amount)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* 12-Month Trend Chart */}
