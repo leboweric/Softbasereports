@@ -795,12 +795,11 @@ const Currie = () => {
             <p className="text-sm text-gray-600 mt-2 italic">*If you are unable to break out New, Used and Systems Personnel counts, please enter all amounts in the New Column</p>
           </div>
 
-              
-              {/* Editable Miscellaneous Information Fields */}
-              <div className="mt-6 border-t pt-6">
-                <h3 className="text-lg font-semibold mb-4 text-gray-900">Additional Information (Editable)</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Additional Information Section */}
+          <div className="p-6 border-t border-gray-200">
+            <h2 className="text-xl font-bold mb-4">Additional Information (Editable)</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {/* Marketshare Information */}
                   <div className="bg-gray-50 border rounded-lg p-4">
                     <h4 className="font-semibold text-gray-900 mb-3">Marketshare Information</h4>
@@ -911,8 +910,9 @@ const Currie = () => {
                     </div>
                   </div>
                 </div>
-              </div>
             </div>
+          </div>
+
           {/* Miscellaneous Information Section */}
           {metrics && (
             <div className="p-6 border-t border-gray-200">
