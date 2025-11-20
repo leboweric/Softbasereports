@@ -795,114 +795,6 @@ const Currie = () => {
             <p className="text-sm text-gray-600 mt-2 italic">*If you are unable to break out New, Used and Systems Personnel counts, please enter all amounts in the New Column</p>
           </div>
 
-          {/* Miscellaneous Information Section */}
-          {metrics && (
-            <div className="p-6 border-t border-gray-200">
-              <h2 className="text-xl font-bold mb-4">Miscellaneous Information</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Accounts Receivable Aging */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Accounts Receivable Aging</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Current (0-30):</span>
-                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.current || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">31-60 days:</span>
-                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_31_60 || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">61-90 days:</span>
-                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_61_90 || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">91+ days:</span>
-                      <span className="font-medium text-red-600">{formatCurrency(metrics.ar_aging?.days_91_plus || 0)}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t">
-                      <span className="font-semibold">Total AR:</span>
-                      <span className="font-semibold">{formatCurrency(metrics.ar_aging?.total || 0)}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Service Metrics */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Service Metrics</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Service Calls/Day:</span>
-                      <span className="font-medium">{metrics.service_calls_per_day?.calls_per_day?.toFixed(1) || '0.0'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Calls:</span>
-                      <span className="font-medium">{metrics.service_calls_per_day?.total_service_calls || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Active Technicians:</span>
-                      <span className="font-medium">{metrics.technician_count?.active_technicians || 0}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Labor Metrics */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Labor Productivity</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Billed Hours:</span>
-                      <span className="font-medium">{metrics.labor_metrics?.total_billed_hours?.toFixed(1) || '0.0'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Avg Labor Rate:</span>
-                      <span className="font-medium">{formatCurrency(metrics.labor_metrics?.average_labor_rate || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Total Labor Value:</span>
-                      <span className="font-medium">{formatCurrency(metrics.labor_metrics?.total_labor_value || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">WOs with Labor:</span>
-                      <span className="font-medium">{metrics.labor_metrics?.work_orders_with_labor || 0}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Parts Inventory Metrics */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Parts Inventory</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Fill Rate:</span>
-                      <span className="font-medium text-green-600">{metrics.parts_inventory?.fill_rate?.toFixed(1) || '0.0'}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Inventory Turnover:</span>
-                      <span className="font-medium">{metrics.parts_inventory?.inventory_turnover?.toFixed(2) || '0.00'}x</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Inventory Value:</span>
-                      <span className="font-medium">{formatCurrency(metrics.parts_inventory?.inventory_value || 0)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Obsolete Parts:</span>
-                      <span className="font-medium text-red-600">{metrics.parts_inventory?.aging?.obsolete_count || 0}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Absorption Rate */}
-                <div className="bg-white border rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Absorption Rate</h3>
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-green-600">
-                      {metrics.absorption_rate?.total_absorption?.toFixed(1) || '0.0'}%
-                    </div>
-                  </div>
-                </div>
-              </div>
               
               {/* Editable Miscellaneous Information Fields */}
               <div className="mt-6 border-t pt-6">
@@ -1021,6 +913,114 @@ const Currie = () => {
                 </div>
               </div>
             </div>
+          {/* Miscellaneous Information Section */}
+          {metrics && (
+            <div className="p-6 border-t border-gray-200">
+              <h2 className="text-xl font-bold mb-4">Miscellaneous Information</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Accounts Receivable Aging */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Accounts Receivable Aging</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Current (0-30):</span>
+                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.current || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">31-60 days:</span>
+                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_31_60 || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">61-90 days:</span>
+                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_61_90 || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">91+ days:</span>
+                      <span className="font-medium text-red-600">{formatCurrency(metrics.ar_aging?.days_91_plus || 0)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t">
+                      <span className="font-semibold">Total AR:</span>
+                      <span className="font-semibold">{formatCurrency(metrics.ar_aging?.total || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Service Metrics */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Service Metrics</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Service Calls/Day:</span>
+                      <span className="font-medium">{metrics.service_calls_per_day?.calls_per_day?.toFixed(1) || '0.0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Calls:</span>
+                      <span className="font-medium">{metrics.service_calls_per_day?.total_service_calls || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Active Technicians:</span>
+                      <span className="font-medium">{metrics.technician_count?.active_technicians || 0}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Labor Metrics */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Labor Productivity</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Billed Hours:</span>
+                      <span className="font-medium">{metrics.labor_metrics?.total_billed_hours?.toFixed(1) || '0.0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Avg Labor Rate:</span>
+                      <span className="font-medium">{formatCurrency(metrics.labor_metrics?.average_labor_rate || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Labor Value:</span>
+                      <span className="font-medium">{formatCurrency(metrics.labor_metrics?.total_labor_value || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">WOs with Labor:</span>
+                      <span className="font-medium">{metrics.labor_metrics?.work_orders_with_labor || 0}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Parts Inventory Metrics */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Parts Inventory</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Fill Rate:</span>
+                      <span className="font-medium text-green-600">{metrics.parts_inventory?.fill_rate?.toFixed(1) || '0.0'}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Inventory Turnover:</span>
+                      <span className="font-medium">{metrics.parts_inventory?.inventory_turnover?.toFixed(2) || '0.00'}x</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Inventory Value:</span>
+                      <span className="font-medium">{formatCurrency(metrics.parts_inventory?.inventory_value || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Obsolete Parts:</span>
+                      <span className="font-medium text-red-600">{metrics.parts_inventory?.aging?.obsolete_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Absorption Rate */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Absorption Rate</h3>
+                  <div className="text-center">
+                    <div className="text-4xl font-bold text-green-600">
+                      {metrics.absorption_rate?.total_absorption?.toFixed(1) || '0.0'}%
+                    </div>
+                  </div>
+                </div>
+              </div>
           )}
         </div>
       )}
