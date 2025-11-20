@@ -239,35 +239,50 @@ const Currie = () => {
             <div className="flex space-x-2 pt-6">
               <button
                 onClick={() => setQuarter(1, 2025)}
-                className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+                disabled={loading}
+                className={`px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm transition-all ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Q1 2025
               </button>
               <button
                 onClick={() => setQuarter(2, 2025)}
-                className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+                disabled={loading}
+                className={`px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm transition-all ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Q2 2025
               </button>
               <button
                 onClick={() => setQuarter(3, 2025)}
-                className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+                disabled={loading}
+                className={`px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm transition-all ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Q3 2025
               </button>
               <button
                 onClick={() => setQuarter(4, 2025)}
-                className="px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm"
+                disabled={loading}
+                className={`px-3 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm transition-all ${
+                  loading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Q4 2025
               </button>
             </div>
             <button
               onClick={fetchData}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center mt-6"
+              disabled={loading}
+              className={`px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center mt-6 transition-all ${
+                loading ? 'opacity-75 cursor-not-allowed' : ''
+              }`}
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
         </div>
