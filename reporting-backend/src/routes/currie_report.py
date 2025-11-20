@@ -1661,17 +1661,16 @@ def get_balance_sheet_data(as_of_date):
         SELECT 
             AccountNo,
             Description,
-            SUM(Balance) as balance
-        FROM ben002.GL_MTD
+            Balance as balance
+        FROM ben002.GL
         WHERE Year = %s 
-          AND Month <= %s
+          AND Month = %s
           AND (
             AccountNo LIKE '1%'  -- Assets
             OR AccountNo LIKE '2%'  -- Liabilities
             OR AccountNo LIKE '3%'  -- Equity
           )
-        GROUP BY AccountNo, Description
-        HAVING SUM(Balance) != 0
+          AND Balance != 0
         ORDER BY AccountNo
         """
         
