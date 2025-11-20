@@ -82,12 +82,12 @@ def get_cashflow_widget():
 def get_current_cash_balance(year, month):
     """
     Get current cash balance from GL cash accounts
-    Uses Ending balance (actual cash on hand), not MTD (monthly change)
+    Uses YTD (Year-To-Date balance) which represents the ending balance for balance sheet accounts
     Includes: 110000 (Operating), 113000 (Petty Cash), 114000 (Short-term Investments)
     """
     try:
         query = """
-        SELECT SUM(Ending) as cash_balance
+        SELECT SUM(YTD) as cash_balance
         FROM ben002.GL
         WHERE Year = %s
           AND Month = %s
