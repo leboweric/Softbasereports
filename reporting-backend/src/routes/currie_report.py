@@ -1280,11 +1280,13 @@ def export_currie_excel():
         for acc in assets['fixed_assets']:
             desc = acc['description'].upper()
             balance = acc['balance']
-            # Match exact account names from web page
-            if 'RENTAL EQUIPMENT' in desc and 'DEPREC' not in desc:
-                rental_fleet_gross += balance
-            elif 'RENTAL EQUIP' in desc and 'DEPREC' in desc:
-                rental_fleet_deprec += balance
+            # Match rental equipment accounts - be more specific
+            # Look for "RENTAL EQUIPMENT" or "RENTAL EQUIP" in description
+            if ('RENTAL' in desc and 'EQUIP' in desc):
+                if 'DEPREC' in desc or 'ACCUM' in desc:
+                    rental_fleet_deprec += balance
+                else:
+                    rental_fleet_gross += balance
             else:
                 other_fixed += balance
         
