@@ -192,10 +192,10 @@ const CashFlowWidget = () => {
           </div>
         </div>
 
-        {/* 6-Month Trend Chart */}
+        {/* 12-Month Trend Chart */}
         {data.trend && data.trend.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium mb-4">6-Month Cash Flow Trend</h4>
+            <h4 className="text-sm font-medium mb-4">12-Month Cash Flow Trend</h4>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={data.trend}>
                 <CartesianGrid strokeDasharray="3 3" />

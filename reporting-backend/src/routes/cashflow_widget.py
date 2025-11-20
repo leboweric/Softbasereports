@@ -20,7 +20,7 @@ sql_service = AzureSQLService()
 def get_cashflow_widget():
     """
     Get cash flow widget data for dashboard
-    Returns current cash position, operating cash flow, and 6-month trend
+    Returns current cash position, operating cash flow, and 12-month trend
     """
     try:
         # Get current date or use provided date
@@ -39,8 +39,8 @@ def get_cashflow_widget():
         # Get current month operating cash flow
         current_month_cf = get_monthly_operating_cashflow(current_year, current_month)
         
-        # Get 6-month trend
-        trend_data = get_cashflow_trend(current_year, current_month, months=6)
+        # Get 12-month trend
+        trend_data = get_cashflow_trend(current_year, current_month, months=12)
         
         # Calculate free cash flow (Operating CF - CapEx)
         capex = get_monthly_capex(current_year, current_month)
