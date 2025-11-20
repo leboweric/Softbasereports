@@ -81,16 +81,17 @@ def get_cashflow_widget():
 
 def get_current_cash_balance(year, month):
     """
-    Get current cash balance from GL account 110000CASH
+    Get current cash balance from GL cash accounts
     Uses Ending balance (actual cash on hand), not MTD (monthly change)
+    Includes: 110000 (Operating), 113000 (Petty Cash), 114000 (Short-term Investments)
     """
     try:
         query = """
-        SELECT Ending as cash_balance
+        SELECT SUM(Ending) as cash_balance
         FROM ben002.GL
         WHERE Year = %s
           AND Month = %s
-          AND AccountNo = '110000CASH'
+          AND AccountNo IN ('110000', '113000', '114000')
         """
         
         result = sql_service.execute_query(query, [year, month])
@@ -108,6 +109,7 @@ def get_total_cash_movement(year, month):
     """
     Get total change in cash for the month
     This is the MTD (Ending - Beginning) for cash accounts
+    Includes: 110000 (Operating), 113000 (Petty Cash), 114000 (Investments)
     """
     try:
         query = """
@@ -115,7 +117,7 @@ def get_total_cash_movement(year, month):
         FROM ben002.GL
         WHERE Year = %s
           AND Month = %s
-          AND AccountNo IN ('110000CASH', '110001', '110100')
+          AND AccountNo IN ('110000', '113000', '114000')
         """
         
         result = sql_service.execute_query(query, [year, month])
