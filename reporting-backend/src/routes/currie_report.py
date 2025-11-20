@@ -1222,9 +1222,8 @@ def export_currie_excel():
         # All Other Accounts Receivable (B8) - set to 0 or use other current assets if needed
         bs_ws['B8'] = 0
         
-        # Inventory breakdown
+        # Inventory breakdown - map by account description
         inventory_accounts = assets['current_assets']['inventory']
-        # Map inventory accounts by GL code patterns
         new_equipment_primary = 0
         new_allied_inventory = 0
         used_equipment_inventory = 0
@@ -1233,18 +1232,18 @@ def export_currie_excel():
         other_inventory = 0
         
         for acc in inventory_accounts:
-            account_no = acc['account']
+            desc = acc['description'].upper()
             balance = acc['balance']
-            # Map based on account numbers - adjust these mappings as needed
-            if account_no.startswith('1310'):  # New Equipment Primary
+            # Map based on account descriptions to match web page display
+            if 'NEW TRUCK' in desc or 'NEW EQUIPMENT' in desc:
                 new_equipment_primary += balance
-            elif account_no.startswith('1311'):  # New Allied
+            elif 'NEW ALLIED' in desc:
                 new_allied_inventory += balance
-            elif account_no.startswith('1320'):  # Used Equipment
+            elif 'USED TRUCK' in desc or 'USED EQUIPMENT' in desc:
                 used_equipment_inventory += balance
-            elif account_no.startswith('1330'):  # Parts
+            elif 'PARTS' in desc and 'NEW' not in desc:
                 parts_inventory += balance
-            elif account_no.startswith('1340'):  # Battery
+            elif 'BATTRY' in desc or 'BATTERY' in desc or 'CHARGER' in desc:
                 battery_inventory += balance
             else:
                 other_inventory += balance
@@ -1256,25 +1255,35 @@ def export_currie_excel():
         bs_ws['B17'] = battery_inventory  # Battery Inventory
         bs_ws['B18'] = other_inventory  # Other Inventory
         
-        # WIP (B21) - from other current assets
-        bs_ws['B21'] = 0  # Set to 0 or map from specific GL account if available
+        # WIP (B21) - search for WORK-IN-PROCESS account
+        wip_balance = 0
+        for acc in inventory_accounts:
+            if 'WORK' in acc['description'].upper() and 'PROCESS' in acc['description'].upper():
+                wip_balance += acc['balance']
+        bs_ws['B21'] = wip_balance
         
         # Other Current Assets (B23)
         bs_ws['B23'] = sum_accounts(assets['current_assets']['other_current'])
         
         # Fixed Assets
-        # Rental Fleet (B27) and Other LT/Fixed Assets (B28)
-        fixed_assets_total = sum_accounts(assets['fixed_assets'])
-        rental_fleet = 0
-        other_fixed = fixed_assets_total
+        # Rental Fleet (B27) = FIXED ASSETS - RENTAL EQUIPMENT + ACCUM. DEPREC. - RENTAL EQUIP.
+        # Other LT/Fixed Assets (B28) = All other fixed assets with their depreciation
+        rental_fleet_gross = 0
+        rental_fleet_deprec = 0
+        other_fixed = 0
         
-        # Try to identify rental fleet from account descriptions
         for acc in assets['fixed_assets']:
-            if 'rental' in acc['description'].lower() or 'fleet' in acc['description'].lower():
-                rental_fleet += acc['balance']
-                other_fixed -= acc['balance']
+            desc = acc['description'].upper()
+            balance = acc['balance']
+            # Match exact account names from web page
+            if 'RENTAL EQUIPMENT' in desc and 'DEPREC' not in desc:
+                rental_fleet_gross += balance
+            elif 'RENTAL EQUIP' in desc and 'DEPREC' in desc:
+                rental_fleet_deprec += balance
+            else:
+                other_fixed += balance
         
-        bs_ws['B27'] = rental_fleet  # Rental Fleet
+        bs_ws['B27'] = rental_fleet_gross + rental_fleet_deprec  # Rental Fleet (net)
         bs_ws['B28'] = other_fixed  # Other Long Term or Fixed Assets
         
         # Other Assets (B29)
