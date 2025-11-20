@@ -60,6 +60,7 @@ import { apiUrl } from '@/lib/api'
 import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
+import CashFlowWidget from './CashFlowWidget'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -854,7 +855,7 @@ const Dashboard = ({ user }) => {
       {/* Tabbed Interface */}
       <Tabs defaultValue="sales" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full max-w-3xl grid-cols-5">
-          <TabsTrigger value="sales">Sales</TabsTrigger>
+          <TabsTrigger value="sales">Overview</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
           <TabsTrigger value="forecast">AI Sales Forecast</TabsTrigger>
@@ -863,6 +864,9 @@ const Dashboard = ({ user }) => {
 
         {/* Sales Tab */}
         <TabsContent value="sales" className="space-y-4">
+          {/* Cash Flow Overview Widget */}
+          <CashFlowWidget />
+          
           {/* Key Sales Metrics */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
