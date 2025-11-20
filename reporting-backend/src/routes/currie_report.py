@@ -1348,13 +1348,27 @@ def export_currie_excel():
             else:
                 other_long_term_debt += balance
         
+        # Check other_liabilities for rental fleet financing accounts (account numbers 27xxxx+)
+        other_liab_rental = 0
+        other_liab_remaining = 0
+        for acc in liabilities['other_liabilities']:
+            desc = acc['description'].upper()
+            balance = acc['balance']
+            if 'RENTAL' in desc or 'FLEET' in desc or ('LEASE' in desc and 'OPERATING' in desc):
+                other_liab_rental += balance
+            else:
+                other_liab_remaining += balance
+        
+        # Add other_liabilities rental accounts to LT Rental Fleet Financing
+        lt_rental_fleet_financing += other_liab_rental
+        
         bs_ws['E15'] = long_term_notes  # Long Term notes Payable
         bs_ws['E16'] = loans_from_stockholders  # Loans from Stockholders
-        bs_ws['E17'] = lt_rental_fleet_financing  # LT Rental Fleet Financing
+        bs_ws['E17'] = lt_rental_fleet_financing  # LT Rental Fleet Financing (includes from other_liabilities)
         bs_ws['E18'] = other_long_term_debt  # Other Long Term Debt
         
-        # Other Liabilities (E23)
-        bs_ws['E23'] = sum_accounts(liabilities['other_liabilities'])
+        # Other Liabilities (E23) - excluding rental fleet financing which was moved to E17
+        bs_ws['E23'] = other_liab_remaining
         
         # EQUITY
         equity = balance_sheet_data['equity']
