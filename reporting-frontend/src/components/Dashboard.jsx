@@ -140,6 +140,7 @@ const Dashboard = ({ user }) => {
   // Customer search and filter
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [customerRiskFilter, setCustomerRiskFilter] = useState('all') // 'all', 'at-risk', 'healthy'
+  const [monthlyExpenses, setMonthlyExpenses] = useState([])
   // Customer detail modal
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [customerDetailModalOpen, setCustomerDetailModalOpen] = useState(false)
@@ -203,6 +204,7 @@ const Dashboard = ({ user }) => {
 
   useEffect(() => {
     fetchDashboardData()
+    fetchExpenseData()
     
     // Set up auto-refresh every 5 minutes for real-time updates
     const interval = setInterval(() => {
@@ -472,6 +474,26 @@ const Dashboard = ({ user }) => {
       console.error('Error fetching invoice delay analysis:', error)
     } finally {
       setInvoiceDelayLoading(false)
+    }
+  }
+
+  const fetchExpenseData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/accounting'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setMonthlyExpenses(data.monthly_expenses || [])
+      } else {
+        console.error('Failed to fetch expense data')
+      }
+    } catch (error) {
+      console.error('Error fetching expense data:', error)
     }
   }
 
@@ -931,16 +953,13 @@ const Dashboard = ({ user }) => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Fiscal YTD Sales</CardTitle>
+                <CardTitle className="text-sm font-medium">Fiscal Year 2026 YTD Sales</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {formatCurrency(dashboardData?.ytd_sales || 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Since March {new Date().getFullYear()}
-            </p>
               </CardContent>
             </Card>
           </div>
@@ -1070,9 +1089,6 @@ const Dashboard = ({ user }) => {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle>Monthly Sales</CardTitle>
-                <CardDescription>
-                  Total sales since March 2025
-                </CardDescription>
               </div>
               {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
                 const completeMonths = dashboardData.monthly_sales.slice(0, -1)
@@ -1337,18 +1353,45 @@ const Dashboard = ({ user }) => {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle>Monthly Quotes</CardTitle>
-                <CardDescription>
-                  Latest quote value per work order each month
-                </CardDescription>
+                <CardTitle>G&A Expenses Over Time</CardTitle>
+                <CardDescription>General & Administrative expenses through February {new Date().getFullYear() + 1}</CardDescription>
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle>G&A Expenses Over Time</CardTitle>
+                <CardDescription>General & Administrative expenses through February {new Date().getFullYear() + 1}</CardDescription>
               </div>
-              {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
-                const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
-                const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+              {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
+                // Exclude current month and incomplete months
+                const currentDate = new Date()
+                const currentMonthIndex = currentDate.getMonth()
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                const currentMonthName = monthNames[currentMonthIndex]
+                
+                // First pass: calculate a rough average to identify incomplete months
+                const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
+                if (monthsWithData.length === 0) return null
+                
+                const roughAverage = monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+                
+                // Second pass: exclude current month and months with less than 50% of rough average (likely incomplete)
+                const completeMonths = monthlyExpenses.filter(item => {
+                  return item.month !== currentMonthName && 
+                         item.expenses > 0 && 
+                         item.expenses > (roughAverage * 0.5)
+                })
+                
+                if (completeMonths.length === 0) return null
+                
+                const avgExpenses = completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length
+                
                 return (
                   <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Average</p>
-                    <p className="text-lg font-semibold">{formatCurrency(average)}</p>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Avg Expenses</p>
+                      <p className="text-lg font-semibold">${(avgExpenses / 1000).toFixed(0)}k</p>
+                    </div>
                   </div>
                 )
               })()}
@@ -1356,48 +1399,183 @@ const Dashboard = ({ user }) => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(sortedMonthlyQuotes, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+              <ComposedChart data={(() => {
+                const data = monthlyExpenses || []
+                
+                // Calculate average for historical months
+                if (data.length > 0) {
+                  const currentDate = new Date()
+                  const currentMonthIndex = currentDate.getMonth()
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const currentMonthName = monthNames[currentMonthIndex]
+                  
+                  // Calculate average excluding current month and incomplete months
+                  const monthsWithData = data.filter(item => item.expenses > 0)
+                  const roughAverage = monthsWithData.length > 0 
+                    ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length 
+                    : 0
+                  
+                  const completeMonths = data.filter(item => {
+                    return item.month !== currentMonthName && 
+                           item.expenses > 0 && 
+                           item.expenses > (roughAverage * 0.5)
+                  })
+                  
+                  const avgExpenses = completeMonths.length > 0 
+                    ? completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length 
+                    : 0
+                  
+                  // Calculate linear regression for trendline (excluding current month)
+                  // Assign x values to complete months only
+                  const completeMonthsWithIndex = data.map((item, index) => ({
+                    ...item,
+                    index,
+                    isComplete: completeMonths.some(cm => cm.month === item.month)
+                  })).filter(item => item.isComplete)
+                  
+                  let trendSlope = 0
+                  let trendIntercept = 0
+                  
+                  if (completeMonthsWithIndex.length >= 2) {
+                    // Calculate means
+                    const n = completeMonthsWithIndex.length
+                    const sumX = completeMonthsWithIndex.reduce((sum, item, i) => sum + i, 0)
+                    const sumY = completeMonthsWithIndex.reduce((sum, item) => sum + item.expenses, 0)
+                    const meanX = sumX / n
+                    const meanY = sumY / n
+                    
+                    // Calculate slope and intercept
+                    let numerator = 0
+                    let denominator = 0
+                    completeMonthsWithIndex.forEach((item, i) => {
+                      numerator += (i - meanX) * (item.expenses - meanY)
+                      denominator += (i - meanX) * (i - meanX)
+                    })
+                    
+                    trendSlope = denominator !== 0 ? numerator / denominator : 0
+                    trendIntercept = meanY - trendSlope * meanX
+                  }
+                  
+                  // Add average and trendline to each data point
+                  return data.map((item, index) => {
+                    const completeIndex = completeMonthsWithIndex.findIndex(cm => cm.month === item.month)
+                    const trendValue = completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null
+                    
+                    return {
+                      ...item,
+                      avgExpenses: avgExpenses,
+                      trendline: trendValue
+                    }
+                  })
+                }
+                
+                return data
+              })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
                 <Tooltip content={({ active, payload, label }) => {
-                  if (active && payload && payload.length && dashboardData?.monthly_quotes) {
-                    const data = dashboardData.monthly_quotes
-                    const currentIndex = data.findIndex(item => item.month === label)
-                    const currentValue = payload[0].value
-                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                  if (active && payload && payload.length && monthlyExpenses) {
+                    const currentIndex = monthlyExpenses.findIndex(item => item.month === label)
+                    const currentData = monthlyExpenses[currentIndex]
+                    const previousData = currentIndex > 0 ? monthlyExpenses[currentIndex - 1] : null
+                    
+                    const formatCurrency = (value) => {
+                      return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      }).format(value)
+                    }
+                    
+                    const calculatePercentageChange = (current, previous) => {
+                      if (!previous || previous === 0) return null
+                      const change = ((current - previous) / previous) * 100
+                      return change
+                    }
+                    
+                    const formatPercentage = (percentage) => {
+                      if (percentage === null) return ''
+                      const sign = percentage >= 0 ? '+' : ''
+                      const color = percentage >= 0 ? 'text-red-600' : 'text-green-600'
+                      return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
+                    }
                     
                     return (
                       <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                        <p className="font-semibold mb-1">{label}</p>
-                        <p className="text-yellow-600">
-                          {formatCurrency(currentValue)}
-                          {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                        </p>
+                        <p className="font-semibold mb-2">{label}</p>
+                        <div className="space-y-1">
+                          <p className="text-red-600">
+                            Expenses: {formatCurrency(currentData.expenses)}
+                            {previousData && previousData.expenses > 0 && formatPercentage(calculatePercentageChange(currentData.expenses, previousData.expenses))}
+                          </p>
+                        </div>
                       </div>
                     )
                   }
                   return null
                 }} />
-                <Bar dataKey="amount" fill="#f59e0b" shape={<CustomBarQuotes />} />
-                <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Quotes Trend" dot={false} />
-                {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
-                  // Only calculate average for complete months (exclude current month - August)
-                  const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
-                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                  return (
-                    <ReferenceLine 
-                      y={average} 
-                      stroke="#666" 
-                      strokeDasharray="3 3"
-                      label={{ value: "Average", position: "insideTopRight" }}
-                    />
-                  )
+                <Legend />
+                <Bar dataKey="expenses" fill="#ef4444" name="G&A Expenses" maxBarSize={60} />
+                {/* Average Expenses Line */}
+                <Line 
+                  type="monotone"
+                  dataKey="avgExpenses"
+                  stroke="#666"
+                  strokeDasharray="5 5"
+                  strokeWidth={2}
+                  name="Average"
+                  dot={false}
+                />
+                {/* Trendline */}
+                <Line 
+                  type="monotone"
+                  dataKey="trendline"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  name="Trend"
+                  dot={false}
+                  connectNulls={false}
+                />
+                {/* Add ReferenceLine for the label */}
+                {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
+                  const currentDate = new Date()
+                  const currentMonthIndex = currentDate.getMonth()
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const currentMonthName = monthNames[currentMonthIndex]
+                  
+                  // Calculate average excluding current month and incomplete months
+                  const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
+                  const roughAverage = monthsWithData.length > 0 
+                    ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length 
+                    : 0
+                  
+                  const completeMonths = monthlyExpenses.filter(item => {
+                    return item.month !== currentMonthName && 
+                           item.expenses > 0 && 
+                           item.expenses > (roughAverage * 0.5)
+                  })
+                  
+                  const avgExpenses = completeMonths.length > 0 
+                    ? completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length 
+                    : 0
+                  
+                  if (avgExpenses > 0) {
+                    return (
+                      <ReferenceLine 
+                        y={avgExpenses} 
+                        stroke="none"
+                        label={{ value: "Average", position: "insideTopRight" }}
+                      />
+                    )
+                  }
+                  return null
                 })()}
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
-            </Card>
+        </Card>
 
             <Card>
               <CardHeader>
