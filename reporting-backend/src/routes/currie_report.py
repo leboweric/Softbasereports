@@ -159,6 +159,9 @@ def get_sales_cogs_gp():
         # Add AR Aging data
         data['ar_aging'] = get_ar_aging()
         
+        # Add Balance Sheet data
+        data['balance_sheet'] = get_balance_sheet_data(end_date)
+        
         return jsonify(data), 200
         
     except Exception as e:
@@ -1634,4 +1637,147 @@ def get_other_income_and_interest(start_date, end_date):
             'other_income': 0,
             'interest_expense': 0,
             'fi_income': 0
+        }
+
+
+def get_balance_sheet_data(as_of_date):
+    """
+    Get Balance Sheet data from GL accounts
+    Assets: 1xxxxx series
+    Liabilities: 2xxxxx series  
+    Equity: 3xxxxx series
+    
+    Returns categorized balance sheet accounts with balances as of the specified date
+    """
+    try:
+        # Parse the date to get year and month
+        date_obj = datetime.strptime(as_of_date, '%Y-%m-%d')
+        year = date_obj.year
+        month = date_obj.month
+        
+        # Query GL.MTD for balance sheet accounts
+        # For balance sheet accounts, we want the cumulative balance up to the specified month
+        query = """
+        SELECT 
+            AccountNo,
+            Description,
+            SUM(Balance) as balance
+        FROM ben002.GL_MTD
+        WHERE Year = %s 
+          AND Month <= %s
+          AND (
+            AccountNo LIKE '1%'  -- Assets
+            OR AccountNo LIKE '2%'  -- Liabilities
+            OR AccountNo LIKE '3%'  -- Equity
+          )
+        GROUP BY AccountNo, Description
+        HAVING SUM(Balance) != 0
+        ORDER BY AccountNo
+        """
+        
+        result = sql_service.execute_query(query, [year, month])
+        
+        # Categorize accounts
+        assets = {
+            'current_assets': {
+                'cash': [],
+                'accounts_receivable': [],
+                'inventory': [],
+                'other_current': []
+            },
+            'fixed_assets': [],
+            'other_assets': [],
+            'total': 0
+        }
+        
+        liabilities = {
+            'current_liabilities': [],
+            'long_term_liabilities': [],
+            'other_liabilities': [],
+            'total': 0
+        }
+        
+        equity = {
+            'capital_stock': [],
+            'retained_earnings': [],
+            'distributions': [],
+            'total': 0
+        }
+        
+        if result:
+            for row in result:
+                account_no = str(row.get('AccountNo', '')).strip()
+                description = row.get('Description', '').strip()
+                balance = float(row.get('balance', 0))
+                
+                account_data = {
+                    'account': account_no,
+                    'description': description,
+                    'balance': balance
+                }
+                
+                # Categorize by account number
+                if account_no.startswith('1'):  # Assets
+                    # Current Assets
+                    if account_no.startswith('11'):  # Cash accounts (110xxx-119xxx)
+                        assets['current_assets']['cash'].append(account_data)
+                    elif account_no.startswith('12'):  # AR accounts (120xxx-129xxx)
+                        assets['current_assets']['accounts_receivable'].append(account_data)
+                    elif account_no.startswith('13'):  # Inventory accounts (130xxx-139xxx)
+                        assets['current_assets']['inventory'].append(account_data)
+                    elif account_no.startswith('14') or account_no.startswith('15'):  # Other current (140xxx-159xxx)
+                        assets['current_assets']['other_current'].append(account_data)
+                    # Fixed Assets
+                    elif account_no.startswith('18') or account_no.startswith('19'):  # Fixed assets and depreciation (180xxx-199xxx)
+                        assets['fixed_assets'].append(account_data)
+                    # Other Assets
+                    else:
+                        assets['other_assets'].append(account_data)
+                    
+                    assets['total'] += balance
+                
+                elif account_no.startswith('2'):  # Liabilities
+                    # Current Liabilities (210xxx-249xxx)
+                    if account_no.startswith('21') or account_no.startswith('22') or account_no.startswith('23') or account_no.startswith('24'):
+                        liabilities['current_liabilities'].append(account_data)
+                    # Long-term Liabilities (250xxx-269xxx)
+                    elif account_no.startswith('25') or account_no.startswith('26'):
+                        liabilities['long_term_liabilities'].append(account_data)
+                    # Other Liabilities
+                    else:
+                        liabilities['other_liabilities'].append(account_data)
+                    
+                    liabilities['total'] += balance
+                
+                elif account_no.startswith('3'):  # Equity
+                    if account_no.startswith('31'):  # Capital Stock
+                        equity['capital_stock'].append(account_data)
+                    elif account_no.startswith('33'):  # Distributions
+                        equity['distributions'].append(account_data)
+                    elif account_no.startswith('34'):  # Retained Earnings
+                        equity['retained_earnings'].append(account_data)
+                    else:
+                        equity['retained_earnings'].append(account_data)  # Default to retained earnings
+                    
+                    equity['total'] += balance
+        
+        return {
+            'assets': assets,
+            'liabilities': liabilities,
+            'equity': equity,
+            'as_of_date': as_of_date,
+            'balanced': abs(assets['total'] - (liabilities['total'] + equity['total'])) < 0.01
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching balance sheet data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            'assets': {'current_assets': {'cash': [], 'accounts_receivable': [], 'inventory': [], 'other_current': []}, 'fixed_assets': [], 'other_assets': [], 'total': 0},
+            'liabilities': {'current_liabilities': [], 'long_term_liabilities': [], 'other_liabilities': [], 'total': 0},
+            'equity': {'capital_stock': [], 'retained_earnings': [], 'distributions': [], 'total': 0},
+            'as_of_date': as_of_date,
+            'balanced': False,
+            'error': str(e)
         }
