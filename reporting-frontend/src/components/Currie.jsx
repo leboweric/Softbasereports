@@ -746,6 +746,25 @@ const Currie = () => {
                     </div>
                   </div>
                 </div>
+                
+                {/* Absorption Rate */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Absorption Rate</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Service Absorption:</span>
+                      <span className="font-medium text-blue-600">{metrics.absorption_rate?.service_absorption?.toFixed(1) || '0.0'}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Parts Absorption:</span>
+                      <span className="font-medium text-blue-600">{metrics.absorption_rate?.parts_absorption?.toFixed(1) || '0.0'}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Absorption:</span>
+                      <span className="font-medium text-green-600">{metrics.absorption_rate?.total_absorption?.toFixed(1) || '0.0'}%</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
