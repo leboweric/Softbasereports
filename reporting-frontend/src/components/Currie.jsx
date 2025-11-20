@@ -10,6 +10,7 @@ const Currie = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('sales'); // 'sales', 'expenses', 'balance'
 
   // Initialize with current quarter
   useEffect(() => {
@@ -278,7 +279,47 @@ const Currie = () => {
         </div>
       )}
 
+      {/* Tab Navigation */}
       {data && (
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('sales')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'sales'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Sales, COGS & GP
+              </button>
+              <button
+                onClick={() => setActiveTab('expenses')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'expenses'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Expenses & Metrics
+              </button>
+              <button
+                onClick={() => setActiveTab('balance')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'balance'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Balance Sheet
+              </button>
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {data && activeTab === 'sales' && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {/* Dealership Info */}
           <div className="bg-blue-50 border-b border-blue-200 p-4">
@@ -507,8 +548,220 @@ const Currie = () => {
         </div>
       )}
 
-      {/* Metrics Section */}
-      {metrics && (
+      {/* Expenses & Metrics Tab */}
+      {data && activeTab === 'expenses' && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {/* Dealership Info */}
+          <div className="bg-blue-50 border-b border-blue-200 p-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="font-semibold">Dealership:</span> {data.dealership_info.name}
+              </div>
+              <div>
+                <span className="font-semibold">Locations:</span> {data.dealership_info.num_locations}
+              </div>
+              <div>
+                <span className="font-semibold">Months:</span> {data.dealership_info.num_months}
+              </div>
+              <div>
+                <span className="font-semibold">Submitted By:</span> {data.dealership_info.submitted_by}
+              </div>
+            </div>
+          </div>
+
+          {/* Department Expense Breakdown */}
+          <div className="p-6">
+            <h2 className="text-xl font-bold mb-4">Expense Detail by Department</h2>
+            
+            {data.department_expenses && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-blue-600 text-white">
+                      <th className="px-4 py-3 text-left font-semibold">Expense Category</th>
+                      <th className="px-4 py-3 text-right font-semibold">New</th>
+                      <th className="px-4 py-3 text-right font-semibold">Used</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total Sales Dept</th>
+                      <th className="px-4 py-3 text-right font-semibold">Parts</th>
+                      <th className="px-4 py-3 text-right font-semibold">Service</th>
+                      <th className="px-4 py-3 text-right font-semibold">Rental</th>
+                      <th className="px-4 py-3 text-right font-semibold">Trucking</th>
+                      <th className="px-4 py-3 text-right font-semibold">G&A</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Personnel */}
+                    <tr className="border-b border-gray-200">
+                      <td className="px-4 py-2 font-medium">Personnel</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.new)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.used)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.total_sales_dept)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.parts)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.service)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.rental)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.trucking)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.personnel.ga)}</td>
+                      <td className="px-4 py-2 text-right font-bold">{formatCurrency(data.department_expenses.personnel.total)}</td>
+                    </tr>
+                    {/* Operating */}
+                    <tr className="border-b border-gray-200">
+                      <td className="px-4 py-2 font-medium">Operating</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.new)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.used)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.total_sales_dept)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.parts)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.service)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.rental)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.trucking)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.operating.ga)}</td>
+                      <td className="px-4 py-2 text-right font-bold">{formatCurrency(data.department_expenses.operating.total)}</td>
+                    </tr>
+                    {/* Occupancy */}
+                    <tr className="border-b border-gray-200">
+                      <td className="px-4 py-2 font-medium">Occupancy</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.new)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.used)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.total_sales_dept)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.parts)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.service)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.rental)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.trucking)}</td>
+                      <td className="px-4 py-2 text-right">{formatCurrency(data.department_expenses.occupancy.ga)}</td>
+                      <td className="px-4 py-2 text-right font-bold">{formatCurrency(data.department_expenses.occupancy.total)}</td>
+                    </tr>
+                    {/* Total */}
+                    <tr className="bg-gray-900 text-white font-bold">
+                      <td className="px-4 py-3">Total</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.new)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.used)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.total_sales_dept)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.parts)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.service)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.rental)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.trucking)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.ga)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(data.department_expenses.total.total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Metrics Section */}
+          {metrics && (
+            <div className="p-6 border-t border-gray-200">
+              <h2 className="text-xl font-bold mb-4">Key Metrics</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* AR Aging */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">AR Aging</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Current (0-30):</span>
+                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.current || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">31-60 days:</span>
+                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_31_60 || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">61-90 days:</span>
+                      <span className="font-medium">{formatCurrency(metrics.ar_aging?.days_61_90 || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">91+ days:</span>
+                      <span className="font-medium text-red-600">{formatCurrency(metrics.ar_aging?.days_91_plus || 0)}</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t">
+                      <span className="font-semibold">Total AR:</span>
+                      <span className="font-semibold">{formatCurrency(metrics.ar_aging?.total || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Service Metrics */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Service Metrics</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Service Calls/Day:</span>
+                      <span className="font-medium">{metrics.service_calls_per_day?.calls_per_day?.toFixed(1) || '0.0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Calls:</span>
+                      <span className="font-medium">{metrics.service_calls_per_day?.total_service_calls || 0}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Active Technicians:</span>
+                      <span className="font-medium">{metrics.technician_count?.active_technicians || 0}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Labor Metrics */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Labor Productivity</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Billed Hours:</span>
+                      <span className="font-medium">{metrics.labor_metrics?.total_billed_hours?.toFixed(1) || '0.0'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Avg Labor Rate:</span>
+                      <span className="font-medium">{formatCurrency(metrics.labor_metrics?.average_labor_rate || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Labor Value:</span>
+                      <span className="font-medium">{formatCurrency(metrics.labor_metrics?.total_labor_value || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">WOs with Labor:</span>
+                      <span className="font-medium">{metrics.labor_metrics?.work_orders_with_labor || 0}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Parts Inventory Metrics */}
+                <div className="bg-white border rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-3">Parts Inventory</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Fill Rate:</span>
+                      <span className="font-medium text-green-600">{metrics.parts_inventory?.fill_rate?.toFixed(1) || '0.0'}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Inventory Turnover:</span>
+                      <span className="font-medium">{metrics.parts_inventory?.inventory_turnover?.toFixed(2) || '0.00'}x</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Inventory Value:</span>
+                      <span className="font-medium">{formatCurrency(metrics.parts_inventory?.inventory_value || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Obsolete Parts:</span>
+                      <span className="font-medium text-red-600">{metrics.parts_inventory?.aging?.obsolete_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Balance Sheet Tab */}
+      {data && activeTab === 'balance' && (
+        <div className="bg-white rounded-lg shadow overflow-hidden p-6">
+          <h2 className="text-xl font-bold mb-4">Balance Sheet</h2>
+          <p className="text-gray-600">Balance Sheet data coming soon...</p>
+        </div>
+      )}
+
+      {/* Metrics Section (OLD - Remove later) */}
+      {false && metrics && (
         <div className="mt-8">
           <h2 className="text-xl font-bold mb-4">Key Metrics</h2>
           
@@ -740,6 +993,7 @@ const Currie = () => {
       )}
 
       {/* Notes */}
+      {data && (
       <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="font-semibold text-blue-900 mb-2">Implementation Notes</h3>
         <ul className="text-sm text-blue-800 space-y-1">
