@@ -280,6 +280,7 @@ const Currie = () => {
       )}
 
       {/* Tab Navigation */}
+      {console.log('Data loaded, activeTab:', activeTab, 'data exists:', !!data)}
       {data && (
         <div className="mb-6">
           <div className="border-b border-gray-200">
