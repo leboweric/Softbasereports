@@ -1661,7 +1661,7 @@ def get_balance_sheet_data(as_of_date):
         SELECT 
             AccountNo,
             Description,
-            Balance as balance
+            MTD as balance
         FROM ben002.GL
         WHERE Year = %s 
           AND Month = %s
@@ -1670,7 +1670,7 @@ def get_balance_sheet_data(as_of_date):
             OR AccountNo LIKE '2%'  -- Liabilities
             OR AccountNo LIKE '3%'  -- Equity
           )
-          AND Balance != 0
+          AND MTD != 0
         ORDER BY AccountNo
         """
         
