@@ -662,6 +662,7 @@ class DashboardQueries:
                 
                 monthly_sales.append({
                     'month': month_str,
+                    'month_number': month,
                     'year': year,
                     'amount': revenue,
                     'margin': margin,

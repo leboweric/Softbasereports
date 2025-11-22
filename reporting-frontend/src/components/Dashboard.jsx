@@ -1309,20 +1309,23 @@ const Dashboard = ({ user }) => {
                     const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                     const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
                       .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
-                    const avgUnits = completeMonths.filter(item => item.unit_count > 0)
-                      .reduce((sum, item, _, arr) => sum + item.unit_count / arr.length, 0)
+
+                    // Calculate Total Units starting Nov 2025 (Fiscal Year 2026)
+                    // Filter for year > 2025 OR (year == 2025 AND month_number >= 11)
+                    const fy26Units = dashboardData.monthly_equipment_sales
+                      .filter(item => item.year > 2025 || (item.year === 2025 && item.month_number >= 11))
+                      .reduce((sum, item) => sum + (item.unit_count || 0), 0)
+
                     return (
                       <div className="text-right">
                         <div className="mb-1">
                           <p className="text-sm text-muted-foreground">Avg Revenue</p>
                           <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
                         </div>
-                        {avgUnits > 0 && (
-                          <div className="mb-1">
-                            <p className="text-sm text-muted-foreground">Avg Units</p>
-                            <p className="text-lg font-semibold">{Math.round(avgUnits)}</p>
-                          </div>
-                        )}
+                        <div className="mb-1">
+                          <p className="text-sm text-muted-foreground">Total Sold (Nov '25+)</p>
+                          <p className="text-lg font-semibold">{fy26Units}</p>
+                        </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Avg Margin</p>
                           <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
@@ -1432,8 +1435,8 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className={`text-2xl font-bold ${dashboardData?.active_customers_change > 0 ? 'text-green-600' :
-                    dashboardData?.active_customers_change < 0 ? 'text-red-600' :
-                      'text-gray-900'
+                  dashboardData?.active_customers_change < 0 ? 'text-red-600' :
+                    'text-gray-900'
                   }`}>
                   {dashboardData?.active_customers || 0}
                   {dashboardData?.active_customers_change !== undefined && dashboardData?.active_customers_change !== 0 && (
@@ -1597,9 +1600,9 @@ const Dashboard = ({ user }) => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-medium truncate ${riskLevel === 'high' ? 'text-red-600' :
-                              riskLevel === 'medium' ? 'text-orange-600' :
-                                riskLevel === 'low' ? 'text-yellow-600' :
-                                  'text-gray-900'
+                            riskLevel === 'medium' ? 'text-orange-600' :
+                              riskLevel === 'low' ? 'text-yellow-600' :
+                                'text-gray-900'
                             }`}>
                             <button
                               onClick={() => {
@@ -1613,8 +1616,8 @@ const Dashboard = ({ user }) => {
                             {riskLevel !== 'none' && (
                               <span
                                 className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                                    riskLevel === 'medium' ? 'bg-orange-100 text-orange-800' :
-                                      'bg-yellow-100 text-yellow-800'
+                                  riskLevel === 'medium' ? 'bg-orange-100 text-orange-800' :
+                                    'bg-yellow-100 text-yellow-800'
                                   }`}
                                 title={riskFactors.join(', ')}
                               >
@@ -1646,12 +1649,12 @@ const Dashboard = ({ user }) => {
                           <div className="absolute left-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                             <div className="flex items-center mb-2">
                               <div className={`w-3 h-3 rounded-full mr-2 ${riskLevel === 'high' ? 'bg-red-500' :
-                                  riskLevel === 'medium' ? 'bg-orange-500' :
-                                    'bg-yellow-500'
+                                riskLevel === 'medium' ? 'bg-orange-500' :
+                                  'bg-yellow-500'
                                 }`} />
                               <span className={`font-semibold text-sm ${riskLevel === 'high' ? 'text-red-700' :
-                                  riskLevel === 'medium' ? 'text-orange-700' :
-                                    'text-yellow-700'
+                                riskLevel === 'medium' ? 'text-orange-700' :
+                                  'text-yellow-700'
                                 }`}>
                                 {riskLevel.toUpperCase()} RISK
                               </span>
@@ -2015,8 +2018,8 @@ const Dashboard = ({ user }) => {
                       {forecastData.factors?.map((factor, index) => (
                         <div key={index} className="flex items-start space-x-2">
                           <div className={`mt-1 w-2 h-2 rounded-full ${factor.impact === 'positive' ? 'bg-green-500' :
-                              factor.impact === 'negative' ? 'bg-red-500' :
-                                'bg-gray-400'
+                            factor.impact === 'negative' ? 'bg-red-500' :
+                              'bg-gray-400'
                             }`} />
                           <div className="flex-1">
                             <p className="text-sm font-medium">{factor.factor}</p>
