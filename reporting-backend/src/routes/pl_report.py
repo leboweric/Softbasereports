@@ -780,7 +780,7 @@ def export_pl_excel():
         mtd_query = """
         SELECT 
             AccountNo,
-            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' THEN Amount ELSE 0 END) as MTD
+            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%' THEN Amount ELSE 0 END) as MTD
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
@@ -791,7 +791,7 @@ def export_pl_excel():
         ytd_query = """
         SELECT 
             AccountNo,
-            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' THEN Amount ELSE 0 END) as YTD
+            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%' THEN Amount ELSE 0 END) as YTD
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
