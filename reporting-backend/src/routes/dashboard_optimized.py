@@ -597,14 +597,14 @@ class DashboardQueries:
             gl_results = self.db.execute_query(gl_query)
             
             # 2. Get Unit Counts from InvoiceReg
-            # Count invoices with SaleCode LINDE or LINDEN
+            # Count invoices with SaleCode LINDEN only (per user request)
             unit_query = """
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 COUNT(*) as unit_count
             FROM ben002.InvoiceReg
-            WHERE SaleCode IN ('LINDE', 'LINDEN')
+            WHERE SaleCode = 'LINDEN'
                 AND InvoiceDate >= DATEADD(month, -13, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             """
