@@ -26,25 +26,76 @@ def get_sales_pace():
             prev_month = current_month - 1
             prev_year = current_year
         
-        # Query to get sales through same day for current and previous month
+        # GL Account Mappings (same as dashboard_optimized.py)
+        GL_ACCOUNTS = {
+            'new_equipment': {
+                'revenue': ['410001', '412001', '413001', '414001', '421001', '426001', '431001', '434001'],
+                'cogs': ['510001', '513001', '514001', '521001', '525001', '526001', '531001', '534001', '534013', '538000']
+            },
+            'used_equipment': {
+                'revenue': ['410002', '412002', '413002', '414002', '421002', '426002', '431002', '434002', '436001'],
+                'cogs': ['510002', '512002', '513002', '514002', '521002', '525002', '526002', '531002', '534002', '536001']
+            },
+            'parts': {
+                'revenue': ['410003', '410012', '410014', '410015', '421003', '424000', '429001', '430000', '433000', '434003', '436002', '439000'],
+                'cogs': ['510003', '510012', '510013', '510014', '510015', '521003', '522001', '524000', '529002', '530000', '533000', '534003', '536002', '542000', '543000', '544000']
+            },
+            'service': {
+                'revenue': ['410004', '410005', '410007', '410016', '421004', '421005', '421006', '421007', '423000', '425000', '428000', '429002', '432000', '435000', '435001', '435002', '435003', '435004'],
+                'cogs': ['510004', '510005', '510007', '512001', '521004', '521005', '521006', '521007', '522000', '523000', '528000', '529001', '534015', '535001', '535002', '535003', '535004', '535005']
+            },
+            'rental': {
+                'revenue': ['410008', '411001', '419000', '420000', '421000', '434012'],
+                'cogs': ['510008', '511001', '519000', '520000', '521008', '534014', '537001', '539000', '545000']
+            },
+            'transportation': {
+                'revenue': ['410010', '421010', '434010', '434013'],
+                'cogs': ['510010', '521010', '534010', '534012']
+            },
+            'administrative': {
+                'revenue': ['410011', '421011', '422100', '427000', '434011'],
+                'cogs': ['510011', '521011', '522100', '525000', '527000', '532000', '534011', '540000', '541000']
+            }
+        }
+        
+        OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000', '706000']
+        
+        # Collect all revenue accounts
+        all_revenue_accounts = []
+        for dept in GL_ACCOUNTS.values():
+            all_revenue_accounts.extend(dept['revenue'])
+        all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+        
+        # Collect equipment revenue accounts (new + used)
+        equipment_revenue_accounts = []
+        equipment_revenue_accounts.extend(GL_ACCOUNTS['new_equipment']['revenue'])
+        equipment_revenue_accounts.extend(GL_ACCOUNTS['used_equipment']['revenue'])
+        
+        # Format for SQL IN clause
+        revenue_list = "', '".join(all_revenue_accounts)
+        equipment_list = "', '".join(equipment_revenue_accounts)
+        
+        # Query to get sales using GLDetail (matches dashboard_optimized.py logic)
         current_sales_query = f"""
         SELECT 
-            SUM(GrandTotal) as total_sales,
-            SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as sales_no_equipment
-        FROM ben002.InvoiceReg
-        WHERE YEAR(InvoiceDate) = {current_year}
-            AND MONTH(InvoiceDate) = {current_month}
-            AND DAY(InvoiceDate) <= {current_day}
+            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
+            -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
+        FROM ben002.GLDetail
+        WHERE YEAR(EffectiveDate) = {current_year}
+            AND MONTH(EffectiveDate) = {current_month}
+            AND DAY(EffectiveDate) <= {current_day}
+            AND Posted = 1
         """
         
         prev_sales_query = f"""
         SELECT 
-            SUM(GrandTotal) as total_sales,
-            SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as sales_no_equipment
-        FROM ben002.InvoiceReg
-        WHERE YEAR(InvoiceDate) = {prev_year}
-            AND MONTH(InvoiceDate) = {prev_month}
-            AND DAY(InvoiceDate) <= {current_day}
+            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
+            -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
+        FROM ben002.GLDetail
+        WHERE YEAR(EffectiveDate) = {prev_year}
+            AND MONTH(EffectiveDate) = {prev_month}
+            AND DAY(EffectiveDate) <= {current_day}
+            AND Posted = 1
         """
         
         # Execute queries
@@ -65,32 +116,34 @@ def get_sales_pace():
             previous_sales = float(prev_results[0]['total_sales'] or 0)
             previous_no_equip = float(prev_results[0]['sales_no_equipment'] or 0)
         
-        # Get full month totals for context
+        # Get full month totals for context using GLDetail
         full_month_query = f"""
         SELECT 
-            SUM(GrandTotal) as total_sales,
-            SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as sales_no_equipment
-        FROM ben002.InvoiceReg
-        WHERE YEAR(InvoiceDate) = {prev_year}
-            AND MONTH(InvoiceDate) = {prev_month}
+            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
+            -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
+        FROM ben002.GLDetail
+        WHERE YEAR(EffectiveDate) = {prev_year}
+            AND MONTH(EffectiveDate) = {prev_month}
+            AND Posted = 1
         """
         
         full_month_results = db.execute_query(full_month_query)
         previous_full_month = float(full_month_results[0]['total_sales'] or 0) if full_month_results else 0
         previous_full_month_no_equip = float(full_month_results[0]['sales_no_equipment'] or 0) if full_month_results else 0
         
-        # Get adaptive comparison data (available months average and same month last year)
+        # Get adaptive comparison data using GLDetail
         adaptive_query = f"""
         WITH MonthlyTotals AS (
             SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                SUM(GrandTotal) as total_sales,
-                SUM(GrandTotal - COALESCE(EquipmentTaxable, 0) - COALESCE(EquipmentNonTax, 0)) as sales_no_equipment
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
+                -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
+            FROM ben002.GLDetail
+            WHERE EffectiveDate >= DATEADD(month, -12, GETDATE())
+                AND YEAR(EffectiveDate) * 100 + MONTH(EffectiveDate) < {current_year} * 100 + {current_month}
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         )
         SELECT 
             AVG(total_sales) as avg_monthly_sales,
