@@ -576,10 +576,11 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_equipment_sales(self):
-        """Get monthly Linde new truck sales with trailing 13 months using GLDetail (GL account 413001)"""
+        """Get monthly Linde new truck sales with trailing 13 months using GLDetail (GL account 413001) and unit counts"""
         try:
+            # 1. Get Revenue/Cost from GLDetail
             # Use GLDetail for Linde new truck sales only (GL account 413001 revenue, 513001 cost)
-            query = """
+            gl_query = """
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
@@ -593,18 +594,38 @@ class DashboardQueries:
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             
-            results = self.db.execute_query(query)
+            gl_results = self.db.execute_query(gl_query)
             
-            # Create a dictionary to store data by year-month key
+            # 2. Get Unit Counts from InvoiceReg
+            # Count invoices with SaleCode LINDE or LINDEN
+            unit_query = """
+            SELECT 
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                COUNT(*) as unit_count
+            FROM ben002.InvoiceReg
+            WHERE SaleCode IN ('LINDE', 'LINDEN')
+                AND InvoiceDate >= DATEADD(month, -13, GETDATE())
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            """
+            
+            unit_results = self.db.execute_query(unit_query)
+            
+            # Create dictionaries for easy lookup
             revenue_by_month = {}
-            for row in results:
+            for row in gl_results:
                 year_month_key = (row['year'], row['month'])
                 revenue_by_month[year_month_key] = row
+                
+            units_by_month = {}
+            for row in unit_results:
+                year_month_key = (row['year'], row['month'])
+                units_by_month[year_month_key] = row['unit_count']
             
             # Get fiscal year months (trailing 13 months)
             fiscal_year_months = get_fiscal_year_months()
             
-            monthly_equipment = []
+            monthly_sales = []
             for year, month in fiscal_year_months:
                 month_date = datetime(year, month, 1)
                 # Include year in label if spanning multiple calendar years
@@ -619,6 +640,7 @@ class DashboardQueries:
                 # Get current year data
                 row = revenue_by_month.get(year_month_key)
                 prior_row = revenue_by_month.get(prior_year_key)
+                unit_count = units_by_month.get(year_month_key, 0)
                 
                 if row:
                     revenue = float(row['equipment_revenue'] or 0)
@@ -638,15 +660,16 @@ class DashboardQueries:
                 else:
                     prior_revenue = 0
                 
-                monthly_equipment.append({
+                monthly_sales.append({
                     'month': month_str,
                     'year': year,
                     'amount': revenue,
                     'margin': margin,
-                    'prior_year_amount': prior_revenue
+                    'prior_year_amount': prior_revenue,
+                    'unit_count': unit_count
                 })
             
-            return monthly_equipment
+            return monthly_sales
         except Exception as e:
             logger.error(f"Monthly equipment sales query failed: {str(e)}")
             return []

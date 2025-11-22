@@ -23,14 +23,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
-  BarChart, 
-  Bar, 
+import {
+  BarChart,
+  Bar,
   ComposedChart,
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   LineChart,
   Line,
@@ -40,11 +40,11 @@ import {
   ReferenceLine,
   Legend
 } from 'recharts'
-import { 
-  DollarSign, 
-  TrendingUp, 
+import {
+  DollarSign,
+  TrendingUp,
   TrendingDown,
-  Package, 
+  Package,
   Users,
   FileText,
   Download,
@@ -174,22 +174,22 @@ const Dashboard = ({ user }) => {
   // Filter customers based on search and risk filter
   const filteredCustomers = React.useMemo(() => {
     if (!dashboardData?.top_customers) return [];
-    
+
     let filtered = dashboardData.top_customers;
-    
+
     // Apply search filter
     if (customerSearchTerm) {
-      filtered = filtered.filter(customer => 
+      filtered = filtered.filter(customer =>
         customer.name.toLowerCase().includes(customerSearchTerm.toLowerCase())
       );
     }
-    
+
     // Apply risk filter
     if (customerRiskFilter !== 'all') {
       filtered = filtered.filter(customer => {
         // Use risk data from customer object if available, otherwise fall back to getCustomerRisk
         const riskLevel = customer.risk_level || getCustomerRisk(customer.name)?.risk_level || 'none';
-        
+
         if (customerRiskFilter === 'at-risk') {
           return riskLevel !== 'none';
         } else if (customerRiskFilter === 'healthy') {
@@ -198,14 +198,14 @@ const Dashboard = ({ user }) => {
         return true;
       });
     }
-    
+
     return filtered;
   }, [dashboardData, customerSearchTerm, customerRiskFilter, customerRiskData]);
 
   useEffect(() => {
     fetchDashboardData()
     fetchExpenseData()
-    
+
     // Set up auto-refresh every 5 minutes for real-time updates
     const interval = setInterval(() => {
       // Only fetch if component is still mounted
@@ -213,7 +213,7 @@ const Dashboard = ({ user }) => {
         fetchForecastData()
       }
     }, 5 * 60 * 1000) // 5 minutes
-    
+
     return () => {
       isMountedRef.current = false
       clearInterval(interval)
@@ -232,18 +232,18 @@ const Dashboard = ({ user }) => {
     setLoading(true)
     try {
       const token = localStorage.getItem('token')
-      
+
       // Try optimized endpoint first
-      const optimizedUrl = forceRefresh 
+      const optimizedUrl = forceRefresh
         ? apiUrl('/api/reports/dashboard/summary-optimized?refresh=true')
         : apiUrl('/api/reports/dashboard/summary-optimized')
-      
+
       let response = await fetch(optimizedUrl, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       // Only fall back if we get a 404 (endpoint doesn't exist)
       // Don't fall back for network errors or other HTTP errors
       if (!response.ok && response.status === 404) {
@@ -258,18 +258,18 @@ const Dashboard = ({ user }) => {
       if (response.ok) {
         const data = await response.json()
         setDashboardData(data)
-        
+
         // Calculate load time
         const totalTime = (Date.now() - startTime) / 1000
         setLoadTime(data.query_time || totalTime)
         setFromCache(data.from_cache || false)
-        
+
         // Log query time if available
         if (data.query_time) {
           const cacheStatus = data.from_cache ? 'from cache' : 'fresh data'
           console.log(`Dashboard loaded in ${data.query_time} seconds (${cacheStatus})`)
         }
-        
+
         // Fetch supplementary data in parallel for better performance
         await Promise.allSettled([
           fetchPaceData(),
@@ -296,7 +296,7 @@ const Dashboard = ({ user }) => {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         console.log('Pace data fetched:', data)
@@ -319,11 +319,11 @@ const Dashboard = ({ user }) => {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         console.log('Forecast data fetched:', data)
-        
+
         // Only update state if component is still mounted
         if (isMountedRef.current) {
           setForecastData(data)
@@ -343,7 +343,7 @@ const Dashboard = ({ user }) => {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setCustomerRiskData(data)
@@ -360,16 +360,16 @@ const Dashboard = ({ user }) => {
     setWorkOrderPredictionLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const url = forceRefresh 
+      const url = forceRefresh
         ? apiUrl('/api/ai/predictions/work-orders?refresh=true')
         : apiUrl('/api/ai/predictions/work-orders')
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setWorkOrderPrediction(data)
@@ -385,16 +385,16 @@ const Dashboard = ({ user }) => {
     setCustomerChurnLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const url = forceRefresh 
+      const url = forceRefresh
         ? apiUrl('/api/ai/predictions/customer-churn?refresh=true')
         : apiUrl('/api/ai/predictions/customer-churn')
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setCustomerChurnPrediction(data)
@@ -410,16 +410,16 @@ const Dashboard = ({ user }) => {
     setPartsDemandLoading(true)
     try {
       const token = localStorage.getItem('token')
-      const url = forceRefresh 
+      const url = forceRefresh
         ? apiUrl('/api/ai/predictions/parts-demand?refresh=true')
         : apiUrl('/api/ai/predictions/parts-demand')
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setPartsDemandPrediction(data)
@@ -441,8 +441,8 @@ const Dashboard = ({ user }) => {
   }
 
   const getMonthName = (monthNumber) => {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                    'July', 'August', 'September', 'October', 'November', 'December']
+    const months = ['January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December']
     return months[monthNumber - 1] || 'Current Month'
   }
 
@@ -463,7 +463,7 @@ const Dashboard = ({ user }) => {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setInvoiceDelayData(data)
@@ -485,7 +485,7 @@ const Dashboard = ({ user }) => {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setMonthlyExpenses(data.monthly_expenses || [])
@@ -505,20 +505,20 @@ const Dashboard = ({ user }) => {
           'Authorization': `Bearer ${token}`,
         },
       })
-      
+
       if (response.ok) {
         const data = await response.json()
-        
+
         // Convert to CSV
         const headers = [
           'Customer Name',
-          'Invoice Count', 
+          'Invoice Count',
           'First Invoice Date',
           'Last Invoice Date',
           'Total Sales',
           'Average Invoice Value'
         ]
-        
+
         const csvContent = [
           headers.join(','),
           ...data.customers.map(customer => [
@@ -530,7 +530,7 @@ const Dashboard = ({ user }) => {
             customer.avg_invoice_value.toFixed(2)
           ].join(','))
         ].join('\n')
-        
+
         // Create download
         const blob = new Blob([csvContent], { type: 'text/csv' })
         const url = window.URL.createObjectURL(blob)
@@ -565,11 +565,11 @@ const Dashboard = ({ user }) => {
     const { fill, x, y, width, height, payload } = props
     const currentMonth = new Date().getMonth() + 1
     const currentYear = new Date().getFullYear()
-    
+
     // Check if this is the current month
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const isCurrentMonth = payload && 
-      payload.month === monthNames[currentMonth - 1] && 
+    const isCurrentMonth = payload &&
+      payload.month === monthNames[currentMonth - 1] &&
       payload.year === currentYear &&
       paceData
     return (
@@ -578,30 +578,30 @@ const Dashboard = ({ user }) => {
         {isCurrentMonth && paceData && (
           <g>
             {/* Pace indicator */}
-            <rect 
-              x={x} 
-              y={y - 20} 
-              width={width} 
-              height={18} 
+            <rect
+              x={x}
+              y={y - 20}
+              width={width}
+              height={18}
               fill={paceData.pace.percentage > 0 ? '#10b981' : '#ef4444'}
               rx={4}
             />
-            <text 
-              x={x + width / 2} 
-              y={y - 6} 
-              textAnchor="middle" 
-              fill="white" 
-              fontSize="11" 
+            <text
+              x={x + width / 2}
+              y={y - 6}
+              textAnchor="middle"
+              fill="white"
+              fontSize="11"
               fontWeight="bold"
             >
               {paceData.pace.percentage > 0 ? '+' : ''}{paceData.pace.percentage}%
             </text>
             {/* Arrow icon */}
             {paceData.pace.percentage !== 0 && (
-              <text 
-                x={x + width / 2} 
-                y={y - 25} 
-                textAnchor="middle" 
+              <text
+                x={x + width / 2}
+                y={y - 25}
+                textAnchor="middle"
                 fill={paceData.pace.percentage > 0 ? '#10b981' : '#ef4444'}
                 fontSize="16"
               >
@@ -619,44 +619,44 @@ const Dashboard = ({ user }) => {
     const { fill, x, y, width, height, payload } = props
     const currentMonth = new Date().getMonth() + 1
     const currentYear = new Date().getFullYear()
-    
+
     // Check if this is the current month
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const isCurrentMonth = payload && 
-      payload.month === monthNames[currentMonth - 1] && 
+    const isCurrentMonth = payload &&
+      payload.month === monthNames[currentMonth - 1] &&
       payload.year === currentYear &&
       paceData
-    
+
     return (
       <g>
         <rect x={x} y={y} width={width} height={height} fill={fill} />
         {isCurrentMonth && paceData && (
           <g>
             {/* Pace indicator */}
-            <rect 
-              x={x} 
-              y={y - 20} 
-              width={width} 
-              height={18} 
+            <rect
+              x={x}
+              y={y - 20}
+              width={width}
+              height={18}
               fill={paceData.pace.percentage_no_equipment > 0 ? '#10b981' : '#ef4444'}
               rx={4}
             />
-            <text 
-              x={x + width / 2} 
-              y={y - 6} 
-              textAnchor="middle" 
-              fill="white" 
-              fontSize="11" 
+            <text
+              x={x + width / 2}
+              y={y - 6}
+              textAnchor="middle"
+              fill="white"
+              fontSize="11"
               fontWeight="bold"
             >
               {paceData.pace.percentage_no_equipment > 0 ? '+' : ''}{paceData.pace.percentage_no_equipment}%
             </text>
             {/* Arrow icon */}
             {paceData.pace.percentage_no_equipment !== 0 && (
-              <text 
-                x={x + width / 2} 
-                y={y - 25} 
-                textAnchor="middle" 
+              <text
+                x={x + width / 2}
+                y={y - 25}
+                textAnchor="middle"
                 fill={paceData.pace.percentage_no_equipment > 0 ? '#10b981' : '#ef4444'}
                 fontSize="16"
               >
@@ -674,44 +674,44 @@ const Dashboard = ({ user }) => {
     const { fill, x, y, width, height, payload } = props
     const currentMonth = new Date().getMonth() + 1
     const currentYear = new Date().getFullYear()
-    
+
     // Check if this is the current month
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const isCurrentMonth = payload && 
-      payload.month === monthNames[currentMonth - 1] && 
+    const isCurrentMonth = payload &&
+      payload.month === monthNames[currentMonth - 1] &&
       payload.year === currentYear &&
       paceData
-    
+
     return (
       <g>
         <rect x={x} y={y} width={width} height={height} fill={fill} />
         {isCurrentMonth && paceData && paceData.quotes && (
           <g>
             {/* Pace indicator */}
-            <rect 
-              x={x} 
-              y={y - 20} 
-              width={width} 
-              height={18} 
+            <rect
+              x={x}
+              y={y - 20}
+              width={width}
+              height={18}
               fill={paceData.quotes.pace_percentage > 0 ? '#10b981' : '#ef4444'}
               rx={4}
             />
-            <text 
-              x={x + width / 2} 
-              y={y - 6} 
-              textAnchor="middle" 
-              fill="white" 
-              fontSize="11" 
+            <text
+              x={x + width / 2}
+              y={y - 6}
+              textAnchor="middle"
+              fill="white"
+              fontSize="11"
               fontWeight="bold"
             >
               {paceData.quotes.pace_percentage > 0 ? '+' : ''}{paceData.quotes.pace_percentage}%
             </text>
             {/* Arrow icon */}
             {paceData.quotes.pace_percentage !== 0 && (
-              <text 
-                x={x + width / 2} 
-                y={y - 25} 
-                textAnchor="middle" 
+              <text
+                x={x + width / 2}
+                y={y - 25}
+                textAnchor="middle"
                 fill={paceData.quotes.pace_percentage > 0 ? '#10b981' : '#ef4444'}
                 fontSize="16"
               >
@@ -740,9 +740,9 @@ const Dashboard = ({ user }) => {
       const monthData = data[currentIndex]
       const previousMonthData = currentIndex > 0 ? data[currentIndex - 1] : null
       const total = payload[0].value
-      const previousTotal = previousMonthData ? 
+      const previousTotal = previousMonthData ?
         (previousMonthData.parts + previousMonthData.labor + previousMonthData.rental + previousMonthData.misc) : null
-      
+
       return (
         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
           <p className="font-semibold mb-2">{label}</p>
@@ -791,8 +791,8 @@ const Dashboard = ({ user }) => {
   if (loading) {
     return (
       <>
-        <LoadingSpinner 
-          title="Loading Dashboard" 
+        <LoadingSpinner
+          title="Loading Dashboard"
           description="Fetching your business data..."
           size="xlarge"
           showProgress={true}
@@ -846,16 +846,16 @@ const Dashboard = ({ user }) => {
         </div>
         <div className="flex items-center space-x-2">
           {loadTime && (
-            <Badge 
-              variant={fromCache ? "default" : "secondary"} 
+            <Badge
+              variant={fromCache ? "default" : "secondary"}
               className="text-xs"
             >
               <TrendingUp className="mr-1 h-3 w-3" />
               {loadTime.toFixed(1)}s {fromCache && "(cached)"}
             </Badge>
           )}
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => {
               fetchDashboardData(true)
@@ -888,7 +888,7 @@ const Dashboard = ({ user }) => {
         <TabsContent value="sales" className="space-y-4">
           {/* Cash Flow Overview Widget */}
           <CashFlowWidget />
-          
+
           {/* Key Sales Metrics */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
@@ -916,7 +916,7 @@ const Dashboard = ({ user }) => {
                           {paceData.pace.percentage > 0 ? '+' : ''}{paceData.pace.percentage}%
                         </span>
                       </div>
-                      
+
                       {/* Available average comparison */}
                       {paceData.adaptive_comparisons?.vs_available_average?.percentage !== null && (
                         <div className="flex items-center justify-between text-xs">
@@ -928,7 +928,7 @@ const Dashboard = ({ user }) => {
                           </span>
                         </div>
                       )}
-                      
+
                       {/* Same month last year */}
                       {paceData.adaptive_comparisons?.vs_same_month_last_year?.percentage !== null && (
                         <div className="flex items-center justify-between text-xs">
@@ -938,7 +938,7 @@ const Dashboard = ({ user }) => {
                           </span>
                         </div>
                       )}
-                      
+
                       {/* Best month indicator */}
                       {paceData.adaptive_comparisons?.performance_indicators?.is_best_month_ever && (
                         <div className="text-xs font-medium text-green-600">
@@ -954,345 +954,345 @@ const Dashboard = ({ user }) => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Fiscal Year 2026 YTD Sales</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(dashboardData?.ytd_sales || 0)}
-            </div>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(dashboardData?.ytd_sales || 0)}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Charts - First Row */}
           <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>Monthly Sales</CardTitle>
-              </div>
-              {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
-                const completeMonths = dashboardData.monthly_sales.slice(0, -1)
-                const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
-                  .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
-                return (
-                  <div className="text-right">
-                    <div className="mb-2">
-                      <p className="text-sm text-muted-foreground">Avg Revenue</p>
-                      <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Avg Margin</p>
-                      <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
-                    </div>
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Monthly Sales</CardTitle>
                   </div>
-                )
-              })()}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(sortedMonthlySales, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
-                <Tooltip content={({ active, payload, label }) => {
-                  if (active && payload && payload.length && dashboardData?.monthly_sales) {
-                    const data = dashboardData.monthly_sales
-                    const currentIndex = data.findIndex(item => item.month === label)
-                    const monthData = data[currentIndex]
-                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
-                    
+                  {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
+                    const completeMonths = dashboardData.monthly_sales.slice(0, -1)
+                    const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
+                      .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
                     return (
-                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                        <p className="font-semibold mb-1">{label}</p>
-                        <p className="text-green-600">
-                          Revenue: {formatCurrency(monthData?.amount || 0)}
-                          {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
-                        </p>
-                        {monthData?.margin !== null && monthData?.margin !== undefined && (
-                          <p className="text-blue-600">
-                            Margin: {monthData.margin.toFixed(1)}%
-                          </p>
-                        )}
+                      <div className="text-right">
+                        <div className="mb-2">
+                          <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                          <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Avg Margin</p>
+                          <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                        </div>
                       </div>
                     )
-                  }
-                  return null
-                }} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} />
-                <Line 
-                  yAxisId="right" 
-                  type="monotone" 
-                  dataKey="margin" 
-                  stroke="#10b981" 
-                  strokeWidth={2} 
-                  dot={{ fill: '#10b981' }} 
-                  name="Gross Margin %"
-                  connectNulls={false}
-                />
-                <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
-                {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
-                  // Only calculate average for complete months (exclude current month - August)
-                  const completeMonths = dashboardData.monthly_sales.slice(0, -1)
-                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                  return (
-                    <ReferenceLine 
-                      yAxisId="left"
-                      y={average} 
-                      stroke="#666" 
-                      strokeDasharray="3 3"
-                      label={{ value: "Average", position: "insideTopRight" }}
-                    />
-                  )
-                })()}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+                  })()}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlySales, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && payload.length && dashboardData?.monthly_sales) {
+                        const data = dashboardData.monthly_sales
+                        const currentIndex = data.findIndex(item => item.month === label)
+                        const monthData = data[currentIndex]
+                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>Monthly Sales (No Equipment)</CardTitle>
-                <CardDescription>
-                  Sales excluding new equipment
-                </CardDescription>
-              </div>
-              {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
-                const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
-                const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
-                  .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
-                return (
-                  <div className="text-right">
-                    <div className="mb-2">
-                      <p className="text-sm text-muted-foreground">Avg Revenue</p>
-                      <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Avg Margin</p>
-                      <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(sortedMonthlySalesNoEquipment, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
-                <Tooltip content={({ active, payload, label }) => {
-                  if (active && payload && dashboardData?.monthly_sales_no_equipment) {
-                    const data = dashboardData.monthly_sales_no_equipment
-                    const currentIndex = data.findIndex(item => item.month === label)
-                    const monthData = data[currentIndex]
-                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
-                    const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
-                    
-                    // Also get the stream data for detailed breakdown if available
-                    const streamData = dashboardData?.monthly_sales_by_stream
-                    const streamMonthData = streamData ? streamData[currentIndex] : null
-                    const previousStreamData = currentIndex > 0 && streamData ? streamData[currentIndex - 1] : null
-                    
-                    // Calculate margin change in percentage points
-                    const marginChange = previousMargin !== null && monthData?.margin !== null 
-                      ? monthData.margin - previousMargin 
-                      : null
-                    
-                    return (
-                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                        <p className="font-semibold mb-2">{label}</p>
-                        <p className="font-semibold text-green-600">
-                          Total: {formatCurrency(monthData?.amount || 0)}
-                          {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
-                        </p>
-                        {monthData?.margin !== null && monthData?.margin !== undefined && (
-                          <p className="text-blue-600 mb-2">
-                            Margin: {monthData.margin.toFixed(1)}%
-                            {marginChange !== null && (
-                              <span className={`ml-2 text-sm ${marginChange > 0 ? 'text-green-600' : marginChange < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                ({marginChange > 0 ? '+' : ''}{marginChange.toFixed(1)} pts)
-                              </span>
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-1">{label}</p>
+                            <p className="text-green-600">
+                              Revenue: {formatCurrency(monthData?.amount || 0)}
+                              {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
+                            </p>
+                            {monthData?.margin !== null && monthData?.margin !== undefined && (
+                              <p className="text-blue-600">
+                                Margin: {monthData.margin.toFixed(1)}%
+                              </p>
                             )}
-                          </p>
-                        )}
-                        {streamMonthData && (
-                          <div className="text-sm space-y-1 border-t pt-2">
-                            <div className="flex justify-between">
-                              <span>Parts:</span>
-                              <span>
-                                {formatCurrency(streamMonthData.parts)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.parts, previousStreamData.parts))}
-                                {streamMonthData.parts_margin !== null && streamMonthData.parts_margin !== undefined && (
-                                  <span className="text-xs ml-2 text-blue-600">
-                                    (GM: {streamMonthData.parts_margin}%
-                                    {previousStreamData?.parts_margin !== null && previousStreamData?.parts_margin !== undefined && (
-                                      <span className={streamMonthData.parts_margin > previousStreamData.parts_margin ? 'text-green-600' : streamMonthData.parts_margin < previousStreamData.parts_margin ? 'text-red-600' : 'text-gray-500'}>
-                                        {' '}{streamMonthData.parts_margin > previousStreamData.parts_margin ? '+' : ''}{(streamMonthData.parts_margin - previousStreamData.parts_margin).toFixed(1)}pts
-                                      </span>
-                                    )})
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Labor:</span>
-                              <span>
-                                {formatCurrency(streamMonthData.labor)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.labor, previousStreamData.labor))}
-                                {streamMonthData.labor_margin !== null && streamMonthData.labor_margin !== undefined && (
-                                  <span className="text-xs ml-2 text-blue-600">
-                                    (GM: {streamMonthData.labor_margin}%
-                                    {previousStreamData?.labor_margin !== null && previousStreamData?.labor_margin !== undefined && (
-                                      <span className={streamMonthData.labor_margin > previousStreamData.labor_margin ? 'text-green-600' : streamMonthData.labor_margin < previousStreamData.labor_margin ? 'text-red-600' : 'text-gray-500'}>
-                                        {' '}{streamMonthData.labor_margin > previousStreamData.labor_margin ? '+' : ''}{(streamMonthData.labor_margin - previousStreamData.labor_margin).toFixed(1)}pts
-                                      </span>
-                                    )})
-                                  </span>
-                                )}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Rental:</span>
-                              <span>
-                                {formatCurrency(streamMonthData.rental)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
-                                <span className="text-xs ml-2 text-gray-400">
-                                  (No cost data)
-                                </span>
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Misc:</span>
-                              <span>
-                                {formatCurrency(streamMonthData.misc)}
-                                {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.misc, previousStreamData.misc))}
-                                {streamMonthData.misc_margin !== null && streamMonthData.misc_margin !== undefined && (
-                                  <span className="text-xs ml-2 text-blue-600">
-                                    (GM: {streamMonthData.misc_margin}%
-                                    {previousStreamData?.misc_margin !== null && previousStreamData?.misc_margin !== undefined && (
-                                      <span className={streamMonthData.misc_margin > previousStreamData.misc_margin ? 'text-green-600' : streamMonthData.misc_margin < previousStreamData.misc_margin ? 'text-red-600' : 'text-gray-500'}>
-                                        {' '}{streamMonthData.misc_margin > previousStreamData.misc_margin ? '+' : ''}{(streamMonthData.misc_margin - previousStreamData.misc_margin).toFixed(1)}pts
-                                      </span>
-                                    )})
-                                  </span>
-                                )}
-                              </span>
-                            </div>
                           </div>
-                        )}
+                        )
+                      }
+                      return null
+                    }} />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="margin"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={{ fill: '#10b981' }}
+                      name="Gross Margin %"
+                      connectNulls={false}
+                    />
+                    <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
+                    {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
+                      // Only calculate average for complete months (exclude current month - August)
+                      const completeMonths = dashboardData.monthly_sales.slice(0, -1)
+                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                      return (
+                        <ReferenceLine
+                          yAxisId="left"
+                          y={average}
+                          stroke="#666"
+                          strokeDasharray="3 3"
+                          label={{ value: "Average", position: "insideTopRight" }}
+                        />
+                      )
+                    })()}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Monthly Sales (No Equipment)</CardTitle>
+                    <CardDescription>
+                      Sales excluding new equipment
+                    </CardDescription>
+                  </div>
+                  {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
+                    const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
+                    const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
+                      .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
+                    return (
+                      <div className="text-right">
+                        <div className="mb-2">
+                          <p className="text-sm text-muted-foreground">Avg Revenue</p>
+                          <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Avg Margin</p>
+                          <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
+                        </div>
                       </div>
                     )
-                  }
-                  return null
-                }} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="amount" fill="#10b981" name="Revenue" shape={<CustomBarNoEquipment />} />
-                <Line 
-                  yAxisId="right" 
-                  type="monotone" 
-                  dataKey="margin" 
-                  stroke="#f59e0b" 
-                  strokeWidth={2} 
-                  dot={{ fill: '#f59e0b' }} 
-                  name="Gross Margin %"
-                  connectNulls={false}
-                />
-                <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
-                {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
-                  // Only calculate average for complete months (exclude current month - August)
-                  const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
-                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                  return (
-                    <ReferenceLine 
-                      yAxisId="left"
-                      y={average} 
-                      stroke="#666" 
-                      strokeDasharray="3 3"
-                      label={{ value: "Average", position: "insideTopRight" }}
+                  })()}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlySalesNoEquipment, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && dashboardData?.monthly_sales_no_equipment) {
+                        const data = dashboardData.monthly_sales_no_equipment
+                        const currentIndex = data.findIndex(item => item.month === label)
+                        const monthData = data[currentIndex]
+                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+                        const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
+
+                        // Also get the stream data for detailed breakdown if available
+                        const streamData = dashboardData?.monthly_sales_by_stream
+                        const streamMonthData = streamData ? streamData[currentIndex] : null
+                        const previousStreamData = currentIndex > 0 && streamData ? streamData[currentIndex - 1] : null
+
+                        // Calculate margin change in percentage points
+                        const marginChange = previousMargin !== null && monthData?.margin !== null
+                          ? monthData.margin - previousMargin
+                          : null
+
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-2">{label}</p>
+                            <p className="font-semibold text-green-600">
+                              Total: {formatCurrency(monthData?.amount || 0)}
+                              {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
+                            </p>
+                            {monthData?.margin !== null && monthData?.margin !== undefined && (
+                              <p className="text-blue-600 mb-2">
+                                Margin: {monthData.margin.toFixed(1)}%
+                                {marginChange !== null && (
+                                  <span className={`ml-2 text-sm ${marginChange > 0 ? 'text-green-600' : marginChange < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                                    ({marginChange > 0 ? '+' : ''}{marginChange.toFixed(1)} pts)
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                            {streamMonthData && (
+                              <div className="text-sm space-y-1 border-t pt-2">
+                                <div className="flex justify-between">
+                                  <span>Parts:</span>
+                                  <span>
+                                    {formatCurrency(streamMonthData.parts)}
+                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.parts, previousStreamData.parts))}
+                                    {streamMonthData.parts_margin !== null && streamMonthData.parts_margin !== undefined && (
+                                      <span className="text-xs ml-2 text-blue-600">
+                                        (GM: {streamMonthData.parts_margin}%
+                                        {previousStreamData?.parts_margin !== null && previousStreamData?.parts_margin !== undefined && (
+                                          <span className={streamMonthData.parts_margin > previousStreamData.parts_margin ? 'text-green-600' : streamMonthData.parts_margin < previousStreamData.parts_margin ? 'text-red-600' : 'text-gray-500'}>
+                                            {' '}{streamMonthData.parts_margin > previousStreamData.parts_margin ? '+' : ''}{(streamMonthData.parts_margin - previousStreamData.parts_margin).toFixed(1)}pts
+                                          </span>
+                                        )})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Labor:</span>
+                                  <span>
+                                    {formatCurrency(streamMonthData.labor)}
+                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.labor, previousStreamData.labor))}
+                                    {streamMonthData.labor_margin !== null && streamMonthData.labor_margin !== undefined && (
+                                      <span className="text-xs ml-2 text-blue-600">
+                                        (GM: {streamMonthData.labor_margin}%
+                                        {previousStreamData?.labor_margin !== null && previousStreamData?.labor_margin !== undefined && (
+                                          <span className={streamMonthData.labor_margin > previousStreamData.labor_margin ? 'text-green-600' : streamMonthData.labor_margin < previousStreamData.labor_margin ? 'text-red-600' : 'text-gray-500'}>
+                                            {' '}{streamMonthData.labor_margin > previousStreamData.labor_margin ? '+' : ''}{(streamMonthData.labor_margin - previousStreamData.labor_margin).toFixed(1)}pts
+                                          </span>
+                                        )})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Rental:</span>
+                                  <span>
+                                    {formatCurrency(streamMonthData.rental)}
+                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
+                                    <span className="text-xs ml-2 text-gray-400">
+                                      (No cost data)
+                                    </span>
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Misc:</span>
+                                  <span>
+                                    {formatCurrency(streamMonthData.misc)}
+                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.misc, previousStreamData.misc))}
+                                    {streamMonthData.misc_margin !== null && streamMonthData.misc_margin !== undefined && (
+                                      <span className="text-xs ml-2 text-blue-600">
+                                        (GM: {streamMonthData.misc_margin}%
+                                        {previousStreamData?.misc_margin !== null && previousStreamData?.misc_margin !== undefined && (
+                                          <span className={streamMonthData.misc_margin > previousStreamData.misc_margin ? 'text-green-600' : streamMonthData.misc_margin < previousStreamData.misc_margin ? 'text-red-600' : 'text-gray-500'}>
+                                            {' '}{streamMonthData.misc_margin > previousStreamData.misc_margin ? '+' : ''}{(streamMonthData.misc_margin - previousStreamData.misc_margin).toFixed(1)}pts
+                                          </span>
+                                        )})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="amount" fill="#10b981" name="Revenue" shape={<CustomBarNoEquipment />} />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="margin"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={{ fill: '#f59e0b' }}
+                      name="Gross Margin %"
+                      connectNulls={false}
                     />
-                  )
-                })()}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </CardContent>
+                    <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
+                    {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
+                      // Only calculate average for complete months (exclude current month - August)
+                      const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
+                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                      return (
+                        <ReferenceLine
+                          yAxisId="left"
+                          y={average}
+                          stroke="#666"
+                          strokeDasharray="3 3"
+                          label={{ value: "Average", position: "insideTopRight" }}
+                        />
+                      )
+                    })()}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
             </Card>
           </div>
 
           {/* Charts - Second Row */}
           <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>Monthly Quotes</CardTitle>
-                <CardDescription>Quote activity through February {new Date().getFullYear() + 1}</CardDescription>
-              </div>
-              {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
-                const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
-                const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                return (
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">Average</p>
-                    <p className="text-lg font-semibold">{formatCurrency(average)}</p>
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Monthly Quotes</CardTitle>
+                    <CardDescription>Quote activity through February {new Date().getFullYear() + 1}</CardDescription>
                   </div>
-                )
-              })()}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={calculateLinearTrend(sortedMonthlyQuotes, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip content={({ active, payload, label }) => {
-                  if (active && payload && payload.length && dashboardData?.monthly_quotes) {
-                    const data = dashboardData.monthly_quotes
-                    const currentIndex = data.findIndex(item => item.month === label)
-                    const currentValue = payload[0].value
-                    const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
-                    
+                  {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
+                    const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
+                    const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                     return (
-                      <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                        <p className="font-semibold mb-1">{label}</p>
-                        <p className="text-yellow-600">
-                          {formatCurrency(currentValue)}
-                          {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                        </p>
+                      <div className="text-right">
+                        <p className="text-sm text-muted-foreground">Average</p>
+                        <p className="text-lg font-semibold">{formatCurrency(average)}</p>
                       </div>
                     )
-                  }
-                  return null
-                }} />
-                <Bar dataKey="amount" fill="#f59e0b" shape={<CustomBarQuotes />} />
-                <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Quotes Trend" dot={false} />
-                {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
-                  // Only calculate average for complete months (exclude current month - August)
-                  const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
-                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                  return (
-                    <ReferenceLine 
-                      y={average} 
-                      stroke="#666" 
-                      strokeDasharray="3 3"
-                      label={{ value: "Average", position: "insideTopRight" }}
-                    />
-                  )
-                })()}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </CardContent>
+                  })()}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={350}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlyQuotes, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && payload.length && dashboardData?.monthly_quotes) {
+                        const data = dashboardData.monthly_quotes
+                        const currentIndex = data.findIndex(item => item.month === label)
+                        const currentValue = payload[0].value
+                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-1">{label}</p>
+                            <p className="text-yellow-600">
+                              {formatCurrency(currentValue)}
+                              {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
+                            </p>
+                          </div>
+                        )
+                      }
+                      return null
+                    }} />
+                    <Bar dataKey="amount" fill="#f59e0b" shape={<CustomBarQuotes />} />
+                    <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Quotes Trend" dot={false} />
+                    {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
+                      // Only calculate average for complete months (exclude current month - August)
+                      const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
+                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                      return (
+                        <ReferenceLine
+                          y={average}
+                          stroke="#666"
+                          strokeDasharray="3 3"
+                          label={{ value: "Average", position: "insideTopRight" }}
+                        />
+                      )
+                    })()}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </CardContent>
             </Card>
 
             <Card>
@@ -1309,8 +1309,8 @@ const Dashboard = ({ user }) => {
                     const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                     const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
                       .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
-                    const avgUnits = completeMonths.filter(item => item.units > 0)
-                      .reduce((sum, item, _, arr) => sum + item.units / arr.length, 0)
+                    const avgUnits = completeMonths.filter(item => item.unit_count > 0)
+                      .reduce((sum, item, _, arr) => sum + item.unit_count / arr.length, 0)
                     return (
                       <div className="text-right">
                         <div className="mb-1">
@@ -1346,12 +1346,12 @@ const Dashboard = ({ user }) => {
                         const monthData = data[currentIndex]
                         const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
                         const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
-                        
+
                         // Calculate margin change in percentage points
-                        const marginChange = previousMargin !== null && monthData?.margin !== null 
-                          ? monthData.margin - previousMargin 
+                        const marginChange = previousMargin !== null && monthData?.margin !== null
+                          ? monthData.margin - previousMargin
                           : null
-                        
+
                         return (
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                             <p className="font-semibold mb-2">{label}</p>
@@ -1359,12 +1359,12 @@ const Dashboard = ({ user }) => {
                               Revenue: {formatCurrency(monthData?.amount || 0)}
                               {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
                             </p>
-                            {monthData?.units !== null && monthData?.units !== undefined && monthData?.units > 0 && (
+                            {monthData?.unit_count !== null && monthData?.unit_count !== undefined && monthData?.unit_count > 0 && (
                               <p className="text-purple-600">
-                                Units Sold: {monthData.units}
-                                {currentIndex > 0 && data[currentIndex - 1].units > 0 && (
+                                Units Sold: {monthData.unit_count}
+                                {currentIndex > 0 && data[currentIndex - 1].unit_count > 0 && (
                                   <span className="ml-2 text-sm">
-                                    ({monthData.units > data[currentIndex - 1].units ? '+' : ''}{monthData.units - data[currentIndex - 1].units} vs last month)
+                                    ({monthData.unit_count > data[currentIndex - 1].unit_count ? '+' : ''}{monthData.unit_count - data[currentIndex - 1].unit_count} vs last month)
                                   </span>
                                 )}
                               </p>
@@ -1386,13 +1386,13 @@ const Dashboard = ({ user }) => {
                     }} />
                     <Legend />
                     <Bar yAxisId="left" dataKey="amount" fill="#06b6d4" name="Revenue" />
-                    <Line 
-                      yAxisId="right" 
-                      type="monotone" 
-                      dataKey="margin" 
-                      stroke="#f59e0b" 
-                      strokeWidth={2} 
-                      dot={{ fill: '#f59e0b' }} 
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="margin"
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={{ fill: '#f59e0b' }}
                       name="Gross Margin %"
                       connectNulls={false}
                     />
@@ -1401,10 +1401,10 @@ const Dashboard = ({ user }) => {
                       const completeMonths = dashboardData.monthly_equipment_sales.slice(0, -1)
                       const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                       return (
-                        <ReferenceLine 
+                        <ReferenceLine
                           yAxisId="left"
-                          y={average} 
-                          stroke="#666" 
+                          y={average}
+                          stroke="#666"
                           strokeDasharray="3 3"
                           label={{ value: "Average", position: "insideTopRight" }}
                         />
@@ -1418,8 +1418,8 @@ const Dashboard = ({ user }) => {
 
         </TabsContent>
 
-    {/* Customers Tab */}
-    <TabsContent value="customers" className="space-y-4">
+        {/* Customers Tab */}
+        <TabsContent value="customers" className="space-y-4">
           {/* Customer Metrics */}
           <div className="mb-2 text-xs text-gray-500">
             As of {dashboardData?.last_updated ? new Date(dashboardData.last_updated).toLocaleString() : 'Loading...'}
@@ -1431,16 +1431,14 @@ const Dashboard = ({ user }) => {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${
-                  dashboardData?.active_customers_change > 0 ? 'text-green-600' :
-                  dashboardData?.active_customers_change < 0 ? 'text-red-600' :
-                  'text-gray-900'
-                }`}>
+                <div className={`text-2xl font-bold ${dashboardData?.active_customers_change > 0 ? 'text-green-600' :
+                    dashboardData?.active_customers_change < 0 ? 'text-red-600' :
+                      'text-gray-900'
+                  }`}>
                   {dashboardData?.active_customers || 0}
                   {dashboardData?.active_customers_change !== undefined && dashboardData?.active_customers_change !== 0 && (
-                    <span className={`ml-2 text-sm font-normal ${
-                      dashboardData.active_customers_change > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <span className={`ml-2 text-sm font-normal ${dashboardData.active_customers_change > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       {dashboardData.active_customers_change > 0 ? '+' : ''}{dashboardData.active_customers_change}
                     </span>
                   )}
@@ -1448,9 +1446,8 @@ const Dashboard = ({ user }) => {
                 <p className="text-xs text-muted-foreground">
                   Customers with invoices in last 30 days
                   {dashboardData?.active_customers_change_percent !== undefined && dashboardData?.active_customers_change_percent !== 0 && (
-                    <span className={`ml-1 ${
-                      dashboardData.active_customers_change_percent > 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <span className={`ml-1 ${dashboardData.active_customers_change_percent > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       ({dashboardData.active_customers_change_percent > 0 ? '+' : ''}{dashboardData.active_customers_change_percent.toFixed(1)}% vs prev month)
                     </span>
                   )}
@@ -1562,7 +1559,7 @@ const Dashboard = ({ user }) => {
                     Export
                   </Button>
                 </div>
-                
+
                 {/* Search and Filter */}
                 <div className="flex gap-2 mt-4">
                   <div className="flex-1">
@@ -1592,19 +1589,18 @@ const Dashboard = ({ user }) => {
                     const riskLevel = customer.risk_level || getCustomerRisk(customer.name)?.risk_level || 'none'
                     const riskFactors = customer.risk_factors || getCustomerRisk(customer.name)?.risk_factors || []
                     const riskData = customer.risk_level ? customer : getCustomerRisk(customer.name)
-                    
+
                     return (
                       <div key={customer.rank} className="flex items-center relative group">
                         <div className="w-8 text-sm font-medium text-muted-foreground">
                           {customer.rank}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${
-                            riskLevel === 'high' ? 'text-red-600' :
-                            riskLevel === 'medium' ? 'text-orange-600' :
-                            riskLevel === 'low' ? 'text-yellow-600' :
-                            'text-gray-900'
-                          }`}>
+                          <p className={`text-sm font-medium truncate ${riskLevel === 'high' ? 'text-red-600' :
+                              riskLevel === 'medium' ? 'text-orange-600' :
+                                riskLevel === 'low' ? 'text-yellow-600' :
+                                  'text-gray-900'
+                            }`}>
                             <button
                               onClick={() => {
                                 setSelectedCustomer(customer)
@@ -1615,12 +1611,11 @@ const Dashboard = ({ user }) => {
                               {customer.name}
                             </button>
                             {riskLevel !== 'none' && (
-                              <span 
-                                className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                  riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                                  riskLevel === 'medium' ? 'bg-orange-100 text-orange-800' :
-                                  'bg-yellow-100 text-yellow-800'
-                                }`}
+                              <span
+                                className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${riskLevel === 'high' ? 'bg-red-100 text-red-800' :
+                                    riskLevel === 'medium' ? 'bg-orange-100 text-orange-800' :
+                                      'bg-yellow-100 text-yellow-800'
+                                  }`}
                                 title={riskFactors.join(', ')}
                               >
                                 <AlertTriangle className="h-3 w-3 mr-1" />
@@ -1645,21 +1640,19 @@ const Dashboard = ({ user }) => {
                             {customer.percentage}%
                           </div>
                         </div>
-                        
+
                         {/* Risk Tooltip */}
                         {riskLevel !== 'none' && riskFactors.length > 0 && (
                           <div className="absolute left-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
                             <div className="flex items-center mb-2">
-                              <div className={`w-3 h-3 rounded-full mr-2 ${
-                                riskLevel === 'high' ? 'bg-red-500' :
-                                riskLevel === 'medium' ? 'bg-orange-500' :
-                                'bg-yellow-500'
-                              }`} />
-                              <span className={`font-semibold text-sm ${
-                                riskLevel === 'high' ? 'text-red-700' :
-                                riskLevel === 'medium' ? 'text-orange-700' :
-                                'text-yellow-700'
-                              }`}>
+                              <div className={`w-3 h-3 rounded-full mr-2 ${riskLevel === 'high' ? 'bg-red-500' :
+                                  riskLevel === 'medium' ? 'bg-orange-500' :
+                                    'bg-yellow-500'
+                                }`} />
+                              <span className={`font-semibold text-sm ${riskLevel === 'high' ? 'text-red-700' :
+                                  riskLevel === 'medium' ? 'text-orange-700' :
+                                    'text-yellow-700'
+                                }`}>
                                 {riskLevel.toUpperCase()} RISK
                               </span>
                             </div>
@@ -1684,8 +1677,8 @@ const Dashboard = ({ user }) => {
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <Users className="h-12 w-12 text-gray-300 mb-3" />
                       <p className="text-sm font-medium text-gray-900 mb-1">
-                        {customerSearchTerm || customerRiskFilter !== 'all' 
-                          ? 'No customers match your filters' 
+                        {customerSearchTerm || customerRiskFilter !== 'all'
+                          ? 'No customers match your filters'
                           : 'No customer data available'
                         }
                       </p>
@@ -1754,17 +1747,17 @@ const Dashboard = ({ user }) => {
                       }
                       return null
                     }} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="customers" 
-                      stroke="#3b82f6" 
+                    <Line
+                      type="monotone"
+                      dataKey="customers"
+                      stroke="#3b82f6"
                       strokeWidth={2}
                       name="Active Customers"
                     />
-                    <Line 
-                      type="monotone" 
-                      dataKey="trendValue" 
-                      stroke="#8b5cf6" 
+                    <Line
+                      type="monotone"
+                      dataKey="trendValue"
+                      stroke="#8b5cf6"
                       strokeWidth={2}
                       strokeDasharray="5 5"
                       name="Customer Trend"
@@ -1777,8 +1770,8 @@ const Dashboard = ({ user }) => {
           </div>
         </TabsContent>
 
-    {/* Work Orders Tab */}
-    <TabsContent value="workorders" className="space-y-4">
+        {/* Work Orders Tab */}
+        <TabsContent value="workorders" className="space-y-4">
           {/* Temporary: Show all work order types */}
           <WorkOrderTypes />
 
@@ -1947,121 +1940,119 @@ const Dashboard = ({ user }) => {
               </div>
             </div>
           ) : null}
-    </TabsContent>
+        </TabsContent>
 
         {/* AI Forecasts Tab */}
         <TabsContent value="forecast" className="space-y-4">
           {/* Sales Forecast Card */}
           {forecastData && (
             <Card className="border-2 border-blue-100 bg-blue-50/20">
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-xl">{getMonthName(forecastData.current_month?.month)} Sales Forecast</CardTitle>
-                <CardDescription>
-                  AI-powered prediction based on historical patterns
-                  {forecastLastUpdated && (
-                    <span className="text-xs text-muted-foreground block mt-1">
-                      Last updated: {forecastLastUpdated.toLocaleTimeString()}
-                    </span>
-                  )}
-                </CardDescription>
-              </div>
-              <div className="text-right space-y-2">
-                <div>
-                  <p className="text-sm text-muted-foreground">Confidence Level</p>
-                  <p className="text-lg font-semibold">{forecastData.forecast?.confidence_level || '68%'}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={fetchForecastData}
-                  className="h-8 px-2"
-                  title="Refresh forecast"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Forecast Numbers */}
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Projected Month End Total</p>
-                  <p className="text-3xl font-bold text-blue-600">
-                    {formatCurrency(forecastData.forecast?.projected_total || 0)}
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Range: {formatCurrency(forecastData.forecast?.forecast_low || 0)} - {formatCurrency(forecastData.forecast?.forecast_high || 0)}
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
+              <CardHeader>
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">MTD Sales</p>
-                    <p className="text-xl font-semibold">{formatCurrency(forecastData.current_month?.mtd_sales || 0)}</p>
+                    <CardTitle className="text-xl">{getMonthName(forecastData.current_month?.month)} Sales Forecast</CardTitle>
+                    <CardDescription>
+                      AI-powered prediction based on historical patterns
+                      {forecastLastUpdated && (
+                        <span className="text-xs text-muted-foreground block mt-1">
+                          Last updated: {forecastLastUpdated.toLocaleTimeString()}
+                        </span>
+                      )}
+                    </CardDescription>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Days Remaining</p>
-                    <p className="text-xl font-semibold">{forecastData.current_month?.days_remaining || 0}</p>
+                  <div className="text-right space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Confidence Level</p>
+                      <p className="text-lg font-semibold">{forecastData.forecast?.confidence_level || '68%'}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={fetchForecastData}
+                      className="h-8 px-2"
+                      title="Refresh forecast"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
-                
-                <div>
-                  <p className="text-sm text-muted-foreground">Daily Run Rate Needed</p>
-                  <p className="text-xl font-semibold">{formatCurrency(forecastData.analysis?.daily_run_rate_needed || 0)}/day</p>
-                </div>
-              </div>
-              
-              {/* Key Factors */}
-              <div>
-                <h4 className="font-semibold mb-3">Key Factors</h4>
-                <div className="space-y-2">
-                  {forecastData.factors?.map((factor, index) => (
-                    <div key={index} className="flex items-start space-x-2">
-                      <div className={`mt-1 w-2 h-2 rounded-full ${
-                        factor.impact === 'positive' ? 'bg-green-500' : 
-                        factor.impact === 'negative' ? 'bg-red-500' : 
-                        'bg-gray-400'
-                      }`} />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{factor.factor}</p>
-                        <p className="text-xs text-muted-foreground">{factor.description}</p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Forecast Numbers */}
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Projected Month End Total</p>
+                      <p className="text-3xl font-bold text-blue-600">
+                        {formatCurrency(forecastData.forecast?.projected_total || 0)}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Range: {formatCurrency(forecastData.forecast?.forecast_low || 0)} - {formatCurrency(forecastData.forecast?.forecast_high || 0)}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">MTD Sales</p>
+                        <p className="text-xl font-semibold">{formatCurrency(forecastData.current_month?.mtd_sales || 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Days Remaining</p>
+                        <p className="text-xl font-semibold">{forecastData.current_month?.days_remaining || 0}</p>
                       </div>
                     </div>
-                  ))}
+
+                    <div>
+                      <p className="text-sm text-muted-foreground">Daily Run Rate Needed</p>
+                      <p className="text-xl font-semibold">{formatCurrency(forecastData.analysis?.daily_run_rate_needed || 0)}/day</p>
+                    </div>
+                  </div>
+
+                  {/* Key Factors */}
+                  <div>
+                    <h4 className="font-semibold mb-3">Key Factors</h4>
+                    <div className="space-y-2">
+                      {forecastData.factors?.map((factor, index) => (
+                        <div key={index} className="flex items-start space-x-2">
+                          <div className={`mt-1 w-2 h-2 rounded-full ${factor.impact === 'positive' ? 'bg-green-500' :
+                              factor.impact === 'negative' ? 'bg-red-500' :
+                                'bg-gray-400'
+                            }`} />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{factor.factor}</p>
+                            <p className="text-xs text-muted-foreground">{factor.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Progress Indicator */}
+                    <div className="mt-4">
+                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                        <span>Month Progress</span>
+                        <span>{forecastData.current_month?.month_progress_pct || 0}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-500"
+                          style={{ width: `${forecastData.current_month?.month_progress_pct || 0}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                        <span>Sales vs Forecast</span>
+                        <span>{forecastData.analysis?.actual_pct_of_forecast || 0}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 ${(forecastData.analysis?.actual_pct_of_forecast || 0) > 100 ? 'bg-green-500' : 'bg-blue-500'
+                            }`}
+                          style={{ width: `${Math.min(100, forecastData.analysis?.actual_pct_of_forecast || 0)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                
-                {/* Progress Indicator */}
-                <div className="mt-4">
-                  <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                    <span>Month Progress</span>
-                    <span>{forecastData.current_month?.month_progress_pct || 0}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 transition-all duration-500"
-                      style={{ width: `${forecastData.current_month?.month_progress_pct || 0}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                    <span>Sales vs Forecast</span>
-                    <span>{forecastData.analysis?.actual_pct_of_forecast || 0}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full transition-all duration-500 ${
-                        (forecastData.analysis?.actual_pct_of_forecast || 0) > 100 ? 'bg-green-500' : 'bg-blue-500'
-                      }`}
-                      style={{ width: `${Math.min(100, forecastData.analysis?.actual_pct_of_forecast || 0)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
+              </CardContent>
             </Card>
           )}
 
@@ -2071,7 +2062,7 @@ const Dashboard = ({ user }) => {
               <Brain className="h-5 w-5 text-purple-600" />
               AI-Powered Predictions
             </h3>
-            
+
             <div className="grid gap-4 md:grid-cols-3">
               {/* Work Order Prediction Card */}
               <Card>
@@ -2390,7 +2381,7 @@ const Dashboard = ({ user }) => {
         <TabsContent value="accuracy" className="space-y-4">
           <ForecastAccuracy />
         </TabsContent>
-  </Tabs>
+      </Tabs>
 
       {/* Customer Detail Modal */}
       <CustomerDetailModal
