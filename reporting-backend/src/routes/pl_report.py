@@ -739,7 +739,7 @@ def get_pl_ytd():
         }), 500
 
 
-@pl_report_bp.route('/export-excel', methods=['GET'])
+@pl_report_bp.route('/api/reports/pl/export-excel', methods=['GET'])
 def export_pl_excel():
     """
     Export P&L report to Excel with template format
