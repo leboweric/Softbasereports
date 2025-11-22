@@ -1004,14 +1004,20 @@ const Dashboard = ({ user }) => {
                         const data = dashboardData.monthly_sales
                         const currentIndex = data.findIndex(item => item.month === label)
                         const monthData = data[currentIndex]
-                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+
+                        // Use prior_year_amount for year-over-year comparison
+                        const priorYearValue = monthData?.prior_year_amount || null
 
                         return (
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                             <p className="font-semibold mb-1">{label}</p>
                             <p className="text-green-600">
                               Revenue: {formatCurrency(monthData?.amount || 0)}
-                              {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
+                              {priorYearValue && priorYearValue > 0 && (
+                                <span className="text-sm ml-2">
+                                  ({formatPercentage(calculatePercentageChange(monthData?.amount, priorYearValue))} vs last year)
+                                </span>
+                              )}
                             </p>
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600">
