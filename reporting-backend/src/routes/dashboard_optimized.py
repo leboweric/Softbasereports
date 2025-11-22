@@ -78,32 +78,60 @@ class DashboardQueries:
             self.fiscal_year_start = datetime(self.current_date.year - 1, 11, 1).strftime('%Y-%m-%d')
     
     def get_current_month_sales(self):
-        """Get current month's total sales"""
+        """Get current month's total sales using GLDetail (matches Monthly Sales chart)"""
         try:
+            # Collect all revenue accounts from all departments
+            all_revenue_accounts = []
+            for dept in GL_ACCOUNTS.values():
+                all_revenue_accounts.extend(dept['revenue'])
+            
+            # Add Other Income accounts
+            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            
+            # Format for SQL IN clause
+            revenue_list = "', '".join(all_revenue_accounts)
+            
+            # Get current month's revenue from GLDetail
             query = f"""
-            SELECT COALESCE(SUM(GrandTotal), 0) as total_sales
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.month_start}'
-            AND MONTH(InvoiceDate) = {self.current_date.month}
-            AND YEAR(InvoiceDate) = {self.current_date.year}
+            SELECT -SUM(Amount) as total_sales
+            FROM ben002.GLDetail
+            WHERE AccountNo IN ('{revenue_list}')
+                AND MONTH(EffectiveDate) = {self.current_date.month}
+                AND YEAR(EffectiveDate) = {self.current_date.year}
+                AND Posted = 1
             """
             result = self.db.execute_query(query)
-            return int(float(result[0]['total_sales'])) if result else 0
+            return int(float(result[0]['total_sales'] or 0)) if result else 0
         except Exception as e:
             logger.error(f"Current month sales query failed: {str(e)}")
             return 0
     
+    
     def get_ytd_sales(self):
-        """Get fiscal year-to-date sales"""
+        """Get fiscal year-to-date sales using GLDetail (matches Monthly Sales chart)"""
         try:
+            # Collect all revenue accounts from all departments
+            all_revenue_accounts = []
+            for dept in GL_ACCOUNTS.values():
+                all_revenue_accounts.extend(dept['revenue'])
+            
+            # Add Other Income accounts
+            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            
+            # Format for SQL IN clause
+            revenue_list = "', '".join(all_revenue_accounts)
+            
+            # Get YTD revenue from GLDetail
             query = f"""
-            SELECT COALESCE(SUM(GrandTotal), 0) as ytd_sales
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= '{self.fiscal_year_start}'
-                AND InvoiceDate < DATEADD(DAY, 1, GETDATE())
+            SELECT -SUM(Amount) as ytd_sales
+            FROM ben002.GLDetail
+            WHERE AccountNo IN ('{revenue_list}')
+                AND EffectiveDate >= '{self.fiscal_year_start}'
+                AND EffectiveDate < DATEADD(DAY, 1, GETDATE())
+                AND Posted = 1
             """
             result = self.db.execute_query(query)
-            return int(float(result[0]['ytd_sales'])) if result else 0
+            return int(float(result[0]['ytd_sales'] or 0)) if result else 0
         except Exception as e:
             logger.error(f"YTD sales query failed: {str(e)}")
             return 0
