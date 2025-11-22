@@ -1608,12 +1608,72 @@ class DashboardQueries:
                     date = date.replace(month=date.month + 1)
             
             existing_data = {item['month']: item['value'] for item in monthly_work_orders}
-            monthly_work_orders = [{'month': month, 'value': existing_data.get(month, 0)} for month in all_months]
-            
             return monthly_work_orders
         except Exception as e:
             logger.error(f"Monthly open work orders query failed: {str(e)}")
             return []
+
+    @dashboard_optimized_bp.route('/api/dashboard/diagnostic/invoice-detail', methods=['GET'])
+    @jwt_required()
+    def diagnose_invoice_detail():
+        """Diagnostic endpoint to explore InvoiceDetail table structure"""
+        try:
+            db = AzureSQLService() # Changed from get_db() to AzureSQLService() to match surrounding code's pattern
+            
+            # 1. Check if InvoiceDetail table exists and get its columns
+            columns_query = """
+            SELECT 
+                COLUMN_NAME,
+                DATA_TYPE,
+                CHARACTER_MAXIMUM_LENGTH,
+                IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = 'ben002' 
+                AND TABLE_NAME = 'InvoiceDetail'
+            ORDER BY ORDINAL_POSITION
+            """
+            
+            columns = db.execute_query(columns_query)
+            
+            if not columns:
+                return jsonify({
+                    'error': 'InvoiceDetail table not found',
+                    'suggestion': 'Table may not exist or may have a different name'
+                }), 404
+            
+            # 2. Get sample records from InvoiceDetail for LINDEN invoices
+            sample_query = """
+            SELECT TOP 10
+                id.*
+            FROM ben002.InvoiceDetail id
+            INNER JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            WHERE ir.SaleCode = 'LINDEN'
+                AND ir.InvoiceDate >= DATEADD(month, -3, GETDATE())
+            ORDER BY ir.InvoiceDate DESC
+            """
+            
+            try:
+                samples = db.execute_query(sample_query)
+            except Exception as e:
+                samples = []
+                sample_error = str(e)
+            
+            # 3. Try to find quantity-related columns
+            qty_columns = [col for col in columns if 'qty' in col['COLUMN_NAME'].lower() or 'quantity' in col['COLUMN_NAME'].lower()]
+            
+            return jsonify({
+                'table_exists': True,
+                'total_columns': len(columns),
+                'all_columns': [{'name': col['COLUMN_NAME'], 'type': col['DATA_TYPE']} for col in columns],
+                'quantity_columns': [col['COLUMN_NAME'] for col in qty_columns],
+                'sample_records': [dict(row) for row in samples] if samples else [],
+                'sample_error': sample_error if 'sample_error' in locals() else None,
+                'recommendation': 'Check quantity_columns and sample_records to determine how to count units'
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"InvoiceDetail diagnostic failed: {str(e)}")
+            return jsonify({'error': str(e)}), 500
 
 
 @dashboard_optimized_bp.route('/api/reports/dashboard/summary-optimized', methods=['GET'])
