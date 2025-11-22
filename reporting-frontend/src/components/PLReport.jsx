@@ -19,7 +19,7 @@ const PLReport = ({ user, organization }) => {
     const firstDay = `${year}-${month}-01`;
     const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
     const lastDayStr = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-    
+
     setStartDate(firstDay);
     setEndDate(lastDayStr);
   }, []);
@@ -38,7 +38,7 @@ const PLReport = ({ user, organization }) => {
     const firstDay = `${year}-${month}-01`;
     const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
     const lastDayStr = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-    
+
     setStartDate(firstDay);
     setEndDate(lastDayStr);
     setViewMode('mtd');
@@ -63,12 +63,12 @@ const PLReport = ({ user, organization }) => {
 
     try {
       const token = localStorage.getItem('token');
-      
+
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/reports/pl`,
         {
-          params: { 
-            start_date: startDate, 
+          params: {
+            start_date: startDate,
             end_date: endDate,
             detail: false // Set to true if you want account-level detail
           },
@@ -126,21 +126,19 @@ const PLReport = ({ user, organization }) => {
           <div className="flex gap-2">
             <button
               onClick={setMTD}
-              className={`px-4 py-2 rounded-md text-sm font-medium ${
-                viewMode === 'mtd'
+              className={`px-4 py-2 rounded-md text-sm font-medium ${viewMode === 'mtd'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               MTD
             </button>
             <button
               onClick={setYTD}
-              className={`px-4 py-2 rounded-md text-sm font-medium ${
-                viewMode === 'ytd'
+              className={`px-4 py-2 rounded-md text-sm font-medium ${viewMode === 'ytd'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               YTD
             </button>
@@ -179,15 +177,39 @@ const PLReport = ({ user, organization }) => {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
-          
+
           {/* Export to Excel Button */}
           <button
-            onClick={() => {
-              // Extract month and year from startDate
-              const date = new Date(startDate);
-              const month = date.getMonth() + 1;
-              const year = date.getFullYear();
-              window.open(`/api/reports/pl/export-excel?month=${month}&year=${year}`, '_blank');
+            onClick={async () => {
+              try {
+                // Extract month and year from startDate
+                const date = new Date(startDate);
+                const month = date.getMonth() + 1;
+                const year = date.getFullYear();
+
+                const token = localStorage.getItem('token');
+                const response = await axios.get(
+                  `${import.meta.env.VITE_API_URL}/api/reports/pl/export-excel`,
+                  {
+                    params: { month, year },
+                    headers: { Authorization: `Bearer ${token}` },
+                    responseType: 'blob'
+                  }
+                );
+
+                // Create download link
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `ProfitLossReport_${year}_${String(month).padStart(2, '0')}.xlsx`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error('Error downloading Excel file:', error);
+                alert('Failed to download Excel file');
+              }
             }}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
           >
@@ -275,7 +297,7 @@ const PLReport = ({ user, organization }) => {
           {/* Department Details */}
           <div className="px-6 py-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Department Breakdown</h3>
-            
+
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -326,7 +348,7 @@ const PLReport = ({ user, organization }) => {
                       </tr>
                     );
                   })}
-                  
+
                   {/* Total Row */}
                   <tr className="bg-gray-100 font-bold">
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
@@ -353,11 +375,11 @@ const PLReport = ({ user, organization }) => {
           {/* Operating Expenses */}
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Operating Expenses</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {data.expenses && Object.entries(data.expenses).map(([category, amount]) => {
                 if (category === 'total_expenses') return null;
-                
+
                 const categoryLabels = {
                   depreciation: 'Depreciation',
                   salaries_wages: 'Salaries & Wages',
