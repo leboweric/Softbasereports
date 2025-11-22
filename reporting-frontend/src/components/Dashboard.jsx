@@ -1090,7 +1090,9 @@ const Dashboard = ({ user }) => {
                         const data = dashboardData.monthly_sales_no_equipment
                         const currentIndex = data.findIndex(item => item.month === label)
                         const monthData = data[currentIndex]
-                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+
+                        // Use prior_year_amount for year-over-year comparison
+                        const priorYearValue = monthData?.prior_year_amount || null
                         const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
 
                         // Also get the stream data for detailed breakdown if available
@@ -1108,7 +1110,11 @@ const Dashboard = ({ user }) => {
                             <p className="font-semibold mb-2">{label}</p>
                             <p className="font-semibold text-green-600">
                               Total: {formatCurrency(monthData?.amount || 0)}
-                              {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
+                              {priorYearValue && priorYearValue > 0 && (
+                                <span className="text-sm ml-2">
+                                  ({formatPercentage(calculatePercentageChange(monthData?.amount, priorYearValue))} vs last year)
+                                </span>
+                              )}
                             </p>
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600 mb-2">
@@ -1335,7 +1341,9 @@ const Dashboard = ({ user }) => {
                         const data = dashboardData.monthly_equipment_sales
                         const currentIndex = data.findIndex(item => item.month === label)
                         const monthData = data[currentIndex]
-                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
+
+                        // Use prior_year_amount for year-over-year comparison
+                        const priorYearValue = monthData?.prior_year_amount || null
                         const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
 
                         // Calculate margin change in percentage points
@@ -1348,7 +1356,11 @@ const Dashboard = ({ user }) => {
                             <p className="font-semibold mb-2">{label}</p>
                             <p className="font-semibold text-green-600">
                               Revenue: {formatCurrency(monthData?.amount || 0)}
-                              {formatPercentage(calculatePercentageChange(monthData?.amount, previousValue))}
+                              {priorYearValue && priorYearValue > 0 && (
+                                <span className="text-sm ml-2">
+                                  ({formatPercentage(calculatePercentageChange(monthData?.amount, priorYearValue))} vs last year)
+                                </span>
+                              )}
                             </p>
                             {monthData?.unit_count !== null && monthData?.unit_count !== undefined && monthData?.unit_count > 0 && (
                               <p className="text-purple-600">
