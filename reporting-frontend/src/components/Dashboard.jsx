@@ -917,18 +917,6 @@ const Dashboard = ({ user }) => {
                         </span>
                       </div>
 
-                      {/* Available average comparison */}
-                      {paceData.adaptive_comparisons?.vs_available_average?.percentage !== null && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">
-                            vs {paceData.adaptive_comparisons.available_months_count}-Month Avg:
-                          </span>
-                          <span className={`font-medium ${paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_available_average.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                            {paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_available_average.percentage}%
-                          </span>
-                        </div>
-                      )}
-
                       {/* Same month last year */}
                       {paceData.adaptive_comparisons?.vs_same_month_last_year?.percentage !== null && (
                         <div className="flex items-center justify-between text-xs">
