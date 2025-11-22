@@ -739,24 +739,26 @@ def get_pl_ytd():
         }), 500
 
 
-@pl_report_bp.route('/api/reports/pl/export-excel', methods=['GET'])
+@pl_report_bp.route('/export-excel', methods=['GET'])
 def export_pl_excel():
     """
-    Export P&L report to Excel using accounting firm template format
+    Export P&L report to Excel with template format
+    Replicates the structure from October 2025 Prelim Financials.xlsx
     
     Query Parameters:
-        month: Month number (1-12)
-        year: Year
+        month: Month number (1-12), defaults to current month
+        year: Year (YYYY), defaults to current year
     
     Returns:
-        Excel file with P&L data in accounting firm format
+        Excel file with Profit & Loss Consolidated sheet (and more sheets in future phases)
     """
     try:
         import openpyxl
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        from openpyxl.utils import get_column_letter
         from flask import send_file
-        import os
-        from datetime import datetime
         import io
+        from datetime import datetime
         import calendar
         
         # Get month and year from query parameters
@@ -767,70 +769,280 @@ def export_pl_excel():
         if not (1 <= month <= 12):
             return jsonify({'error': 'month must be between 1 and 12'}), 400
         
-        # Calculate MTD date range (first day to last day of month)
+        # Calculate MTD date range
         first_day = f"{year}-{month:02d}-01"
         last_day_num = calendar.monthrange(year, month)[1]
         last_day = f"{year}-{month:02d}-{last_day_num:02d}"
         
-        # Calculate YTD date range (Jan 1 to end of current month)
-        ytd_start = f"{year}-01-01"
+        # Calculate YTD date range (fiscal year starts in March)
+        if month >= 3:
+            ytd_start = f"{year}-03-01"
+        else:
+            ytd_start = f"{year-1}-03-01"
         ytd_end = last_day
         
-        # Get MTD and YTD GL data
-        mtd_query = """
-        SELECT 
-            AccountNo,
-            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%' THEN Amount ELSE 0 END) as MTD
-        FROM ben002.GLDetail
-        WHERE EffectiveDate >= %s 
-          AND EffectiveDate <= %s
-          AND Posted = 1
-        GROUP BY AccountNo
-        """
+        logger.info(f"Generating P&L Excel for {calendar.month_name[month]} {year}")
+        logger.info(f"MTD: {first_day} to {last_day}")
+        logger.info(f"YTD: {ytd_start} to {ytd_end}")
         
-        ytd_query = """
-        SELECT 
-            AccountNo,
-            SUM(CASE WHEN AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%' THEN Amount ELSE 0 END) as YTD
-        FROM ben002.GLDetail
-        WHERE EffectiveDate >= %s 
-          AND EffectiveDate <= %s
-          AND Posted = 1
-        GROUP BY AccountNo
-        """
+        # Get MTD and YTD data for all departments
+        mtd_data = get_all_departments_data(first_day, last_day)
+        ytd_data = get_all_departments_data(ytd_start, ytd_end)
         
-        mtd_results = sql_service.execute_query(mtd_query, [first_day, last_day])
-        ytd_results = sql_service.execute_query(ytd_query, [ytd_start, ytd_end])
+        # Create workbook
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)  # Remove default sheet
         
-        # Build dictionaries for quick lookup
-        mtd_data = {row['AccountNo']: float(row['MTD'] or 0) for row in mtd_results}
-        ytd_data = {row['AccountNo']: float(row['YTD'] or 0) for row in ytd_results}
+        # Create Profit & Loss Consolidated sheet
+        ws = wb.create_sheet("Profit & Loss Consolidated")
         
-        # Load the template
-        template_path = os.path.join(os.path.dirname(__file__), '../../templates/pl_template.xlsx')
-        wb = openpyxl.load_workbook(template_path)
-        ws = wb.active
+        # Define styles
+        header_font = Font(bold=True, size=11)
+        bold_font = Font(bold=True)
+        currency_format = '$#,##0.00'
+        percent_format = '0.0%'
         
-        # Update month and year in header
-        month_name = calendar.month_name[month]
-        ws['A5'] = f"Month: {month}  Year: {year}"
+        # Row 1: Title
+        ws['B1'] = f"Profit & Loss Statement - {calendar.month_name[month]} {year}"
+        ws['B1'].font = Font(bold=True, size=14)
         
-        # Populate MTD and YTD data
-        # Start from row 12 and scan for account numbers in column C
-        for row_idx in range(12, ws.max_row + 1):
-            account_cell = ws[f'C{row_idx}']
-            account_no = account_cell.value
-            
-            if account_no and isinstance(account_no, (str, int)):
-                account_str = str(account_no).strip()
-                
-                # Write MTD value (column I)
-                mtd_value = mtd_data.get(account_str, 0)
-                ws[f'I{row_idx}'] = mtd_value
-                
-                # Write YTD value (column J)
-                ytd_value = ytd_data.get(account_str, 0)
-                ws[f'J{row_idx}'] = ytd_value
+        # Row 2: Company Name
+        ws['B2'] = "Bennett Material Handling"
+        ws['B2'].font = Font(bold=True, size=12)
+        
+        # Row 3: Department Headers
+        ws['B3'] = "Bennett Material Handling"
+        ws['B3'].font = header_font
+        
+        dept_headers = [
+            ("C3", "New Equipment", 10),
+            ("D3", "Used Equipment", 20),
+            ("E3", "Parts", 30),
+            ("F3", "Field Service", 40),
+            ("G3", "Rental", 60),
+            ("H3", "Transportation / Trucking", 80),
+            ("I3", "In House / Administrative", 90),
+            ("J3", "Total", None)
+        ]
+        
+        for cell, header, dept_code in dept_headers:
+            ws[cell] = header
+            ws[cell].font = header_font
+        
+        # Row 4: Department codes
+        for cell, _, dept_code in dept_headers:
+            if dept_code:
+                row = int(cell[1:])
+                ws[cell.replace('3', '4')] = dept_code
+                ws[cell.replace('3', '4')].font = header_font
+        
+        # MTD Section (Rows 6-15)
+        ws['B5'] = "MTD (Month-to-Date)"
+        ws['B5'].font = Font(bold=True, size=11)
+        
+        # Row 6: Income
+        ws['B6'] = "Income"
+        row_num = 6
+        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+            col = get_column_letter(idx)
+            revenue = mtd_data[dept_key]['revenue']
+            ws[f'{col}{row_num}'] = revenue
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        # Total column
+        ws[f'J{row_num}'] = f'=SUM(C{row_num}:I{row_num})'
+        ws[f'J{row_num}'].number_format = currency_format
+        
+        # Row 7: Cost of Goods Sold
+        ws['B7'] = "Cost of Goods Sold"
+        row_num = 7
+        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+            col = get_column_letter(idx)
+            cogs = mtd_data[dept_key]['cogs']
+            ws[f'{col}{row_num}'] = cogs
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        ws[f'J{row_num}'] = f'=SUM(C{row_num}:I{row_num})'
+        ws[f'J{row_num}'].number_format = currency_format
+        
+        # Row 8: Gross Profit
+        ws['B8'] = "Gross Profit"
+        row_num = 8
+        for col_idx in range(3, 11):  # C to J
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'={col}6-{col}7'
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        # Row 9: Gross Margin (BOLD)
+        ws['B9'] = "Gross Margin"
+        ws['B9'].font = bold_font
+        row_num = 9
+        for col_idx in range(3, 11):
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'=IF({col}6<>0,{col}8/{col}6,0)'
+            ws[f'{col}{row_num}'].number_format = percent_format
+            ws[f'{col}{row_num}'].font = bold_font
+        
+        # Row 10: Overhead Expenses
+        ws['B10'] = "Overhead Expenses"
+        row_num = 10
+        overhead = get_overhead_expenses(first_day, last_day)
+        # Distribute overhead across departments (simplified - all in Admin column I)
+        ws['I10'] = overhead
+        ws['I10'].number_format = currency_format
+        ws['J10'] = f'=SUM(C10:I10)'
+        ws['J10'].number_format = currency_format
+        
+        # Row 11: Operating Profit
+        ws['B11'] = "Operating Profit"
+        row_num = 11
+        for col_idx in range(3, 11):
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'={col}8-{col}10'
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        # Row 12: Operating Margin (BOLD)
+        ws['B12'] = "Operating  Margin"
+        ws['B12'].font = bold_font
+        ws['J12'] = '=IF(J6<>0,J11/J6,0)'
+        ws['J12'].number_format = percent_format
+        ws['J12'].font = bold_font
+        
+        # Row 13: Other Income & Expense
+        ws['B13'] = "Other Income & Expense"
+        row_num = 13
+        other_income = get_other_income(first_day, last_day)
+        ws['I13'] = other_income
+        ws['I13'].number_format = currency_format
+        ws['J13'] = f'=SUM(C13:I13)'
+        ws['J13'].number_format = currency_format
+        
+        # Row 14: Net Profit (BOLD)
+        ws['B14'] = "Net Profit"
+        ws['B14'].font = bold_font
+        row_num = 14
+        for col_idx in range(3, 11):
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'={col}11-{col}13'
+            ws[f'{col}{row_num}'].number_format = currency_format
+            ws[f'{col}{row_num}'].font = bold_font
+        
+        # Row 15: Net Margin (BOLD)
+        ws['B15'] = "Net  Margin"
+        ws['B15'].font = bold_font
+        ws['J15'] = '=IF(J6<>0,J14/J6,0)'
+        ws['J15'].number_format = percent_format
+        ws['J15'].font = bold_font
+        
+        # YTD Section (Rows 18-29) - Same structure as MTD
+        ws['B18'] = "YTD Summary"
+        ws['B18'].font = Font(bold=True, size=11)
+        
+        # Row 19: Department Headers (repeat)
+        ws['B19'] = "Bennett Material Handling"
+        ws['B19'].font = header_font
+        for cell, header, dept_code in dept_headers:
+            row = int(cell[1:])
+            new_cell = cell.replace('3', '19')
+            ws[new_cell] = header
+            ws[new_cell].font = header_font
+        
+        # Row 20: Income (YTD)
+        ws['B20'] = "Income"
+        row_num = 20
+        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+            col = get_column_letter(idx)
+            revenue = ytd_data[dept_key]['revenue']
+            ws[f'{col}{row_num}'] = revenue
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        ws[f'J{row_num}'] = f'=SUM(C{row_num}:I{row_num})'
+        ws[f'J{row_num}'].number_format = currency_format
+        
+        # Row 21: COGS (YTD)
+        ws['B21'] = "Cost of Goods Sold"
+        row_num = 21
+        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+            col = get_column_letter(idx)
+            cogs = ytd_data[dept_key]['cogs']
+            ws[f'{col}{row_num}'] = cogs
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        ws[f'J{row_num}'] = f'=SUM(C{row_num}:I{row_num})'
+        ws[f'J{row_num}'].number_format = currency_format
+        
+        # Row 22: Gross Profit (YTD)
+        ws['B22'] = "Gross Profit"
+        row_num = 22
+        for col_idx in range(3, 11):
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'={col}20-{col}21'
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        # Row 23: Gross Margin (YTD, BOLD)
+        ws['B23'] = "Gross Margin"
+        ws['B23'].font = bold_font
+        row_num = 23
+        for col_idx in range(3, 11):
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'=IF({col}20<>0,{col}22/{col}20,0)'
+            ws[f'{col}{row_num}'].number_format = percent_format
+            ws[f'{col}{row_num}'].font = bold_font
+        
+        # Row 24: Overhead (YTD)
+        ws['B24'] = "Overhead Expenses"
+        row_num = 24
+        overhead_ytd = get_overhead_expenses(ytd_start, ytd_end)
+        ws['I24'] = overhead_ytd
+        ws['I24'].number_format = currency_format
+        ws['J24'] = f'=SUM(C24:I24)'
+        ws['J24'].number_format = currency_format
+        
+        # Row 25: Operating Profit (YTD)
+        ws['B25'] = "Operating Profit"
+        row_num = 25
+        for col_idx in range(3, 11):
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'={col}22-{col}24'
+            ws[f'{col}{row_num}'].number_format = currency_format
+        
+        # Row 26: Operating Margin (YTD, BOLD)
+        ws['B26'] = "Operating  Margin"
+        ws['B26'].font = bold_font
+        ws['J26'] = '=IF(J20<>0,J25/J20,0)'
+        ws['J26'].number_format = percent_format
+        ws['J26'].font = bold_font
+        
+        # Row 27: Other Income (YTD)
+        ws['B27'] = "Other Income & Expense"
+        row_num = 27
+        other_income_ytd = get_other_income(ytd_start, ytd_end)
+        ws['I27'] = other_income_ytd
+        ws['I27'].number_format = currency_format
+        ws['J27'] = f'=SUM(C27:I27)'
+        ws['J27'].number_format = currency_format
+        
+        # Row 28: Net Profit (YTD, BOLD)
+        ws['B28'] = "Net Profit"
+        ws['B28'].font = bold_font
+        row_num = 28
+        for col_idx in range(3, 11):
+            col = get_column_letter(col_idx)
+            ws[f'{col}{row_num}'] = f'={col}25-{col}27'
+            ws[f'{col}{row_num}'].number_format = currency_format
+            ws[f'{col}{row_num}'].font = bold_font
+        
+        # Row 29: Net Margin (YTD, BOLD)
+        ws['B29'] = "Net  Margin"
+        ws['B29'].font = bold_font
+        ws['J29'] = '=IF(J20<>0,J28/J20,0)'
+        ws['J29'].number_format = percent_format
+        ws['J29'].font = bold_font
+        
+        # Set column widths
+        ws.column_dimensions['B'].width = 30
+        for col_idx in range(3, 11):
+            ws.column_dimensions[get_column_letter(col_idx)].width = 18
         
         # Save to BytesIO
         output = io.BytesIO()
@@ -854,3 +1066,80 @@ def export_pl_excel():
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to export P&L to Excel', 'message': str(e)}), 500
+
+
+def get_all_departments_data(start_date, end_date):
+    """Get revenue and COGS for all departments"""
+    dept_data = {}
+    
+    for dept_key, dept_config in GL_ACCOUNTS.items():
+        revenue_accounts = dept_config['revenue']
+        cogs_accounts = dept_config['cogs']
+        
+        # Get revenue (negative because credits)
+        revenue_query = f"""
+        SELECT -SUM(Amount) as total
+        FROM ben002.GLDetail
+        WHERE AccountNo IN ('{"', '".join(revenue_accounts)}')
+          AND EffectiveDate >= %s
+          AND EffectiveDate <= %s
+          AND Posted = 1
+        """
+        
+        revenue_result = sql_service.execute_query(revenue_query, [start_date, end_date])
+        revenue = float(revenue_result[0]['total'] or 0) if revenue_result else 0
+        
+        # Get COGS (positive because debits)
+        cogs_query = f"""
+        SELECT SUM(Amount) as total
+        FROM ben002.GLDetail
+        WHERE AccountNo IN ('{"', '".join(cogs_accounts)}')
+          AND EffectiveDate >= %s
+          AND EffectiveDate <= %s
+          AND Posted = 1
+        """
+        
+        cogs_result = sql_service.execute_query(cogs_query, [start_date, end_date])
+        cogs = float(cogs_result[0]['total'] or 0) if cogs_result else 0
+        
+        dept_data[dept_key] = {
+            'revenue': revenue,
+            'cogs': cogs,
+            'gross_profit': revenue - cogs
+        }
+    
+    return dept_data
+
+
+def get_overhead_expenses(start_date, end_date):
+    """Get total overhead expenses (6xxxx accounts)"""
+    all_expense_accounts = []
+    for category, accounts in EXPENSE_ACCOUNTS.items():
+        all_expense_accounts.extend(accounts)
+    
+    query = f"""
+    SELECT SUM(Amount) as total
+    FROM ben002.GLDetail
+    WHERE AccountNo IN ('{"', '".join(all_expense_accounts)}')
+      AND EffectiveDate >= %s
+      AND EffectiveDate <= %s
+      AND Posted = 1
+    """
+    
+    result = sql_service.execute_query(query, [start_date, end_date])
+    return float(result[0]['total'] or 0) if result else 0
+
+
+def get_other_income(start_date, end_date):
+    """Get other income/expense (7xxxx accounts)"""
+    query = f"""
+    SELECT -SUM(Amount) as total
+    FROM ben002.GLDetail
+    WHERE AccountNo IN ('{"', '".join(OTHER_INCOME_ACCOUNTS)}')
+      AND EffectiveDate >= %s
+      AND EffectiveDate <= %s
+      AND Posted = 1
+    """
+    
+    result = sql_service.execute_query(query, [start_date, end_date])
+    return float(result[0]['total'] or 0) if result else 0
