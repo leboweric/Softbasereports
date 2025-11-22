@@ -12,6 +12,55 @@ logger = logging.getLogger(__name__)
 
 dashboard_optimized_bp = Blueprint('dashboard_optimized', __name__)
 
+# GL Account Mappings by Department (Source: Softbase P&L)
+GL_ACCOUNTS = {
+    'new_equipment': {
+        'dept_code': 10,
+        'dept_name': 'New Equipment',
+        'revenue': ['410001', '412001', '413001', '414001', '421001', '426001', '431001', '434001'],
+        'cogs': ['510001', '513001', '514001', '521001', '525001', '526001', '531001', '534001', '534013', '538000']
+    },
+    'used_equipment': {
+        'dept_code': 20,
+        'dept_name': 'Used Equipment',
+        'revenue': ['410002', '412002', '413002', '414002', '421002', '426002', '431002', '434002', '436001'],
+        'cogs': ['510002', '512002', '513002', '514002', '521002', '525002', '526002', '531002', '534002', '536001']
+    },
+    'parts': {
+        'dept_code': 30,
+        'dept_name': 'Parts',
+        'revenue': ['410003', '410012', '410014', '410015', '421003', '424000', '429001', '430000', '433000', '434003', '436002', '439000'],
+        'cogs': ['510003', '510012', '510013', '510014', '510015', '521003', '522001', '524000', '529002', '530000', '533000', '534003', '536002', '542000', '543000', '544000']
+    },
+    'service': {
+        'dept_code': 40,
+        'dept_name': 'Service',
+        'revenue': ['410004', '410005', '410007', '410016', '421004', '421005', '421006', '421007', '423000', '425000', '428000', '429002', '432000', '435000', '435001', '435002', '435003', '435004'],
+        'cogs': ['510004', '510005', '510007', '512001', '521004', '521005', '521006', '521007', '522000', '523000', '528000', '529001', '534015', '535001', '535002', '535003', '535004', '535005']
+    },
+    'rental': {
+        'dept_code': 60,
+        'dept_name': 'Rental',
+        'revenue': ['410008', '411001', '419000', '420000', '421000', '434012'],
+        'cogs': ['510008', '511001', '519000', '520000', '521008', '534014', '537001', '539000', '545000']
+    },
+    'transportation': {
+        'dept_code': 80,
+        'dept_name': 'Transportation',
+        'revenue': ['410010', '421010', '434010', '434013'],
+        'cogs': ['510010', '521010', '534010', '534012']
+    },
+    'administrative': {
+        'dept_code': 90,
+        'dept_name': 'Administrative',
+        'revenue': ['410011', '421011', '422100', '427000', '434011'],
+        'cogs': ['510011', '521011', '522100', '525000', '527000', '532000', '534011', '540000', '541000']
+    }
+}
+
+# Other Income/Contra-Revenue Accounts (7xxxxx series)
+OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000', '706000']
+
 class DashboardQueries:
     """Encapsulate all dashboard queries for parallel execution"""
     
@@ -156,39 +205,40 @@ class DashboardQueries:
                 return 0
     
     def get_monthly_sales(self):
-        """Get monthly sales with trailing 13 months using GLDetail (Service + Parts + Rental)"""
+        """Get monthly sales with trailing 13 months using GLDetail (All Departments)"""
         try:
-            # Use GLDetail for Service, Parts, Rental, and Equipment (same accounts as Currie report)
-            query = """
+            # Collect all revenue and cost accounts from all departments
+            all_revenue_accounts = []
+            all_cost_accounts = []
+            
+            for dept in GL_ACCOUNTS.values():
+                all_revenue_accounts.extend(dept['revenue'])
+                all_cost_accounts.extend(dept['cogs'])
+            
+            # Add Other Income accounts to revenue
+            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            
+            # Format for SQL IN clause
+            revenue_list = "', '".join(all_revenue_accounts)
+            cost_list = "', '".join(all_cost_accounts)
+            all_accounts_list = "', '".join(all_revenue_accounts + all_cost_accounts)
+            
+            query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
-                -- Service Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as service_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as service_cost,
-                -- Parts Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
-                -- Rental Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008') THEN Amount ELSE 0 END)) as rental_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') THEN Amount ELSE 0 END)) as rental_cost,
-                -- Equipment Revenue and Cost (New + Used)
-                ABS(SUM(CASE WHEN AccountNo IN ('413001', '426001', '412001', '414001', '412002', '413002', '414002', '426002', '431002', '410002') THEN Amount ELSE 0 END)) as equipment_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('513001', '526001', '512001', '514001', '512002', '513002', '514002', '526002', '531002', '510002') THEN Amount ELSE 0 END)) as equipment_cost
+                -- Revenue (Credit accounts, so negate sum)
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_revenue,
+                -- Cost (Debit accounts, so positive sum)
+                SUM(CASE WHEN AccountNo IN ('{cost_list}') THEN Amount ELSE 0 END) as total_cost
             FROM ben002.GLDetail
-            WHERE AccountNo IN (
-                '410004', '410005', '510004', '510005',  -- Service
-                '410003', '410012', '510003', '510012',  -- Parts
-                '411001', '419000', '420000', '421000', '434012', '410008',  -- Rental revenue
-                '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000',  -- Rental cost
-                '413001', '426001', '412001', '414001', '412002', '413002', '414002', '426002', '431002', '410002',  -- Equipment revenue
-                '513001', '526001', '512001', '514001', '512002', '513002', '514002', '526002', '531002', '510002'  -- Equipment cost
-            )
+            WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
+            
             results = self.db.execute_query(query)
             
             # Create a dictionary to store data by year-month key
@@ -217,18 +267,8 @@ class DashboardQueries:
                 prior_row = revenue_by_month.get(prior_year_key)
                 
                 if row:
-                    # Calculate total revenue and cost
-                    service_revenue = float(row['service_revenue'] or 0)
-                    service_cost = float(row['service_cost'] or 0)
-                    parts_revenue = float(row['parts_revenue'] or 0)
-                    parts_cost = float(row['parts_cost'] or 0)
-                    rental_revenue = float(row['rental_revenue'] or 0)
-                    rental_cost = float(row['rental_cost'] or 0)
-                    equipment_revenue = float(row['equipment_revenue'] or 0)
-                    equipment_cost = float(row['equipment_cost'] or 0)
-                    
-                    total_revenue = service_revenue + parts_revenue + rental_revenue + equipment_revenue
-                    total_cost = service_cost + parts_cost + rental_cost + equipment_cost
+                    total_revenue = float(row['total_revenue'] or 0)
+                    total_cost = float(row['total_cost'] or 0)
                     
                     # Calculate gross margin percentage
                     margin = None
@@ -240,11 +280,7 @@ class DashboardQueries:
                 
                 # Get prior year data for comparison
                 if prior_row:
-                    prior_service = float(prior_row['service_revenue'] or 0)
-                    prior_parts = float(prior_row['parts_revenue'] or 0)
-                    prior_rental = float(prior_row['rental_revenue'] or 0)
-                    prior_equipment = float(prior_row['equipment_revenue'] or 0)
-                    prior_total = prior_service + prior_parts + prior_rental + prior_equipment
+                    prior_total = float(prior_row['total_revenue'] or 0)
                 else:
                     prior_total = 0
                 
@@ -262,34 +298,45 @@ class DashboardQueries:
             return []
     
     def get_monthly_sales_excluding_equipment(self):
-        """Get monthly sales with trailing 13 months excluding equipment using GLDetail (Service + Parts + Rental only)"""
+        """Get monthly sales with trailing 13 months excluding equipment (Service + Parts + Rental + Trans + Admin + Other)"""
         try:
-            # Use GLDetail for Service, Parts, and Rental only (no equipment)
-            query = """
+            # Collect all revenue and cost accounts from non-equipment departments
+            all_revenue_accounts = []
+            all_cost_accounts = []
+            
+            # Departments to include
+            include_depts = ['service', 'parts', 'rental', 'transportation', 'administrative']
+            
+            for dept_key in include_depts:
+                if dept_key in GL_ACCOUNTS:
+                    dept = GL_ACCOUNTS[dept_key]
+                    all_revenue_accounts.extend(dept['revenue'])
+                    all_cost_accounts.extend(dept['cogs'])
+            
+            # Add Other Income accounts to revenue
+            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            
+            # Format for SQL IN clause
+            revenue_list = "', '".join(all_revenue_accounts)
+            cost_list = "', '".join(all_cost_accounts)
+            all_accounts_list = "', '".join(all_revenue_accounts + all_cost_accounts)
+            
+            query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
-                -- Service Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as service_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as service_cost,
-                -- Parts Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
-                -- Rental Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008') THEN Amount ELSE 0 END)) as rental_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') THEN Amount ELSE 0 END)) as rental_cost
+                -- Revenue (Credit accounts, so negate sum)
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_revenue,
+                -- Cost (Debit accounts, so positive sum)
+                SUM(CASE WHEN AccountNo IN ('{cost_list}') THEN Amount ELSE 0 END) as total_cost
             FROM ben002.GLDetail
-            WHERE AccountNo IN (
-                '410004', '410005', '510004', '510005',  -- Service
-                '410003', '410012', '510003', '510012',  -- Parts
-                '411001', '419000', '420000', '421000', '434012', '410008',  -- Rental revenue
-                '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000'  -- Rental cost
-            )
+            WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
+            
             results = self.db.execute_query(query)
             
             # Create a dictionary to store data by year-month key
@@ -318,16 +365,8 @@ class DashboardQueries:
                 prior_row = revenue_by_month.get(prior_year_key)
                 
                 if row:
-                    # Calculate total revenue and cost (no equipment)
-                    service_revenue = float(row['service_revenue'] or 0)
-                    service_cost = float(row['service_cost'] or 0)
-                    parts_revenue = float(row['parts_revenue'] or 0)
-                    parts_cost = float(row['parts_cost'] or 0)
-                    rental_revenue = float(row['rental_revenue'] or 0)
-                    rental_cost = float(row['rental_cost'] or 0)
-                    
-                    total_revenue = service_revenue + parts_revenue + rental_revenue
-                    total_cost = service_cost + parts_cost + rental_cost
+                    total_revenue = float(row['total_revenue'] or 0)
+                    total_cost = float(row['total_cost'] or 0)
                     
                     # Calculate gross margin percentage
                     margin = None
@@ -339,10 +378,7 @@ class DashboardQueries:
                 
                 # Get prior year data for comparison
                 if prior_row:
-                    prior_service = float(prior_row['service_revenue'] or 0)
-                    prior_parts = float(prior_row['parts_revenue'] or 0)
-                    prior_rental = float(prior_row['rental_revenue'] or 0)
-                    prior_total = prior_service + prior_parts + prior_rental
+                    prior_total = float(prior_row['total_revenue'] or 0)
                 else:
                     prior_total = 0
                 
@@ -362,35 +398,50 @@ class DashboardQueries:
     def get_monthly_sales_by_stream(self):
         """Get monthly sales by revenue stream with trailing 13 months using GLDetail"""
         try:
-            # Use GLDetail with same accounts as department charts
-            # Service: 410004 (Field), 410005 (Shop) / 510004, 510005
-            # Parts: 410003 (Counter), 410012 (RO) / 510003, 510012
-            # Rental: 411001, 419000, 420000, 421000, 434012, 410008 / 510008, 511001, 519000, 520000, 521008, 537001, 539000, 534014, 545000
-            query = """
+            # Get account lists from GL_ACCOUNTS
+            service_rev = GL_ACCOUNTS['service']['revenue']
+            service_cost = GL_ACCOUNTS['service']['cogs']
+            
+            parts_rev = GL_ACCOUNTS['parts']['revenue']
+            parts_cost = GL_ACCOUNTS['parts']['cogs']
+            
+            rental_rev = GL_ACCOUNTS['rental']['revenue']
+            rental_cost = GL_ACCOUNTS['rental']['cogs']
+            
+            # Format for SQL IN clause
+            service_rev_list = "', '".join(service_rev)
+            service_cost_list = "', '".join(service_cost)
+            
+            parts_rev_list = "', '".join(parts_rev)
+            parts_cost_list = "', '".join(parts_cost)
+            
+            rental_rev_list = "', '".join(rental_rev)
+            rental_cost_list = "', '".join(rental_cost)
+            
+            all_accounts = service_rev + service_cost + parts_rev + parts_cost + rental_rev + rental_cost
+            all_accounts_list = "', '".join(all_accounts)
+            
+            query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
                 -- Service (Labor) Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as labor_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as labor_cost,
+                -SUM(CASE WHEN AccountNo IN ('{service_rev_list}') THEN Amount ELSE 0 END) as labor_revenue,
+                SUM(CASE WHEN AccountNo IN ('{service_cost_list}') THEN Amount ELSE 0 END) as labor_cost,
                 -- Parts Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
+                -SUM(CASE WHEN AccountNo IN ('{parts_rev_list}') THEN Amount ELSE 0 END) as parts_revenue,
+                SUM(CASE WHEN AccountNo IN ('{parts_cost_list}') THEN Amount ELSE 0 END) as parts_cost,
                 -- Rental Revenue and Cost
-                ABS(SUM(CASE WHEN AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008') THEN Amount ELSE 0 END)) as rental_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') THEN Amount ELSE 0 END)) as rental_cost
+                -SUM(CASE WHEN AccountNo IN ('{rental_rev_list}') THEN Amount ELSE 0 END) as rental_revenue,
+                SUM(CASE WHEN AccountNo IN ('{rental_cost_list}') THEN Amount ELSE 0 END) as rental_cost
             FROM ben002.GLDetail
-            WHERE AccountNo IN (
-                '410004', '410005', '510004', '510005',  -- Service
-                '410003', '410012', '510003', '510012',  -- Parts
-                '411001', '419000', '420000', '421000', '434012', '410008',  -- Rental revenue
-                '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000'  -- Rental cost
-            )
+            WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
+            
             results = self.db.execute_query(query)
             
             # Create a dictionary to store data by year-month key
