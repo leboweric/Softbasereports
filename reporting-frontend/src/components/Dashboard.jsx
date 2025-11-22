@@ -1127,67 +1127,61 @@ const Dashboard = ({ user }) => {
                               </p>
                             )}
                             {streamMonthData && (
-                              <div className="text-sm space-y-1 border-t pt-2">
-                                <div className="flex justify-between">
-                                  <span>Parts:</span>
-                                  <span>
-                                    {formatCurrency(streamMonthData.parts)}
+                              <div className="text-sm space-y-2 border-t pt-2 mt-2">
+                                <div>
+                                  <div className="font-medium">Parts: {formatCurrency(streamMonthData.parts)}</div>
+                                  <div className="text-xs text-gray-600 ml-4">
                                     {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.parts, previousStreamData.parts))}
                                     {streamMonthData.parts_margin !== null && streamMonthData.parts_margin !== undefined && (
-                                      <span className="text-xs ml-2 text-blue-600">
-                                        (GM: {streamMonthData.parts_margin}%
+                                      <span className="ml-2 text-blue-600">
+                                        GM: {streamMonthData.parts_margin}%
                                         {previousStreamData?.parts_margin !== null && previousStreamData?.parts_margin !== undefined && (
                                           <span className={streamMonthData.parts_margin > previousStreamData.parts_margin ? 'text-green-600' : streamMonthData.parts_margin < previousStreamData.parts_margin ? 'text-red-600' : 'text-gray-500'}>
                                             {' '}{streamMonthData.parts_margin > previousStreamData.parts_margin ? '+' : ''}{(streamMonthData.parts_margin - previousStreamData.parts_margin).toFixed(1)}pts
                                           </span>
-                                        )})
+                                        )}
                                       </span>
                                     )}
-                                  </span>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between">
-                                  <span>Labor:</span>
-                                  <span>
-                                    {formatCurrency(streamMonthData.labor)}
+                                <div>
+                                  <div className="font-medium">Labor: {formatCurrency(streamMonthData.labor)}</div>
+                                  <div className="text-xs text-gray-600 ml-4">
                                     {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.labor, previousStreamData.labor))}
                                     {streamMonthData.labor_margin !== null && streamMonthData.labor_margin !== undefined && (
-                                      <span className="text-xs ml-2 text-blue-600">
-                                        (GM: {streamMonthData.labor_margin}%
+                                      <span className="ml-2 text-blue-600">
+                                        GM: {streamMonthData.labor_margin}%
                                         {previousStreamData?.labor_margin !== null && previousStreamData?.labor_margin !== undefined && (
                                           <span className={streamMonthData.labor_margin > previousStreamData.labor_margin ? 'text-green-600' : streamMonthData.labor_margin < previousStreamData.labor_margin ? 'text-red-600' : 'text-gray-500'}>
                                             {' '}{streamMonthData.labor_margin > previousStreamData.labor_margin ? '+' : ''}{(streamMonthData.labor_margin - previousStreamData.labor_margin).toFixed(1)}pts
                                           </span>
-                                        )})
+                                        )}
                                       </span>
                                     )}
-                                  </span>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between">
-                                  <span>Rental:</span>
-                                  <span>
-                                    {formatCurrency(streamMonthData.rental)}
+                                <div>
+                                  <div className="font-medium">Rental: {formatCurrency(streamMonthData.rental)}</div>
+                                  <div className="text-xs text-gray-600 ml-4">
                                     {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
-                                    <span className="text-xs ml-2 text-gray-400">
-                                      (No cost data)
-                                    </span>
-                                  </span>
+                                    <span className="ml-2 text-gray-400">(No cost data)</span>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between">
-                                  <span>Misc:</span>
-                                  <span>
-                                    {formatCurrency(streamMonthData.misc)}
+                                <div>
+                                  <div className="font-medium">Misc: {formatCurrency(streamMonthData.misc)}</div>
+                                  <div className="text-xs text-gray-600 ml-4">
                                     {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.misc, previousStreamData.misc))}
                                     {streamMonthData.misc_margin !== null && streamMonthData.misc_margin !== undefined && (
-                                      <span className="text-xs ml-2 text-blue-600">
-                                        (GM: {streamMonthData.misc_margin}%
+                                      <span className="ml-2 text-blue-600">
+                                        GM: {streamMonthData.misc_margin}%
                                         {previousStreamData?.misc_margin !== null && previousStreamData?.misc_margin !== undefined && (
                                           <span className={streamMonthData.misc_margin > previousStreamData.misc_margin ? 'text-green-600' : streamMonthData.misc_margin < previousStreamData.misc_margin ? 'text-red-600' : 'text-gray-500'}>
                                             {' '}{streamMonthData.misc_margin > previousStreamData.misc_margin ? '+' : ''}{(streamMonthData.misc_margin - previousStreamData.misc_margin).toFixed(1)}pts
                                           </span>
-                                        )})
+                                        )}
                                       </span>
                                     )}
-                                  </span>
+                                  </div>
                                 </div>
                               </div>
                             )}
