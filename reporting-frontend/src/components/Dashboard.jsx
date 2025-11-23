@@ -1028,6 +1028,7 @@ const Dashboard = ({ user }) => {
                       dot={{ fill: '#10b981' }}
                       name="Gross Margin %"
                       connectNulls={false}
+                      data={sortedMonthlySales.slice(0, -1)}
                     />
                     <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                     {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
@@ -1201,6 +1202,7 @@ const Dashboard = ({ user }) => {
                       dot={{ fill: '#f59e0b' }}
                       name="Gross Margin %"
                       connectNulls={false}
+                      data={sortedMonthlySalesNoEquipment.slice(0, -1)}
                     />
                     <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                     {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
@@ -1398,6 +1400,7 @@ const Dashboard = ({ user }) => {
                       dot={{ fill: '#f59e0b' }}
                       name="Gross Margin %"
                       connectNulls={false}
+                      data={sortedMonthlyEquipmentSales.slice(0, -1)}
                     />
                     <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
                     {dashboardData?.monthly_equipment_sales && dashboardData.monthly_equipment_sales.length > 0 && (() => {
