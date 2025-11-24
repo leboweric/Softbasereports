@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 pl_widget_bp = Blueprint('pl_widget', __name__)
 sql_service = AzureSQLService()
 
+# Import GL account mappings from pl_report
+from src.routes.pl_report import GL_ACCOUNTS, EXPENSE_ACCOUNTS, OTHER_INCOME_ACCOUNTS
+
 @pl_widget_bp.route('/api/pl/widget', methods=['GET'])
 @jwt_required()
 def get_pl_widget():
@@ -74,37 +77,71 @@ def get_pl_widget():
 def get_monthly_pl(year, month):
     """
     Get monthly profit/loss from GL.MTD
-    Revenue (4xxxxx) - COGS (5xxxxx) - Expenses (6xxxxx, 7xxxxx, 8xxxxx)
+    Uses the same GL account mappings as the P&L Report
+    Operating Profit = Revenue - COGS - Expenses
     """
     try:
-        query = """
-        SELECT 
-            SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
-            SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
-            SUM(CASE WHEN AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%' THEN MTD ELSE 0 END) as expenses
+        # Collect all revenue accounts from all departments
+        all_revenue_accounts = []
+        for dept_config in GL_ACCOUNTS.values():
+            all_revenue_accounts.extend(dept_config['revenue'])
+        
+        # Collect all COGS accounts from all departments
+        all_cogs_accounts = []
+        for dept_config in GL_ACCOUNTS.values():
+            all_cogs_accounts.extend(dept_config['cogs'])
+        
+        # Collect all expense accounts
+        all_expense_accounts = []
+        for category_accounts in EXPENSE_ACCOUNTS.values():
+            all_expense_accounts.extend(category_accounts)
+        
+        # Build account lists for query
+        revenue_list = "', '".join(all_revenue_accounts)
+        cogs_list = "', '".join(all_cogs_accounts)
+        expense_list = "', '".join(all_expense_accounts)
+        
+        # Query revenue
+        revenue_query = f"""
+        SELECT SUM(MTD) as total
         FROM ben002.GL
-        WHERE Year = %s
-          AND Month = %s
+        WHERE Year = %s AND Month = %s
+          AND AccountNo IN ('{revenue_list}')
         """
+        revenue_result = sql_service.execute_query(revenue_query, [year, month])
+        revenue = float(revenue_result[0].get('total') or 0) if revenue_result and revenue_result[0] else 0.0
         
-        result = sql_service.execute_query(query, [year, month])
+        # Query COGS
+        cogs_query = f"""
+        SELECT SUM(MTD) as total
+        FROM ben002.GL
+        WHERE Year = %s AND Month = %s
+          AND AccountNo IN ('{cogs_list}')
+        """
+        cogs_result = sql_service.execute_query(cogs_query, [year, month])
+        cogs = float(cogs_result[0].get('total') or 0) if cogs_result and cogs_result[0] else 0.0
         
-        if result and result[0]:
-            revenue = float(result[0].get('revenue') or 0)
-            cogs = float(result[0].get('cogs') or 0)
-            expenses = float(result[0].get('expenses') or 0)
-            
-            # P&L calculation: Revenue - COGS - Expenses
-            # Note: In GL, revenue is positive, COGS and expenses are negative
-            # So we add them all (since COGS and expenses are already negative)
-            net_pl = revenue + cogs + expenses
-            
-            return net_pl
+        # Query expenses
+        expense_query = f"""
+        SELECT SUM(MTD) as total
+        FROM ben002.GL
+        WHERE Year = %s AND Month = %s
+          AND AccountNo IN ('{expense_list}')
+        """
+        expense_result = sql_service.execute_query(expense_query, [year, month])
+        expenses = float(expense_result[0].get('total') or 0) if expense_result and expense_result[0] else 0.0
         
-        return 0.0
+        # Calculate Operating Profit
+        # In GL: Revenue is positive, COGS and Expenses are negative
+        # So we add them all (COGS and expenses are already negative)
+        operating_profit = revenue + cogs + expenses
+        
+        return operating_profit
         
     except Exception as e:
         logger.error(f"Error getting monthly P&L: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return 0.0
 
 
@@ -114,28 +151,13 @@ def get_ytd_pl(year, month):
     Sum of all months from January to current month
     """
     try:
-        query = """
-        SELECT 
-            SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
-            SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
-            SUM(CASE WHEN AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%' THEN MTD ELSE 0 END) as expenses
-        FROM ben002.GL
-        WHERE Year = %s
-          AND Month <= %s
-        """
+        # Sum up monthly P&L for each month YTD
+        ytd_total = 0.0
+        for m in range(1, month + 1):
+            monthly_pl = get_monthly_pl(year, m)
+            ytd_total += monthly_pl
         
-        result = sql_service.execute_query(query, [year, month])
-        
-        if result and result[0]:
-            revenue = float(result[0].get('revenue') or 0)
-            cogs = float(result[0].get('cogs') or 0)
-            expenses = float(result[0].get('expenses') or 0)
-            
-            net_pl = revenue + cogs + expenses
-            
-            return net_pl
-        
-        return 0.0
+        return ytd_total
         
     except Exception as e:
         logger.error(f"Error getting YTD P&L: {str(e)}")
@@ -144,32 +166,33 @@ def get_ytd_pl(year, month):
 
 def get_pl_trend(year, month, months=12):
     """
-    Get P&L trend for the last N months starting from March 2025 (Softbase cutover)
+    Get P&L trend for the last N months (or all available months since March 2025 cutover)
+    Includes the current month
     """
     try:
         trend_data = []
         cutover_year = 2025
         cutover_month = 3  # March 2025
         
-        # Calculate starting point (N months back from current month)
-        start_date = datetime(year, month, 1) - timedelta(days=1)  # Last day of previous month
-        for i in range(months):
-            start_date = start_date.replace(day=1) - timedelta(days=1)  # Go back one more month
+        # Calculate starting point: either N months back or cutover month, whichever is later
+        # Go back N-1 months from current month (to include current month in the count)
+        start_date = datetime(year, month, 1)
+        for i in range(months - 1):
+            start_date = start_date.replace(day=1) - timedelta(days=1)
+        start_date = start_date.replace(day=1)
         
-        # Start from the month after our calculated start
-        current = start_date.replace(day=1) + timedelta(days=32)
-        current = current.replace(day=1)
+        # Don't go before cutover
+        cutover_date = datetime(cutover_year, cutover_month, 1)
+        if start_date < cutover_date:
+            start_date = cutover_date
         
-        # Generate trend data for each month
-        for i in range(months):
+        # Generate trend data from start_date to current month (inclusive)
+        current = start_date
+        end_date = datetime(year, month, 1)
+        
+        while current <= end_date:
             target_year = current.year
             target_month = current.month
-            
-            # Skip months before Softbase cutover
-            if target_year < cutover_year or (target_year == cutover_year and target_month < cutover_month):
-                current = current + timedelta(days=32)
-                current = current.replace(day=1)
-                continue
             
             # Get P&L for this month
             monthly_pl = get_monthly_pl(target_year, target_month)
@@ -190,4 +213,6 @@ def get_pl_trend(year, month, months=12):
         
     except Exception as e:
         logger.error(f"Error getting P&L trend: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return []
