@@ -61,6 +61,7 @@ import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
 import CashFlowWidget from './CashFlowWidget'
+import ProfitLossWidget from './ProfitLossWidget'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -888,7 +889,9 @@ const Dashboard = ({ user }) => {
         <TabsContent value="sales" className="space-y-4">
           {/* Cash Flow Overview Widget */}
           <CashFlowWidget />
-
+          
+          {/* Profit & Loss Overview Widget */}
+          <ProfitLossWidget />
           {/* Key Sales Metrics */}
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
