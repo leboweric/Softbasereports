@@ -166,13 +166,13 @@ def get_ytd_pl(year, month):
 
 def get_pl_trend(year, month, months=12):
     """
-    Get P&L trend for the last N months (or all available months since March 2025 cutover)
+    Get P&L trend for the last N months (or all available months since November 2024)
     Includes the current month
     """
     try:
         trend_data = []
-        cutover_year = 2025
-        cutover_month = 3  # March 2025
+        cutover_year = 2024
+        cutover_month = 11  # November 2024
         
         # Calculate starting point: either N months back or cutover month, whichever is later
         # Go back N-1 months from current month (to include current month in the count)
