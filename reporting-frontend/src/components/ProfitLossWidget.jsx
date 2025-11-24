@@ -226,7 +226,13 @@ const ProfitLossWidget = () => {
                   tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 />
                 <Tooltip 
-                  formatter={(value) => [formatCurrency(value), 'P&L']}
+                  formatter={(value) => {
+                    const color = value >= 0 ? '#10b981' : '#ef4444'
+                    return [
+                      <span style={{ color }}>{formatCurrency(value)}</span>,
+                      'P&L'
+                    ]
+                  }}
                   labelFormatter={(label) => `Month: ${label}`}
                 />
                 <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
