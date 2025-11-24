@@ -132,9 +132,9 @@ def get_monthly_pl(year, month):
         expenses = float(expense_result[0].get('total') or 0) if expense_result and expense_result[0] else 0.0
         
         # Calculate Operating Profit
-        # In GL: Revenue is positive, COGS and Expenses are negative
-        # So we add them all (COGS and expenses are already negative)
-        operating_profit = revenue + cogs + expenses
+        # In GL.MTD: Revenue is stored as negative (credits), COGS and Expenses are positive (debits)
+        # Operating Profit = -Revenue - COGS - Expenses = -(Revenue + COGS + Expenses)
+        operating_profit = -(revenue + cogs + expenses)
         
         return operating_profit
         
