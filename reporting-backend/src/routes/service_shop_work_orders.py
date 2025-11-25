@@ -416,34 +416,34 @@ def debug_woquote():
     """
     try:
         db = AzureSQLService()
-        
+
         # Query 1: Get all column names from SQL Server system tables
         columns_query = """
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = 'ben002'
           AND TABLE_NAME = 'WOQuote'
         ORDER BY ORDINAL_POSITION
         """
-        
+
         column_results = db.execute_query(columns_query)
-        
+
         columns = []
         for row in column_results:
             columns.append({
                 'name': row[0],
                 'type': row[1]
             })
-        
+
         # Query 2: Get actual data using the correct columns
         data_query = """
         SELECT TOP 3 *
         FROM [ben002].WOQuote
         WHERE WONo = '140000582'
         """
-        
+
         data_results = db.execute_query(data_query)
-        
+
         return jsonify({
             'success': True,
             'columns': columns,
@@ -451,8 +451,123 @@ def debug_woquote():
             'record_count': len(data_results),
             'message': 'Check column_names to see all available columns'
         })
-        
+
     except Exception as e:
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+
+@service_shop_bp.route('/api/reports/departments/service/shop-work-orders/debug-labor-rates', methods=['GET'])
+@jwt_required()
+def debug_labor_rates():
+    """
+    Debug: Explore LaborRate view and WO labor rate fields
+    Based on Softbase support recommendation
+    """
+    try:
+        db = AzureSQLService()
+
+        results = {}
+
+        # Query 1: Get LaborRate view structure
+        laborrate_structure_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002'
+          AND TABLE_NAME = 'LaborRate'
+        ORDER BY ORDINAL_POSITION
+        """
+
+        lr_columns = db.execute_query(laborrate_structure_query)
+        results['laborrate_columns'] = [{'name': row[0], 'type': row[1]} for row in lr_columns]
+
+        # Query 2: Sample LaborRate data
+        laborrate_data_query = """
+        SELECT TOP 10 *
+        FROM [ben002].LaborRate
+        ORDER BY Code
+        """
+
+        lr_data = db.execute_query(laborrate_data_query)
+        results['laborrate_sample'] = lr_data
+
+        # Query 3: Check WO table for LaborRate and LaborDiscount columns
+        wo_rate_structure_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002'
+          AND TABLE_NAME = 'WO'
+          AND COLUMN_NAME IN ('LaborRate', 'LaborDiscount')
+        ORDER BY ORDINAL_POSITION
+        """
+
+        wo_rate_columns = db.execute_query(wo_rate_structure_query)
+        results['wo_rate_columns'] = [{'name': row[0], 'type': row[1]} for row in wo_rate_columns]
+
+        # Query 4: The query from Softbase support - sample of shop WOs with labor rates
+        softbase_query = """
+        SELECT TOP 10
+            WO.WONO,
+            WO.BillTo,
+            WO.ShipName,
+            WO.LaborRate as LaborRateCode,
+            WO.LaborDiscount,
+            LR.Rate as LaborRateAmount,
+            LR.Code as RateCode,
+            LR.Description as RateDescription
+        FROM [ben002].WO
+        LEFT JOIN [ben002].LaborRate LR on LR.Code = WO.LaborRate
+        WHERE WO.Type = 'SH'
+          AND WO.ClosedDate IS NULL
+          AND WO.WONo NOT LIKE '9%'
+        ORDER BY WO.WONo DESC
+        """
+
+        softbase_data = db.execute_query(softbase_query)
+        results['wo_with_labor_rates'] = softbase_data
+
+        # Query 5: Check WOLabor for SellRate field
+        wolabor_structure_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002'
+          AND TABLE_NAME = 'WOLabor'
+          AND COLUMN_NAME IN ('Rate', 'SellRate', 'Hours', 'Sell', 'LaborRateType')
+        ORDER BY ORDINAL_POSITION
+        """
+
+        wolabor_columns = db.execute_query(wolabor_structure_query)
+        results['wolabor_columns'] = [{'name': row[0], 'type': row[1]} for row in wolabor_columns]
+
+        # Query 6: Sample WOLabor with rates for open shop WOs
+        wolabor_sample_query = """
+        SELECT TOP 10
+            WOL.WONo,
+            WOL.MechanicNo,
+            WOL.Hours,
+            WOL.SellRate,
+            WOL.Sell,
+            WOL.LaborRateType
+        FROM [ben002].WOLabor WOL
+        INNER JOIN [ben002].WO W ON WOL.WONo = W.WONo
+        WHERE W.Type = 'SH'
+          AND W.ClosedDate IS NULL
+          AND W.WONo NOT LIKE '9%'
+        ORDER BY WOL.WONo DESC
+        """
+
+        wolabor_data = db.execute_query(wolabor_sample_query)
+        results['wolabor_sample'] = wolabor_data
+
+        return jsonify({
+            'success': True,
+            'results': results,
+            'recommendation': 'Use LR.Rate joined via WO.LaborRate = LR.Code to get the actual labor rate per work order'
+        })
+
+    except Exception as e:
+        logger.error(f"Error exploring labor rates: {str(e)}")
         return jsonify({
             'error': str(e)
         }), 500
