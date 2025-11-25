@@ -28,10 +28,10 @@ def get_pm_technician_performance():
         sql_service = AzureSQLService()
         
         # Query to get PM completions by technician
-        # Pattern copied from department_reports.py WO queries
+        # Only counts INVOICED PMs (wo.InvoiceDate IS NOT NULL)
         query = """
         WITH TechPMs AS (
-            SELECT 
+            SELECT
                 l.MechanicName as technician,
                 l.WONo,
                 l.DateOfLabor,
@@ -43,6 +43,7 @@ def get_pm_technician_performance():
             FROM ben002.WOLabor l
             INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
             WHERE wo.Type = 'PM'
+                AND wo.InvoiceDate IS NOT NULL
                 AND l.DateOfLabor >= %s
                 AND l.DateOfLabor <= %s
                 AND l.MechanicName IS NOT NULL
@@ -146,8 +147,9 @@ def get_pm_technician_details():
         sql_service = AzureSQLService()
         
         # Query pattern copied from department_reports.py
+        # Only shows INVOICED PMs (wo.InvoiceDate IS NOT NULL)
         query = """
-        SELECT 
+        SELECT
             l.WONo,
             l.DateOfLabor,
             l.Hours,
@@ -158,12 +160,14 @@ def get_pm_technician_details():
             wo.UnitNo,
             wo.SerialNo,
             wo.Model,
-            wo.Make
+            wo.Make,
+            wo.InvoiceDate
         FROM ben002.WOLabor l
         INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
         LEFT JOIN ben002.Customer shipToCustomer ON wo.ShipTo = shipToCustomer.Number
         LEFT JOIN ben002.Customer billToCustomer ON wo.BillTo = billToCustomer.Number
         WHERE wo.Type = 'PM'
+            AND wo.InvoiceDate IS NOT NULL
             AND l.MechanicName = %s
             AND l.DateOfLabor >= %s
             AND l.DateOfLabor <= %s
@@ -185,7 +189,8 @@ def get_pm_technician_details():
                 'unitNo': row['UnitNo'],
                 'serialNo': row['SerialNo'],
                 'model': row['Model'],
-                'make': row['Make']
+                'make': row['Make'],
+                'invoiceDate': row['InvoiceDate'].strftime('%Y-%m-%d') if row['InvoiceDate'] else None
             })
         
         return jsonify({'pms': pms})
