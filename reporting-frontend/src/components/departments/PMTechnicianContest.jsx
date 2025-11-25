@@ -311,6 +311,9 @@ const PMTechnicianContest = () => {
           <div className="flex justify-between items-center">
             <div>
               <CardTitle>PM Technician Performance</CardTitle>
+              <p className="text-xs text-gray-500 mt-1">
+                Only counts <span className="font-semibold">Invoiced PMs</span> (work orders with an invoice date)
+              </p>
               {dateRange === 'contest' && (
                 <p className="text-sm text-blue-600 font-semibold mt-1">
                   🏆 Contest Period: November 1, 2025 - January 31, 2026 (Q1 FY2026)
@@ -456,14 +459,14 @@ const PMTechnicianContest = () => {
                                 <thead>
                                   <tr className="border-b bg-white">
                                     <th className="text-left p-2">WO #</th>
-                                    <th className="text-left p-2">Date</th>
+                                    <th className="text-left p-2">Labor Date</th>
+                                    <th className="text-left p-2">Invoice Date</th>
                                     <th className="text-right p-2">Hours</th>
                                     <th className="text-left p-2">Customer</th>
                                     <th className="text-left p-2">Unit #</th>
                                     <th className="text-left p-2">Serial #</th>
                                     <th className="text-left p-2">Make</th>
                                     <th className="text-left p-2">Model</th>
-                                    <th className="text-left p-2">Phone</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -471,21 +474,21 @@ const PMTechnicianContest = () => {
                                     <tr key={`${pm.woNo}-${idx}`} className={`border-b ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                                       <td className="p-2 font-mono">{pm.woNo}</td>
                                       <td className="p-2">{pm.laborDate ? new Date(pm.laborDate).toLocaleDateString() : 'N/A'}</td>
+                                      <td className="p-2">{pm.invoiceDate ? new Date(pm.invoiceDate).toLocaleDateString() : 'N/A'}</td>
                                       <td className="p-2 text-right">{pm.hours}</td>
                                       <td className="p-2">{pm.shipToName || '-'}</td>
                                       <td className="p-2">{pm.unitNo || '-'}</td>
                                       <td className="p-2 font-mono text-xs">{pm.serialNo || '-'}</td>
                                       <td className="p-2">{pm.make || '-'}</td>
                                       <td className="p-2">{pm.model || '-'}</td>
-                                      <td className="p-2">{pm.customerPhone || '-'}</td>
                                     </tr>
                                   ))}
                                   <tr className="font-semibold bg-blue-50">
-                                    <td colSpan="2" className="p-2 text-right">Total:</td>
+                                    <td colSpan="3" className="p-2 text-right">Total:</td>
                                     <td className="p-2 text-right">
                                       {pmDetails[tech.name].reduce((sum, pm) => sum + (parseFloat(pm.hours) || 0), 0).toFixed(1)} hrs
                                     </td>
-                                    <td colSpan="6" className="p-2">
+                                    <td colSpan="5" className="p-2">
                                       {pmDetails[tech.name].length} PMs completed
                                     </td>
                                   </tr>
