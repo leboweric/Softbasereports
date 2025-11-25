@@ -1045,7 +1045,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                               </TableCell>
                               <TableCell>{new Date(wo.open_date).toLocaleDateString()}</TableCell>
                               <TableCell className="text-right font-mono">
-                                {wo.quoted_hours ? wo.quoted_hours.toFixed(1) : '-'}
+                                {wo.quoted_hours ? Math.round(wo.quoted_hours) : '-'}
                               </TableCell>
                               <TableCell className="text-right font-mono">
                                 {wo.actual_hours.toFixed(1)}
