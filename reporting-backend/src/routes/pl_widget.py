@@ -110,40 +110,35 @@ def get_monthly_pl(year, month):
         cogs_list = "', '".join(all_cogs_accounts)
         expense_list = "', '".join(all_expense_accounts)
         
-        # Query revenue
-        revenue_query = f"""
-        SELECT SUM(MTD) as total
+        # Query all three categories in a single query (matching P&L Report approach)
+        query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN MTD ELSE 0 END) as revenue,
+            SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN MTD ELSE 0 END) as cogs,
+            SUM(CASE WHEN AccountNo IN ('{expense_list}') THEN MTD ELSE 0 END) as expenses
         FROM ben002.GL
         WHERE Year = %s AND Month = %s
-          AND AccountNo IN ('{revenue_list}')
+          AND (AccountNo IN ('{revenue_list}') 
+               OR AccountNo IN ('{cogs_list}')
+               OR AccountNo IN ('{expense_list}'))
         """
-        revenue_result = sql_service.execute_query(revenue_query, [year, month])
-        revenue = float(revenue_result[0].get('total') or 0) if revenue_result and revenue_result[0] else 0.0
         
-        # Query COGS
-        cogs_query = f"""
-        SELECT SUM(MTD) as total
-        FROM ben002.GL
-        WHERE Year = %s AND Month = %s
-          AND AccountNo IN ('{cogs_list}')
-        """
-        cogs_result = sql_service.execute_query(cogs_query, [year, month])
-        cogs = float(cogs_result[0].get('total') or 0) if cogs_result and cogs_result[0] else 0.0
+        result = sql_service.execute_query(query, [year, month])
         
-        # Query expenses
-        expense_query = f"""
-        SELECT SUM(MTD) as total
-        FROM ben002.GL
-        WHERE Year = %s AND Month = %s
-          AND AccountNo IN ('{expense_list}')
-        """
-        expense_result = sql_service.execute_query(expense_query, [year, month])
-        expenses = float(expense_result[0].get('total') or 0) if expense_result and expense_result[0] else 0.0
+        if result and result[0]:
+            revenue = float(result[0].get('revenue') or 0)
+            cogs = float(result[0].get('cogs') or 0)
+            expenses = float(result[0].get('expenses') or 0)
+        else:
+            revenue = 0.0
+            cogs = 0.0
+            expenses = 0.0
         
-        # Calculate Operating Profit
-        # In GL.MTD: Revenue is stored as negative (credits), COGS and Expenses are positive (debits)
-        # Operating Profit = -Revenue - COGS - Expenses = -(Revenue + COGS + Expenses)
-        operating_profit = -(revenue + cogs + expenses)
+        # Calculate Operating Profit (matching P&L Report)
+        # Revenue is now positive (negated in query)
+        # COGS and Expenses are positive (debits)
+        gross_profit = revenue - cogs
+        operating_profit = gross_profit - expenses
         
         return operating_profit
         
