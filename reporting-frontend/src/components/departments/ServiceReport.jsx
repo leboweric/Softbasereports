@@ -1045,7 +1045,32 @@ const ServiceReport = ({ user, onNavigate }) => {
                               </TableCell>
                               <TableCell>{new Date(wo.open_date).toLocaleDateString()}</TableCell>
                               <TableCell className="text-right font-mono">
-                                {wo.quoted_hours ? Math.round(wo.quoted_hours) : '-'}
+                                {wo.quoted_hours ? (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help underline decoration-dotted underline-offset-2">
+                                          {Math.round(wo.quoted_hours)}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-xs">
+                                        <div className="text-xs space-y-1">
+                                          <p className="font-semibold border-b pb-1 mb-1">Quote Calculation</p>
+                                          <p>Quoted Amount: <span className="font-mono">${wo.quoted_amount?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></p>
+                                          <p>Labor Rate: <span className="font-mono">${wo.labor_rate?.toFixed(2)}/hr</span></p>
+                                          {wo.labor_discount > 0 && (
+                                            <p>Discount: <span className="font-mono">{wo.labor_discount}%</span></p>
+                                          )}
+                                          <p className="border-t pt-1 mt-1 font-medium">
+                                            ${wo.quoted_amount?.toLocaleString()} ÷ ${wo.labor_discount > 0
+                                              ? `(${wo.labor_rate?.toFixed(0)} × ${(100 - wo.labor_discount) / 100})`
+                                              : wo.labor_rate?.toFixed(0)} = <span className="font-bold">{Math.round(wo.quoted_hours)} hrs</span>
+                                          </p>
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                ) : '-'}
                               </TableCell>
                               <TableCell className="text-right font-mono">
                                 {wo.actual_hours.toFixed(1)}
