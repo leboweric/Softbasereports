@@ -95,6 +95,7 @@ from src.routes.january_investigation import january_investigation_bp
 from src.routes.migration_investigation import migration_investigation_bp
 from src.routes.softbase_months_investigation import softbase_months_bp
 from src.routes.october_investigation import october_investigation_bp
+from src.routes.january_expense_investigation import january_expense_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
 
@@ -212,6 +213,7 @@ app.register_blueprint(january_investigation_bp)
 app.register_blueprint(migration_investigation_bp)
 app.register_blueprint(softbase_months_bp)
 app.register_blueprint(october_investigation_bp)
+app.register_blueprint(january_expense_bp)
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration
