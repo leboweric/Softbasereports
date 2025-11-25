@@ -91,6 +91,7 @@ from src.routes.pl_report import pl_report_bp
 from src.routes.diagnostic_602600 import diagnostic_bp
 from src.routes.cashflow_widget import cashflow_widget_bp
 from src.routes.pl_widget import pl_widget_bp
+from src.routes.january_investigation import january_investigation_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
 
@@ -204,6 +205,7 @@ app.register_blueprint(pl_report_bp)
 app.register_blueprint(diagnostic_bp)
 app.register_blueprint(cashflow_widget_bp)
 app.register_blueprint(pl_widget_bp)
+app.register_blueprint(january_investigation_bp)
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration
