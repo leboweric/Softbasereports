@@ -1,6 +1,7 @@
 """
 January 2025 P&L Investigation API
 Analyzes potential data migration issues from Minitrac to Softbase
+Version: 1.0.1 - Fixed Reference column issue
 """
 
 from flask import Blueprint, jsonify
