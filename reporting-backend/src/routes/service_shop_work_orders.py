@@ -77,81 +77,134 @@ def get_shop_work_orders():
         for row in quotes_results:
             logger.info(f"WO: {row['WONo']}, Type: {row['Type']}, Description: '{row['Description']}', Sell: {row['Sell']}")
         
+        # Per Softbase support: Use LaborRate view joined via WO.LaborRate = LR.Code
+        # to get the actual labor rate for each work order.
+        # QuotedHours = QuotedAmount / (LaborRate * (1 - Discount/100))
+        # Rounded to whole number since quotes are always in whole hours
         query = """
-        SELECT 
+        SELECT
             w.WONo,
             w.BillTo as CustomerNo,
             c.Name as CustomerName,
             w.UnitNo,
             w.SerialNo,
             w.OpenDate,
-            
-            -- Quoted labor
+
+            -- Labor rate info (for debugging/transparency)
+            lr.Rate as LaborRate,
+            w.LaborDiscount,
+
+            -- Quoted labor amount from WOQuote
             COALESCE(quoted.QuotedAmount, 0) as QuotedAmount,
-            COALESCE(quoted.QuotedHours, 0) as QuotedHours,
-            
-            -- Actual labor hours
+
+            -- Calculate quoted hours using actual labor rate from LaborRate view
+            -- Formula: QuotedAmount / (Rate * (1 - Discount/100))
+            -- Round to whole number since quotes are always in whole hours
+            CASE
+                WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 0
+                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0
+                THEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)
+                ELSE ROUND(quoted.QuotedAmount / 189.0, 0)  -- Fallback to $189 if no rate
+            END as QuotedHours,
+
+            -- Actual labor hours from WOLabor
             COALESCE(SUM(l.Hours), 0) as ActualHours,
-            
-            -- Percentage used
-            CASE 
-                WHEN quoted.QuotedHours IS NULL OR quoted.QuotedHours = 0 THEN 0
-                ELSE (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100
+
+            -- Percentage used (based on rounded quoted hours)
+            CASE
+                WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 0
+                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 THEN
+                    CASE
+                        WHEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0) = 0 THEN 0
+                        ELSE (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100
+                    END
+                ELSE
+                    CASE
+                        WHEN ROUND(quoted.QuotedAmount / 189.0, 0) = 0 THEN 0
+                        ELSE (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100
+                    END
             END as PercentUsed,
-            
-            -- Alert level
-            CASE 
-                WHEN quoted.QuotedHours IS NULL OR quoted.QuotedHours = 0 THEN 'NO_QUOTE'
-                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 100 THEN 'CRITICAL'
-                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 90 THEN 'RED'
-                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 80 THEN 'YELLOW'
-                ELSE 'GREEN'
+
+            -- Alert level based on percentage used
+            CASE
+                WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 'NO_QUOTE'
+                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 THEN
+                    CASE
+                        WHEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0) = 0 THEN 'NO_QUOTE'
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 100 THEN 'CRITICAL'
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 90 THEN 'RED'
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 80 THEN 'YELLOW'
+                        ELSE 'GREEN'
+                    END
+                ELSE
+                    CASE
+                        WHEN ROUND(quoted.QuotedAmount / 189.0, 0) = 0 THEN 'NO_QUOTE'
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 100 THEN 'CRITICAL'
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 90 THEN 'RED'
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 80 THEN 'YELLOW'
+                        ELSE 'GREEN'
+                    END
             END as AlertLevel
 
         FROM [ben002].WO w
-        
+
         LEFT JOIN [ben002].Customer c ON w.BillTo = c.Number
-        
+
+        -- Join LaborRate view to get actual hourly rate for this work order
+        LEFT JOIN [ben002].LaborRate lr ON lr.Code = w.LaborRate
+
+        -- Get quoted labor amount from WOQuote table
         LEFT JOIN (
-            SELECT 
+            SELECT
                 WONo,
-                SUM(Amount) as QuotedAmount,
-                SUM(Amount) / 189.0 as QuotedHours  -- Calculate hours from amount
+                SUM(Amount) as QuotedAmount
             FROM [ben002].WOQuote
             WHERE Type = 'L'  -- L = Labor quotes
             GROUP BY WONo
         ) quoted ON w.WONo = quoted.WONo
-        
+
         LEFT JOIN [ben002].WOLabor l ON w.WONo = l.WONo
-        
+
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
           AND w.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
           AND c.Name NOT IN (
             'NEW EQUIP PREP - EXPENSE',
-            'RENTAL FLEET - EXPENSE', 
+            'RENTAL FLEET - EXPENSE',
             'USED EQUIP. PREP-EXPENSE',
             'SVC REWORK/SVC WARRANTY',
             'NEW EQ. INTNL RNTL/DEMO'
           )  -- Exclude internal expense accounts
-        
-        GROUP BY 
-            w.WONo, w.BillTo, c.Name, w.UnitNo, w.SerialNo, 
-            w.OpenDate, quoted.QuotedAmount, quoted.QuotedHours
-        
-        ORDER BY 
-            CASE 
-                WHEN quoted.QuotedHours IS NULL THEN 4
-                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 100 THEN 1
-                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 90 THEN 2
-                WHEN (COALESCE(SUM(l.Hours), 0) / quoted.QuotedHours) * 100 >= 80 THEN 3
-                ELSE 5
+
+        GROUP BY
+            w.WONo, w.BillTo, c.Name, w.UnitNo, w.SerialNo,
+            w.OpenDate, quoted.QuotedAmount, lr.Rate, w.LaborDiscount
+
+        ORDER BY
+            CASE
+                WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 4
+                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 THEN
+                    CASE
+                        WHEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0) = 0 THEN 4
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 100 THEN 1
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 90 THEN 2
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 80 THEN 3
+                        ELSE 5
+                    END
+                ELSE
+                    CASE
+                        WHEN ROUND(quoted.QuotedAmount / 189.0, 0) = 0 THEN 4
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 100 THEN 1
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 90 THEN 2
+                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 80 THEN 3
+                        ELSE 5
+                    END
             END,
             w.OpenDate
         """
         
         results = db.execute_query(query)
-        
+
         work_orders = []
         if results:
             for row in results:
@@ -162,8 +215,10 @@ def get_shop_work_orders():
                     'unit_no': row['UnitNo'],
                     'serial_no': row['SerialNo'],
                     'open_date': row['OpenDate'].isoformat() if row['OpenDate'] else None,
+                    'labor_rate': float(row['LaborRate']) if row['LaborRate'] else 189.0,
+                    'labor_discount': float(row['LaborDiscount']) if row['LaborDiscount'] else 0,
                     'quoted_amount': float(row['QuotedAmount']) if row['QuotedAmount'] else 0,
-                    'quoted_hours': float(row['QuotedHours']) if row['QuotedHours'] else 0,
+                    'quoted_hours': int(row['QuotedHours']) if row['QuotedHours'] else 0,  # Now whole numbers
                     'actual_hours': float(row['ActualHours']) if row['ActualHours'] else 0,
                     'percent_used': float(row['PercentUsed']) if row['PercentUsed'] else 0,
                     'alert_level': row['AlertLevel']
