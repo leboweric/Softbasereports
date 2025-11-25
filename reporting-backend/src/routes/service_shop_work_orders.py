@@ -81,6 +81,7 @@ def get_shop_work_orders():
         # to get the actual labor rate for each work order.
         # QuotedHours = QuotedAmount / (LaborRate * (1 - Discount/100))
         # Rounded to whole number since quotes are always in whole hours
+        # Using NULLIF to prevent divide-by-zero errors
         query = """
         SELECT
             w.WONo,
@@ -100,50 +101,63 @@ def get_shop_work_orders():
             -- Calculate quoted hours using actual labor rate from LaborRate view
             -- Formula: QuotedAmount / (Rate * (1 - Discount/100))
             -- Round to whole number since quotes are always in whole hours
+            -- Use NULLIF to handle divide-by-zero safely
             CASE
                 WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 0
-                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0
-                THEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)
+                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
                 ELSE ROUND(quoted.QuotedAmount / 189.0, 0)  -- Fallback to $189 if no rate
             END as QuotedHours,
 
             -- Actual labor hours from WOLabor
             COALESCE(SUM(l.Hours), 0) as ActualHours,
 
-            -- Percentage used (based on rounded quoted hours)
-            CASE
-                WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 0
-                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 THEN
+            -- Percentage used: ActualHours / QuotedHours * 100
+            -- Calculate QuotedHours first, then divide (using NULLIF to avoid divide-by-zero)
+            COALESCE(
+                COALESCE(SUM(l.Hours), 0) * 100.0 /
+                NULLIF(
                     CASE
-                        WHEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0) = 0 THEN 0
-                        ELSE (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100
-                    END
-                ELSE
-                    CASE
-                        WHEN ROUND(quoted.QuotedAmount / 189.0, 0) = 0 THEN 0
-                        ELSE (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100
-                    END
-            END as PercentUsed,
+                        WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN NULL
+                        WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                        THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                        ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                    END,
+                0),
+            0) as PercentUsed,
 
             -- Alert level based on percentage used
             CASE
                 WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 'NO_QUOTE'
-                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 THEN
-                    CASE
-                        WHEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0) = 0 THEN 'NO_QUOTE'
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 100 THEN 'CRITICAL'
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 90 THEN 'RED'
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 80 THEN 'YELLOW'
-                        ELSE 'GREEN'
-                    END
-                ELSE
-                    CASE
-                        WHEN ROUND(quoted.QuotedAmount / 189.0, 0) = 0 THEN 'NO_QUOTE'
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 100 THEN 'CRITICAL'
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 90 THEN 'RED'
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 80 THEN 'YELLOW'
-                        ELSE 'GREEN'
-                    END
+                WHEN CASE
+                        WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                        THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                        ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                     END IS NULL OR
+                     CASE
+                        WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                        THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                        ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                     END = 0 THEN 'NO_QUOTE'
+                WHEN COALESCE(SUM(l.Hours), 0) * 100.0 /
+                     NULLIF(CASE
+                        WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                        THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                        ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                     END, 0) >= 100 THEN 'CRITICAL'
+                WHEN COALESCE(SUM(l.Hours), 0) * 100.0 /
+                     NULLIF(CASE
+                        WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                        THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                        ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                     END, 0) >= 90 THEN 'RED'
+                WHEN COALESCE(SUM(l.Hours), 0) * 100.0 /
+                     NULLIF(CASE
+                        WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                        THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                        ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                     END, 0) >= 80 THEN 'YELLOW'
+                ELSE 'GREEN'
             END as AlertLevel
 
         FROM [ben002].WO w
@@ -183,20 +197,29 @@ def get_shop_work_orders():
         ORDER BY
             CASE
                 WHEN quoted.QuotedAmount IS NULL OR quoted.QuotedAmount = 0 THEN 4
-                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 THEN
-                    CASE
-                        WHEN ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0) = 0 THEN 4
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 100 THEN 1
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 90 THEN 2
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / (lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0)), 0)) * 100 >= 80 THEN 3
-                        ELSE 5
-                    END
                 ELSE
                     CASE
-                        WHEN ROUND(quoted.QuotedAmount / 189.0, 0) = 0 THEN 4
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 100 THEN 1
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 90 THEN 2
-                        WHEN (COALESCE(SUM(l.Hours), 0) / ROUND(quoted.QuotedAmount / 189.0, 0)) * 100 >= 80 THEN 3
+                        WHEN COALESCE(
+                             COALESCE(SUM(l.Hours), 0) * 100.0 /
+                             NULLIF(CASE
+                                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                                THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                                ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                             END, 0), 0) >= 100 THEN 1
+                        WHEN COALESCE(
+                             COALESCE(SUM(l.Hours), 0) * 100.0 /
+                             NULLIF(CASE
+                                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                                THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                                ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                             END, 0), 0) >= 90 THEN 2
+                        WHEN COALESCE(
+                             COALESCE(SUM(l.Hours), 0) * 100.0 /
+                             NULLIF(CASE
+                                WHEN lr.Rate IS NOT NULL AND lr.Rate > 0 AND (1 - COALESCE(w.LaborDiscount, 0) / 100.0) > 0
+                                THEN ROUND(quoted.QuotedAmount / NULLIF(lr.Rate * (1 - COALESCE(w.LaborDiscount, 0) / 100.0), 0), 0)
+                                ELSE ROUND(quoted.QuotedAmount / 189.0, 0)
+                             END, 0), 0) >= 80 THEN 3
                         ELSE 5
                     END
             END,
