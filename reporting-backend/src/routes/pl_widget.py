@@ -44,8 +44,17 @@ def get_pl_widget():
         # Get 12-month trend
         trend_data = get_pl_trend(current_year, current_month, months=12)
         
+        # Debug logging
+        logger.info(f"=" * 80)
+        logger.info(f"P&L Widget Calculation for {current_year}-{current_month:02d}")
+        logger.info(f"Trend data has {len(trend_data)} months:")
+        for item in trend_data:
+            logger.info(f"  {item['month']}: ${item['profit_loss']:,.2f}")
+        
         # Calculate trailing 12-month total (sum of all months in trend)
         ytd_pl = sum(item['profit_loss'] for item in trend_data) if trend_data else 0
+        logger.info(f"YTD P&L (sum of all months): ${ytd_pl:,.2f}")
+        logger.info(f"=" * 80)
         
         # Calculate average monthly P&L from trend data
         avg_monthly_pl = ytd_pl / len(trend_data) if trend_data else 0
