@@ -61,8 +61,6 @@ def investigate_january_2025():
             EffectiveDate,
             AccountNo,
             Amount,
-            Description,
-            Reference,
             Posted
         FROM ben002.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
@@ -99,12 +97,11 @@ def investigate_january_2025():
             EffectiveDate,
             AccountNo,
             Amount,
-            Description,
             COUNT(*) as DuplicateCount
         FROM ben002.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
-        GROUP BY EffectiveDate, AccountNo, Amount, Description
+        GROUP BY EffectiveDate, AccountNo, Amount
         HAVING COUNT(*) > 1
         ORDER BY COUNT(*) DESC, ABS(Amount) DESC
         """
@@ -209,24 +206,10 @@ def investigate_january_2025():
         SELECT 
             EffectiveDate,
             AccountNo,
-            Amount,
-            Description,
-            Reference
+            Amount
         FROM ben002.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
-          AND (
-              Description LIKE '%migration%' OR
-              Description LIKE '%adjustment%' OR
-              Description LIKE '%opening%' OR
-              Description LIKE '%balance%' OR
-              Description LIKE '%conversion%' OR
-              Description LIKE '%minitrac%' OR
-              Reference LIKE '%migration%' OR
-              Reference LIKE '%adjustment%' OR
-              Reference LIKE '%opening%' OR
-              Reference LIKE '%conversion%'
-          )
         ORDER BY ABS(Amount) DESC
         """
         results['migration_keywords'] = sql_service.execute_query(query7)
