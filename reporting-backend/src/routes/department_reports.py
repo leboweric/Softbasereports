@@ -3536,9 +3536,11 @@ def register_department_routes(reports_bp):
                     'expenses': expenses
                 })
             
-            # Calculate summary metrics
+            # Calculate summary metrics (exclude current month from average since it's incomplete)
             total_expenses = sum(item['expenses'] for item in monthly_expenses)
-            avg_expenses = total_expenses / len(monthly_expenses) if monthly_expenses else 0
+            # Exclude last month (current month) from average calculation
+            complete_months = monthly_expenses[:-1] if len(monthly_expenses) > 1 else monthly_expenses
+            avg_expenses = sum(item['expenses'] for item in complete_months) / len(complete_months) if complete_months else 0
             
             # Return structure with real expense data from GL
             return jsonify({
