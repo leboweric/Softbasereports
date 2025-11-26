@@ -59,7 +59,8 @@ GL_ACCOUNTS = {
 }
 
 # Other Income/Contra-Revenue Accounts (7xxxxx series)
-OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000', '706000']
+# Note: 706000 (ADMINISTRATIVE FUND EXPENSE) is NOT included - it's an expense account
+OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000']
 
 class DashboardQueries:
     """Encapsulate all dashboard queries for parallel execution"""

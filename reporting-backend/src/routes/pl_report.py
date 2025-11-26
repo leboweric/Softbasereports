@@ -349,13 +349,11 @@ def get_other_income(start_date, end_date):
     try:
         account_list = "', '".join(OTHER_INCOME_ACCOUNTS)
 
-        # Use SUM(Amount) directly - the raw GL amounts have the correct sign for
-        # adding to Total Revenue: negative values reduce revenue, positive values increase it.
-        # Previous code used -SUM(Amount) which incorrectly flipped the sign, causing
-        # contra-revenue accounts like 703000 (A/R Discounts) to ADD to revenue instead of reducing it.
+        # Use -SUM(Amount) to flip the sign for proper revenue calculation
+        # GL stores 7xxxxx accounts as debits (positive), but they should reduce revenue
         query = f"""
         SELECT
-            SUM(Amount) as total
+            -SUM(Amount) as total
         FROM ben002.GLDetail
         WHERE EffectiveDate >= %s
           AND EffectiveDate <= %s
