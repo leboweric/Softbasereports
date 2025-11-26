@@ -876,7 +876,7 @@ const Dashboard = ({ user }) => {
       {/* Tabbed Interface */}
       <Tabs defaultValue="sales" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full max-w-3xl grid-cols-5">
-          <TabsTrigger value="sales">Overview</TabsTrigger>
+          <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
           <TabsTrigger value="forecast">AI Sales Forecast</TabsTrigger>
