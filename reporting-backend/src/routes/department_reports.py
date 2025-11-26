@@ -3490,10 +3490,9 @@ def register_department_routes(reports_bp):
                 import json
                 monthly_data = json.loads(result.get('monthly_data', '[]'))
                 for row in monthly_data:
-                    month_date = datetime(row['year'], row['month'], 1)
                     monthly_expenses.append({
-                        'month': month_date.strftime("%b"),  # Use abbreviated month name to match
                         'year': row['year'],
+                        'month_num': row['month'],  # Keep month as number for proper matching
                         'expenses': float(row['total_expenses'] or 0)
                     })
                 
@@ -3525,14 +3524,12 @@ def register_department_routes(reports_bp):
                     'month_num': month
                 })
 
-            # Match existing data by year and month
-            existing_data = {(item['year'], item['month']): item['expenses'] for item in monthly_expenses if 'year' in item}
-            # Also try matching by month name only for backwards compatibility
-            existing_data_by_name = {item['month']: item['expenses'] for item in monthly_expenses}
+            # Match existing data by year and month number
+            existing_data = {(item['year'], item['month_num']): item['expenses'] for item in monthly_expenses if 'year' in item and 'month_num' in item}
 
             monthly_expenses = []
             for m in all_months:
-                expenses = existing_data.get((m['year'], m['month_num']), existing_data_by_name.get(m['month'], 0))
+                expenses = existing_data.get((m['year'], m['month_num']), 0)
                 monthly_expenses.append({
                     'month': m['month_label'],
                     'year': m['year'],
