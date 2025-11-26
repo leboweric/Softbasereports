@@ -737,50 +737,52 @@ const Dashboard = ({ user }) => {
       const data = dashboardData.monthly_sales_by_stream
       const currentIndex = data.findIndex(item => item.month === label)
       const monthData = data[currentIndex]
-      const previousMonthData = currentIndex > 0 ? data[currentIndex - 1] : null
       const total = payload[0].value
-      const previousTotal = previousMonthData ?
-        (previousMonthData.parts + previousMonthData.labor + previousMonthData.rental + previousMonthData.misc) : null
+
+      // Calculate prior year total from prior_parts, prior_labor, prior_rental
+      const priorYearTotal = monthData ?
+        (monthData.prior_parts || 0) + (monthData.prior_labor || 0) + (monthData.prior_rental || 0) : null
+
+      // Calculate blended margin (weighted average based on revenue)
+      let blendedMargin = null
+      let priorBlendedMargin = null
+
+      if (monthData && total > 0) {
+        const partsGP = monthData.parts - (monthData.parts * (1 - (monthData.parts_margin || 0) / 100))
+        const laborGP = monthData.labor - (monthData.labor * (1 - (monthData.labor_margin || 0) / 100))
+        const rentalGP = monthData.rental - (monthData.rental * (1 - (monthData.rental_margin || 0) / 100))
+
+        // Simpler calculation: use margin percentages directly weighted by revenue
+        const totalRevenue = monthData.parts + monthData.labor + monthData.rental
+        if (totalRevenue > 0) {
+          blendedMargin = (
+            (monthData.parts / totalRevenue) * (monthData.parts_margin || 0) +
+            (monthData.labor / totalRevenue) * (monthData.labor_margin || 0) +
+            (monthData.rental / totalRevenue) * (monthData.rental_margin || 0)
+          )
+        }
+      }
 
       return (
         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
           <p className="font-semibold mb-2">{label}</p>
-          <p className="font-semibold text-green-600 mb-2">
-            Total: {formatCurrency(total)}
-            {formatPercentage(calculatePercentageChange(total, previousTotal))}
-          </p>
-          {monthData && (
-            <div className="text-sm space-y-1 border-t pt-2">
-              <div className="flex justify-between">
-                <span>Parts:</span>
-                <span className="ml-4">
-                  {formatCurrency(monthData.parts)}
-                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.parts, previousMonthData.parts))}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Labor:</span>
-                <span className="ml-4">
-                  {formatCurrency(monthData.labor)}
-                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.labor, previousMonthData.labor))}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Rental:</span>
-                <span className="ml-4">
-                  {formatCurrency(monthData.rental)}
-                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.rental, previousMonthData.rental))}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Misc:</span>
-                <span className="ml-4">
-                  {formatCurrency(monthData.misc)}
-                  {previousMonthData && formatPercentage(calculatePercentageChange(monthData.misc, previousMonthData.misc))}
-                </span>
-              </div>
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <span>Total Sales:</span>
+              <span className="ml-4 font-semibold">
+                {formatCurrency(total)}
+                {priorYearTotal > 0 && formatPercentage(calculatePercentageChange(total, priorYearTotal))}
+              </span>
             </div>
-          )}
+            {blendedMargin !== null && (
+              <div className="flex justify-between items-center">
+                <span>Blended Margin:</span>
+                <span className="ml-4 font-semibold">
+                  {blendedMargin.toFixed(1)}%
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )
     }
