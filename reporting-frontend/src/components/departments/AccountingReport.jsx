@@ -49,7 +49,28 @@ const AccountingReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
-        setMonthlyExpenses(data.monthly_expenses || [])
+        // Filter out current month and Nov '24 through Feb '25
+        const filteredExpenses = (data.monthly_expenses || []).filter(item => {
+          // Exclude months before March 2025
+          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25", "Nov", "Dec", "Jan", "Feb"]
+          // Check both formats - some might have year, some might not
+          if (excludedMonths.includes(item.month)) {
+            // If it's just month name without year, check if year is 2024/2025 early months
+            if (item.year === 2024 && ['Nov', 'Dec'].includes(item.month)) return false
+            if (item.year === 2025 && ['Jan', 'Feb'].includes(item.month)) return false
+            if (item.month.includes("'24") || item.month.includes("'25")) {
+              if (["Nov '24", "Dec '24", "Jan '25", "Feb '25"].includes(item.month)) return false
+            }
+          }
+          // Exclude current month (always incomplete)
+          const now = new Date()
+          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short' })
+          if (item.month === currentMonthStr && item.year === now.getFullYear()) return false
+          const currentMonthStrWithYear = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+          if (item.month === currentMonthStrWithYear) return false
+          return true
+        })
+        setMonthlyExpenses(filteredExpenses)
       }
     } catch (error) {
       console.error('Error fetching accounting data:', error)
@@ -116,7 +137,18 @@ const AccountingReport = ({ user }) => {
 
       if (response.ok) {
         const data = await response.json()
-        setMonthlyGrossMargin(data.monthly_sales || [])
+        // Filter out current month and Nov '24 through Feb '25
+        const filteredData = (data.monthly_sales || []).filter(item => {
+          // Exclude months before March 2025
+          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+          if (excludedMonths.includes(item.month)) return false
+          // Exclude current month (always incomplete)
+          const now = new Date()
+          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+          if (item.month === currentMonthStr) return false
+          return true
+        })
+        setMonthlyGrossMargin(filteredData)
       } else {
         console.error('Dashboard data error:', response.status, response.statusText)
       }
@@ -226,12 +258,11 @@ const AccountingReport = ({ user }) => {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle>Monthly Gross Margin Dollars</CardTitle>
-                  <CardDescription>Revenue minus Cost of Goods Sold - trailing 13 months</CardDescription>
+                  <CardDescription>Revenue minus Cost of Goods Sold - March 2025 onwards</CardDescription>
                 </div>
                 {monthlyGrossMargin && monthlyGrossMargin.length > 0 && (() => {
-                  const completeMonths = monthlyGrossMargin.slice(0, -1)
-                  const avgGrossMargin = completeMonths.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0) / completeMonths.length
-                  const ytdGrossMargin = monthlyGrossMargin.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0)
+                  const avgGrossMargin = monthlyGrossMargin.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0) / monthlyGrossMargin.length
+                  const totalGrossMargin = monthlyGrossMargin.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0)
                   return (
                     <div className="flex gap-6 text-right">
                       <div>
@@ -239,8 +270,8 @@ const AccountingReport = ({ user }) => {
                         <p className="text-lg font-semibold">{formatCurrency(avgGrossMargin)}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">YTD Total</p>
-                        <p className="text-lg font-semibold">{formatCurrency(ytdGrossMargin)}</p>
+                        <p className="text-sm text-muted-foreground">Total</p>
+                        <p className="text-lg font-semibold">{formatCurrency(totalGrossMargin)}</p>
                       </div>
                     </div>
                   )
@@ -293,14 +324,9 @@ const AccountingReport = ({ user }) => {
                     strokeWidth={2}
                     dot={{ fill: '#3b82f6' }}
                     name="Gross Margin %"
-                    connectNulls={false}
-                    data={monthlyGrossMargin.map((item, index) =>
-                      index === monthlyGrossMargin.length - 1 ? { ...item, margin: null } : item
-                    )}
                   />
                   {monthlyGrossMargin && monthlyGrossMargin.length > 0 && (() => {
-                    const completeMonths = monthlyGrossMargin.slice(0, -1)
-                    const average = completeMonths.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0) / completeMonths.length
+                    const average = monthlyGrossMargin.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0) / monthlyGrossMargin.length
                     return (
                       <ReferenceLine
                         yAxisId="left"
@@ -322,32 +348,13 @@ const AccountingReport = ({ user }) => {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle>G&A Expenses Over Time</CardTitle>
-                <CardDescription>General & Administrative expenses - trailing 13 months</CardDescription>
+                <CardDescription>General & Administrative expenses - March 2025 onwards</CardDescription>
               </div>
               {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
-                // Exclude current month and incomplete months
-                const currentDate = new Date()
-                const currentMonthIndex = currentDate.getMonth()
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                const currentMonthName = monthNames[currentMonthIndex]
-                
-                // First pass: calculate a rough average to identify incomplete months
                 const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
                 if (monthsWithData.length === 0) return null
-                
-                const roughAverage = monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
-                
-                // Second pass: exclude current month and months with less than 50% of rough average (likely incomplete)
-                const completeMonths = monthlyExpenses.filter(item => {
-                  return item.month !== currentMonthName && 
-                         item.expenses > 0 && 
-                         item.expenses > (roughAverage * 0.5)
-                })
-                
-                if (completeMonths.length === 0) return null
-                
-                const avgExpenses = completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length
-                
+                const avgExpenses = monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+
                 return (
                   <div className="text-right">
                     <div>
@@ -363,75 +370,42 @@ const AccountingReport = ({ user }) => {
             <ResponsiveContainer width="100%" height={350}>
               <ComposedChart data={(() => {
                 const data = monthlyExpenses || []
-                
-                // Calculate average for historical months
-                if (data.length > 0) {
-                  const currentDate = new Date()
-                  const currentMonthIndex = currentDate.getMonth()
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                  const currentMonthName = monthNames[currentMonthIndex]
-                  
-                  // Calculate average excluding current month and incomplete months
-                  const monthsWithData = data.filter(item => item.expenses > 0)
-                  const roughAverage = monthsWithData.length > 0 
-                    ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length 
-                    : 0
-                  
-                  const completeMonths = data.filter(item => {
-                    return item.month !== currentMonthName && 
-                           item.expenses > 0 && 
-                           item.expenses > (roughAverage * 0.5)
+                if (data.length === 0) return data
+
+                // Calculate average for all months (already filtered)
+                const monthsWithData = data.filter(item => item.expenses > 0)
+                const avgExpenses = monthsWithData.length > 0
+                  ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+                  : 0
+
+                // Calculate linear regression for trendline
+                let trendSlope = 0
+                let trendIntercept = 0
+
+                if (monthsWithData.length >= 2) {
+                  const n = monthsWithData.length
+                  const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0)
+                  const sumY = monthsWithData.reduce((sum, item) => sum + item.expenses, 0)
+                  const meanX = sumX / n
+                  const meanY = sumY / n
+
+                  let numerator = 0
+                  let denominator = 0
+                  monthsWithData.forEach((item, i) => {
+                    numerator += (i - meanX) * (item.expenses - meanY)
+                    denominator += (i - meanX) * (i - meanX)
                   })
-                  
-                  const avgExpenses = completeMonths.length > 0 
-                    ? completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length 
-                    : 0
-                  
-                  // Calculate linear regression for trendline (excluding current month)
-                  // Assign x values to complete months only
-                  const completeMonthsWithIndex = data.map((item, index) => ({
-                    ...item,
-                    index,
-                    isComplete: completeMonths.some(cm => cm.month === item.month)
-                  })).filter(item => item.isComplete)
-                  
-                  let trendSlope = 0
-                  let trendIntercept = 0
-                  
-                  if (completeMonthsWithIndex.length >= 2) {
-                    // Calculate means
-                    const n = completeMonthsWithIndex.length
-                    const sumX = completeMonthsWithIndex.reduce((sum, item, i) => sum + i, 0)
-                    const sumY = completeMonthsWithIndex.reduce((sum, item) => sum + item.expenses, 0)
-                    const meanX = sumX / n
-                    const meanY = sumY / n
-                    
-                    // Calculate slope and intercept
-                    let numerator = 0
-                    let denominator = 0
-                    completeMonthsWithIndex.forEach((item, i) => {
-                      numerator += (i - meanX) * (item.expenses - meanY)
-                      denominator += (i - meanX) * (i - meanX)
-                    })
-                    
-                    trendSlope = denominator !== 0 ? numerator / denominator : 0
-                    trendIntercept = meanY - trendSlope * meanX
-                  }
-                  
-                  // Add average and trendline to each data point
-                  return data.map((item, index) => {
-                    const completeIndex = completeMonthsWithIndex.findIndex(cm => cm.month === item.month)
-                    const trendValue = completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null
-                    
-                    return {
-                      ...item,
-                      avgExpenses: avgExpenses,
-                      trendline: trendValue
-                    }
-                  })
+
+                  trendSlope = denominator !== 0 ? numerator / denominator : 0
+                  trendIntercept = meanY - trendSlope * meanX
                 }
-                
-                return data
+
+                // Add average and trendline to each data point
+                return data.map((item, index) => ({
+                  ...item,
+                  avgExpenses: avgExpenses,
+                  trendline: item.expenses > 0 ? trendSlope * index + trendIntercept : null
+                }))
               })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
