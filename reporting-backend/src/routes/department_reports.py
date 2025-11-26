@@ -3419,15 +3419,16 @@ def register_department_routes(reports_bp):
             # For now, returning mock data to demonstrate the structure
             
             # Get G&A expenses from GLDetail table (which has the actual expense transactions)
+            # Use trailing 13 months to match other dashboard charts
             expenses_query = """
             WITH MonthlyExpenses AS (
-                SELECT 
+                SELECT
                     YEAR(gld.EffectiveDate) as year,
                     MONTH(gld.EffectiveDate) as month,
                     SUM(gld.Amount) as total_expenses
                 FROM ben002.GLDetail gld
                 WHERE gld.AccountNo LIKE '6%'  -- Expense accounts start with 6
-                    AND gld.EffectiveDate >= '2025-03-01'
+                    AND gld.EffectiveDate >= DATEADD(month, -13, GETDATE())
                     AND gld.EffectiveDate < DATEADD(DAY, 1, GETDATE())
                 GROUP BY YEAR(gld.EffectiveDate), MONTH(gld.EffectiveDate)
             ),
@@ -3503,25 +3504,40 @@ def register_department_routes(reports_bp):
                     'amount': float(cat['amount'] or 0)
                 } for cat in category_data]
             
-            # Pad missing months and extend through February of next year
+            # Use trailing 13 months to match other dashboard charts
             current_date = datetime.now()
-            start_date = datetime(2025, 3, 1)
-            # Calculate end date as February of next year
-            end_year = current_date.year + 1 if current_date.month >= 3 else current_date.year
-            end_date = datetime(end_year, 2, 1)
-            
+
+            # Generate 13-month list ending with current month
             all_months = []
-            date = start_date
-            
-            while date <= end_date:
-                all_months.append(date.strftime("%b"))
-                if date.month == 12:
-                    date = date.replace(year=date.year + 1, month=1)
-                else:
-                    date = date.replace(month=date.month + 1)
-            
-            existing_data = {item['month']: item['expenses'] for item in monthly_expenses}
-            monthly_expenses = [{'month': month, 'expenses': existing_data.get(month, 0)} for month in all_months]
+            for i in range(12, -1, -1):
+                month_date = current_date - timedelta(days=i * 30)  # Approximate
+                # More accurate: go back i months
+                year = current_date.year
+                month = current_date.month - i
+                while month <= 0:
+                    month += 12
+                    year -= 1
+                month_date = datetime(year, month, 1)
+                all_months.append({
+                    'month': month_date.strftime("%b"),
+                    'month_label': month_date.strftime("%b '%y"),
+                    'year': year,
+                    'month_num': month
+                })
+
+            # Match existing data by year and month
+            existing_data = {(item['year'], item['month']): item['expenses'] for item in monthly_expenses if 'year' in item}
+            # Also try matching by month name only for backwards compatibility
+            existing_data_by_name = {item['month']: item['expenses'] for item in monthly_expenses}
+
+            monthly_expenses = []
+            for m in all_months:
+                expenses = existing_data.get((m['year'], m['month_num']), existing_data_by_name.get(m['month'], 0))
+                monthly_expenses.append({
+                    'month': m['month_label'],
+                    'year': m['year'],
+                    'expenses': expenses
+                })
             
             # Calculate summary metrics
             total_expenses = sum(item['expenses'] for item in monthly_expenses)

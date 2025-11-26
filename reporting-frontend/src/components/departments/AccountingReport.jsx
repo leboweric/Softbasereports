@@ -181,7 +181,7 @@ const AccountingReport = ({ user }) => {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle>G&A Expenses Over Time</CardTitle>
-                <CardDescription>General & Administrative expenses through February {new Date().getFullYear() + 1}</CardDescription>
+                <CardDescription>General & Administrative expenses - trailing 13 months</CardDescription>
               </div>
               {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
                 // Exclude current month and incomplete months
