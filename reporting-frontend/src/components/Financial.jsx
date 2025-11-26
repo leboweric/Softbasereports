@@ -30,7 +30,7 @@ const Financial = ({ user, organization }) => {
               }
             `}
           >
-            Overview
+            Sales
           </button>
           <button
             onClick={() => setActiveTab('pl')}
