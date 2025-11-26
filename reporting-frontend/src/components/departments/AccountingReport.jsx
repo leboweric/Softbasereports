@@ -108,7 +108,7 @@ const AccountingReport = ({ user }) => {
   const fetchGrossMarginData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/dashboard'), {
+      const response = await fetch(apiUrl('/api/reports/dashboard/summary-optimized'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
