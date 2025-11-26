@@ -94,7 +94,11 @@ def get_monthly_pl(year, month):
         all_revenue_accounts = []
         for dept_config in GL_ACCOUNTS.values():
             all_revenue_accounts.extend(dept_config['revenue'])
-        
+
+        # Add Other Income/Contra-Revenue accounts (7xxxxx series)
+        # These accounts (like A/R Discounts) reduce total revenue
+        all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+
         # Collect all COGS accounts from all departments
         all_cogs_accounts = []
         for dept_config in GL_ACCOUNTS.values():
