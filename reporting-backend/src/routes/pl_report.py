@@ -327,22 +327,37 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
 def get_other_income(start_date, end_date):
     """
     Get other income/contra-revenue from 7xxxxx accounts
-    
+
+    These accounts include:
+    - 701000: Gain/Loss on Sale of Asset
+    - 702000: Miscellaneous Income
+    - 703000: A/R Discounts Allowed (contra-revenue, reduces sales)
+    - 704000: A/P Discounts Taken
+    - 705000: Parts Discounts (contra-revenue, reduces sales)
+
+    In the GL, these are stored as credits (negative) for income items and
+    debits (positive) for contra-revenue items. Softbase displays the net
+    effect on Total Sales directly, so we use SUM(Amount) to match.
+
     Args:
         start_date: Start date for the report
         end_date: End date for the report
-    
+
     Returns:
-        Total other income (negative value reduces revenue)
+        Total other income (negative value reduces revenue, positive increases)
     """
     try:
         account_list = "', '".join(OTHER_INCOME_ACCOUNTS)
-        
+
+        # Use SUM(Amount) directly - the raw GL amounts have the correct sign for
+        # adding to Total Revenue: negative values reduce revenue, positive values increase it.
+        # Previous code used -SUM(Amount) which incorrectly flipped the sign, causing
+        # contra-revenue accounts like 703000 (A/R Discounts) to ADD to revenue instead of reducing it.
         query = f"""
-        SELECT 
-            -SUM(Amount) as total
+        SELECT
+            SUM(Amount) as total
         FROM ben002.GLDetail
-        WHERE EffectiveDate >= %s 
+        WHERE EffectiveDate >= %s
           AND EffectiveDate <= %s
           AND Posted = 1
           AND AccountNo IN ('{account_list}')
@@ -1131,16 +1146,5 @@ def get_overhead_expenses(start_date, end_date):
     return float(result[0]['total'] or 0) if result else 0
 
 
-def get_other_income(start_date, end_date):
-    """Get other income/expense (7xxxx accounts)"""
-    query = f"""
-    SELECT -SUM(Amount) as total
-    FROM ben002.GLDetail
-    WHERE AccountNo IN ('{"', '".join(OTHER_INCOME_ACCOUNTS)}')
-      AND EffectiveDate >= %s
-      AND EffectiveDate <= %s
-      AND Posted = 1
-    """
-    
-    result = sql_service.execute_query(query, [start_date, end_date])
-    return float(result[0]['total'] or 0) if result else 0
+# Note: get_other_income is defined earlier in this file (line ~327)
+# The function was previously duplicated here - removed to avoid confusion
