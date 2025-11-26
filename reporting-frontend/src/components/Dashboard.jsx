@@ -999,7 +999,12 @@ const Dashboard = ({ user }) => {
                             </p>
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600">
-                                Margin: {monthData.margin.toFixed(1)}%
+                                Blended Margin: {monthData.margin.toFixed(1)}%
+                                {monthData.prior_year_margin !== null && monthData.prior_year_margin !== undefined && (
+                                  <span className={`text-sm ml-2 ${monthData.margin > monthData.prior_year_margin ? 'text-green-600' : monthData.margin < monthData.prior_year_margin ? 'text-red-600' : 'text-gray-500'}`}>
+                                    ({monthData.margin > monthData.prior_year_margin ? '+' : ''}{(monthData.margin - monthData.prior_year_margin).toFixed(1)} pts vs last year)
+                                  </span>
+                                )}
                               </p>
                             )}
                           </div>
