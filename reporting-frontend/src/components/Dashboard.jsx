@@ -1286,12 +1286,6 @@ const Dashboard = ({ user }) => {
 
                         // Use prior_year_amount for year-over-year comparison
                         const priorYearValue = monthData?.prior_year_amount || null
-                        const previousMargin = currentIndex > 0 ? data[currentIndex - 1].margin : null
-
-                        // Calculate margin change in percentage points
-                        const marginChange = previousMargin !== null && monthData?.margin !== null
-                          ? monthData.margin - previousMargin
-                          : null
 
                         return (
                           <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
@@ -1307,19 +1301,14 @@ const Dashboard = ({ user }) => {
                             {monthData?.unit_count !== null && monthData?.unit_count !== undefined && monthData?.unit_count > 0 && (
                               <p className="text-purple-600">
                                 Units Sold: {monthData.unit_count}
-                                {currentIndex > 0 && data[currentIndex - 1].unit_count > 0 && (
-                                  <span className="ml-2 text-sm">
-                                    ({monthData.unit_count > data[currentIndex - 1].unit_count ? '+' : ''}{monthData.unit_count - data[currentIndex - 1].unit_count} vs last month)
-                                  </span>
-                                )}
                               </p>
                             )}
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600">
-                                Margin: {monthData.margin.toFixed(1)}%
-                                {marginChange !== null && (
-                                  <span className={`ml-2 text-sm ${marginChange > 0 ? 'text-green-600' : marginChange < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                    ({marginChange > 0 ? '+' : ''}{marginChange.toFixed(1)} pts)
+                                Blended Margin: {monthData.margin.toFixed(1)}%
+                                {monthData.prior_year_margin !== null && monthData.prior_year_margin !== undefined && (
+                                  <span className={`text-sm ml-2 ${monthData.margin > monthData.prior_year_margin ? 'text-green-600' : monthData.margin < monthData.prior_year_margin ? 'text-red-600' : 'text-gray-500'}`}>
+                                    ({monthData.margin > monthData.prior_year_margin ? '+' : ''}{(monthData.margin - monthData.prior_year_margin).toFixed(1)} pts vs last year)
                                   </span>
                                 )}
                               </p>

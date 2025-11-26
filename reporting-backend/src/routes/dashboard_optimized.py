@@ -692,11 +692,14 @@ class DashboardQueries:
                     margin = None
                 
                 # Get prior year data for comparison
+                prior_revenue = 0
+                prior_margin = None
                 if prior_row:
                     prior_revenue = float(prior_row['equipment_revenue'] or 0)
-                else:
-                    prior_revenue = 0
-                
+                    prior_cost = float(prior_row['equipment_cost'] or 0)
+                    if prior_revenue > 0:
+                        prior_margin = round(((prior_revenue - prior_cost) / prior_revenue) * 100, 1)
+
                 monthly_sales.append({
                     'month': month_str,
                     'month_number': month,
@@ -704,6 +707,7 @@ class DashboardQueries:
                     'amount': revenue,
                     'margin': margin,
                     'prior_year_amount': prior_revenue,
+                    'prior_year_margin': prior_margin,
                     'unit_count': unit_count
                 })
             
