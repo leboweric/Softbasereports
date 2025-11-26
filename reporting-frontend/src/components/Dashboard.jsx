@@ -1172,7 +1172,7 @@ const Dashboard = ({ user }) => {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle>Monthly Quotes</CardTitle>
-                    <CardDescription>Quote activity through February {new Date().getFullYear() + 1}</CardDescription>
+                    <CardDescription>Quote activity - trailing 13 months</CardDescription>
                   </div>
                   {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
                     const completeMonths = dashboardData.monthly_quotes.slice(0, -1)

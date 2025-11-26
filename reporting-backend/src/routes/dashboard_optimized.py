@@ -717,25 +717,25 @@ class DashboardQueries:
             return []
     
     def get_monthly_quotes(self):
-        """Get monthly quotes since March - latest quote per work order"""
+        """Get monthly quotes - trailing 13 months, latest quote per work order"""
         try:
-            # Use only the latest quote per WO per month
+            # Use only the latest quote per WO per month - trailing 13 months
             query = """
             WITH LatestQuotes AS (
                 -- First, get the latest quote date for each WO per month
-                SELECT 
+                SELECT
                     YEAR(CreationTime) as year,
                     MONTH(CreationTime) as month,
                     WONo,
                     MAX(CAST(CreationTime AS DATE)) as latest_quote_date
                 FROM ben002.WOQuote
-                WHERE CreationTime >= '2025-03-01'
+                WHERE CreationTime >= DATEADD(month, -13, GETDATE())
                 AND Amount > 0
                 GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
             ),
             QuoteTotals AS (
                 -- Then sum all line items for each WO on its latest quote date
-                SELECT 
+                SELECT
                     lq.year,
                     lq.month,
                     lq.WONo,
@@ -749,7 +749,7 @@ class DashboardQueries:
                 WHERE wq.Amount > 0
                 GROUP BY lq.year, lq.month, lq.WONo
             )
-            SELECT 
+            SELECT
                 year,
                 month,
                 SUM(wo_total) as amount
@@ -757,43 +757,38 @@ class DashboardQueries:
             GROUP BY year, month
             ORDER BY year, month
             """
-            
+
             results = self.db.execute_query(query)
             monthly_quotes = []
-            
+
             if results:
                 for row in results:
-                    month_date = datetime(row['year'], row['month'], 1)
                     monthly_quotes.append({
-                        'month': month_date.strftime("%b"),
                         'year': row['year'],
+                        'month_num': row['month'],
                         'amount': float(row['amount'])
                     })
-            
-            # Pad missing months
-            start_date = datetime(2025, 3, 1)
-            all_months = []
-            date = start_date
-            while date <= self.current_date:
-                all_months.append({'month': date.strftime("%b"), 'year': date.year})
-                if date.month == 12:
-                    date = date.replace(year=date.year + 1, month=1)
-                else:
-                    date = date.replace(month=date.month + 1)
-            
-            existing_quotes = {f"{item['year']}-{item['month']}": item for item in monthly_quotes}
+
+            # Generate trailing 13 months with year labels
+            fiscal_year_months = get_fiscal_year_months()
+            existing_quotes = {(item['year'], item['month_num']): item['amount'] for item in monthly_quotes}
+
             monthly_quotes = []
-            for month_info in all_months:
-                key = f"{month_info['year']}-{month_info['month']}"
-                if key in existing_quotes:
-                    monthly_quotes.append(existing_quotes[key])
+            for year, month in fiscal_year_months:
+                month_date = datetime(year, month, 1)
+                # Include year in label if spanning multiple calendar years
+                if fiscal_year_months[0][0] != fiscal_year_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
                 else:
-                    monthly_quotes.append({
-                        'month': month_info['month'],
-                        'year': month_info['year'],
-                        'amount': 0
-                    })
-            
+                    month_str = month_date.strftime("%b")
+
+                amount = existing_quotes.get((year, month), 0)
+                monthly_quotes.append({
+                    'month': month_str,
+                    'year': year,
+                    'amount': amount
+                })
+
             return monthly_quotes
         except Exception as e:
             logger.error(f"Monthly quotes query failed: {str(e)}")
