@@ -26,6 +26,7 @@ import InventoryReport from '@/components/InventoryReport'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
+  const [monthlyGrossMargin, setMonthlyGrossMargin] = useState([])
   const [arData, setArData] = useState(null)
   const [apTotal, setApTotal] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -34,6 +35,7 @@ const AccountingReport = ({ user }) => {
     fetchAccountingData()
     fetchARData()
     fetchAPTotal()
+    fetchGrossMarginData()
   }, [])
 
   const fetchAccountingData = async () => {
@@ -101,6 +103,49 @@ const AccountingReport = ({ user }) => {
     } catch (error) {
       console.error('Error fetching AP total:', error)
     }
+  }
+
+  const fetchGrossMarginData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/dashboard'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setMonthlyGrossMargin(data.monthly_sales || [])
+      } else {
+        console.error('Dashboard data error:', response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error('Error fetching gross margin data:', error)
+    }
+  }
+
+  // Helper function to format currency
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined) return '$0'
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
+
+  // Helper function for percentage change
+  const calculatePercentageChange = (current, previous) => {
+    if (!previous || previous === 0) return null
+    return ((current - previous) / previous) * 100
+  }
+
+  const formatPercentage = (value) => {
+    if (value === null || value === undefined) return ''
+    const sign = value > 0 ? '+' : ''
+    return ` (${sign}${value.toFixed(1)}%)`
   }
 
   if (loading) {
@@ -174,6 +219,102 @@ const AccountingReport = ({ user }) => {
               </Card>
             )}
           </div>
+
+          {/* Monthly Gross Margin Dollars */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Monthly Gross Margin Dollars</CardTitle>
+                  <CardDescription>Revenue minus Cost of Goods Sold - trailing 13 months</CardDescription>
+                </div>
+                {monthlyGrossMargin && monthlyGrossMargin.length > 0 && (() => {
+                  const completeMonths = monthlyGrossMargin.slice(0, -1)
+                  const avgGrossMargin = completeMonths.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0) / completeMonths.length
+                  const ytdGrossMargin = monthlyGrossMargin.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0)
+                  return (
+                    <div className="flex gap-6 text-right">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Average</p>
+                        <p className="text-lg font-semibold">{formatCurrency(avgGrossMargin)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">YTD Total</p>
+                        <p className="text-lg font-semibold">{formatCurrency(ytdGrossMargin)}</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={monthlyGrossMargin} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                  <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `${value}%`} />
+                  <Tooltip content={({ active, payload, label }) => {
+                    if (active && payload && payload.length && monthlyGrossMargin) {
+                      const data = monthlyGrossMargin
+                      const currentIndex = data.findIndex(item => item.month === label)
+                      const monthData = data[currentIndex]
+                      const currentValue = monthData?.gross_margin_dollars || 0
+                      const priorYearValue = monthData?.prior_year_gross_margin_dollars || 0
+
+                      return (
+                        <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                          <p className="font-semibold mb-1">{label}</p>
+                          <p className="text-green-600">
+                            Gross Margin: {formatCurrency(currentValue)}
+                            {priorYearValue > 0 && (
+                              <span className="text-sm ml-2">
+                                ({formatPercentage(calculatePercentageChange(currentValue, priorYearValue))} vs last year)
+                              </span>
+                            )}
+                          </p>
+                          {monthData?.margin !== null && monthData?.margin !== undefined && (
+                            <p className="text-blue-600 text-sm">
+                              Margin %: {monthData.margin.toFixed(1)}%
+                            </p>
+                          )}
+                        </div>
+                      )
+                    }
+                    return null
+                  }} />
+                  <Legend />
+                  <Bar yAxisId="left" dataKey="gross_margin_dollars" fill="#10b981" name="Gross Margin $" maxBarSize={60} />
+                  <Line
+                    yAxisId="right"
+                    type="monotone"
+                    dataKey="margin"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ fill: '#3b82f6' }}
+                    name="Gross Margin %"
+                    connectNulls={false}
+                    data={monthlyGrossMargin.map((item, index) =>
+                      index === monthlyGrossMargin.length - 1 ? { ...item, margin: null } : item
+                    )}
+                  />
+                  {monthlyGrossMargin && monthlyGrossMargin.length > 0 && (() => {
+                    const completeMonths = monthlyGrossMargin.slice(0, -1)
+                    const average = completeMonths.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0) / completeMonths.length
+                    return (
+                      <ReferenceLine
+                        yAxisId="left"
+                        y={average}
+                        stroke="#666"
+                        strokeDasharray="3 3"
+                        label={{ value: "Average", position: "insideTopRight" }}
+                      />
+                    )
+                  })()}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
           {/* G&A Expenses Over Time */}
           <Card>

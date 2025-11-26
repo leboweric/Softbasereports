@@ -294,25 +294,30 @@ class DashboardQueries:
                 # Get current year data
                 row = revenue_by_month.get(year_month_key)
                 prior_row = revenue_by_month.get(prior_year_key)
-                
+
                 if row:
                     total_revenue = float(row['total_revenue'] or 0)
                     total_cost = float(row['total_cost'] or 0)
-                    
-                    # Calculate gross margin percentage
+
+                    # Calculate gross margin percentage and dollars
                     margin = None
+                    gross_margin_dollars = total_revenue - total_cost
                     if total_revenue > 0:
                         margin = round(((total_revenue - total_cost) / total_revenue) * 100, 1)
                 else:
                     total_revenue = 0
+                    total_cost = 0
                     margin = None
-                
+                    gross_margin_dollars = 0
+
                 # Get prior year data for comparison
                 prior_total = 0
                 prior_margin = None
+                prior_gross_margin_dollars = 0
                 if prior_row:
                     prior_total = float(prior_row['total_revenue'] or 0)
                     prior_cost = float(prior_row['total_cost'] or 0)
+                    prior_gross_margin_dollars = prior_total - prior_cost
                     if prior_total > 0:
                         prior_margin = round(((prior_total - prior_cost) / prior_total) * 100, 1)
 
@@ -321,10 +326,12 @@ class DashboardQueries:
                     'year': year,
                     'amount': total_revenue,
                     'margin': margin,
+                    'gross_margin_dollars': gross_margin_dollars,
                     'prior_year_amount': prior_total,
-                    'prior_year_margin': prior_margin
+                    'prior_year_margin': prior_margin,
+                    'prior_year_gross_margin_dollars': prior_gross_margin_dollars
                 })
-            
+
             return monthly_sales
         except Exception as e:
             logger.error(f"Monthly sales query failed: {str(e)}")
