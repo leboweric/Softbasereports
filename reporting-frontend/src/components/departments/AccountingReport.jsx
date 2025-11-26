@@ -280,7 +280,39 @@ const AccountingReport = ({ user }) => {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={monthlyGrossMargin} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                <ComposedChart data={(() => {
+                  const data = monthlyGrossMargin || []
+                  if (data.length === 0) return data
+
+                  // Calculate linear regression for trendline
+                  const monthsWithData = data.filter(item => item.gross_margin_dollars > 0)
+                  let trendSlope = 0
+                  let trendIntercept = 0
+
+                  if (monthsWithData.length >= 2) {
+                    const n = monthsWithData.length
+                    const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0)
+                    const sumY = monthsWithData.reduce((sum, item) => sum + item.gross_margin_dollars, 0)
+                    const meanX = sumX / n
+                    const meanY = sumY / n
+
+                    let numerator = 0
+                    let denominator = 0
+                    monthsWithData.forEach((item, i) => {
+                      numerator += (i - meanX) * (item.gross_margin_dollars - meanY)
+                      denominator += (i - meanX) * (i - meanX)
+                    })
+
+                    trendSlope = denominator !== 0 ? numerator / denominator : 0
+                    trendIntercept = meanY - trendSlope * meanX
+                  }
+
+                  // Add trendline to each data point
+                  return data.map((item, index) => ({
+                    ...item,
+                    trendline: item.gross_margin_dollars > 0 ? trendSlope * index + trendIntercept : null
+                  }))
+                })()} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -316,6 +348,17 @@ const AccountingReport = ({ user }) => {
                   }} />
                   <Legend />
                   <Bar yAxisId="left" dataKey="gross_margin_dollars" fill="#10b981" name="Gross Margin $" maxBarSize={60} />
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="trendline"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    name="Trend"
+                    connectNulls
+                  />
                   <Line
                     yAxisId="right"
                     type="monotone"
