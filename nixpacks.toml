@@ -13,7 +13,7 @@ cmds = [
 cmds = ['echo "Build phase complete"']
 
 [start]
-cmd = 'cd reporting-backend && gunicorn -w 4 -b 0.0.0.0:$PORT app:app'
+cmd = 'cd reporting-backend && gunicorn -w 4 -b 0.0.0.0:$PORT --timeout 120 src.main:app'
 
 [variables]
 NIXPACKS_PYTHON_VERSION = '3.11'
