@@ -1110,73 +1110,9 @@ const Dashboard = ({ user }) => {
                               )}
                             </p>
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
-                              <p className="text-blue-600 mb-2">
-                                Margin: {monthData.margin.toFixed(1)}%
-                                {marginChange !== null && (
-                                  <span className={`ml-2 text-sm ${marginChange > 0 ? 'text-green-600' : marginChange < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                    ({marginChange > 0 ? '+' : ''}{marginChange.toFixed(1)} pts)
-                                  </span>
-                                )}
+                              <p className="text-blue-600">
+                                Blended Margin: {monthData.margin.toFixed(1)}%
                               </p>
-                            )}
-                            {streamMonthData && (
-                              <div className="text-sm space-y-2 border-t pt-2 mt-2">
-                                <div>
-                                  <div className="font-medium">Parts: {formatCurrency(streamMonthData.parts)}</div>
-                                  <div className="text-xs text-gray-600 ml-4">
-                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.parts, previousStreamData.parts))}
-                                    {streamMonthData.parts_margin !== null && streamMonthData.parts_margin !== undefined && (
-                                      <span className="ml-2 text-blue-600">
-                                        GM: {streamMonthData.parts_margin}%
-                                        {previousStreamData?.parts_margin !== null && previousStreamData?.parts_margin !== undefined && (
-                                          <span className={streamMonthData.parts_margin > previousStreamData.parts_margin ? 'text-green-600' : streamMonthData.parts_margin < previousStreamData.parts_margin ? 'text-red-600' : 'text-gray-500'}>
-                                            {' '}{streamMonthData.parts_margin > previousStreamData.parts_margin ? '+' : ''}{(streamMonthData.parts_margin - previousStreamData.parts_margin).toFixed(1)}pts
-                                          </span>
-                                        )}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="font-medium">Labor: {formatCurrency(streamMonthData.labor)}</div>
-                                  <div className="text-xs text-gray-600 ml-4">
-                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.labor, previousStreamData.labor))}
-                                    {streamMonthData.labor_margin !== null && streamMonthData.labor_margin !== undefined && (
-                                      <span className="ml-2 text-blue-600">
-                                        GM: {streamMonthData.labor_margin}%
-                                        {previousStreamData?.labor_margin !== null && previousStreamData?.labor_margin !== undefined && (
-                                          <span className={streamMonthData.labor_margin > previousStreamData.labor_margin ? 'text-green-600' : streamMonthData.labor_margin < previousStreamData.labor_margin ? 'text-red-600' : 'text-gray-500'}>
-                                            {' '}{streamMonthData.labor_margin > previousStreamData.labor_margin ? '+' : ''}{(streamMonthData.labor_margin - previousStreamData.labor_margin).toFixed(1)}pts
-                                          </span>
-                                        )}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="font-medium">Rental: {formatCurrency(streamMonthData.rental)}</div>
-                                  <div className="text-xs text-gray-600 ml-4">
-                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.rental, previousStreamData.rental))}
-                                    <span className="ml-2 text-gray-400">(No cost data)</span>
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="font-medium">Misc: {formatCurrency(streamMonthData.misc)}</div>
-                                  <div className="text-xs text-gray-600 ml-4">
-                                    {previousStreamData && formatPercentage(calculatePercentageChange(streamMonthData.misc, previousStreamData.misc))}
-                                    {streamMonthData.misc_margin !== null && streamMonthData.misc_margin !== undefined && (
-                                      <span className="ml-2 text-blue-600">
-                                        GM: {streamMonthData.misc_margin}%
-                                        {previousStreamData?.misc_margin !== null && previousStreamData?.misc_margin !== undefined && (
-                                          <span className={streamMonthData.misc_margin > previousStreamData.misc_margin ? 'text-green-600' : streamMonthData.misc_margin < previousStreamData.misc_margin ? 'text-red-600' : 'text-gray-500'}>
-                                            {' '}{streamMonthData.misc_margin > previousStreamData.misc_margin ? '+' : ''}{(streamMonthData.misc_margin - previousStreamData.misc_margin).toFixed(1)}pts
-                                          </span>
-                                        )}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
                             )}
                           </div>
                         )
