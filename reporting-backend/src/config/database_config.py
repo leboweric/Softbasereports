@@ -3,12 +3,32 @@ from urllib.parse import quote_plus
 
 class DatabaseConfig:
     """Configuration for Azure SQL Database connection"""
-    
-    # Azure SQL Database credentials
-    SERVER = os.environ.get('AZURE_SQL_SERVER', 'evo1-sql-replica.database.windows.net')
-    DATABASE = os.environ.get('AZURE_SQL_DATABASE', 'evo')
-    USERNAME = os.environ.get('AZURE_SQL_USERNAME', 'ben002user')
-    PASSWORD = os.environ.get('AZURE_SQL_PASSWORD', 'g6O8CE5mT83mDYOW')
+
+    # Azure SQL Database credentials - ALL MUST BE SET VIA ENVIRONMENT VARIABLES
+    # No hardcoded defaults for security reasons
+    SERVER = os.environ.get('AZURE_SQL_SERVER')
+    DATABASE = os.environ.get('AZURE_SQL_DATABASE')
+    USERNAME = os.environ.get('AZURE_SQL_USERNAME')
+    PASSWORD = os.environ.get('AZURE_SQL_PASSWORD')
+
+    @classmethod
+    def validate(cls):
+        """Validate that all required environment variables are set"""
+        missing = []
+        if not cls.SERVER:
+            missing.append('AZURE_SQL_SERVER')
+        if not cls.DATABASE:
+            missing.append('AZURE_SQL_DATABASE')
+        if not cls.USERNAME:
+            missing.append('AZURE_SQL_USERNAME')
+        if not cls.PASSWORD:
+            missing.append('AZURE_SQL_PASSWORD')
+
+        if missing:
+            raise EnvironmentError(
+                f"Missing required database environment variables: {', '.join(missing)}. "
+                "Please set these in your environment or .env file."
+            )
     
     # Connection string for pyodbc
     @staticmethod
