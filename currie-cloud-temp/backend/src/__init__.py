@@ -1,1 +1,0 @@
-# Currie Cloud Platform Backend
