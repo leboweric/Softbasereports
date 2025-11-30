@@ -2,10 +2,23 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "cd backend && pip install -r requirements.txt"
+    "nixpacksPlan": {
+      "providers": ["python"],
+      "phases": {
+        "setup": {
+          "nixPkgs": ["python312", "python312Packages.pip"]
+        },
+        "install": {
+          "cmds": [
+            "python -m venv /app/venv",
+            "/app/venv/bin/pip install -r backend/requirements.txt"
+          ]
+        }
+      }
+    }
   },
   "deploy": {
-    "startCommand": "cd backend && python init_db.py && gunicorn app:app --bind 0.0.0.0:$PORT",
+    "startCommand": "/app/venv/bin/python backend/init_db.py && /app/venv/bin/gunicorn --chdir backend app:app --bind 0.0.0.0:$PORT",
     "healthcheckPath": "/health",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
