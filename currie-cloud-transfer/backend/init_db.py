@@ -44,8 +44,10 @@ def init_database():
             super_admin_role = Role.query.filter_by(name='super_admin').first()
             admin = User(
                 email='admin@currie.com',
+                username='admin',
                 password_hash=generate_password_hash('changeme123'),
-                name='System Admin',
+                first_name='System',
+                last_name='Admin',
                 user_type='currie_admin',
                 is_active=True
             )
