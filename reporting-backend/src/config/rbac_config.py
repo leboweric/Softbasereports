@@ -30,6 +30,7 @@ RESOURCES = {
     'financial': 'Financial reports including P&L and Currie',
     'database_explorer': 'Database query and exploration tool',
     'user_management': 'User and role management',
+    'qbr': 'Quarterly Business Review dashboard and PowerPoint export',
 }
 
 # Action types
@@ -51,6 +52,7 @@ ROLE_PERMISSIONS = {
             'financial',
             'currie',
             'minitrac',
+            'qbr',
         ],
         'actions': ['view', 'export'],
     },
@@ -71,7 +73,7 @@ ROLE_PERMISSIONS = {
     },
     'Service Manager': {
         'resources': [
-            'service_work_orders', 'service_overview', 'knowledge_base', 'minitrac'
+            'service_work_orders', 'service_overview', 'knowledge_base', 'minitrac', 'qbr'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
@@ -227,4 +229,11 @@ NAVIGATION_CONFIG = {
         'required_resource': 'user_management',
         'order': 99,
     },
-}# Force redeploy for Financial menu
+    'qbr': {
+        'label': 'QBR',
+        'icon': 'FileBarChart',
+        'path': 'qbr',
+        'required_resource': 'qbr',
+        'order': 10,
+    },
+}
