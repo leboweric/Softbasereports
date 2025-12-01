@@ -3,7 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { apiUrl } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import {
   Download,
   Save,
@@ -19,7 +22,9 @@ import {
   TrendingUp,
   Lightbulb,
   ClipboardList,
-  Building
+  Building,
+  ChevronsUpDown,
+  Check
 } from 'lucide-react';
 import {
   BarChart,
@@ -42,6 +47,7 @@ const QBRDashboard = () => {
   const [selectedQuarter, setSelectedQuarter] = useState('Q4-2025');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
 
   // QBR Data
   const [qbrData, setQbrData] = useState(null);
@@ -279,18 +285,49 @@ const QBRDashboard = () => {
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium mb-2">Customer</label>
-              <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((customer) => (
-                    <SelectItem key={customer.customer_number} value={customer.customer_number}>
-                      {customer.customer_name} ({customer.customer_number})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={customerSearchOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {selectedCustomer
+                      ? customers.find((c) => c.customer_number === selectedCustomer)?.customer_name
+                      : "Search for a customer..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Type to search customers..." />
+                    <CommandList>
+                      <CommandEmpty>No customer found.</CommandEmpty>
+                      <CommandGroup>
+                        {customers.map((customer) => (
+                          <CommandItem
+                            key={customer.customer_number}
+                            value={customer.customer_name}
+                            onSelect={() => {
+                              setSelectedCustomer(customer.customer_number);
+                              setCustomerSearchOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedCustomer === customer.customer_number ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {customer.customer_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="w-48">
               <label className="block text-sm font-medium mb-2">Quarter</label>
