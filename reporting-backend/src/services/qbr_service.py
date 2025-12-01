@@ -69,28 +69,43 @@ class QBRService:
     def get_customers_for_qbr(self) -> List[Dict]:
         """
         Get list of customers for QBR dropdown
-        Returns customers with recent invoice activity
+        Returns customers with recent invoice activity (last 2 years)
+        Uses same pattern as dashboard top_customers
         """
         try:
             query = """
-            SELECT DISTINCT
-                Customer as customer_number,
-                MAX(BillToName) as customer_name,
+            WITH NormalizedCustomers AS (
+                SELECT 
+                    CASE 
+                        WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                        WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                        ELSE BillToName
+                    END as customer_name,
+                    InvoiceNo,
+                    InvoiceDate
+                FROM ben002.InvoiceReg
+                WHERE InvoiceDate >= DATEADD(year, -2, GETDATE())
+                  AND BillToName IS NOT NULL
+                  AND BillToName != ''
+                  AND BillToName NOT LIKE '%Wells Fargo%'
+                  AND BillToName NOT LIKE '%Maintenance contract%'
+                  AND BillToName NOT LIKE '%Rental Fleet%'
+            )
+            SELECT 
+                customer_name,
+                customer_name as customer_number,
                 COUNT(DISTINCT InvoiceNo) as total_invoices,
                 MAX(InvoiceDate) as last_invoice_date
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(year, -2, GETDATE())
-              AND Customer IS NOT NULL
-              AND BillToName IS NOT NULL
-            GROUP BY Customer
+            FROM NormalizedCustomers
+            GROUP BY customer_name
             HAVING COUNT(DISTINCT InvoiceNo) > 0
-            ORDER BY MAX(BillToName)
+            ORDER BY customer_name
             """
 
             results = self.sql_service.execute_query(query)
 
             return [{
-                'customer_number': str(row['customer_number']),
+                'customer_number': row['customer_number'],
                 'customer_name': row['customer_name'],
                 'total_invoices': row.get('total_invoices', 0) or 0
             } for row in results] if results else []
