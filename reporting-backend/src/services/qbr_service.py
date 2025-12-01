@@ -69,38 +69,30 @@ class QBRService:
     def get_customers_for_qbr(self) -> List[Dict]:
         """
         Get list of customers for QBR dropdown
-        Returns customers with active equipment
+        Returns customers with recent invoice activity
         """
         try:
             query = """
             SELECT DISTINCT
-                c.Number as customer_number,
-                c.Name as customer_name,
-                (SELECT COUNT(*) FROM ben002.Equipment e
-                 WHERE e.BillTo = c.Number
-                 AND e.InventoryDept = 60) as rental_units,
-                (SELECT COUNT(DISTINCT wo.UnitNo) FROM ben002.WO wo
-                 WHERE wo.BillTo = c.Number
-                 AND wo.Type IN ('S', 'R', 'P')
-                 AND wo.OpenDate >= DATEADD(year, -2, GETDATE())) as service_units
-            FROM ben002.Customer c
-            WHERE c.Number IS NOT NULL
-              AND c.Name IS NOT NULL
-              AND EXISTS (
-                  SELECT 1 FROM ben002.WO wo
-                  WHERE wo.BillTo = c.Number
-                  AND wo.OpenDate >= DATEADD(year, -2, GETDATE())
-              )
-            ORDER BY c.Name
+                Customer as customer_number,
+                MAX(BillToName) as customer_name,
+                COUNT(DISTINCT InvoiceNo) as total_invoices,
+                MAX(InvoiceDate) as last_invoice_date
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(year, -2, GETDATE())
+              AND Customer IS NOT NULL
+              AND BillToName IS NOT NULL
+            GROUP BY Customer
+            HAVING COUNT(DISTINCT InvoiceNo) > 0
+            ORDER BY MAX(BillToName)
             """
 
             results = self.sql_service.execute_query(query)
 
             return [{
-                'customer_number': row['customer_number'],
+                'customer_number': str(row['customer_number']),
                 'customer_name': row['customer_name'],
-                'rental_units': row.get('rental_units', 0) or 0,
-                'service_units': row.get('service_units', 0) or 0
+                'total_invoices': row.get('total_invoices', 0) or 0
             } for row in results] if results else []
 
         except Exception as e:
