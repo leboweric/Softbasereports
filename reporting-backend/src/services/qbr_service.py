@@ -114,21 +114,32 @@ class QBRService:
             logger.error(f"Error getting customers for QBR: {str(e)}")
             return []
 
-    def get_fleet_overview(self, customer_number: str, start_date: datetime, end_date: datetime) -> Dict:
+    def get_fleet_overview(self, customer_name: str, start_date: datetime, end_date: datetime) -> Dict:
         """
         Get fleet overview metrics
         Returns total units serviced, equipment types breakdown
+        customer_name: The normalized customer name from BillToName
         """
         try:
+            # BillTo subquery for customer name lookup
+            billto_subquery = """
+                SELECT DISTINCT BillTo FROM ben002.InvoiceReg
+                WHERE CASE
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                    ELSE BillToName
+                END = %s
+            """
+
             # Get equipment serviced for this customer
-            query = """
+            query = f"""
             SELECT
                 COUNT(DISTINCT wo.UnitNo) as total_units,
                 e.Make,
                 e.Model
             FROM ben002.WO wo
             LEFT JOIN ben002.Equipment e ON wo.UnitNo = e.UnitNo
-            WHERE wo.BillTo = %s
+            WHERE wo.BillTo IN ({billto_subquery})
               AND wo.OpenDate >= %s
               AND wo.OpenDate <= %s
               AND wo.Type IN ('S', 'R', 'P')
@@ -136,19 +147,19 @@ class QBRService:
             ORDER BY COUNT(DISTINCT wo.UnitNo) DESC
             """
 
-            mix_results = self.sql_service.execute_query(query, (customer_number, start_date, end_date))
+            mix_results = self.sql_service.execute_query(query, (customer_name, start_date, end_date))
 
             # Get total unique units
-            total_query = """
+            total_query = f"""
             SELECT COUNT(DISTINCT UnitNo) as total_units
             FROM ben002.WO
-            WHERE BillTo = %s
+            WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
               AND Type IN ('S', 'R', 'P')
             """
 
-            total_result = self.sql_service.execute_query(total_query, (customer_number, start_date, end_date))
+            total_result = self.sql_service.execute_query(total_query, (customer_name, start_date, end_date))
             total_units = total_result[0]['total_units'] if total_result else 0
 
             # Format equipment mix
@@ -262,28 +273,39 @@ class QBRService:
                 'age_distribution': []
             }
 
-    def get_service_performance(self, customer_number: str, start_date: datetime, end_date: datetime) -> Dict:
+    def get_service_performance(self, customer_name: str, start_date: datetime, end_date: datetime) -> Dict:
         """
         Get service performance metrics from WO table
         Returns service calls, PM completion, response time
+        customer_name: The normalized customer name from BillToName
         """
         try:
+            # BillTo subquery for customer name lookup
+            billto_subquery = """
+                SELECT DISTINCT BillTo FROM ben002.InvoiceReg
+                WHERE CASE
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                    ELSE BillToName
+                END = %s
+            """
+
             # Service calls and metrics from WO table
-            query = """
+            query = f"""
             SELECT
                 COUNT(*) as total_calls,
                 SUM(CASE WHEN Type = 'S' AND WONo LIKE 'PM%' THEN 1 ELSE 0 END) as pm_count,
                 SUM(CASE WHEN Type = 'S' AND WONo LIKE 'PM%' AND ClosedDate IS NOT NULL THEN 1 ELSE 0 END) as pm_completed,
                 SUM(CASE WHEN ClosedDate IS NOT NULL THEN 1 ELSE 0 END) as completed_calls
             FROM ben002.WO
-            WHERE BillTo = %s
+            WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
               AND Type IN ('S', 'R')
               AND WONo NOT LIKE '9%%'
             """
 
-            result = self.sql_service.execute_query(query, (customer_number, start_date, end_date))
+            result = self.sql_service.execute_query(query, (customer_name, start_date, end_date))
             metrics = result[0] if result else {}
 
             total_calls = metrics.get('total_calls', 0) or 0
@@ -295,7 +317,7 @@ class QBRService:
             first_time_fix_rate = round((completed_calls / total_calls * 100), 1) if total_calls > 0 else 0
 
             # Service type breakdown
-            breakdown_query = """
+            breakdown_query = f"""
             SELECT
                 CASE
                     WHEN WONo LIKE 'PM%%' THEN 'Planned Maintenance'
@@ -305,7 +327,7 @@ class QBRService:
                 END as service_type,
                 COUNT(*) as count
             FROM ben002.WO
-            WHERE BillTo = %s
+            WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
               AND Type IN ('S', 'R')
@@ -319,7 +341,7 @@ class QBRService:
                 END
             """
 
-            breakdown = self.sql_service.execute_query(breakdown_query, (customer_number, start_date, end_date))
+            breakdown = self.sql_service.execute_query(breakdown_query, (customer_name, start_date, end_date))
 
             # Calculate percentages
             service_breakdown = {}
@@ -331,12 +353,12 @@ class QBRService:
                 service_breakdown[key] = percentage
 
             # Monthly trend
-            trend_query = """
+            trend_query = f"""
             SELECT
                 MONTH(OpenDate) as month,
                 COUNT(*) as calls
             FROM ben002.WO
-            WHERE BillTo = %s
+            WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
               AND Type IN ('S', 'R')
@@ -345,7 +367,7 @@ class QBRService:
             ORDER BY MONTH(OpenDate)
             """
 
-            monthly_trend = self.sql_service.execute_query(trend_query, (customer_number, start_date, end_date))
+            monthly_trend = self.sql_service.execute_query(trend_query, (customer_name, start_date, end_date))
 
             month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             trend_data = []
@@ -378,13 +400,14 @@ class QBRService:
                 'monthly_trend': []
             }
 
-    def get_service_costs(self, customer_number: str, start_date: datetime, end_date: datetime) -> Dict:
+    def get_service_costs(self, customer_name: str, start_date: datetime, end_date: datetime) -> Dict:
         """
         Get service cost analysis from InvoiceReg
         Returns total spend and breakdown by category
+        customer_name: The normalized customer name from BillToName
         """
         try:
-            # Total spend from InvoiceReg for service invoices
+            # Total spend from InvoiceReg for service invoices using BillToName normalization
             query = """
             SELECT
                 SUM(GrandTotal) as total_spend,
@@ -392,13 +415,17 @@ class QBRService:
                 SUM(PartsTaxable + PartsNonTaxable) as parts_total,
                 COUNT(*) as invoice_count
             FROM ben002.InvoiceReg
-            WHERE BillTo = %s
+            WHERE CASE
+                WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END = %s
               AND InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND SaleCode = 'SVE'
             """
 
-            result = self.sql_service.execute_query(query, (customer_number, start_date, end_date))
+            result = self.sql_service.execute_query(query, (customer_name, start_date, end_date))
             costs = result[0] if result else {}
 
             total_spend = self._convert_decimal(costs.get('total_spend', 0)) or 0
@@ -422,13 +449,17 @@ class QBRService:
                 q_query = """
                 SELECT SUM(GrandTotal) as cost
                 FROM ben002.InvoiceReg
-                WHERE BillTo = %s
+                WHERE CASE
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                    ELSE BillToName
+                END = %s
                   AND InvoiceDate >= %s
                   AND InvoiceDate <= %s
                   AND SaleCode = 'SVE'
                 """
 
-                q_result = self.sql_service.execute_query(q_query, (customer_number, q_start, q_end))
+                q_result = self.sql_service.execute_query(q_query, (customer_name, q_start, q_end))
                 q_cost = self._convert_decimal(q_result[0]['cost']) if q_result and q_result[0]['cost'] else 0
 
                 quarters.append({
@@ -463,48 +494,61 @@ class QBRService:
                 'quarterly_trend': []
             }
 
-    def get_parts_rentals(self, customer_number: str, start_date: datetime, end_date: datetime) -> Dict:
+    def get_parts_rentals(self, customer_name: str, start_date: datetime, end_date: datetime) -> Dict:
         """
         Get parts and rental activity from InvoiceReg
+        customer_name: The normalized customer name from BillToName
         """
         try:
-            # Parts from InvoiceReg
+            # Parts from InvoiceReg using BillToName normalization
             parts_query = """
             SELECT
                 COUNT(*) as orders,
                 SUM(PartsTaxable + PartsNonTaxable) as total_spend
             FROM ben002.InvoiceReg
-            WHERE BillTo = %s
+            WHERE CASE
+                WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END = %s
               AND InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND SaleCode = 'PRT'
             """
 
-            parts_result = self.sql_service.execute_query(parts_query, (customer_number, start_date, end_date))
+            parts_result = self.sql_service.execute_query(parts_query, (customer_name, start_date, end_date))
             parts = parts_result[0] if parts_result else {'orders': 0, 'total_spend': 0}
 
-            # Rental from InvoiceReg
+            # Rental from InvoiceReg using BillToName normalization
             rental_query = """
             SELECT
                 COUNT(*) as rental_invoices,
                 SUM(RentalTaxable + RentalNonTaxable) as rental_spend
             FROM ben002.InvoiceReg
-            WHERE BillTo = %s
+            WHERE CASE
+                WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END = %s
               AND InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND (RentalTaxable > 0 OR RentalNonTaxable > 0)
             """
 
-            rental_result = self.sql_service.execute_query(rental_query, (customer_number, start_date, end_date))
+            rental_result = self.sql_service.execute_query(rental_query, (customer_name, start_date, end_date))
             rentals = rental_result[0] if rental_result else {'rental_invoices': 0, 'rental_spend': 0}
 
-            # Monthly rental trend
+            # Monthly rental trend using BillToName normalization
             rental_trend_query = """
             SELECT
                 MONTH(InvoiceDate) as month,
                 SUM(RentalTaxable + RentalNonTaxable) as amount
             FROM ben002.InvoiceReg
-            WHERE BillTo = %s
+            WHERE CASE
+                WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END = %s
               AND InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND (RentalTaxable > 0 OR RentalNonTaxable > 0)
@@ -512,7 +556,7 @@ class QBRService:
             ORDER BY MONTH(InvoiceDate)
             """
 
-            rental_trend = self.sql_service.execute_query(rental_trend_query, (customer_number, start_date, end_date))
+            rental_trend = self.sql_service.execute_query(rental_trend_query, (customer_name, start_date, end_date))
 
             month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             trend_data = []
@@ -546,10 +590,11 @@ class QBRService:
                 'rentals': {'active_rentals': 0, 'rental_days': 0, 'rental_spend': 0, 'monthly_trend': []}
             }
 
-    def get_value_delivered(self, customer_number: str, start_date: datetime, end_date: datetime,
+    def get_value_delivered(self, customer_name: str, start_date: datetime, end_date: datetime,
                             service_costs: Dict, parts_rentals: Dict) -> Dict:
         """
         Calculate value delivered / ROI metrics
+        customer_name: The normalized customer name from BillToName
         """
         try:
             # Calculate estimated savings (25% savings estimate from preventive maintenance)
@@ -580,16 +625,20 @@ class QBRService:
 
                 q_start, q_end = self.get_quarter_date_range(f'Q{q_num}', q_year)
 
-                # Get total spend for quarter
+                # Get total spend for quarter using BillToName normalization
                 q_query = """
                 SELECT SUM(GrandTotal) as total
                 FROM ben002.InvoiceReg
-                WHERE BillTo = %s
+                WHERE CASE
+                    WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
+                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                    ELSE BillToName
+                END = %s
                   AND InvoiceDate >= %s
                   AND InvoiceDate <= %s
                 """
 
-                q_result = self.sql_service.execute_query(q_query, (customer_number, q_start, q_end))
+                q_result = self.sql_service.execute_query(q_query, (customer_name, q_start, q_end))
                 q_total = self._convert_decimal(q_result[0]['total']) if q_result and q_result[0]['total'] else 0
 
                 quarters.append({
@@ -620,9 +669,10 @@ class QBRService:
                 'rolling_4q_trend': []
             }
 
-    def generate_recommendations(self, customer_number: str, fleet_health: Dict, service_costs: Dict) -> List[Dict]:
+    def generate_recommendations(self, customer_name: str, fleet_health: Dict, service_costs: Dict) -> List[Dict]:
         """
         Generate auto-recommendations based on data patterns
+        customer_name: The normalized customer name from BillToName (not currently used but kept for consistency)
         """
         recommendations = []
 

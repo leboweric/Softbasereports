@@ -49,11 +49,12 @@ def get_qbr_customers():
         }), 500
 
 
-@qbr_bp.route('/api/qbr/<customer_number>/data', methods=['GET'])
+@qbr_bp.route('/api/qbr/<customer_name>/data', methods=['GET'])
 @jwt_required()
-def get_qbr_data(customer_number):
+def get_qbr_data(customer_name):
     """
     Get all QBR metrics for a customer and quarter
+    customer_name: The customer name from BillToName (used as identifier)
     Query params: quarter (e.g., 'Q3-2025')
     Returns: Complete QBR dashboard data
     """
@@ -66,34 +67,25 @@ def get_qbr_data(customer_number):
         year = int(parts[1])  # 2025
 
         qbr_service = get_qbr_service()
-        sql_service = AzureSQLService()
 
         # Get date range
         start_date, end_date = qbr_service.get_quarter_date_range(quarter, year)
 
-        # Get customer info
-        customer_query = """
-        SELECT Number as customer_number, Name as customer_name
-        FROM ben002.Customer
-        WHERE Number = %s
-        """
-        customer_result = sql_service.execute_query(customer_query, (customer_number,))
-        customer = customer_result[0] if customer_result else None
+        # customer_name IS the identifier (from BillToName)
+        # No need to query Customer table - we use BillToName directly
+        customer = {
+            'customer_number': customer_name,
+            'customer_name': customer_name
+        }
 
-        if not customer:
-            return jsonify({
-                'success': False,
-                'error': 'Customer not found'
-            }), 404
-
-        # Get all metrics
-        fleet_overview = qbr_service.get_fleet_overview(customer_number, start_date, end_date)
-        fleet_health = qbr_service.get_fleet_health(customer_number, end_date)
-        service_performance = qbr_service.get_service_performance(customer_number, start_date, end_date)
-        service_costs = qbr_service.get_service_costs(customer_number, start_date, end_date)
-        parts_rentals = qbr_service.get_parts_rentals(customer_number, start_date, end_date)
-        value_delivered = qbr_service.get_value_delivered(customer_number, start_date, end_date, service_costs, parts_rentals)
-        recommendations = qbr_service.generate_recommendations(customer_number, fleet_health, service_costs)
+        # Get all metrics (all queries use BillToName)
+        fleet_overview = qbr_service.get_fleet_overview(customer_name, start_date, end_date)
+        fleet_health = qbr_service.get_fleet_health(customer_name, end_date)
+        service_performance = qbr_service.get_service_performance(customer_name, start_date, end_date)
+        service_costs = qbr_service.get_service_costs(customer_name, start_date, end_date)
+        parts_rentals = qbr_service.get_parts_rentals(customer_name, start_date, end_date)
+        value_delivered = qbr_service.get_value_delivered(customer_name, start_date, end_date, service_costs, parts_rentals)
+        recommendations = qbr_service.generate_recommendations(customer_name, fleet_health, service_costs)
 
         return jsonify({
             'success': True,
@@ -122,11 +114,12 @@ def get_qbr_data(customer_number):
         }), 500
 
 
-@qbr_bp.route('/api/qbr/<customer_number>/save', methods=['POST'])
+@qbr_bp.route('/api/qbr/<customer_name>/save', methods=['POST'])
 @jwt_required()
-def save_qbr(customer_number):
+def save_qbr(customer_name):
     """
     Save QBR session with manual inputs
+    customer_name: The customer name from BillToName (used as identifier)
     Body: {quarter, meeting_date, business_priorities, custom_recommendations, action_items, status}
     Returns: QBR ID
     """
@@ -135,24 +128,31 @@ def save_qbr(customer_number):
         current_user = get_jwt_identity()
 
         qbr_service = get_qbr_service()
-        sql_service = AzureSQLService()
 
-        # Generate QBR ID
+        # Generate QBR ID using customer name
         quarter = data.get('quarter', 'Q4 2025')
-        qbr_id = f"QBR-{quarter.replace(' ', '-')}-{customer_number}-{uuid.uuid4().hex[:8]}"
-
-        # Get customer name
-        customer_query = "SELECT Name FROM ben002.Customer WHERE Number = %s"
-        customer_result = sql_service.execute_query(customer_query, (customer_number,))
-        customer_name = customer_result[0]['Name'] if customer_result else 'Unknown'
 
         # Parse quarter
         parts = quarter.split(' ')
         quarter_str = parts[0]  # 'Q3'
-        fiscal_year = int(parts[1])  # 2025
+        fiscal_year = int(parts[1]) if len(parts) > 1 else 2025
 
-        # Note: Full database insert would happen here
-        # For now, return success with generated ID
+        # Prepare QBR data for saving
+        qbr_data = {
+            'customer_number': customer_name,  # Using customer name as identifier
+            'customer_name': customer_name,
+            'quarter': quarter,
+            'meeting_date': data.get('meeting_date'),
+            'status': data.get('status', 'draft'),
+            'notes': data.get('notes'),
+            'business_priorities': data.get('business_priorities', []),
+            'recommendations': data.get('custom_recommendations', []),
+            'action_items': data.get('action_items', [])
+        }
+
+        # Save to PostgreSQL
+        qbr_id = qbr_service.save_qbr_session(qbr_data, current_user)
+
         logger.info(f"QBR session created: {qbr_id} for {customer_name}")
 
         return jsonify({
@@ -160,7 +160,7 @@ def save_qbr(customer_number):
             'qbr_id': qbr_id,
             'message': 'QBR saved successfully',
             'data': {
-                'customer_number': customer_number,
+                'customer_number': customer_name,
                 'customer_name': customer_name,
                 'quarter': quarter,
                 'fiscal_year': fiscal_year,
