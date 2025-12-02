@@ -3692,7 +3692,7 @@ def register_department_routes(reports_bp):
                 return jsonify({'error': 'Year and month parameters are required'}), 400
 
             # Get invoice details from GLDetail table for the specified month
-            details_query = """
+            details_query = f"""
             SELECT
                 gld.ControlNo,
                 gld.EffectiveDate,
@@ -3705,12 +3705,12 @@ def register_department_routes(reports_bp):
             LEFT JOIN ben002.APDetail apd ON gld.ControlNo = apd.ControlNo
             LEFT JOIN ben002.Vendor v ON apd.VendorNo = v.VendorNo
             WHERE gld.AccountNo = '603000'
-                AND YEAR(gld.EffectiveDate) = ?
-                AND MONTH(gld.EffectiveDate) = ?
+                AND YEAR(gld.EffectiveDate) = {year}
+                AND MONTH(gld.EffectiveDate) = {month}
             ORDER BY gld.EffectiveDate DESC, gld.Amount DESC
             """
 
-            results = db.execute_query(details_query, (year, month))
+            results = db.execute_query(details_query)
 
             invoices = []
             for row in results:
