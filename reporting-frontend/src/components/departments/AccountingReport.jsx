@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { 
   ComposedChart,
   BarChart,
@@ -31,6 +33,11 @@ const AccountingReport = ({ user }) => {
   const [arData, setArData] = useState(null)
   const [apTotal, setApTotal] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // Professional Services detail modal state
+  const [profServicesDetailOpen, setProfServicesDetailOpen] = useState(false)
+  const [profServicesDetail, setProfServicesDetail] = useState(null)
+  const [profServicesDetailLoading, setProfServicesDetailLoading] = useState(false)
 
   useEffect(() => {
     fetchAccountingData()
@@ -187,6 +194,32 @@ const AccountingReport = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching professional services data:', error)
+    }
+  }
+
+  const fetchProfessionalServicesDetails = async (year, month, monthLabel) => {
+    setProfServicesDetailLoading(true)
+    setProfServicesDetailOpen(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/reports/departments/accounting/professional-services/details?year=${year}&month=${month}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setProfServicesDetail({ ...data, monthLabel })
+      } else {
+        console.error('Professional Services details error:', response.status, response.statusText)
+        setProfServicesDetail({ error: 'Failed to load details', monthLabel })
+      }
+    } catch (error) {
+      console.error('Error fetching professional services details:', error)
+      setProfServicesDetail({ error: 'Failed to load details', monthLabel })
+    } finally {
+      setProfServicesDetailLoading(false)
     }
   }
 
@@ -595,7 +628,7 @@ const AccountingReport = ({ user }) => {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle>Professional Services Expenses Over Time</CardTitle>
-                  <CardDescription>Account 603000 - March 2025 onwards</CardDescription>
+                  <CardDescription>Account 603000 - March 2025 onwards • Click a bar for invoice details</CardDescription>
                 </div>
                 {professionalServicesExpenses && professionalServicesExpenses.length > 0 && (() => {
                   const monthsWithData = professionalServicesExpenses.filter(item => item.expenses > 0)
@@ -700,7 +733,25 @@ const AccountingReport = ({ user }) => {
                     return null
                   }} />
                   <Legend />
-                  <Bar dataKey="expenses" fill="#8b5cf6" name="Professional Services" maxBarSize={60} />
+                  <Bar
+                    dataKey="expenses"
+                    fill="#8b5cf6"
+                    name="Professional Services"
+                    maxBarSize={60}
+                    cursor="pointer"
+                    onClick={(data) => {
+                      if (data && data.year) {
+                        // Parse month from the month label (e.g., "Mar '25" -> 3)
+                        const monthMap = { 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                                          'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12 }
+                        const monthAbbr = data.month.split(' ')[0]
+                        const monthNum = monthMap[monthAbbr]
+                        if (monthNum) {
+                          fetchProfessionalServicesDetails(data.year, monthNum, data.month)
+                        }
+                      }
+                    }}
+                  />
                   {/* Average Expenses Line */}
                   <Line
                     type="monotone"
@@ -818,6 +869,63 @@ const AccountingReport = ({ user }) => {
 
 
       </Tabs>
+
+      {/* Professional Services Detail Sheet */}
+      <Sheet open={profServicesDetailOpen} onOpenChange={setProfServicesDetailOpen}>
+        <SheetContent className="w-[600px] sm:max-w-[600px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Professional Services Details</SheetTitle>
+            <SheetDescription>
+              {profServicesDetail?.monthLabel ? `Invoices for ${profServicesDetail.monthLabel}` : 'Loading...'}
+            </SheetDescription>
+          </SheetHeader>
+
+          {profServicesDetailLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size="medium" />
+            </div>
+          ) : profServicesDetail?.error ? (
+            <div className="text-red-500 py-4">{profServicesDetail.error}</div>
+          ) : profServicesDetail?.invoices ? (
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                <span className="text-sm text-muted-foreground">{profServicesDetail.count} invoices</span>
+                <span className="font-semibold text-lg">{formatCurrency(profServicesDetail.total)}</span>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {profServicesDetail.invoices.map((invoice, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>
+                        <div className="font-medium">{invoice.vendor_name}</div>
+                        {invoice.description && (
+                          <div className="text-xs text-muted-foreground truncate max-w-[250px]" title={invoice.description}>
+                            {invoice.description}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {invoice.date ? new Date(invoice.date).toLocaleDateString() : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(invoice.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
 
     </div>
   )
