@@ -3692,14 +3692,13 @@ def register_department_routes(reports_bp):
                 return jsonify({'error': 'Year and month parameters are required'}), 400
 
             # Get invoice details from GLDetail table for the specified month
-            # GLDetail columns: AccountNo, EffectiveDate, Amount, Description, Reference, EntryNo
+            # GLDetail columns: AccountNo, EffectiveDate, Amount, Description, JournalNo
             details_query = f"""
             SELECT
                 EffectiveDate,
                 Amount,
                 Description,
-                Reference,
-                EntryNo
+                JournalNo
             FROM ben002.GLDetail
             WHERE AccountNo = '603000'
                 AND YEAR(EffectiveDate) = {year}
@@ -3711,14 +3710,26 @@ def register_department_routes(reports_bp):
 
             invoices = []
             for row in results:
-                # Use Description or Reference as the vendor/description
-                desc = row.get('Description') or row.get('Reference') or ''
+                # Use Description as the vendor/description
+                desc = row.get('Description') or ''
+
+                # Handle date formatting safely
+                effective_date = row.get('EffectiveDate')
+                if effective_date:
+                    try:
+                        date_str = effective_date.strftime('%Y-%m-%d')
+                    except AttributeError:
+                        # If it's already a string or other format
+                        date_str = str(effective_date)[:10] if effective_date else None
+                else:
+                    date_str = None
+
                 invoices.append({
-                    'date': row.get('EffectiveDate').strftime('%Y-%m-%d') if row.get('EffectiveDate') else None,
+                    'date': date_str,
                     'amount': float(row.get('Amount') or 0),
                     'description': desc,
                     'vendor_name': desc.split(' - ')[0] if ' - ' in desc else desc[:50] if desc else 'Unknown',
-                    'entry_no': row.get('EntryNo')
+                    'journal_no': row.get('JournalNo')
                 })
 
             # Calculate total
