@@ -3692,34 +3692,32 @@ def register_department_routes(reports_bp):
                 return jsonify({'error': 'Year and month parameters are required'}), 400
 
             # Get invoice details from GLDetail table for the specified month
+            # GLDetail columns: AccountNo, EffectiveDate, Amount, Description, Reference, EntryNo
             details_query = f"""
             SELECT
-                gld.ControlNo,
-                gld.EffectiveDate,
-                gld.Amount,
-                gld.Description,
-                gld.Reference,
-                gld.EntryNo,
-                COALESCE(v.VendorName, 'Unknown Vendor') as VendorName
-            FROM ben002.GLDetail gld
-            LEFT JOIN ben002.APDetail apd ON gld.ControlNo = apd.ControlNo
-            LEFT JOIN ben002.Vendor v ON apd.VendorNo = v.VendorNo
-            WHERE gld.AccountNo = '603000'
-                AND YEAR(gld.EffectiveDate) = {year}
-                AND MONTH(gld.EffectiveDate) = {month}
-            ORDER BY gld.EffectiveDate DESC, gld.Amount DESC
+                EffectiveDate,
+                Amount,
+                Description,
+                Reference,
+                EntryNo
+            FROM ben002.GLDetail
+            WHERE AccountNo = '603000'
+                AND YEAR(EffectiveDate) = {year}
+                AND MONTH(EffectiveDate) = {month}
+            ORDER BY EffectiveDate DESC, Amount DESC
             """
 
             results = db.execute_query(details_query)
 
             invoices = []
             for row in results:
+                # Use Description or Reference as the vendor/description
+                desc = row.get('Description') or row.get('Reference') or ''
                 invoices.append({
-                    'control_no': row.get('ControlNo'),
                     'date': row.get('EffectiveDate').strftime('%Y-%m-%d') if row.get('EffectiveDate') else None,
                     'amount': float(row.get('Amount') or 0),
-                    'description': row.get('Description') or row.get('Reference') or '',
-                    'vendor_name': row.get('VendorName') or 'Unknown Vendor',
+                    'description': desc,
+                    'vendor_name': desc.split(' - ')[0] if ' - ' in desc else desc[:50] if desc else 'Unknown',
                     'entry_no': row.get('EntryNo')
                 })
 
