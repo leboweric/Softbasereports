@@ -27,6 +27,7 @@ import InventoryReport from '@/components/InventoryReport'
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [monthlyGrossMargin, setMonthlyGrossMargin] = useState([])
+  const [professionalServicesExpenses, setProfessionalServicesExpenses] = useState([])
   const [arData, setArData] = useState(null)
   const [apTotal, setApTotal] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -36,6 +37,7 @@ const AccountingReport = ({ user }) => {
     fetchARData()
     fetchAPTotal()
     fetchGrossMarginData()
+    fetchProfessionalServicesData()
   }, [])
 
   const fetchAccountingData = async () => {
@@ -154,6 +156,37 @@ const AccountingReport = ({ user }) => {
       }
     } catch (error) {
       console.error('Error fetching gross margin data:', error)
+    }
+  }
+
+  const fetchProfessionalServicesData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/accounting/professional-services'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Filter out current month and Nov '24 through Feb '25
+        const filteredExpenses = (data.monthly_expenses || []).filter(item => {
+          // Exclude months before March 2025
+          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+          if (excludedMonths.includes(item.month)) return false
+          // Exclude current month (always incomplete)
+          const now = new Date()
+          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+          if (item.month === currentMonthStr) return false
+          return true
+        })
+        setProfessionalServicesExpenses(filteredExpenses)
+      } else {
+        console.error('Professional Services data error:', response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error('Error fetching professional services data:', error)
     }
   }
 
@@ -555,6 +588,177 @@ const AccountingReport = ({ user }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
+
+          {/* Professional Services Expenses Over Time */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Professional Services Expenses Over Time</CardTitle>
+                  <CardDescription>Account 603000 - March 2025 onwards</CardDescription>
+                </div>
+                {professionalServicesExpenses && professionalServicesExpenses.length > 0 && (() => {
+                  const monthsWithData = professionalServicesExpenses.filter(item => item.expenses > 0)
+                  if (monthsWithData.length === 0) return null
+                  const avgExpenses = monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+
+                  return (
+                    <div className="text-right">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avg Expenses</p>
+                        <p className="text-lg font-semibold">${(avgExpenses / 1000).toFixed(0)}k</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={(() => {
+                  const data = professionalServicesExpenses || []
+                  if (data.length === 0) return data
+
+                  // Calculate average for all months (already filtered)
+                  const monthsWithData = data.filter(item => item.expenses > 0)
+                  const avgExpenses = monthsWithData.length > 0
+                    ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+                    : 0
+
+                  // Calculate linear regression for trendline
+                  let trendSlope = 0
+                  let trendIntercept = 0
+
+                  if (monthsWithData.length >= 2) {
+                    const n = monthsWithData.length
+                    const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0)
+                    const sumY = monthsWithData.reduce((sum, item) => sum + item.expenses, 0)
+                    const meanX = sumX / n
+                    const meanY = sumY / n
+
+                    let numerator = 0
+                    let denominator = 0
+                    monthsWithData.forEach((item, i) => {
+                      numerator += (i - meanX) * (item.expenses - meanY)
+                      denominator += (i - meanX) * (i - meanX)
+                    })
+
+                    trendSlope = denominator !== 0 ? numerator / denominator : 0
+                    trendIntercept = meanY - trendSlope * meanX
+                  }
+
+                  // Add average and trendline to each data point
+                  return data.map((item, index) => ({
+                    ...item,
+                    avgExpenses: avgExpenses,
+                    trendline: item.expenses > 0 ? trendSlope * index + trendIntercept : null
+                  }))
+                })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                  <Tooltip content={({ active, payload, label }) => {
+                    if (active && payload && payload.length && professionalServicesExpenses) {
+                      const currentIndex = professionalServicesExpenses.findIndex(item => item.month === label)
+                      const currentData = professionalServicesExpenses[currentIndex]
+                      const previousData = currentIndex > 0 ? professionalServicesExpenses[currentIndex - 1] : null
+
+                      const formatCurrency = (value) => {
+                        return new Intl.NumberFormat('en-US', {
+                          style: 'currency',
+                          currency: 'USD',
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0,
+                        }).format(value)
+                      }
+
+                      const calculatePercentageChange = (current, previous) => {
+                        if (!previous || previous === 0) return null
+                        const change = ((current - previous) / previous) * 100
+                        return change
+                      }
+
+                      const formatPercentage = (percentage) => {
+                        if (percentage === null) return ''
+                        const sign = percentage >= 0 ? '+' : ''
+                        const color = percentage >= 0 ? 'text-red-600' : 'text-green-600'
+                        return <span className={`ml-2 ${color}`}>({sign}{percentage.toFixed(1)}%)</span>
+                      }
+
+                      return (
+                        <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                          <p className="font-semibold mb-2">{label}</p>
+                          <div className="space-y-1">
+                            <p className="text-purple-600">
+                              Prof. Services: {formatCurrency(currentData.expenses)}
+                              {previousData && previousData.expenses > 0 && formatPercentage(calculatePercentageChange(currentData.expenses, previousData.expenses))}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  }} />
+                  <Legend />
+                  <Bar dataKey="expenses" fill="#8b5cf6" name="Professional Services" maxBarSize={60} />
+                  {/* Average Expenses Line */}
+                  <Line
+                    type="monotone"
+                    dataKey="avgExpenses"
+                    stroke="#666"
+                    strokeDasharray="5 5"
+                    strokeWidth={2}
+                    name="Average"
+                    dot={false}
+                  />
+                  {/* Trendline */}
+                  <Line
+                    type="monotone"
+                    dataKey="trendline"
+                    stroke="#2563eb"
+                    strokeWidth={2}
+                    name="Trend"
+                    dot={false}
+                    connectNulls={false}
+                  />
+                  {/* Add ReferenceLine for the label */}
+                  {professionalServicesExpenses && professionalServicesExpenses.length > 0 && (() => {
+                    const currentDate = new Date()
+                    const currentMonthIndex = currentDate.getMonth()
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    const currentMonthName = monthNames[currentMonthIndex]
+
+                    // Calculate average excluding current month and incomplete months
+                    const monthsWithData = professionalServicesExpenses.filter(item => item.expenses > 0)
+                    const roughAverage = monthsWithData.length > 0
+                      ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+                      : 0
+
+                    const completeMonths = professionalServicesExpenses.filter(item => {
+                      return item.month !== currentMonthName &&
+                             item.expenses > 0 &&
+                             item.expenses > (roughAverage * 0.5)
+                    })
+
+                    const avgExpenses = completeMonths.length > 0
+                      ? completeMonths.reduce((sum, item) => sum + item.expenses, 0) / completeMonths.length
+                      : 0
+
+                    if (avgExpenses > 0) {
+                      return (
+                        <ReferenceLine
+                          y={avgExpenses}
+                          stroke="none"
+                          label={{ value: "Average", position: "insideTopRight" }}
+                        />
+                      )
+                    }
+                    return null
+                  })()}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
       {/* Key Customers Over 90 Days */}
       {arData && arData.specific_customers && arData.specific_customers.length > 0 && (
