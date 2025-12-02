@@ -3575,7 +3575,107 @@ def register_department_routes(reports_bp):
                 'error': str(e),
                 'type': 'accounting_report_error'
             }), 500
-    
+
+    @reports_bp.route('/departments/accounting/professional-services', methods=['GET'])
+    @jwt_required()
+    @require_permission('view_accounting')
+    def get_professional_services_expenses():
+        """Get Professional Services (603000) expenses over time"""
+        try:
+            db = get_db()
+
+            # Get Professional Services expenses from GLDetail table
+            # Account 603000 is Professional Services
+            expenses_query = """
+            WITH MonthlyExpenses AS (
+                SELECT
+                    YEAR(gld.EffectiveDate) as year,
+                    MONTH(gld.EffectiveDate) as month,
+                    SUM(gld.Amount) as total_expenses
+                FROM ben002.GLDetail gld
+                WHERE gld.AccountNo = '603000'
+                    AND gld.EffectiveDate >= DATEADD(month, -13, GETDATE())
+                    AND gld.EffectiveDate < DATEADD(DAY, 1, GETDATE())
+                GROUP BY YEAR(gld.EffectiveDate), MONTH(gld.EffectiveDate)
+            )
+            SELECT year, month, total_expenses
+            FROM MonthlyExpenses
+            ORDER BY year, month
+            FOR JSON AUTO
+            """
+
+            expenses_results = db.execute_query(expenses_query)
+            monthly_expenses = []
+
+            if expenses_results and len(expenses_results) > 0:
+                result = expenses_results[0]
+
+                # Parse monthly data - result might be a dict with JSON or direct JSON string
+                import json
+                monthly_data_raw = result.get('') if isinstance(result, dict) else result
+                if isinstance(monthly_data_raw, str):
+                    monthly_data = json.loads(monthly_data_raw)
+                elif isinstance(monthly_data_raw, list):
+                    monthly_data = monthly_data_raw
+                else:
+                    # Try to get the first value from the dict
+                    monthly_data = json.loads(list(result.values())[0]) if result else []
+
+                for row in monthly_data:
+                    monthly_expenses.append({
+                        'year': row['year'],
+                        'month_num': row['month'],
+                        'expenses': float(row['total_expenses'] or 0)
+                    })
+
+            # Generate 13-month list ending with current month
+            current_date = datetime.now()
+            all_months = []
+            for i in range(12, -1, -1):
+                year = current_date.year
+                month = current_date.month - i
+                while month <= 0:
+                    month += 12
+                    year -= 1
+                month_date = datetime(year, month, 1)
+                all_months.append({
+                    'month': month_date.strftime("%b"),
+                    'month_label': month_date.strftime("%b '%y"),
+                    'year': year,
+                    'month_num': month
+                })
+
+            # Match existing data by year and month number
+            existing_data = {(item['year'], item['month_num']): item['expenses'] for item in monthly_expenses if 'year' in item and 'month_num' in item}
+
+            monthly_expenses = []
+            for m in all_months:
+                expenses = existing_data.get((m['year'], m['month_num']), 0)
+                monthly_expenses.append({
+                    'month': m['month_label'],
+                    'year': m['year'],
+                    'expenses': expenses
+                })
+
+            # Calculate summary metrics (exclude current month from average since it's incomplete)
+            total_expenses = sum(item['expenses'] for item in monthly_expenses)
+            complete_months = monthly_expenses[:-1] if len(monthly_expenses) > 1 else monthly_expenses
+            avg_expenses = sum(item['expenses'] for item in complete_months) / len(complete_months) if complete_months else 0
+
+            return jsonify({
+                'monthly_expenses': monthly_expenses,
+                'summary': {
+                    'total_expenses': round(total_expenses, 2),
+                    'average_monthly': round(avg_expenses, 2)
+                }
+            })
+
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'professional_services_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/ap-total', methods=['GET'])
     @jwt_required()
     def get_ap_total():
