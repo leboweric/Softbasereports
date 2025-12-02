@@ -3676,6 +3676,70 @@ def register_department_routes(reports_bp):
                 'type': 'professional_services_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/professional-services/details', methods=['GET'])
+    @jwt_required()
+    @require_permission('view_accounting')
+    def get_professional_services_details():
+        """Get Professional Services (603000) invoice details for a specific month"""
+        try:
+            db = get_db()
+
+            # Get year and month from query params
+            year = request.args.get('year', type=int)
+            month = request.args.get('month', type=int)
+
+            if not year or not month:
+                return jsonify({'error': 'Year and month parameters are required'}), 400
+
+            # Get invoice details from GLDetail table for the specified month
+            details_query = """
+            SELECT
+                gld.ControlNo,
+                gld.EffectiveDate,
+                gld.Amount,
+                gld.Description,
+                gld.Reference,
+                gld.EntryNo,
+                COALESCE(v.VendorName, 'Unknown Vendor') as VendorName
+            FROM ben002.GLDetail gld
+            LEFT JOIN ben002.APDetail apd ON gld.ControlNo = apd.ControlNo
+            LEFT JOIN ben002.Vendor v ON apd.VendorNo = v.VendorNo
+            WHERE gld.AccountNo = '603000'
+                AND YEAR(gld.EffectiveDate) = ?
+                AND MONTH(gld.EffectiveDate) = ?
+            ORDER BY gld.EffectiveDate DESC, gld.Amount DESC
+            """
+
+            results = db.execute_query(details_query, (year, month))
+
+            invoices = []
+            for row in results:
+                invoices.append({
+                    'control_no': row.get('ControlNo'),
+                    'date': row.get('EffectiveDate').strftime('%Y-%m-%d') if row.get('EffectiveDate') else None,
+                    'amount': float(row.get('Amount') or 0),
+                    'description': row.get('Description') or row.get('Reference') or '',
+                    'vendor_name': row.get('VendorName') or 'Unknown Vendor',
+                    'entry_no': row.get('EntryNo')
+                })
+
+            # Calculate total
+            total = sum(inv['amount'] for inv in invoices)
+
+            return jsonify({
+                'year': year,
+                'month': month,
+                'invoices': invoices,
+                'total': round(total, 2),
+                'count': len(invoices)
+            })
+
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'professional_services_details_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/ap-total', methods=['GET'])
     @jwt_required()
     def get_ap_total():
