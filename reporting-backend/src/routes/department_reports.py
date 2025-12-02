@@ -3692,13 +3692,12 @@ def register_department_routes(reports_bp):
                 return jsonify({'error': 'Year and month parameters are required'}), 400
 
             # Get invoice details from GLDetail table for the specified month
-            # GLDetail columns: AccountNo, EffectiveDate, Amount, Description, JournalNo
+            # Only use verified columns: AccountNo, EffectiveDate, Amount, Description
             details_query = f"""
             SELECT
                 EffectiveDate,
                 Amount,
-                Description,
-                JournalNo
+                Description
             FROM ben002.GLDetail
             WHERE AccountNo = '603000'
                 AND YEAR(EffectiveDate) = {year}
@@ -3728,8 +3727,7 @@ def register_department_routes(reports_bp):
                     'date': date_str,
                     'amount': float(row.get('Amount') or 0),
                     'description': desc,
-                    'vendor_name': desc.split(' - ')[0] if ' - ' in desc else desc[:50] if desc else 'Unknown',
-                    'journal_no': row.get('JournalNo')
+                    'vendor_name': desc.split(' - ')[0] if ' - ' in desc else desc[:50] if desc else 'Unknown'
                 })
 
             # Calculate total
