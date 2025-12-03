@@ -44,6 +44,7 @@ import {
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
 import RentalAvailability from './RentalAvailability'
+import DepreciationRolloff from './DepreciationRolloff'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -580,6 +581,7 @@ const RentalReport = ({ user }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
+          <TabsTrigger value="depreciation">Depreciation</TabsTrigger>
           <TabsTrigger value="service-report">Service Report</TabsTrigger>
         </TabsList>
 
@@ -904,6 +906,10 @@ const RentalReport = ({ user }) => {
 
         <TabsContent value="availability" className="space-y-6">
           <RentalAvailability />
+        </TabsContent>
+
+        <TabsContent value="depreciation" className="space-y-6">
+          <DepreciationRolloff />
         </TabsContent>
       </Tabs>
     </div>

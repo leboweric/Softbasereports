@@ -8534,8 +8534,143 @@ def register_department_routes(reports_bp):
                 debug_info['makes_error'] = str(e)
             
             return jsonify(debug_info)
-            
+
         except Exception as e:
             return jsonify({'error': str(e), 'type': 'main_exception'}), 500
+
+
+    @reports_bp.route('/departments/rental/depreciation-rolloff', methods=['GET'])
+    @jwt_required()
+    def get_depreciation_rolloff():
+        """
+        Get depreciation roll-off schedule for rental trucks.
+        Shows when each truck's depreciation ends and monthly cost roll-off.
+        """
+        try:
+            db = get_db()
+
+            # Get all active depreciation records with remaining months
+            # Join with Equipment to get unit info
+            query = """
+            SELECT
+                d.SerialNo,
+                e.UnitNo,
+                e.Make,
+                e.Model,
+                e.ModelYear,
+                d.StartingValue,
+                d.NetBookValue,
+                d.LastUpdatedAmount as MonthlyDepreciation,
+                d.TotalMonths,
+                d.RemainingMonths,
+                d.ResidualValue,
+                d.LastUpdated,
+                d.DepreciationGroup,
+                d.Method,
+                -- Calculate depreciation end date (LastUpdated + RemainingMonths)
+                DATEADD(month, COALESCE(d.RemainingMonths, 0), d.LastUpdated) as DepreciationEndDate
+            FROM ben002.Depreciation d
+            LEFT JOIN ben002.Equipment e ON d.SerialNo = e.SerialNo
+            WHERE d.Inactive = 0  -- Only active depreciation
+                AND d.RemainingMonths > 0  -- Only items still depreciating
+                AND d.LastUpdatedAmount > 0  -- Only items with depreciation amount
+            ORDER BY DATEADD(month, COALESCE(d.RemainingMonths, 0), d.LastUpdated) ASC
+            """
+
+            result = db.execute_query(query)
+
+            if not result:
+                return jsonify({
+                    'success': True,
+                    'equipment': [],
+                    'monthlyRolloff': [],
+                    'summary': {
+                        'totalActiveItems': 0,
+                        'totalMonthlyDepreciation': 0,
+                        'totalRemainingBookValue': 0
+                    }
+                })
+
+            # Process equipment list
+            equipment = []
+            total_monthly_depreciation = 0
+            total_remaining_book_value = 0
+
+            for row in result:
+                monthly_dep = float(row['MonthlyDepreciation'] or 0)
+                net_book = float(row['NetBookValue'] or 0)
+                total_monthly_depreciation += monthly_dep
+                total_remaining_book_value += net_book
+
+                equipment.append({
+                    'serialNo': row['SerialNo'],
+                    'unitNo': row['UnitNo'],
+                    'make': row['Make'],
+                    'model': row['Model'],
+                    'modelYear': row['ModelYear'],
+                    'startingValue': float(row['StartingValue'] or 0),
+                    'netBookValue': net_book,
+                    'monthlyDepreciation': monthly_dep,
+                    'totalMonths': row['TotalMonths'],
+                    'remainingMonths': row['RemainingMonths'],
+                    'residualValue': float(row['ResidualValue'] or 0),
+                    'lastUpdated': row['LastUpdated'].isoformat() if row['LastUpdated'] else None,
+                    'depreciationEndDate': row['DepreciationEndDate'].isoformat() if row['DepreciationEndDate'] else None,
+                    'depreciationGroup': row['DepreciationGroup'],
+                    'method': row['Method']
+                })
+
+            # Calculate monthly roll-off (aggregate by month)
+            rolloff_by_month = {}
+            for item in equipment:
+                if item['depreciationEndDate']:
+                    # Extract year-month from end date
+                    end_date = datetime.fromisoformat(item['depreciationEndDate'])
+                    month_key = end_date.strftime('%Y-%m')
+
+                    if month_key not in rolloff_by_month:
+                        rolloff_by_month[month_key] = {
+                            'month': month_key,
+                            'monthLabel': end_date.strftime('%b %Y'),
+                            'rolloffAmount': 0,
+                            'itemCount': 0,
+                            'items': []
+                        }
+
+                    rolloff_by_month[month_key]['rolloffAmount'] += item['monthlyDepreciation']
+                    rolloff_by_month[month_key]['itemCount'] += 1
+                    rolloff_by_month[month_key]['items'].append({
+                        'unitNo': item['unitNo'],
+                        'serialNo': item['serialNo'],
+                        'monthlyDepreciation': item['monthlyDepreciation']
+                    })
+
+            # Sort by month and convert to list
+            monthly_rolloff = sorted(rolloff_by_month.values(), key=lambda x: x['month'])
+
+            # Calculate cumulative roll-off (running total of cost reduction)
+            cumulative = 0
+            for month in monthly_rolloff:
+                cumulative += month['rolloffAmount']
+                month['cumulativeRolloff'] = round(cumulative, 2)
+                month['rolloffAmount'] = round(month['rolloffAmount'], 2)
+
+            return jsonify({
+                'success': True,
+                'equipment': equipment,
+                'monthlyRolloff': monthly_rolloff,
+                'summary': {
+                    'totalActiveItems': len(equipment),
+                    'totalMonthlyDepreciation': round(total_monthly_depreciation, 2),
+                    'totalRemainingBookValue': round(total_remaining_book_value, 2)
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting depreciation rolloff: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
 
 
