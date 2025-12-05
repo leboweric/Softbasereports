@@ -33,6 +33,8 @@ def ensure_commission_settings_table(cursor):
     cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5, 4);")
     cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS cost_override DECIMAL(12, 2);")
     cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS extra_commission DECIMAL(12, 2) DEFAULT 0;")
+    cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS reassigned_to VARCHAR(100);")
+    cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS original_salesman VARCHAR(100);")
 
 
 @commission_settings_bp.route('', methods=['GET'])
@@ -61,7 +63,9 @@ def get_commission_settings():
                         is_commissionable,
                         commission_rate,
                         cost_override,
-                        extra_commission
+                        extra_commission,
+                        reassigned_to,
+                        original_salesman
                     FROM commission_settings
                     WHERE invoice_no IN (
                         SELECT DISTINCT invoice_no
@@ -78,7 +82,9 @@ def get_commission_settings():
                         is_commissionable,
                         commission_rate,
                         cost_override,
-                        extra_commission
+                        extra_commission,
+                        reassigned_to,
+                        original_salesman
                     FROM commission_settings
                     ORDER BY invoice_no, sale_code, category
                 """
@@ -100,7 +106,9 @@ def get_commission_settings():
                     'is_commissionable': is_commissionable,
                     'commission_rate': float(row['commission_rate']) if row['commission_rate'] is not None else None,
                     'cost_override': float(row['cost_override']) if row['cost_override'] is not None else None,
-                    'extra_commission': float(row['extra_commission']) if row['extra_commission'] is not None else 0
+                    'extra_commission': float(row['extra_commission']) if row['extra_commission'] is not None else 0,
+                    'reassigned_to': row['reassigned_to'],
+                    'original_salesman': row['original_salesman']
                 }
 
             return jsonify({'settings': settings}), 200
@@ -138,21 +146,25 @@ def update_commission_settings_batch():
                 commission_rate = setting.get('commission_rate')  # Can be None for non-rentals
                 cost_override = setting.get('cost_override')  # Can be None if not overridden
                 extra_commission = setting.get('extra_commission', 0)  # Default to 0
-                
+                reassigned_to = setting.get('reassigned_to')  # Can be None if not reassigned
+                original_salesman = setting.get('original_salesman')  # Store original for audit trail
+
                 # Use UPSERT (INSERT ... ON CONFLICT UPDATE)
                 cursor.execute("""
-                    INSERT INTO commission_settings 
-                        (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission, updated_by)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO commission_settings
+                        (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission, reassigned_to, original_salesman, updated_by)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (invoice_no, sale_code, category)
-                    DO UPDATE SET 
+                    DO UPDATE SET
                         is_commissionable = EXCLUDED.is_commissionable,
                         commission_rate = EXCLUDED.commission_rate,
                         cost_override = EXCLUDED.cost_override,
                         extra_commission = EXCLUDED.extra_commission,
+                        reassigned_to = EXCLUDED.reassigned_to,
+                        original_salesman = COALESCE(commission_settings.original_salesman, EXCLUDED.original_salesman),
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = EXCLUDED.updated_by
-                """, (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission, username))
+                """, (invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission, reassigned_to, original_salesman, username))
             
             conn.commit()
             

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2, X } from 'lucide-react'
+import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2, X, ArrowRightLeft } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
@@ -101,7 +101,9 @@ const SalesCommissionReport = ({ user }) => {
               is_commissionable: isCommissionable,
               commission_rate: commissionRate,
               cost_override: costOverride,
-              extra_commission: extraCommission
+              extra_commission: extraCommission,
+              reassigned_to: setting.reassigned_to || null,
+              original_salesman: setting.original_salesman || salesman.name
             })
           })
         })
@@ -182,6 +184,66 @@ const SalesCommissionReport = ({ user }) => {
     }))
     setHasUnsavedChanges(true)
   }, [])
+
+  // Handle reassignment change
+  const handleReassignment = useCallback((invoiceNo, saleCode, category, originalSalesman, newSalesman) => {
+    const key = `${invoiceNo}_${saleCode}_${category}`
+    setCommissionSettings(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        reassigned_to: newSalesman === originalSalesman ? null : newSalesman,
+        original_salesman: prev[key]?.original_salesman || originalSalesman
+      }
+    }))
+    setHasUnsavedChanges(true)
+  }, [])
+
+  // Get the effective salesman for an invoice (reassigned or original)
+  const getEffectiveSalesman = useCallback((invoiceNo, saleCode, category, originalSalesman) => {
+    const key = `${invoiceNo}_${saleCode}_${category}`
+    const setting = commissionSettings[key]
+    return setting?.reassigned_to || originalSalesman
+  }, [commissionSettings])
+
+  // Compute reorganized salesmen data based on reassignments
+  const reorganizedSalesmenData = useMemo(() => {
+    if (!detailsData?.salesmen) return null
+
+    // Create a map to hold invoices by effective salesman
+    const salesmenMap = {}
+
+    // Initialize all salesmen from the original data
+    detailsData.salesmen.forEach(salesman => {
+      salesmenMap[salesman.name] = {
+        name: salesman.name,
+        invoices: [],
+        total_sales: 0
+      }
+    })
+
+    // Redistribute invoices based on reassignments
+    detailsData.salesmen.forEach(salesman => {
+      salesman.invoices.forEach(inv => {
+        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+        const setting = commissionSettings[key] || {}
+        const effectiveSalesman = setting.reassigned_to || salesman.name
+
+        // Add invoice to the effective salesman's list
+        if (salesmenMap[effectiveSalesman]) {
+          salesmenMap[effectiveSalesman].invoices.push({
+            ...inv,
+            original_salesman: salesman.name,
+            is_reassigned: effectiveSalesman !== salesman.name
+          })
+          salesmenMap[effectiveSalesman].total_sales += inv.category_amount
+        }
+      })
+    })
+
+    // Convert back to array and filter out salesmen with no invoices (optional)
+    return Object.values(salesmenMap)
+  }, [detailsData, commissionSettings])
 
   // Select All commission checkboxes
   const handleSelectAllCommission = useCallback(() => {
@@ -826,9 +888,9 @@ const SalesCommissionReport = ({ user }) => {
                     <LoadingSpinner size="small" />
                     <p className="text-sm text-muted-foreground mt-2">Loading invoice details...</p>
                   </div>
-                ) : detailsData && detailsData.salesmen ? (
+                ) : detailsData && reorganizedSalesmenData ? (
                   <div className="space-y-6">
-                    {detailsData.salesmen.map((salesman, idx) => (
+                    {reorganizedSalesmenData.map((salesman, idx) => (
                       <div key={idx} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-semibold">{salesman.name}</h4>
@@ -980,6 +1042,11 @@ const SalesCommissionReport = ({ user }) => {
                                   <th className="text-right p-1">
                                     <div className="flex items-center justify-end">
                                       Total
+                                    </div>
+                                  </th>
+                                  <th className="text-center p-1">
+                                    <div className="flex items-center justify-center">
+                                      Reassign
                                     </div>
                                   </th>
                                 </tr>
@@ -1151,6 +1218,41 @@ const SalesCommissionReport = ({ user }) => {
                                         return formatCommission(calculatedCommission + extraCommission)
                                       })()}
                                     </td>
+                                    <td className="text-center p-1">
+                                      {(() => {
+                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const setting = commissionSettings[key] || {}
+                                        const originalSalesman = inv.original_salesman || salesman.name
+                                        const isReassigned = inv.is_reassigned || (setting.reassigned_to && setting.reassigned_to !== originalSalesman)
+
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            {isReassigned && (
+                                              <span className="text-[10px] text-orange-600" title={`Originally: ${originalSalesman}`}>
+                                                <ArrowRightLeft className="h-3 w-3" />
+                                              </span>
+                                            )}
+                                            <Select
+                                              value={salesman.name}
+                                              onValueChange={(value) =>
+                                                handleReassignment(inv.invoice_no, inv.sale_code, inv.category, originalSalesman, value)
+                                              }
+                                            >
+                                              <SelectTrigger className={`h-7 w-28 text-xs ${isReassigned ? 'border-orange-400 bg-orange-50' : ''}`}>
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {detailsData?.salesmen?.map((s) => (
+                                                  <SelectItem key={s.name} value={s.name}>
+                                                    {s.name === originalSalesman ? `${s.name} (orig)` : s.name}
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        )
+                                      })()}
+                                    </td>
                                   </tr>
                                 ))})()}
                                 <tr className="font-semibold bg-gray-50">
@@ -1243,6 +1345,7 @@ const SalesCommissionReport = ({ user }) => {
                                       return formatCommission(totalWithExtra)
                                     })()}
                                   </td>
+                                  <td></td>
                                 </tr>
                               </tbody>
                             </table>
