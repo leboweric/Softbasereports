@@ -13,6 +13,20 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Salesman name aliases - maps variant names to canonical names
+# This handles cases where the same person has multiple entries in Softbase
+SALESMAN_ALIASES = {
+    'Tod Auge': 'Todd Auge',
+    # Add more aliases here as needed, e.g.:
+    # 'Bob Smith': 'Robert Smith',
+}
+
+def normalize_salesman_name(name):
+    """Normalize salesman name using alias mapping"""
+    if name is None:
+        return name
+    return SALESMAN_ALIASES.get(name, name)
+
 def get_db():
     """Get database connection"""
     return AzureSQLService()
@@ -6391,8 +6405,9 @@ def register_department_routes(reports_bp):
             # - Equipment Sales (All types): 15% of gross profit, $75 minimum per invoice
             # - Rentals: 8% of revenue (unlimited duration, no 12-month cap)
             # Note: House accounts excluded from rental commissions
-            
-            salespeople = []
+
+            # Use dictionary to combine salespeople with aliased names
+            salespeople_dict = {}
             totals = {
                 'rental': 0,
                 'used_equipment': 0,
@@ -6401,8 +6416,11 @@ def register_department_routes(reports_bp):
                 'total_sales': 0,
                 'total_commissions': 0
             }
-            
+
             for row in results:
+                # Normalize salesman name to combine aliases (e.g., "Tod Auge" -> "Todd Auge")
+                salesman_name = normalize_salesman_name(row['SalesRep'])
+
                 rental = float(row['RentalSales'] or 0)
                 rental_cost = float(row['RentalCost'] or 0)
                 used = float(row['UsedEquipmentSales'] or 0)
@@ -6411,40 +6429,48 @@ def register_department_routes(reports_bp):
                 allied_cost = float(row['AlliedEquipmentCost'] or 0)
                 new = float(row['NewEquipmentSales'] or 0)
                 new_cost = float(row['NewEquipmentCost'] or 0)
-                
+
                 total_sales = rental + used + allied + new
-                
+
                 # Commission Calculations:
                 # Rental: 8% of revenue (no limits, no tracking needed)
                 rental_commission = rental * 0.08
-                
+
                 # New Equipment: 20% of gross profit
                 new_gp = new - new_cost
                 new_commission = new_gp * 0.20 if new_gp > 0 else 0
-                
+
                 # Allied Equipment: 20% of gross profit
                 allied_gp = allied - allied_cost
                 allied_commission = allied_gp * 0.20 if allied_gp > 0 else 0
-                
+
                 # Used Equipment: 5% of sale price
                 used_commission = used * 0.05
-                
+
                 commission_amount = rental_commission + new_commission + allied_commission + used_commission
-                
-                # Calculate effective commission rate for display
-                commission_rate = commission_amount / total_sales if total_sales > 0 else 0
-                
-                salespeople.append({
-                    'name': row['SalesRep'],
-                    'rental': rental,
-                    'used_equipment': used,
-                    'allied_equipment': allied,
-                    'new_equipment': new,
-                    'total_sales': total_sales,
-                    'commission_rate': commission_rate,
-                    'commission_amount': commission_amount
-                })
-                
+
+                # Check if this salesman already exists (combining aliased entries)
+                if salesman_name in salespeople_dict:
+                    # Add to existing entry
+                    existing = salespeople_dict[salesman_name]
+                    existing['rental'] += rental
+                    existing['used_equipment'] += used
+                    existing['allied_equipment'] += allied
+                    existing['new_equipment'] += new
+                    existing['total_sales'] += total_sales
+                    existing['commission_amount'] += commission_amount
+                else:
+                    # Create new entry
+                    salespeople_dict[salesman_name] = {
+                        'name': salesman_name,
+                        'rental': rental,
+                        'used_equipment': used,
+                        'allied_equipment': allied,
+                        'new_equipment': new,
+                        'total_sales': total_sales,
+                        'commission_amount': commission_amount
+                    }
+
                 # Update totals - keep individual categories for display
                 totals['rental'] += rental
                 totals['used_equipment'] += used
@@ -6452,7 +6478,16 @@ def register_department_routes(reports_bp):
                 totals['new_equipment'] += new
                 totals['total_sales'] += total_sales
                 totals['total_commissions'] += commission_amount
-            
+
+            # Convert dict to list and calculate effective commission rates
+            salespeople = []
+            for sp in salespeople_dict.values():
+                sp['commission_rate'] = sp['commission_amount'] / sp['total_sales'] if sp['total_sales'] > 0 else 0
+                salespeople.append(sp)
+
+            # Sort by total sales descending
+            salespeople.sort(key=lambda x: x['total_sales'], reverse=True)
+
             return jsonify({
                 'month': month_param,
                 'start_date': start_date.isoformat(),
@@ -7046,10 +7081,10 @@ def register_department_routes(reports_bp):
                 # If we can't fetch settings, default to all commissionable
                 commission_settings = {}
             
-            # Group by salesman
+            # Group by salesman (normalize names to combine aliases like "Tod Auge" -> "Todd Auge")
             salesmen_details = {}
             for row in results:
-                salesman = row['Salesman1']
+                salesman = normalize_salesman_name(row['Salesman1'])
                 if salesman not in salesmen_details:
                     salesmen_details[salesman] = {
                         'name': salesman,
