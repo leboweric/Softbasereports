@@ -7072,13 +7072,13 @@ def register_department_routes(reports_bp):
                     """)
                     settings_results = cursor.fetchall()
                     for row in settings_results:
-                        invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission = row
-                        key = f"{invoice_no}_{sale_code}_{category}"
+                        # Row is a dict due to RealDictCursor
+                        key = f"{row['invoice_no']}_{row['sale_code']}_{row['category']}"
                         commission_settings[key] = {
-                            'is_commissionable': is_commissionable,
-                            'commission_rate': commission_rate,
-                            'cost_override': cost_override,
-                            'extra_commission': float(extra_commission) if extra_commission else 0
+                            'is_commissionable': row['is_commissionable'],
+                            'commission_rate': row['commission_rate'],
+                            'cost_override': row['cost_override'],
+                            'extra_commission': float(row['extra_commission']) if row['extra_commission'] else 0
                         }
             except Exception as e:
                 logger.warning(f"Could not fetch commission settings: {str(e)}")
