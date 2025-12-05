@@ -48,6 +48,7 @@ import PMReport from '../PMReport'
 import PMRoutePlanner from '../PMRoutePlanner'
 import PMTechnicianContest from './PMTechnicianContest'
 import RevenueChart from './RevenueChart'
+import MaintenanceContractProfitability from '../MaintenanceContractProfitability'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -585,6 +586,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           <TabsTrigger value="work-orders">Cash Stalled</TabsTrigger>
           <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
           <TabsTrigger value="invoice-billing">Customer Billing</TabsTrigger>
+          <TabsTrigger value="maintenance-contracts">Maintenance Contract Profitability</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -1659,6 +1661,10 @@ const ServiceReport = ({ user, onNavigate }) => {
 
         <TabsContent value="invoice-billing" className="space-y-6">
           <ServiceInvoiceBilling />
+        </TabsContent>
+
+        <TabsContent value="maintenance-contracts" className="space-y-6">
+          <MaintenanceContractProfitability />
         </TabsContent>
       </Tabs>
 
