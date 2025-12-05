@@ -75,23 +75,24 @@ def get_manual_commissions():
 
             commissions = []
             for row in results:
+                # Row is a dict due to RealDictCursor from PostgreSQLService
                 commissions.append({
-                    'id': row[0],
-                    'salesman_name': row[1],
-                    'month': row[2],
-                    'invoice_no': row[3],
-                    'invoice_date': row[4].isoformat() if row[4] else None,
-                    'bill_to': row[5],
-                    'customer_name': row[6],
-                    'sale_code': row[7],
-                    'category': row[8],
-                    'amount': float(row[9]) if row[9] else 0,
-                    'cost': float(row[10]) if row[10] else None,
-                    'commission_amount': float(row[11]) if row[11] else 0,
-                    'description': row[12],
-                    'created_at': row[13].isoformat() if row[13] else None,
-                    'updated_at': row[14].isoformat() if row[14] else None,
-                    'created_by': row[15]
+                    'id': row['id'],
+                    'salesman_name': row['salesman_name'],
+                    'month': row['month'],
+                    'invoice_no': row['invoice_no'],
+                    'invoice_date': row['invoice_date'].isoformat() if row['invoice_date'] else None,
+                    'bill_to': row['bill_to'],
+                    'customer_name': row['customer_name'],
+                    'sale_code': row['sale_code'],
+                    'category': row['category'],
+                    'amount': float(row['amount']) if row['amount'] else 0,
+                    'cost': float(row['cost']) if row['cost'] else None,
+                    'commission_amount': float(row['commission_amount']) if row['commission_amount'] else 0,
+                    'description': row['description'],
+                    'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                    'updated_at': row['updated_at'].isoformat() if row['updated_at'] else None,
+                    'created_by': row['created_by']
                 })
 
             return jsonify({'commissions': commissions}), 200
@@ -143,7 +144,9 @@ def create_manual_commission():
                 username
             ))
 
-            new_id = cursor.fetchone()[0]
+            # Row is a dict due to RealDictCursor from PostgreSQLService
+            result = cursor.fetchone()
+            new_id = result['id']
             conn.commit()
 
             return jsonify({'id': new_id, 'message': 'Manual commission created successfully'}), 201
@@ -266,22 +269,23 @@ def get_manual_commissions_by_salesman():
             # Group by salesman
             by_salesman = {}
             for row in results:
-                salesman = row[1]
+                # Row is a dict due to RealDictCursor from PostgreSQLService
+                salesman = row['salesman_name']
                 if salesman not in by_salesman:
                     by_salesman[salesman] = []
 
                 by_salesman[salesman].append({
-                    'id': row[0],
-                    'invoice_no': row[3],
-                    'invoice_date': row[4].isoformat() if row[4] else None,
-                    'bill_to': row[5],
-                    'customer_name': row[6],
-                    'sale_code': row[7],
-                    'category': row[8],
-                    'amount': float(row[9]) if row[9] else 0,
-                    'cost': float(row[10]) if row[10] else None,
-                    'commission_amount': float(row[11]) if row[11] else 0,
-                    'description': row[12],
+                    'id': row['id'],
+                    'invoice_no': row['invoice_no'],
+                    'invoice_date': row['invoice_date'].isoformat() if row['invoice_date'] else None,
+                    'bill_to': row['bill_to'],
+                    'customer_name': row['customer_name'],
+                    'sale_code': row['sale_code'],
+                    'category': row['category'],
+                    'amount': float(row['amount']) if row['amount'] else 0,
+                    'cost': float(row['cost']) if row['cost'] else None,
+                    'commission_amount': float(row['commission_amount']) if row['commission_amount'] else 0,
+                    'description': row['description'],
                     'is_manual': True
                 })
 
