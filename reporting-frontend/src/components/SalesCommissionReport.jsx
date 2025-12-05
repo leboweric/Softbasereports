@@ -80,7 +80,7 @@ const SalesCommissionReport = ({ user }) => {
           salesman.invoices.forEach(inv => {
             const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
             const setting = commissionSettings[key] || {}
-            const isCommissionable = setting.is_commissionable !== false // Default to true
+            const isCommissionable = setting.is_commissionable === true // Default to false (unchecked)
             const commissionRate = setting.commission_rate || 
                                   (inv.category === 'Rental' ? 0.10 : null) // Default 10% for rentals
             const costOverride = setting.cost_override !== undefined ? setting.cost_override : null
@@ -174,6 +174,42 @@ const SalesCommissionReport = ({ user }) => {
     }))
     setHasUnsavedChanges(true)
   }, [])
+
+  // Select All commission checkboxes
+  const handleSelectAllCommission = useCallback(() => {
+    if (!detailsData?.salesmen) return
+
+    const newSettings = { ...commissionSettings }
+    detailsData.salesmen.forEach(salesman => {
+      salesman.invoices.forEach(inv => {
+        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+        newSettings[key] = {
+          ...newSettings[key],
+          is_commissionable: true
+        }
+      })
+    })
+    setCommissionSettings(newSettings)
+    setHasUnsavedChanges(true)
+  }, [detailsData, commissionSettings])
+
+  // Unselect All commission checkboxes
+  const handleUnselectAllCommission = useCallback(() => {
+    if (!detailsData?.salesmen) return
+
+    const newSettings = { ...commissionSettings }
+    detailsData.salesmen.forEach(salesman => {
+      salesman.invoices.forEach(inv => {
+        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+        newSettings[key] = {
+          ...newSettings[key],
+          is_commissionable: false
+        }
+      })
+    })
+    setCommissionSettings(newSettings)
+    setHasUnsavedChanges(true)
+  }, [detailsData, commissionSettings])
 
   const fetchCommissionData = async () => {
     try {
@@ -619,6 +655,24 @@ const SalesCommissionReport = ({ user }) => {
                   <CardDescription>Individual invoices by sales rep with commission calculations</CardDescription>
                 </div>
                 <div className="flex gap-2">
+                  {showDetails && detailsData && (
+                    <>
+                      <Button
+                        onClick={handleSelectAllCommission}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Select All
+                      </Button>
+                      <Button
+                        onClick={handleUnselectAllCommission}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Unselect All
+                      </Button>
+                    </>
+                  )}
                   {hasUnsavedChanges && showDetails && (
                     <Button
                       onClick={saveCommissionSettings}
@@ -667,7 +721,7 @@ const SalesCommissionReport = ({ user }) => {
                               return salesman.invoices.reduce((sum, inv) => {
                                 const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                 const setting = commissionSettings[key] || {}
-                                const isCommissionable = setting.is_commissionable !== false
+                                const isCommissionable = setting.is_commissionable === true
                                 const extraCommission = parseFloat(setting.extra_commission || 0)
                                 
                                 if (!isCommissionable) return sum + extraCommission
@@ -869,7 +923,7 @@ const SalesCommissionReport = ({ user }) => {
                                     <td className="text-center p-1">
                                       <Checkbox
                                         checked={
-                                          (commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.is_commissionable ?? true)
+                                          (commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.is_commissionable === true)
                                         }
                                         onCheckedChange={(checked) => 
                                           handleCommissionCheckChange(inv.invoice_no, inv.sale_code, inv.category, checked)
@@ -904,7 +958,7 @@ const SalesCommissionReport = ({ user }) => {
                                       {(() => {
                                         const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                         const setting = commissionSettings[key] || {}
-                                        const isCommissionable = setting.is_commissionable !== false
+                                        const isCommissionable = setting.is_commissionable === true
                                         
                                         if (!isCommissionable) return formatCommission(0)
                                         
@@ -945,7 +999,7 @@ const SalesCommissionReport = ({ user }) => {
                                       {(() => {
                                         const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                         const setting = commissionSettings[key] || {}
-                                        const isCommissionable = setting.is_commissionable !== false
+                                        const isCommissionable = setting.is_commissionable === true
                                         const extraCommission = parseFloat(setting.extra_commission || 0)
                                         
                                         if (!isCommissionable) return formatCommission(extraCommission)
@@ -990,7 +1044,7 @@ const SalesCommissionReport = ({ user }) => {
                                       const totalCommission = salesman.invoices.reduce((sum, inv) => {
                                         const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                         const setting = commissionSettings[key] || {}
-                                        const isCommissionable = setting.is_commissionable !== false
+                                        const isCommissionable = setting.is_commissionable === true
                                         
                                         if (!isCommissionable) return sum
                                         
@@ -1035,7 +1089,7 @@ const SalesCommissionReport = ({ user }) => {
                                       const totalWithExtra = salesman.invoices.reduce((sum, inv) => {
                                         const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                         const setting = commissionSettings[key] || {}
-                                        const isCommissionable = setting.is_commissionable !== false
+                                        const isCommissionable = setting.is_commissionable === true
                                         const extraCommission = parseFloat(setting.extra_commission || 0)
                                         
                                         if (!isCommissionable) return sum + extraCommission
@@ -1091,7 +1145,7 @@ const SalesCommissionReport = ({ user }) => {
                                 salesman.invoices.forEach(inv => {
                                   const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                   const setting = commissionSettings[key] || {}
-                                  const isCommissionable = setting.is_commissionable !== false
+                                  const isCommissionable = setting.is_commissionable === true
                                   const extraCommission = parseFloat(setting.extra_commission || 0)
                                   
                                   if (!isCommissionable) {
