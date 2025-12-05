@@ -147,7 +147,9 @@ function App() {
     const navigation = getAccessibleNavigation(user)
     
     // Check if user has access to current page
-    if (!navigation[currentPage]) {
+    // Note: 'billing' and 'settings' are special pages not in navigation, so always allow them
+    const specialPages = ['billing', 'settings']
+    if (!navigation[currentPage] && !specialPages.includes(currentPage)) {
       // Redirect to first available page using same order as Layout.jsx
       const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'minitrac', 'database-explorer', 'user-management', 'tenant-admin']
       const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0]
