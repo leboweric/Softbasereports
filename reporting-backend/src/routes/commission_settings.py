@@ -92,7 +92,7 @@ def update_commission_settings_batch():
         with pg_service.get_connection() as conn:
             cursor = conn.cursor()
             
-            # First, ensure the table exists
+            # First, ensure the table exists with all columns
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS commission_settings (
                     id SERIAL PRIMARY KEY,
@@ -100,15 +100,26 @@ def update_commission_settings_batch():
                     sale_code VARCHAR(50),
                     category VARCHAR(100),
                     is_commissionable BOOLEAN DEFAULT TRUE,
+                    commission_rate DECIMAL(5, 4),
+                    cost_override DECIMAL(12, 2),
+                    extra_commission DECIMAL(12, 2) DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_by VARCHAR(100),
                     CONSTRAINT unique_invoice_line UNIQUE (invoice_no, sale_code, category)
                 );
-                
+
                 CREATE INDEX IF NOT EXISTS idx_commission_invoice_no ON commission_settings(invoice_no);
                 CREATE INDEX IF NOT EXISTS idx_commission_is_commissionable ON commission_settings(is_commissionable);
             """)
+
+            # Add missing columns if table already exists (for existing deployments)
+            try:
+                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5, 4);")
+                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS cost_override DECIMAL(12, 2);")
+                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS extra_commission DECIMAL(12, 2) DEFAULT 0;")
+            except Exception:
+                pass  # Columns may already exist
             
             # Process each setting
             for setting in settings:
@@ -230,15 +241,18 @@ def create_commission_settings_table():
                     sale_code VARCHAR(50),
                     category VARCHAR(100),
                     is_commissionable BOOLEAN DEFAULT TRUE,
+                    commission_rate DECIMAL(5, 4),
+                    cost_override DECIMAL(12, 2),
+                    extra_commission DECIMAL(12, 2) DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_by VARCHAR(100),
                     CONSTRAINT unique_invoice_line UNIQUE (invoice_no, sale_code, category)
                 );
-                
+
                 CREATE INDEX IF NOT EXISTS idx_commission_invoice_no ON commission_settings(invoice_no);
                 CREATE INDEX IF NOT EXISTS idx_commission_is_commissionable ON commission_settings(is_commissionable);
-                
+
                 -- Add trigger for updated_at
                 CREATE OR REPLACE FUNCTION update_commission_settings_timestamp()
                 RETURNS TRIGGER AS $$
@@ -247,13 +261,21 @@ def create_commission_settings_table():
                     RETURN NEW;
                 END;
                 $$ LANGUAGE plpgsql;
-                
+
                 DROP TRIGGER IF EXISTS update_commission_settings_timestamp ON commission_settings;
                 CREATE TRIGGER update_commission_settings_timestamp
                 BEFORE UPDATE ON commission_settings
                 FOR EACH ROW
                 EXECUTE FUNCTION update_commission_settings_timestamp();
             """)
+
+            # Add missing columns if table already exists (for existing deployments)
+            try:
+                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5, 4);")
+                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS cost_override DECIMAL(12, 2);")
+                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS extra_commission DECIMAL(12, 2) DEFAULT 0;")
+            except Exception:
+                pass  # Columns may already exist
             
             conn.commit()
             
