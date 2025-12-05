@@ -8673,4 +8673,152 @@ def register_department_routes(reports_bp):
                 'error': str(e)
             }), 500
 
+    @reports_bp.route('/departments/guaranteed-maintenance/profitability', methods=['GET'])
+    @jwt_required()
+    def get_maintenance_contract_profitability():
+        """
+        Get Maintenance Contract (FMBILL) profitability analysis.
+        Compares contract revenue to associated service costs.
+        """
+        try:
+            db = get_db()
+
+            # Get FMBILL revenue by year/month
+            revenue_query = """
+            SELECT
+                YEAR(InvoiceDate) as year,
+                MONTH(InvoiceDate) as month,
+                COUNT(*) as invoice_count,
+                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue,
+                SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
+                SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
+                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) +
+                    COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) +
+                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue,
+                SUM(COALESCE(LaborCost, 0)) as labor_cost,
+                SUM(COALESCE(PartsCost, 0)) as parts_cost,
+                SUM(COALESCE(LaborCost, 0) + COALESCE(PartsCost, 0)) as total_cost
+            FROM [ben002].InvoiceReg
+            WHERE SaleCode = 'FMBILL'
+            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+            ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
+            """
+
+            revenue_results = db.execute_query(revenue_query)
+
+            # Get FMBILL revenue by customer
+            customer_query = """
+            SELECT
+                i.BillTo as customer_number,
+                c.Name as customer_name,
+                COUNT(*) as invoice_count,
+                SUM(COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) +
+                    COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0) +
+                    COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as total_revenue,
+                SUM(COALESCE(i.LaborCost, 0) + COALESCE(i.PartsCost, 0)) as total_cost,
+                MIN(i.InvoiceDate) as first_invoice,
+                MAX(i.InvoiceDate) as last_invoice
+            FROM [ben002].InvoiceReg i
+            LEFT JOIN [ben002].Customer c ON i.BillTo = c.Number
+            WHERE i.SaleCode = 'FMBILL'
+            GROUP BY i.BillTo, c.Name
+            ORDER BY total_revenue DESC
+            """
+
+            customer_results = db.execute_query(customer_query)
+
+            # Get overall summary
+            summary_query = """
+            SELECT
+                COUNT(*) as total_invoices,
+                COUNT(DISTINCT BillTo) as unique_customers,
+                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) +
+                    COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) +
+                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue,
+                SUM(COALESCE(LaborCost, 0) + COALESCE(PartsCost, 0)) as total_cost,
+                MIN(InvoiceDate) as earliest_invoice,
+                MAX(InvoiceDate) as latest_invoice
+            FROM [ben002].InvoiceReg
+            WHERE SaleCode = 'FMBILL'
+            """
+
+            summary_results = db.execute_query(summary_query)
+
+            # Format monthly data
+            monthly_data = []
+            for row in revenue_results:
+                revenue = float(row['total_revenue'] or 0)
+                cost = float(row['total_cost'] or 0)
+                gross_profit = revenue - cost
+                margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+
+                monthly_data.append({
+                    'year': int(row['year']),
+                    'month': int(row['month']),
+                    'month_name': datetime(int(row['year']), int(row['month']), 1).strftime('%b %Y'),
+                    'invoice_count': int(row['invoice_count']),
+                    'labor_revenue': float(row['labor_revenue'] or 0),
+                    'parts_revenue': float(row['parts_revenue'] or 0),
+                    'misc_revenue': float(row['misc_revenue'] or 0),
+                    'total_revenue': revenue,
+                    'labor_cost': float(row['labor_cost'] or 0),
+                    'parts_cost': float(row['parts_cost'] or 0),
+                    'total_cost': cost,
+                    'gross_profit': gross_profit,
+                    'margin_percent': round(margin, 1)
+                })
+
+            # Format customer data
+            customer_data = []
+            for row in customer_results:
+                revenue = float(row['total_revenue'] or 0)
+                cost = float(row['total_cost'] or 0)
+                gross_profit = revenue - cost
+                margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+
+                customer_data.append({
+                    'customer_number': row['customer_number'],
+                    'customer_name': row['customer_name'] or 'Unknown',
+                    'invoice_count': int(row['invoice_count']),
+                    'total_revenue': revenue,
+                    'total_cost': cost,
+                    'gross_profit': gross_profit,
+                    'margin_percent': round(margin, 1),
+                    'first_invoice': row['first_invoice'].strftime('%Y-%m-%d') if row['first_invoice'] else None,
+                    'last_invoice': row['last_invoice'].strftime('%Y-%m-%d') if row['last_invoice'] else None
+                })
+
+            # Format summary
+            summary = {}
+            if summary_results and len(summary_results) > 0:
+                row = summary_results[0]
+                revenue = float(row['total_revenue'] or 0)
+                cost = float(row['total_cost'] or 0)
+                gross_profit = revenue - cost
+                margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+
+                summary = {
+                    'total_invoices': int(row['total_invoices'] or 0),
+                    'unique_customers': int(row['unique_customers'] or 0),
+                    'total_revenue': revenue,
+                    'total_cost': cost,
+                    'gross_profit': gross_profit,
+                    'margin_percent': round(margin, 1),
+                    'earliest_invoice': row['earliest_invoice'].strftime('%Y-%m-%d') if row['earliest_invoice'] else None,
+                    'latest_invoice': row['latest_invoice'].strftime('%Y-%m-%d') if row['latest_invoice'] else None
+                }
+
+            return jsonify({
+                'success': True,
+                'monthly': monthly_data,
+                'by_customer': customer_data,
+                'summary': summary
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting maintenance contract profitability: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
 
