@@ -8679,12 +8679,15 @@ def register_department_routes(reports_bp):
     def get_maintenance_contract_profitability():
         """
         Get Maintenance Contract (FMBILL) profitability analysis.
-        Compares contract revenue (from FMBILL invoices) to associated service costs.
+        Compares contract revenue (from FMBILL invoices) to actual service costs
+        from Work Orders (WOLabor + WOParts + WOMisc).
+
+        True profitability = Contract Revenue - Actual Service Costs
         """
         try:
             db = get_db()
 
-            # Get FMBILL revenue by year/month
+            # Get FMBILL revenue by year/month (contract billing)
             revenue_query = """
             SELECT
                 YEAR(InvoiceDate) as year,
@@ -8695,10 +8698,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
                 SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) +
                     COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) +
-                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue,
-                SUM(COALESCE(LaborCost, 0)) as labor_cost,
-                SUM(COALESCE(PartsCost, 0)) as parts_cost,
-                SUM(COALESCE(LaborCost, 0) + COALESCE(PartsCost, 0)) as total_cost
+                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -8706,6 +8706,159 @@ def register_department_routes(reports_bp):
             """
 
             revenue_results = db.execute_query(revenue_query)
+
+            # Get list of FMBILL customer numbers
+            fmbill_customers_query = """
+            SELECT DISTINCT BillTo as customer_number
+            FROM [ben002].InvoiceReg
+            WHERE SaleCode = 'FMBILL'
+            """
+            fmbill_customers = db.execute_query(fmbill_customers_query)
+            customer_numbers = [row['customer_number'] for row in fmbill_customers]
+
+            # Get actual service costs from Work Orders for FMBILL customers
+            # This includes all service WOs (Type S, SH, PM) for these customers
+            if customer_numbers:
+                placeholders = ','.join(['?' for _ in customer_numbers])
+
+                # Service costs by year/month
+                service_costs_query = f"""
+                WITH ServiceWOs AS (
+                    SELECT
+                        w.WONo,
+                        w.BillTo,
+                        YEAR(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as year,
+                        MONTH(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as month
+                    FROM [ben002].WO w
+                    WHERE w.BillTo IN ({placeholders})
+                    AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, PM work orders
+                ),
+                LaborCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
+                    FROM [ben002].WOLabor
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                PartsCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
+                    FROM [ben002].WOParts
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                MiscCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
+                    FROM [ben002].WOMisc
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                )
+                SELECT
+                    sw.year,
+                    sw.month,
+                    COUNT(DISTINCT sw.WONo) as wo_count,
+                    SUM(COALESCE(l.labor_cost, 0)) as labor_cost,
+                    SUM(COALESCE(p.parts_cost, 0)) as parts_cost,
+                    SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
+                    SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
+                FROM ServiceWOs sw
+                LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
+                LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
+                LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
+                GROUP BY sw.year, sw.month
+                ORDER BY sw.year DESC, sw.month DESC
+                """
+
+                service_costs_results = db.execute_query(service_costs_query, tuple(customer_numbers))
+
+                # Service costs by customer
+                service_costs_by_customer_query = f"""
+                WITH ServiceWOs AS (
+                    SELECT
+                        w.WONo,
+                        w.BillTo
+                    FROM [ben002].WO w
+                    WHERE w.BillTo IN ({placeholders})
+                    AND w.Type IN ('S', 'SH', 'PM')
+                ),
+                LaborCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
+                    FROM [ben002].WOLabor
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                PartsCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
+                    FROM [ben002].WOParts
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                MiscCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
+                    FROM [ben002].WOMisc
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                )
+                SELECT
+                    sw.BillTo as customer_number,
+                    c.Name as customer_name,
+                    COUNT(DISTINCT sw.WONo) as wo_count,
+                    SUM(COALESCE(l.labor_cost, 0)) as labor_cost,
+                    SUM(COALESCE(p.parts_cost, 0)) as parts_cost,
+                    SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
+                    SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
+                FROM ServiceWOs sw
+                LEFT JOIN [ben002].Customer c ON sw.BillTo = c.Number
+                LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
+                LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
+                LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
+                GROUP BY sw.BillTo, c.Name
+                ORDER BY total_cost DESC
+                """
+
+                service_costs_by_customer = db.execute_query(service_costs_by_customer_query, tuple(customer_numbers))
+
+                # Total service costs summary
+                total_service_costs_query = f"""
+                WITH ServiceWOs AS (
+                    SELECT w.WONo, w.BillTo
+                    FROM [ben002].WO w
+                    WHERE w.BillTo IN ({placeholders})
+                    AND w.Type IN ('S', 'SH', 'PM')
+                ),
+                LaborCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
+                    FROM [ben002].WOLabor
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                PartsCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
+                    FROM [ben002].WOParts
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                MiscCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
+                    FROM [ben002].WOMisc
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                )
+                SELECT
+                    COUNT(DISTINCT sw.WONo) as total_work_orders,
+                    SUM(COALESCE(l.labor_cost, 0)) as total_labor_cost,
+                    SUM(COALESCE(p.parts_cost, 0)) as total_parts_cost,
+                    SUM(COALESCE(m.misc_cost, 0)) as total_misc_cost,
+                    SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_service_cost
+                FROM ServiceWOs sw
+                LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
+                LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
+                LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
+                """
+
+                total_service_costs = db.execute_query(total_service_costs_query, tuple(customer_numbers))
+            else:
+                service_costs_results = []
+                service_costs_by_customer = []
+                total_service_costs = []
 
             # Get FMBILL revenue by customer
             customer_query = """
@@ -8716,7 +8869,6 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) +
                     COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0) +
                     COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as total_revenue,
-                SUM(COALESCE(i.LaborCost, 0) + COALESCE(i.PartsCost, 0)) as total_cost,
                 MIN(i.InvoiceDate) as first_invoice,
                 MAX(i.InvoiceDate) as last_invoice
             FROM [ben002].InvoiceReg i
@@ -8736,7 +8888,6 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) +
                     COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) +
                     COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue,
-                SUM(COALESCE(LaborCost, 0) + COALESCE(PartsCost, 0)) as total_cost,
                 MIN(InvoiceDate) as earliest_invoice,
                 MAX(InvoiceDate) as latest_invoice
             FROM [ben002].InvoiceReg
@@ -8745,66 +8896,137 @@ def register_department_routes(reports_bp):
 
             summary_results = db.execute_query(summary_query)
 
-            # Format monthly data
+            # Build service costs lookup by month
+            service_costs_by_month = {}
+            for row in service_costs_results:
+                key = (int(row['year']), int(row['month']))
+                service_costs_by_month[key] = {
+                    'wo_count': int(row['wo_count'] or 0),
+                    'labor_cost': float(row['labor_cost'] or 0),
+                    'parts_cost': float(row['parts_cost'] or 0),
+                    'misc_cost': float(row['misc_cost'] or 0),
+                    'total_cost': float(row['total_cost'] or 0)
+                }
+
+            # Build service costs lookup by customer
+            service_costs_by_cust = {}
+            for row in service_costs_by_customer:
+                service_costs_by_cust[row['customer_number']] = {
+                    'wo_count': int(row['wo_count'] or 0),
+                    'labor_cost': float(row['labor_cost'] or 0),
+                    'parts_cost': float(row['parts_cost'] or 0),
+                    'misc_cost': float(row['misc_cost'] or 0),
+                    'total_cost': float(row['total_cost'] or 0)
+                }
+
+            # Format monthly data with TRUE profitability (revenue - service costs)
             monthly_data = []
             for row in revenue_results:
+                year = int(row['year'])
+                month = int(row['month'])
                 revenue = float(row['total_revenue'] or 0)
-                cost = float(row['total_cost'] or 0)
-                gross_profit = revenue - cost
-                margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+
+                # Get actual service costs for this month
+                service_data = service_costs_by_month.get((year, month), {})
+                service_cost = service_data.get('total_cost', 0)
+                wo_count = service_data.get('wo_count', 0)
+
+                # True profitability
+                true_profit = revenue - service_cost
+                margin = (true_profit / revenue * 100) if revenue > 0 else 0
 
                 monthly_data.append({
-                    'year': int(row['year']),
-                    'month': int(row['month']),
-                    'month_name': datetime(int(row['year']), int(row['month']), 1).strftime('%b %Y'),
+                    'year': year,
+                    'month': month,
+                    'month_name': datetime(year, month, 1).strftime('%b %Y'),
                     'invoice_count': int(row['invoice_count']),
+                    'contract_revenue': revenue,
                     'labor_revenue': float(row['labor_revenue'] or 0),
                     'parts_revenue': float(row['parts_revenue'] or 0),
                     'misc_revenue': float(row['misc_revenue'] or 0),
-                    'total_revenue': revenue,
-                    'labor_cost': float(row['labor_cost'] or 0),
-                    'parts_cost': float(row['parts_cost'] or 0),
-                    'total_cost': cost,
-                    'gross_profit': gross_profit,
+                    'service_wo_count': wo_count,
+                    'service_labor_cost': service_data.get('labor_cost', 0),
+                    'service_parts_cost': service_data.get('parts_cost', 0),
+                    'service_misc_cost': service_data.get('misc_cost', 0),
+                    'service_total_cost': service_cost,
+                    'true_profit': true_profit,
                     'margin_percent': round(margin, 1)
                 })
 
-            # Format customer data
+            # Format customer data with TRUE profitability
             customer_data = []
             for row in customer_results:
+                cust_num = row['customer_number']
                 revenue = float(row['total_revenue'] or 0)
-                cost = float(row['total_cost'] or 0)
-                gross_profit = revenue - cost
-                margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+
+                # Get actual service costs for this customer
+                service_data = service_costs_by_cust.get(cust_num, {})
+                service_cost = service_data.get('total_cost', 0)
+                wo_count = service_data.get('wo_count', 0)
+
+                # True profitability
+                true_profit = revenue - service_cost
+                margin = (true_profit / revenue * 100) if revenue > 0 else 0
 
                 customer_data.append({
-                    'customer_number': row['customer_number'],
+                    'customer_number': cust_num,
                     'customer_name': row['customer_name'] or 'Unknown',
                     'invoice_count': int(row['invoice_count']),
-                    'total_revenue': revenue,
-                    'total_cost': cost,
-                    'gross_profit': gross_profit,
+                    'contract_revenue': revenue,
+                    'service_wo_count': wo_count,
+                    'service_labor_cost': service_data.get('labor_cost', 0),
+                    'service_parts_cost': service_data.get('parts_cost', 0),
+                    'service_misc_cost': service_data.get('misc_cost', 0),
+                    'service_total_cost': service_cost,
+                    'true_profit': true_profit,
                     'margin_percent': round(margin, 1),
+                    'profitable': true_profit > 0,
                     'first_invoice': row['first_invoice'].strftime('%Y-%m-%d') if row['first_invoice'] else None,
                     'last_invoice': row['last_invoice'].strftime('%Y-%m-%d') if row['last_invoice'] else None
                 })
 
-            # Format summary
+            # Format summary with TRUE profitability
             summary = {}
             if summary_results and len(summary_results) > 0:
                 row = summary_results[0]
                 revenue = float(row['total_revenue'] or 0)
-                cost = float(row['total_cost'] or 0)
-                gross_profit = revenue - cost
-                margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+
+                # Get total service costs
+                total_service_cost = 0
+                total_work_orders = 0
+                total_labor_cost = 0
+                total_parts_cost = 0
+                total_misc_cost = 0
+
+                if total_service_costs and len(total_service_costs) > 0:
+                    sc = total_service_costs[0]
+                    total_service_cost = float(sc['total_service_cost'] or 0)
+                    total_work_orders = int(sc['total_work_orders'] or 0)
+                    total_labor_cost = float(sc['total_labor_cost'] or 0)
+                    total_parts_cost = float(sc['total_parts_cost'] or 0)
+                    total_misc_cost = float(sc['total_misc_cost'] or 0)
+
+                true_profit = revenue - total_service_cost
+                margin = (true_profit / revenue * 100) if revenue > 0 else 0
+
+                # Count profitable vs unprofitable customers
+                profitable_count = sum(1 for c in customer_data if c['profitable'])
+                unprofitable_count = len(customer_data) - profitable_count
 
                 summary = {
                     'total_invoices': int(row['total_invoices'] or 0),
                     'unique_customers': int(row['unique_customers'] or 0),
-                    'total_revenue': revenue,
-                    'total_cost': cost,
-                    'gross_profit': gross_profit,
+                    'total_contract_revenue': revenue,
+                    'total_work_orders': total_work_orders,
+                    'total_labor_cost': total_labor_cost,
+                    'total_parts_cost': total_parts_cost,
+                    'total_misc_cost': total_misc_cost,
+                    'total_service_cost': total_service_cost,
+                    'true_profit': true_profit,
                     'margin_percent': round(margin, 1),
+                    'profitable_customers': profitable_count,
+                    'unprofitable_customers': unprofitable_count,
+                    'overall_profitable': true_profit > 0,
                     'earliest_invoice': row['earliest_invoice'].strftime('%Y-%m-%d') if row['earliest_invoice'] else None,
                     'latest_invoice': row['latest_invoice'].strftime('%Y-%m-%d') if row['latest_invoice'] else None
                 }
@@ -8813,7 +9035,13 @@ def register_department_routes(reports_bp):
                 'success': True,
                 'monthly': monthly_data,
                 'by_customer': customer_data,
-                'summary': summary
+                'summary': summary,
+                'notes': {
+                    'contract_revenue': 'Monthly billing from FMBILL invoices',
+                    'service_costs': 'Actual costs from Work Orders (Labor + Parts + Misc) for contract customers',
+                    'true_profit': 'Contract Revenue - Actual Service Costs',
+                    'wo_types_included': 'S (Service), SH (Shop), PM (Preventive Maintenance)'
+                }
             })
 
         except Exception as e:
