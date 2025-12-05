@@ -8678,7 +8678,7 @@ def register_department_routes(reports_bp):
     def get_maintenance_contract_profitability():
         """
         Get Maintenance Contract (FMBILL) profitability analysis.
-        Compares contract revenue to associated service costs.
+        Compares contract revenue (from FMBILL invoices) to associated service costs.
         """
         try:
             db = get_db()
