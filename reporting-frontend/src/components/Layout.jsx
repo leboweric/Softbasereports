@@ -35,7 +35,12 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   // Navigation items built
 
   const handleNavigation = (pageId) => {
-    onNavigate(pageId)
+    console.log('Layout handleNavigation called:', pageId, { onNavigate: typeof onNavigate })
+    if (onNavigate) {
+      onNavigate(pageId)
+    } else {
+      console.error('onNavigate is not defined!')
+    }
     setSidebarOpen(false)
   }
 
@@ -108,7 +113,11 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               </div>
             </div>
             <button
-              onClick={() => handleNavigation('billing')}
+              onClick={(e) => {
+                e.preventDefault()
+                console.log('Mobile Billing button clicked!')
+                handleNavigation('billing')
+              }}
               className={`mt-3 w-full flex items-center rounded-md px-2 py-2 text-sm font-medium ${
                 currentPage === 'billing'
                   ? 'bg-blue-100 text-blue-900'
@@ -194,7 +203,11 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               </div>
             </div>
             <button
-              onClick={() => handleNavigation('billing')}
+              onClick={(e) => {
+                e.preventDefault()
+                console.log('Desktop Billing button clicked!')
+                handleNavigation('billing')
+              }}
               className={`mt-3 w-full flex items-center rounded-md px-2 py-2 text-sm font-medium ${
                 currentPage === 'billing'
                   ? 'bg-blue-100 text-blue-900'
