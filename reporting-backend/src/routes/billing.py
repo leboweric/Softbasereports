@@ -219,6 +219,12 @@ def stripe_webhook():
     payload = request.get_data()
     sig_header = request.headers.get('Stripe-Signature')
 
+    # Debug logging
+    print(f"[Webhook] Received webhook request")
+    print(f"[Webhook] STRIPE_WEBHOOK_SECRET set: {bool(STRIPE_WEBHOOK_SECRET)}")
+    print(f"[Webhook] STRIPE_WEBHOOK_SECRET length: {len(STRIPE_WEBHOOK_SECRET) if STRIPE_WEBHOOK_SECRET else 0}")
+    print(f"[Webhook] Signature header present: {bool(sig_header)}")
+
     if not STRIPE_WEBHOOK_SECRET:
         # In development, process without signature verification
         event = stripe.Event.construct_from(
