@@ -13,7 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2, X } from 'lucide-react'
+import { Input } from '@/components/ui/input'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
 
@@ -40,11 +41,18 @@ const SalesCommissionReport = ({ user }) => {
   const [savingSettings, setSavingSettings] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
+  // Manual commissions state
+  const [manualCommissions, setManualCommissions] = useState({}) // keyed by salesman name
+  const [showAddManualForm, setShowAddManualForm] = useState({}) // keyed by salesman name
+  const [newManualCommission, setNewManualCommission] = useState({})
+  const [savingManualCommission, setSavingManualCommission] = useState(false)
+
   useEffect(() => {
     fetchCommissionData()
     if (showDetails) {
       fetchDetailsData()
       fetchCommissionSettings()
+      fetchManualCommissions()
     }
   }, [selectedMonth])
   
@@ -210,6 +218,116 @@ const SalesCommissionReport = ({ user }) => {
     setCommissionSettings(newSettings)
     setHasUnsavedChanges(true)
   }, [detailsData, commissionSettings])
+
+  // Fetch manual commissions from backend
+  const fetchManualCommissions = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/manual-commissions/by-salesman?month=${selectedMonth}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setManualCommissions(data.commissions_by_salesman || {})
+      }
+    } catch (error) {
+      console.error('Error fetching manual commissions:', error)
+    }
+  }
+
+  // Add a new manual commission
+  const addManualCommission = async (salesmanName) => {
+    try {
+      setSavingManualCommission(true)
+      const token = localStorage.getItem('token')
+      const formData = newManualCommission[salesmanName] || {}
+
+      const response = await fetch(apiUrl('/api/manual-commissions'), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          salesman_name: salesmanName,
+          month: selectedMonth,
+          invoice_no: formData.invoice_no || '',
+          invoice_date: formData.invoice_date || null,
+          bill_to: formData.bill_to || '',
+          customer_name: formData.customer_name || '',
+          sale_code: formData.sale_code || '',
+          category: formData.category || 'Manual',
+          amount: parseFloat(formData.amount) || 0,
+          cost: formData.cost ? parseFloat(formData.cost) : null,
+          commission_amount: parseFloat(formData.commission_amount) || 0,
+          description: formData.description || ''
+        })
+      })
+
+      if (response.ok) {
+        // Refresh manual commissions
+        await fetchManualCommissions()
+        // Clear form and hide it
+        setNewManualCommission(prev => ({ ...prev, [salesmanName]: {} }))
+        setShowAddManualForm(prev => ({ ...prev, [salesmanName]: false }))
+      } else {
+        const error = await response.json()
+        console.error('Error adding manual commission:', error)
+        alert('Error adding manual commission: ' + (error.error || 'Unknown error'))
+      }
+    } catch (error) {
+      console.error('Error adding manual commission:', error)
+      alert('Error adding manual commission')
+    } finally {
+      setSavingManualCommission(false)
+    }
+  }
+
+  // Delete a manual commission
+  const deleteManualCommission = async (commissionId) => {
+    if (!confirm('Are you sure you want to delete this manual commission?')) return
+
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/manual-commissions/${commissionId}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        await fetchManualCommissions()
+      } else {
+        const error = await response.json()
+        console.error('Error deleting manual commission:', error)
+        alert('Error deleting manual commission')
+      }
+    } catch (error) {
+      console.error('Error deleting manual commission:', error)
+      alert('Error deleting manual commission')
+    }
+  }
+
+  // Handle form input change for manual commission
+  const handleManualCommissionChange = (salesmanName, field, value) => {
+    setNewManualCommission(prev => ({
+      ...prev,
+      [salesmanName]: {
+        ...(prev[salesmanName] || {}),
+        [field]: value
+      }
+    }))
+  }
+
+  // Calculate total manual commissions for a salesman
+  const getSalesmanManualCommissionTotal = (salesmanName) => {
+    const manualEntries = manualCommissions[salesmanName] || []
+    return manualEntries.reduce((sum, entry) => sum + (parseFloat(entry.commission_amount) || 0), 0)
+  }
 
   const fetchCommissionData = async () => {
     try {
@@ -689,6 +807,7 @@ const SalesCommissionReport = ({ user }) => {
                       if (!showDetails && !detailsData) {
                         fetchDetailsData()
                         fetchCommissionSettings()
+                        fetchManualCommissions()
                       }
                     }}
                     variant="outline"
@@ -718,16 +837,16 @@ const SalesCommissionReport = ({ user }) => {
                             Total Sales: {formatCurrency(salesman.total_sales)} • 
                             Commission: <span className="font-semibold text-green-600">{formatCommission((() => {
                               // Calculate total commission including extra for this salesman
-                              return salesman.invoices.reduce((sum, inv) => {
+                              const invoiceCommission = salesman.invoices.reduce((sum, inv) => {
                                 const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                 const setting = commissionSettings[key] || {}
                                 const isCommissionable = setting.is_commissionable === true
                                 const extraCommission = parseFloat(setting.extra_commission || 0)
-                                
+
                                 if (!isCommissionable) return sum + extraCommission
-                                
+
                                 let calculatedCommission = 0
-                                
+
                                 // For rentals, use the selected rate
                                 if (inv.category === 'Rental') {
                                   const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
@@ -747,9 +866,12 @@ const SalesCommissionReport = ({ user }) => {
                                 else {
                                   calculatedCommission = inv.commission
                                 }
-                                
+
                                 return sum + calculatedCommission + extraCommission
                               }, 0)
+                              // Add manual commissions for this salesman
+                              const manualCommissionTotal = getSalesmanManualCommissionTotal(salesman.name)
+                              return invoiceCommission + manualCommissionTotal
                             })())}</span>
                           </div>
                         </div>
@@ -1128,9 +1250,194 @@ const SalesCommissionReport = ({ user }) => {
                         ) : (
                           <p className="text-sm text-muted-foreground">No commission-eligible invoices found.</p>
                         )}
+
+                        {/* Manual Commissions Section */}
+                        <div className="mt-4 pt-4 border-t border-dashed">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-sm font-medium text-blue-600">Manual Commissions</h5>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => setShowAddManualForm(prev => ({ ...prev, [salesman.name]: !prev[salesman.name] }))}
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Add Manual Entry
+                            </Button>
+                          </div>
+
+                          {/* Existing Manual Commissions */}
+                          {(manualCommissions[salesman.name] || []).length > 0 && (
+                            <div className="mb-3">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b bg-blue-50">
+                                    <th className="text-left p-1">Ref #</th>
+                                    <th className="text-left p-1">Date</th>
+                                    <th className="text-left p-1">Customer</th>
+                                    <th className="text-left p-1">Category</th>
+                                    <th className="text-right p-1">Amount</th>
+                                    <th className="text-right p-1">Commission</th>
+                                    <th className="text-left p-1">Description</th>
+                                    <th className="text-center p-1"></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(manualCommissions[salesman.name] || []).map((mc) => (
+                                    <tr key={mc.id} className="border-b bg-blue-50/50">
+                                      <td className="p-1">{mc.invoice_no || '-'}</td>
+                                      <td className="p-1">{mc.invoice_date || '-'}</td>
+                                      <td className="p-1">{mc.customer_name || mc.bill_to || '-'}</td>
+                                      <td className="p-1">
+                                        <Badge variant="outline" className="text-[10px] bg-blue-100">
+                                          {mc.category || 'Manual'}
+                                        </Badge>
+                                      </td>
+                                      <td className="text-right p-1">{formatCurrency(mc.amount)}</td>
+                                      <td className="text-right p-1 font-medium text-blue-600">{formatCommission(mc.commission_amount)}</td>
+                                      <td className="p-1 text-muted-foreground">{mc.description || '-'}</td>
+                                      <td className="text-center p-1">
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                          onClick={() => deleteManualCommission(mc.id)}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr className="border-t-2 font-medium bg-blue-100">
+                                    <td colSpan={5} className="text-right p-1">Manual Commission Total:</td>
+                                    <td className="text-right p-1 text-blue-600">{formatCommission(getSalesmanManualCommissionTotal(salesman.name))}</td>
+                                    <td colSpan={2}></td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {/* Add Manual Commission Form */}
+                          {showAddManualForm[salesman.name] && (
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium">Add Manual Commission</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => setShowAddManualForm(prev => ({ ...prev, [salesman.name]: false }))}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                                <div>
+                                  <label className="text-xs text-muted-foreground">Ref/Invoice #</label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Optional"
+                                    value={newManualCommission[salesman.name]?.invoice_no || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'invoice_no', e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground">Date</label>
+                                  <Input
+                                    type="date"
+                                    className="h-7 text-xs"
+                                    value={newManualCommission[salesman.name]?.invoice_date || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'invoice_date', e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground">Customer</label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Customer name"
+                                    value={newManualCommission[salesman.name]?.customer_name || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'customer_name', e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground">Category</label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Manual"
+                                    value={newManualCommission[salesman.name]?.category || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'category', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+                                <div>
+                                  <label className="text-xs text-muted-foreground">Sale Amount</label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    className="h-7 text-xs"
+                                    placeholder="0.00"
+                                    value={newManualCommission[salesman.name]?.amount || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'amount', e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground">Cost (optional)</label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    className="h-7 text-xs"
+                                    placeholder="0.00"
+                                    value={newManualCommission[salesman.name]?.cost || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'cost', e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground font-medium text-blue-600">Commission Amount *</label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    className="h-7 text-xs border-blue-300"
+                                    placeholder="0.00"
+                                    value={newManualCommission[salesman.name]?.commission_amount || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'commission_amount', e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-muted-foreground">Description/Notes</label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder="Reason for manual entry"
+                                    value={newManualCommission[salesman.name]?.description || ''}
+                                    onChange={(e) => handleManualCommissionChange(salesman.name, 'description', e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => setShowAddManualForm(prev => ({ ...prev, [salesman.name]: false }))}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => addManualCommission(salesman.name)}
+                                  disabled={savingManualCommission || !newManualCommission[salesman.name]?.commission_amount}
+                                >
+                                  {savingManualCommission ? 'Adding...' : 'Add Commission'}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
-                    
+
                     {/* Grand Total */}
                     {detailsData.salesmen.length > 0 && detailsData.grand_totals && (
                       <div className="border-t-2 pt-4">
@@ -1147,14 +1454,14 @@ const SalesCommissionReport = ({ user }) => {
                                   const setting = commissionSettings[key] || {}
                                   const isCommissionable = setting.is_commissionable === true
                                   const extraCommission = parseFloat(setting.extra_commission || 0)
-                                  
+
                                   if (!isCommissionable) {
                                     grandTotal += extraCommission
                                     return
                                   }
-                                  
+
                                   let calculatedCommission = 0
-                                  
+
                                   // For rentals, use the selected rate
                                   if (inv.category === 'Rental') {
                                     const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
@@ -1174,9 +1481,11 @@ const SalesCommissionReport = ({ user }) => {
                                   else {
                                     calculatedCommission = inv.commission
                                   }
-                                  
+
                                   grandTotal += calculatedCommission + extraCommission
                                 })
+                                // Add manual commissions for this salesman
+                                grandTotal += getSalesmanManualCommissionTotal(salesman.name)
                               })
                               return grandTotal
                             })())}</span>

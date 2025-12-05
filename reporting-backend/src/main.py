@@ -58,6 +58,7 @@ from src.routes.password_fix import password_fix_bp
 from src.routes.temp_login import temp_login_bp
 from src.routes.user_diagnostic import user_diagnostic_bp
 from src.routes.commission_settings import commission_settings_bp
+from src.routes.manual_commissions import manual_commissions_bp
 from src.routes.rental_availability_diagnostic import rental_diag_bp
 from src.routes.rental_exclusion_analysis import rental_exclusion_analysis_bp
 from src.routes.rental_dept_diagnostic import rental_dept_diagnostic_bp
@@ -179,6 +180,7 @@ app.register_blueprint(password_fix_bp)
 app.register_blueprint(temp_login_bp)
 app.register_blueprint(user_diagnostic_bp)
 app.register_blueprint(commission_settings_bp)
+app.register_blueprint(manual_commissions_bp)
 app.register_blueprint(rental_diag_bp)
 app.register_blueprint(rental_exclusion_analysis_bp)
 app.register_blueprint(rental_dept_diagnostic_bp)
