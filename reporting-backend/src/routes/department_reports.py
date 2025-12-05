@@ -7059,9 +7059,13 @@ def register_department_routes(reports_bp):
             commission_settings = {}
             try:
                 from src.services.postgres_service import PostgreSQLService
+                from src.routes.commission_settings import ensure_commission_settings_table
                 pg_service = PostgreSQLService()
                 with pg_service.get_connection() as conn:
                     cursor = conn.cursor()
+                    # Ensure the table and columns exist before querying
+                    ensure_commission_settings_table(cursor)
+                    conn.commit()
                     cursor.execute("""
                         SELECT invoice_no, sale_code, category, is_commissionable, commission_rate, cost_override, extra_commission
                         FROM commission_settings
