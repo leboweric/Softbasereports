@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, TrendingUp, TrendingDown, DollarSign, Wrench, AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { CheckCircle, XCircle, TrendingUp, TrendingDown, DollarSign, Wrench, AlertTriangle, ChevronDown, ChevronRight, Truck } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -32,6 +33,10 @@ const MaintenanceContractProfitability = () => {
   const [error, setError] = useState(null)
   const [sortField, setSortField] = useState('true_profit')
   const [sortDirection, setSortDirection] = useState('desc')
+  const [expandedCustomers, setExpandedCustomers] = useState({})
+  const [equipmentSortField, setEquipmentSortField] = useState('total_cost')
+  const [equipmentSortDirection, setEquipmentSortDirection] = useState('desc')
+  const [selectedCustomerFilter, setSelectedCustomerFilter] = useState('all')
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -118,6 +123,68 @@ const MaintenanceContractProfitability = () => {
     </TableHead>
   )
 
+  const toggleCustomerExpanded = (customerNumber) => {
+    setExpandedCustomers(prev => ({
+      ...prev,
+      [customerNumber]: !prev[customerNumber]
+    }))
+  }
+
+  const handleEquipmentSort = (field) => {
+    if (equipmentSortField === field) {
+      setEquipmentSortDirection(equipmentSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setEquipmentSortField(field)
+      setEquipmentSortDirection('desc')
+    }
+  }
+
+  const getEquipmentForCustomer = (customerNumber) => {
+    if (!data?.by_equipment) return []
+    return data.by_equipment.filter(eq => eq.customer_number === customerNumber)
+  }
+
+  const getSortedEquipment = () => {
+    if (!data?.by_equipment) return []
+
+    let equipment = [...data.by_equipment]
+
+    // Filter by customer if selected
+    if (selectedCustomerFilter !== 'all') {
+      equipment = equipment.filter(eq => eq.customer_number === selectedCustomerFilter)
+    }
+
+    return equipment.sort((a, b) => {
+      let aVal = a[equipmentSortField]
+      let bVal = b[equipmentSortField]
+
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase()
+        bVal = bVal.toLowerCase()
+      }
+
+      if (equipmentSortDirection === 'asc') {
+        return aVal > bVal ? 1 : -1
+      } else {
+        return aVal < bVal ? 1 : -1
+      }
+    })
+  }
+
+  const EquipmentSortHeader = ({ field, children }) => (
+    <TableHead
+      className="cursor-pointer hover:bg-gray-100 select-none text-xs"
+      onClick={() => handleEquipmentSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {equipmentSortField === field && (
+          <span className="text-xs">{equipmentSortDirection === 'asc' ? '↑' : '↓'}</span>
+        )}
+      </div>
+    </TableHead>
+  )
+
   if (loading) {
     return (
       <Card>
@@ -148,7 +215,7 @@ const MaintenanceContractProfitability = () => {
     )
   }
 
-  const { summary, by_customer, monthly } = data
+  const { summary, by_customer, by_equipment, monthly } = data
 
   // Prepare chart data (reverse to show oldest first)
   const chartData = [...monthly].reverse().map(m => ({
@@ -390,6 +457,105 @@ const MaintenanceContractProfitability = () => {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Equipment Breakdown Card */}
+      {by_equipment && by_equipment.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Equipment / Serial Number Breakdown
+            </CardTitle>
+            <CardDescription>
+              Service costs by individual equipment unit - click column headers to sort
+            </CardDescription>
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-sm text-muted-foreground">Filter by customer:</span>
+              <select
+                value={selectedCustomerFilter}
+                onChange={(e) => setSelectedCustomerFilter(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value="all">All Customers</option>
+                {by_customer.map(c => (
+                  <option key={c.customer_number} value={c.customer_number}>
+                    {c.customer_name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-muted-foreground ml-4">
+                Showing {getSortedEquipment().length} units
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-auto max-h-[500px]">
+              <Table>
+                <TableHeader className="sticky top-0 bg-white">
+                  <TableRow>
+                    <EquipmentSortHeader field="customer_name">Customer</EquipmentSortHeader>
+                    <EquipmentSortHeader field="serial_no">Serial #</EquipmentSortHeader>
+                    <EquipmentSortHeader field="unit_no">Unit #</EquipmentSortHeader>
+                    <EquipmentSortHeader field="make">Make/Model</EquipmentSortHeader>
+                    <EquipmentSortHeader field="wo_count">
+                      <span className="text-right w-full">Total WOs</span>
+                    </EquipmentSortHeader>
+                    <EquipmentSortHeader field="pm_count">
+                      <span className="text-right w-full">PMs</span>
+                    </EquipmentSortHeader>
+                    <EquipmentSortHeader field="service_count">
+                      <span className="text-right w-full">Service</span>
+                    </EquipmentSortHeader>
+                    <EquipmentSortHeader field="labor_cost">
+                      <span className="text-right w-full">Labor</span>
+                    </EquipmentSortHeader>
+                    <EquipmentSortHeader field="parts_cost">
+                      <span className="text-right w-full">Parts</span>
+                    </EquipmentSortHeader>
+                    <EquipmentSortHeader field="total_cost">
+                      <span className="text-right w-full">Total Cost</span>
+                    </EquipmentSortHeader>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {getSortedEquipment().map((eq, idx) => (
+                    <TableRow
+                      key={`${eq.customer_number}-${eq.serial_no}-${idx}`}
+                      className={eq.total_cost > 5000 ? 'bg-red-50' : eq.total_cost > 2000 ? 'bg-yellow-50' : ''}
+                    >
+                      <TableCell className="text-xs">
+                        <div>
+                          <p className="font-medium truncate max-w-[150px]" title={eq.customer_name}>
+                            {eq.customer_name}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{eq.serial_no}</TableCell>
+                      <TableCell className="font-mono text-xs">{eq.unit_no || '-'}</TableCell>
+                      <TableCell className="text-xs">
+                        {eq.make && eq.model ? `${eq.make} ${eq.model}` : eq.make || eq.model || '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">{eq.wo_count}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{eq.pm_count}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{eq.service_count}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{formatCurrency(eq.labor_cost)}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{formatCurrency(eq.parts_cost)}</TableCell>
+                      <TableCell className={`text-right font-mono text-xs font-bold ${eq.total_cost > 5000 ? 'text-red-600' : ''}`}>
+                        {formatCurrency(eq.total_cost)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {by_equipment.length > 10 && (
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                Showing all {getSortedEquipment().length} equipment records. Scroll to see more.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notes Card */}
       <Card>
