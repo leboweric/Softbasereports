@@ -22,9 +22,16 @@ class Organization(db.Model):
     db_username = db.Column(db.String(255), nullable=True)
     db_password_encrypted = db.Column(db.Text, nullable=True)
     
-    # Subscription management
-    subscription_tier = db.Column(db.String(50), default='basic')  # 'basic', 'professional', 'enterprise'
-    max_users = db.Column(db.Integer, default=5)
+    # Stripe subscription management
+    stripe_customer_id = db.Column(db.String(255), nullable=True)
+    stripe_subscription_id = db.Column(db.String(255), nullable=True)
+    subscription_status = db.Column(db.String(50), default='trialing')  # 'trialing', 'active', 'past_due', 'canceled', 'unpaid'
+    subscription_ends_at = db.Column(db.DateTime, nullable=True)  # When current period ends or when access expires after cancellation
+    trial_ends_at = db.Column(db.DateTime, nullable=True)  # End of free trial period
+
+    # Legacy fields (keeping for backward compatibility)
+    subscription_tier = db.Column(db.String(50), default='basic')  # Deprecated - all paid users get full access
+    max_users = db.Column(db.Integer, default=5)  # Deprecated - no user limits
     
     # Fiscal year configuration
     fiscal_year_start_month = db.Column(db.Integer, default=11)  # 1-12, where 1=January, 11=November
@@ -39,17 +46,28 @@ class Organization(db.Model):
     def __repr__(self):
         return f'<Organization {self.name}>'
 
+    def has_active_subscription(self):
+        """Check if organization has an active paid subscription or valid trial"""
+        if self.subscription_status in ['active', 'trialing']:
+            return True
+        # Allow access if past_due but within grace period (subscription_ends_at not yet passed)
+        if self.subscription_status == 'past_due' and self.subscription_ends_at:
+            return datetime.utcnow() < self.subscription_ends_at
+        return False
+
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'platform_type': self.platform_type,
-            'subscription_tier': self.subscription_tier,
-            'max_users': self.max_users,
+            'subscription_status': self.subscription_status,
+            'subscription_ends_at': self.subscription_ends_at.isoformat() if self.subscription_ends_at else None,
+            'trial_ends_at': self.trial_ends_at.isoformat() if self.trial_ends_at else None,
+            'has_active_subscription': self.has_active_subscription(),
             'fiscal_year_start_month': self.fiscal_year_start_month,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'is_active': self.is_active
-            # Note: Database credentials are intentionally NOT included in API responses for security
+            # Note: Database credentials and Stripe IDs are intentionally NOT included for security
         }
 
 class User(db.Model):

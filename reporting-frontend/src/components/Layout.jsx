@@ -107,11 +107,22 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
                 <p className="text-xs text-gray-500">{user?.email}</p>
               </div>
             </div>
+            <button
+              onClick={() => handleNavigation('billing')}
+              className={`mt-3 w-full flex items-center rounded-md px-2 py-2 text-sm font-medium ${
+                currentPage === 'billing'
+                  ? 'bg-blue-100 text-blue-900'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Icons.CreditCard className="mr-2 h-4 w-4" />
+              Billing
+            </button>
             <Button
               onClick={onLogout}
               variant="ghost"
               size="sm"
-              className="mt-3 w-full justify-start"
+              className="mt-1 w-full justify-start"
             >
               <Icons.LogOut className="mr-2 h-4 w-4" />
               Sign out
@@ -182,11 +193,22 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
                 <p className="text-xs text-gray-500">{user?.email}</p>
               </div>
             </div>
+            <button
+              onClick={() => handleNavigation('billing')}
+              className={`mt-3 w-full flex items-center rounded-md px-2 py-2 text-sm font-medium ${
+                currentPage === 'billing'
+                  ? 'bg-blue-100 text-blue-900'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <Icons.CreditCard className="mr-2 h-4 w-4" />
+              Billing
+            </button>
             <Button
               onClick={onLogout}
               variant="ghost"
               size="sm"
-              className="mt-3 w-full justify-start"
+              className="mt-1 w-full justify-start"
             >
               <Icons.LogOut className="mr-2 h-4 w-4" />
               Sign out

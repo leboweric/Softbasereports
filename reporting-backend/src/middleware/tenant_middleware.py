@@ -185,24 +185,59 @@ class TenantMiddleware:
         def decorated_function(*args, **kwargs):
             # Verify JWT is present
             verify_jwt_in_request()
-            
+
             # Get current user from context (set by @require_organization)
             current_user = g.get('current_user')
-            
+
             if not current_user:
                 return jsonify({'message': 'User not found'}), 401
-            
+
             # Check if user has Super Admin role
             user_roles = [role.name for role in current_user.roles]
-            
+
             if 'Super Admin' not in user_roles:
                 return jsonify({
                     'message': 'Access denied. Super Admin role required.',
                     'required_role': 'Super Admin',
                     'your_roles': user_roles
                 }), 403
-            
+
             return f(*args, **kwargs)
-        
+
+        return decorated_function
+
+    @staticmethod
+    def require_active_subscription(f):
+        """
+        Decorator to require an active subscription (paid or trial).
+        Must be used after @require_organization decorator or @jwt_required.
+        """
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Verify JWT is present
+            verify_jwt_in_request()
+
+            # Get user and organization
+            user_id = get_jwt_identity()
+            user = User.query.get(user_id)
+
+            if not user:
+                return jsonify({'message': 'User not found'}), 401
+
+            organization = Organization.query.get(user.organization_id)
+            if not organization:
+                return jsonify({'message': 'Organization not found'}), 404
+
+            # Check subscription status
+            if not organization.has_active_subscription():
+                return jsonify({
+                    'error': 'subscription_required',
+                    'message': 'Your subscription has expired or is inactive. Please subscribe to continue using the application.',
+                    'subscription_status': organization.subscription_status,
+                    'subscription_ends_at': organization.subscription_ends_at.isoformat() if organization.subscription_ends_at else None
+                }), 402  # 402 Payment Required
+
+            return f(*args, **kwargs)
+
         return decorated_function
 

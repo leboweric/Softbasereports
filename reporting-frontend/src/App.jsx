@@ -21,6 +21,7 @@ import KnowledgeBase from './components/KnowledgeBase'
 import Currie from './components/Currie'
 import Financial from './components/Financial'
 import QBRDashboard from './components/QBRDashboard'
+import Billing from './components/Billing'
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -195,6 +196,8 @@ function App() {
         return <QBRDashboard user={user} organization={organization} />
       case 'settings':
         return <div className="p-8 text-center text-gray-500">Settings coming soon...</div>
+      case 'billing':
+        return <Billing user={user} organization={organization} />
       default:
         return <Dashboard user={user} organization={organization} />
     }
