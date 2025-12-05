@@ -55,12 +55,6 @@ def create_checkout_session():
     - coupon_code: Stripe coupon code for discount
     """
     try:
-        # Debug logging
-        print(f"[Billing] Creating checkout session...")
-        print(f"[Billing] STRIPE_SECRET_KEY set: {bool(stripe.api_key)}")
-        print(f"[Billing] STRIPE_PRICE_ID: {STRIPE_PRICE_ID}")
-        print(f"[Billing] FRONTEND_URL: {FRONTEND_URL}")
-
         if not stripe.api_key:
             return jsonify({'error': 'Stripe API key not configured. Please set STRIPE_SECRET_KEY environment variable.'}), 500
 
@@ -216,17 +210,8 @@ def create_portal_session():
 @billing_bp.route('/billing/webhook', methods=['POST'])
 def stripe_webhook():
     """Handle Stripe webhook events"""
-    # Use request.data to get raw bytes - critical for signature verification
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
-
-    # Debug logging
-    print(f"[Webhook] Received webhook request")
-    print(f"[Webhook] STRIPE_WEBHOOK_SECRET set: {bool(STRIPE_WEBHOOK_SECRET)}")
-    print(f"[Webhook] STRIPE_WEBHOOK_SECRET length: {len(STRIPE_WEBHOOK_SECRET) if STRIPE_WEBHOOK_SECRET else 0}")
-    print(f"[Webhook] STRIPE_WEBHOOK_SECRET starts with: {STRIPE_WEBHOOK_SECRET[:10] if STRIPE_WEBHOOK_SECRET else 'N/A'}...")
-    print(f"[Webhook] Signature header present: {bool(sig_header)}")
-    print(f"[Webhook] Payload type: {type(payload)}, length: {len(payload) if payload else 0}")
 
     if not STRIPE_WEBHOOK_SECRET:
         # In development, process without signature verification
