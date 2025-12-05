@@ -1255,6 +1255,50 @@ const SalesCommissionReport = ({ user }) => {
                                     </td>
                                   </tr>
                                 ))})()}
+                                {/* Manual Commission Rows */}
+                                {(manualCommissions[salesman.name] || []).map((mc) => (
+                                  <tr key={`manual-${mc.id}`} className="border-b bg-blue-50/50 hover:bg-blue-100/50">
+                                    <td className="p-1 text-blue-600">{mc.invoice_no || '-'}</td>
+                                    <td className="p-1">{mc.invoice_date ? new Date(mc.invoice_date).toLocaleDateString() : '-'}</td>
+                                    <td className="p-2 font-mono text-xs">{mc.bill_to || '-'}</td>
+                                    <td className="p-1">{mc.customer_name || '-'}</td>
+                                    <td className="p-1">
+                                      <Badge variant="outline" className="font-mono text-xs bg-blue-100">
+                                        {mc.sale_code || '-'}
+                                      </Badge>
+                                    </td>
+                                    <td className="p-1">
+                                      <Badge variant="secondary" className="text-xs bg-blue-200 text-blue-800">
+                                        {mc.category || 'Manual'}
+                                      </Badge>
+                                    </td>
+                                    <td className="text-right p-1">{formatCurrency(mc.amount)}</td>
+                                    <td className="text-right p-1 text-muted-foreground">{mc.cost ? formatCurrency(mc.cost) : '-'}</td>
+                                    <td className="text-right p-1 text-muted-foreground">-</td>
+                                    <td className="text-center p-1">
+                                      <span className="text-xs text-blue-600">Manual</span>
+                                    </td>
+                                    <td className="text-center p-1 text-muted-foreground">-</td>
+                                    <td className="text-right p-2 font-medium text-blue-600">
+                                      {formatCommission(mc.commission_amount)}
+                                    </td>
+                                    <td className="text-right p-1 text-muted-foreground">-</td>
+                                    <td className="text-right p-2 font-bold text-blue-600">
+                                      {formatCommission(mc.commission_amount)}
+                                    </td>
+                                    <td className="text-center p-1">
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                        onClick={() => deleteManualCommission(mc.id)}
+                                        title="Delete manual entry"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
                                 <tr className="font-semibold bg-gray-50">
                                   <td colSpan="6" className="p-1 text-right">Subtotal:</td>
                                   <td className="text-right p-1">{formatCurrency(salesman.total_sales)}</td>
@@ -1315,11 +1359,11 @@ const SalesCommissionReport = ({ user }) => {
                                         const setting = commissionSettings[key] || {}
                                         const isCommissionable = setting.is_commissionable === true
                                         const extraCommission = parseFloat(setting.extra_commission || 0)
-                                        
+
                                         if (!isCommissionable) return sum + extraCommission
-                                        
+
                                         let calculatedCommission = 0
-                                        
+
                                         // For rentals, use the selected rate
                                         if (inv.category === 'Rental') {
                                           const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
@@ -1339,10 +1383,12 @@ const SalesCommissionReport = ({ user }) => {
                                         else {
                                           calculatedCommission = inv.commission
                                         }
-                                        
+
                                         return sum + calculatedCommission + extraCommission
                                       }, 0)
-                                      return formatCommission(totalWithExtra)
+                                      // Add manual commissions for this salesman
+                                      const manualTotal = getSalesmanManualCommissionTotal(salesman.name)
+                                      return formatCommission(totalWithExtra + manualTotal)
                                     })()}
                                   </td>
                                   <td></td>
