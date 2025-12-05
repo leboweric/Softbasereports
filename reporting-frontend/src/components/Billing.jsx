@@ -130,13 +130,13 @@ const Billing = ({ user, organization }) => {
   const getStatusBadge = (status) => {
     const statusConfig = {
       active: { variant: 'default', className: 'bg-green-500', label: 'Active' },
-      trialing: { variant: 'default', className: 'bg-blue-500', label: 'Trial' },
+      trialing: { variant: 'secondary', label: 'Not Subscribed' },
       past_due: { variant: 'destructive', label: 'Past Due' },
       canceled: { variant: 'secondary', label: 'Canceled' },
       unpaid: { variant: 'destructive', label: 'Unpaid' }
     }
 
-    const config = statusConfig[status] || { variant: 'secondary', label: status || 'Unknown' }
+    const config = statusConfig[status] || { variant: 'secondary', label: 'Not Subscribed' }
 
     return (
       <Badge variant={config.variant} className={config.className}>
@@ -167,10 +167,8 @@ const Billing = ({ user, organization }) => {
   }
 
   // User has a paid/active subscription only if they have a Stripe customer AND active status
-  // Trial users without Stripe customer should see "Subscribe Now"
   const hasStripeCustomer = billingStatus?.stripe_customer_id
   const hasPaidSubscription = hasStripeCustomer && billingStatus?.subscription_status === 'active'
-  const isInTrial = billingStatus?.subscription_status === 'trialing'
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -232,15 +230,6 @@ const Billing = ({ user, organization }) => {
               </div>
             )}
 
-            {billingStatus?.trial_ends_at && billingStatus?.subscription_status === 'trialing' && (
-              <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Trial Ends
-                </span>
-                <span className="font-medium">{formatDate(billingStatus.trial_ends_at)}</span>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -252,8 +241,6 @@ const Billing = ({ user, organization }) => {
           <CardDescription>
             {hasPaidSubscription
               ? 'Update payment method, view invoices, or cancel subscription'
-              : isInTrial
-              ? 'You are currently on a free trial. Subscribe to continue after the trial ends.'
               : 'Subscribe to get full access to Softbase Reports'}
           </CardDescription>
         </CardHeader>
@@ -283,25 +270,16 @@ const Billing = ({ user, organization }) => {
             </div>
           ) : (
             <div className="space-y-4">
-              {isInTrial ? (
-                <div className="flex items-center gap-2 text-blue-600 mb-4">
-                  <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">
-                    You're on a free trial - subscribe anytime to ensure uninterrupted access
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-amber-600 mb-4">
-                  <AlertTriangle className="h-5 w-5" />
-                  <span className="font-medium">
-                    {billingStatus?.subscription_status === 'canceled'
-                      ? 'Your subscription has been canceled'
-                      : billingStatus?.subscription_status === 'past_due'
-                      ? 'Payment is past due - please update your payment method'
-                      : 'Subscribe to continue using Softbase Reports'}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 text-amber-600 mb-4">
+                <AlertTriangle className="h-5 w-5" />
+                <span className="font-medium">
+                  {billingStatus?.subscription_status === 'canceled'
+                    ? 'Your subscription has been canceled'
+                    : billingStatus?.subscription_status === 'past_due'
+                    ? 'Payment is past due - please update your payment method'
+                    : 'Subscribe to get started with Softbase Reports'}
+                </span>
+              </div>
 
               <Button
                 onClick={handleSubscribe}
