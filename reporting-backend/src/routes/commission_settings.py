@@ -6,6 +6,35 @@ from src.services.postgres_service import PostgreSQLService
 logger = logging.getLogger(__name__)
 commission_settings_bp = Blueprint('commission_settings', __name__, url_prefix='/api/commission-settings')
 
+def ensure_commission_settings_table(cursor):
+    """Ensure the commission_settings table exists with all required columns"""
+    # Create table if it doesn't exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS commission_settings (
+            id SERIAL PRIMARY KEY,
+            invoice_no INTEGER NOT NULL,
+            sale_code VARCHAR(50),
+            category VARCHAR(100),
+            is_commissionable BOOLEAN DEFAULT TRUE,
+            commission_rate DECIMAL(5, 4),
+            cost_override DECIMAL(12, 2),
+            extra_commission DECIMAL(12, 2) DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_by VARCHAR(100),
+            CONSTRAINT unique_invoice_line UNIQUE (invoice_no, sale_code, category)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_commission_invoice_no ON commission_settings(invoice_no);
+        CREATE INDEX IF NOT EXISTS idx_commission_is_commissionable ON commission_settings(is_commissionable);
+    """)
+
+    # Add missing columns if table already exists (for existing deployments)
+    cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5, 4);")
+    cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS cost_override DECIMAL(12, 2);")
+    cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS extra_commission DECIMAL(12, 2) DEFAULT 0;")
+
+
 @commission_settings_bp.route('', methods=['GET'])
 @jwt_required()
 def get_commission_settings():
@@ -14,14 +43,18 @@ def get_commission_settings():
         pg_service = PostgreSQLService()
         with pg_service.get_connection() as conn:
             cursor = conn.cursor()
-            
+
+            # Ensure table and columns exist
+            ensure_commission_settings_table(cursor)
+            conn.commit()
+
             # Get month parameter if provided
             month = request.args.get('month')
-            
+
             if month:
                 # Get settings for specific invoices in the month
                 query = """
-                    SELECT 
+                    SELECT
                         invoice_no,
                         sale_code,
                         category,
@@ -31,14 +64,14 @@ def get_commission_settings():
                         extra_commission
                     FROM commission_settings
                     WHERE invoice_no IN (
-                        SELECT DISTINCT invoice_no 
+                        SELECT DISTINCT invoice_no
                         FROM commission_settings
                         -- You might want to filter by month here if you store invoice dates
                     )
                 """
             else:
                 query = """
-                    SELECT 
+                    SELECT
                         invoice_no,
                         sale_code,
                         category,
@@ -49,28 +82,28 @@ def get_commission_settings():
                     FROM commission_settings
                     ORDER BY invoice_no, sale_code, category
                 """
-            
+
             cursor.execute(query)
             results = cursor.fetchall()
-            
+
             settings = {}
             for row in results:
                 invoice_no = row[0]
                 sale_code = row[1]
                 category = row[2]
                 is_commissionable = row[3]
-                
+
                 # Create a unique key for each invoice line
                 key = f"{invoice_no}_{sale_code}_{category}"
                 settings[key] = {
                     'is_commissionable': is_commissionable,
-                    'commission_rate': row[4] if len(row) > 4 else None,
-                    'cost_override': row[5] if len(row) > 5 else None,
-                    'extra_commission': row[6] if len(row) > 6 else 0
+                    'commission_rate': float(row[4]) if row[4] is not None else None,
+                    'cost_override': float(row[5]) if row[5] is not None else None,
+                    'extra_commission': float(row[6]) if row[6] is not None else 0
                 }
-            
+
             return jsonify({'settings': settings}), 200
-            
+
     except Exception as e:
         logger.error(f"Error fetching commission settings: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -84,43 +117,17 @@ def update_commission_settings_batch():
         data = request.json
         settings = data.get('settings', [])
         username = get_jwt_identity()
-        
+
         if not settings:
             return jsonify({'error': 'No settings provided'}), 400
-        
+
         pg_service = PostgreSQLService()
         with pg_service.get_connection() as conn:
             cursor = conn.cursor()
-            
-            # First, ensure the table exists with all columns
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS commission_settings (
-                    id SERIAL PRIMARY KEY,
-                    invoice_no INTEGER NOT NULL,
-                    sale_code VARCHAR(50),
-                    category VARCHAR(100),
-                    is_commissionable BOOLEAN DEFAULT TRUE,
-                    commission_rate DECIMAL(5, 4),
-                    cost_override DECIMAL(12, 2),
-                    extra_commission DECIMAL(12, 2) DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_by VARCHAR(100),
-                    CONSTRAINT unique_invoice_line UNIQUE (invoice_no, sale_code, category)
-                );
 
-                CREATE INDEX IF NOT EXISTS idx_commission_invoice_no ON commission_settings(invoice_no);
-                CREATE INDEX IF NOT EXISTS idx_commission_is_commissionable ON commission_settings(is_commissionable);
-            """)
+            # Ensure table and columns exist
+            ensure_commission_settings_table(cursor)
 
-            # Add missing columns if table already exists (for existing deployments)
-            try:
-                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5, 4);")
-                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS cost_override DECIMAL(12, 2);")
-                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS extra_commission DECIMAL(12, 2) DEFAULT 0;")
-            except Exception:
-                pass  # Columns may already exist
-            
             # Process each setting
             for setting in settings:
                 invoice_no = setting.get('invoice_no')
@@ -232,28 +239,12 @@ def create_commission_settings_table():
         pg_service = PostgreSQLService()
         with pg_service.get_connection() as conn:
             cursor = conn.cursor()
-            
-            # Create the table with all necessary columns and constraints
+
+            # Ensure table and columns exist
+            ensure_commission_settings_table(cursor)
+
+            # Add trigger for updated_at
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS commission_settings (
-                    id SERIAL PRIMARY KEY,
-                    invoice_no INTEGER NOT NULL,
-                    sale_code VARCHAR(50),
-                    category VARCHAR(100),
-                    is_commissionable BOOLEAN DEFAULT TRUE,
-                    commission_rate DECIMAL(5, 4),
-                    cost_override DECIMAL(12, 2),
-                    extra_commission DECIMAL(12, 2) DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_by VARCHAR(100),
-                    CONSTRAINT unique_invoice_line UNIQUE (invoice_no, sale_code, category)
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_commission_invoice_no ON commission_settings(invoice_no);
-                CREATE INDEX IF NOT EXISTS idx_commission_is_commissionable ON commission_settings(is_commissionable);
-
-                -- Add trigger for updated_at
                 CREATE OR REPLACE FUNCTION update_commission_settings_timestamp()
                 RETURNS TRIGGER AS $$
                 BEGIN
@@ -269,16 +260,8 @@ def create_commission_settings_table():
                 EXECUTE FUNCTION update_commission_settings_timestamp();
             """)
 
-            # Add missing columns if table already exists (for existing deployments)
-            try:
-                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5, 4);")
-                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS cost_override DECIMAL(12, 2);")
-                cursor.execute("ALTER TABLE commission_settings ADD COLUMN IF NOT EXISTS extra_commission DECIMAL(12, 2) DEFAULT 0;")
-            except Exception:
-                pass  # Columns may already exist
-            
             conn.commit()
-            
+
             return jsonify({'message': 'Commission settings table created successfully'}), 200
             
     except Exception as e:
