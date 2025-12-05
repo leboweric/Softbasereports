@@ -55,11 +55,17 @@ def create_checkout_session():
     - coupon_code: Stripe coupon code for discount
     """
     try:
+        # Debug logging
+        print(f"[Billing] Creating checkout session...")
+        print(f"[Billing] STRIPE_SECRET_KEY set: {bool(stripe.api_key)}")
+        print(f"[Billing] STRIPE_PRICE_ID: {STRIPE_PRICE_ID}")
+        print(f"[Billing] FRONTEND_URL: {FRONTEND_URL}")
+
         if not stripe.api_key:
-            return jsonify({'error': 'Stripe not configured'}), 500
+            return jsonify({'error': 'Stripe API key not configured. Please set STRIPE_SECRET_KEY environment variable.'}), 500
 
         if not STRIPE_PRICE_ID:
-            return jsonify({'error': 'Stripe price not configured'}), 500
+            return jsonify({'error': 'Stripe price ID not configured. Please set STRIPE_PRICE_ID environment variable.'}), 500
 
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
@@ -120,8 +126,12 @@ def create_checkout_session():
         return jsonify({'checkout_url': checkout_session.url}), 200
 
     except stripe.error.StripeError as e:
+        print(f"Stripe error in create-checkout-session: {e}")
         return jsonify({'error': str(e)}), 400
     except Exception as e:
+        print(f"Error in create-checkout-session: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 

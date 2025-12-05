@@ -81,7 +81,8 @@ const Billing = ({ user, organization }) => {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({})  // Send empty object to avoid parsing issues
       })
 
       if (!response.ok) {
