@@ -1,4 +1,5 @@
 # Department-specific report endpoints
+# Version 1.0.1 - Added Guaranteed Maintenance profitability endpoint
 from flask import jsonify
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
