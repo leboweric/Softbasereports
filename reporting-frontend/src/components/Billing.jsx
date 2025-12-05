@@ -166,8 +166,11 @@ const Billing = ({ user, organization }) => {
     )
   }
 
-  const isActive = billingStatus?.has_active_subscription
+  // User has a paid/active subscription only if they have a Stripe customer AND active status
+  // Trial users without Stripe customer should see "Subscribe Now"
   const hasStripeCustomer = billingStatus?.stripe_customer_id
+  const hasPaidSubscription = hasStripeCustomer && billingStatus?.subscription_status === 'active'
+  const isInTrial = billingStatus?.subscription_status === 'trialing'
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-6">
@@ -247,13 +250,15 @@ const Billing = ({ user, organization }) => {
         <CardHeader>
           <CardTitle>Manage Subscription</CardTitle>
           <CardDescription>
-            {isActive
+            {hasPaidSubscription
               ? 'Update payment method, view invoices, or cancel subscription'
+              : isInTrial
+              ? 'You are currently on a free trial. Subscribe to continue after the trial ends.'
               : 'Subscribe to get full access to Softbase Reports'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isActive ? (
+          {hasPaidSubscription ? (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-green-600 mb-4">
                 <CheckCircle className="h-5 w-5" />
@@ -278,16 +283,25 @@ const Billing = ({ user, organization }) => {
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-amber-600 mb-4">
-                <AlertTriangle className="h-5 w-5" />
-                <span className="font-medium">
-                  {billingStatus?.subscription_status === 'canceled'
-                    ? 'Your subscription has been canceled'
-                    : billingStatus?.subscription_status === 'past_due'
-                    ? 'Payment is past due - please update your payment method'
-                    : 'Subscribe to continue using Softbase Reports'}
-                </span>
-              </div>
+              {isInTrial ? (
+                <div className="flex items-center gap-2 text-blue-600 mb-4">
+                  <CheckCircle className="h-5 w-5" />
+                  <span className="font-medium">
+                    You're on a free trial - subscribe anytime to ensure uninterrupted access
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-amber-600 mb-4">
+                  <AlertTriangle className="h-5 w-5" />
+                  <span className="font-medium">
+                    {billingStatus?.subscription_status === 'canceled'
+                      ? 'Your subscription has been canceled'
+                      : billingStatus?.subscription_status === 'past_due'
+                      ? 'Payment is past due - please update your payment method'
+                      : 'Subscribe to continue using Softbase Reports'}
+                  </span>
+                </div>
+              )}
 
               <Button
                 onClick={handleSubscribe}
