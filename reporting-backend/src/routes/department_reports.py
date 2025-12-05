@@ -8719,7 +8719,9 @@ def register_department_routes(reports_bp):
             # Get actual service costs from Work Orders for FMBILL customers
             # This includes all service WOs (Type S, SH, PM) for these customers
             if customer_numbers:
-                placeholders = ','.join(['?' for _ in customer_numbers])
+                # Build quoted list of customer numbers for IN clause
+                # pymssql doesn't support ? placeholders well with IN clauses
+                quoted_customers = ','.join([f"'{c}'" for c in customer_numbers])
 
                 # Service costs by year/month
                 service_costs_query = f"""
@@ -8730,7 +8732,7 @@ def register_department_routes(reports_bp):
                         YEAR(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as year,
                         MONTH(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as month
                     FROM [ben002].WO w
-                    WHERE w.BillTo IN ({placeholders})
+                    WHERE w.BillTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, PM work orders
                 ),
                 LaborCosts AS (
@@ -8767,7 +8769,7 @@ def register_department_routes(reports_bp):
                 ORDER BY sw.year DESC, sw.month DESC
                 """
 
-                service_costs_results = db.execute_query(service_costs_query, tuple(customer_numbers))
+                service_costs_results = db.execute_query(service_costs_query)
 
                 # Service costs by customer
                 service_costs_by_customer_query = f"""
@@ -8776,7 +8778,7 @@ def register_department_routes(reports_bp):
                         w.WONo,
                         w.BillTo
                     FROM [ben002].WO w
-                    WHERE w.BillTo IN ({placeholders})
+                    WHERE w.BillTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                 ),
                 LaborCosts AS (
@@ -8814,14 +8816,14 @@ def register_department_routes(reports_bp):
                 ORDER BY total_cost DESC
                 """
 
-                service_costs_by_customer = db.execute_query(service_costs_by_customer_query, tuple(customer_numbers))
+                service_costs_by_customer = db.execute_query(service_costs_by_customer_query)
 
                 # Total service costs summary
                 total_service_costs_query = f"""
                 WITH ServiceWOs AS (
                     SELECT w.WONo, w.BillTo
                     FROM [ben002].WO w
-                    WHERE w.BillTo IN ({placeholders})
+                    WHERE w.BillTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                 ),
                 LaborCosts AS (
@@ -8854,7 +8856,7 @@ def register_department_routes(reports_bp):
                 LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
                 """
 
-                total_service_costs = db.execute_query(total_service_costs_query, tuple(customer_numbers))
+                total_service_costs = db.execute_query(total_service_costs_query)
             else:
                 service_costs_results = []
                 service_costs_by_customer = []
