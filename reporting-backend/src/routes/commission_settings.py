@@ -88,18 +88,19 @@ def get_commission_settings():
 
             settings = {}
             for row in results:
-                invoice_no = row[0]
-                sale_code = row[1]
-                category = row[2]
-                is_commissionable = row[3]
+                # Row is a dict due to RealDictCursor from PostgreSQLService
+                invoice_no = row['invoice_no']
+                sale_code = row['sale_code']
+                category = row['category']
+                is_commissionable = row['is_commissionable']
 
                 # Create a unique key for each invoice line
                 key = f"{invoice_no}_{sale_code}_{category}"
                 settings[key] = {
                     'is_commissionable': is_commissionable,
-                    'commission_rate': float(row[4]) if row[4] is not None else None,
-                    'cost_override': float(row[5]) if row[5] is not None else None,
-                    'extra_commission': float(row[6]) if row[6] is not None else 0
+                    'commission_rate': float(row['commission_rate']) if row['commission_rate'] is not None else None,
+                    'cost_override': float(row['cost_override']) if row['cost_override'] is not None else None,
+                    'extra_commission': float(row['extra_commission']) if row['extra_commission'] is not None else 0
                 }
 
             return jsonify({'settings': settings}), 200
