@@ -8857,10 +8857,71 @@ def register_department_routes(reports_bp):
                 """
 
                 total_service_costs = db.execute_query(total_service_costs_query)
+
+                # Service costs by equipment/serial for each customer
+                equipment_costs_query = f"""
+                WITH ServiceWOs AS (
+                    SELECT
+                        w.WONo,
+                        w.BillTo,
+                        w.SerialNo,
+                        w.UnitNo,
+                        w.Make,
+                        w.Model,
+                        w.Type as wo_type
+                    FROM [ben002].WO w
+                    WHERE w.BillTo IN ({quoted_customers})
+                    AND w.Type IN ('S', 'SH', 'PM')
+                    AND w.SerialNo IS NOT NULL
+                    AND w.SerialNo != ''
+                ),
+                LaborCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
+                    FROM [ben002].WOLabor
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                PartsCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
+                    FROM [ben002].WOParts
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                ),
+                MiscCosts AS (
+                    SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
+                    FROM [ben002].WOMisc
+                    WHERE WONo IN (SELECT WONo FROM ServiceWOs)
+                    GROUP BY WONo
+                )
+                SELECT
+                    sw.BillTo as customer_number,
+                    c.Name as customer_name,
+                    sw.SerialNo as serial_no,
+                    MAX(sw.UnitNo) as unit_no,
+                    MAX(sw.Make) as make,
+                    MAX(sw.Model) as model,
+                    COUNT(DISTINCT sw.WONo) as wo_count,
+                    SUM(CASE WHEN sw.wo_type = 'PM' THEN 1 ELSE 0 END) as pm_count,
+                    SUM(CASE WHEN sw.wo_type IN ('S', 'SH') THEN 1 ELSE 0 END) as service_count,
+                    SUM(COALESCE(l.labor_cost, 0)) as labor_cost,
+                    SUM(COALESCE(p.parts_cost, 0)) as parts_cost,
+                    SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
+                    SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
+                FROM ServiceWOs sw
+                LEFT JOIN [ben002].Customer c ON sw.BillTo = c.Number
+                LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
+                LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
+                LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
+                GROUP BY sw.BillTo, c.Name, sw.SerialNo
+                ORDER BY total_cost DESC
+                """
+
+                equipment_costs_results = db.execute_query(equipment_costs_query)
             else:
                 service_costs_results = []
                 service_costs_by_customer = []
                 total_service_costs = []
+                equipment_costs_results = []
 
             # Get FMBILL revenue by customer
             customer_query = """
@@ -9033,10 +9094,30 @@ def register_department_routes(reports_bp):
                     'latest_invoice': row['latest_invoice'].strftime('%Y-%m-%d') if row['latest_invoice'] else None
                 }
 
+            # Format equipment data
+            equipment_data = []
+            for row in equipment_costs_results:
+                equipment_data.append({
+                    'customer_number': row['customer_number'],
+                    'customer_name': row['customer_name'] or 'Unknown',
+                    'serial_no': row['serial_no'],
+                    'unit_no': row['unit_no'] or '',
+                    'make': row['make'] or '',
+                    'model': row['model'] or '',
+                    'wo_count': int(row['wo_count'] or 0),
+                    'pm_count': int(row['pm_count'] or 0),
+                    'service_count': int(row['service_count'] or 0),
+                    'labor_cost': float(row['labor_cost'] or 0),
+                    'parts_cost': float(row['parts_cost'] or 0),
+                    'misc_cost': float(row['misc_cost'] or 0),
+                    'total_cost': float(row['total_cost'] or 0)
+                })
+
             return jsonify({
                 'success': True,
                 'monthly': monthly_data,
                 'by_customer': customer_data,
+                'by_equipment': equipment_data,
                 'summary': summary,
                 'notes': {
                     'contract_revenue': 'Monthly billing from FMBILL invoices',
