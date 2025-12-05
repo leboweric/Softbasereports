@@ -44,6 +44,12 @@ function App() {
     } else {
       setLoading(false)
     }
+
+    // Check URL params for billing redirect
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('billing') || urlParams.get('page') === 'billing') {
+      setCurrentPage('billing')
+    }
   }, [])
 
   const validateToken = async (token) => {

@@ -100,8 +100,8 @@ def create_checkout_session():
                 'quantity': 1,
             }],
             'mode': 'subscription',
-            'success_url': f'{FRONTEND_URL}/settings/billing?success=true',
-            'cancel_url': f'{FRONTEND_URL}/settings/billing?canceled=true',
+            'success_url': f'{FRONTEND_URL}?billing=success',
+            'cancel_url': f'{FRONTEND_URL}?billing=canceled',
             'allow_promotion_codes': True,  # Allow customers to enter promo codes at checkout
             'metadata': {
                 'organization_id': str(org.id)
@@ -192,7 +192,7 @@ def create_portal_session():
         # Create portal session
         portal_session = stripe.billing_portal.Session.create(
             customer=org.stripe_customer_id,
-            return_url=f'{FRONTEND_URL}/settings/billing'
+            return_url=f'{FRONTEND_URL}?page=billing'
         )
 
         return jsonify({'portal_url': portal_session.url}), 200

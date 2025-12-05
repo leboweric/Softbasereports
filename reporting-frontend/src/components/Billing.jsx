@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CheckCircle, XCircle, CreditCard, Calendar, ExternalLink, AlertTriangle } from 'lucide-react'
+import { CheckCircle, CreditCard, Calendar, ExternalLink, AlertTriangle, Loader2 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const Billing = ({ user, organization }) => {
@@ -14,15 +14,22 @@ const Billing = ({ user, organization }) => {
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
 
+  // Debug log on mount
+  useEffect(() => {
+    console.log('Billing component mounted', { user, organization })
+  }, [])
+
   // Check URL params for success/canceled messages
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
-    if (urlParams.get('success') === 'true') {
+    if (urlParams.get('billing') === 'success') {
       setSuccessMessage('Subscription activated successfully! Thank you for subscribing.')
       // Clear URL params
       window.history.replaceState({}, document.title, window.location.pathname)
+      // Refresh billing status
+      fetchBillingStatus()
     }
-    if (urlParams.get('canceled') === 'true') {
+    if (urlParams.get('billing') === 'canceled') {
       setError('Checkout was canceled. You can try again when ready.')
       window.history.replaceState({}, document.title, window.location.pathname)
     }
@@ -35,20 +42,28 @@ const Billing = ({ user, organization }) => {
   const fetchBillingStatus = async () => {
     try {
       setLoading(true)
+      setError(null)
       const token = localStorage.getItem('token')
+      console.log('Fetching billing status...', { apiUrl: apiUrl('/api/billing/status') })
+
       const response = await fetch(apiUrl('/api/billing/status'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
 
+      console.log('Billing status response:', response.status)
+
       if (!response.ok) {
-        throw new Error('Failed to fetch billing status')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to fetch billing status (${response.status})`)
       }
 
       const data = await response.json()
+      console.log('Billing status data:', data)
       setBillingStatus(data)
     } catch (err) {
+      console.error('Billing status error:', err)
       setError(err.message)
     } finally {
       setLoading(false)
@@ -251,7 +266,7 @@ const Billing = ({ user, organization }) => {
                 className="w-full sm:w-auto"
               >
                 {actionLoading ? (
-                  <LoadingSpinner className="h-4 w-4 mr-2" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <ExternalLink className="h-4 w-4 mr-2" />
                 )}
@@ -281,7 +296,7 @@ const Billing = ({ user, organization }) => {
                 className="w-full sm:w-auto"
               >
                 {actionLoading ? (
-                  <LoadingSpinner className="h-4 w-4 mr-2" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <CreditCard className="h-4 w-4 mr-2" />
                 )}
