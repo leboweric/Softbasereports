@@ -809,7 +809,7 @@ const SalesCommissionReport = ({ user }) => {
             <CardHeader>
               <CardTitle>Commission Details by Sales Rep</CardTitle>
               <CardDescription>
-                Breakdown of sales and commissions for {new Date(selectedMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                Breakdown of sales and commissions for {new Date(selectedMonth + '-01').toLocaleString('default', { month: 'long', year: 'numeric' })}
               </CardDescription>
             </CardHeader>
             <CardContent>
