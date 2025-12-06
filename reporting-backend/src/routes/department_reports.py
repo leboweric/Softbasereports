@@ -6608,6 +6608,87 @@ def register_department_routes(reports_bp):
             logger.error(f"Error in sales commission diagnostic: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/find-missing-invoices', methods=['GET'])
+    @jwt_required()
+    def find_missing_invoices():
+        """Find invoices by invoice number to diagnose missing commission entries"""
+        try:
+            db = get_db()
+
+            # Get invoice numbers from query parameter (comma-separated)
+            invoice_numbers = request.args.get('invoices', '')
+
+            if not invoice_numbers:
+                return jsonify({'error': 'Please provide invoice numbers as comma-separated list'}), 400
+
+            # Parse invoice numbers
+            invoice_list = [inv.strip() for inv in invoice_numbers.split(',') if inv.strip()]
+
+            if not invoice_list:
+                return jsonify({'error': 'No valid invoice numbers provided'}), 400
+
+            # Build query to find these specific invoices
+            placeholders = ','.join(['%s'] * len(invoice_list))
+
+            query = f"""
+            SELECT
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName as CustomerName,
+                ir.SaleCode,
+                c.Salesman1,
+                ir.GrandTotal,
+                ir.EquipmentTaxable,
+                ir.EquipmentNonTax,
+                ir.EquipmentCost,
+                ir.RentalTaxable,
+                ir.RentalNonTax,
+                ir.RentalCost,
+                ir.PartsTaxable,
+                ir.PartsNonTax,
+                ir.LaborTaxable,
+                ir.LaborNonTax,
+                ir.Comments
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceNo IN ({placeholders})
+            ORDER BY ir.InvoiceNo
+            """
+
+            results = db.execute_query(query, invoice_list)
+
+            # Also get all unique sale codes for reference
+            sale_codes_query = """
+            SELECT DISTINCT SaleCode, COUNT(*) as Count
+            FROM ben002.InvoiceReg
+            WHERE InvoiceDate >= DATEADD(month, -3, GETDATE())
+            GROUP BY SaleCode
+            ORDER BY COUNT(*) DESC
+            """
+            all_sale_codes = db.execute_query(sale_codes_query, [])
+
+            # Current filter list for comparison
+            current_filter = ['RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                            'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
+
+            return jsonify({
+                'searched_invoices': invoice_list,
+                'found_invoices': [dict(row) for row in results],
+                'found_count': len(results),
+                'missing_count': len(invoice_list) - len(results),
+                'all_recent_sale_codes': [dict(row) for row in all_sale_codes],
+                'current_commission_filter': current_filter,
+                'analysis': {
+                    'found_sale_codes': list(set(row['SaleCode'] for row in results if row['SaleCode'])),
+                    'codes_not_in_filter': [row['SaleCode'] for row in results if row['SaleCode'] and row['SaleCode'] not in current_filter]
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Error finding missing invoices: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/accounting/sales-commission-buckets', methods=['GET'])
     @jwt_required()
     def get_sales_commission_buckets():
