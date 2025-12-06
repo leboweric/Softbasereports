@@ -31,6 +31,8 @@ RESOURCES = {
     'database_explorer': 'Database query and exploration tool',
     'user_management': 'User and role management',
     'qbr': 'Quarterly Business Review dashboard and PowerPoint export',
+    'my_commissions': 'Sales rep personal commission report (view own data only)',
+    'manage_rep_comp': 'Manage sales rep compensation plans (admin only)',
 }
 
 # Action types
@@ -41,6 +43,13 @@ ROLE_PERMISSIONS = {
     'Super Admin': {
         'resources': list(RESOURCES.keys()),  # All resources
         'actions': ACTIONS,  # All actions
+    },
+    'Sales Manager': {
+        'resources': [
+            'dashboard', 'accounting_commissions', 'my_commissions',
+            'manage_rep_comp', 'minitrac', 'qbr'
+        ],
+        'actions': ['view', 'create', 'edit', 'export'],
     },
     'Leadership': {
         'resources': [
@@ -123,7 +132,7 @@ ROLE_PERMISSIONS = {
     },
     'Sales Rep': {
         'resources': [
-            'dashboard', 'accounting_commissions', 'minitrac'
+            'my_commissions', 'minitrac'
         ],
         'actions': ['view'],
     },
@@ -235,5 +244,19 @@ NAVIGATION_CONFIG = {
         'path': 'qbr',
         'required_resource': 'qbr',
         'order': 10,
+    },
+    'my-commissions': {
+        'label': 'My Commissions',
+        'icon': 'TrendingUp',
+        'path': 'my-commissions',
+        'required_resource': 'my_commissions',
+        'order': 11,
+    },
+    'rep-comp-admin': {
+        'label': 'Rep Comp Admin',
+        'icon': 'Settings',
+        'path': 'rep-comp-admin',
+        'required_resource': 'manage_rep_comp',
+        'order': 12,
     },
 }

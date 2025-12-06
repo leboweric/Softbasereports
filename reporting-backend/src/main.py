@@ -99,6 +99,7 @@ from src.routes.october_investigation import october_investigation_bp
 from src.routes.january_expense_investigation import january_expense_bp
 from src.routes.qbr import qbr_bp
 from src.routes.billing import billing_bp
+from src.routes.sales_rep_comp import sales_rep_comp_bp
 from src.services.postgres_service import get_postgres_db
 from src.init_rbac import initialize_all_rbac
 
@@ -220,6 +221,7 @@ app.register_blueprint(october_investigation_bp)
 app.register_blueprint(january_expense_bp)
 app.register_blueprint(qbr_bp)
 app.register_blueprint(billing_bp, url_prefix='/api')
+app.register_blueprint(sales_rep_comp_bp)
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration

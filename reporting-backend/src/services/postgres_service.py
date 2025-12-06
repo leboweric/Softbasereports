@@ -242,6 +242,10 @@ class PostgreSQLService:
                     cursor.execute(self._get_qbr_tables_sql())
                     logger.info("QBR tables created/verified successfully")
 
+                    # Create Sales Rep Compensation tables
+                    cursor.execute(self._get_sales_rep_comp_tables_sql())
+                    logger.info("Sales rep compensation tables created/verified successfully")
+
                     conn.commit()
                     return True
         except Exception as e:
@@ -333,6 +337,66 @@ class PostgreSQLService:
         CREATE INDEX IF NOT EXISTS idx_condition_customer ON equipment_condition_history(customer_number);
         CREATE INDEX IF NOT EXISTS idx_condition_date ON equipment_condition_history(assessment_date);
         CREATE INDEX IF NOT EXISTS idx_condition_status ON equipment_condition_history(condition_status);
+        """
+
+    def _get_sales_rep_comp_tables_sql(self):
+        """SQL to create Sales Rep Compensation tables"""
+        return """
+        -- Sales Rep Compensation Settings table
+        -- Stores each rep's compensation plan configuration
+        CREATE TABLE IF NOT EXISTS sales_rep_comp_settings (
+            id SERIAL PRIMARY KEY,
+            salesman_name VARCHAR(100) NOT NULL UNIQUE,
+            salesman_code VARCHAR(20),
+            monthly_draw NUMERIC(12,2) NOT NULL DEFAULT 0,
+            start_date DATE NOT NULL,
+            starting_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by VARCHAR(100),
+            updated_at TIMESTAMP,
+            updated_by VARCHAR(100)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_rep_comp_salesman ON sales_rep_comp_settings(salesman_name);
+        CREATE INDEX IF NOT EXISTS idx_rep_comp_active ON sales_rep_comp_settings(is_active);
+
+        -- Sales Rep Monthly Transactions table
+        -- Tracks each month's commission activity and draw decisions
+        CREATE TABLE IF NOT EXISTS sales_rep_monthly_transactions (
+            id SERIAL PRIMARY KEY,
+            salesman_name VARCHAR(100) NOT NULL,
+            year_month VARCHAR(7) NOT NULL,  -- Format: YYYY-MM
+
+            -- Commission values (calculated from verified invoices)
+            gross_commissions NUMERIC(12,2) DEFAULT 0,
+
+            -- Draw decisions
+            draw_amount NUMERIC(12,2) DEFAULT 0,  -- Amount actually taken (can be 0 if banking)
+            draw_taken BOOLEAN DEFAULT FALSE,      -- Whether they took their draw this month
+
+            -- Running balance (positive = rep owes, negative = company owes rep)
+            opening_balance NUMERIC(12,2) DEFAULT 0,
+            closing_balance NUMERIC(12,2) DEFAULT 0,
+
+            -- Status tracking
+            is_locked BOOLEAN DEFAULT FALSE,       -- Lock after month is finalized
+            locked_at TIMESTAMP,
+            locked_by VARCHAR(100),
+
+            -- Metadata
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP,
+            updated_by VARCHAR(100),
+
+            UNIQUE(salesman_name, year_month)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_rep_trans_salesman ON sales_rep_monthly_transactions(salesman_name);
+        CREATE INDEX IF NOT EXISTS idx_rep_trans_month ON sales_rep_monthly_transactions(year_month);
+        CREATE INDEX IF NOT EXISTS idx_rep_trans_locked ON sales_rep_monthly_transactions(is_locked);
         """
 
 # Singleton instance
