@@ -7123,12 +7123,12 @@ def register_department_routes(reports_bp):
                 AND sl.Salesman1 != ''
                 AND UPPER(sl.Salesman1) != 'HOUSE'
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                                    'ALLIED', 'LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                 AND (
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
                     OR
-                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
-                                     'ALLIED', 'LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM') 
+                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                      AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
                 )
             ORDER BY sl.Salesman1, ir.InvoiceDate, ir.InvoiceNo
@@ -7510,7 +7510,7 @@ def register_department_routes(reports_bp):
             pattern_matches = db.execute_query(pattern_check_query, [start_date, end_date])
             
             # Summary of configured vs actual
-            configured_new = ['LINDE', 'NEWEQ', 'NEWEQP-R', 'KOM']
+            configured_new = ['LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
             
             return jsonify({
                 'month': month_param,
