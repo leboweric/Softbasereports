@@ -617,8 +617,12 @@ const SalesCommissionReport = ({ user }) => {
   const generateMonthOptions = () => {
     const options = []
     const now = new Date()
-    for (let i = 0; i < 12; i++) {
+    // Softbase data starts March 2025, so don't show earlier months
+    const earliestDate = new Date(2025, 2, 1) // March 2025 (month is 0-indexed)
+    for (let i = 0; i < 24; i++) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      // Skip months before March 2025
+      if (date < earliestDate) break
       const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
       const label = date.toLocaleString('default', { month: 'long', year: 'numeric' })
       options.push({ value, label })
