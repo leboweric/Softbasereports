@@ -809,7 +809,11 @@ const SalesCommissionReport = ({ user }) => {
             <CardHeader>
               <CardTitle>Commission Details by Sales Rep</CardTitle>
               <CardDescription>
-                Breakdown of sales and commissions for {new Date(selectedMonth + '-01').toLocaleString('default', { month: 'long', year: 'numeric' })}
+                Breakdown of sales and commissions for {(() => {
+                  const [year, month] = selectedMonth.split('-')
+                  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+                  return `${monthNames[parseInt(month, 10) - 1]} ${year}`
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent>
