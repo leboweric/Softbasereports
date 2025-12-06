@@ -3,7 +3,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -17,12 +16,11 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Plus, Edit2, Trash2, DollarSign, Users, Calendar, Save, X, AlertCircle } from 'lucide-react'
+import { Plus, Edit2, Trash2, DollarSign, Users, Save, X, AlertCircle } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const RepCompAdmin = ({ user }) => {
@@ -34,15 +32,13 @@ const RepCompAdmin = ({ user }) => {
   const [editingSetting, setEditingSetting] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  // Form state
+  // Form state - simplified to essential fields only
   const [formData, setFormData] = useState({
-    salesman_name: '',
-    salesman_code: '',
-    monthly_draw: 0,
-    start_date: new Date().toISOString().split('T')[0],
-    starting_balance: 0,
-    is_active: true,
-    notes: ''
+    first_name: '',
+    last_name: '',
+    monthly_draw: '',
+    start_date: '2025-03-01',
+    starting_balance: '0'
   })
 
   useEffect(() => {
@@ -75,27 +71,28 @@ const RepCompAdmin = ({ user }) => {
 
   const handleAddNew = () => {
     setFormData({
-      salesman_name: '',
-      salesman_code: '',
-      monthly_draw: 0,
-      start_date: new Date().toISOString().split('T')[0],
-      starting_balance: 0,
-      is_active: true,
-      notes: ''
+      first_name: '',
+      last_name: '',
+      monthly_draw: '',
+      start_date: '2025-03-01',
+      starting_balance: '0'
     })
     setShowAddDialog(true)
   }
 
   const handleEdit = (setting) => {
+    // Parse existing salesman_name into first/last
+    const nameParts = (setting.salesman_name || '').split(' ')
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+
     setEditingSetting(setting)
     setFormData({
-      salesman_name: setting.salesman_name,
-      salesman_code: setting.salesman_code || '',
-      monthly_draw: setting.monthly_draw,
-      start_date: setting.start_date,
-      starting_balance: setting.starting_balance,
-      is_active: setting.is_active,
-      notes: setting.notes || ''
+      first_name: firstName,
+      last_name: lastName,
+      monthly_draw: String(setting.monthly_draw || 0),
+      start_date: setting.start_date || '2025-03-01',
+      starting_balance: String(setting.starting_balance || 0)
     })
     setShowEditDialog(true)
   }
@@ -104,6 +101,17 @@ const RepCompAdmin = ({ user }) => {
     try {
       setSaving(true)
       const token = localStorage.getItem('token')
+
+      // Combine first and last name
+      const salesman_name = `${formData.first_name.trim()} ${formData.last_name.trim()}`.trim()
+
+      const payload = {
+        salesman_name,
+        monthly_draw: parseFloat(formData.monthly_draw) || 0,
+        start_date: formData.start_date,
+        starting_balance: parseFloat(formData.starting_balance) || 0,
+        is_active: true
+      }
 
       const url = isNew
         ? apiUrl('/api/sales-rep-comp/settings')
@@ -115,7 +123,7 @@ const RepCompAdmin = ({ user }) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
@@ -164,7 +172,7 @@ const RepCompAdmin = ({ user }) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 2,
+      minimumFractionDigits: 0,
     }).format(value || 0)
   }
 
@@ -176,6 +184,8 @@ const RepCompAdmin = ({ user }) => {
       day: 'numeric'
     })
   }
+
+  const isFormValid = formData.first_name.trim() && formData.last_name.trim() && formData.monthly_draw
 
   if (loading) {
     return (
@@ -190,9 +200,9 @@ const RepCompAdmin = ({ user }) => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold">Sales Rep Compensation Admin</h1>
+          <h1 className="text-2xl font-bold">Sales Rep Compensation</h1>
           <p className="text-muted-foreground">
-            Manage sales rep draw plans and commission tracking
+            Manage monthly draw plans
           </p>
         </div>
         <Button onClick={handleAddNew}>
@@ -214,7 +224,7 @@ const RepCompAdmin = ({ user }) => {
       )}
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -242,32 +252,12 @@ const RepCompAdmin = ({ user }) => {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-purple-600" />
-              Total Starting Balance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(settings.filter(s => s.is_active).reduce((sum, s) => sum + (s.starting_balance || 0), 0))}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Positive = reps owe company
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Settings Table */}
       <Card>
         <CardHeader>
           <CardTitle>Compensation Plans</CardTitle>
-          <CardDescription>
-            Configure monthly draw and starting balances for each sales rep
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {settings.length === 0 ? (
@@ -280,13 +270,11 @@ const RepCompAdmin = ({ user }) => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Salesman Name</TableHead>
-                  <TableHead>Code</TableHead>
+                  <TableHead>Name</TableHead>
                   <TableHead className="text-right">Monthly Draw</TableHead>
                   <TableHead>Start Date</TableHead>
                   <TableHead className="text-right">Starting Balance</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Notes</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -294,7 +282,6 @@ const RepCompAdmin = ({ user }) => {
                 {settings.map((setting) => (
                   <TableRow key={setting.id}>
                     <TableCell className="font-medium">{setting.salesman_name}</TableCell>
-                    <TableCell>{setting.salesman_code || '-'}</TableCell>
                     <TableCell className="text-right">{formatCurrency(setting.monthly_draw)}</TableCell>
                     <TableCell>{formatDate(setting.start_date)}</TableCell>
                     <TableCell className={`text-right ${setting.starting_balance > 0 ? 'text-red-600' : setting.starting_balance < 0 ? 'text-green-600' : ''}`}>
@@ -304,9 +291,6 @@ const RepCompAdmin = ({ user }) => {
                       <Badge variant={setting.is_active ? 'default' : 'secondary'}>
                         {setting.is_active ? 'Active' : 'Inactive'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {setting.notes || '-'}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -328,45 +312,42 @@ const RepCompAdmin = ({ user }) => {
 
       {/* Add Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Sales Rep</DialogTitle>
-            <DialogDescription>
-              Create a compensation plan for a new sales rep
-            </DialogDescription>
+            <DialogTitle>Add Sales Rep</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="salesman_name">Salesman Name *</Label>
+                <Label htmlFor="first_name">First Name</Label>
                 <Input
-                  id="salesman_name"
-                  value={formData.salesman_name}
-                  onChange={(e) => setFormData({ ...formData, salesman_name: e.target.value })}
-                  placeholder="e.g., Kevin Smith"
+                  id="first_name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                  placeholder="Kevin"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="salesman_code">Salesman Code</Label>
+                <Label htmlFor="last_name">Last Name</Label>
                 <Input
-                  id="salesman_code"
-                  value={formData.salesman_code}
-                  onChange={(e) => setFormData({ ...formData, salesman_code: e.target.value })}
-                  placeholder="e.g., KSMITH"
+                  id="last_name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                  placeholder="Smith"
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="monthly_draw">Monthly Draw ($)</Label>
+              <Input
+                id="monthly_draw"
+                type="number"
+                value={formData.monthly_draw}
+                onChange={(e) => setFormData({ ...formData, monthly_draw: e.target.value })}
+                placeholder="5000"
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="monthly_draw">Monthly Draw</Label>
-                <Input
-                  id="monthly_draw"
-                  type="number"
-                  step="0.01"
-                  value={formData.monthly_draw}
-                  onChange={(e) => setFormData({ ...formData, monthly_draw: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="start_date">Start Date</Label>
                 <Input
@@ -376,43 +357,23 @@ const RepCompAdmin = ({ user }) => {
                   onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="starting_balance">Starting Balance</Label>
-              <Input
-                id="starting_balance"
-                type="number"
-                step="0.01"
-                value={formData.starting_balance}
-                onChange={(e) => setFormData({ ...formData, starting_balance: parseFloat(e.target.value) || 0 })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Positive = rep owes company (overdraw), Negative = company owes rep
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Input
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Optional notes about this plan"
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="is_active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-              />
-              <Label htmlFor="is_active">Active</Label>
+              <div className="space-y-2">
+                <Label htmlFor="starting_balance">Starting Balance ($)</Label>
+                <Input
+                  id="starting_balance"
+                  type="number"
+                  value={formData.starting_balance}
+                  onChange={(e) => setFormData({ ...formData, starting_balance: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={() => handleSave(true)} disabled={saving || !formData.salesman_name}>
+            <Button onClick={() => handleSave(true)} disabled={saving || !isFormValid}>
               {saving ? <LoadingSpinner size="small" /> : <Save className="h-4 w-4 mr-2" />}
               Save
             </Button>
@@ -422,43 +383,39 @@ const RepCompAdmin = ({ user }) => {
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Compensation Plan</DialogTitle>
-            <DialogDescription>
-              Update compensation settings for {editingSetting?.salesman_name}
-            </DialogDescription>
+            <DialogTitle>Edit {editingSetting?.salesman_name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit_salesman_name">Salesman Name *</Label>
+                <Label htmlFor="edit_first_name">First Name</Label>
                 <Input
-                  id="edit_salesman_name"
-                  value={formData.salesman_name}
-                  onChange={(e) => setFormData({ ...formData, salesman_name: e.target.value })}
+                  id="edit_first_name"
+                  value={formData.first_name}
+                  onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit_salesman_code">Salesman Code</Label>
+                <Label htmlFor="edit_last_name">Last Name</Label>
                 <Input
-                  id="edit_salesman_code"
-                  value={formData.salesman_code}
-                  onChange={(e) => setFormData({ ...formData, salesman_code: e.target.value })}
+                  id="edit_last_name"
+                  value={formData.last_name}
+                  onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
                 />
               </div>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_monthly_draw">Monthly Draw ($)</Label>
+              <Input
+                id="edit_monthly_draw"
+                type="number"
+                value={formData.monthly_draw}
+                onChange={(e) => setFormData({ ...formData, monthly_draw: e.target.value })}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit_monthly_draw">Monthly Draw</Label>
-                <Input
-                  id="edit_monthly_draw"
-                  type="number"
-                  step="0.01"
-                  value={formData.monthly_draw}
-                  onChange={(e) => setFormData({ ...formData, monthly_draw: parseFloat(e.target.value) || 0 })}
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="edit_start_date">Start Date</Label>
                 <Input
@@ -468,42 +425,22 @@ const RepCompAdmin = ({ user }) => {
                   onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_starting_balance">Starting Balance</Label>
-              <Input
-                id="edit_starting_balance"
-                type="number"
-                step="0.01"
-                value={formData.starting_balance}
-                onChange={(e) => setFormData({ ...formData, starting_balance: parseFloat(e.target.value) || 0 })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Positive = rep owes company (overdraw), Negative = company owes rep
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit_notes">Notes</Label>
-              <Input
-                id="edit_notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="edit_is_active"
-                checked={formData.is_active}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-              />
-              <Label htmlFor="edit_is_active">Active</Label>
+              <div className="space-y-2">
+                <Label htmlFor="edit_starting_balance">Starting Balance ($)</Label>
+                <Input
+                  id="edit_starting_balance"
+                  type="number"
+                  value={formData.starting_balance}
+                  onChange={(e) => setFormData({ ...formData, starting_balance: e.target.value })}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={() => handleSave(false)} disabled={saving || !formData.salesman_name}>
+            <Button onClick={() => handleSave(false)} disabled={saving || !isFormValid}>
               {saving ? <LoadingSpinner size="small" /> : <Save className="h-4 w-4 mr-2" />}
               Update
             </Button>
