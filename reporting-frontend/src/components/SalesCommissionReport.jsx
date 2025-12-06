@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2, X, ArrowRightLeft } from 'lucide-react'
+import { Download, DollarSign, TrendingUp, Package, Truck, ChevronDown, ChevronUp, ArrowUpDown, ArrowUp, ArrowDown, Plus, Trash2, X, ArrowRightLeft, Search, AlertCircle, CheckCircle, XCircle, HelpCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { apiUrl } from '@/lib/api'
 import * as XLSX from 'xlsx'
@@ -46,6 +46,11 @@ const SalesCommissionReport = ({ user }) => {
   const [showAddManualForm, setShowAddManualForm] = useState({}) // keyed by salesman name
   const [newManualCommission, setNewManualCommission] = useState({})
   const [savingManualCommission, setSavingManualCommission] = useState(false)
+
+  // Invoice search state
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('')
+  const [invoiceSearchResult, setInvoiceSearchResult] = useState(null)
+  const [searchingInvoice, setSearchingInvoice] = useState(false)
 
   useEffect(() => {
     fetchCommissionData()
@@ -389,6 +394,40 @@ const SalesCommissionReport = ({ user }) => {
   const getSalesmanManualCommissionTotal = (salesmanName) => {
     const manualEntries = manualCommissions[salesmanName] || []
     return manualEntries.reduce((sum, entry) => sum + (parseFloat(entry.commission_amount) || 0), 0)
+  }
+
+  // Search for a specific invoice
+  const searchInvoice = async () => {
+    if (!invoiceSearchQuery.trim()) return
+
+    try {
+      setSearchingInvoice(true)
+      setInvoiceSearchResult(null)
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/reports/departments/accounting/invoice-lookup?invoice_no=${invoiceSearchQuery.trim()}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setInvoiceSearchResult(data)
+      } else {
+        setInvoiceSearchResult({ found: false, status: 'error', status_message: 'Error searching for invoice' })
+      }
+    } catch (error) {
+      console.error('Error searching invoice:', error)
+      setInvoiceSearchResult({ found: false, status: 'error', status_message: 'Error searching for invoice' })
+    } finally {
+      setSearchingInvoice(false)
+    }
+  }
+
+  // Clear invoice search
+  const clearInvoiceSearch = () => {
+    setInvoiceSearchQuery('')
+    setInvoiceSearchResult(null)
   }
 
   const fetchCommissionData = async () => {
@@ -879,6 +918,83 @@ const SalesCommissionReport = ({ user }) => {
                     {showDetails ? 'Hide' : 'Show'} Details
                   </Button>
                 </div>
+              </div>
+
+              {/* Invoice Search */}
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Invoice Lookup</span>
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter invoice number..."
+                    value={invoiceSearchQuery}
+                    onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && searchInvoice()}
+                    className="max-w-xs"
+                  />
+                  <Button
+                    onClick={searchInvoice}
+                    disabled={searchingInvoice || !invoiceSearchQuery.trim()}
+                    size="sm"
+                  >
+                    {searchingInvoice ? 'Searching...' : 'Search'}
+                  </Button>
+                  {invoiceSearchResult && (
+                    <Button
+                      onClick={clearInvoiceSearch}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Search Result */}
+                {invoiceSearchResult && (
+                  <div className={`mt-3 p-3 rounded-lg border ${
+                    invoiceSearchResult.status_color === 'green' ? 'bg-green-50 border-green-200' :
+                    invoiceSearchResult.status_color === 'yellow' ? 'bg-yellow-50 border-yellow-200' :
+                    invoiceSearchResult.status_color === 'orange' ? 'bg-orange-50 border-orange-200' :
+                    'bg-red-50 border-red-200'
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      {invoiceSearchResult.status_color === 'green' ? (
+                        <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                      ) : invoiceSearchResult.status_color === 'yellow' ? (
+                        <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                      ) : invoiceSearchResult.status_color === 'orange' ? (
+                        <HelpCircle className="h-5 w-5 text-orange-600 mt-0.5" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <p className={`font-medium ${
+                          invoiceSearchResult.status_color === 'green' ? 'text-green-800' :
+                          invoiceSearchResult.status_color === 'yellow' ? 'text-yellow-800' :
+                          invoiceSearchResult.status_color === 'orange' ? 'text-orange-800' :
+                          'text-red-800'
+                        }`}>
+                          {invoiceSearchResult.status_message}
+                        </p>
+                        {invoiceSearchResult.found && invoiceSearchResult.invoice && (
+                          <div className="mt-2 text-sm space-y-1">
+                            <p><span className="text-muted-foreground">Invoice:</span> {invoiceSearchResult.invoice.invoice_no}</p>
+                            <p><span className="text-muted-foreground">Date:</span> {invoiceSearchResult.invoice.invoice_date ? new Date(invoiceSearchResult.invoice.invoice_date).toLocaleDateString() : '-'}</p>
+                            <p><span className="text-muted-foreground">Customer:</span> {invoiceSearchResult.invoice.customer_name}</p>
+                            <p><span className="text-muted-foreground">Bill To:</span> {invoiceSearchResult.invoice.bill_to}</p>
+                            <p><span className="text-muted-foreground">Sale Code:</span> <Badge variant="outline">{invoiceSearchResult.invoice.sale_code}</Badge></p>
+                            <p><span className="text-muted-foreground">Category:</span> {invoiceSearchResult.invoice.category}</p>
+                            <p><span className="text-muted-foreground">Amount:</span> {formatCurrency(invoiceSearchResult.invoice.category_amount)}</p>
+                            <p><span className="text-muted-foreground">Salesman:</span> {invoiceSearchResult.invoice.salesman || <span className="italic text-muted-foreground">None assigned</span>}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardHeader>
             {showDetails && (

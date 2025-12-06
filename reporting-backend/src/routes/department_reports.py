@@ -6689,6 +6689,124 @@ def register_department_routes(reports_bp):
             logger.error(f"Error finding missing invoices: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/departments/accounting/invoice-lookup', methods=['GET'])
+    @jwt_required()
+    def invoice_lookup():
+        """Look up a specific invoice to determine its commission status"""
+        try:
+            db = get_db()
+
+            invoice_no = request.args.get('invoice_no', '').strip()
+            if not invoice_no:
+                return jsonify({'error': 'Please provide an invoice number'}), 400
+
+            # Commission-eligible sale codes
+            commission_sale_codes = ['RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
+
+            # Query to find the invoice with all relevant details
+            query = """
+            SELECT
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName as CustomerName,
+                ir.SaleCode,
+                c.Salesman1,
+                ir.GrandTotal,
+                COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
+                COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) as RentalAmount,
+                COALESCE(ir.EquipmentCost, 0) as EquipmentCost,
+                COALESCE(ir.RentalCost, 0) as RentalCost
+            FROM ben002.InvoiceReg ir
+            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            WHERE ir.InvoiceNo = %s
+            """
+
+            results = db.execute_query(query, [invoice_no])
+
+            if not results:
+                return jsonify({
+                    'found': False,
+                    'invoice_no': invoice_no,
+                    'status': 'not_found',
+                    'status_message': 'Invoice not found in the database',
+                    'status_color': 'red'
+                })
+
+            row = results[0]
+            invoice_data = {
+                'invoice_no': row['InvoiceNo'],
+                'invoice_date': row['InvoiceDate'].isoformat() if row['InvoiceDate'] else None,
+                'bill_to': row['BillTo'],
+                'customer_name': row['CustomerName'],
+                'sale_code': row['SaleCode'],
+                'salesman': row['Salesman1'],
+                'grand_total': float(row['GrandTotal'] or 0),
+                'equipment_amount': float(row['EquipmentAmount'] or 0),
+                'rental_amount': float(row['RentalAmount'] or 0),
+                'equipment_cost': float(row['EquipmentCost'] or 0),
+                'rental_cost': float(row['RentalCost'] or 0)
+            }
+
+            # Determine the category
+            sale_code = row['SaleCode']
+            if sale_code == 'RENTAL':
+                category = 'Rental'
+                amount = invoice_data['rental_amount']
+            elif sale_code in ['USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL']:
+                category = 'Used Equipment'
+                amount = invoice_data['equipment_amount']
+            elif sale_code == 'ALLIED':
+                category = 'Allied Equipment'
+                amount = invoice_data['equipment_amount']
+            elif sale_code in ['LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']:
+                category = 'New Equipment'
+                amount = invoice_data['equipment_amount']
+            else:
+                category = 'Other'
+                amount = invoice_data['grand_total']
+
+            invoice_data['category'] = category
+            invoice_data['category_amount'] = amount
+
+            # Determine status
+            salesman = row['Salesman1']
+
+            if sale_code not in commission_sale_codes:
+                status = 'not_in_filter'
+                status_message = f"Sale code '{sale_code}' is not commission-eligible"
+                status_color = 'orange'
+            elif salesman is None or salesman == '':
+                status = 'unassigned'
+                status_message = 'No salesman assigned to this customer'
+                status_color = 'yellow'
+            elif salesman.upper() == 'HOUSE':
+                status = 'house'
+                status_message = 'Assigned to House account (excluded from commissions)'
+                status_color = 'yellow'
+            elif amount <= 0:
+                status = 'zero_amount'
+                status_message = f'No {category.lower()} amount on this invoice'
+                status_color = 'orange'
+            else:
+                status = 'commission_eligible'
+                status_message = f'Assigned to {salesman}'
+                status_color = 'green'
+
+            return jsonify({
+                'found': True,
+                'invoice': invoice_data,
+                'status': status,
+                'status_message': status_message,
+                'status_color': status_color,
+                'commission_sale_codes': commission_sale_codes
+            })
+
+        except Exception as e:
+            logger.error(f"Error in invoice lookup: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
     @reports_bp.route('/departments/accounting/sales-commission-buckets', methods=['GET'])
     @jwt_required()
     def get_sales_commission_buckets():
