@@ -9,6 +9,31 @@ sales_rep_comp_bp = Blueprint('sales_rep_comp', __name__, url_prefix='/api/sales
 
 
 # ============================================================================
+# SETUP ENDPOINT - Create tables if they don't exist
+# ============================================================================
+
+@sales_rep_comp_bp.route('/init-tables', methods=['POST'])
+@jwt_required()
+def init_tables():
+    """Create the sales rep comp tables if they don't exist"""
+    try:
+        pg_service = PostgreSQLService()
+        with pg_service.get_connection() as conn:
+            if not conn:
+                return jsonify({'error': 'Database connection not available'}), 500
+
+            cursor = conn.cursor()
+            cursor.execute(pg_service._get_sales_rep_comp_tables_sql())
+            conn.commit()
+
+            return jsonify({'message': 'Sales rep comp tables created successfully'}), 200
+
+    except Exception as e:
+        logger.error(f"Error creating tables: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
 # ADMIN ENDPOINTS - For Bo to manage rep compensation plans
 # ============================================================================
 
