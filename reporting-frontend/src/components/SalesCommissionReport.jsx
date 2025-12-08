@@ -1860,13 +1860,18 @@ const SalesCommissionReport = ({ user }) => {
                                     {getSortIcon(unassignedSortConfig, 'category')}
                                   </div>
                                 </th>
-                                <th 
+                                <th
                                   className="text-right p-2 cursor-pointer hover:bg-yellow-100"
                                   onClick={() => handleUnassignedSort('category_amount')}
                                 >
                                   <div className="flex items-center justify-end gap-1">
                                     Amount
                                     {getSortIcon(unassignedSortConfig, 'category_amount')}
+                                  </div>
+                                </th>
+                                <th className="text-center p-1">
+                                  <div className="flex items-center justify-center">
+                                    Reassign
                                   </div>
                                 </th>
                               </tr>
@@ -1901,10 +1906,46 @@ const SalesCommissionReport = ({ user }) => {
                                     </Badge>
                                   </td>
                                   <td className="text-right p-2 font-medium">{formatCurrency(inv.category_amount)}</td>
+                                  <td className="p-1">
+                                    {(() => {
+                                      const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                      const setting = commissionSettings[key] || {}
+                                      const originalSalesman = inv.original_salesman || inv.salesman || 'Unassigned'
+                                      const currentSalesman = getReassignedSalesman(inv.invoice_no, inv.sale_code, inv.category, originalSalesman)
+                                      const isReassigned = setting.reassigned_to && setting.reassigned_to !== originalSalesman
+
+                                      return (
+                                        <div className="flex items-center gap-1">
+                                          {isReassigned && (
+                                            <span className="text-[10px] text-orange-600" title={`Originally: ${originalSalesman}`}>
+                                              <ArrowRightLeft className="h-3 w-3" />
+                                            </span>
+                                          )}
+                                          <Select
+                                            value={currentSalesman}
+                                            onValueChange={(value) =>
+                                              handleReassignment(inv.invoice_no, inv.sale_code, inv.category, originalSalesman, value)
+                                            }
+                                          >
+                                            <SelectTrigger className={`h-7 w-28 text-xs ${isReassigned ? 'border-orange-400 bg-orange-50' : ''}`}>
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {allSalesmenNames.map(name => (
+                                                <SelectItem key={name} value={name} className="text-xs">
+                                                  {name}
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      )
+                                    })()}
+                                  </td>
                                 </tr>
                               ))})()}
                               <tr className="font-semibold bg-yellow-100">
-                                <td colSpan="7" className="p-1 text-right">Total Unassigned/House:</td>
+                                <td colSpan="8" className="p-1 text-right">Total Unassigned/House:</td>
                                 <td className="text-right p-1">{formatCurrency(detailsData.unassigned.total)}</td>
                               </tr>
                             </tbody>
