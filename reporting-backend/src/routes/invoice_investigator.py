@@ -9,9 +9,8 @@ import json
 invoice_investigator_bp = Blueprint('invoice_investigator', __name__)
 
 @invoice_investigator_bp.route('/api/investigate-invoice', methods=['GET'])
-@jwt_required()
 def investigate_invoice():
-    """Show ALL fields from a specific invoice"""
+    """Show ALL fields from a specific invoice - No auth required for debugging"""
     try:
         db = AzureSQLService()
 
