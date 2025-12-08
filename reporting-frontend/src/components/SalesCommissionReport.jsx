@@ -1911,7 +1911,7 @@ const SalesCommissionReport = ({ user }) => {
                                       const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
                                       const setting = commissionSettings[key] || {}
                                       const originalSalesman = inv.original_salesman || inv.salesman || 'Unassigned'
-                                      const currentSalesman = getReassignedSalesman(inv.invoice_no, inv.sale_code, inv.category, originalSalesman)
+                                      const currentSalesman = getEffectiveSalesman(inv.invoice_no, inv.sale_code, inv.category, originalSalesman)
                                       const isReassigned = setting.reassigned_to && setting.reassigned_to !== originalSalesman
 
                                       return (
