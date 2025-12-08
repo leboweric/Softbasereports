@@ -7243,7 +7243,8 @@ def register_department_routes(reports_bp):
                     'extra_commission': extra_commission,  # User-added extra commission
                     'total_commission': total_commission,  # Total including extra
                     'is_commissionable': is_commissionable,
-                    'commission_rate': custom_rate
+                    'commission_rate': custom_rate,
+                    'RentalPeriod': row.get('RentalPeriod')  # Rental period from WO table
                 }
                 
                 salesmen_details[salesman]['invoices'].append(invoice)
@@ -7261,13 +7262,14 @@ def register_department_routes(reports_bp):
             # Query for unassigned invoices
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
             unassigned_query = """
-            SELECT 
+            SELECT
                 ir.InvoiceNo,
                 ir.InvoiceDate,
                 ir.BillTo,
                 ir.BillToName as CustomerName,
                 COALESCE(wo.Salesman, 'Unassigned') as Salesman,
                 ir.SaleCode,
+                wo.RentalPeriod,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
                     WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
@@ -7317,7 +7319,8 @@ def register_department_routes(reports_bp):
                     'sale_code': row['SaleCode'],
                     'category': row['Category'],
                     'category_amount': float(row['CategoryAmount'] or 0),
-                    'grand_total': float(row['GrandTotal'] or 0)
+                    'grand_total': float(row['GrandTotal'] or 0),
+                    'RentalPeriod': row.get('RentalPeriod')  # Rental period from WO table
                 }
                 unassigned_invoices.append(invoice)
                 unassigned_total += invoice['category_amount']
