@@ -857,66 +857,6 @@ const SalesCommissionReport = ({ user }) => {
 
       {commissionData ? (
         <>
-          {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-5">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Rental</CardTitle>
-                <Truck className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(commissionData.totals.rental)}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Used Equipment</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(commissionData.totals.used_equipment)}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Allied Equipment</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(commissionData.totals.allied_equipment)}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">New Equipment</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(commissionData.totals.new_equipment)}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Total Commissions</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {formatCommission(actualCommissionSummary ? actualCommissionSummary.totals.total_commissions : commissionData.totals.total_commissions)}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {actualCommissionSummary ? actualCommissionSummary.salespeople.length : commissionData.salespeople.length} sales reps
-                  {actualCommissionSummary && <span className="text-green-600 font-semibold"> (actual)</span>}
-                  {!actualCommissionSummary && <span className="text-orange-600"> (est.)</span>}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Commission Details Table - Show actual calculated commissions if details loaded */}
           {actualCommissionSummary ? (
             <Card>
@@ -1178,10 +1118,22 @@ const SalesCommissionReport = ({ user }) => {
                     {reorganizedSalesmenData.map((salesman, idx) => (
                       <div key={idx} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <h4 className="font-semibold">{salesman.name}</h4>
+                          <div className="flex items-center gap-4">
+                            <h4 className="font-semibold">{salesman.name}</h4>
+                            {hasUnsavedChanges && (
+                              <Button
+                                onClick={saveCommissionSettings}
+                                disabled={savingSettings}
+                                size="sm"
+                                variant="default"
+                              >
+                                {savingSettings ? 'Saving...' : 'Save Changes'}
+                              </Button>
+                            )}
+                          </div>
                           <div className="text-sm text-muted-foreground">
-                            {salesman.invoices.length} invoices • 
-                            Total Sales: {formatCurrency(salesman.total_sales)} • 
+                            {salesman.invoices.length} invoices •
+                            Total Sales: {formatCurrency(salesman.total_sales)} •
                             Commission: <span className="font-semibold text-green-600">{formatCommission((() => {
                               // Calculate total commission including extra for this salesman
                               const invoiceCommission = salesman.invoices.reduce((sum, inv) => {
