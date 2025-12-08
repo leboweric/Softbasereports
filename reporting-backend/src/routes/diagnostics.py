@@ -1,7 +1,7 @@
 """
 Database diagnostics endpoints for exploring schema and data
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -174,4 +174,49 @@ def get_gl_table_columns():
         return jsonify({
             'success': False,
             'error': f'Error getting GL table columns: {str(e)}'
+        }), 500
+
+@diagnostics_bp.route('/api/diagnostic/invoice-raw', methods=['GET'])
+@jwt_required()
+def get_invoice_raw():
+    """Get ALL fields from a specific invoice (raw data dump)"""
+    try:
+        invoice_no = request.args.get('invoice_no')
+        if not invoice_no:
+            return jsonify({'error': 'invoice_no parameter required'}), 400
+
+        sql_service = AzureSQLService()
+
+        # Get ALL fields from the invoice
+        query = "SELECT * FROM ben002.InvoiceReg WHERE InvoiceNo = %s"
+        results = sql_service.execute_query(query, [invoice_no])
+
+        if not results:
+            return jsonify({
+                'found': False,
+                'invoice_no': invoice_no,
+                'message': 'Invoice not found'
+            }), 404
+
+        # Get column names and types
+        columns_query = """
+        SELECT COLUMN_NAME, DATA_TYPE
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = 'ben002'
+        AND TABLE_NAME = 'InvoiceReg'
+        ORDER BY ORDINAL_POSITION
+        """
+        columns = sql_service.execute_query(columns_query)
+
+        return jsonify({
+            'found': True,
+            'invoice_no': invoice_no,
+            'data': results[0],
+            'columns': columns,
+            'total_columns': len(columns)
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': f'Error fetching invoice: {str(e)}'
         }), 500
