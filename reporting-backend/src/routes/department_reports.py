@@ -7135,7 +7135,7 @@ def register_department_routes(reports_bp):
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
-                     AND wo.RentalPeriod IN ('Monthly', '4 Week'))
+                     AND wo.RentalPeriod IN ('Month', '4 Week'))
                     OR
                     (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                      'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
@@ -7295,7 +7295,7 @@ def register_department_routes(reports_bp):
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
-                     AND wo.RentalPeriod IN ('Monthly', '4 Week'))
+                     AND wo.RentalPeriod IN ('Month', '4 Week'))
                     OR
                     (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                      'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
