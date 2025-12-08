@@ -7080,9 +7080,9 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'BAT-CHG') THEN 'Used Equipment'
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
                     WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG') THEN 'New Equipment'
                     ELSE 'Other'
                 END as Category,
                 -- Revenue amounts
@@ -7095,11 +7095,11 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END as CategoryAmount,
                 -- Cost amounts for gross profit calculation
-                CASE 
+                CASE
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalCost, 0)
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
-                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                     THEN COALESCE(ir.EquipmentCost, 0)
                     ELSE 0
                 END as CategoryCost,
@@ -7268,9 +7268,9 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'BAT-CHG') THEN 'Used Equipment'
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
                     WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG') THEN 'New Equipment'
                     ELSE 'Other'
                 END as Category,
                 CASE
