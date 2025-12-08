@@ -49,6 +49,10 @@ def investigate_invoice():
             if customer_result:
                 customer_data = customer_result[0]
 
+        # Get WO info (join on WONo = InvoiceNo)
+        wo_query = f"SELECT * FROM ben002.WO WHERE WONo = {invoice_no}"
+        wo_data = db.execute_query(wo_query)
+
         html = f"""
 <!DOCTYPE html>
 <html>
@@ -153,6 +157,15 @@ def investigate_invoice():
             </table>
         </div>''' if customer_data else ''}
 
+        {f'''<div class="section">
+            <h2>🛠️ Work Order (WO) Records for WONo = {invoice_no}</h2>
+            <div class="alert">✅ Found {len(wo_data)} WO record(s). The commission report uses WO.Salesman field.</div>
+            <table>
+                <tr><th>Field Name</th><th>Value</th></tr>
+                {''.join([f'<tr{"class=highlight" if "salesman" in key.lower() or "wono" in key.lower() else ""}><td>{key}</td><td>{value}</td></tr>' for key, value in wo_data[0].items()])}
+            </table>
+        </div>''' if wo_data and len(wo_data) > 0 else '<div class="section"><h2>🛠️ Work Order (WO) Records</h2><div class="alert">⚠️ No WO record found with WONo = ' + invoice_no + '</div></div>'}
+
         <div class="section">
             <h2>🔎 Investigation Summary</h2>
             <p><strong>Invoice:</strong> {invoice_no}</p>
@@ -160,6 +173,8 @@ def investigate_invoice():
             <p><strong>Dept SaleGroup:</strong> {dept_data.get("SaleGroup") if dept_data else "N/A"}</p>
             <p><strong>Number of salesmen with this SaleGroup:</strong> {len(salesmen_data)}</p>
             <p><strong>Customer Default Salesman:</strong> {customer_data.get("Salesman1") if customer_data else "N/A"}</p>
+            <p><strong>WO Salesman:</strong> {wo_data[0].get("Salesman") if wo_data and len(wo_data) > 0 else "N/A (No WO record)"}</p>
+            <p><strong>Number of WO records:</strong> {len(wo_data) if wo_data else 0}</p>
         </div>
     </div>
 </body>
