@@ -6646,7 +6646,7 @@ def register_department_routes(reports_bp):
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
 
             # Query to find the invoice with all relevant details
-            # Use invoice's actual salesman via SaleDept -> Dept -> Salesman
+            # Use WO.Salesman field directly - join on WONo = InvoiceNo
             query = """
             SELECT
                 ir.InvoiceNo,
@@ -6654,15 +6654,14 @@ def register_department_routes(reports_bp):
                 ir.BillTo,
                 ir.BillToName as CustomerName,
                 ir.SaleCode,
-                s.Name as Salesman1,
+                wo.Salesman as Salesman1,
                 ir.GrandTotal,
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) as RentalAmount,
                 COALESCE(ir.EquipmentCost, 0) as EquipmentCost,
                 COALESCE(ir.RentalCost, 0) as RentalCost
             FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Dept d ON ir.SaleDept = d.Dept
-            LEFT JOIN ben002.Salesman s ON d.SaleGroup = s.SalesGroup
+            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.WONo
             WHERE ir.InvoiceNo = %s
             """
 
