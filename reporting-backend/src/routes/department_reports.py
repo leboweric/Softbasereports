@@ -8966,11 +8966,11 @@ def register_department_routes(reports_bp):
                 WITH ServiceWOs AS (
                     SELECT
                         w.WONo,
-                        w.BillTo,
+                        w.ShipTo,
                         YEAR(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as year,
                         MONTH(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as month
                     FROM [ben002].WO w
-                    WHERE w.BillTo IN ({quoted_customers})
+                    WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, PM work orders
                 ),
                 LaborCosts AS (
@@ -9014,9 +9014,9 @@ def register_department_routes(reports_bp):
                 WITH ServiceWOs AS (
                     SELECT
                         w.WONo,
-                        w.BillTo
+                        w.ShipTo
                     FROM [ben002].WO w
-                    WHERE w.BillTo IN ({quoted_customers})
+                    WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                 ),
                 LaborCosts AS (
@@ -9038,7 +9038,7 @@ def register_department_routes(reports_bp):
                     GROUP BY WONo
                 )
                 SELECT
-                    sw.BillTo as customer_number,
+                    sw.ShipTo as customer_number,
                     c.Name as customer_name,
                     COUNT(DISTINCT sw.WONo) as wo_count,
                     SUM(COALESCE(l.labor_cost, 0)) as labor_cost,
@@ -9046,11 +9046,11 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
                     SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
                 FROM ServiceWOs sw
-                LEFT JOIN [ben002].Customer c ON sw.BillTo = c.Number
+                LEFT JOIN [ben002].Customer c ON sw.ShipTo = c.Number
                 LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
                 LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
                 LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
-                GROUP BY sw.BillTo, c.Name
+                GROUP BY sw.ShipTo, c.Name
                 ORDER BY total_cost DESC
                 """
 
@@ -9059,9 +9059,9 @@ def register_department_routes(reports_bp):
                 # Total service costs summary
                 total_service_costs_query = f"""
                 WITH ServiceWOs AS (
-                    SELECT w.WONo, w.BillTo
+                    SELECT w.WONo, w.ShipTo
                     FROM [ben002].WO w
-                    WHERE w.BillTo IN ({quoted_customers})
+                    WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                 ),
                 LaborCosts AS (
@@ -9101,14 +9101,14 @@ def register_department_routes(reports_bp):
                 WITH ServiceWOs AS (
                     SELECT
                         w.WONo,
-                        w.BillTo,
+                        w.ShipTo,
                         w.SerialNo,
                         w.UnitNo,
                         w.Make,
                         w.Model,
                         w.Type as wo_type
                     FROM [ben002].WO w
-                    WHERE w.BillTo IN ({quoted_customers})
+                    WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     AND w.SerialNo IS NOT NULL
                     AND w.SerialNo != ''
@@ -9132,7 +9132,7 @@ def register_department_routes(reports_bp):
                     GROUP BY WONo
                 )
                 SELECT
-                    sw.BillTo as customer_number,
+                    sw.ShipTo as customer_number,
                     c.Name as customer_name,
                     sw.SerialNo as serial_no,
                     MAX(sw.UnitNo) as unit_no,
@@ -9146,11 +9146,11 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
                     SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
                 FROM ServiceWOs sw
-                LEFT JOIN [ben002].Customer c ON sw.BillTo = c.Number
+                LEFT JOIN [ben002].Customer c ON sw.ShipTo = c.Number
                 LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
                 LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
                 LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
-                GROUP BY sw.BillTo, c.Name, sw.SerialNo
+                GROUP BY sw.ShipTo, c.Name, sw.SerialNo
                 ORDER BY total_cost DESC
                 """
 
