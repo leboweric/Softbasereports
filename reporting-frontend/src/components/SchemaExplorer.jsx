@@ -5,19 +5,34 @@ import { Input } from '@/components/ui/input'
 import { apiUrl } from '@/lib/api'
 
 const SchemaExplorer = () => {
-  const [invoiceNo, setInvoiceNo] = useState('110000014')
-  const [htmlContent, setHtmlContent] = useState('')
+  const [tableName, setTableName] = useState('')
+  const [recordId, setRecordId] = useState('')
+  const [idColumn, setIdColumn] = useState('Number')
   const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
 
-  const loadInvoice = async () => {
+  const exploreTable = async () => {
     setLoading(true)
+    setError(null)
     try {
-      const response = await fetch(apiUrl(`/api/investigate-invoice?invoice_no=${invoiceNo}`))
-      const html = await response.text()
-      setHtmlContent(html)
-    } catch (error) {
-      console.error('Failed to load invoice:', error)
-      setHtmlContent('<h1>Error loading invoice</h1>')
+      const token = localStorage.getItem('token')
+      const url = recordId
+        ? apiUrl(`/api/schema/record/${tableName}/${recordId}?id_column=${idColumn}`)
+        : apiUrl(`/api/schema/table/${tableName}`)
+
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        setResult(data)
+      } else {
+        setError(data.error || 'Query failed')
+      }
+    } catch (err) {
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -27,31 +42,62 @@ const SchemaExplorer = () => {
     <div className="p-6">
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Schema Explorer - Invoice Investigation</CardTitle>
+          <CardTitle>Schema Explorer - Query Any Table</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-2">Invoice Number</label>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Table Name</label>
               <Input
-                type="text"
-                value={invoiceNo}
-                onChange={(e) => setInvoiceNo(e.target.value)}
-                placeholder="Enter invoice number"
+                value={tableName}
+                onChange={(e) => setTableName(e.target.value)}
+                placeholder="e.g., InvoiceReg, Salesman, Customer"
               />
             </div>
-            <Button onClick={loadInvoice} disabled={loading}>
-              {loading ? 'Loading...' : 'Investigate Invoice'}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Record ID (optional)</label>
+                <Input
+                  value={recordId}
+                  onChange={(e) => setRecordId(e.target.value)}
+                  placeholder="e.g., 110000014"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">ID Column</label>
+                <Input
+                  value={idColumn}
+                  onChange={(e) => setIdColumn(e.target.value)}
+                  placeholder="e.g., Number, InvoiceNo"
+                />
+              </div>
+            </div>
+            <Button onClick={exploreTable} disabled={loading || !tableName}>
+              {loading ? 'Loading...' : 'Explore Table'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {htmlContent && (
-        <div
-          className="border rounded-lg p-4 bg-white"
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
-        />
+      {error && (
+        <Card className="mb-6 border-red-500">
+          <CardContent className="p-4">
+            <p className="text-red-600">Error: {error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {result && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{result.table} {recordId ? `- Record ${recordId}` : '- Structure'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-gray-50 p-4 rounded overflow-auto max-h-[600px] text-sm">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
