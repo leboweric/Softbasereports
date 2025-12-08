@@ -250,6 +250,113 @@ const SalesCommissionReport = ({ user }) => {
     return Object.values(salesmenMap)
   }, [detailsData, commissionSettings])
 
+  // Calculate actual commission summary based on user selections, manual commissions, and commission settings
+  const actualCommissionSummary = useMemo(() => {
+    if (!reorganizedSalesmenData) return null
+
+    const summary = {
+      salespeople: [],
+      totals: {
+        rental: 0,
+        used_equipment: 0,
+        allied_equipment: 0,
+        new_equipment: 0,
+        total_sales: 0,
+        total_commissions: 0
+      }
+    }
+
+    reorganizedSalesmenData.forEach(salesman => {
+      const salesmanSummary = {
+        name: salesman.name,
+        rental: 0,
+        used_equipment: 0,
+        allied_equipment: 0,
+        new_equipment: 0,
+        total_sales: 0,
+        commission_amount: 0,
+        commission_rate: 0
+      }
+
+      // Calculate from invoices
+      salesman.invoices.forEach(inv => {
+        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+        const setting = commissionSettings[key] || {}
+        const isCommissionable = setting.is_commissionable === true
+        const extraCommission = parseFloat(setting.extra_commission || 0)
+
+        // Add to category totals
+        if (inv.category === 'Rental') {
+          salesmanSummary.rental += inv.category_amount
+        } else if (inv.category === 'Used Equipment') {
+          salesmanSummary.used_equipment += inv.category_amount
+        } else if (inv.category === 'Allied Equipment') {
+          salesmanSummary.allied_equipment += inv.category_amount
+        } else if (inv.category === 'New Equipment') {
+          salesmanSummary.new_equipment += inv.category_amount
+        }
+
+        salesmanSummary.total_sales += inv.category_amount
+
+        // Calculate commission
+        if (!isCommissionable) {
+          salesmanSummary.commission_amount += extraCommission
+        } else {
+          let calculatedCommission = 0
+
+          // For rentals, use the selected rate
+          if (inv.category === 'Rental') {
+            const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
+            calculatedCommission = inv.category_amount * rate
+          }
+          // For New/Allied equipment, recalculate based on adjusted cost
+          else if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+            const costOverride = setting.cost_override
+            const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
+            const profit = inv.category_amount - cost
+            calculatedCommission = profit > 0 ? profit * 0.20 : 0
+          }
+          // For Used equipment, 5% of sale price
+          else if (inv.category === 'Used Equipment') {
+            calculatedCommission = inv.category_amount * 0.05
+          }
+          else {
+            calculatedCommission = inv.commission
+          }
+
+          salesmanSummary.commission_amount += calculatedCommission + extraCommission
+        }
+      })
+
+      // Add manual commissions
+      const manualComms = manualCommissions[salesman.name] || []
+      manualComms.forEach(mc => {
+        salesmanSummary.commission_amount += parseFloat(mc.commission_amount || 0)
+      })
+
+      // Calculate effective commission rate
+      salesmanSummary.commission_rate = salesmanSummary.total_sales > 0
+        ? salesmanSummary.commission_amount / salesmanSummary.total_sales
+        : 0
+
+      // Add to summary
+      summary.salespeople.push(salesmanSummary)
+
+      // Update totals
+      summary.totals.rental += salesmanSummary.rental
+      summary.totals.used_equipment += salesmanSummary.used_equipment
+      summary.totals.allied_equipment += salesmanSummary.allied_equipment
+      summary.totals.new_equipment += salesmanSummary.new_equipment
+      summary.totals.total_sales += salesmanSummary.total_sales
+      summary.totals.total_commissions += salesmanSummary.commission_amount
+    })
+
+    // Sort by total sales descending
+    summary.salespeople.sort((a, b) => b.total_sales - a.total_sales)
+
+    return summary
+  }, [reorganizedSalesmenData, commissionSettings, manualCommissions])
+
   // Select All commission checkboxes
   const handleSelectAllCommission = useCallback(() => {
     if (!detailsData?.salesmen) return
@@ -799,79 +906,147 @@ const SalesCommissionReport = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {formatCommission(commissionData.totals.total_commissions)}
+                  {formatCommission(actualCommissionSummary ? actualCommissionSummary.totals.total_commissions : commissionData.totals.total_commissions)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {commissionData.salespeople.length} sales reps
+                  {actualCommissionSummary ? actualCommissionSummary.salespeople.length : commissionData.salespeople.length} sales reps
+                  {actualCommissionSummary && <span className="text-green-600 font-semibold"> (actual)</span>}
+                  {!actualCommissionSummary && <span className="text-orange-600"> (est.)</span>}
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Commission Details Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Commission Details by Sales Rep</CardTitle>
-              <CardDescription>
-                Breakdown of sales and commissions for {(() => {
-                  const [year, month] = selectedMonth.split('-')
-                  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-                  return `${monthNames[parseInt(month, 10) - 1]} ${year}`
-                })()}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Sales Rep</TableHead>
-                    <TableHead className="text-right">Rental</TableHead>
-                    <TableHead className="text-right">Used Equip</TableHead>
-                    <TableHead className="text-right">Allied Equip</TableHead>
-                    <TableHead className="text-right">New Equip</TableHead>
-                    <TableHead className="text-right">Total Sales</TableHead>
-                    <TableHead className="text-center">Rate</TableHead>
-                    <TableHead className="text-right">Commission</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {commissionData.salespeople.map((rep, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{rep.name}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(rep.rental)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(rep.used_equipment)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(rep.allied_equipment)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(rep.new_equipment)}</TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatCurrency(rep.total_sales)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary">
-                          {(rep.commission_rate * 100).toFixed(1)}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-green-600">
-                        {formatCommission(rep.commission_amount)}
+          {/* Commission Details Table - Show actual calculated commissions if details loaded */}
+          {actualCommissionSummary ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Commission Details by Sales Rep</CardTitle>
+                <CardDescription>
+                  Breakdown of sales and commissions for {(() => {
+                    const [year, month] = selectedMonth.split('-')
+                    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+                    return `${monthNames[parseInt(month, 10) - 1]} ${year}`
+                  })()} (includes manual adjustments and commission settings)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sales Rep</TableHead>
+                      <TableHead className="text-right">Rental</TableHead>
+                      <TableHead className="text-right">Used Equip</TableHead>
+                      <TableHead className="text-right">Allied Equip</TableHead>
+                      <TableHead className="text-right">New Equip</TableHead>
+                      <TableHead className="text-right">Total Sales</TableHead>
+                      <TableHead className="text-center">Rate</TableHead>
+                      <TableHead className="text-right">Commission</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {actualCommissionSummary.salespeople.map((rep, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{rep.name}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.rental)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.used_equipment)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.allied_equipment)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.new_equipment)}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatCurrency(rep.total_sales)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary">
+                            {(rep.commission_rate * 100).toFixed(1)}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-green-600">
+                          {formatCommission(rep.commission_amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Total Row */}
+                    <TableRow className="border-t-2 font-bold">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.rental)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.used_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.allied_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.new_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.total_sales)}</TableCell>
+                      <TableCell></TableCell>
+                      <TableCell className="text-right text-green-600">
+                        {formatCommission(actualCommissionSummary.totals.total_commissions)}
                       </TableCell>
                     </TableRow>
-                  ))}
-                  {/* Total Row */}
-                  <TableRow className="border-t-2 font-bold">
-                    <TableCell>TOTAL</TableCell>
-                    <TableCell className="text-right">{formatCurrency(commissionData.totals.rental)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(commissionData.totals.used_equipment)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(commissionData.totals.allied_equipment)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(commissionData.totals.new_equipment)}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(commissionData.totals.total_sales)}</TableCell>
-                    <TableCell></TableCell>
-                    <TableCell className="text-right text-green-600">
-                      {formatCommission(commissionData.totals.total_commissions)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : commissionData ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Commission Details by Sales Rep</CardTitle>
+                <CardDescription>
+                  Breakdown of sales and commissions for {(() => {
+                    const [year, month] = selectedMonth.split('-')
+                    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+                    return `${monthNames[parseInt(month, 10) - 1]} ${year}`
+                  })()} (estimated - click "Show Details" for accurate calculations)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sales Rep</TableHead>
+                      <TableHead className="text-right">Rental</TableHead>
+                      <TableHead className="text-right">Used Equip</TableHead>
+                      <TableHead className="text-right">Allied Equip</TableHead>
+                      <TableHead className="text-right">New Equip</TableHead>
+                      <TableHead className="text-right">Total Sales</TableHead>
+                      <TableHead className="text-center">Rate</TableHead>
+                      <TableHead className="text-right">Commission</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {commissionData.salespeople.map((rep, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{rep.name}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.rental)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.used_equipment)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.allied_equipment)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.new_equipment)}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatCurrency(rep.total_sales)}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary">
+                            {(rep.commission_rate * 100).toFixed(1)}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-green-600">
+                          {formatCommission(rep.commission_amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Total Row */}
+                    <TableRow className="border-t-2 font-bold">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right">{formatCurrency(commissionData.totals.rental)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(commissionData.totals.used_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(commissionData.totals.allied_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(commissionData.totals.new_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(commissionData.totals.total_sales)}</TableCell>
+                      <TableCell></TableCell>
+                      <TableCell className="text-right text-green-600">
+                        {formatCommission(commissionData.totals.total_commissions)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Detailed Invoice Breakdown */}
           <Card className="-mx-4 sm:-mx-6 lg:-mx-8">
