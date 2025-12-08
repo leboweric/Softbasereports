@@ -935,12 +935,11 @@ const SalesCommissionReport = ({ user }) => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Sales Rep</TableHead>
-                      <TableHead className="text-right">Rental</TableHead>
+                      <TableHead className="text-right">New Equip</TableHead>
                       <TableHead className="text-right">Used Equip</TableHead>
                       <TableHead className="text-right">Allied Equip</TableHead>
-                      <TableHead className="text-right">New Equip</TableHead>
+                      <TableHead className="text-right">Rental</TableHead>
                       <TableHead className="text-right">Total Sales</TableHead>
-                      <TableHead className="text-center">Rate</TableHead>
                       <TableHead className="text-right">Commission</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -948,17 +947,12 @@ const SalesCommissionReport = ({ user }) => {
                     {actualCommissionSummary.salespeople.map((rep, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">{rep.name}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(rep.rental)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.new_equipment)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(rep.used_equipment)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(rep.allied_equipment)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(rep.new_equipment)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.rental)}</TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatCurrency(rep.total_sales)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary">
-                            {(rep.commission_rate * 100).toFixed(1)}%
-                          </Badge>
                         </TableCell>
                         <TableCell className="text-right font-bold text-green-600">
                           {formatCommission(rep.commission_amount)}
@@ -968,12 +962,11 @@ const SalesCommissionReport = ({ user }) => {
                     {/* Total Row */}
                     <TableRow className="border-t-2 font-bold">
                       <TableCell>TOTAL</TableCell>
-                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.rental)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.new_equipment)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.used_equipment)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.allied_equipment)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.new_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.rental)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(actualCommissionSummary.totals.total_sales)}</TableCell>
-                      <TableCell></TableCell>
                       <TableCell className="text-right text-green-600">
                         {formatCommission(actualCommissionSummary.totals.total_commissions)}
                       </TableCell>
@@ -999,12 +992,11 @@ const SalesCommissionReport = ({ user }) => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Sales Rep</TableHead>
-                      <TableHead className="text-right">Rental</TableHead>
+                      <TableHead className="text-right">New Equip</TableHead>
                       <TableHead className="text-right">Used Equip</TableHead>
                       <TableHead className="text-right">Allied Equip</TableHead>
-                      <TableHead className="text-right">New Equip</TableHead>
+                      <TableHead className="text-right">Rental</TableHead>
                       <TableHead className="text-right">Total Sales</TableHead>
-                      <TableHead className="text-center">Rate</TableHead>
                       <TableHead className="text-right">Commission</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1012,17 +1004,12 @@ const SalesCommissionReport = ({ user }) => {
                     {commissionData.salespeople.map((rep, index) => (
                       <TableRow key={index}>
                         <TableCell className="font-medium">{rep.name}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(rep.rental)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.new_equipment)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(rep.used_equipment)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(rep.allied_equipment)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(rep.new_equipment)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(rep.rental)}</TableCell>
                         <TableCell className="text-right font-semibold">
                           {formatCurrency(rep.total_sales)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary">
-                            {(rep.commission_rate * 100).toFixed(1)}%
-                          </Badge>
                         </TableCell>
                         <TableCell className="text-right font-bold text-green-600">
                           {formatCommission(rep.commission_amount)}
@@ -1032,12 +1019,11 @@ const SalesCommissionReport = ({ user }) => {
                     {/* Total Row */}
                     <TableRow className="border-t-2 font-bold">
                       <TableCell>TOTAL</TableCell>
-                      <TableCell className="text-right">{formatCurrency(commissionData.totals.rental)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(commissionData.totals.new_equipment)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(commissionData.totals.used_equipment)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(commissionData.totals.allied_equipment)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(commissionData.totals.new_equipment)}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(commissionData.totals.rental)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(commissionData.totals.total_sales)}</TableCell>
-                      <TableCell></TableCell>
                       <TableCell className="text-right text-green-600">
                         {formatCommission(commissionData.totals.total_commissions)}
                       </TableCell>
