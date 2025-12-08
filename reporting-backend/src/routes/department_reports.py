@@ -8939,6 +8939,7 @@ def register_department_routes(reports_bp):
                     COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
+                AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
             """
@@ -9184,6 +9185,7 @@ def register_department_routes(reports_bp):
             FROM [ben002].InvoiceReg i
             LEFT JOIN [ben002].Customer c ON i.BillTo = c.Number
             WHERE i.SaleCode = 'FMBILL'
+                AND i.BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
             GROUP BY i.BillTo, c.Name
             ORDER BY total_revenue DESC
             """
@@ -9202,6 +9204,7 @@ def register_department_routes(reports_bp):
                 MAX(InvoiceDate) as latest_invoice
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
+                AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
             """
 
             summary_results = db.execute_query(summary_query)
