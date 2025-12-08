@@ -7080,17 +7080,17 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'BAT-CHG') THEN 'Used Equipment'
                     WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
                     WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
                     ELSE 'Other'
                 END as Category,
                 -- Revenue amounts
-                CASE 
+                CASE
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
-                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0
                 END as CategoryAmount,
@@ -7136,7 +7136,7 @@ def register_department_routes(reports_bp):
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
                     OR
                     (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                      AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
                 )
             ORDER BY COALESCE(wo.Salesman, 'House'), ir.InvoiceDate, ir.InvoiceNo
@@ -7268,16 +7268,16 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'BAT-CHG') THEN 'Used Equipment'
                     WHEN ir.SaleCode = 'ALLIED' THEN 'Allied Equipment'
                     WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 'New Equipment'
                     ELSE 'Other'
                 END as Category,
-                CASE 
+                CASE
                     WHEN ir.SaleCode = 'RENTAL'
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
-                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                         'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0
                 END as CategoryAmount,
@@ -7292,8 +7292,8 @@ def register_department_routes(reports_bp):
                 AND (
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
                     OR
-                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 
-                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') 
+                    (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                      AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
                 )
             ORDER BY ir.InvoiceDate, ir.InvoiceNo
