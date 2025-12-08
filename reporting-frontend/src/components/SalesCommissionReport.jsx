@@ -2106,9 +2106,9 @@ const SalesCommissionReport = ({ user }) => {
                                               <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                              {allSalesmenNames.map(name => (
-                                                <SelectItem key={name} value={name} className="text-xs">
-                                                  {name}
+                                              {detailsData?.salesmen?.map((s) => (
+                                                <SelectItem key={s.name} value={s.name} className="text-xs">
+                                                  {s.name === originalSalesman ? `${s.name} (orig)` : s.name}
                                                 </SelectItem>
                                               ))}
                                             </SelectContent>
