@@ -2020,9 +2020,9 @@ const SalesCommissionReport = ({ user }) => {
                                       <Badge variant="outline" className="font-mono text-xs">
                                         {inv.sale_code}
                                       </Badge>
-                                      {inv.rental_period && (
+                                      {inv.RentalPeriod && (
                                         <Badge variant="default" className="text-xs bg-blue-500">
-                                          {inv.rental_period}
+                                          {inv.RentalPeriod}
                                         </Badge>
                                       )}
                                     </div>
