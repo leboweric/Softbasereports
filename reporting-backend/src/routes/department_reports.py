@@ -6611,7 +6611,7 @@ def register_department_routes(reports_bp):
 
             # Current filter list for comparison
             current_filter = ['RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                            'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
+                            'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG']
 
             return jsonify({
                 'searched_invoices': invoice_list,
@@ -6643,7 +6643,7 @@ def register_department_routes(reports_bp):
 
             # Commission-eligible sale codes
             commission_sale_codes = ['RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
+                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG']
 
             # Query to find the invoice with all relevant details
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
@@ -7131,7 +7131,7 @@ def register_department_routes(reports_bp):
                 AND COALESCE(wo.Salesman, 'House') != ''
                 AND UPPER(COALESCE(wo.Salesman, 'House')) != 'HOUSE'
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
                     OR
@@ -7288,7 +7288,7 @@ def register_department_routes(reports_bp):
                 AND ir.InvoiceDate <= %s
                 AND (wo.Salesman IS NULL OR wo.Salesman = '' OR UPPER(wo.Salesman) = 'HOUSE')
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                                    'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
                     (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
                     OR
