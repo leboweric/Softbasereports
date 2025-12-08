@@ -193,6 +193,8 @@ function App() {
         return <MinitracSearch user={user} organization={organization} />
       case 'database-explorer':
         return <DatabaseExplorer user={user} organization={organization} />
+      case 'schema-explorer':
+        return <SchemaExplorer user={user} organization={organization} />
       case 'user-management':
         return <UserManagement user={user} />
       case 'tenant-admin':

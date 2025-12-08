@@ -29,6 +29,7 @@ RESOURCES = {
     'currie': 'Currie Financial Model quarterly reporting',
     'financial': 'Financial reports including P&L and Currie',
     'database_explorer': 'Database query and exploration tool',
+    'schema_explorer': 'Schema explorer for investigating database structure',
     'user_management': 'User and role management',
     'qbr': 'Quarterly Business Review dashboard and PowerPoint export',
     'my_commissions': 'Sales rep personal commission report (view own data only)',
@@ -230,6 +231,13 @@ NAVIGATION_CONFIG = {
         'path': 'database-explorer',
         'required_resource': 'database_explorer',
         'order': 9,
+    },
+    'schema-explorer': {
+        'label': 'Schema Explorer',
+        'icon': 'FileSearch',
+        'path': 'schema-explorer',
+        'required_resource': 'schema_explorer',
+        'order': 9.5,
     },
     'user-management': {
         'label': 'User Management',
