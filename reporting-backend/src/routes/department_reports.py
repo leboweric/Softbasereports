@@ -6273,17 +6273,16 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Query to get sales by salesman and category
-            # Get salesman directly from the invoice's BillTo customer record ONLY
+            # Get salesman directly from the invoice record itself
             sales_query = """
             WITH SalesmanLookup AS (
-                -- Get the salesman from the invoice's BillTo customer record
+                -- Get the salesman from the invoice record (not the customer record)
                 SELECT
                     ir.InvoiceNo,
                     ir.BillTo,
                     ir.BillToName,
-                    COALESCE(c.Salesman1, 'Unassigned') as Salesman
+                    COALESCE(ir.Salesman1, 'Unassigned') as Salesman
                 FROM ben002.InvoiceReg ir
-                LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
                 WHERE ir.InvoiceDate >= %s
                     AND ir.InvoiceDate <= %s
             )
@@ -6665,14 +6664,13 @@ def register_department_routes(reports_bp):
                 ir.BillTo,
                 ir.BillToName as CustomerName,
                 ir.SaleCode,
-                c.Salesman1,
+                ir.Salesman1,
                 ir.GrandTotal,
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) as RentalAmount,
                 COALESCE(ir.EquipmentCost, 0) as EquipmentCost,
                 COALESCE(ir.RentalCost, 0) as RentalCost
             FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceNo = %s
             """
 
