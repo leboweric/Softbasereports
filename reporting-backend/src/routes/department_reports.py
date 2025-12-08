@@ -8945,11 +8945,20 @@ def register_department_routes(reports_bp):
 
             revenue_results = db.execute_query(revenue_query)
 
-            # Get list of FMBILL customer numbers
+            # Get list of ShipTo locations that have work orders for FMBILL customers
+            # This finds actual service locations, not billing entities like leasing companies
             fmbill_customers_query = """
-            SELECT DISTINCT BillTo as customer_number
-            FROM [ben002].InvoiceReg
-            WHERE SaleCode = 'FMBILL'
+            SELECT DISTINCT w.ShipTo as customer_number
+            FROM [ben002].WO w
+            WHERE w.BillTo IN (
+                SELECT DISTINCT BillTo
+                FROM [ben002].InvoiceReg
+                WHERE SaleCode = 'FMBILL'
+            )
+            AND w.Type IN ('S', 'SH', 'PM')
+            AND w.ShipTo IS NOT NULL
+            AND w.ShipTo != ''
+            AND w.ShipTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
             """
             fmbill_customers = db.execute_query(fmbill_customers_query)
             customer_numbers = [row['customer_number'] for row in fmbill_customers]
