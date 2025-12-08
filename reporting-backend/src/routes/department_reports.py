@@ -6273,17 +6273,18 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Query to get sales by salesman and category
-            # Get salesman directly from the invoice's BillTo customer record ONLY
+            # Check commission_settings for reassignments, otherwise use customer's salesman
             sales_query = """
             WITH SalesmanLookup AS (
-                -- Get the salesman from the invoice's BillTo customer record
+                -- Get the salesman from reassignment if exists, otherwise from customer record
                 SELECT
                     ir.InvoiceNo,
                     ir.BillTo,
                     ir.BillToName,
-                    COALESCE(c.Salesman1, 'Unassigned') as Salesman
+                    COALESCE(cs.reassigned_to, c.Salesman1, 'Unassigned') as Salesman
                 FROM ben002.InvoiceReg ir
                 LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+                LEFT JOIN commission_settings cs ON ir.InvoiceNo = cs.invoice_no
                 WHERE ir.InvoiceDate >= %s
                     AND ir.InvoiceDate <= %s
             )
@@ -6658,6 +6659,7 @@ def register_department_routes(reports_bp):
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM']
 
             # Query to find the invoice with all relevant details
+            # Check commission_settings for reassignments, otherwise use customer's salesman
             query = """
             SELECT
                 ir.InvoiceNo,
@@ -6665,7 +6667,7 @@ def register_department_routes(reports_bp):
                 ir.BillTo,
                 ir.BillToName as CustomerName,
                 ir.SaleCode,
-                c.Salesman1,
+                COALESCE(cs.reassigned_to, c.Salesman1) as Salesman1,
                 ir.GrandTotal,
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) as RentalAmount,
@@ -6673,6 +6675,7 @@ def register_department_routes(reports_bp):
                 COALESCE(ir.RentalCost, 0) as RentalCost
             FROM ben002.InvoiceReg ir
             LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            LEFT JOIN commission_settings cs ON ir.InvoiceNo = cs.invoice_no
             WHERE ir.InvoiceNo = %s
             """
 
