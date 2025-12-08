@@ -7071,13 +7071,14 @@ def register_department_routes(reports_bp):
             # Query to get all commission-eligible invoices with details
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
             details_query = """
-            SELECT 
+            SELECT
                 ir.InvoiceNo,
                 ir.InvoiceDate,
                 ir.BillTo,
                 ir.BillToName as CustomerName,
                 COALESCE(wo.Salesman, 'House') as Salesman1,
                 ir.SaleCode,
+                wo.RentalPeriod,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
                     WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL') THEN 'Used Equipment'
@@ -7133,7 +7134,8 @@ def register_department_routes(reports_bp):
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
-                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
+                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
+                     AND wo.RentalPeriod IN ('Monthly', '4 Week'))
                     OR
                     (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                      'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
@@ -7290,7 +7292,8 @@ def register_department_routes(reports_bp):
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
-                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0))
+                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
+                     AND wo.RentalPeriod IN ('Monthly', '4 Week'))
                     OR
                     (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                      'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
