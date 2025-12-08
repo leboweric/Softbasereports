@@ -6273,23 +6273,10 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Query to get sales by salesman and category
-            # Use invoice's actual salesman via SaleDept -> Dept -> Salesman
+            # Use WO.Salesman field directly from work order table
             sales_query = """
-            WITH SalesmanLookup AS (
-                -- Get the salesman from invoice via SaleDept -> Dept -> Salesman
-                SELECT
-                    ir.InvoiceNo,
-                    ir.BillTo,
-                    ir.BillToName,
-                    COALESCE(s.Name, 'Unassigned') as Salesman
-                FROM ben002.InvoiceReg ir
-                LEFT JOIN ben002.Dept d ON ir.SaleDept = d.Dept
-                LEFT JOIN ben002.Salesman s ON d.SaleGroup = s.SalesGroup
-                WHERE ir.InvoiceDate >= %s
-                    AND ir.InvoiceDate <= %s
-            )
             SELECT 
-                sl.Salesman as SalesRep,
+                COALESCE(wo.Salesman, 'Unassigned') as SalesRep,
                 -- Rental sales and costs
                 SUM(CASE 
                     WHEN ir.SaleCode = 'RENTAL'
@@ -6339,14 +6326,14 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as NewEquipmentCost
             FROM ben002.InvoiceReg ir
-            INNER JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
+            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.InvoiceNo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND sl.Salesman != 'Unassigned'
-                AND sl.Salesman IS NOT NULL
-                AND sl.Salesman != ''
-                AND UPPER(sl.Salesman) != 'HOUSE'
-            GROUP BY sl.Salesman
+                AND COALESCE(wo.Salesman, 'Unassigned') != 'Unassigned'
+                AND COALESCE(wo.Salesman, 'Unassigned') IS NOT NULL
+                AND COALESCE(wo.Salesman, 'Unassigned') != ''
+                AND UPPER(COALESCE(wo.Salesman, 'Unassigned')) != 'HOUSE'
+            GROUP BY COALESCE(wo.Salesman, 'Unassigned')
             ORDER BY SUM(
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) +
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
@@ -7083,66 +7070,14 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Query to get all commission-eligible invoices with details
-            # Updated to find salesman from ANY customer record with matching name
+            # Use WO.Salesman field directly from work order table
             details_query = """
-            WITH SalesmanLookup AS (
-                -- Find the salesman for each invoice by checking all customer records with matching name
-                SELECT 
-                    InvoiceNo,
-                    Salesman1
-                FROM (
-                    SELECT 
-                        InvoiceNo,
-                        Salesman1,
-                        ROW_NUMBER() OVER (PARTITION BY InvoiceNo ORDER BY Priority) as rn
-                    FROM (
-                        SELECT DISTINCT
-                            ir.InvoiceNo,
-                            CASE 
-                                WHEN c1.Salesman1 IS NOT NULL THEN c1.Salesman1
-                                WHEN c2.Salesman1 IS NOT NULL THEN c2.Salesman1
-                                WHEN c3.Salesman1 IS NOT NULL THEN c3.Salesman1
-                                ELSE NULL
-                            END as Salesman1,
-                            CASE 
-                                WHEN c1.Salesman1 IS NOT NULL THEN 1
-                                WHEN c2.Salesman1 IS NOT NULL THEN 2
-                                WHEN c3.Salesman1 IS NOT NULL THEN 3
-                                ELSE 4
-                            END as Priority
-                        FROM ben002.InvoiceReg ir
-                        LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
-                        LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
-                        -- Try matching on first word of company name (e.g., SIMONSON)
-                        LEFT JOIN ben002.Customer c3 ON 
-                            c3.Salesman1 IS NOT NULL
-                            AND LEN(ir.BillToName) >= 4
-                            AND LEN(c3.Name) >= 4
-                            AND UPPER(
-                                CASE 
-                                    WHEN CHARINDEX(' ', ir.BillToName) > 0 
-                                    THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
-                                    ELSE ir.BillToName
-                                END
-                            ) = UPPER(
-                                CASE 
-                                    WHEN CHARINDEX(' ', c3.Name) > 0 
-                                    THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
-                                    ELSE c3.Name
-                                END
-                            )
-                        WHERE ir.InvoiceDate >= %s
-                            AND ir.InvoiceDate <= %s
-                    ) AS SalesmanMatches
-                ) AS RankedMatches
-                WHERE rn = 1
-            )
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
                 ir.BillTo,
                 ir.BillToName as CustomerName,
-                sl.Salesman1,
+                COALESCE(wo.Salesman, 'House') as Salesman1,
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
@@ -7190,12 +7125,12 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END as Commission
             FROM ben002.InvoiceReg ir
-            INNER JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
+            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.InvoiceNo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND sl.Salesman1 IS NOT NULL
-                AND sl.Salesman1 != ''
-                AND UPPER(sl.Salesman1) != 'HOUSE'
+                AND COALESCE(wo.Salesman, 'House') IS NOT NULL
+                AND COALESCE(wo.Salesman, 'House') != ''
+                AND UPPER(COALESCE(wo.Salesman, 'House')) != 'HOUSE'
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                 AND (
@@ -7205,7 +7140,7 @@ def register_department_routes(reports_bp):
                                      'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                      AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
                 )
-            ORDER BY sl.Salesman1, ir.InvoiceDate, ir.InvoiceNo
+            ORDER BY COALESCE(wo.Salesman, 'House'), ir.InvoiceDate, ir.InvoiceNo
             """
             
             results = db.execute_query(details_query, [start_date, end_date, start_date, end_date])
@@ -7323,65 +7258,14 @@ def register_department_routes(reports_bp):
             grand_total_commission = sum(s['total_commission'] for s in salesmen_list)
             
             # Query for unassigned invoices
+            # Use WO.Salesman field directly from work order table
             unassigned_query = """
-            WITH SalesmanLookup AS (
-                -- Find the salesman for each invoice by checking all customer records with matching name
-                SELECT 
-                    InvoiceNo,
-                    Salesman1
-                FROM (
-                    SELECT 
-                        InvoiceNo,
-                        Salesman1,
-                        ROW_NUMBER() OVER (PARTITION BY InvoiceNo ORDER BY Priority) as rn
-                    FROM (
-                        SELECT DISTINCT
-                            ir.InvoiceNo,
-                            CASE 
-                                WHEN c1.Salesman1 IS NOT NULL THEN c1.Salesman1
-                                WHEN c2.Salesman1 IS NOT NULL THEN c2.Salesman1
-                                WHEN c3.Salesman1 IS NOT NULL THEN c3.Salesman1
-                                ELSE NULL
-                            END as Salesman1,
-                            CASE 
-                                WHEN c1.Salesman1 IS NOT NULL THEN 1
-                                WHEN c2.Salesman1 IS NOT NULL THEN 2
-                                WHEN c3.Salesman1 IS NOT NULL THEN 3
-                                ELSE 4
-                            END as Priority
-                        FROM ben002.InvoiceReg ir
-                        LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
-                        LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
-                        -- Try matching on first word of company name (e.g., SIMONSON)
-                        LEFT JOIN ben002.Customer c3 ON 
-                            c3.Salesman1 IS NOT NULL
-                            AND LEN(ir.BillToName) >= 4
-                            AND LEN(c3.Name) >= 4
-                            AND UPPER(
-                                CASE 
-                                    WHEN CHARINDEX(' ', ir.BillToName) > 0 
-                                    THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
-                                    ELSE ir.BillToName
-                                END
-                            ) = UPPER(
-                                CASE 
-                                    WHEN CHARINDEX(' ', c3.Name) > 0 
-                                    THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
-                                    ELSE c3.Name
-                                END
-                            )
-                        WHERE ir.InvoiceDate >= %s
-                            AND ir.InvoiceDate <= %s
-                    ) AS SalesmanMatches
-                ) AS RankedMatches
-                WHERE rn = 1
-            )
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
                 ir.BillTo,
                 ir.BillToName as CustomerName,
-                COALESCE(sl.Salesman1, 'Unassigned') as Salesman,
+                COALESCE(wo.Salesman, 'Unassigned') as Salesman,
                 ir.SaleCode,
                 CASE
                     WHEN ir.SaleCode = 'RENTAL' THEN 'Rental'
@@ -7400,10 +7284,10 @@ def register_department_routes(reports_bp):
                 END as CategoryAmount,
                 ir.GrandTotal
             FROM ben002.InvoiceReg ir
-            LEFT JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
+            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.InvoiceNo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND (sl.Salesman1 IS NULL OR sl.Salesman1 = '' OR UPPER(sl.Salesman1) = 'HOUSE')
+                AND (wo.Salesman IS NULL OR wo.Salesman = '' OR UPPER(wo.Salesman) = 'HOUSE')
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
                 AND (
