@@ -1301,9 +1301,16 @@ const SalesCommissionReport = ({ user }) => {
                                     <td className="p-2 font-mono text-xs">{inv.bill_to || '-'}</td>
                                     <td className="p-1">{inv.customer_name}</td>
                                     <td className="p-1">
-                                      <Badge variant="outline" className="font-mono text-xs">
-                                        {inv.sale_code}
-                                      </Badge>
+                                      <div className="flex gap-1 items-center">
+                                        <Badge variant="outline" className="font-mono text-xs">
+                                          {inv.sale_code}
+                                        </Badge>
+                                        {inv.rental_period && (
+                                          <Badge variant="default" className="text-xs bg-blue-500">
+                                            {inv.rental_period}
+                                          </Badge>
+                                        )}
+                                      </div>
                                     </td>
                                     <td className="p-1">
                                       <Badge variant="secondary" className="text-xs">
@@ -2009,9 +2016,16 @@ const SalesCommissionReport = ({ user }) => {
                                     </Badge>
                                   </td>
                                   <td className="p-1">
-                                    <Badge variant="outline" className="font-mono text-xs">
-                                      {inv.sale_code}
-                                    </Badge>
+                                    <div className="flex gap-1 items-center">
+                                      <Badge variant="outline" className="font-mono text-xs">
+                                        {inv.sale_code}
+                                      </Badge>
+                                      {inv.rental_period && (
+                                        <Badge variant="default" className="text-xs bg-blue-500">
+                                          {inv.rental_period}
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="p-1">
                                     <Badge variant="secondary" className="text-xs">
