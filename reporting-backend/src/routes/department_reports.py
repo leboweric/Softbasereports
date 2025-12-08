@@ -6273,66 +6273,19 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Query to get sales by salesman and category
-            # Updated to find salesman from ANY customer record with matching name
+            # Get salesman directly from the invoice's BillTo customer record ONLY
             sales_query = """
             WITH SalesmanLookup AS (
-                -- Find the salesman for each invoice by checking all customer records with matching name
-                -- Use ROW_NUMBER to ensure one record per invoice
-                SELECT 
-                    InvoiceNo,
-                    BillTo,
-                    BillToName,
-                    Salesman
-                FROM (
-                    SELECT 
-                        InvoiceNo,
-                        BillTo,
-                        BillToName,
-                        Salesman,
-                        ROW_NUMBER() OVER (PARTITION BY InvoiceNo ORDER BY Priority) as rn
-                    FROM (
-                        SELECT DISTINCT
-                            ir.InvoiceNo,
-                            ir.BillTo,
-                            ir.BillToName,
-                            CASE 
-                                WHEN c1.Salesman1 IS NOT NULL THEN c1.Salesman1
-                                WHEN c2.Salesman1 IS NOT NULL THEN c2.Salesman1
-                                WHEN c3.Salesman1 IS NOT NULL THEN c3.Salesman1
-                                ELSE 'Unassigned'
-                            END as Salesman,
-                            CASE 
-                                WHEN c1.Salesman1 IS NOT NULL THEN 1  -- Direct match highest priority
-                                WHEN c2.Salesman1 IS NOT NULL THEN 2  -- Exact name match
-                                WHEN c3.Salesman1 IS NOT NULL THEN 3  -- First word match
-                                ELSE 4
-                            END as Priority
-                        FROM ben002.InvoiceReg ir
-                        LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
-                        LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
-                        -- Try matching on first word of company name (e.g., SIMONSON)
-                        LEFT JOIN ben002.Customer c3 ON 
-                            c3.Salesman1 IS NOT NULL
-                            AND LEN(ir.BillToName) >= 4
-                            AND LEN(c3.Name) >= 4
-                            AND UPPER(
-                                CASE 
-                                    WHEN CHARINDEX(' ', ir.BillToName) > 0 
-                                    THEN LEFT(ir.BillToName, CHARINDEX(' ', ir.BillToName) - 1)
-                                    ELSE ir.BillToName
-                                END
-                            ) = UPPER(
-                                CASE 
-                                    WHEN CHARINDEX(' ', c3.Name) > 0 
-                                    THEN LEFT(c3.Name, CHARINDEX(' ', c3.Name) - 1)
-                                    ELSE c3.Name
-                                END
-                            )
-                        WHERE ir.InvoiceDate >= %s
-                            AND ir.InvoiceDate <= %s
-                    ) AS SalesmanMatches
-                ) AS RankedMatches
-                WHERE rn = 1  -- Only take the best match per invoice
+                -- Get the salesman from the invoice's BillTo customer record
+                SELECT
+                    ir.InvoiceNo,
+                    ir.BillTo,
+                    ir.BillToName,
+                    COALESCE(c.Salesman1, 'Unassigned') as Salesman
+                FROM ben002.InvoiceReg ir
+                LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+                WHERE ir.InvoiceDate >= %s
+                    AND ir.InvoiceDate <= %s
             )
             SELECT 
                 sl.Salesman as SalesRep,
