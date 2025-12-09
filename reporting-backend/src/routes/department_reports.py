@@ -7618,6 +7618,7 @@ def register_department_routes(reports_bp):
                 -- PO and other fields
                 COALESCE(i.PONo, '') as PONo,
                 i.PartsTaxable,
+                i.PartsNonTax,
                 i.LaborTaxable,
                 i.LaborNonTax,
                 i.MiscTaxable,
@@ -7659,6 +7660,7 @@ def register_department_routes(reports_bp):
             # Calculate totals
             totals = {
                 'parts_taxable': sum(inv['PartsTaxable'] or 0 for inv in invoices),
+                'parts_non_tax': sum(inv['PartsNonTax'] or 0 for inv in invoices),
                 'labor_taxable': sum(inv['LaborTaxable'] or 0 for inv in invoices),
                 'labor_non_tax': sum(inv['LaborNonTax'] or 0 for inv in invoices),
                 'misc_taxable': sum(inv['MiscTaxable'] or 0 for inv in invoices),

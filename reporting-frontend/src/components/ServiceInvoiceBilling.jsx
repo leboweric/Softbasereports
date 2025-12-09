@@ -264,7 +264,7 @@ const ServiceInvoiceBilling = () => {
         inv.SerialNo || '',
         inv.HourMeter ? Math.round(Number(inv.HourMeter)) : '',
         inv.PONo || '',
-        Number(inv.PartsTaxable || 0),
+        parseFloat(inv.PartsTaxable || 0) + parseFloat(inv.PartsNonTax || 0),
         parseFloat(inv.LaborTaxable || 0) + parseFloat(inv.LaborNonTax || 0),
         Number(inv.MiscTaxable || 0),
         Number(inv.Freight || 0),
@@ -289,7 +289,7 @@ const ServiceInvoiceBilling = () => {
       const totalsRow = worksheet.addRow([
         'TOTALS',
         '', '', '', '', '', '', '',
-        Number(reportData.totals.parts_taxable || 0),
+        parseFloat(reportData.totals.parts_taxable || 0) + parseFloat(reportData.totals.parts_non_tax || 0),
         parseFloat(reportData.totals.labor_taxable || 0) + parseFloat(reportData.totals.labor_non_tax || 0),
         Number(reportData.totals.misc_taxable || 0),
         Number(reportData.totals.freight || 0),
@@ -563,7 +563,12 @@ const ServiceInvoiceBilling = () => {
                         </TableCell>
                         <TableCell>{invoice.PONo || '-'}</TableCell>
                         <TableCell className="text-right">
-                          {invoice.PartsTaxable ? formatCurrency(invoice.PartsTaxable) : '-'}
+                          {(() => {
+                            const partsTax = parseFloat(invoice.PartsTaxable) || 0;
+                            const partsNonTax = parseFloat(invoice.PartsNonTax) || 0;
+                            const total = partsTax + partsNonTax;
+                            return total > 0 ? formatCurrency(total) : '$0.00';
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           {(() => {
@@ -596,7 +601,7 @@ const ServiceInvoiceBilling = () => {
                         TOTALS:
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatCurrency(reportData.totals.parts_taxable)}
+                        {formatCurrency((parseFloat(reportData.totals.parts_taxable) || 0) + (parseFloat(reportData.totals.parts_non_tax) || 0))}
                       </TableCell>
                       <TableCell className="text-right">
                         {formatCurrency((parseFloat(reportData.totals.labor_taxable) || 0) + (parseFloat(reportData.totals.labor_non_tax) || 0))}
