@@ -8786,7 +8786,6 @@ def register_department_routes(reports_bp):
                     COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
-                AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
                 AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
@@ -8808,7 +8807,6 @@ def register_department_routes(reports_bp):
             AND w.Type IN ('S', 'SH', 'PM')
             AND w.ShipTo IS NOT NULL
             AND w.ShipTo != ''
-            AND w.ShipTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
             """
             fmbill_customers = db.execute_query(fmbill_customers_query)
             customer_numbers = [row['customer_number'] for row in fmbill_customers]
@@ -9023,7 +9021,7 @@ def register_department_routes(reports_bp):
             # Get FMBILL revenue by customer
             customer_query = """
             SELECT
-                i.BillTo as customer_number,
+                i.ShipTo as customer_number,
                 c.Name as customer_name,
                 COUNT(*) as invoice_count,
                 SUM(COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) +
@@ -9032,11 +9030,12 @@ def register_department_routes(reports_bp):
                 MIN(i.InvoiceDate) as first_invoice,
                 MAX(i.InvoiceDate) as last_invoice
             FROM [ben002].InvoiceReg i
-            LEFT JOIN [ben002].Customer c ON i.BillTo = c.Number
+            LEFT JOIN [ben002].Customer c ON i.ShipTo = c.Number
             WHERE i.SaleCode = 'FMBILL'
-                AND i.BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
                 AND i.InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
-            GROUP BY i.BillTo, c.Name
+                AND i.ShipTo IS NOT NULL
+                AND i.ShipTo != ''
+            GROUP BY i.ShipTo, c.Name
             ORDER BY total_revenue DESC
             """
 
@@ -9046,7 +9045,7 @@ def register_department_routes(reports_bp):
             summary_query = """
             SELECT
                 COUNT(*) as total_invoices,
-                COUNT(DISTINCT BillTo) as unique_customers,
+                COUNT(DISTINCT ShipTo) as unique_customers,
                 SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) +
                     COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) +
                     COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue,
@@ -9054,8 +9053,9 @@ def register_department_routes(reports_bp):
                 MAX(InvoiceDate) as latest_invoice
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
-                AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
                 AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
+                AND ShipTo IS NOT NULL
+                AND ShipTo != ''
             """
 
             summary_results = db.execute_query(summary_query)
