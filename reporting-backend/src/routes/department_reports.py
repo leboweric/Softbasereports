@@ -8764,6 +8764,8 @@ def register_department_routes(reports_bp):
         Get Maintenance Contract (FMBILL) profitability analysis.
         Compares contract revenue (from FMBILL invoices) to actual service costs
         from Work Orders (WOLabor + WOParts + WOMisc).
+        
+        Uses trailing 13 months of data to ensure continuity across year boundaries.
 
         True profitability = Contract Revenue - Actual Service Costs
         """
@@ -8785,7 +8787,7 @@ def register_department_routes(reports_bp):
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
                 AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
-                AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- Current year only
+                AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
             """
@@ -8801,7 +8803,7 @@ def register_department_routes(reports_bp):
                 SELECT DISTINCT BillTo
                 FROM [ben002].InvoiceReg
                 WHERE SaleCode = 'FMBILL'
-                    AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- Current year only
+                    AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
             )
             AND w.Type IN ('S', 'SH', 'PM')
             AND w.ShipTo IS NOT NULL
@@ -9033,7 +9035,7 @@ def register_department_routes(reports_bp):
             LEFT JOIN [ben002].Customer c ON i.BillTo = c.Number
             WHERE i.SaleCode = 'FMBILL'
                 AND i.BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
-                AND YEAR(i.InvoiceDate) = YEAR(GETDATE())  -- Current year only
+                AND i.InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
             GROUP BY i.BillTo, c.Name
             ORDER BY total_revenue DESC
             """
@@ -9053,7 +9055,7 @@ def register_department_routes(reports_bp):
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
                 AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
-                AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- Current year only
+                AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
             """
 
             summary_results = db.execute_query(summary_query)
