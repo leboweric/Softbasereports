@@ -8785,6 +8785,7 @@ def register_department_routes(reports_bp):
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
                 AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
+                AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- Current year only
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
             """
@@ -8800,6 +8801,7 @@ def register_department_routes(reports_bp):
                 SELECT DISTINCT BillTo
                 FROM [ben002].InvoiceReg
                 WHERE SaleCode = 'FMBILL'
+                    AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- Current year only
             )
             AND w.Type IN ('S', 'SH', 'PM')
             AND w.ShipTo IS NOT NULL
@@ -9031,6 +9033,7 @@ def register_department_routes(reports_bp):
             LEFT JOIN [ben002].Customer c ON i.BillTo = c.Number
             WHERE i.SaleCode = 'FMBILL'
                 AND i.BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
+                AND YEAR(i.InvoiceDate) = YEAR(GETDATE())  -- Current year only
             GROUP BY i.BillTo, c.Name
             ORDER BY total_revenue DESC
             """
@@ -9050,6 +9053,7 @@ def register_department_routes(reports_bp):
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
                 AND BillTo NOT IN ('78960', '89410')  -- Exclude Wells Fargo and US Bank
+                AND YEAR(InvoiceDate) = YEAR(GETDATE())  -- Current year only
             """
 
             summary_results = db.execute_query(summary_query)
