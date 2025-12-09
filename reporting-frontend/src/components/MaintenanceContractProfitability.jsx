@@ -37,6 +37,11 @@ const MaintenanceContractProfitability = () => {
   const [equipmentSortField, setEquipmentSortField] = useState('total_cost')
   const [equipmentSortDirection, setEquipmentSortDirection] = useState('desc')
   const [selectedCustomerFilter, setSelectedCustomerFilter] = useState('all')
+  const [dateFilterType, setDateFilterType] = useState('trailing') // 'trailing', 'month', 'range'
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -55,7 +60,17 @@ const MaintenanceContractProfitability = () => {
     try {
       setLoading(true)
       const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/departments/guaranteed-maintenance/profitability'), {
+      
+      // Build query params based on date filter type
+      let queryParams = ''
+      if (dateFilterType === 'month') {
+        queryParams = `?month=${selectedMonth}&year=${selectedYear}`
+      } else if (dateFilterType === 'range' && startDate && endDate) {
+        queryParams = `?start_date=${startDate}&end_date=${endDate}`
+      }
+      // If 'trailing', no params needed (default)
+      
+      const response = await fetch(apiUrl(`/api/reports/departments/guaranteed-maintenance/profitability${queryParams}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -225,6 +240,96 @@ const MaintenanceContractProfitability = () => {
 
   return (
     <div className="space-y-6">
+      {/* Date Filter Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Date Range Filter</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Filter Type</label>
+              <select
+                value={dateFilterType}
+                onChange={(e) => setDateFilterType(e.target.value)}
+                className="w-full p-2 border rounded"
+              >
+                <option value="trailing">Trailing 13 Months</option>
+                <option value="month">Specific Month</option>
+                <option value="range">Custom Range</option>
+              </select>
+            </div>
+
+            {dateFilterType === 'month' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Month</label>
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="1">January</option>
+                    <option value="2">February</option>
+                    <option value="3">March</option>
+                    <option value="4">April</option>
+                    <option value="5">May</option>
+                    <option value="6">June</option>
+                    <option value="7">July</option>
+                    <option value="8">August</option>
+                    <option value="9">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Year</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="w-full p-2 border rounded"
+                  >
+                    {[2023, 2024, 2025, 2026].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {dateFilterType === 'range' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="flex items-end">
+              <Button onClick={fetchProfitabilityData} className="w-full">
+                Apply Filter
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid gap-4 md:grid-cols-5">
         <Card>

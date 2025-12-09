@@ -8773,6 +8773,26 @@ def register_department_routes(reports_bp):
         """
         try:
             db = get_db()
+            
+            # Get date parameters from query string
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            month = request.args.get('month')
+            year = request.args.get('year')
+            
+            # Build date filter based on parameters
+            if month and year:
+                # Specific month/year
+                date_filter = f"AND YEAR(InvoiceDate) = {year} AND MONTH(InvoiceDate) = {month}"
+                wo_date_filter = f"AND YEAR(w.OpenDate) = {year} AND MONTH(w.OpenDate) = {month}"
+            elif start_date and end_date:
+                # Custom date range
+                date_filter = f"AND InvoiceDate >= '{start_date}' AND InvoiceDate <= '{end_date}'"
+                wo_date_filter = f"AND w.OpenDate >= '{start_date}' AND w.OpenDate <= '{end_date}'"
+            else:
+                # Default: trailing 13 months
+                date_filter = "AND InvoiceDate >= DATEADD(month, -13, GETDATE())"
+                wo_date_filter = "AND w.OpenDate >= DATEADD(month, -13, GETDATE())"
 
             # Get FMBILL revenue by year/month (contract billing)
             revenue_query = """
@@ -8788,10 +8808,10 @@ def register_department_routes(reports_bp):
                     COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
-                AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
+                {date_filter}
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
-            """
+            """.format(date_filter=date_filter)
 
             revenue_results = db.execute_query(revenue_query)
 
@@ -8804,12 +8824,12 @@ def register_department_routes(reports_bp):
                 SELECT DISTINCT BillTo
                 FROM [ben002].InvoiceReg
                 WHERE SaleCode = 'FMBILL'
-                    AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
+                    {date_filter}
             )
             AND w.Type IN ('S', 'SH', 'PM')
             AND w.ShipTo IS NOT NULL
             AND w.ShipTo != ''
-            """
+            """.format(date_filter=date_filter)
             fmbill_customers = db.execute_query(fmbill_customers_query)
             customer_numbers = [row['customer_number'] for row in fmbill_customers]
 
@@ -9034,12 +9054,12 @@ def register_department_routes(reports_bp):
             FROM [ben002].InvoiceReg i
             LEFT JOIN [ben002].Customer c ON i.ShipTo = c.Number
             WHERE i.SaleCode = 'FMBILL'
-                AND i.InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
+                {date_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
             GROUP BY i.ShipTo, c.Name
             ORDER BY total_revenue DESC
-            """
+            """.format(date_filter=date_filter)
 
             customer_results = db.execute_query(customer_query)
 
@@ -9055,10 +9075,10 @@ def register_department_routes(reports_bp):
                 MAX(InvoiceDate) as latest_invoice
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
-                AND InvoiceDate >= DATEADD(month, -13, GETDATE())  -- Trailing 13 months
+                {date_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
-            """
+            """.format(date_filter=date_filter)
 
             summary_results = db.execute_query(summary_query)
 
