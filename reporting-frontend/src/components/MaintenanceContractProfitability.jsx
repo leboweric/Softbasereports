@@ -491,10 +491,10 @@ const MaintenanceContractProfitability = () => {
               </TableHeader>
               <TableBody>
                 {getSortedCustomers().map((customer) => (
-                  <TableRow
-                    key={customer.customer_number}
-                    className={!customer.profitable ? 'bg-red-50' : ''}
-                  >
+                  <React.Fragment key={customer.customer_number}>
+                    <TableRow
+                      className={!customer.profitable ? 'bg-red-50' : ''}
+                    >
                     <TableCell>
                       <div>
                         <p className="font-medium">{customer.customer_name}</p>
@@ -563,9 +563,9 @@ const MaintenanceContractProfitability = () => {
                         <XCircle className="h-5 w-5 text-red-600 mx-auto" />
                       )}
                     </TableCell>
-                  </TableRow>
-                  {!customer.profitable && customer.top_loss_drivers && customer.top_loss_drivers.length > 0 && (
-                    <TableRow key={`${customer.customer_number}-drivers`} className="bg-red-100">
+                    </TableRow>
+                    {!customer.profitable && customer.top_loss_drivers && customer.top_loss_drivers.length > 0 && (
+                      <TableRow className="bg-red-100">
                       <TableCell colSpan="9" className="p-4">
                         <div className="text-sm">
                           <p className="font-semibold text-red-900 mb-2 flex items-center gap-2">
@@ -590,9 +590,10 @@ const MaintenanceContractProfitability = () => {
                             ))}
                           </div>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
