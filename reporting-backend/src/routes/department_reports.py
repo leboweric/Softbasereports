@@ -8844,6 +8844,7 @@ def register_department_routes(reports_bp):
                     FROM [ben002].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, PM work orders
+                    {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
@@ -8890,6 +8891,7 @@ def register_department_routes(reports_bp):
                     FROM [ben002].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
+                    {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
@@ -8935,6 +8937,7 @@ def register_department_routes(reports_bp):
                     FROM [ben002].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
+                    {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
@@ -8982,6 +8985,7 @@ def register_department_routes(reports_bp):
                     FROM [ben002].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
+                    {wo_date_filter}
                     AND w.SerialNo IS NOT NULL
                     AND w.SerialNo != ''
                 ),
