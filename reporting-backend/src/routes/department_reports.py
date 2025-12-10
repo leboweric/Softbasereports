@@ -8772,6 +8772,7 @@ def register_department_routes(reports_bp):
         True profitability = Contract Revenue - Actual Service Costs
         """
         try:
+            from datetime import datetime
             db = get_db()
             
             # Get date parameters from query string
@@ -9165,7 +9166,6 @@ def register_department_routes(reports_bp):
                 if month and year:
                     months_in_period = 1
                 elif start_date and end_date:
-                    from datetime import datetime
                     start = datetime.strptime(start_date, '%Y-%m-%d')
                     end = datetime.strptime(end_date, '%Y-%m-%d')
                     months_in_period = max(1, round((end - start).days / 30.44))  # Average days per month
