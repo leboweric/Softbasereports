@@ -9335,11 +9335,11 @@ def register_department_routes(reports_bp):
             if start_date and end_date:
                 # Custom date range
                 date_filter = f"AND i.InvoiceDate >= '{start_date}' AND i.InvoiceDate <= '{end_date}'"
-                wo_date_filter = f"AND wo.DateCompleted >= '{start_date}' AND wo.DateCompleted <= '{end_date}'"
+                wo_date_filter = f"AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) >= '{start_date}' AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) <= '{end_date}'"
             else:
                 # Default: trailing 12 months
                 date_filter = "AND i.InvoiceDate >= DATEADD(month, -12, GETDATE())"
-                wo_date_filter = "AND wo.DateCompleted >= DATEADD(month, -12, GETDATE())"
+                wo_date_filter = "AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) >= DATEADD(month, -12, GETDATE())"
 
             # Get revenue by customer (all sale codes)
             customer_revenue_query = """
