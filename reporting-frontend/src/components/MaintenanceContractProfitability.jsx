@@ -27,6 +27,24 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 
+// Filter monthly chart data to only include March 2025 onwards
+const filterFromMarch2025 = (data) => {
+  if (!data) return []
+
+  return data.filter(item => {
+    // If year and month_num are available, use them
+    if (item.year && item.month_num) {
+      if (item.year < 2025) return false
+      if (item.year === 2025 && item.month_num < 3) return false
+    }
+    // Also check month_name patterns like "Mar '25"
+    const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+    if (excludedMonths.includes(item.month_name)) return false
+
+    return true
+  })
+}
+
 const MaintenanceContractProfitability = () => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -232,8 +250,9 @@ const MaintenanceContractProfitability = () => {
 
   const { summary, by_customer, by_equipment, monthly } = data
 
-  // Prepare chart data (reverse to show oldest first)
-  const chartData = [...monthly].reverse().map(m => ({
+  // Prepare chart data (filter to March 2025+ and reverse to show oldest first)
+  const filteredMonthly = filterFromMarch2025(monthly)
+  const chartData = [...filteredMonthly].reverse().map(m => ({
     ...m,
     month: m.month_name
   }))
@@ -290,7 +309,7 @@ const MaintenanceContractProfitability = () => {
                     onChange={(e) => setSelectedYear(e.target.value)}
                     className="w-full p-2 border rounded"
                   >
-                    {[2023, 2024, 2025, 2026].map(y => (
+                    {[2025, 2026].map(y => (
                       <option key={y} value={y}>{y}</option>
                     ))}
                   </select>

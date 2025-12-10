@@ -15,6 +15,28 @@ import {
 import { TrendingUp, TrendingDown, AlertTriangle, DollarSign } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
+// Filter to only include data from March 2025 onwards
+const filterFromMarch2025 = (trend) => {
+  if (!trend) return []
+
+  // Months before March 2025 that should be excluded
+  const excludedMonthPatterns = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+  const monthsBeforeMarch = ['Jan', 'Feb']
+  const monthsInLate2024 = ['Nov', 'Dec']
+
+  return trend.filter(item => {
+    // Check for "Mon 'YY" format
+    if (excludedMonthPatterns.includes(item.month)) return false
+
+    // Check for month name + year field combination
+    if (item.year === 2024 && monthsInLate2024.includes(item.month)) return false
+    if (item.year === 2025 && monthsBeforeMarch.includes(item.month)) return false
+    if (item.year && item.year < 2024) return false
+
+    return true
+  })
+}
+
 const ProfitLossWidget = () => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -210,12 +232,12 @@ const ProfitLossWidget = () => {
           </div>
         </div>
 
-        {/* 12-Month Trend Chart */}
-        {data.trend && data.trend.length > 0 && (
+        {/* 12-Month Trend Chart - filtered to March 2025 onwards */}
+        {data.trend && filterFromMarch2025(data.trend).length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium mb-4">12-Month Profit/Loss Trend</h4>
+            <h4 className="text-sm font-medium mb-4">Profit/Loss Trend (March 2025+)</h4>
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={data.trend}>
+              <LineChart data={filterFromMarch2025(data.trend)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="month" 

@@ -28,6 +28,29 @@ const formatCurrency = (value) => {
   }).format(value)
 }
 
+// Filter to only include data from March 2025 onwards
+const filterFromMarch2025 = (data) => {
+  if (!data) return []
+
+  // Months before March 2025 that should be excluded
+  const excludedMonthPatterns = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+  // For data with just month names and year field
+  const monthsBeforeMarch = ['Jan', 'Feb']
+  const monthsInLate2024 = ['Nov', 'Dec']
+
+  return data.filter(item => {
+    // Check for "Mon 'YY" format
+    if (excludedMonthPatterns.includes(item.month)) return false
+
+    // Check for month name + year field combination
+    if (item.year === 2024 && monthsInLate2024.includes(item.month)) return false
+    if (item.year === 2025 && monthsBeforeMarch.includes(item.month)) return false
+    if (item.year && item.year < 2024) return false
+
+    return true
+  })
+}
+
 const calculatePercentageChange = (current, previous) => {
   if (!previous || previous === 0) return null
   const change = ((current - previous) / previous) * 100
@@ -47,9 +70,10 @@ export default function RevenueChart({
   tooltipInfo,
   barColor = "#10b981"
 }) {
-  // Sort data by month order
+  // Sort data by month order and filter to March 2025+
   const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  const sortedData = data ? [...data].sort((a, b) => 
+  const filteredData = filterFromMarch2025(data)
+  const sortedData = filteredData.length > 0 ? [...filteredData].sort((a, b) =>
     monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month)
   ) : []
 

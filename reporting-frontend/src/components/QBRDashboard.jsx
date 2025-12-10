@@ -203,10 +203,10 @@ const QBRDashboard = () => {
     }
   };
 
-  // Generate quarter options
+  // Generate quarter options - starting from Q1-2025 (March 2025 onwards)
   const quarterOptions = [
     'Q1-2025', 'Q2-2025', 'Q3-2025', 'Q4-2025',
-    'Q1-2024', 'Q2-2024', 'Q3-2024', 'Q4-2024'
+    'Q1-2026', 'Q2-2026', 'Q3-2026', 'Q4-2026'
   ];
 
   // Colors for charts

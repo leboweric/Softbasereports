@@ -46,6 +46,28 @@ import RentalServiceReport from './RentalServiceReport'
 import RentalAvailability from './RentalAvailability'
 import DepreciationRolloff from './DepreciationRolloff'
 
+// Filter to only include data from March 2025 onwards
+const filterFromMarch2025 = (data) => {
+  if (!data) return []
+
+  // Months before March 2025 that should be excluded
+  const excludedMonthPatterns = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+  const monthsBeforeMarch = ['Jan', 'Feb']
+  const monthsInLate2024 = ['Nov', 'Dec']
+
+  return data.filter(item => {
+    // Check for "Mon 'YY" format
+    if (excludedMonthPatterns.includes(item.month)) return false
+
+    // Check for month name + year field combination
+    if (item.year === 2024 && monthsInLate2024.includes(item.month)) return false
+    if (item.year === 2025 && monthsBeforeMarch.includes(item.month)) return false
+    if (item.year && item.year < 2024) return false
+
+    return true
+  })
+}
+
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
   if (!data || data.length === 0) return []
@@ -115,7 +137,7 @@ const RentalReport = ({ user }) => {
   const [unitsOnHold, setUnitsOnHold] = useState(0)
   const [paceData, setPaceData] = useState(null)
   
-  // Sort monthly revenue data chronologically for correct trendline calculation
+  // Sort monthly revenue data chronologically and filter to March 2025+
   const sortedMonthlyRevenue = React.useMemo(() => {
     if (!monthlyRevenueData) {
       return [];
@@ -126,7 +148,9 @@ const RentalReport = ({ user }) => {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
 
-    return [...monthlyRevenueData].sort((a, b) => {
+    // Filter to March 2025+ then sort
+    const filteredData = filterFromMarch2025(monthlyRevenueData);
+    return [...filteredData].sort((a, b) => {
       return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
     });
   }, [monthlyRevenueData]);

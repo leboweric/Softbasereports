@@ -35,6 +35,18 @@ import {
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
+// Filter to only include data from March 2025 onwards
+const filterFromMarch2025 = (data) => {
+  if (!data) return []
+
+  return data.filter(item => {
+    // Filter by year and month
+    if (item.year < 2025) return false
+    if (item.year === 2025 && item.month < 3) return false
+    return true
+  })
+}
+
 const ForecastAccuracy = () => {
   const [accuracyData, setAccuracyData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -258,22 +270,23 @@ const ForecastAccuracy = () => {
         </Card>
       </div>
 
-      {/* Monthly Accuracy Chart */}
+      {/* Monthly Accuracy Chart - filtered to March 2025+ */}
       <Card>
         <CardHeader>
           <CardTitle>Monthly Forecast Accuracy</CardTitle>
-          <CardDescription>MAPE (Mean Absolute Percentage Error) by month - lower is better</CardDescription>
+          <CardDescription>MAPE (Mean Absolute Percentage Error) by month - lower is better (March 2025+)</CardDescription>
         </CardHeader>
         <CardContent>
-          {monthly_accuracy && monthly_accuracy.length > 0 ? (
+          {monthly_accuracy && filterFromMarch2025(monthly_accuracy).length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthly_accuracy.slice().reverse()}>
+              <BarChart data={filterFromMarch2025(monthly_accuracy).slice().reverse()}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="month" 
+                <XAxis
+                  dataKey="month"
                   tickFormatter={(month, index) => {
-                    const item = monthly_accuracy.slice().reverse()[index]
-                    return `${getMonthName(item.month)} ${item.year}`
+                    const filteredData = filterFromMarch2025(monthly_accuracy).slice().reverse()
+                    const item = filteredData[index]
+                    return item ? `${getMonthName(item.month)} ${item.year}` : ''
                   }}
                 />
                 <YAxis label={{ value: 'MAPE (%)', angle: -90, position: 'insideLeft' }} />

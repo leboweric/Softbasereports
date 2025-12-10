@@ -50,6 +50,17 @@ interface MonthlyTrend {
   profit: number
 }
 
+// Filter to only include data from March 2025 onwards
+const filterFromMarch2025 = (data: MonthlyTrend[]): MonthlyTrend[] => {
+  if (!data) return []
+
+  return data.filter(item => {
+    if (item.year < 2025) return false
+    if (item.year === 2025 && item.month < 3) return false
+    return true
+  })
+}
+
 const RentalServiceReport = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -178,15 +189,15 @@ const RentalServiceReport = () => {
         </Card>
       </div>
 
-      {/* Monthly Trend Chart */}
-      {monthlyTrend.length > 0 && (
+      {/* Monthly Trend Chart - filtered to March 2025+ */}
+      {filterFromMarch2025(monthlyTrend).length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Trend</CardTitle>
+            <CardTitle>Monthly Trend (March 2025+)</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyTrend}>
+              <LineChart data={filterFromMarch2025(monthlyTrend)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="monthName" />
                 <YAxis />

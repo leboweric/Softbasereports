@@ -18,6 +18,28 @@ import {
 import { DollarSign, TrendingUp, TrendingDown, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
+// Filter to only include data from March 2025 onwards
+const filterFromMarch2025 = (trend) => {
+  if (!trend) return []
+
+  // Months before March 2025 that should be excluded
+  const excludedMonthPatterns = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+  const monthsBeforeMarch = ['Jan', 'Feb']
+  const monthsInLate2024 = ['Nov', 'Dec']
+
+  return trend.filter(item => {
+    // Check for "Mon 'YY" format
+    if (excludedMonthPatterns.includes(item.month)) return false
+
+    // Check for month name + year field combination
+    if (item.year === 2024 && monthsInLate2024.includes(item.month)) return false
+    if (item.year === 2025 && monthsBeforeMarch.includes(item.month)) return false
+    if (item.year && item.year < 2024) return false
+
+    return true
+  })
+}
+
 const CashFlowWidget = () => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -130,11 +152,14 @@ const CashFlowWidget = () => {
     return null
   }
 
-  // Calculate cash balance change
+  // Filter trend data to March 2025+
+  const filteredTrend = data.trend ? filterFromMarch2025(data.trend) : []
+
+  // Calculate cash balance change from filtered trend
   let cashChange = null
-  if (data.trend && data.trend.length >= 2) {
-    const current = data.trend[data.trend.length - 1]
-    const previous = data.trend[data.trend.length - 2]
+  if (filteredTrend.length >= 2) {
+    const current = filteredTrend[filteredTrend.length - 1]
+    const previous = filteredTrend[filteredTrend.length - 2]
     const change = current.cashflow - previous.cashflow
     const percentChange = previous.cashflow !== 0 ? (change / previous.cashflow) * 100 : 0
     cashChange = { change, percentChange }
@@ -205,12 +230,12 @@ const CashFlowWidget = () => {
 
         </div>
 
-        {/* 12-Month Trend Chart */}
-        {data.trend && data.trend.length > 0 && (
+        {/* Cash Balance Trend Chart - filtered to March 2025+ */}
+        {filteredTrend.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium mb-4">12-Month Cash Balance Trend</h4>
+            <h4 className="text-sm font-medium mb-4">Cash Balance Trend (March 2025+)</h4>
             <ResponsiveContainer width="100%" height={250}>
-              <ComposedChart data={data.trend}>
+              <ComposedChart data={filteredTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="month"
@@ -246,7 +271,7 @@ const CashFlowWidget = () => {
                 />
                 <Legend />
                 <Bar yAxisId="right" dataKey="netChange" name="Net Change" barSize={20}>
-                  {data.trend.map((entry, index) => (
+                  {filteredTrend.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.netChange >= 0 ? '#10b981' : '#ef4444'} />
                   ))}
                 </Bar>
