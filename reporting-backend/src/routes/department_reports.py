@@ -8813,20 +8813,15 @@ def register_department_routes(reports_bp):
 
             revenue_results = db.execute_query(revenue_query)
 
-            # Get list of ShipTo locations that have work orders for FMBILL customers
-            # This finds actual service locations, not billing entities like leasing companies
+            # Get list of ShipTo locations that have FMBILL invoices
+            # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
             fmbill_customers_query = """
-            SELECT DISTINCT w.ShipTo as customer_number
-            FROM [ben002].WO w
-            WHERE w.BillTo IN (
-                SELECT DISTINCT BillTo
-                FROM [ben002].InvoiceReg
-                WHERE SaleCode = 'FMBILL'
-                    {date_filter}
-            )
-            AND w.Type IN ('S', 'SH', 'PM')
-            AND w.ShipTo IS NOT NULL
-            AND w.ShipTo != ''
+            SELECT DISTINCT ShipTo as customer_number
+            FROM [ben002].InvoiceReg
+            WHERE SaleCode = 'FMBILL'
+                {date_filter}
+                AND ShipTo IS NOT NULL
+                AND ShipTo != ''
             """.format(date_filter=date_filter)
             fmbill_customers = db.execute_query(fmbill_customers_query)
             customer_numbers = [row['customer_number'] for row in fmbill_customers]
