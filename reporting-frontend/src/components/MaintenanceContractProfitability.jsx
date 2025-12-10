@@ -546,16 +546,41 @@ const MaintenanceContractProfitability = () => {
                         {customer.margin_percent > 0 ? customer.margin_percent.toFixed(1) : customer.margin_percent.toFixed(0)}%
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-mono">
+                          <TableCell className="text-right">
                       {customer.recommended_monthly_rate > 0 ? (
                         <div>
-                          <p className="font-bold text-green-600">{formatCurrency(customer.recommended_monthly_rate)}</p>
-                          <p className="text-xs text-muted-foreground">vs {formatCurrency(customer.current_monthly_rate)} current</p>
+                          {customer.health_status === 'healthy' && customer.recommended_monthly_rate < customer.current_monthly_rate ? (
+                            // Over-priced but profitable - suggest maintaining
+                            <div>
+                              <p className="font-semibold text-green-700">Maintain</p>
+                              <p className="text-xs text-muted-foreground">Strong pricing at {formatCurrency(customer.current_monthly_rate)}</p>
+                            </div>
+                          ) : customer.health_status === 'warning' ? (
+                            // Warning status - show recommended increase
+                            <div>
+                              <p className="font-bold text-yellow-600">{formatCurrency(customer.recommended_monthly_rate)}</p>
+                              <p className="text-xs text-muted-foreground">vs {formatCurrency(customer.current_monthly_rate)} current</p>
+                              <p className="text-xs text-yellow-700">+{Math.round(((customer.recommended_monthly_rate - customer.current_monthly_rate) / customer.current_monthly_rate) * 100)}% increase</p>
+                            </div>
+                          ) : customer.health_status === 'critical' ? (
+                            // Critical - show urgent increase needed
+                            <div>
+                              <p className="font-bold text-red-600">{formatCurrency(customer.recommended_monthly_rate)}</p>
+                              <p className="text-xs text-muted-foreground">vs {formatCurrency(customer.current_monthly_rate)} current</p>
+                              <p className="text-xs text-red-700 font-semibold">+{Math.round(((customer.recommended_monthly_rate - customer.current_monthly_rate) / customer.current_monthly_rate) * 100)}% needed</p>
+                            </div>
+                          ) : (
+                            // Healthy and under-priced - show recommended
+                            <div>
+                              <p className="font-bold text-green-600">{formatCurrency(customer.recommended_monthly_rate)}</p>
+                              <p className="text-xs text-muted-foreground">vs {formatCurrency(customer.current_monthly_rate)} current</p>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
-                    </TableCell>
+                    </TableCell>ell>
                     <TableCell className="text-center">
                       {customer.profitable ? (
                         <CheckCircle className="h-5 w-5 text-green-600 mx-auto" />
