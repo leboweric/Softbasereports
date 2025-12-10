@@ -342,6 +342,85 @@ const CustomerProfitability = () => {
         </CardContent>
       </Card>
 
+      {/* Top 5 and Bottom 5 Customers */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Top 5 Most Profitable */}
+        <Card className="border-green-300 bg-green-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-600" />
+              <CardTitle className="text-green-800">Top 5 Most Profitable</CardTitle>
+            </div>
+            <CardDescription className="text-green-700">
+              Customers with highest profit margins
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {data?.customers
+                ?.slice()
+                .sort((a, b) => b.gross_profit - a.gross_profit)
+                .slice(0, 5)
+                .map((customer, index) => (
+                  <div key={customer.customer_number} className="flex items-center justify-between p-3 bg-white rounded-lg border border-green-200">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-100 text-green-700 font-bold text-sm">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-medium text-sm">{customer.customer_name}</div>
+                        <div className="text-xs text-muted-foreground">#{customer.customer_number}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-green-600">{formatCurrency(customer.gross_profit)}</div>
+                      <div className="text-xs text-green-700">{formatPercent(customer.margin_percent)}</div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bottom 5 Least Profitable */}
+        <Card className="border-red-300 bg-red-50">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-5 w-5 text-red-600" />
+              <CardTitle className="text-red-800">Bottom 5 Least Profitable</CardTitle>
+            </div>
+            <CardDescription className="text-red-700">
+              Customers with lowest profit margins
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {data?.customers
+                ?.slice()
+                .sort((a, b) => a.gross_profit - b.gross_profit)
+                .slice(0, 5)
+                .map((customer, index) => (
+                  <div key={customer.customer_number} className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 text-red-700 font-bold text-sm">
+                        {index + 1}
+                      </div>
+                      <div>
+                        <div className="font-medium text-sm">{customer.customer_name}</div>
+                        <div className="text-xs text-muted-foreground">#{customer.customer_number}</div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-red-600">{formatCurrency(customer.gross_profit)}</div>
+                      <div className="text-xs text-red-700">{formatPercent(customer.margin_percent)}</div>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Fire List Alert */}
       {fire_list && fire_list.length > 0 && (
         <Card className="border-red-300 bg-red-50">
