@@ -9,6 +9,9 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from flask import g
 
+# Softbase migration cutover date - no data before this date should be shown
+SOFTBASE_CUTOVER_DATE = datetime(2025, 3, 1)
+
 
 def get_fiscal_year_start_month():
     """
@@ -47,34 +50,44 @@ def get_current_fiscal_year_dates():
     return fiscal_year_start, fiscal_year_end
 
 
-def get_fiscal_year_months(as_of_date=None, trailing_months=13):
+def get_fiscal_year_months(as_of_date=None, trailing_months=13, respect_cutover=True):
     """
     Get a list of trailing months for chart display in chronological order.
-    
+
     Args:
         as_of_date: Optional datetime to use instead of current date
         trailing_months: Number of months to return (default: 13 for current month + previous 12)
-        
+        respect_cutover: If True, excludes months before SOFTBASE_CUTOVER_DATE (March 2025)
+
     Returns:
         list: List of (year, month) tuples representing the trailing months
-        
+
     Example:
         For November 19, 2025 with trailing_months=13:
         Returns: [(2024, 10), (2024, 11), (2024, 12), (2025, 1), ..., (2025, 11)]
         That's: Oct '24, Nov '24, Dec '24, Jan '25, ..., Nov '25
+
+        With respect_cutover=True (default), months before March 2025 are filtered out.
     """
     if as_of_date is None:
         as_of_date = datetime.now()
-    
+
     # Start from (trailing_months - 1) months ago to include current month
     # For trailing_months=13: start 12 months ago, then add 13 months total
     start_date = as_of_date - relativedelta(months=trailing_months - 1)
-    
+
     months = []
     for i in range(trailing_months):
         month_date = start_date + relativedelta(months=i)
+
+        # Filter out months before the Softbase cutover date (March 2025)
+        if respect_cutover:
+            cutover_year_month = (SOFTBASE_CUTOVER_DATE.year, SOFTBASE_CUTOVER_DATE.month)
+            if (month_date.year, month_date.month) < cutover_year_month:
+                continue
+
         months.append((month_date.year, month_date.month))
-    
+
     return months
 
 

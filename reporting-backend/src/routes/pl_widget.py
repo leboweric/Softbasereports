@@ -6,6 +6,7 @@ Provides monthly profit/loss metrics for dashboard display
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
+from src.utils.fiscal_year import SOFTBASE_CUTOVER_DATE
 from datetime import datetime, timedelta
 import logging
 import calendar
@@ -179,20 +180,17 @@ def get_pl_trend(year, month, months=12):
     """
     try:
         trend_data = []
-        cutover_year = 2024
-        cutover_month = 11  # November 2024
-        
+
         # Calculate starting point: either N months back or cutover month, whichever is later
         # Go back N-1 months from current month (to include current month in the count)
         start_date = datetime(year, month, 1)
         for i in range(months - 1):
             start_date = start_date.replace(day=1) - timedelta(days=1)
         start_date = start_date.replace(day=1)
-        
-        # Don't go before cutover
-        cutover_date = datetime(cutover_year, cutover_month, 1)
-        if start_date < cutover_date:
-            start_date = cutover_date
+
+        # Don't go before Softbase cutover (March 2025)
+        if start_date < SOFTBASE_CUTOVER_DATE:
+            start_date = SOFTBASE_CUTOVER_DATE
         
         # Generate trend data from start_date to current month (inclusive)
         current = start_date
