@@ -9374,8 +9374,7 @@ def register_department_routes(reports_bp):
             labor_costs_query = """
             SELECT
                 wo.ShipTo as customer_number,
-                SUM(COALESCE(wol.Cost, 0)) as total_labor_cost,
-                SUM(COALESCE(wol.Hours, 0)) as total_hours
+                SUM(COALESCE(wol.Cost, 0)) as total_labor_cost
             FROM [ben002].WO wo
             INNER JOIN [ben002].WOLabor wol ON wo.WONo = wol.WONo
             WHERE 1=1
@@ -9420,10 +9419,8 @@ def register_department_routes(reports_bp):
             misc_costs_results = db.execute_query(misc_costs_query)
 
             # Build cost lookups
-            labor_costs_by_customer = {row['customer_number']: {
-                'labor_cost': float(row['total_labor_cost'] or 0),
-                'hours': float(row['total_hours'] or 0)
-            } for row in labor_costs_results}
+            labor_costs_by_customer = {row['customer_number']: float(row['total_labor_cost'] or 0)
+                                      for row in labor_costs_results}
 
             parts_costs_by_customer = {row['customer_number']: float(row['total_parts_cost'] or 0) 
                                       for row in parts_costs_results}
@@ -9445,8 +9442,7 @@ def register_department_routes(reports_bp):
                 revenue = float(row['total_revenue'] or 0)
                 
                 # Get costs for this customer
-                labor_info = labor_costs_by_customer.get(customer_num, {'labor_cost': 0, 'hours': 0})
-                labor_cost = labor_info['labor_cost']
+                labor_cost = labor_costs_by_customer.get(customer_num, 0)
                 parts_cost = parts_costs_by_customer.get(customer_num, 0)
                 misc_cost = misc_costs_by_customer.get(customer_num, 0)
                 
@@ -9519,8 +9515,7 @@ def register_department_routes(reports_bp):
                     'action': action,
                     'message': message,
                     'recommended_increase': round(recommended_increase, 2) if recommended_increase else None,
-                    'recommended_increase_pct': round(recommended_increase_pct, 1) if recommended_increase_pct else None,
-                    'total_hours': round(labor_info['hours'], 1)
+                    'recommended_increase_pct': round(recommended_increase_pct, 1) if recommended_increase_pct else None
                 })
                 
                 total_revenue += revenue
