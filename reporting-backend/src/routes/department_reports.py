@@ -9346,9 +9346,9 @@ def register_department_routes(reports_bp):
             SELECT
                 i.ShipTo as customer_number,
                 COALESCE(
-                    c.Name,
+                    MAX(c.Name),
                     CASE 
-                        WHEN bc.Name IS NOT NULL THEN bc.Name + ' (Location #' + i.ShipTo + ')'
+                        WHEN MAX(bc.Name) IS NOT NULL THEN MAX(bc.Name) + ' (Location #' + i.ShipTo + ')'
                         ELSE 'Unknown'
                     END
                 ) as customer_name,
@@ -9363,7 +9363,7 @@ def register_department_routes(reports_bp):
                 {date_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
-            GROUP BY i.ShipTo, c.Name, bc.Name
+            GROUP BY i.ShipTo
             HAVING SUM(COALESCE(i.GrandTotal, 0)) >= {min_revenue}
             ORDER BY total_revenue DESC
             """.format(date_filter=date_filter, min_revenue=min_revenue)
