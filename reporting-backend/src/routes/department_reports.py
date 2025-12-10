@@ -9050,6 +9050,8 @@ def register_department_routes(reports_bp):
                     END
                 ) as customer_name,
                 COUNT(*) as invoice_count,
+                MIN(i.InvoiceDate) as first_invoice,
+                MAX(i.InvoiceDate) as last_invoice,
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue
             FROM [ben002].InvoiceReg i
             LEFT JOIN [ben002].Customer c ON i.ShipTo = c.Number
