@@ -8763,9 +8763,9 @@ def register_department_routes(reports_bp):
     @jwt_required()
     def get_maintenance_contract_profitability():
         """
-        Get Maintenance Contract (FMBILL) profitability analysis.
-        Compares contract revenue (from FMBILL invoices) to actual service costs
-        from Work Orders (WOLabor + WOParts + WOMisc).
+        Get Maintenance Contract profitability analysis.
+        Compares contract revenue (from maintenance invoices: FMBILL, FMROAD, PM-FM, FMSHOP) 
+        to actual service costs from Work Orders (WOLabor + WOParts + WOMisc).
         
         Uses trailing 13 months of data to ensure continuity across year boundaries.
 
@@ -8806,7 +8806,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue
             FROM [ben002].InvoiceReg
-            WHERE SaleCode = 'FMBILL'
+            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
@@ -8814,20 +8814,20 @@ def register_department_routes(reports_bp):
 
             revenue_results = db.execute_query(revenue_query)
 
-            # Get list of ShipTo locations that have FMBILL invoices
+            # Get list of ShipTo locations that have maintenance contract invoices
             # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
-            fmbill_customers_query = """
+            maintenance_customers_query = """
             SELECT DISTINCT ShipTo as customer_number
             FROM [ben002].InvoiceReg
-            WHERE SaleCode = 'FMBILL'
+            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
             """.format(date_filter=date_filter)
-            fmbill_customers = db.execute_query(fmbill_customers_query)
-            customer_numbers = [row['customer_number'] for row in fmbill_customers]
+            maintenance_customers = db.execute_query(maintenance_customers_query)
+            customer_numbers = [row['customer_number'] for row in maintenance_customers]
 
-            # Get actual service costs from Work Orders for FMBILL customers
+            # Get actual service costs from Work Orders for maintenance contract customers
             # This includes all service WOs (Type S, SH, PM) for these customers
             if customer_numbers:
                 # Build quoted list of customer numbers for IN clause
@@ -9056,7 +9056,7 @@ def register_department_routes(reports_bp):
             FROM [ben002].InvoiceReg i
             LEFT JOIN [ben002].Customer c ON i.ShipTo = c.Number
             LEFT JOIN [ben002].Customer bc ON i.BillTo = bc.Number
-            WHERE i.SaleCode = 'FMBILL'
+            WHERE i.SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
@@ -9075,7 +9075,7 @@ def register_department_routes(reports_bp):
                 MIN(InvoiceDate) as earliest_invoice,
                 MAX(InvoiceDate) as latest_invoice
             FROM [ben002].InvoiceReg
-            WHERE SaleCode = 'FMBILL'
+            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
@@ -9294,10 +9294,11 @@ def register_department_routes(reports_bp):
                 'by_equipment': equipment_data,
                 'summary': summary,
                 'notes': {
-                    'contract_revenue': 'Monthly billing from FMBILL invoices',
+                    'contract_revenue': 'Monthly billing from maintenance contract invoices (FMBILL, FMROAD, PM-FM, FMSHOP)',
                     'service_costs': 'Actual costs from Work Orders (Labor + Parts + Misc) for contract customers',
                     'true_profit': 'Contract Revenue - Actual Service Costs',
-                    'wo_types_included': 'S (Service), SH (Shop), PM (Preventive Maintenance)'
+                    'wo_types_included': 'S (Service), SH (Shop), PM (Preventive Maintenance)',
+                    'sale_codes': 'FMBILL (billing), FMROAD (road service), PM-FM (preventive maintenance), FMSHOP (shop work)'
                 }
             })
 

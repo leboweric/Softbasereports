@@ -763,7 +763,7 @@ const MaintenanceContractProfitability = () => {
           <CardTitle>About This Report</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p><strong>Contract Revenue:</strong> Monthly billing from FMBILL (Full Maintenance Billing) invoices in the Guaranteed Maintenance department.</p>
+          <p><strong>Contract Revenue:</strong> Monthly billing from maintenance contract invoices (FMBILL, FMROAD, PM-FM, FMSHOP) covering all types of maintenance agreements.</p>
           <p><strong>Service Costs:</strong> Actual costs from Work Orders (Labor + Parts + Misc) for customers with maintenance contracts. Includes Service (S), Shop (SH), and PM work order types.</p>
           <p><strong>True Profit:</strong> Contract Revenue minus Actual Service Costs. This shows whether the flat monthly fee covers the actual service delivered.</p>
           <p><strong>Note:</strong> Some customers (like leasing companies) may show 100% margin because work orders are billed to the equipment user, not the leasing company.</p>
