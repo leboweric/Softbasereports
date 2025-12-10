@@ -9521,6 +9521,147 @@ def register_department_routes(reports_bp):
                 total_revenue += revenue
                 total_cost += total_customer_cost
 
+            # Group customers by normalized name to consolidate duplicates
+            # (e.g., "POLARIS INDUSTRIES INC" and "Polaris Industries Inc" become one)
+            import re
+            
+            def normalize_name(name):
+                """Normalize customer name for grouping: uppercase, remove punctuation, extra spaces"""
+                if not name:
+                    return "UNKNOWN"
+                # Remove common suffixes and punctuation
+                name = re.sub(r'\b(INC|LLC|CORP|CORPORATION|LTD|CO|COMPANY)\b\.?', '', name, flags=re.IGNORECASE)
+                # Remove all punctuation and extra spaces
+                name = re.sub(r'[^A-Z0-9\s]', '', name.upper())
+                name = re.sub(r'\s+', ' ', name).strip()
+                return name
+            
+            # Group customers by normalized name
+            grouped_customers = {}
+            for customer in customer_data:
+                normalized = normalize_name(customer['customer_name'])
+                
+                if normalized not in grouped_customers:
+                    # First customer with this normalized name
+                    grouped_customers[normalized] = {
+                        'customer_name': customer['customer_name'],  # Use first occurrence's name
+                        'customer_numbers': [customer['customer_number']],
+                        'invoice_count': customer['invoice_count'],
+                        'first_invoice': customer['first_invoice'],
+                        'last_invoice': customer['last_invoice'],
+                        'total_revenue': customer['total_revenue'],
+                        'labor_cost': customer['labor_cost'],
+                        'parts_cost': customer['parts_cost'],
+                        'misc_cost': customer['misc_cost'],
+                        'total_cost': customer['total_cost'],
+                        'gross_profit': customer['gross_profit']
+                    }
+                else:
+                    # Merge with existing group
+                    group = grouped_customers[normalized]
+                    group['customer_numbers'].append(customer['customer_number'])
+                    group['invoice_count'] += customer['invoice_count']
+                    # Keep earliest first_invoice
+                    if customer['first_invoice']:
+                        if not group['first_invoice'] or customer['first_invoice'] < group['first_invoice']:
+                            group['first_invoice'] = customer['first_invoice']
+                    # Keep latest last_invoice
+                    if customer['last_invoice']:
+                        if not group['last_invoice'] or customer['last_invoice'] > group['last_invoice']:
+                            group['last_invoice'] = customer['last_invoice']
+                    # Sum financial metrics
+                    group['total_revenue'] += customer['total_revenue']
+                    group['labor_cost'] += customer['labor_cost']
+                    group['parts_cost'] += customer['parts_cost']
+                    group['misc_cost'] += customer['misc_cost']
+                    group['total_cost'] += customer['total_cost']
+                    group['gross_profit'] += customer['gross_profit']
+            
+            # Convert grouped customers back to list and recalculate metrics
+            customer_data = []
+            healthy_count = 0
+            warning_count = 0
+            critical_count = 0
+            revenue_at_risk = 0
+            
+            for normalized_name, group in grouped_customers.items():
+                revenue = group['total_revenue']
+                total_customer_cost = group['total_cost']
+                gross_profit = group['gross_profit']
+                margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+                
+                # Determine health status
+                if margin >= 30:
+                    health_status = 'healthy'
+                    healthy_count += 1
+                elif margin >= 0:
+                    health_status = 'warning'
+                    warning_count += 1
+                else:
+                    health_status = 'critical'
+                    critical_count += 1
+                    revenue_at_risk += revenue
+                
+                # Determine action recommendation
+                if margin >= 30:
+                    action = 'Maintain'
+                    message = 'Healthy profit margin - maintain current pricing'
+                    recommended_increase = None
+                    recommended_increase_pct = None
+                elif margin >= 15:
+                    action = 'Monitor'
+                    target_margin = 0.30
+                    target_revenue = total_customer_cost / (1 - target_margin)
+                    recommended_increase = target_revenue - revenue
+                    recommended_increase_pct = (recommended_increase / revenue * 100) if revenue > 0 else 0
+                    message = f'Below industry standard (30%) - consider {recommended_increase_pct:.1f}% price increase'
+                elif margin >= 0:
+                    action = 'Raise Prices'
+                    target_margin = 0.30
+                    target_revenue = total_customer_cost / (1 - target_margin)
+                    recommended_increase = target_revenue - revenue
+                    recommended_increase_pct = (recommended_increase / revenue * 100) if revenue > 0 else 0
+                    message = f'Below acceptable margin - {recommended_increase_pct:.1f}% price increase recommended'
+                else:
+                    if revenue >= 10000:
+                        action = 'Urgent - Raise Prices'
+                        target_margin = 0.30
+                        target_revenue = total_customer_cost / (1 - target_margin)
+                        recommended_increase = target_revenue - revenue
+                        recommended_increase_pct = (recommended_increase / revenue * 100) if revenue > 0 else 0
+                        message = f'Losing ${abs(gross_profit):,.2f}/year - immediate {recommended_increase_pct:.1f}% price increase required'
+                    else:
+                        action = 'Consider Termination'
+                        recommended_increase = None
+                        recommended_increase_pct = None
+                        message = f'Unprofitable small account - losing ${abs(gross_profit):,.2f}/year'
+                
+                # Format customer number display
+                if len(group['customer_numbers']) == 1:
+                    customer_number_display = group['customer_numbers'][0]
+                else:
+                    customer_number_display = f"{group['customer_numbers'][0]} (+{len(group['customer_numbers'])-1} more)"
+                
+                customer_data.append({
+                    'customer_number': customer_number_display,
+                    'customer_name': group['customer_name'],
+                    'invoice_count': group['invoice_count'],
+                    'first_invoice': group['first_invoice'],
+                    'last_invoice': group['last_invoice'],
+                    'total_revenue': round(revenue, 2),
+                    'labor_cost': round(group['labor_cost'], 2),
+                    'parts_cost': round(group['parts_cost'], 2),
+                    'misc_cost': round(group['misc_cost'], 2),
+                    'total_cost': round(total_customer_cost, 2),
+                    'gross_profit': round(gross_profit, 2),
+                    'margin_percent': round(margin, 1),
+                    'health_status': health_status,
+                    'action': action,
+                    'message': message,
+                    'recommended_increase': round(recommended_increase, 2) if recommended_increase else None,
+                    'recommended_increase_pct': round(recommended_increase_pct, 1) if recommended_increase_pct else None
+                })
+
             # Calculate overall metrics
             total_profit = total_revenue - total_cost
             overall_margin = (total_profit / total_revenue * 100) if total_revenue > 0 else 0
