@@ -8803,9 +8803,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue,
                 SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
                 SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
-                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) +
-                    COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) +
-                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue
+                SUM(COALESCE(GrandTotal, 0)) as total_revenue
             FROM [ben002].InvoiceReg
             WHERE SaleCode = 'FMBILL'
                 {date_filter}
@@ -9046,9 +9044,7 @@ def register_department_routes(reports_bp):
                 i.ShipTo as customer_number,
                 c.Name as customer_name,
                 COUNT(*) as invoice_count,
-                SUM(COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) +
-                    COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0) +
-                    COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as total_revenue,
+                SUM(COALESCE(i.GrandTotal, 0)) as total_revenue,
                 MIN(i.InvoiceDate) as first_invoice,
                 MAX(i.InvoiceDate) as last_invoice
             FROM [ben002].InvoiceReg i
@@ -9068,9 +9064,7 @@ def register_department_routes(reports_bp):
             SELECT
                 COUNT(*) as total_invoices,
                 COUNT(DISTINCT ShipTo) as unique_customers,
-                SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) +
-                    COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) +
-                    COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as total_revenue,
+                SUM(COALESCE(GrandTotal, 0)) as total_revenue,
                 MIN(InvoiceDate) as earliest_invoice,
                 MAX(InvoiceDate) as latest_invoice
             FROM [ben002].InvoiceReg
