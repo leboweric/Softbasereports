@@ -9143,6 +9143,40 @@ def register_department_routes(reports_bp):
                 true_profit = revenue - service_cost
                 margin = (true_profit / revenue * 100) if revenue > 0 else 0
 
+                # Calculate health status
+                if wo_count == 0:
+                    health_status = 'unknown'  # No service costs tracked
+                elif margin >= 20:
+                    health_status = 'healthy'  # >20% margin
+                elif margin >= 0:
+                    health_status = 'warning'  # 0-20% margin
+                else:
+                    health_status = 'critical'  # Unprofitable
+                
+                # Calculate recommended pricing (cost + 20% margin)
+                recommended_monthly_rate = 0
+                current_monthly_rate = 0
+                if revenue > 0 and row['invoice_count'] > 0:
+                    # Estimate monthly rate from invoice count
+                    current_monthly_rate = revenue / int(row['invoice_count'])
+                    if service_cost > 0:
+                        # Recommended = (service cost / invoices) * 1.2 (20% margin)
+                        recommended_monthly_rate = (service_cost / int(row['invoice_count'])) * 1.2
+
+                # Get top 5 most expensive equipment for this customer
+                customer_equipment = [e for e in equipment_costs_results if e['customer_number'] == cust_num]
+                customer_equipment_sorted = sorted(customer_equipment, key=lambda x: float(x['total_cost'] or 0), reverse=True)
+                top_loss_drivers = []
+                for eq in customer_equipment_sorted[:5]:  # Top 5
+                    top_loss_drivers.append({
+                        'serial_no': eq['serial_no'],
+                        'unit_no': eq['unit_no'] or '',
+                        'make': eq['make'] or '',
+                        'model': eq['model'] or '',
+                        'wo_count': int(eq['wo_count'] or 0),
+                        'total_cost': float(eq['total_cost'] or 0)
+                    })
+
                 customer_data.append({
                     'customer_number': cust_num,
                     'customer_name': row['customer_name'] or 'Unknown',
@@ -9156,6 +9190,10 @@ def register_department_routes(reports_bp):
                     'true_profit': true_profit,
                     'margin_percent': round(margin, 1),
                     'profitable': true_profit > 0,
+                    'health_status': health_status,
+                    'current_monthly_rate': round(current_monthly_rate, 2),
+                    'recommended_monthly_rate': round(recommended_monthly_rate, 2),
+                    'top_loss_drivers': top_loss_drivers,
                     'first_invoice': row['first_invoice'].strftime('%Y-%m-%d') if row['first_invoice'] else None,
                     'last_invoice': row['last_invoice'].strftime('%Y-%m-%d') if row['last_invoice'] else None
                 })

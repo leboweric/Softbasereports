@@ -467,6 +467,7 @@ const MaintenanceContractProfitability = () => {
               <TableHeader>
                 <TableRow>
                   <SortHeader field="customer_name">Customer</SortHeader>
+                  <TableHead className="text-center">Health</TableHead>
                   <SortHeader field="contract_revenue">
                     <span className="text-right w-full">Revenue</span>
                   </SortHeader>
@@ -482,6 +483,9 @@ const MaintenanceContractProfitability = () => {
                   <SortHeader field="margin_percent">
                     <span className="text-right w-full">Margin</span>
                   </SortHeader>
+                  <SortHeader field="recommended_monthly_rate">
+                    <span className="text-right w-full">Recommended Rate</span>
+                  </SortHeader>
                   <TableHead className="text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -496,6 +500,32 @@ const MaintenanceContractProfitability = () => {
                         <p className="font-medium">{customer.customer_name}</p>
                         <p className="text-xs text-muted-foreground">#{customer.customer_number}</p>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {customer.health_status === 'healthy' && (
+                        <Badge variant="success" className="gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          Healthy
+                        </Badge>
+                      )}
+                      {customer.health_status === 'warning' && (
+                        <Badge variant="warning" className="gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Warning
+                        </Badge>
+                      )}
+                      {customer.health_status === 'critical' && (
+                        <Badge variant="destructive" className="gap-1">
+                          <XCircle className="h-3 w-3" />
+                          Critical
+                        </Badge>
+                      )}
+                      {customer.health_status === 'unknown' && (
+                        <Badge variant="outline" className="gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          No Data
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       {formatCurrency(customer.contract_revenue)}
@@ -516,6 +546,16 @@ const MaintenanceContractProfitability = () => {
                         {customer.margin_percent > 0 ? customer.margin_percent.toFixed(1) : customer.margin_percent.toFixed(0)}%
                       </Badge>
                     </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {customer.recommended_monthly_rate > 0 ? (
+                        <div>
+                          <p className="font-bold text-green-600">{formatCurrency(customer.recommended_monthly_rate)}</p>
+                          <p className="text-xs text-muted-foreground">vs {formatCurrency(customer.current_monthly_rate)} current</p>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-center">
                       {customer.profitable ? (
                         <CheckCircle className="h-5 w-5 text-green-600 mx-auto" />
@@ -524,6 +564,35 @@ const MaintenanceContractProfitability = () => {
                       )}
                     </TableCell>
                   </TableRow>
+                  {!customer.profitable && customer.top_loss_drivers && customer.top_loss_drivers.length > 0 && (
+                    <TableRow key={`${customer.customer_number}-drivers`} className="bg-red-100">
+                      <TableCell colSpan="9" className="p-4">
+                        <div className="text-sm">
+                          <p className="font-semibold text-red-900 mb-2 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4" />
+                            Top Loss Drivers (Most Expensive Equipment)
+                          </p>
+                          <div className="grid gap-2">
+                            {customer.top_loss_drivers.map((equipment, idx) => (
+                              <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-red-200">
+                                <div className="flex-1">
+                                  <p className="font-medium text-gray-900">
+                                    {equipment.make} {equipment.model}
+                                    {equipment.unit_no && ` - Unit #${equipment.unit_no}`}
+                                  </p>
+                                  <p className="text-xs text-gray-600">Serial: {equipment.serial_no}</p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-red-600">{formatCurrency(equipment.total_cost)}</p>
+                                  <p className="text-xs text-gray-600">{equipment.wo_count} work orders</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 ))}
               </TableBody>
             </Table>
