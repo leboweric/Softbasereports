@@ -9042,18 +9042,23 @@ def register_department_routes(reports_bp):
             customer_query = """
             SELECT
                 i.ShipTo as customer_number,
-                c.Name as customer_name,
+                COALESCE(
+                    c.Name,
+                    CASE 
+                        WHEN bc.Name IS NOT NULL THEN bc.Name + ' (Location #' + i.ShipTo + ')'
+                        ELSE 'Unknown'
+                    END
+                ) as customer_name,
                 COUNT(*) as invoice_count,
-                SUM(COALESCE(i.GrandTotal, 0)) as total_revenue,
-                MIN(i.InvoiceDate) as first_invoice,
-                MAX(i.InvoiceDate) as last_invoice
+                SUM(COALESCE(GrandTotal, 0)) as total_revenue
             FROM [ben002].InvoiceReg i
             LEFT JOIN [ben002].Customer c ON i.ShipTo = c.Number
+            LEFT JOIN [ben002].Customer bc ON i.BillTo = bc.Number
             WHERE i.SaleCode = 'FMBILL'
                 {date_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
-            GROUP BY i.ShipTo, c.Name
+            GROUP BY i.ShipTo, c.Name, bc.Name
             ORDER BY total_revenue DESC
             """.format(date_filter=date_filter)
 
