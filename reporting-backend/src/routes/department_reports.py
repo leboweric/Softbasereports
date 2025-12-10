@@ -9157,15 +9157,28 @@ def register_department_routes(reports_bp):
                 else:
                     health_status = 'critical'  # Unprofitable
                 
-                # Calculate recommended pricing (cost + 20% margin)
+                # Calculate recommended pricing (cost + 30% target margin)
                 recommended_monthly_rate = 0
                 current_monthly_rate = 0
-                if revenue > 0 and row['invoice_count'] > 0:
-                    # Estimate monthly rate from invoice count
-                    current_monthly_rate = revenue / int(row['invoice_count'])
+                
+                # Calculate months in the date range
+                if month and year:
+                    months_in_period = 1
+                elif start_date and end_date:
+                    from datetime import datetime
+                    start = datetime.strptime(start_date, '%Y-%m-%d')
+                    end = datetime.strptime(end_date, '%Y-%m-%d')
+                    months_in_period = max(1, round((end - start).days / 30.44))  # Average days per month
+                else:
+                    months_in_period = 13  # Trailing 13 months
+                
+                if revenue > 0 and months_in_period > 0:
+                    # Current monthly rate = total revenue / months
+                    current_monthly_rate = revenue / months_in_period
                     if service_cost > 0:
-                        # Recommended = (service cost / invoices) * 1.2 (20% margin)
-                        recommended_monthly_rate = (service_cost / int(row['invoice_count'])) * 1.2
+                        # Recommended = (service cost / months) / 0.7 (30% target margin)
+                        # This means service cost should be 70% of revenue, leaving 30% margin
+                        recommended_monthly_rate = (service_cost / months_in_period) / 0.7
 
                 # Get top 5 most expensive equipment for this customer
                 customer_equipment = [e for e in equipment_costs_results if e['customer_number'] == cust_num]
