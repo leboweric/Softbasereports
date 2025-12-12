@@ -7146,14 +7146,14 @@ def register_department_routes(reports_bp):
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
-                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
+                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable != 0 OR ir.RentalNonTax != 0)
                      AND wo.RentalPeriod IN ('Month', '4 Week'))
                     OR
-                    (ir.SaleCode = 'ALLIED' AND (ir.MiscTaxable > 0 OR ir.MiscNonTax > 0))
+                    (ir.SaleCode = 'ALLIED' AND (ir.MiscTaxable != 0 OR ir.MiscNonTax != 0))
                     OR
                     (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                      'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
-                     AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
+                     AND (ir.EquipmentTaxable != 0 OR ir.EquipmentNonTax != 0))
                 )
             ORDER BY COALESCE(wo.Salesman, 'House'), ir.InvoiceDate, ir.InvoiceNo
             """
@@ -7310,18 +7310,18 @@ def register_department_routes(reports_bp):
                 AND ir.SaleCode IN ('RENTAL', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                     'ALLIED', 'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
                 AND (
-                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
+                    (ir.SaleCode = 'RENTAL' AND (ir.RentalTaxable != 0 OR ir.RentalNonTax != 0)
                      AND wo.RentalPeriod IN ('Month', '4 Week'))
                     OR
-                    (ir.SaleCode = 'ALLIED' AND (ir.MiscTaxable > 0 OR ir.MiscNonTax > 0))
+                    (ir.SaleCode = 'ALLIED' AND (ir.MiscTaxable != 0 OR ir.MiscNonTax != 0))
                     OR
                     (ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
                                      'LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'BAT-CHG')
-                     AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0))
+                     AND (ir.EquipmentTaxable != 0 OR ir.EquipmentNonTax != 0))
                 )
             ORDER BY ir.InvoiceDate, ir.InvoiceNo
             """
-            
+
             unassigned_results = db.execute_query(unassigned_query, [start_date, end_date, start_date, end_date])
             
             # Format unassigned invoices
