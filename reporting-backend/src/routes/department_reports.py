@@ -6277,16 +6277,16 @@ def register_department_routes(reports_bp):
             sales_query = """
             SELECT 
                 COALESCE(wo.Salesman, 'Unassigned') as SalesRep,
-                -- Rental sales and costs
-                SUM(CASE 
-                    WHEN ir.SaleCode = 'RENTAL'
+                -- Rental sales and costs (only Month and 4 Week rentals are commissionable)
+                SUM(CASE
+                    WHEN ir.SaleCode = 'RENTAL' AND wo.RentalPeriod IN ('Month', '4 Week')
                     THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
-                    ELSE 0 
+                    ELSE 0
                 END) as RentalSales,
-                SUM(CASE 
-                    WHEN ir.SaleCode = 'RENTAL'
+                SUM(CASE
+                    WHEN ir.SaleCode = 'RENTAL' AND wo.RentalPeriod IN ('Month', '4 Week')
                     THEN COALESCE(ir.RentalCost, 0)
-                    ELSE 0 
+                    ELSE 0
                 END) as RentalCost,
                 -- Used equipment sales and costs
                 SUM(CASE 
@@ -6302,16 +6302,16 @@ def register_department_routes(reports_bp):
                     THEN COALESCE(ir.EquipmentCost, 0)
                     ELSE 0 
                 END) as UsedEquipmentCost,
-                -- Allied equipment sales and costs
-                SUM(CASE 
+                -- Allied equipment sales and costs (uses Misc fields, not Equipment fields)
+                SUM(CASE
                     WHEN ir.SaleCode = 'ALLIED'
-                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
-                    ELSE 0 
+                    THEN COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
+                    ELSE 0
                 END) as AlliedEquipmentSales,
-                SUM(CASE 
+                SUM(CASE
                     WHEN ir.SaleCode = 'ALLIED'
-                    THEN COALESCE(ir.EquipmentCost, 0)
-                    ELSE 0 
+                    THEN COALESCE(ir.MiscCost, 0)
+                    ELSE 0
                 END) as AlliedEquipmentCost,
                 -- New equipment sales and costs
                 SUM(CASE 
