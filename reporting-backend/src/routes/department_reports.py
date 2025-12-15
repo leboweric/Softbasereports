@@ -4534,6 +4534,7 @@ def register_department_routes(reports_bp):
 
             # Get all open AR with invoice dates and aging buckets
             # For historical view, we calculate days old relative to the as_of_date
+            # Use EntryDate to filter AR entries that existed as of the selected date
             query = f"""
             WITH InvoiceBalances AS (
                 SELECT
@@ -4545,7 +4546,7 @@ def register_department_routes(reports_bp):
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL
-                    AND ar.PostDate <= '{as_of_date_sql}'
+                    AND ar.EffectiveDate <= '{as_of_date_sql}'
                 GROUP BY ar.InvoiceNo, ar.CustomerNo
                 HAVING SUM(ar.Amount) > 0.01
             )
