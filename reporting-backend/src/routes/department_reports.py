@@ -3781,17 +3781,15 @@ def register_department_routes(reports_bp):
             # All expense accounts start with 6
             details_query = f"""
             SELECT
-                gld.AccountNo,
-                gld.EffectiveDate,
-                gld.Amount,
-                gld.Description,
-                gla.Title as AccountTitle
-            FROM ben002.GLDetail gld
-            LEFT JOIN ben002.GLAccount gla ON gld.AccountNo = gla.AccountNo
-            WHERE gld.AccountNo LIKE '6%'
-                AND YEAR(gld.EffectiveDate) = {year}
-                AND MONTH(gld.EffectiveDate) = {month}
-            ORDER BY gld.AccountNo, gld.EffectiveDate DESC, gld.Amount DESC
+                AccountNo,
+                EffectiveDate,
+                Amount,
+                Description
+            FROM ben002.GLDetail
+            WHERE AccountNo LIKE '6%'
+                AND YEAR(EffectiveDate) = {year}
+                AND MONTH(EffectiveDate) = {month}
+            ORDER BY AccountNo, EffectiveDate DESC, Amount DESC
             """
 
             results = db.execute_query(details_query)
@@ -3809,7 +3807,6 @@ def register_department_routes(reports_bp):
                     date_str = None
 
                 account_no = row.get('AccountNo') or ''
-                account_title = row.get('AccountTitle') or ''
                 description = row.get('Description') or ''
 
                 expenses.append({
@@ -3817,8 +3814,8 @@ def register_department_routes(reports_bp):
                     'amount': float(row.get('Amount') or 0),
                     'description': description,
                     'account_no': account_no,
-                    'account_title': account_title,
-                    'category': account_title if account_title else f"Account {account_no}"
+                    'account_title': f"Account {account_no}",
+                    'category': f"Account {account_no}"
                 })
 
             # Calculate total
