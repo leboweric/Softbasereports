@@ -4510,12 +4510,31 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/accounting/ar-aging', methods=['GET'])
     @jwt_required()
     def get_ar_aging():
-        """Get ALL AR with aging buckets for bank reporting"""
+        """Get ALL AR with aging buckets for bank reporting.
+
+        Query params:
+        - as_of_date: Optional date string (YYYY-MM-DD) to view historical AR aging.
+                      If not provided, uses current date.
+        """
         try:
             db = get_db()
 
+            # Get optional as_of_date parameter for historical views
+            as_of_date_str = request.args.get('as_of_date')
+            if as_of_date_str:
+                try:
+                    as_of_date = datetime.strptime(as_of_date_str, '%Y-%m-%d')
+                except ValueError:
+                    return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+            else:
+                as_of_date = datetime.now()
+
+            # Format date for SQL Server
+            as_of_date_sql = as_of_date.strftime('%Y-%m-%d')
+
             # Get all open AR with invoice dates and aging buckets
-            query = """
+            # For historical view, we calculate days old relative to the as_of_date
+            query = f"""
             WITH InvoiceBalances AS (
                 SELECT
                     ar.InvoiceNo,
@@ -4526,6 +4545,7 @@ def register_department_routes(reports_bp):
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL
+                    AND ar.PostDate <= '{as_of_date_sql}'
                 GROUP BY ar.InvoiceNo, ar.CustomerNo
                 HAVING SUM(ar.Amount) > 0.01
             )
@@ -4535,19 +4555,20 @@ def register_department_routes(reports_bp):
                 c.Name as CustomerName,
                 ir.InvoiceDate,
                 ib.Due,
-                DATEDIFF(day, ib.Due, GETDATE()) as DaysOld,
+                DATEDIFF(day, ib.Due, '{as_of_date_sql}') as DaysOld,
                 ib.NetBalance,
                 CASE
-                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 0 THEN 'Current'
-                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 30 THEN '1-30'
-                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 60 THEN '31-60'
-                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 90 THEN '61-90'
-                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 120 THEN '91-120'
+                    WHEN DATEDIFF(day, ib.Due, '{as_of_date_sql}') <= 0 THEN 'Current'
+                    WHEN DATEDIFF(day, ib.Due, '{as_of_date_sql}') <= 30 THEN '1-30'
+                    WHEN DATEDIFF(day, ib.Due, '{as_of_date_sql}') <= 60 THEN '31-60'
+                    WHEN DATEDIFF(day, ib.Due, '{as_of_date_sql}') <= 90 THEN '61-90'
+                    WHEN DATEDIFF(day, ib.Due, '{as_of_date_sql}') <= 120 THEN '91-120'
                     ELSE '120+'
                 END as AgingBucket
             FROM InvoiceBalances ib
             LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
             LEFT JOIN ben002.InvoiceReg ir ON ib.InvoiceNo = ir.InvoiceNo
+            WHERE ir.InvoiceDate <= '{as_of_date_sql}'
             ORDER BY c.Name, ib.Due
             """
 
@@ -4581,7 +4602,8 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'invoices': invoices,
                 'totals': totals,
-                'total_count': len(invoices)
+                'total_count': len(invoices),
+                'as_of_date': as_of_date.strftime('%Y-%m-%d')
             })
 
         except Exception as e:

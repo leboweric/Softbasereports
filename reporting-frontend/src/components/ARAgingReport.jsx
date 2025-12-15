@@ -2,35 +2,52 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Search } from 'lucide-react';
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Download, Search, Calendar, RefreshCw } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import * as XLSX from 'xlsx';
+
+const AGING_BUCKETS = [
+  { key: 'Current', label: 'Current', color: 'green' },
+  { key: '1-30', label: '1-30 Days', color: 'blue' },
+  { key: '31-60', label: '31-60 Days', color: 'yellow' },
+  { key: '61-90', label: '61-90 Days', color: 'orange' },
+  { key: '91-120', label: '91-120 Days', color: 'red' },
+  { key: '120+', label: '120+ Days', color: 'darkred' }
+];
 
 export default function ARAgingReport() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [agingFilter, setAgingFilter] = useState('all');
+  const [selectedBuckets, setSelectedBuckets] = useState(new Set(AGING_BUCKETS.map(b => b.key))); // All selected by default
   const [sortField, setSortField] = useState('CustomerName');
   const [sortDirection, setSortDirection] = useState('asc');
+  const [asOfDate, setAsOfDate] = useState(''); // Empty means current date
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [asOfDate]);
 
   useEffect(() => {
     if (data && data.invoices) {
       filterAndSortData();
     }
-  }, [data, searchTerm, agingFilter, sortField, sortDirection]);
+  }, [data, searchTerm, selectedBuckets, sortField, sortDirection]);
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
 
-      const response = await fetch(apiUrl('/api/reports/departments/accounting/ar-aging'), {
+      let url = '/api/reports/departments/accounting/ar-aging';
+      if (asOfDate) {
+        url += `?as_of_date=${asOfDate}`;
+      }
+
+      const response = await fetch(apiUrl(url), {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -57,8 +74,8 @@ export default function ARAgingReport() {
         inv.CustomerNo?.toLowerCase().includes(search)
       );
 
-      // Aging bucket filter
-      const matchesAging = agingFilter === 'all' || inv.AgingBucket === agingFilter;
+      // Aging bucket filter (multi-select)
+      const matchesAging = selectedBuckets.has(inv.AgingBucket);
 
       return matchesSearch && matchesAging;
     });
@@ -96,6 +113,30 @@ export default function ARAgingReport() {
       setSortField(field);
       setSortDirection(field === 'CustomerName' ? 'asc' : 'desc');
     }
+  };
+
+  const toggleBucket = (bucketKey) => {
+    setSelectedBuckets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(bucketKey)) {
+        newSet.delete(bucketKey);
+      } else {
+        newSet.add(bucketKey);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllBuckets = () => {
+    setSelectedBuckets(new Set(AGING_BUCKETS.map(b => b.key)));
+  };
+
+  const clearAllBuckets = () => {
+    setSelectedBuckets(new Set());
+  };
+
+  const selectOver90 = () => {
+    setSelectedBuckets(new Set(['91-120', '120+']));
   };
 
   const downloadExcel = () => {
@@ -139,16 +180,22 @@ export default function ARAgingReport() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'AR Aging');
 
-    // Add summary sheet with proper formatting
-    const summaryData = [
-      { 'Aging Bucket': 'Current', 'Amount': parseFloat(data.totals.current || 0), 'Invoice Count': data.invoices.filter(i => i.AgingBucket === 'Current').length },
-      { 'Aging Bucket': '1-30 Days', 'Amount': parseFloat(data.totals['1-30'] || 0), 'Invoice Count': data.invoices.filter(i => i.AgingBucket === '1-30').length },
-      { 'Aging Bucket': '31-60 Days', 'Amount': parseFloat(data.totals['31-60'] || 0), 'Invoice Count': data.invoices.filter(i => i.AgingBucket === '31-60').length },
-      { 'Aging Bucket': '61-90 Days', 'Amount': parseFloat(data.totals['61-90'] || 0), 'Invoice Count': data.invoices.filter(i => i.AgingBucket === '61-90').length },
-      { 'Aging Bucket': '91-120 Days', 'Amount': parseFloat(data.totals['91-120'] || 0), 'Invoice Count': data.invoices.filter(i => i.AgingBucket === '91-120').length },
-      { 'Aging Bucket': '120+ Days', 'Amount': parseFloat(data.totals['120+'] || 0), 'Invoice Count': data.invoices.filter(i => i.AgingBucket === '120+').length },
-      { 'Aging Bucket': 'TOTAL', 'Amount': parseFloat(data.totals.total || 0), 'Invoice Count': data.invoices.length }
-    ];
+    // Add summary sheet - only include selected buckets in filtered view
+    const summaryData = AGING_BUCKETS
+      .filter(b => selectedBuckets.has(b.key))
+      .map(b => ({
+        'Aging Bucket': b.label,
+        'Amount': parseFloat(filteredData.filter(i => i.AgingBucket === b.key).reduce((sum, i) => sum + parseFloat(i.NetBalance || 0), 0)),
+        'Invoice Count': filteredData.filter(i => i.AgingBucket === b.key).length
+      }));
+
+    // Add total row
+    summaryData.push({
+      'Aging Bucket': 'TOTAL',
+      'Amount': parseFloat(filteredData.reduce((sum, i) => sum + parseFloat(i.NetBalance || 0), 0)),
+      'Invoice Count': filteredData.length
+    });
+
     const summarySheet = XLSX.utils.json_to_sheet(summaryData);
 
     // Apply currency formatting to Amount column in summary
@@ -168,7 +215,11 @@ export default function ARAgingReport() {
 
     XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
 
-    XLSX.writeFile(workbook, `AR_Aging_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+    // Generate filename with date
+    const dateStr = asOfDate || new Date().toISOString().split('T')[0];
+    const selectedBucketStr = selectedBuckets.size === AGING_BUCKETS.length ? 'All' :
+      Array.from(selectedBuckets).join('_').replace(/\+/g, 'plus');
+    XLSX.writeFile(workbook, `AR_Aging_${dateStr}_${selectedBucketStr}.xlsx`);
   };
 
   if (loading) return <div className="p-6">Loading AR Aging Report...</div>;
@@ -205,104 +256,108 @@ export default function ARAgingReport() {
     }
   };
 
+  const getCardBorderColor = (bucket, isSelected) => {
+    if (!isSelected) return '';
+    switch (bucket) {
+      case 'Current': return 'ring-2 ring-green-500';
+      case '1-30': return 'ring-2 ring-blue-500';
+      case '31-60': return 'ring-2 ring-yellow-500';
+      case '61-90': return 'ring-2 ring-orange-500';
+      case '91-120': return 'ring-2 ring-red-500';
+      case '120+': return 'ring-2 ring-red-700';
+      default: return '';
+    }
+  };
+
+  const formatAsOfDate = () => {
+    if (!data?.as_of_date) return 'Current';
+    const date = new Date(data.as_of_date + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">AR Aging Report</h1>
-          <p className="text-muted-foreground">Complete accounts receivable aging for bank reporting</p>
+          <p className="text-muted-foreground">
+            Complete accounts receivable aging for bank reporting
+            {asOfDate && <span className="ml-2 text-blue-600 font-medium">- As of {formatAsOfDate()}</span>}
+          </p>
         </div>
-        <Button onClick={downloadExcel} className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
-          Download Excel
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Input
+              type="date"
+              value={asOfDate}
+              onChange={(e) => setAsOfDate(e.target.value)}
+              className="w-40"
+              max={new Date().toISOString().split('T')[0]}
+            />
+            {asOfDate && (
+              <Button variant="ghost" size="sm" onClick={() => setAsOfDate('')} title="Reset to current date">
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <Button onClick={downloadExcel} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Download Excel
+          </Button>
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-7">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setAgingFilter(agingFilter === 'Current' ? 'all' : 'Current')}>
-          <CardHeader className="pb-2">
-            <CardTitle className={`text-sm font-medium ${agingFilter === 'Current' ? 'text-green-600' : ''}`}>Current</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">{formatCurrency(data.totals.current)}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.invoices.filter(i => i.AgingBucket === 'Current').length} invoices
-            </p>
-          </CardContent>
-        </Card>
+      {/* Summary Cards with Multi-Select */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-muted-foreground">Quick Select:</span>
+          <Button variant="outline" size="sm" onClick={selectAllBuckets}>All</Button>
+          <Button variant="outline" size="sm" onClick={clearAllBuckets}>None</Button>
+          <Button variant="outline" size="sm" onClick={selectOver90}>Over 90 Days</Button>
+        </div>
+        <div className="grid gap-4 md:grid-cols-7">
+          {AGING_BUCKETS.map((bucket) => {
+            const isSelected = selectedBuckets.has(bucket.key);
+            const bucketTotal = data.totals[bucket.key.toLowerCase()] || data.totals[bucket.key] || 0;
+            const bucketCount = data.invoices.filter(i => i.AgingBucket === bucket.key).length;
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setAgingFilter(agingFilter === '1-30' ? 'all' : '1-30')}>
-          <CardHeader className="pb-2">
-            <CardTitle className={`text-sm font-medium ${agingFilter === '1-30' ? 'text-blue-600' : ''}`}>1-30 Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">{formatCurrency(data.totals['1-30'])}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.invoices.filter(i => i.AgingBucket === '1-30').length} invoices
-            </p>
-          </CardContent>
-        </Card>
+            return (
+              <Card
+                key={bucket.key}
+                className={`cursor-pointer hover:shadow-md transition-all ${getCardBorderColor(bucket.key, isSelected)} ${!isSelected ? 'opacity-50' : ''}`}
+                onClick={() => toggleBucket(bucket.key)}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={isSelected} onChange={() => {}} className="pointer-events-none" />
+                    <CardTitle className={`text-sm font-medium`}>{bucket.label}</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-xl font-bold ${bucket.color === 'red' || bucket.color === 'darkred' ? 'text-red-600' : ''}`}>
+                    {formatCurrency(bucketTotal)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {bucketCount} invoices
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
 
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setAgingFilter(agingFilter === '31-60' ? 'all' : '31-60')}>
-          <CardHeader className="pb-2">
-            <CardTitle className={`text-sm font-medium ${agingFilter === '31-60' ? 'text-yellow-600' : ''}`}>31-60 Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">{formatCurrency(data.totals['31-60'])}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.invoices.filter(i => i.AgingBucket === '31-60').length} invoices
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setAgingFilter(agingFilter === '61-90' ? 'all' : '61-90')}>
-          <CardHeader className="pb-2">
-            <CardTitle className={`text-sm font-medium ${agingFilter === '61-90' ? 'text-orange-600' : ''}`}>61-90 Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">{formatCurrency(data.totals['61-90'])}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.invoices.filter(i => i.AgingBucket === '61-90').length} invoices
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setAgingFilter(agingFilter === '91-120' ? 'all' : '91-120')}>
-          <CardHeader className="pb-2">
-            <CardTitle className={`text-sm font-medium ${agingFilter === '91-120' ? 'text-red-600' : ''}`}>91-120 Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-red-600">{formatCurrency(data.totals['91-120'])}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.invoices.filter(i => i.AgingBucket === '91-120').length} invoices
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setAgingFilter(agingFilter === '120+' ? 'all' : '120+')}>
-          <CardHeader className="pb-2">
-            <CardTitle className={`text-sm font-medium ${agingFilter === '120+' ? 'text-red-700' : ''}`}>120+ Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-red-700">{formatCurrency(data.totals['120+'])}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.invoices.filter(i => i.AgingBucket === '120+').length} invoices
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-slate-50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total AR</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold">{formatCurrency(data.totals.total)}</div>
-            <p className="text-xs text-muted-foreground">
-              {data.invoices.length} invoices
-            </p>
-          </CardContent>
-        </Card>
+          <Card className="bg-slate-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Selected Total</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">{formatCurrency(filteredTotals.total)}</div>
+              <p className="text-xs text-muted-foreground">
+                {filteredData.length} invoices
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Filters and Table */}
@@ -311,20 +366,6 @@ export default function ARAgingReport() {
           <div className="flex items-center justify-between gap-4">
             <CardTitle>Invoice Details</CardTitle>
             <div className="flex items-center gap-4">
-              <Select value={agingFilter} onValueChange={setAgingFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by aging" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Buckets</SelectItem>
-                  <SelectItem value="Current">Current</SelectItem>
-                  <SelectItem value="1-30">1-30 Days</SelectItem>
-                  <SelectItem value="31-60">31-60 Days</SelectItem>
-                  <SelectItem value="61-90">61-90 Days</SelectItem>
-                  <SelectItem value="91-120">91-120 Days</SelectItem>
-                  <SelectItem value="120+">120+ Days</SelectItem>
-                </SelectContent>
-              </Select>
               <div className="relative w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -336,13 +377,11 @@ export default function ARAgingReport() {
               </div>
             </div>
           </div>
-          {(searchTerm || agingFilter !== 'all') && (
-            <div className="text-sm text-muted-foreground mt-2">
-              Showing {filteredData.length} of {data.invoices.length} invoices
-              {agingFilter !== 'all' && ` (${agingFilter})`}
-              {' '}totaling {formatCurrency(filteredTotals.total)}
-            </div>
-          )}
+          <div className="text-sm text-muted-foreground mt-2">
+            Showing {filteredData.length} of {data.invoices.length} invoices
+            {selectedBuckets.size < AGING_BUCKETS.length && ` (${Array.from(selectedBuckets).join(', ')})`}
+            {' '}totaling {formatCurrency(filteredTotals.total)}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -417,7 +456,7 @@ export default function ARAgingReport() {
             </table>
             {filteredData.length === 0 && (
               <div className="text-center py-8 text-muted-foreground">
-                No invoices found matching your search
+                No invoices found matching your criteria
               </div>
             )}
           </div>
