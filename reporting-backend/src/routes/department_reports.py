@@ -3779,17 +3779,20 @@ def register_department_routes(reports_bp):
 
             # Get expense details from GLDetail table for the specified month
             # All expense accounts start with 6
+            # JOIN with ChartOfAccounts to get account descriptions
             details_query = f"""
             SELECT
-                AccountNo,
-                EffectiveDate,
-                Amount,
-                Description
-            FROM ben002.GLDetail
-            WHERE AccountNo LIKE '6%'
-                AND YEAR(EffectiveDate) = {year}
-                AND MONTH(EffectiveDate) = {month}
-            ORDER BY AccountNo, EffectiveDate DESC, Amount DESC
+                gld.AccountNo,
+                gld.EffectiveDate,
+                gld.Amount,
+                gld.Description,
+                coa.Description as AccountTitle
+            FROM ben002.GLDetail gld
+            LEFT JOIN ben002.ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
+            WHERE gld.AccountNo LIKE '6%'
+                AND YEAR(gld.EffectiveDate) = {year}
+                AND MONTH(gld.EffectiveDate) = {month}
+            ORDER BY gld.AccountNo, gld.EffectiveDate DESC, gld.Amount DESC
             """
 
             results = db.execute_query(details_query)
@@ -3808,14 +3811,15 @@ def register_department_routes(reports_bp):
 
                 account_no = row.get('AccountNo') or ''
                 description = row.get('Description') or ''
+                account_title = row.get('AccountTitle') or account_no
 
                 expenses.append({
                     'date': date_str,
                     'amount': float(row.get('Amount') or 0),
                     'description': description,
                     'account_no': account_no,
-                    'account_title': f"Account {account_no}",
-                    'category': f"Account {account_no}"
+                    'account_title': account_title,
+                    'category': account_title
                 })
 
             # Calculate total
