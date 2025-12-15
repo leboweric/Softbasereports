@@ -44,6 +44,9 @@ const AccountingReport = ({ user }) => {
   const [gnaDetail, setGnaDetail] = useState(null)
   const [gnaDetailLoading, setGnaDetailLoading] = useState(false)
 
+  // G&A Account drill-down state (for clicking individual accounts)
+  const [selectedGnaAccount, setSelectedGnaAccount] = useState(null)
+
   useEffect(() => {
     fetchAccountingData()
     fetchARData()
@@ -231,6 +234,7 @@ const AccountingReport = ({ user }) => {
   const fetchGnaExpensesDetails = async (year, month, monthLabel) => {
     setGnaDetailLoading(true)
     setGnaDetailOpen(true)
+    setSelectedGnaAccount(null) // Reset selected account when loading new month
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(apiUrl(`/api/reports/departments/accounting/gna-expenses/details?year=${year}&month=${month}`), {
@@ -976,7 +980,10 @@ const AccountingReport = ({ user }) => {
       </Sheet>
 
       {/* G&A Expenses Detail Sheet */}
-      <Sheet open={gnaDetailOpen} onOpenChange={setGnaDetailOpen}>
+      <Sheet open={gnaDetailOpen} onOpenChange={(open) => {
+        setGnaDetailOpen(open)
+        if (!open) setSelectedGnaAccount(null) // Reset selection when closing
+      }}>
         <SheetContent className="w-[700px] sm:max-w-[700px] overflow-y-auto">
           <SheetHeader>
             <SheetTitle>G&A Expenses Details</SheetTitle>
@@ -998,70 +1005,81 @@ const AccountingReport = ({ user }) => {
                 <span className="font-semibold text-lg">{formatCurrency(gnaDetail.total)}</span>
               </div>
 
-              {/* Summary by Account */}
+              {/* Summary by Account - Clickable */}
               <div className="mb-6">
-                <h4 className="font-semibold text-sm mb-2">By Account</h4>
-                <div className="space-y-2">
-                  {gnaDetail.by_account.slice(0, 10).map((account, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-sm">
+                <h4 className="font-semibold text-sm mb-2">By Account <span className="text-muted-foreground font-normal">(click to view transactions)</span></h4>
+                <div className="space-y-1">
+                  {gnaDetail.by_account.map((account, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex justify-between items-center text-sm p-2 rounded cursor-pointer transition-colors ${
+                        selectedGnaAccount?.account_no === account.account_no
+                          ? 'bg-blue-100 dark:bg-blue-900'
+                          : 'hover:bg-muted'
+                      }`}
+                      onClick={() => setSelectedGnaAccount(account)}
+                    >
                       <div className="flex-1">
                         <span className="text-muted-foreground">{account.account_no}</span>
-                        <span className="ml-2">{account.account_title || 'Unknown'}</span>
+                        <span className="ml-2 font-medium">{account.account_title || 'Unknown'}</span>
                         <span className="text-muted-foreground ml-1">({account.count})</span>
                       </div>
                       <span className="font-medium">{formatCurrency(account.total)}</span>
                     </div>
                   ))}
-                  {gnaDetail.by_account.length > 10 && (
-                    <div className="text-sm text-muted-foreground">
-                      ...and {gnaDetail.by_account.length - 10} more accounts
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Detailed Transactions */}
-              <div className="border-t pt-4">
-                <h4 className="font-semibold text-sm mb-2">All Transactions</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Account</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {gnaDetail.expenses.slice(0, 50).map((expense, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="text-xs">
-                          <div className="font-medium">{expense.account_no}</div>
-                          <div className="text-muted-foreground truncate max-w-[100px]" title={expense.account_title}>
-                            {expense.account_title}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm truncate max-w-[200px]" title={expense.description}>
-                            {expense.description || '-'}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">
-                          {expense.date ? new Date(expense.date).toLocaleDateString() : '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(expense.amount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {gnaDetail.expenses.length > 50 && (
-                  <div className="text-sm text-muted-foreground mt-2 text-center">
-                    Showing first 50 of {gnaDetail.expenses.length} transactions
+              {/* Account Transactions - Shows when an account is selected */}
+              {selectedGnaAccount && (
+                <div className="border-t pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-semibold text-sm">
+                      {selectedGnaAccount.account_title} ({selectedGnaAccount.account_no})
+                    </h4>
+                    <button
+                      onClick={() => setSelectedGnaAccount(null)}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Clear selection
+                    </button>
                   </div>
-                )}
-              </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {gnaDetail.expenses
+                        .filter(exp => exp.account_no === selectedGnaAccount.account_no)
+                        .slice(0, 100)
+                        .map((expense, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell>
+                              <div className="text-sm truncate max-w-[300px]" title={expense.description}>
+                                {expense.description || '-'}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              {expense.date ? new Date(expense.date).toLocaleDateString() : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {formatCurrency(expense.amount)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                  {gnaDetail.expenses.filter(exp => exp.account_no === selectedGnaAccount.account_no).length > 100 && (
+                    <div className="text-sm text-muted-foreground mt-2 text-center">
+                      Showing first 100 of {gnaDetail.expenses.filter(exp => exp.account_no === selectedGnaAccount.account_no).length} transactions
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : null}
         </SheetContent>
