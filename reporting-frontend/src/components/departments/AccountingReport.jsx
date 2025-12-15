@@ -1005,81 +1005,75 @@ const AccountingReport = ({ user }) => {
                 <span className="font-semibold text-lg">{formatCurrency(gnaDetail.total)}</span>
               </div>
 
-              {/* Summary by Account - Clickable */}
-              <div className="mb-6">
-                <h4 className="font-semibold text-sm mb-2">By Account <span className="text-muted-foreground font-normal">(click to view transactions)</span></h4>
+              {/* Summary by Account - Accordion style */}
+              <div>
+                <h4 className="font-semibold text-sm mb-2">By Account <span className="text-muted-foreground font-normal">(click to expand)</span></h4>
                 <div className="space-y-1">
-                  {gnaDetail.by_account.map((account, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex justify-between items-center text-sm p-2 rounded cursor-pointer transition-colors ${
-                        selectedGnaAccount?.account_no === account.account_no
-                          ? 'bg-blue-100 dark:bg-blue-900'
-                          : 'hover:bg-muted'
-                      }`}
-                      onClick={() => setSelectedGnaAccount(account)}
-                    >
-                      <div className="flex-1">
-                        <span className="text-muted-foreground">{account.account_no}</span>
-                        <span className="ml-2 font-medium">{account.account_title || 'Unknown'}</span>
-                        <span className="text-muted-foreground ml-1">({account.count})</span>
+                  {gnaDetail.by_account.map((account, idx) => {
+                    const isExpanded = selectedGnaAccount?.account_no === account.account_no
+                    const accountTransactions = gnaDetail.expenses.filter(exp => exp.account_no === account.account_no)
+
+                    return (
+                      <div key={idx} className="border rounded">
+                        {/* Account Header Row */}
+                        <div
+                          className={`flex justify-between items-center text-sm p-2 cursor-pointer transition-colors ${
+                            isExpanded
+                              ? 'bg-blue-100 dark:bg-blue-900'
+                              : 'hover:bg-muted'
+                          }`}
+                          onClick={() => setSelectedGnaAccount(isExpanded ? null : account)}
+                        >
+                          <div className="flex-1 flex items-center">
+                            <span className={`mr-2 transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                            <span className="text-muted-foreground">{account.account_no}</span>
+                            <span className="ml-2 font-medium">{account.account_title || 'Unknown'}</span>
+                            <span className="text-muted-foreground ml-1">({account.count})</span>
+                          </div>
+                          <span className="font-medium">{formatCurrency(account.total)}</span>
+                        </div>
+
+                        {/* Expanded Transactions */}
+                        {isExpanded && (
+                          <div className="border-t bg-muted/30 p-2">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="text-xs">Description</TableHead>
+                                  <TableHead className="text-xs">Date</TableHead>
+                                  <TableHead className="text-xs text-right">Amount</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {accountTransactions.slice(0, 100).map((expense, expIdx) => (
+                                  <TableRow key={expIdx}>
+                                    <TableCell>
+                                      <div className="text-sm truncate max-w-[280px]" title={expense.description}>
+                                        {expense.description || '-'}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-sm">
+                                      {expense.date ? new Date(expense.date).toLocaleDateString() : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">
+                                      {formatCurrency(expense.amount)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                            {accountTransactions.length > 100 && (
+                              <div className="text-xs text-muted-foreground mt-2 text-center">
+                                Showing first 100 of {accountTransactions.length} transactions
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <span className="font-medium">{formatCurrency(account.total)}</span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
-
-              {/* Account Transactions - Shows when an account is selected */}
-              {selectedGnaAccount && (
-                <div className="border-t pt-4">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="font-semibold text-sm">
-                      {selectedGnaAccount.account_title} ({selectedGnaAccount.account_no})
-                    </h4>
-                    <button
-                      onClick={() => setSelectedGnaAccount(null)}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      Clear selection
-                    </button>
-                  </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {gnaDetail.expenses
-                        .filter(exp => exp.account_no === selectedGnaAccount.account_no)
-                        .slice(0, 100)
-                        .map((expense, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell>
-                              <div className="text-sm truncate max-w-[300px]" title={expense.description}>
-                                {expense.description || '-'}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-sm">
-                              {expense.date ? new Date(expense.date).toLocaleDateString() : '-'}
-                            </TableCell>
-                            <TableCell className="text-right font-medium">
-                              {formatCurrency(expense.amount)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                  {gnaDetail.expenses.filter(exp => exp.account_no === selectedGnaAccount.account_no).length > 100 && (
-                    <div className="text-sm text-muted-foreground mt-2 text-center">
-                      Showing first 100 of {gnaDetail.expenses.filter(exp => exp.account_no === selectedGnaAccount.account_no).length} transactions
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           ) : null}
         </SheetContent>
