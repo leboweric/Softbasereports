@@ -20,6 +20,7 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 import AROver90Report from '@/components/AROver90Report'
+import ARAgingReport from '@/components/ARAgingReport'
 import APReport from '@/components/APReport'
 import SalesCommissionReport from '@/components/SalesCommissionReport'
 import ControlNumberReport from '@/components/ControlNumberReport'
@@ -268,11 +269,11 @@ const AccountingReport = ({ user }) => {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="ar">Accounts Receivable</TabsTrigger>
+          <TabsTrigger value="ar-aging">AR Aging</TabsTrigger>
           <TabsTrigger value="ap">Accounts Payable</TabsTrigger>
           <TabsTrigger value="commissions">Sales Commissions</TabsTrigger>
           <TabsTrigger value="control">Control Numbers</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
-
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -850,6 +851,10 @@ const AccountingReport = ({ user }) => {
 
         <TabsContent value="ar" className="space-y-6">
           <AROver90Report user={user} />
+        </TabsContent>
+
+        <TabsContent value="ar-aging" className="space-y-6">
+          <ARAgingReport user={user} />
         </TabsContent>
 
         <TabsContent value="ap" className="space-y-6">

@@ -4507,6 +4507,90 @@ def register_department_routes(reports_bp):
                 'type': 'ar_over90_full_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/ar-aging', methods=['GET'])
+    @jwt_required()
+    def get_ar_aging():
+        """Get ALL AR with aging buckets for bank reporting"""
+        try:
+            db = get_db()
+
+            # Get all open AR with invoice dates and aging buckets
+            query = """
+            WITH InvoiceBalances AS (
+                SELECT
+                    ar.InvoiceNo,
+                    ar.CustomerNo,
+                    MIN(ar.Due) as Due,
+                    SUM(ar.Amount) as NetBalance
+                FROM ben002.ARDetail ar
+                WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                    AND ar.DeletionTime IS NULL
+                    AND ar.InvoiceNo IS NOT NULL
+                GROUP BY ar.InvoiceNo, ar.CustomerNo
+                HAVING SUM(ar.Amount) > 0.01
+            )
+            SELECT
+                ib.InvoiceNo,
+                ib.CustomerNo,
+                c.Name as CustomerName,
+                ir.InvoiceDate,
+                ib.Due,
+                DATEDIFF(day, ib.Due, GETDATE()) as DaysOld,
+                ib.NetBalance,
+                CASE
+                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 0 THEN 'Current'
+                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 30 THEN '1-30'
+                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 60 THEN '31-60'
+                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 90 THEN '61-90'
+                    WHEN DATEDIFF(day, ib.Due, GETDATE()) <= 120 THEN '91-120'
+                    ELSE '120+'
+                END as AgingBucket
+            FROM InvoiceBalances ib
+            LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            LEFT JOIN ben002.InvoiceReg ir ON ib.InvoiceNo = ir.InvoiceNo
+            ORDER BY c.Name, ib.Due
+            """
+
+            results = db.execute_query(query)
+
+            # Calculate totals by aging bucket
+            totals = {
+                'current': 0,
+                '1-30': 0,
+                '31-60': 0,
+                '61-90': 0,
+                '91-120': 0,
+                '120+': 0,
+                'total': 0
+            }
+
+            invoices = []
+            for row in results:
+                invoice = dict(row)
+                amount = float(invoice.get('NetBalance', 0))
+                bucket = invoice.get('AgingBucket', 'Current')
+
+                # Map bucket to totals key
+                bucket_key = bucket.lower() if bucket == 'Current' else bucket.lower()
+                if bucket_key in totals:
+                    totals[bucket_key] += amount
+                totals['total'] += amount
+
+                invoices.append(invoice)
+
+            return jsonify({
+                'invoices': invoices,
+                'totals': totals,
+                'total_count': len(invoices)
+            })
+
+        except Exception as e:
+            logger.error(f"Error fetching AR aging: {str(e)}")
+            return jsonify({
+                'error': str(e),
+                'type': 'ar_aging_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/over90-debug', methods=['GET'])
     @jwt_required()
     def get_over90_debug():
