@@ -57,7 +57,6 @@ import {
   HelpCircle
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
-import { hasResource } from '@/contexts/PermissionsContext'
 import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
@@ -141,7 +140,6 @@ const Dashboard = ({ user }) => {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [customerRiskFilter, setCustomerRiskFilter] = useState('all') // 'all', 'at-risk', 'healthy'
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
-  const [professionalServicesExpenses, setProfessionalServicesExpenses] = useState([])
   // Customer detail modal
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [customerDetailModalOpen, setCustomerDetailModalOpen] = useState(false)
@@ -205,11 +203,7 @@ const Dashboard = ({ user }) => {
 
   useEffect(() => {
     fetchDashboardData()
-    // Only fetch expense data for users with accounting access
-    if (hasResource(user, 'accounting_overview')) {
-      fetchExpenseData()
-      fetchProfessionalServicesData()
-    }
+    fetchExpenseData()
 
     // Set up auto-refresh every 5 minutes for real-time updates
     const interval = setInterval(() => {
@@ -223,7 +217,7 @@ const Dashboard = ({ user }) => {
       isMountedRef.current = false
       clearInterval(interval)
     }
-  }, [user])
+  }, [])
 
   useEffect(() => {
     // Fetch invoice delay analysis when Work Orders tab is selected
@@ -493,64 +487,12 @@ const Dashboard = ({ user }) => {
 
       if (response.ok) {
         const data = await response.json()
-        // Filter out current month and Nov '24 through Feb '25
-        const filteredExpenses = (data.monthly_expenses || []).filter(item => {
-          // Exclude months before March 2025
-          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25", "Nov", "Dec", "Jan", "Feb"]
-          // Check both formats - some might have year, some might not
-          if (excludedMonths.includes(item.month)) {
-            // If it's just month name without year, check if year is 2024/2025 early months
-            if (item.year === 2024 && ['Nov', 'Dec'].includes(item.month)) return false
-            if (item.year === 2025 && ['Jan', 'Feb'].includes(item.month)) return false
-            if (item.month.includes("'24") || item.month.includes("'25")) {
-              if (["Nov '24", "Dec '24", "Jan '25", "Feb '25"].includes(item.month)) return false
-            }
-          }
-          // Exclude current month (always incomplete)
-          const now = new Date()
-          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short' })
-          if (item.month === currentMonthStr && item.year === now.getFullYear()) return false
-          const currentMonthStrWithYear = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
-          if (item.month === currentMonthStrWithYear) return false
-          return true
-        })
-        setMonthlyExpenses(filteredExpenses)
+        setMonthlyExpenses(data.monthly_expenses || [])
       } else {
         console.error('Failed to fetch expense data')
       }
     } catch (error) {
       console.error('Error fetching expense data:', error)
-    }
-  }
-
-  const fetchProfessionalServicesData = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/departments/accounting/professional-services'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        // Filter out current month and Nov '24 through Feb '25
-        const filteredExpenses = (data.monthly_expenses || []).filter(item => {
-          // Exclude months before March 2025
-          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
-          if (excludedMonths.includes(item.month)) return false
-          // Exclude current month (always incomplete)
-          const now = new Date()
-          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
-          if (item.month === currentMonthStr) return false
-          return true
-        })
-        setProfessionalServicesExpenses(filteredExpenses)
-      } else {
-        console.error('Failed to fetch professional services data')
-      }
-    } catch (error) {
-      console.error('Error fetching professional services data:', error)
     }
   }
 
@@ -1410,253 +1352,6 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
           </div>
-
-          {/* G&A and Professional Services Expenses - Only for Accounting Users */}
-          {hasResource(user, 'accounting_overview') && (
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* G&A Expenses Over Time */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>G&A Expenses Over Time</CardTitle>
-                      <CardDescription>General & Administrative expenses - March 2025 onwards</CardDescription>
-                    </div>
-                    {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
-                      const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
-                      if (monthsWithData.length === 0) return null
-                      const avgExpenses = monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
-
-                      return (
-                        <div className="text-right">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Avg Expenses</p>
-                            <p className="text-lg font-semibold">${(avgExpenses / 1000).toFixed(0)}k</p>
-                          </div>
-                        </div>
-                      )
-                    })()}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <ComposedChart data={(() => {
-                      const data = monthlyExpenses || []
-                      if (data.length === 0) return data
-
-                      // Calculate average for all months (already filtered)
-                      const monthsWithData = data.filter(item => item.expenses > 0)
-                      const avgExpenses = monthsWithData.length > 0
-                        ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
-                        : 0
-
-                      // Calculate linear regression for trendline
-                      let trendSlope = 0
-                      let trendIntercept = 0
-
-                      if (monthsWithData.length >= 2) {
-                        const n = monthsWithData.length
-                        const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0)
-                        const sumY = monthsWithData.reduce((sum, item) => sum + item.expenses, 0)
-                        const meanX = sumX / n
-                        const meanY = sumY / n
-
-                        let numerator = 0
-                        let denominator = 0
-                        monthsWithData.forEach((item, i) => {
-                          numerator += (i - meanX) * (item.expenses - meanY)
-                          denominator += (i - meanX) * (i - meanX)
-                        })
-
-                        trendSlope = denominator !== 0 ? numerator / denominator : 0
-                        trendIntercept = meanY - trendSlope * meanX
-                      }
-
-                      // Add average and trendline to each data point
-                      return data.map((item, index) => ({
-                        ...item,
-                        avgExpenses: avgExpenses,
-                        trendline: item.expenses > 0 ? trendSlope * index + trendIntercept : null
-                      }))
-                    })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                      <Tooltip content={({ active, payload, label }) => {
-                        if (active && payload && payload.length && monthlyExpenses) {
-                          const currentIndex = monthlyExpenses.findIndex(item => item.month === label)
-                          const currentData = monthlyExpenses[currentIndex]
-                          const previousData = currentIndex > 0 ? monthlyExpenses[currentIndex - 1] : null
-
-                          const percentageChange = previousData && previousData.expenses > 0
-                            ? ((currentData.expenses - previousData.expenses) / previousData.expenses) * 100
-                            : null
-
-                          return (
-                            <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                              <p className="font-semibold mb-2">{label}</p>
-                              <div className="space-y-1">
-                                <p className="text-red-600">
-                                  Expenses: {formatCurrency(currentData.expenses)}
-                                  {percentageChange !== null && (
-                                    <span className={`ml-2 ${percentageChange >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                      ({percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%)
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                          )
-                        }
-                        return null
-                      }} />
-                      <Legend />
-                      <Bar dataKey="expenses" fill="#ef4444" name="G&A Expenses" maxBarSize={60} />
-                      <Line
-                        type="monotone"
-                        dataKey="avgExpenses"
-                        stroke="#666"
-                        strokeDasharray="5 5"
-                        strokeWidth={2}
-                        name="Average"
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="trendline"
-                        stroke="#2563eb"
-                        strokeWidth={2}
-                        name="Trend"
-                        dot={false}
-                        connectNulls={false}
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-
-              {/* Professional Services Expenses Over Time */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle>Professional Services Expenses Over Time</CardTitle>
-                      <CardDescription>Account 603000 - March 2025 onwards</CardDescription>
-                    </div>
-                    {professionalServicesExpenses && professionalServicesExpenses.length > 0 && (() => {
-                      const monthsWithData = professionalServicesExpenses.filter(item => item.expenses > 0)
-                      if (monthsWithData.length === 0) return null
-                      const avgExpenses = monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
-
-                      return (
-                        <div className="text-right">
-                          <div>
-                            <p className="text-sm text-muted-foreground">Avg Expenses</p>
-                            <p className="text-lg font-semibold">${(avgExpenses / 1000).toFixed(0)}k</p>
-                          </div>
-                        </div>
-                      )
-                    })()}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <ComposedChart data={(() => {
-                      const data = professionalServicesExpenses || []
-                      if (data.length === 0) return data
-
-                      // Calculate average for all months (already filtered)
-                      const monthsWithData = data.filter(item => item.expenses > 0)
-                      const avgExpenses = monthsWithData.length > 0
-                        ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
-                        : 0
-
-                      // Calculate linear regression for trendline
-                      let trendSlope = 0
-                      let trendIntercept = 0
-
-                      if (monthsWithData.length >= 2) {
-                        const n = monthsWithData.length
-                        const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0)
-                        const sumY = monthsWithData.reduce((sum, item) => sum + item.expenses, 0)
-                        const meanX = sumX / n
-                        const meanY = sumY / n
-
-                        let numerator = 0
-                        let denominator = 0
-                        monthsWithData.forEach((item, i) => {
-                          numerator += (i - meanX) * (item.expenses - meanY)
-                          denominator += (i - meanX) * (i - meanX)
-                        })
-
-                        trendSlope = denominator !== 0 ? numerator / denominator : 0
-                        trendIntercept = meanY - trendSlope * meanX
-                      }
-
-                      // Add average and trendline to each data point
-                      return data.map((item, index) => ({
-                        ...item,
-                        avgExpenses: avgExpenses,
-                        trendline: item.expenses > 0 ? trendSlope * index + trendIntercept : null
-                      }))
-                    })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                      <Tooltip content={({ active, payload, label }) => {
-                        if (active && payload && payload.length && professionalServicesExpenses) {
-                          const currentIndex = professionalServicesExpenses.findIndex(item => item.month === label)
-                          const currentData = professionalServicesExpenses[currentIndex]
-                          const previousData = currentIndex > 0 ? professionalServicesExpenses[currentIndex - 1] : null
-
-                          const percentageChange = previousData && previousData.expenses > 0
-                            ? ((currentData.expenses - previousData.expenses) / previousData.expenses) * 100
-                            : null
-
-                          return (
-                            <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                              <p className="font-semibold mb-2">{label}</p>
-                              <div className="space-y-1">
-                                <p className="text-purple-600">
-                                  Prof. Services: {formatCurrency(currentData.expenses)}
-                                  {percentageChange !== null && (
-                                    <span className={`ml-2 ${percentageChange >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                      ({percentageChange >= 0 ? '+' : ''}{percentageChange.toFixed(1)}%)
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                          )
-                        }
-                        return null
-                      }} />
-                      <Legend />
-                      <Bar dataKey="expenses" fill="#8b5cf6" name="Professional Services" maxBarSize={60} />
-                      <Line
-                        type="monotone"
-                        dataKey="avgExpenses"
-                        stroke="#666"
-                        strokeDasharray="5 5"
-                        strokeWidth={2}
-                        name="Average"
-                        dot={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="trendline"
-                        stroke="#2563eb"
-                        strokeWidth={2}
-                        name="Trend"
-                        dot={false}
-                        connectNulls={false}
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </div>
-          )}
 
         </TabsContent>
 
