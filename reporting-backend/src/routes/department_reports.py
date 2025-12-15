@@ -4614,6 +4614,138 @@ def register_department_routes(reports_bp):
                 'type': 'ar_aging_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/ap-aging', methods=['GET'])
+    @jwt_required()
+    def get_ap_aging():
+        """Get ALL AP with aging buckets for bank reporting.
+
+        Query params:
+        - as_of_date: Optional date string (YYYY-MM-DD) to view historical AP aging.
+                      If not provided, uses current date.
+        """
+        try:
+            db = get_db()
+
+            # Get optional as_of_date parameter for historical views
+            as_of_date_str = request.args.get('as_of_date')
+            if as_of_date_str:
+                try:
+                    as_of_date = datetime.strptime(as_of_date_str, '%Y-%m-%d')
+                except ValueError:
+                    return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+            else:
+                as_of_date = datetime.now()
+
+            # Format date for SQL Server
+            as_of_date_sql = as_of_date.strftime('%Y-%m-%d')
+
+            # Get all open AP with invoice dates and aging buckets
+            # For historical view, we calculate days old relative to the as_of_date
+            query = f"""
+            WITH APInvoices AS (
+                SELECT
+                    ap.APInvoiceNo,
+                    ap.VendorNo,
+                    v.Name as VendorName,
+                    ap.APInvoiceDate,
+                    ap.DueDate,
+                    SUM(ap.Amount) as InvoiceAmount,
+                    COUNT(*) as LineItems,
+                    CASE
+                        WHEN ap.DueDate IS NULL THEN NULL
+                        ELSE DATEDIFF(day, ap.DueDate, '{as_of_date_sql}')
+                    END as DaysOverdue,
+                    CASE
+                        WHEN ap.DueDate IS NULL THEN 'No Due Date'
+                        WHEN DATEDIFF(day, ap.DueDate, '{as_of_date_sql}') < 0 THEN 'Not Due'
+                        WHEN DATEDIFF(day, ap.DueDate, '{as_of_date_sql}') BETWEEN 0 AND 30 THEN '0-30'
+                        WHEN DATEDIFF(day, ap.DueDate, '{as_of_date_sql}') BETWEEN 31 AND 60 THEN '31-60'
+                        WHEN DATEDIFF(day, ap.DueDate, '{as_of_date_sql}') BETWEEN 61 AND 90 THEN '61-90'
+                        WHEN DATEDIFF(day, ap.DueDate, '{as_of_date_sql}') > 90 THEN 'Over 90'
+                    END as AgingBucket
+                FROM ben002.APDetail ap
+                LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
+                WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
+                    AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
+                    AND ap.DeletionTime IS NULL
+                    AND ap.APInvoiceDate <= '{as_of_date_sql}'
+                GROUP BY ap.APInvoiceNo, ap.VendorNo, v.Name, ap.APInvoiceDate, ap.DueDate
+                HAVING SUM(ap.Amount) != 0
+            )
+            SELECT
+                APInvoiceNo,
+                VendorNo,
+                VendorName,
+                APInvoiceDate,
+                DueDate,
+                ABS(InvoiceAmount) as InvoiceAmount,
+                LineItems,
+                DaysOverdue,
+                AgingBucket
+            FROM APInvoices
+            ORDER BY VendorName, DueDate
+            """
+
+            results = db.execute_query(query)
+
+            # Calculate totals by aging bucket
+            totals = {
+                'not_due': 0,
+                '0-30': 0,
+                '31-60': 0,
+                '61-90': 0,
+                'over_90': 0,
+                'no_due_date': 0,
+                'total': 0
+            }
+
+            invoices = []
+            for row in results:
+                invoice = {
+                    'APInvoiceNo': row['APInvoiceNo'],
+                    'VendorNo': row['VendorNo'],
+                    'VendorName': row['VendorName'],
+                    'APInvoiceDate': row['APInvoiceDate'].isoformat() if row['APInvoiceDate'] else None,
+                    'DueDate': row['DueDate'].isoformat() if row['DueDate'] else None,
+                    'InvoiceAmount': float(row['InvoiceAmount'] or 0),
+                    'DaysOverdue': int(row['DaysOverdue']) if row['DaysOverdue'] is not None else None,
+                    'AgingBucket': row['AgingBucket']
+                }
+
+                amount = invoice['InvoiceAmount']
+                bucket = invoice['AgingBucket']
+
+                # Map bucket to totals key
+                if bucket == 'Not Due':
+                    totals['not_due'] += amount
+                elif bucket == '0-30':
+                    totals['0-30'] += amount
+                elif bucket == '31-60':
+                    totals['31-60'] += amount
+                elif bucket == '61-90':
+                    totals['61-90'] += amount
+                elif bucket == 'Over 90':
+                    totals['over_90'] += amount
+                elif bucket == 'No Due Date':
+                    totals['no_due_date'] += amount
+                totals['total'] += amount
+
+                invoices.append(invoice)
+
+            return jsonify({
+                'invoices': invoices,
+                'totals': totals,
+                'total_count': len(invoices),
+                'as_of_date': as_of_date.strftime('%Y-%m-%d')
+            })
+
+        except Exception as e:
+            logger.error(f"Error fetching AP aging: {str(e)}")
+            return jsonify({
+                'error': str(e),
+                'type': 'ap_aging_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/over90-debug', methods=['GET'])
     @jwt_required()
     def get_over90_debug():
