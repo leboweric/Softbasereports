@@ -171,6 +171,13 @@ DEFAULT_ROLES = [
         'permissions': ['view_own_commissions', 'view_own_customers']
     },
     {
+        'name': 'Accounting User',
+        'description': 'View-only access to accounting data',
+        'department': 'Accounting',
+        'level': 2,
+        'permissions': ['view_accounting', 'view_commissions', 'view_ar', 'export_accounting', 'view_dashboard']
+    },
+    {
         'name': 'Read Only',
         'description': 'View-only access to authorized areas',
         'department': None,

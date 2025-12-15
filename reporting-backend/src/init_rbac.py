@@ -101,6 +101,99 @@ def initialize_parts_user_role():
         print(f"❌ Error creating Parts User role: {e}")
         raise
 
+def initialize_accounting_user_role():
+    """Create or update Accounting User role with proper permissions"""
+    try:
+        # Check if role already exists
+        existing_role = Role.query.filter_by(name='Accounting User').first()
+
+        if existing_role:
+            print("✅ Accounting User role already exists, checking permissions...")
+            accounting_user_role = existing_role
+        else:
+            print("🔧 Creating Accounting User role...")
+            accounting_user_role = Role(
+                name='Accounting User',
+                description='View-only access to accounting data',
+                department='Accounting',
+                level=2
+            )
+            db.session.add(accounting_user_role)
+
+        # Define required permissions with their details
+        required_permissions = [
+            {
+                'name': 'view_accounting',
+                'resource': 'accounting',
+                'action': 'view',
+                'description': 'View accounting reports and data'
+            },
+            {
+                'name': 'view_commissions',
+                'resource': 'commissions',
+                'action': 'view',
+                'description': 'View sales commission reports'
+            },
+            {
+                'name': 'view_ar',
+                'resource': 'ar',
+                'action': 'view',
+                'description': 'View accounts receivable reports'
+            },
+            {
+                'name': 'export_accounting',
+                'resource': 'accounting',
+                'action': 'export',
+                'description': 'Export accounting data'
+            },
+            {
+                'name': 'view_dashboard',
+                'resource': 'dashboard',
+                'action': 'view',
+                'description': 'View main dashboard'
+            }
+        ]
+
+        # Create/get permissions and add to role
+        for perm_data in required_permissions:
+            permission = Permission.query.filter_by(name=perm_data['name']).first()
+            if not permission:
+                # Create permission if it doesn't exist
+                permission = Permission(
+                    name=perm_data['name'],
+                    resource=perm_data['resource'],
+                    action=perm_data['action'],
+                    description=perm_data['description']
+                )
+                db.session.add(permission)
+                print(f"  📝 Created permission: {perm_data['name']}")
+            else:
+                print(f"  ✓ Permission exists: {perm_data['name']}")
+
+            # Add permission to role if not already assigned
+            if permission not in accounting_user_role.permissions:
+                accounting_user_role.permissions.append(permission)
+                print(f"  🔗 Linked permission: {perm_data['name']} to Accounting User")
+
+        db.session.commit()
+
+        print("✅ Accounting User role initialized successfully with all permissions")
+        print(f"   📋 Role: {accounting_user_role.name}")
+        print(f"   🏢 Department: {accounting_user_role.department}")
+        print(f"   📊 Level: {accounting_user_role.level}")
+        print(f"   🔐 Permissions: {len(accounting_user_role.permissions)}")
+
+        return accounting_user_role
+
+    except IntegrityError as e:
+        db.session.rollback()
+        print(f"⚠️  Accounting User role creation failed (may already exist): {e}")
+        return Role.query.filter_by(name='Accounting User').first()
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error creating Accounting User role: {e}")
+        raise
+
 def initialize_specific_permissions():
     """Ensure the specific Parts permissions exist"""
     try:
@@ -208,20 +301,23 @@ def assign_super_admin_to_existing_admin_users():
 def initialize_all_rbac():
     """Initialize all RBAC roles and permissions"""
     print("🔧 Initializing RBAC system...")
-    
+
     try:
         # First ensure specific permissions exist
         initialize_specific_permissions()
-        
+
         # Create all core roles from RBAC config
         initialize_core_roles()
-        
+
         # Create the Parts User role (legacy)
         initialize_parts_user_role()
-        
+
+        # Create/update the Accounting User role with proper permissions
+        initialize_accounting_user_role()
+
         # Assign Super Admin to existing admin users
         assign_super_admin_to_existing_admin_users()
-        
+
         print("✅ RBAC initialization complete")
         
     except Exception as e:
