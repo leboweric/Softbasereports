@@ -4,8 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Download, Search, Calendar, RefreshCw } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Download, Search, Calendar as CalendarIcon, RefreshCw } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 
 const AGING_BUCKETS = [
@@ -286,21 +289,32 @@ export default function ARAgingReport() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Input
-              type="date"
-              value={asOfDate}
-              onChange={(e) => setAsOfDate(e.target.value)}
-              className="w-40"
-              max={new Date().toISOString().split('T')[0]}
-            />
-            {asOfDate && (
-              <Button variant="ghost" size="sm" onClick={() => setAsOfDate('')} title="Reset to current date">
-                <RefreshCw className="h-4 w-4" />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-52 justify-start text-left font-normal">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {asOfDate ? format(new Date(asOfDate + 'T00:00:00'), 'MMMM d, yyyy') : 'Current (Today)'}
               </Button>
-            )}
-          </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={asOfDate ? new Date(asOfDate + 'T00:00:00') : undefined}
+                onSelect={(date) => {
+                  if (date) {
+                    setAsOfDate(format(date, 'yyyy-MM-dd'));
+                  }
+                }}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          {asOfDate && (
+            <Button variant="ghost" size="sm" onClick={() => setAsOfDate('')} title="Reset to current date">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
           <Button onClick={downloadExcel} className="flex items-center gap-2">
             <Download className="h-4 w-4" />
             Download Excel
