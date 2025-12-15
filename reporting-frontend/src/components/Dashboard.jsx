@@ -206,7 +206,7 @@ const Dashboard = ({ user }) => {
   useEffect(() => {
     fetchDashboardData()
     // Only fetch expense data for users with accounting access
-    if (hasResource(user, 'accounting')) {
+    if (hasResource(user, 'accounting_overview')) {
       fetchExpenseData()
       fetchProfessionalServicesData()
     }
@@ -1412,7 +1412,7 @@ const Dashboard = ({ user }) => {
           </div>
 
           {/* G&A and Professional Services Expenses - Only for Accounting Users */}
-          {hasResource(user, 'accounting') && (
+          {hasResource(user, 'accounting_overview') && (
             <div className="grid gap-4 md:grid-cols-2">
               {/* G&A Expenses Over Time */}
               <Card>
