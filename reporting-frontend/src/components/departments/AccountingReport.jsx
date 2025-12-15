@@ -39,6 +39,11 @@ const AccountingReport = ({ user }) => {
   const [profServicesDetail, setProfServicesDetail] = useState(null)
   const [profServicesDetailLoading, setProfServicesDetailLoading] = useState(false)
 
+  // G&A Expenses detail modal state
+  const [gnaDetailOpen, setGnaDetailOpen] = useState(false)
+  const [gnaDetail, setGnaDetail] = useState(null)
+  const [gnaDetailLoading, setGnaDetailLoading] = useState(false)
+
   useEffect(() => {
     fetchAccountingData()
     fetchARData()
@@ -220,6 +225,32 @@ const AccountingReport = ({ user }) => {
       setProfServicesDetail({ error: 'Failed to load details', monthLabel })
     } finally {
       setProfServicesDetailLoading(false)
+    }
+  }
+
+  const fetchGnaExpensesDetails = async (year, month, monthLabel) => {
+    setGnaDetailLoading(true)
+    setGnaDetailOpen(true)
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl(`/api/reports/departments/accounting/gna-expenses/details?year=${year}&month=${month}`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setGnaDetail({ ...data, monthLabel })
+      } else {
+        console.error('G&A Expenses details error:', response.status, response.statusText)
+        setGnaDetail({ error: 'Failed to load details', monthLabel })
+      }
+    } catch (error) {
+      console.error('Error fetching G&A expenses details:', error)
+      setGnaDetail({ error: 'Failed to load details', monthLabel })
+    } finally {
+      setGnaDetailLoading(false)
     }
   }
 
@@ -456,7 +487,7 @@ const AccountingReport = ({ user }) => {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle>G&A Expenses Over Time</CardTitle>
-                <CardDescription>General & Administrative expenses - March 2025 onwards</CardDescription>
+                <CardDescription>General & Administrative expenses - March 2025 onwards • Click a bar for details</CardDescription>
               </div>
               {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
                 const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
@@ -561,7 +592,25 @@ const AccountingReport = ({ user }) => {
                   return null
                 }} />
                 <Legend />
-                <Bar dataKey="expenses" fill="#ef4444" name="G&A Expenses" maxBarSize={60} />
+                <Bar
+                  dataKey="expenses"
+                  fill="#ef4444"
+                  name="G&A Expenses"
+                  maxBarSize={60}
+                  cursor="pointer"
+                  onClick={(data) => {
+                    if (data && data.year) {
+                      // Parse month from the month label (e.g., "Mar '25" -> 3)
+                      const monthMap = { 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                                        'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12 }
+                      const monthAbbr = data.month.split(' ')[0]
+                      const monthNum = monthMap[monthAbbr]
+                      if (monthNum) {
+                        fetchGnaExpensesDetails(data.year, monthNum, data.month)
+                      }
+                    }
+                  }}
+                />
                 {/* Average Expenses Line */}
                 <Line 
                   type="monotone"
@@ -921,6 +970,98 @@ const AccountingReport = ({ user }) => {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
+      {/* G&A Expenses Detail Sheet */}
+      <Sheet open={gnaDetailOpen} onOpenChange={setGnaDetailOpen}>
+        <SheetContent className="w-[700px] sm:max-w-[700px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>G&A Expenses Details</SheetTitle>
+            <SheetDescription>
+              {gnaDetail?.monthLabel ? `Expenses for ${gnaDetail.monthLabel}` : 'Loading...'}
+            </SheetDescription>
+          </SheetHeader>
+
+          {gnaDetailLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size="medium" />
+            </div>
+          ) : gnaDetail?.error ? (
+            <div className="text-red-500 py-4">{gnaDetail.error}</div>
+          ) : gnaDetail?.by_account ? (
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                <span className="text-sm text-muted-foreground">{gnaDetail.count} transactions</span>
+                <span className="font-semibold text-lg">{formatCurrency(gnaDetail.total)}</span>
+              </div>
+
+              {/* Summary by Account */}
+              <div className="mb-6">
+                <h4 className="font-semibold text-sm mb-2">By Account</h4>
+                <div className="space-y-2">
+                  {gnaDetail.by_account.slice(0, 10).map((account, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-sm">
+                      <div className="flex-1">
+                        <span className="text-muted-foreground">{account.account_no}</span>
+                        <span className="ml-2">{account.account_title || 'Unknown'}</span>
+                        <span className="text-muted-foreground ml-1">({account.count})</span>
+                      </div>
+                      <span className="font-medium">{formatCurrency(account.total)}</span>
+                    </div>
+                  ))}
+                  {gnaDetail.by_account.length > 10 && (
+                    <div className="text-sm text-muted-foreground">
+                      ...and {gnaDetail.by_account.length - 10} more accounts
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Detailed Transactions */}
+              <div className="border-t pt-4">
+                <h4 className="font-semibold text-sm mb-2">All Transactions</h4>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {gnaDetail.expenses.slice(0, 50).map((expense, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="text-xs">
+                          <div className="font-medium">{expense.account_no}</div>
+                          <div className="text-muted-foreground truncate max-w-[100px]" title={expense.account_title}>
+                            {expense.account_title}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm truncate max-w-[200px]" title={expense.description}>
+                            {expense.description || '-'}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {expense.date ? new Date(expense.date).toLocaleDateString() : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(expense.amount)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {gnaDetail.expenses.length > 50 && (
+                  <div className="text-sm text-muted-foreground mt-2 text-center">
+                    Showing first 50 of {gnaDetail.expenses.length} transactions
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
         </SheetContent>

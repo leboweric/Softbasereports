@@ -3762,6 +3762,100 @@ def register_department_routes(reports_bp):
                 'type': 'professional_services_details_error'
             }), 500
 
+    @reports_bp.route('/departments/accounting/gna-expenses/details', methods=['GET'])
+    @jwt_required()
+    @require_permission('view_accounting')
+    def get_gna_expenses_details():
+        """Get G&A Expenses (6xx accounts) invoice details for a specific month"""
+        try:
+            db = get_db()
+
+            # Get year and month from query params
+            year = request.args.get('year', type=int)
+            month = request.args.get('month', type=int)
+
+            if not year or not month:
+                return jsonify({'error': 'Year and month parameters are required'}), 400
+
+            # Get expense details from GLDetail table for the specified month
+            # All expense accounts start with 6
+            details_query = f"""
+            SELECT
+                gld.AccountNo,
+                gld.EffectiveDate,
+                gld.Amount,
+                gld.Description,
+                gla.Title as AccountTitle
+            FROM ben002.GLDetail gld
+            LEFT JOIN ben002.GLAccount gla ON gld.AccountNo = gla.AccountNo
+            WHERE gld.AccountNo LIKE '6%'
+                AND YEAR(gld.EffectiveDate) = {year}
+                AND MONTH(gld.EffectiveDate) = {month}
+            ORDER BY gld.AccountNo, gld.EffectiveDate DESC, gld.Amount DESC
+            """
+
+            results = db.execute_query(details_query)
+
+            expenses = []
+            for row in results:
+                # Handle date formatting safely
+                effective_date = row.get('EffectiveDate')
+                if effective_date:
+                    try:
+                        date_str = effective_date.strftime('%Y-%m-%d')
+                    except AttributeError:
+                        date_str = str(effective_date)[:10] if effective_date else None
+                else:
+                    date_str = None
+
+                account_no = row.get('AccountNo') or ''
+                account_title = row.get('AccountTitle') or ''
+                description = row.get('Description') or ''
+
+                expenses.append({
+                    'date': date_str,
+                    'amount': float(row.get('Amount') or 0),
+                    'description': description,
+                    'account_no': account_no,
+                    'account_title': account_title,
+                    'category': account_title if account_title else f"Account {account_no}"
+                })
+
+            # Calculate total
+            total = sum(exp['amount'] for exp in expenses)
+
+            # Group by account for summary
+            account_totals = {}
+            for exp in expenses:
+                key = exp['account_no']
+                if key not in account_totals:
+                    account_totals[key] = {
+                        'account_no': key,
+                        'account_title': exp['account_title'],
+                        'total': 0,
+                        'count': 0
+                    }
+                account_totals[key]['total'] += exp['amount']
+                account_totals[key]['count'] += 1
+
+            # Sort accounts by total descending
+            sorted_accounts = sorted(account_totals.values(), key=lambda x: x['total'], reverse=True)
+
+            return jsonify({
+                'year': year,
+                'month': month,
+                'expenses': expenses,
+                'total': round(total, 2),
+                'count': len(expenses),
+                'by_account': sorted_accounts
+            })
+
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'gna_expenses_details_error'
+            }), 500
+
     @reports_bp.route('/departments/accounting/ap-total', methods=['GET'])
     @jwt_required()
     def get_ap_total():
