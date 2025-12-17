@@ -168,28 +168,32 @@ const ProfitLossWidget = () => {
           {/* YTD P&L */}
           <div className={`${
             data.ytd_pl >= 0 
-              ? 'bg-blue-50 dark:bg-blue-900/20' 
-              : 'bg-orange-50 dark:bg-orange-900/20'
+              ? 'bg-green-50 dark:bg-green-900/20' 
+              : 'bg-red-50 dark:bg-red-900/20'
           } p-4 rounded-lg`}>
             <div className={`flex items-center gap-2 mb-2 ${
               data.ytd_pl >= 0 
-                ? 'text-blue-600 dark:text-blue-400' 
-                : 'text-orange-600 dark:text-orange-400'
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-red-600 dark:text-red-400'
             }`}>
-              <DollarSign className="h-4 w-4" />
+              {data.ytd_pl >= 0 ? (
+                <TrendingUp className="h-4 w-4" />
+              ) : (
+                <TrendingDown className="h-4 w-4" />
+              )}
               <span className="text-sm font-medium">YTD P&L</span>
             </div>
             <div className={`text-2xl font-bold ${
               data.ytd_pl >= 0 
-                ? 'text-blue-900 dark:text-blue-100' 
-                : 'text-orange-900 dark:text-orange-100'
+                ? 'text-green-900 dark:text-green-100' 
+                : 'text-red-900 dark:text-red-100'
             }`}>
               {formatCurrency(data.ytd_pl)}
             </div>
             <div className={`text-xs mt-1 ${
               data.ytd_pl >= 0 
-                ? 'text-blue-600 dark:text-blue-400' 
-                : 'text-orange-600 dark:text-orange-400'
+                ? 'text-green-600 dark:text-green-400' 
+                : 'text-red-600 dark:text-red-400'
             }`}>
               Year-to-date
             </div>
