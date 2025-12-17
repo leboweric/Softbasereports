@@ -1225,10 +1225,10 @@ class DashboardQueries:
             return []
     
     def get_top_customers(self):
-        """Get top 10 customers by YTD sales since March 2025"""
+        """Get top 10 customers by fiscal YTD sales"""
         try:
-            # Data starts from March 2025 (Softbase migration)
-            ytd_start = '2025-03-01'
+            # Use fiscal year start (November)
+            ytd_start = self.fiscal_year_start
             
             # First get total sales since March 2025 (excluding non-customers)
             total_sales_query = f"""

@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 import calendar
 from src.services.azure_sql_service import AzureSQLService
+from src.utils.fiscal_year import get_fiscal_ytd_start
 
 logger = logging.getLogger(__name__)
 pl_report_bp = Blueprint('pl_report', __name__)
@@ -724,22 +725,22 @@ def get_pl_mtd():
 @pl_report_bp.route('/api/reports/pl/ytd', methods=['GET'])
 def get_pl_ytd():
     """
-    Get Year-to-Date P&L report
+    Get Fiscal Year-to-Date P&L report
     
     Query Parameters:
-        year: Year (default: current year)
+        year: Year (optional, defaults to current fiscal year)
     
     Returns:
-        JSON with YTD P&L data
+        JSON with fiscal YTD P&L data
     """
     try:
         # Get current date
         now = datetime.now()
-        year = request.args.get('year', now.year, type=int)
         
-        # Calculate YTD date range
-        start_date = f"{year}-01-01"
-        end_date = f"{year}-12-31"
+        # Calculate fiscal YTD date range
+        fiscal_ytd_start = get_fiscal_ytd_start()
+        start_date = fiscal_ytd_start.strftime('%Y-%m-%d')
+        end_date = now.strftime('%Y-%m-%d')
         
         # Forward to main P&L endpoint
         request.args = {'start_date': start_date, 'end_date': end_date}
@@ -788,11 +789,11 @@ def export_pl_excel():
         last_day_num = calendar.monthrange(year, month)[1]
         last_day = f"{year}-{month:02d}-{last_day_num:02d}"
         
-        # Calculate YTD date range (fiscal year starts in March)
-        if month >= 3:
-            ytd_start = f"{year}-03-01"
+        # Calculate fiscal YTD date range (fiscal year starts in November)
+        if month >= 11:
+            ytd_start = f"{year}-11-01"
         else:
-            ytd_start = f"{year-1}-03-01"
+            ytd_start = f"{year-1}-11-01"
         ytd_end = last_day
         
         logger.info(f"Generating P&L Excel for {calendar.month_name[month]} {year}")
