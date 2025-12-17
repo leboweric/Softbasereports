@@ -63,12 +63,9 @@ def get_pl_widget():
         logger.info(f"Fiscal YTD P&L: ${ytd_pl:,.2f}")
         logger.info(f"=" * 80)
         
-        # Calculate average monthly P&L from fiscal YTD months
-        fiscal_ytd_months = [
-            item for item in trend_data 
-            if datetime.strptime(item['month'], '%Y-%m').replace(day=1) >= fiscal_ytd_start
-        ]
-        avg_monthly_pl = ytd_pl / len(fiscal_ytd_months) if fiscal_ytd_months else 0
+        # Calculate average monthly P&L from trailing 12 months (all trend data)
+        trailing_12_total = sum(item['profit_loss'] for item in trend_data) if trend_data else 0
+        avg_monthly_pl = trailing_12_total / len(trend_data) if trend_data else 0
         
         # Determine health status
         if current_pl > 50000:
