@@ -6,7 +6,7 @@ Provides monthly profit/loss metrics for dashboard display
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
-from src.utils.fiscal_year import SOFTBASE_CUTOVER_DATE
+from src.utils.fiscal_year import SOFTBASE_CUTOVER_DATE, get_fiscal_ytd_start
 from datetime import datetime, timedelta
 import logging
 import calendar
@@ -52,13 +52,23 @@ def get_pl_widget():
         for item in trend_data:
             logger.info(f"  {item['month']}: ${item['profit_loss']:,.2f}")
         
-        # Calculate trailing 12-month total (sum of all months in trend)
-        ytd_pl = sum(item['profit_loss'] for item in trend_data) if trend_data else 0
-        logger.info(f"YTD P&L (sum of all months): ${ytd_pl:,.2f}")
+        # Calculate fiscal YTD (from fiscal year start to current month)
+        fiscal_ytd_start = get_fiscal_ytd_start()
+        ytd_pl = sum(
+            item['profit_loss'] 
+            for item in trend_data 
+            if datetime.strptime(item['month'], '%Y-%m').replace(day=1) >= fiscal_ytd_start
+        ) if trend_data else 0
+        logger.info(f"Fiscal YTD start: {fiscal_ytd_start.strftime('%Y-%m-%d')}")
+        logger.info(f"Fiscal YTD P&L: ${ytd_pl:,.2f}")
         logger.info(f"=" * 80)
         
-        # Calculate average monthly P&L from trend data
-        avg_monthly_pl = ytd_pl / len(trend_data) if trend_data else 0
+        # Calculate average monthly P&L from fiscal YTD months
+        fiscal_ytd_months = [
+            item for item in trend_data 
+            if datetime.strptime(item['month'], '%Y-%m').replace(day=1) >= fiscal_ytd_start
+        ]
+        avg_monthly_pl = ytd_pl / len(fiscal_ytd_months) if fiscal_ytd_months else 0
         
         # Determine health status
         if current_pl > 50000:
