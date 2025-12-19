@@ -10188,7 +10188,7 @@ def register_department_routes(reports_bp):
             
             # Get customer info
             customer_query = """
-            SELECT Number, Name, Address1, City, State, Zip
+            SELECT Number, Name, Address, City, State, ZipCode
             FROM ben002.Customer
             WHERE Number = %s
             """
@@ -10239,10 +10239,10 @@ def register_department_routes(reports_bp):
                 'customer': {
                     'number': customer_data.get('Number', customer_no),
                     'name': customer_data.get('Name', ''),
-                    'address': customer_data.get('Address1', ''),
+                    'address': customer_data.get('Address', ''),
                     'city': customer_data.get('City', ''),
                     'state': customer_data.get('State', ''),
-                    'zip': customer_data.get('Zip', '')
+                    'zip': customer_data.get('ZipCode', '')
                 },
                 'start_date': start_date,
                 'end_date': end_date
