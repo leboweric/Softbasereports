@@ -8989,6 +8989,7 @@ def register_department_routes(reports_bp):
 
             # Get all active depreciation records with remaining months
             # Join with Equipment to get unit info
+            # Note: For newly added units, LastUpdatedAmount may be 0 - calculate from StartingValue/TotalMonths
             query = """
             SELECT
                 d.SerialNo,
@@ -8998,7 +8999,12 @@ def register_department_routes(reports_bp):
                 e.ModelYear,
                 d.StartingValue,
                 d.NetBookValue,
-                d.LastUpdatedAmount as MonthlyDepreciation,
+                -- Calculate monthly depreciation: use LastUpdatedAmount if > 0, otherwise calculate from StartingValue
+                CASE 
+                    WHEN d.LastUpdatedAmount > 0 THEN d.LastUpdatedAmount
+                    WHEN d.TotalMonths > 0 THEN (d.StartingValue - COALESCE(d.ResidualValue, 0)) / d.TotalMonths
+                    ELSE 0
+                END as MonthlyDepreciation,
                 d.TotalMonths,
                 d.RemainingMonths,
                 d.ResidualValue,
@@ -9006,13 +9012,13 @@ def register_department_routes(reports_bp):
                 d.DepreciationGroup,
                 d.Method,
                 -- Calculate depreciation end date (LastUpdated + RemainingMonths)
-                DATEADD(month, COALESCE(d.RemainingMonths, 0), d.LastUpdated) as DepreciationEndDate
+                DATEADD(month, COALESCE(d.RemainingMonths, 0), COALESCE(d.LastUpdated, GETDATE())) as DepreciationEndDate
             FROM ben002.Depreciation d
             LEFT JOIN ben002.Equipment e ON d.SerialNo = e.SerialNo
             WHERE d.Inactive = 0  -- Only active depreciation
                 AND d.RemainingMonths > 0  -- Only items still depreciating
-                AND d.LastUpdatedAmount > 0  -- Only items with depreciation amount
-            ORDER BY DATEADD(month, COALESCE(d.RemainingMonths, 0), d.LastUpdated) ASC
+                AND d.TotalMonths > 0  -- Must have valid depreciation period
+            ORDER BY DATEADD(month, COALESCE(d.RemainingMonths, 0), COALESCE(d.LastUpdated, GETDATE())) ASC
             """
 
             result = db.execute_query(query)
