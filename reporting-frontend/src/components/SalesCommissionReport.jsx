@@ -54,11 +54,11 @@ const SalesCommissionReport = ({ user }) => {
 
   useEffect(() => {
     fetchCommissionData()
-    if (showDetails) {
-      fetchDetailsData()
-      fetchCommissionSettings()
-      fetchManualCommissions()
-    }
+    // Always fetch detailed data to ensure accurate commission calculations
+    // This fixes the bug where initial view showed incorrect totals
+    fetchDetailsData()
+    fetchCommissionSettings()
+    fetchManualCommissions()
   }, [selectedMonth])
   
   // Fetch commission settings from backend
@@ -924,7 +924,7 @@ const SalesCommissionReport = ({ user }) => {
                     const [year, month] = selectedMonth.split('-')
                     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
                     return `${monthNames[parseInt(month, 10) - 1]} ${year}`
-                  })()} (estimated - click "Show Details" for accurate calculations)
+                  })()}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1014,11 +1014,6 @@ const SalesCommissionReport = ({ user }) => {
                   <Button
                     onClick={() => {
                       setShowDetails(!showDetails)
-                      if (!showDetails && !detailsData) {
-                        fetchDetailsData()
-                        fetchCommissionSettings()
-                        fetchManualCommissions()
-                      }
                     }}
                     variant="outline"
                     size="sm"
