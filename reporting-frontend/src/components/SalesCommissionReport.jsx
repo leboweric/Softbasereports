@@ -218,6 +218,13 @@ const SalesCommissionReport = ({ user }) => {
     // Create a map to hold invoices by effective salesman
     const salesmenMap = {}
 
+    // Initialize House account to allow reassignment to House
+    salesmenMap['House'] = {
+      name: 'House',
+      invoices: [],
+      total_sales: 0
+    }
+
     // Initialize all salesmen from the original data
     detailsData.salesmen.forEach(salesman => {
       salesmenMap[salesman.name] = {
@@ -1192,15 +1199,7 @@ const SalesCommissionReport = ({ user }) => {
                                       {getSortIcon(sortConfigs[salesman.name], 'invoice_date')}
                                     </div>
                                   </th>
-                                  <th 
-                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
-                                    onClick={() => handleSalesmanSort(salesman.name, 'bill_to')}
-                                  >
-                                    <div className="flex items-center gap-1">
-                                      Bill To
-                                      {getSortIcon(sortConfigs[salesman.name], 'bill_to')}
-                                    </div>
-                                  </th>
+
                                   <th 
                                     className="text-left p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'customer_name')}
@@ -1219,15 +1218,7 @@ const SalesCommissionReport = ({ user }) => {
                                       {getSortIcon(sortConfigs[salesman.name], 'sale_code')}
                                     </div>
                                   </th>
-                                  <th 
-                                    className="text-left p-1 cursor-pointer hover:bg-gray-100"
-                                    onClick={() => handleSalesmanSort(salesman.name, 'category')}
-                                  >
-                                    <div className="flex items-center gap-1">
-                                      Category
-                                      {getSortIcon(sortConfigs[salesman.name], 'category')}
-                                    </div>
-                                  </th>
+
                                   <th 
                                     className="text-right p-1 cursor-pointer hover:bg-gray-100"
                                     onClick={() => handleSalesmanSort(salesman.name, 'category_amount')}
@@ -1286,45 +1277,91 @@ const SalesCommissionReport = ({ user }) => {
                               <tbody>
                                 {(() => {
                                   const sortConfig = sortConfigs[salesman.name]
-                                  const sortedInvoices = sortConfig?.key 
-                                    ? sortData(salesman.invoices, sortConfig.key, sortConfig.direction)
-                                    : salesman.invoices
-                                  return sortedInvoices.map((inv, invIdx) => (
-                                  <tr key={invIdx} className="border-b hover:bg-gray-50">
-                                    <td className="p-1">{inv.invoice_no}</td>
-                                    <td className="p-1">{new Date(inv.invoice_date).toLocaleDateString()}</td>
-                                    <td className="p-2 font-mono text-xs">{inv.bill_to || '-'}</td>
-                                    <td className="p-1">{inv.customer_name}</td>
+                                  // Combine regular invoices with manual commissions for unified sorting
+                                  const manualEntries = (manualCommissions[salesman.name] || []).map(mc => ({
+                                    ...mc,
+                                    invoice_no: mc.invoice_no || '',
+                                    invoice_date: mc.invoice_date,
+                                    customer_name: mc.customer_name || '',
+                                    sale_code: mc.sale_code || '',
+                                    category: mc.category || 'Manual',
+                                    category_amount: mc.amount || 0,
+                                    commission: mc.commission_amount || 0,
+                                    is_manual: true
+                                  }))
+                                  const allEntries = [...salesman.invoices.map(inv => ({ ...inv, is_manual: false })), ...manualEntries]
+                                  const sortedEntries = sortConfig?.key 
+                                    ? sortData(allEntries, sortConfig.key, sortConfig.direction)
+                                    : allEntries
+                                  return sortedEntries.map((entry, entryIdx) => (
+                                    entry.is_manual ? (
+                                      // Manual Commission Row
+                                      <tr key={`manual-${entry.id}`} className="border-b bg-blue-50/50 hover:bg-blue-100/50">
+                                        <td className="p-1 text-blue-600">{entry.invoice_no || '-'}</td>
+                                        <td className="p-1">{entry.invoice_date ? new Date(entry.invoice_date).toLocaleDateString() : '-'}</td>
+                                        <td className="p-1">{entry.customer_name || '-'}</td>
+                                        <td className="p-1">
+                                          <Badge variant="outline" className="font-mono text-xs bg-blue-100">
+                                            {entry.sale_code || '-'}
+                                          </Badge>
+                                        </td>
+                                        <td className="text-right p-1">{formatCurrency(entry.amount)}</td>
+                                        <td className="text-right p-1 text-muted-foreground">{entry.cost ? formatCurrency(entry.cost) : '-'}</td>
+                                        <td className="text-right p-1 text-muted-foreground">-</td>
+                                        <td className="text-center p-1">
+                                          <span className="text-xs text-blue-600">Manual</span>
+                                        </td>
+                                        <td className="text-center p-1 text-muted-foreground">-</td>
+                                        <td className="text-right p-2 font-medium text-blue-600">
+                                          {formatCommission(entry.commission_amount)}
+                                        </td>
+                                        <td className="text-right p-1 text-muted-foreground">-</td>
+                                        <td className="text-right p-2 font-bold text-blue-600">
+                                          {formatCommission(entry.commission_amount)}
+                                        </td>
+                                        <td className="text-center p-1">
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                            onClick={() => deleteManualCommission(entry.id)}
+                                            title="Delete manual entry"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </td>
+                                      </tr>
+                                    ) : (
+                                      // Regular Invoice Row
+                                  <tr key={entryIdx} className="border-b hover:bg-gray-50">
+                                    <td className="p-1">{entry.invoice_no}</td>
+                                    <td className="p-1">{new Date(entry.invoice_date).toLocaleDateString()}</td>
+                                    <td className="p-1">{entry.customer_name}</td>
                                     <td className="p-1">
                                       <div className="flex gap-1 items-center">
                                         <Badge variant="outline" className="font-mono text-xs">
-                                          {inv.sale_code}
+                                          {entry.sale_code}
                                         </Badge>
-                                        {inv.RentalPeriod && (
+                                        {entry.RentalPeriod && (
                                           <Badge variant="default" className="text-xs bg-blue-500">
-                                            {inv.RentalPeriod}
+                                            {entry.RentalPeriod}
                                           </Badge>
                                         )}
                                       </div>
                                     </td>
-                                    <td className="p-1">
-                                      <Badge variant="secondary" className="text-xs">
-                                        {inv.category}
-                                      </Badge>
-                                    </td>
-                                    <td className="text-right p-1">{formatCurrency(inv.category_amount)}</td>
+                                    <td className="text-right p-1">{formatCurrency(entry.category_amount)}</td>
                                     <td className="text-right p-1">
-                                      {(inv.category === 'New Equipment' || inv.category === 'Allied Equipment') ? (
+                                      {(entry.category === 'New Equipment' || entry.category === 'Allied Equipment') ? (
                                         <input
                                           type="number"
                                           className="w-24 px-1 py-0.5 text-xs text-right border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                           value={
-                                            commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.cost_override ?? 
-                                            inv.actual_cost ?? 
-                                            inv.category_cost ?? 
+                                            commissionSettings[`${entry.invoice_no}_${entry.sale_code}_${entry.category}`]?.cost_override ?? 
+                                            entry.actual_cost ?? 
+                                            entry.category_cost ?? 
                                             0
                                           }
-                                          onChange={(e) => handleCostChange(inv.invoice_no, inv.sale_code, inv.category, e.target.value)}
+                                          onChange={(e) => handleCostChange(entry.invoice_no, entry.sale_code, entry.category, e.target.value)}
                                           step="0.01"
                                         />
                                       ) : (
@@ -1332,12 +1369,12 @@ const SalesCommissionReport = ({ user }) => {
                                       )}
                                     </td>
                                     <td className="text-right p-1">
-                                      {(inv.category === 'New Equipment' || inv.category === 'Allied Equipment') ? (
+                                      {(entry.category === 'New Equipment' || entry.category === 'Allied Equipment') ? (
                                         (() => {
-                                          const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                          const key = `${entry.invoice_no}_${entry.sale_code}_${entry.category}`
                                           const costOverride = commissionSettings[key]?.cost_override
-                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
-                                          const profit = inv.category_amount - cost
+                                          const cost = costOverride ?? entry.actual_cost ?? entry.category_cost ?? 0
+                                          const profit = entry.category_amount - cost
                                           return (
                                             <span className={profit < 0 ? 'text-red-600' : ''}>
                                               {formatCurrency(profit)}
@@ -1351,23 +1388,23 @@ const SalesCommissionReport = ({ user }) => {
                                     <td className="text-center p-1">
                                       <Checkbox
                                         checked={
-                                          (commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.is_commissionable === true)
+                                          (commissionSettings[`${entry.invoice_no}_${entry.sale_code}_${entry.category}`]?.is_commissionable === true)
                                         }
                                         onCheckedChange={(checked) => 
-                                          handleCommissionCheckChange(inv.invoice_no, inv.sale_code, inv.category, checked)
+                                          handleCommissionCheckChange(entry.invoice_no, entry.sale_code, entry.category, checked)
                                         }
                                       />
                                     </td>
                                     <td className="text-center p-1">
-                                      {inv.category === 'Rental' ? (
+                                      {entry.category === 'Rental' ? (
                                         <Select
                                           value={String(
-                                            commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.commission_rate ?? 
-                                            inv.commission_rate ?? 
+                                            commissionSettings[`${entry.invoice_no}_${entry.sale_code}_${entry.category}`]?.commission_rate ?? 
+                                            entry.commission_rate ?? 
                                             0.10
                                           )}
                                           onValueChange={(value) => 
-                                            handleRateChange(inv.invoice_no, inv.sale_code, inv.category, value)
+                                            handleRateChange(entry.invoice_no, entry.sale_code, entry.category, value)
                                           }
                                         >
                                           <SelectTrigger className="h-7 w-16 text-xs">
@@ -1384,32 +1421,32 @@ const SalesCommissionReport = ({ user }) => {
                                     </td>
                                     <td className="text-right p-2 font-medium text-green-600">
                                       {(() => {
-                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const key = `${entry.invoice_no}_${entry.sale_code}_${entry.category}`
                                         const setting = commissionSettings[key] || {}
                                         const isCommissionable = setting.is_commissionable === true
                                         
                                         if (!isCommissionable) return formatCommission(0)
                                         
                                         // For rentals, recalculate based on selected rate
-                                        if (inv.category === 'Rental') {
-                                          const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
-                                          return formatCommission(inv.category_amount * rate)
+                                        if (entry.category === 'Rental') {
+                                          const rate = setting.commission_rate ?? entry.commission_rate ?? 0.10
+                                          return formatCommission(entry.category_amount * rate)
                                         }
                                         
                                         // For New/Allied equipment, recalculate based on adjusted cost
-                                        if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                        if (entry.category === 'New Equipment' || entry.category === 'Allied Equipment') {
                                           const costOverride = setting.cost_override
-                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
-                                          const profit = inv.category_amount - cost
+                                          const cost = costOverride ?? entry.actual_cost ?? entry.category_cost ?? 0
+                                          const profit = entry.category_amount - cost
                                           return formatCommission(profit > 0 ? profit * 0.20 : 0)
                                         }
                                         
                                         // For Used equipment, 5% of sale price
-                                        if (inv.category === 'Used Equipment') {
-                                          return formatCommission(inv.category_amount * 0.05)
+                                        if (entry.category === 'Used Equipment') {
+                                          return formatCommission(entry.category_amount * 0.05)
                                         }
                                         
-                                        return formatCommission(inv.commission)
+                                        return formatCommission(entry.commission)
                                       })()}
                                     </td>
                                     <td className="text-right p-1">
@@ -1417,15 +1454,15 @@ const SalesCommissionReport = ({ user }) => {
                                         type="number"
                                         className="w-20 px-1 py-0.5 text-xs text-right border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                                         value={
-                                          commissionSettings[`${inv.invoice_no}_${inv.sale_code}_${inv.category}`]?.extra_commission ?? 0
+                                          commissionSettings[`${entry.invoice_no}_${entry.sale_code}_${entry.category}`]?.extra_commission ?? 0
                                         }
-                                        onChange={(e) => handleExtraCommissionChange(inv.invoice_no, inv.sale_code, inv.category, e.target.value)}
+                                        onChange={(e) => handleExtraCommissionChange(entry.invoice_no, entry.sale_code, entry.category, e.target.value)}
                                         step="0.01"
                                       />
                                     </td>
                                     <td className="text-right p-2 font-bold text-green-600">
                                       {(() => {
-                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const key = `${entry.invoice_no}_${entry.sale_code}_${entry.category}`
                                         const setting = commissionSettings[key] || {}
                                         const isCommissionable = setting.is_commissionable === true
                                         const extraCommission = parseFloat(setting.extra_commission || 0)
@@ -1435,23 +1472,23 @@ const SalesCommissionReport = ({ user }) => {
                                         let calculatedCommission = 0
                                         
                                         // For rentals, recalculate based on selected rate
-                                        if (inv.category === 'Rental') {
-                                          const rate = setting.commission_rate ?? inv.commission_rate ?? 0.10
-                                          calculatedCommission = inv.category_amount * rate
+                                        if (entry.category === 'Rental') {
+                                          const rate = setting.commission_rate ?? entry.commission_rate ?? 0.10
+                                          calculatedCommission = entry.category_amount * rate
                                         }
                                         // For New/Allied equipment, recalculate based on adjusted cost
-                                        else if (inv.category === 'New Equipment' || inv.category === 'Allied Equipment') {
+                                        else if (entry.category === 'New Equipment' || entry.category === 'Allied Equipment') {
                                           const costOverride = setting.cost_override
-                                          const cost = costOverride ?? inv.actual_cost ?? inv.category_cost ?? 0
-                                          const profit = inv.category_amount - cost
+                                          const cost = costOverride ?? entry.actual_cost ?? entry.category_cost ?? 0
+                                          const profit = entry.category_amount - cost
                                           calculatedCommission = profit > 0 ? profit * 0.20 : 0
                                         }
                                         // For Used equipment, 5% of sale price
-                                        else if (inv.category === 'Used Equipment') {
-                                          calculatedCommission = inv.category_amount * 0.05
+                                        else if (entry.category === 'Used Equipment') {
+                                          calculatedCommission = entry.category_amount * 0.05
                                         }
                                         else {
-                                          calculatedCommission = inv.commission
+                                          calculatedCommission = entry.commission
                                         }
                                         
                                         return formatCommission(calculatedCommission + extraCommission)
@@ -1459,10 +1496,10 @@ const SalesCommissionReport = ({ user }) => {
                                     </td>
                                     <td className="text-center p-1">
                                       {(() => {
-                                        const key = `${inv.invoice_no}_${inv.sale_code}_${inv.category}`
+                                        const key = `${entry.invoice_no}_${entry.sale_code}_${entry.category}`
                                         const setting = commissionSettings[key] || {}
-                                        const originalSalesman = inv.original_salesman || salesman.name
-                                        const isReassigned = inv.is_reassigned || (setting.reassigned_to && setting.reassigned_to !== originalSalesman)
+                                        const originalSalesman = entry.original_salesman || salesman.name
+                                        const isReassigned = entry.is_reassigned || (setting.reassigned_to && setting.reassigned_to !== originalSalesman)
 
                                         return (
                                           <div className="flex items-center gap-1">
@@ -1474,13 +1511,16 @@ const SalesCommissionReport = ({ user }) => {
                                             <Select
                                               value={salesman.name}
                                               onValueChange={(value) =>
-                                                handleReassignment(inv.invoice_no, inv.sale_code, inv.category, originalSalesman, value)
+                                                handleReassignment(entry.invoice_no, entry.sale_code, entry.category, originalSalesman, value)
                                               }
                                             >
                                               <SelectTrigger className={`h-7 w-28 text-xs ${isReassigned ? 'border-orange-400 bg-orange-50' : ''}`}>
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
+                                                <SelectItem key="House" value="House">
+                                                  House
+                                                </SelectItem>
                                                 {detailsData?.salesmen?.map((s) => (
                                                   <SelectItem key={s.name} value={s.name}>
                                                     {s.name === originalSalesman ? `${s.name} (orig)` : s.name}
@@ -1493,51 +1533,8 @@ const SalesCommissionReport = ({ user }) => {
                                       })()}
                                     </td>
                                   </tr>
-                                ))})()}
-                                {/* Manual Commission Rows */}
-                                {(manualCommissions[salesman.name] || []).map((mc) => (
-                                  <tr key={`manual-${mc.id}`} className="border-b bg-blue-50/50 hover:bg-blue-100/50">
-                                    <td className="p-1 text-blue-600">{mc.invoice_no || '-'}</td>
-                                    <td className="p-1">{mc.invoice_date ? new Date(mc.invoice_date).toLocaleDateString() : '-'}</td>
-                                    <td className="p-2 font-mono text-xs">{mc.bill_to || '-'}</td>
-                                    <td className="p-1">{mc.customer_name || '-'}</td>
-                                    <td className="p-1">
-                                      <Badge variant="outline" className="font-mono text-xs bg-blue-100">
-                                        {mc.sale_code || '-'}
-                                      </Badge>
-                                    </td>
-                                    <td className="p-1">
-                                      <Badge variant="secondary" className="text-xs bg-blue-200 text-blue-800">
-                                        {mc.category || 'Manual'}
-                                      </Badge>
-                                    </td>
-                                    <td className="text-right p-1">{formatCurrency(mc.amount)}</td>
-                                    <td className="text-right p-1 text-muted-foreground">{mc.cost ? formatCurrency(mc.cost) : '-'}</td>
-                                    <td className="text-right p-1 text-muted-foreground">-</td>
-                                    <td className="text-center p-1">
-                                      <span className="text-xs text-blue-600">Manual</span>
-                                    </td>
-                                    <td className="text-center p-1 text-muted-foreground">-</td>
-                                    <td className="text-right p-2 font-medium text-blue-600">
-                                      {formatCommission(mc.commission_amount)}
-                                    </td>
-                                    <td className="text-right p-1 text-muted-foreground">-</td>
-                                    <td className="text-right p-2 font-bold text-blue-600">
-                                      {formatCommission(mc.commission_amount)}
-                                    </td>
-                                    <td className="text-center p-1">
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                                        onClick={() => deleteManualCommission(mc.id)}
-                                        title="Delete manual entry"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </td>
-                                  </tr>
-                                ))}
+                                    )
+                                  ))})()}
                                 <tr className="font-semibold bg-gray-50">
                                   <td colSpan="6" className="p-1 text-right">Subtotal:</td>
                                   <td className="text-right p-1">{formatCurrency(salesman.total_sales)}</td>
@@ -1930,15 +1927,7 @@ const SalesCommissionReport = ({ user }) => {
                                     {getSortIcon(unassignedSortConfig, 'invoice_date')}
                                   </div>
                                 </th>
-                                <th 
-                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
-                                  onClick={() => handleUnassignedSort('bill_to')}
-                                >
-                                  <div className="flex items-center gap-1">
-                                    Bill To
-                                    {getSortIcon(unassignedSortConfig, 'bill_to')}
-                                  </div>
-                                </th>
+
                                 <th 
                                   className="text-left p-2 cursor-pointer hover:bg-yellow-100"
                                   onClick={() => handleUnassignedSort('customer_name')}
@@ -1966,15 +1955,7 @@ const SalesCommissionReport = ({ user }) => {
                                     {getSortIcon(unassignedSortConfig, 'sale_code')}
                                   </div>
                                 </th>
-                                <th 
-                                  className="text-left p-2 cursor-pointer hover:bg-yellow-100"
-                                  onClick={() => handleUnassignedSort('category')}
-                                >
-                                  <div className="flex items-center gap-1">
-                                    Category
-                                    {getSortIcon(unassignedSortConfig, 'category')}
-                                  </div>
-                                </th>
+
                                 <th
                                   className="text-right p-2 cursor-pointer hover:bg-yellow-100"
                                   onClick={() => handleUnassignedSort('category_amount')}
@@ -2000,7 +1981,6 @@ const SalesCommissionReport = ({ user }) => {
                                 <tr key={idx} className="border-b border-yellow-200 hover:bg-yellow-100">
                                   <td className="p-1">{inv.invoice_no}</td>
                                   <td className="p-1">{new Date(inv.invoice_date).toLocaleDateString()}</td>
-                                  <td className="p-2 font-mono text-xs">{inv.bill_to || '-'}</td>
                                   <td className="p-1">{inv.customer_name}</td>
                                   <td className="p-1">
                                     <Badge 
@@ -2021,11 +2001,6 @@ const SalesCommissionReport = ({ user }) => {
                                         </Badge>
                                       )}
                                     </div>
-                                  </td>
-                                  <td className="p-1">
-                                    <Badge variant="secondary" className="text-xs">
-                                      {inv.category}
-                                    </Badge>
                                   </td>
                                   <td className="text-right p-2 font-medium">{formatCurrency(inv.category_amount)}</td>
                                   <td className="p-1">
@@ -2053,6 +2028,9 @@ const SalesCommissionReport = ({ user }) => {
                                               <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
+                                              <SelectItem key="House" value="House" className="text-xs">
+                                                House
+                                              </SelectItem>
                                               {detailsData?.salesmen?.map((s) => (
                                                 <SelectItem key={s.name} value={s.name} className="text-xs">
                                                   {s.name === originalSalesman ? `${s.name} (orig)` : s.name}
