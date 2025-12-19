@@ -10059,3 +10059,181 @@ def register_department_routes(reports_bp):
                 'error': str(e)
             }), 500
 
+
+    @reports_bp.route('/departments/service/units-by-repair-cost', methods=['GET'])
+    @jwt_required()
+    def get_units_by_repair_cost():
+        """
+        Get units (equipment) ranked by total repair cost for a customer.
+        Used to help customers justify replacing high-maintenance equipment.
+        
+        Returns:
+        - Top 10 units by repair cost
+        - Additional opportunities (other units with notable costs)
+        - Series averages for comparison
+        - Totals and percentages
+        """
+        try:
+            from datetime import datetime
+            db = get_db()
+            
+            # Get parameters
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            customer_no = request.args.get('customer_no')
+            
+            if not start_date or not end_date:
+                return jsonify({'error': 'Start date and end date are required'}), 400
+            
+            if not customer_no or customer_no == 'ALL':
+                return jsonify({'error': 'A specific customer must be selected'}), 400
+            
+            # Query to get repair costs by unit (serial number)
+            # Uses InvoiceReg to get actual billed amounts
+            units_query = """
+            WITH UnitCosts AS (
+                SELECT 
+                    COALESCE(i.SerialNo, e.SerialNo) as SerialNo,
+                    e.UnitNo,
+                    e.Make as Mfg,
+                    e.Series,
+                    e.Model,
+                    e.Year as ModelYear,
+                    SUM(COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0) + 
+                        COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) + 
+                        COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as TotalRepairCost,
+                    COUNT(DISTINCT i.InvoiceNo) as InvoiceCount
+                FROM ben002.InvoiceReg i
+                LEFT JOIN ben002.Equipment e ON i.SerialNo = e.SerialNo
+                WHERE i.InvoiceDate >= %s
+                  AND i.InvoiceDate <= %s
+                  AND i.DeletionTime IS NULL
+                  AND i.BillTo = %s
+                  AND i.SerialNo IS NOT NULL
+                  AND i.SerialNo != ''
+                  -- Include service invoices (exclude parts-only invoices starting with 130)
+                  AND CAST(i.InvoiceNo AS VARCHAR(20)) NOT LIKE '130%%'
+                  AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
+                       OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
+                       OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
+                GROUP BY COALESCE(i.SerialNo, e.SerialNo), e.UnitNo, e.Make, e.Series, e.Model, e.Year
+            ),
+            SeriesAverages AS (
+                SELECT 
+                    Series,
+                    AVG(TotalRepairCost) as SeriesAvgCost,
+                    COUNT(*) as UnitsInSeries
+                FROM UnitCosts
+                WHERE Series IS NOT NULL AND Series != ''
+                GROUP BY Series
+            ),
+            TotalCost AS (
+                SELECT SUM(TotalRepairCost) as GrandTotal
+                FROM UnitCosts
+            )
+            SELECT 
+                uc.SerialNo,
+                uc.UnitNo,
+                uc.Mfg,
+                uc.Series,
+                uc.Model,
+                uc.ModelYear,
+                uc.TotalRepairCost,
+                uc.InvoiceCount,
+                tc.GrandTotal,
+                CASE WHEN tc.GrandTotal > 0 
+                     THEN (uc.TotalRepairCost / tc.GrandTotal * 100) 
+                     ELSE 0 
+                END as PercentOfTotal,
+                COALESCE(sa.SeriesAvgCost, 0) as SeriesAvgCost
+            FROM UnitCosts uc
+            CROSS JOIN TotalCost tc
+            LEFT JOIN SeriesAverages sa ON uc.Series = sa.Series
+            ORDER BY uc.TotalRepairCost DESC
+            """
+            
+            units = db.execute_query(units_query, [start_date, end_date, customer_no])
+            
+            if not units:
+                return jsonify({
+                    'success': True,
+                    'top_units': [],
+                    'additional_opportunities': [],
+                    'summary': {
+                        'top_10_total': 0,
+                        'top_10_percent': 0,
+                        'additional_total': 0,
+                        'additional_percent': 0,
+                        'grand_total': 0,
+                        'unit_count': 0
+                    },
+                    'customer_no': customer_no,
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            
+            # Get customer info
+            customer_query = """
+            SELECT Number, Name, Address1, City, State, Zip
+            FROM ben002.Customer
+            WHERE Number = %s
+            """
+            customer_info = db.execute_query(customer_query, [customer_no])
+            customer_data = customer_info[0] if customer_info else {}
+            
+            # Format results
+            all_units = []
+            grand_total = float(units[0]['GrandTotal']) if units and units[0]['GrandTotal'] else 0
+            
+            for row in units:
+                all_units.append({
+                    'serial_no': row['SerialNo'] or '',
+                    'unit_no': row['UnitNo'] or '',
+                    'mfg': row['Mfg'] or '',
+                    'series': row['Series'] or '',
+                    'model': row['Model'] or '',
+                    'model_year': int(row['ModelYear']) if row['ModelYear'] else None,
+                    'total_repair_cost': float(row['TotalRepairCost'] or 0),
+                    'invoice_count': int(row['InvoiceCount'] or 0),
+                    'percent_of_total': round(float(row['PercentOfTotal'] or 0), 1),
+                    'series_avg_cost': float(row['SeriesAvgCost'] or 0)
+                })
+            
+            # Split into top 10 and additional opportunities
+            top_units = all_units[:10]
+            additional_units = all_units[10:] if len(all_units) > 10 else []
+            
+            # Calculate summaries
+            top_10_total = sum(u['total_repair_cost'] for u in top_units)
+            top_10_percent = (top_10_total / grand_total * 100) if grand_total > 0 else 0
+            
+            additional_total = sum(u['total_repair_cost'] for u in additional_units)
+            additional_percent = (additional_total / grand_total * 100) if grand_total > 0 else 0
+            
+            return jsonify({
+                'success': True,
+                'top_units': top_units,
+                'additional_opportunities': additional_units,
+                'summary': {
+                    'top_10_total': round(top_10_total, 2),
+                    'top_10_percent': round(top_10_percent, 1),
+                    'additional_total': round(additional_total, 2),
+                    'additional_percent': round(additional_percent, 1),
+                    'grand_total': round(grand_total, 2),
+                    'unit_count': len(all_units)
+                },
+                'customer': {
+                    'number': customer_data.get('Number', customer_no),
+                    'name': customer_data.get('Name', ''),
+                    'address': customer_data.get('Address1', ''),
+                    'city': customer_data.get('City', ''),
+                    'state': customer_data.get('State', ''),
+                    'zip': customer_data.get('Zip', '')
+                },
+                'start_date': start_date,
+                'end_date': end_date
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting units by repair cost: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
