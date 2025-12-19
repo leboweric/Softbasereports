@@ -1536,9 +1536,8 @@ const SalesCommissionReport = ({ user }) => {
                                     )
                                   ))})()}
                                 <tr className="font-semibold bg-gray-50">
-                                  <td colSpan="6" className="p-1 text-right">Subtotal:</td>
+                                  <td colSpan="5" className="p-1 text-right">Subtotal:</td>
                                   <td className="text-right p-1">{formatCurrency(salesman.total_sales)}</td>
-                                  <td></td>
                                   <td></td>
                                   <td></td>
                                   <td></td>
