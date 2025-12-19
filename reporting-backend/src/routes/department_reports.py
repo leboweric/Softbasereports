@@ -10090,15 +10090,23 @@ def register_department_routes(reports_bp):
             
             # Query to get repair costs by unit (serial number)
             # Uses InvoiceReg to get actual billed amounts
+            # Note: Equipment table has Make, Model, ModelYear - no Series column
+            # We'll derive "Series" from the Model prefix for grouping similar models
             units_query = """
             WITH UnitCosts AS (
                 SELECT 
                     COALESCE(i.SerialNo, e.SerialNo) as SerialNo,
                     e.UnitNo,
                     e.Make as Mfg,
-                    e.Series,
+                    -- Derive series from model (first part before dash or space, or first 2-4 chars)
+                    CASE 
+                        WHEN CHARINDEX('-', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX('-', e.Model) - 1)
+                        WHEN CHARINDEX(' ', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX(' ', e.Model) - 1)
+                        WHEN LEN(e.Model) > 4 THEN LEFT(e.Model, 4)
+                        ELSE e.Model
+                    END as Series,
                     e.Model,
-                    e.Year as ModelYear,
+                    e.ModelYear,
                     SUM(COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0) + 
                         COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) + 
                         COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as TotalRepairCost,
@@ -10116,7 +10124,13 @@ def register_department_routes(reports_bp):
                   AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
                        OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
                        OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
-                GROUP BY COALESCE(i.SerialNo, e.SerialNo), e.UnitNo, e.Make, e.Series, e.Model, e.Year
+                GROUP BY COALESCE(i.SerialNo, e.SerialNo), e.UnitNo, e.Make, 
+                    CASE 
+                        WHEN CHARINDEX('-', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX('-', e.Model) - 1)
+                        WHEN CHARINDEX(' ', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX(' ', e.Model) - 1)
+                        WHEN LEN(e.Model) > 4 THEN LEFT(e.Model, 4)
+                        ELSE e.Model
+                    END, e.Model, e.ModelYear
             ),
             SeriesAverages AS (
                 SELECT 
