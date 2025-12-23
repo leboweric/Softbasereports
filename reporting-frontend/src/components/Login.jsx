@@ -146,7 +146,7 @@ const Login = ({ onLogin }) => {
 
           <div className="space-y-6">
             <p className="text-2xl text-blue-100 max-w-md mx-auto">
-              One platform. AI-powered. All Operations.
+              AI-powered. All Operations. One platform.
             </p>
           </div>
         </div>
