@@ -411,8 +411,8 @@ class QBRService:
             query = """
             SELECT
                 SUM(GrandTotal) as total_spend,
-                SUM(LaborTaxable + LaborNonTaxable) as labor_total,
-                SUM(PartsTaxable + PartsNonTaxable) as parts_total,
+                SUM(LaborTaxable + LaborNonTax) as labor_total,
+                SUM(PartsTaxable + PartsNonTax) as parts_total,
                 COUNT(*) as invoice_count
             FROM ben002.InvoiceReg
             WHERE CASE
@@ -504,7 +504,7 @@ class QBRService:
             parts_query = """
             SELECT
                 COUNT(*) as orders,
-                SUM(PartsTaxable + PartsNonTaxable) as total_spend
+                SUM(PartsTaxable + PartsNonTax) as total_spend
             FROM ben002.InvoiceReg
             WHERE CASE
                 WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
