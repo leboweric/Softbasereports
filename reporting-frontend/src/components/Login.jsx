@@ -139,8 +139,8 @@ const Login = ({ onLogin }) => {
               <ChartBar className="h-12 w-12 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-5xl font-bold text-white">AIOP.one</h1>
-              <p className="text-blue-100 text-lg">AI Operations Platform</p>
+              <h1 className="text-5xl font-bold text-white">IOP.one</h1>
+              <p className="text-blue-100 text-lg">Intelligent Operations Platform</p>
             </div>
           </div>
 
@@ -162,8 +162,8 @@ const Login = ({ onLogin }) => {
                 <ChartBar className="h-8 w-8 text-white" />
               </div>
               <div className="text-left">
-                <h1 className="text-2xl font-bold text-gray-900">AIOP.one</h1>
-                <p className="text-gray-600 text-sm">AI Operations Platform</p>
+                <h1 className="text-2xl font-bold text-gray-900">IOP.one</h1>
+                <p className="text-gray-600 text-sm">Intelligent Operations Platform</p>
               </div>
             </div>
           </div>
