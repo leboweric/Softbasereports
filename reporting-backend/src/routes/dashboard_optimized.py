@@ -1740,19 +1740,19 @@ def get_dashboard_summary_optimized():
         db = AzureSQLService()
         queries = DashboardQueries(db)
         
-        # Cache TTL settings (in seconds)
+        # Cache TTL settings (in seconds) - all set to 1 hour for performance
         cache_ttl = {
-            'total_sales': 300,  # 5 minutes - changes frequently
-            'ytd_sales': 300,  # 5 minutes - changes frequently
-            'inventory_count': 600,  # 10 minutes - changes moderately
-            'active_customers': 900,  # 15 minutes - changes slowly
-            'monthly_sales': 1800,  # 30 minutes - historical data
-            'uninvoiced': 300,  # 5 minutes - important to keep fresh
-            'monthly_quotes': 900,  # 15 minutes
-            'work_order_types': 300,  # 5 minutes - changes frequently
-            'top_customers': 1800,  # 30 minutes - changes slowly
-            'monthly_work_orders': 900,  # 15 minutes
-            'department_margins': 1800  # 30 minutes - historical data
+            'total_sales': 3600,  # 1 hour
+            'ytd_sales': 3600,  # 1 hour
+            'inventory_count': 3600,  # 1 hour
+            'active_customers': 3600,  # 1 hour
+            'monthly_sales': 3600,  # 1 hour
+            'uninvoiced': 3600,  # 1 hour
+            'monthly_quotes': 3600,  # 1 hour
+            'work_order_types': 3600,  # 1 hour
+            'top_customers': 3600,  # 1 hour
+            'monthly_work_orders': 3600,  # 1 hour
+            'department_margins': 3600  # 1 hour
         }
         
         # Define all query tasks with caching

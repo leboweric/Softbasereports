@@ -2820,14 +2820,14 @@ def register_department_routes(reports_bp):
         # Check for force refresh parameter
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
-        # Use cache with 5-minute TTL (300 seconds)
+        # Use cache with 1-hour TTL (3600 seconds)
         cache_key = 'rental_service_report'
         
         def fetch_rental_service_data():
             return _fetch_rental_service_report_data()
         
         try:
-            result = cache_service.cache_query(cache_key, fetch_rental_service_data, ttl_seconds=300, force_refresh=force_refresh)
+            result = cache_service.cache_query(cache_key, fetch_rental_service_data, ttl_seconds=3600, force_refresh=force_refresh)
             return jsonify(result)
         except Exception as e:
             logger.error(f"Rental service report error: {str(e)}")

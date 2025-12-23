@@ -10,6 +10,7 @@ Removed: Redundant Free CF and CapEx (always $0)
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
+from src.services.cache_service import cache_service
 from datetime import datetime, timedelta
 import logging
 import calendar
@@ -29,54 +30,67 @@ def get_cashflow_widget():
     try:
         # Get current date or use provided date
         as_of_date = request.args.get('as_of_date')
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
         if as_of_date:
             current_date = datetime.strptime(as_of_date, '%Y-%m-%d')
         else:
             current_date = datetime.now()
         
-        # Always use last closed month (previous month)
-        # This ensures we show complete month-end data, not partial current month
-        last_closed_month = current_date.replace(day=1) - timedelta(days=1)
-        current_year = last_closed_month.year
-        current_month = last_closed_month.month
+        # Use cache with 1-hour TTL
+        cache_key = f'cashflow_widget:{as_of_date or current_date.strftime("%Y-%m-%d")}'
         
-        # Get current cash balance (ending balance, not MTD)
-        cash_balance = get_current_cash_balance(current_year, current_month)
+        def fetch_cashflow_data():
+            return _fetch_cashflow_widget_data(current_date)
         
-        # Get current month operating cash flow
-        operating_cf = get_monthly_operating_cashflow(current_year, current_month)
-        
-        # Get total cash movement for the month
-        total_cash_movement = get_total_cash_movement(current_year, current_month)
-        
-        # Calculate non-operating cash flow (difference)
-        non_operating_cf = total_cash_movement - operating_cf
-        
-        # Get breakdown of non-operating activities
-        non_operating_breakdown = get_non_operating_breakdown(current_year, current_month)
-        
-        # Get 12-month trend
-        trend_data = get_cashflow_trend(current_year, current_month, months=12)
-        
-        # Determine health status based on operating CF
-        health_status = 'healthy' if operating_cf > 0 else 'warning' if operating_cf > -50000 else 'critical'
-        
-        return jsonify({
-            'cash_balance': cash_balance,
-            'operating_cashflow': operating_cf,
-            'total_cash_movement': total_cash_movement,
-            'non_operating_cashflow': non_operating_cf,
-            'non_operating_breakdown': non_operating_breakdown,
-            'health_status': health_status,
-            'trend': trend_data,
-            'as_of_date': last_closed_month.strftime('%Y-%m-%d')
-        }), 200
+        result = cache_service.cache_query(cache_key, fetch_cashflow_data, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result), 200
         
     except Exception as e:
         logger.error(f"Error in get_cashflow_widget: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+def _fetch_cashflow_widget_data(current_date):
+    """Internal function to fetch cashflow widget data"""
+    # Always use last closed month (previous month)
+    # This ensures we show complete month-end data, not partial current month
+    last_closed_month = current_date.replace(day=1) - timedelta(days=1)
+    current_year = last_closed_month.year
+    current_month = last_closed_month.month
+    
+    # Get current cash balance (ending balance, not MTD)
+    cash_balance = get_current_cash_balance(current_year, current_month)
+    
+    # Get current month operating cash flow
+    operating_cf = get_monthly_operating_cashflow(current_year, current_month)
+    
+    # Get total cash movement for the month
+    total_cash_movement = get_total_cash_movement(current_year, current_month)
+    
+    # Calculate non-operating cash flow (difference)
+    non_operating_cf = total_cash_movement - operating_cf
+    
+    # Get breakdown of non-operating activities
+    non_operating_breakdown = get_non_operating_breakdown(current_year, current_month)
+    
+    # Get 12-month trend
+    trend_data = get_cashflow_trend(current_year, current_month, months=12)
+    
+    # Determine health status based on operating CF
+    health_status = 'healthy' if operating_cf > 0 else 'warning' if operating_cf > -50000 else 'critical'
+    
+    return {
+        'cash_balance': cash_balance,
+        'operating_cashflow': operating_cf,
+        'total_cash_movement': total_cash_movement,
+        'non_operating_cashflow': non_operating_cf,
+        'non_operating_breakdown': non_operating_breakdown,
+        'health_status': health_status,
+        'trend': trend_data,
+        'as_of_date': last_closed_month.strftime('%Y-%m-%d')
+    }
 
 
 def get_current_cash_balance(year, month):

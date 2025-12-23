@@ -15,6 +15,7 @@ except ImportError:
     HAS_SCIPY = False
 import logging
 from src.services.azure_sql_service import AzureSQLService
+from src.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
 parts_inventory_bp = Blueprint('parts_inventory', __name__)
@@ -27,6 +28,7 @@ def calculate_inventory_turns():
     """
     try:
         logger.info("Starting inventory turns calculation")
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
         # Get query parameters with validation
         try:
@@ -42,6 +44,26 @@ def calculate_inventory_turns():
                 'success': False,
                 'error': f'Invalid parameters: {str(e)}'
             }), 400
+        
+        # Use cache with 1-hour TTL
+        cache_key = f'parts_inventory_turns:{months}:{lead_time_days}:{service_level}:{target_turns}:{min_usage_threshold}'
+        
+        def fetch_inventory_turns():
+            return _fetch_inventory_turns_data(months, lead_time_days, service_level, target_turns, min_usage_threshold)
+        
+        result = cache_service.cache_query(cache_key, fetch_inventory_turns, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Inventory turns calculation failed: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_turns, min_usage_threshold):
+    """Internal function to fetch inventory turns data"""
+    try:
         
         # Initialize database connection
         try:
@@ -241,18 +263,15 @@ def calculate_inventory_turns():
             'min_usage_threshold': min_usage_threshold
         }
         
-        return jsonify({
+        return {
             'success': True,
             'parts': parts_data[:500],  # Limit to first 500 parts
             'summary': summary
-        })
+        }
         
     except Exception as e:
         logger.error(f"Error calculating inventory turns: {str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise e
 
 def calculate_part_metrics(row, months, lead_time_days, target_turns, z_score):
     """

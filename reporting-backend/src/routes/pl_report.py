@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 import calendar
 from src.services.azure_sql_service import AzureSQLService
+from src.services.cache_service import cache_service
 from src.utils.fiscal_year import get_fiscal_ytd_start
 
 logger = logging.getLogger(__name__)
@@ -602,6 +603,7 @@ def get_pl_report():
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
         view = request.args.get('view', 'consolidated')
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
         if not start_date or not end_date:
             return jsonify({
@@ -621,6 +623,26 @@ def get_pl_report():
         
         # Check if detail is requested
         include_detail = request.args.get('detail', 'false').lower() == 'true'
+        
+        # Use cache with 1-hour TTL
+        cache_key = f'pl_report:{start_date}:{end_date}:{view}:{include_detail}'
+        
+        def fetch_pl_data():
+            return _fetch_pl_report_data(start_date, end_date, view, include_detail)
+        
+        result = cache_service.cache_query(cache_key, fetch_pl_data, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error generating P&L report: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def _fetch_pl_report_data(start_date, end_date, view, include_detail):
+    """Internal function to fetch P&L report data"""
+    try:
         
         # Get data for all departments
         departments = {}
@@ -669,14 +691,11 @@ def get_pl_report():
             'expenses': expenses
         }
         
-        return jsonify(response)
+        return response
         
     except Exception as e:
         logger.error(f"Error generating P&L report: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        raise e
 
 
 @pl_report_bp.route('/api/reports/pl/mtd', methods=['GET'])

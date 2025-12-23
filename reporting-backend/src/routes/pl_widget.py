@@ -6,6 +6,7 @@ Provides monthly profit/loss metrics for dashboard display
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
+from src.services.cache_service import cache_service
 from src.utils.fiscal_year import SOFTBASE_CUTOVER_DATE, get_fiscal_ytd_start
 from datetime import datetime, timedelta
 import logging
@@ -29,66 +30,79 @@ def get_pl_widget():
     try:
         # Get current date or use provided date
         as_of_date = request.args.get('as_of_date')
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
         if as_of_date:
             current_date = datetime.strptime(as_of_date, '%Y-%m-%d')
         else:
             current_date = datetime.now()
         
-        # Always use last closed month (previous month)
-        last_closed_month = current_date.replace(day=1) - timedelta(days=1)
-        current_year = last_closed_month.year
-        current_month = last_closed_month.month
+        # Use cache with 1-hour TTL
+        cache_key = f'pl_widget:{as_of_date or current_date.strftime("%Y-%m-%d")}'
         
-        # Get current month P&L
-        current_pl = get_monthly_pl(current_year, current_month)
+        def fetch_pl_widget_data():
+            return _fetch_pl_widget_data(current_date)
         
-        # Get 12-month trend
-        trend_data = get_pl_trend(current_year, current_month, months=12)
-        
-        # Debug logging
-        logger.info(f"=" * 80)
-        logger.info(f"P&L Widget Calculation for {current_year}-{current_month:02d}")
-        logger.info(f"Trend data has {len(trend_data)} months:")
-        for item in trend_data:
-            logger.info(f"  {item['month']}: ${item['profit_loss']:,.2f}")
-        
-        # Calculate fiscal YTD (from fiscal year start to current month)
-        fiscal_ytd_start = get_fiscal_ytd_start()
-        ytd_pl = sum(
-            item['profit_loss'] 
-            for item in trend_data 
-            if datetime.strptime(item['month'], '%Y-%m').replace(day=1) >= fiscal_ytd_start
-        ) if trend_data else 0
-        logger.info(f"Fiscal YTD start: {fiscal_ytd_start.strftime('%Y-%m-%d')}")
-        logger.info(f"Fiscal YTD P&L: ${ytd_pl:,.2f}")
-        logger.info(f"=" * 80)
-        
-        # Calculate average monthly P&L from trailing 12 months (all trend data)
-        trailing_12_total = sum(item['profit_loss'] for item in trend_data) if trend_data else 0
-        avg_monthly_pl = trailing_12_total / len(trend_data) if trend_data else 0
-        
-        # Determine health status
-        if current_pl > 50000:
-            health_status = 'profitable'
-        elif current_pl > 0:
-            health_status = 'break_even'
-        else:
-            health_status = 'loss'
-        
-        return jsonify({
-            'current_pl': current_pl,
-            'ytd_pl': ytd_pl,
-            'avg_monthly_pl': avg_monthly_pl,
-            'health_status': health_status,
-            'trend': trend_data,
-            'as_of_date': last_closed_month.strftime('%Y-%m-%d')
-        }), 200
+        result = cache_service.cache_query(cache_key, fetch_pl_widget_data, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result), 200
         
     except Exception as e:
         logger.error(f"Error in get_pl_widget: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+def _fetch_pl_widget_data(current_date):
+    """Internal function to fetch P&L widget data"""
+    # Always use last closed month (previous month)
+    last_closed_month = current_date.replace(day=1) - timedelta(days=1)
+    current_year = last_closed_month.year
+    current_month = last_closed_month.month
+    
+    # Get current month P&L
+    current_pl = get_monthly_pl(current_year, current_month)
+    
+    # Get 12-month trend
+    trend_data = get_pl_trend(current_year, current_month, months=12)
+    
+    # Debug logging
+    logger.info(f"=" * 80)
+    logger.info(f"P&L Widget Calculation for {current_year}-{current_month:02d}")
+    logger.info(f"Trend data has {len(trend_data)} months:")
+    for item in trend_data:
+        logger.info(f"  {item['month']}: ${item['profit_loss']:,.2f}")
+    
+    # Calculate fiscal YTD (from fiscal year start to current month)
+    fiscal_ytd_start = get_fiscal_ytd_start()
+    ytd_pl = sum(
+        item['profit_loss'] 
+        for item in trend_data 
+        if datetime.strptime(item['month'], '%Y-%m').replace(day=1) >= fiscal_ytd_start
+    ) if trend_data else 0
+    logger.info(f"Fiscal YTD start: {fiscal_ytd_start.strftime('%Y-%m-%d')}")
+    logger.info(f"Fiscal YTD P&L: ${ytd_pl:,.2f}")
+    logger.info(f"=" * 80)
+    
+    # Calculate average monthly P&L from trailing 12 months (all trend data)
+    trailing_12_total = sum(item['profit_loss'] for item in trend_data) if trend_data else 0
+    avg_monthly_pl = trailing_12_total / len(trend_data) if trend_data else 0
+    
+    # Determine health status
+    if current_pl > 50000:
+        health_status = 'profitable'
+    elif current_pl > 0:
+        health_status = 'break_even'
+    else:
+        health_status = 'loss'
+    
+    return {
+        'current_pl': current_pl,
+        'ytd_pl': ytd_pl,
+        'avg_monthly_pl': avg_monthly_pl,
+        'health_status': health_status,
+        'trend': trend_data,
+        'as_of_date': last_closed_month.strftime('%Y-%m-%d')
+    }
 
 
 def get_monthly_pl(year, month):

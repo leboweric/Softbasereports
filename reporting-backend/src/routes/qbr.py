@@ -8,6 +8,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.services.azure_sql_service import AzureSQLService
 from src.services.postgres_service import get_postgres_db
 from src.services.qbr_service import QBRService
+from src.services.cache_service import cache_service
 import logging
 from datetime import datetime
 import uuid
@@ -33,13 +34,18 @@ def get_qbr_customers():
     Returns: List of customers with service history
     """
     try:
-        qbr_service = get_qbr_service()
-        customers = qbr_service.get_customers_for_qbr()
-
-        return jsonify({
-            'success': True,
-            'customers': customers
-        })
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
+        # Use cache with 1-hour TTL
+        cache_key = 'qbr_customers'
+        
+        def fetch_customers():
+            qbr_service = get_qbr_service()
+            customers = qbr_service.get_customers_for_qbr()
+            return {'success': True, 'customers': customers}
+        
+        result = cache_service.cache_query(cache_key, fetch_customers, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result)
 
     except Exception as e:
         logger.error(f"Error getting QBR customers: {str(e)}")
@@ -60,51 +66,16 @@ def get_qbr_data(customer_name):
     """
     try:
         quarter_param = request.args.get('quarter', 'Q4-2025')
-
-        # Parse quarter
-        parts = quarter_param.split('-')
-        quarter = parts[0]  # 'Q3'
-        year = int(parts[1])  # 2025
-
-        qbr_service = get_qbr_service()
-
-        # Get date range
-        start_date, end_date = qbr_service.get_quarter_date_range(quarter, year)
-
-        # customer_name IS the identifier (from BillToName)
-        # No need to query Customer table - we use BillToName directly
-        customer = {
-            'customer_number': customer_name,
-            'customer_name': customer_name
-        }
-
-        # Get all metrics (all queries use BillToName)
-        fleet_overview = qbr_service.get_fleet_overview(customer_name, start_date, end_date)
-        fleet_health = qbr_service.get_fleet_health(customer_name, end_date)
-        service_performance = qbr_service.get_service_performance(customer_name, start_date, end_date)
-        service_costs = qbr_service.get_service_costs(customer_name, start_date, end_date)
-        parts_rentals = qbr_service.get_parts_rentals(customer_name, start_date, end_date)
-        value_delivered = qbr_service.get_value_delivered(customer_name, start_date, end_date, service_costs, parts_rentals)
-        recommendations = qbr_service.generate_recommendations(customer_name, fleet_health, service_costs)
-
-        return jsonify({
-            'success': True,
-            'data': {
-                'customer': customer,
-                'quarter': f'{quarter} {year}',
-                'date_range': {
-                    'start': start_date.strftime('%Y-%m-%d'),
-                    'end': end_date.strftime('%Y-%m-%d')
-                },
-                'fleet_overview': fleet_overview,
-                'fleet_health': fleet_health,
-                'service_performance': service_performance,
-                'service_costs': service_costs,
-                'parts_rentals': parts_rentals,
-                'value_delivered': value_delivered,
-                'recommendations': recommendations
-            }
-        })
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
+        # Use cache with 1-hour TTL
+        cache_key = f'qbr_data:{customer_name}:{quarter_param}'
+        
+        def fetch_qbr_data():
+            return _fetch_qbr_data(customer_name, quarter_param)
+        
+        result = cache_service.cache_query(cache_key, fetch_qbr_data, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result)
 
     except Exception as e:
         logger.error(f"Error getting QBR data: {str(e)}")
@@ -112,6 +83,53 @@ def get_qbr_data(customer_name):
             'success': False,
             'error': str(e)
         }), 500
+
+def _fetch_qbr_data(customer_name, quarter_param):
+    """Internal function to fetch QBR data"""
+    # Parse quarter
+    parts = quarter_param.split('-')
+    quarter = parts[0]  # 'Q3'
+    year = int(parts[1])  # 2025
+
+    qbr_service = get_qbr_service()
+
+    # Get date range
+    start_date, end_date = qbr_service.get_quarter_date_range(quarter, year)
+
+    # customer_name IS the identifier (from BillToName)
+    # No need to query Customer table - we use BillToName directly
+    customer = {
+        'customer_number': customer_name,
+        'customer_name': customer_name
+    }
+
+    # Get all metrics (all queries use BillToName)
+    fleet_overview = qbr_service.get_fleet_overview(customer_name, start_date, end_date)
+    fleet_health = qbr_service.get_fleet_health(customer_name, end_date)
+    service_performance = qbr_service.get_service_performance(customer_name, start_date, end_date)
+    service_costs = qbr_service.get_service_costs(customer_name, start_date, end_date)
+    parts_rentals = qbr_service.get_parts_rentals(customer_name, start_date, end_date)
+    value_delivered = qbr_service.get_value_delivered(customer_name, start_date, end_date, service_costs, parts_rentals)
+    recommendations = qbr_service.generate_recommendations(customer_name, fleet_health, service_costs)
+
+    return {
+        'success': True,
+        'data': {
+            'customer': customer,
+            'quarter': f'{quarter} {year}',
+            'date_range': {
+                'start': start_date.strftime('%Y-%m-%d'),
+                'end': end_date.strftime('%Y-%m-%d')
+            },
+            'fleet_overview': fleet_overview,
+            'fleet_health': fleet_health,
+            'service_performance': service_performance,
+            'service_costs': service_costs,
+            'parts_rentals': parts_rentals,
+            'value_delivered': value_delivered,
+            'recommendations': recommendations
+        }
+    }
 
 
 @qbr_bp.route('/api/qbr/<customer_name>/save', methods=['POST'])

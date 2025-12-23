@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 from src.services.postgres_service import get_postgres_db
+from src.services.cache_service import cache_service
 from datetime import datetime, timedelta
 import calendar
 import numpy as np
@@ -17,112 +18,127 @@ sales_forecast_bp = Blueprint('sales_forecast', __name__)
 def get_sales_forecast():
     """Generate sales forecast for current month based on historical patterns"""
     try:
-        db = AzureSQLService()
+        from flask import request
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
         now = datetime.now()
         current_year = now.year
         current_month = now.month
         current_day = now.day
         
-        # Get historical daily sales patterns (last 12 months for better patterns)
-        daily_pattern_query = """
-        WITH DailySales AS (
-            SELECT 
-                YEAR(InvoiceDate) as year,
-                MONTH(InvoiceDate) as month,
-                DAY(InvoiceDate) as day,
-                SUM(GrandTotal) as daily_total,
-                COUNT(*) as invoice_count
-            FROM ben002.InvoiceReg
-            WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                AND InvoiceDate < CAST(GETDATE() AS DATE)
-            GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DAY(InvoiceDate)
-        ),
-        MonthlyTotals AS (
-            SELECT 
-                year,
-                month,
-                SUM(daily_total) as month_total,
-                MAX(day) as days_in_month
-            FROM DailySales
-            GROUP BY year, month
-        ),
-        DailyPercentages AS (
-            SELECT 
-                ds.year,
-                ds.month,
-                ds.day,
-                ds.daily_total,
-                ds.invoice_count,
-                CASE WHEN mt.month_total > 0 
-                    THEN (ds.daily_total / mt.month_total) * 100 
-                    ELSE 0 
-                END as pct_of_month
-            FROM DailySales ds
-            JOIN MonthlyTotals mt ON ds.year = mt.year AND ds.month = mt.month
-        )
-        SELECT * FROM DailyPercentages
-        ORDER BY year, month, day
-        """
+        # Use cache with 1-hour TTL
+        cache_key = f'sales_forecast:{current_year}:{current_month}:{current_day}'
         
-        # Get current month sales to date
-        current_month_query = f"""
-        SELECT 
-            SUM(GrandTotal) as mtd_sales,
-            COUNT(*) as mtd_invoices,
-            AVG(GrandTotal) as avg_invoice_value
-        FROM ben002.InvoiceReg
-        WHERE YEAR(InvoiceDate) = {current_year}
-            AND MONTH(InvoiceDate) = {current_month}
-        """
+        def fetch_forecast():
+            return _fetch_sales_forecast_data(current_year, current_month, current_day)
         
-        # Get quotes pipeline for current month
-        quotes_pipeline_query = f"""
-        WITH LatestQuotes AS (
-            SELECT 
-                WONo,
-                MAX(CAST(CreationTime AS DATE)) as latest_quote_date
-            FROM ben002.WOQuote
-            WHERE YEAR(CreationTime) = {current_year}
-                AND MONTH(CreationTime) = {current_month}
-                AND Amount > 0
-            GROUP BY WONo
-        )
-        SELECT 
-            COUNT(DISTINCT lq.WONo) as open_quotes,
-            SUM(wq.Amount) as pipeline_value
-        FROM LatestQuotes lq
-        INNER JOIN ben002.WOQuote wq
-            ON lq.WONo = wq.WONo
-            AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
-        WHERE wq.Amount > 0
-        """
-        
-        # Execute queries
-        daily_patterns = db.execute_query(daily_pattern_query)
-        current_month_data = db.execute_query(current_month_query)[0]
-        quotes_data = db.execute_query(quotes_pipeline_query)[0]
-        
-        # Analyze patterns
-        forecast_result = analyze_sales_patterns(
-            daily_patterns, 
-            current_month_data, 
-            quotes_data,
-            current_year,
-            current_month,
-            current_day
-        )
-        
-        # Save forecast to history for accuracy tracking
-        try:
-            save_forecast_to_history(forecast_result)
-        except Exception as e:
-            logger.error(f"Failed to save forecast to history: {str(e)}")
-            # Don't fail the request if history save fails
-        
-        return jsonify(forecast_result)
+        result = cache_service.cache_query(cache_key, fetch_forecast, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result)
         
     except Exception as e:
         return jsonify({'error': f'Failed to generate forecast: {str(e)}'}), 500
+
+def _fetch_sales_forecast_data(current_year, current_month, current_day):
+    """Internal function to fetch sales forecast data"""
+    db = AzureSQLService()
+    
+    # Get historical daily sales patterns (last 12 months for better patterns)
+    daily_pattern_query = """
+    WITH DailySales AS (
+        SELECT 
+            YEAR(InvoiceDate) as year,
+            MONTH(InvoiceDate) as month,
+            DAY(InvoiceDate) as day,
+            SUM(GrandTotal) as daily_total,
+            COUNT(*) as invoice_count
+        FROM ben002.InvoiceReg
+        WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
+            AND InvoiceDate < CAST(GETDATE() AS DATE)
+        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DAY(InvoiceDate)
+    ),
+    MonthlyTotals AS (
+        SELECT 
+            year,
+            month,
+            SUM(daily_total) as month_total,
+            MAX(day) as days_in_month
+        FROM DailySales
+        GROUP BY year, month
+    ),
+    DailyPercentages AS (
+        SELECT 
+            ds.year,
+            ds.month,
+            ds.day,
+            ds.daily_total,
+            ds.invoice_count,
+            CASE WHEN mt.month_total > 0 
+                THEN (ds.daily_total / mt.month_total) * 100 
+                ELSE 0 
+            END as pct_of_month
+        FROM DailySales ds
+        JOIN MonthlyTotals mt ON ds.year = mt.year AND ds.month = mt.month
+    )
+    SELECT * FROM DailyPercentages
+    ORDER BY year, month, day
+    """
+    
+    # Get current month sales to date
+    current_month_query = f"""
+    SELECT 
+        SUM(GrandTotal) as mtd_sales,
+        COUNT(*) as mtd_invoices,
+        AVG(GrandTotal) as avg_invoice_value
+    FROM ben002.InvoiceReg
+    WHERE YEAR(InvoiceDate) = {current_year}
+        AND MONTH(InvoiceDate) = {current_month}
+    """
+    
+    # Get quotes pipeline for current month
+    quotes_pipeline_query = f"""
+    WITH LatestQuotes AS (
+        SELECT 
+            WONo,
+            MAX(CAST(CreationTime AS DATE)) as latest_quote_date
+        FROM ben002.WOQuote
+        WHERE YEAR(CreationTime) = {current_year}
+            AND MONTH(CreationTime) = {current_month}
+            AND Amount > 0
+        GROUP BY WONo
+    )
+    SELECT 
+        COUNT(DISTINCT lq.WONo) as open_quotes,
+        SUM(wq.Amount) as pipeline_value
+    FROM LatestQuotes lq
+    INNER JOIN ben002.WOQuote wq
+        ON lq.WONo = wq.WONo
+        AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
+    WHERE wq.Amount > 0
+    """
+    
+    # Execute queries
+    daily_patterns = db.execute_query(daily_pattern_query)
+    current_month_data = db.execute_query(current_month_query)[0]
+    quotes_data = db.execute_query(quotes_pipeline_query)[0]
+    
+    # Analyze patterns
+    forecast_result = analyze_sales_patterns(
+        daily_patterns, 
+        current_month_data, 
+        quotes_data,
+        current_year,
+        current_month,
+        current_day
+    )
+    
+    # Save forecast to history for accuracy tracking
+    try:
+        save_forecast_to_history(forecast_result)
+    except Exception as e:
+        logger.error(f"Failed to save forecast to history: {str(e)}")
+        # Don't fail the request if history save fails
+    
+    return forecast_result
 
 def analyze_sales_patterns(daily_patterns, current_month_data, quotes_data, current_year, current_month, current_day):
     """Analyze historical patterns and generate forecast"""

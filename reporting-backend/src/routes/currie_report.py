@@ -6,6 +6,7 @@ Automates quarterly Currie reporting by extracting data from Softbase
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.services.azure_sql_service import AzureSQLService
+from src.services.cache_service import cache_service
 from datetime import datetime, timedelta
 import logging
 import calendar
@@ -25,9 +26,29 @@ def get_sales_cogs_gp():
     try:
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
         if not start_date or not end_date:
             return jsonify({'error': 'start_date and end_date are required'}), 400
+        
+        # Use cache with 1-hour TTL
+        cache_key = f'currie_sales_cogs_gp:{start_date}:{end_date}'
+        
+        user_identity = get_jwt_identity()
+        
+        def fetch_data():
+            return _fetch_sales_cogs_gp_data(start_date, end_date, user_identity)
+        
+        result = cache_service.cache_query(cache_key, fetch_data, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching Currie sales data: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+def _fetch_sales_cogs_gp_data(start_date, end_date, user_identity):
+    """Internal function to fetch Currie sales/COGS/GP data"""
+    try:
         
         # Calculate number of months
         start = datetime.strptime(start_date, '%Y-%m-%d')
@@ -38,7 +59,7 @@ def get_sales_cogs_gp():
         data = {
             'dealership_info': {
                 'name': 'Bennett Material Handling',  # TODO: Make configurable
-                'submitted_by': get_jwt_identity(),
+                'submitted_by': user_identity,
                 'date': datetime.now().strftime('%Y-%m-%d'),
                 'num_locations': 1,  # TODO: Make configurable
                 'num_months': months_diff,
@@ -162,11 +183,11 @@ def get_sales_cogs_gp():
         # Add Balance Sheet data
         data['balance_sheet'] = get_balance_sheet_data(end_date)
         
-        return jsonify(data), 200
+        return data
         
     except Exception as e:
         logger.error(f"Error fetching Currie sales data: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        raise e
 
 
 def get_new_equipment_sales(start_date, end_date):
@@ -628,76 +649,87 @@ def get_currie_metrics():
         # Get date range from query parameters
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
         if not start_date or not end_date:
             return jsonify({'error': 'start_date and end_date are required'}), 400
         
-        # Calculate number of days in period
-        from datetime import datetime
-        start = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        num_days = (end - start).days + 1
+        # Use cache with 1-hour TTL
+        cache_key = f'currie_metrics:{start_date}:{end_date}'
         
-        metrics = {}
+        def fetch_metrics():
+            return _fetch_currie_metrics_data(start_date, end_date)
         
-        # 1. AR Aging
-        metrics['ar_aging'] = get_ar_aging()
-        
-        # 2. Service Calls Per Day
-        metrics['service_calls_per_day'] = get_service_calls_per_day(start_date, end_date, num_days)
-        
-        # 3. Technician Count
-        metrics['technician_count'] = get_technician_count(start_date, end_date)
-        
-        # 4. Labor Metrics
-        metrics['labor_metrics'] = get_labor_metrics(start_date, end_date)
-        
-        # 5. Parts Inventory Metrics
-        metrics['parts_inventory'] = get_parts_inventory_metrics(start_date, end_date)
-        
-        # 6. Absorption Rate
-        # Get revenue and expense data to calculate absorption rate
-        num_months = (end - start).days / 30.44  # Average days per month
-        data = {
-            'rental': get_rental_revenue(start_date, end_date),
-            'service': get_service_revenue(start_date, end_date),
-            'parts': get_parts_revenue(start_date, end_date)
-        }
-        totals = calculate_totals(data, max(1, int(num_months)))
-        expenses = get_gl_expenses(start_date, end_date)
-        
-        # Absorption Rate = (Aftermarket GP / Total Expenses) × 100
-        aftermarket_gp = totals.get('total_aftermarket', {}).get('gross_profit', 0)
-        rental_gp = totals.get('total_rental', {}).get('gross_profit', 0)
-        total_aftermarket_gp = aftermarket_gp + rental_gp
-        
-        total_expenses = (
-            expenses.get('personnel', {}).get('total', 0) +
-            expenses.get('operating', {}).get('total', 0) +
-            expenses.get('occupancy', {}).get('total', 0)
-        )
-        
-        absorption_rate = (total_aftermarket_gp / total_expenses * 100) if total_expenses > 0 else 0
-        
-        metrics['absorption_rate'] = {
-            'rate': round(absorption_rate, 1),
-            'aftermarket_gp': round(total_aftermarket_gp, 2),
-            'total_expenses': round(total_expenses, 2)
-        }
-        
-        return jsonify({
-            'metrics': metrics,
-            'date_range': {
-                'start_date': start_date,
-                'end_date': end_date,
-                'num_days': num_days
-            },
-            'generated_at': datetime.now().isoformat()
-        }), 200
+        result = cache_service.cache_query(cache_key, fetch_metrics, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result), 200
         
     except Exception as e:
         logger.error(f"Error fetching Currie metrics: {str(e)}")
         return jsonify({'error': 'Failed to fetch metrics', 'message': str(e)}), 500
+
+def _fetch_currie_metrics_data(start_date, end_date):
+    """Internal function to fetch Currie metrics data"""
+    # Calculate number of days in period
+    start = datetime.strptime(start_date, '%Y-%m-%d')
+    end = datetime.strptime(end_date, '%Y-%m-%d')
+    num_days = (end - start).days + 1
+    
+    metrics = {}
+    
+    # 1. AR Aging
+    metrics['ar_aging'] = get_ar_aging()
+    
+    # 2. Service Calls Per Day
+    metrics['service_calls_per_day'] = get_service_calls_per_day(start_date, end_date, num_days)
+    
+    # 3. Technician Count
+    metrics['technician_count'] = get_technician_count(start_date, end_date)
+    
+    # 4. Labor Metrics
+    metrics['labor_metrics'] = get_labor_metrics(start_date, end_date)
+    
+    # 5. Parts Inventory Metrics
+    metrics['parts_inventory'] = get_parts_inventory_metrics(start_date, end_date)
+    
+    # 6. Absorption Rate
+    # Get revenue and expense data to calculate absorption rate
+    num_months = (end - start).days / 30.44  # Average days per month
+    data = {
+        'rental': get_rental_revenue(start_date, end_date),
+        'service': get_service_revenue(start_date, end_date),
+        'parts': get_parts_revenue(start_date, end_date)
+    }
+    totals = calculate_totals(data, max(1, int(num_months)))
+    expenses = get_gl_expenses(start_date, end_date)
+    
+    # Absorption Rate = (Aftermarket GP / Total Expenses) × 100
+    aftermarket_gp = totals.get('total_aftermarket', {}).get('gross_profit', 0)
+    rental_gp = totals.get('total_rental', {}).get('gross_profit', 0)
+    total_aftermarket_gp = aftermarket_gp + rental_gp
+    
+    total_expenses = (
+        expenses.get('personnel', {}).get('total', 0) +
+        expenses.get('operating', {}).get('total', 0) +
+        expenses.get('occupancy', {}).get('total', 0)
+    )
+    
+    absorption_rate = (total_aftermarket_gp / total_expenses * 100) if total_expenses > 0 else 0
+    
+    metrics['absorption_rate'] = {
+        'rate': round(absorption_rate, 1),
+        'aftermarket_gp': round(total_aftermarket_gp, 2),
+        'total_expenses': round(total_expenses, 2)
+    }
+    
+    return {
+        'metrics': metrics,
+        'date_range': {
+            'start_date': start_date,
+            'end_date': end_date,
+            'num_days': num_days
+        },
+        'generated_at': datetime.now().isoformat()
+    }
 
 
 def get_ar_aging():
