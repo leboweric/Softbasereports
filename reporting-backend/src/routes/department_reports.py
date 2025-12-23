@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from flask import request
 from src.services.azure_sql_service import AzureSQLService
+from src.services.cache_service import cache_service
 from src.utils.auth_decorators import require_permission, require_department
 from src.utils.fiscal_year import get_fiscal_year_months, get_fiscal_year_start_month
 import json
@@ -2816,6 +2817,27 @@ def register_department_routes(reports_bp):
     @jwt_required()
     def get_rental_service_report():
         """Get Service Work Orders billed to Rental Department"""
+        # Check for force refresh parameter
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
+        # Use cache with 5-minute TTL (300 seconds)
+        cache_key = 'rental_service_report'
+        
+        def fetch_rental_service_data():
+            return _fetch_rental_service_report_data()
+        
+        try:
+            result = cache_service.cache_query(cache_key, fetch_rental_service_data, ttl_seconds=300, force_refresh=force_refresh)
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Rental service report error: {str(e)}")
+            return jsonify({
+                'error': str(e),
+                'type': 'rental_service_report_error'
+            }), 500
+    
+    def _fetch_rental_service_report_data():
+        """Internal function to fetch rental service report data"""
         try:
             db = get_db()
             
@@ -3071,17 +3093,15 @@ def register_department_routes(reports_bp):
                 print(f"Monthly trend error: {e}")
                 trend_data = []
             
-            return jsonify({
+            return {
                 'summary': summary,
                 'workOrders': work_orders,
                 'monthlyTrend': trend_data
-            })
+            }
             
         except Exception as e:
-            return jsonify({
-                'error': str(e),
-                'type': 'rental_service_report_error'
-            }), 500
+            logger.error(f"Error fetching rental service data: {str(e)}")
+            raise e
 
     @reports_bp.route('/departments/rental/wo-detail/<wo_number>', methods=['GET'])
     @jwt_required()
