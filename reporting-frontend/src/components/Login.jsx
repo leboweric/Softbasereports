@@ -140,7 +140,7 @@ const Login = ({ onLogin }) => {
             </div>
             <div className="text-left">
               <h1 className="text-5xl font-bold text-white">AIOP.one</h1>
-              <p className="text-blue-100 text-lg">AI First Operations</p>
+              <p className="text-blue-100 text-lg">AI Operations Platform</p>
             </div>
           </div>
 
@@ -163,7 +163,7 @@ const Login = ({ onLogin }) => {
               </div>
               <div className="text-left">
                 <h1 className="text-2xl font-bold text-gray-900">AIOP.one</h1>
-                <p className="text-gray-600 text-sm">AI First Operations</p>
+                <p className="text-gray-600 text-sm">AI Operations Platform</p>
               </div>
             </div>
           </div>
