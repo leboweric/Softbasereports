@@ -139,8 +139,8 @@ const Login = ({ onLogin }) => {
               <ChartBar className="h-12 w-12 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-5xl font-bold text-white">BIS</h1>
-              <p className="text-blue-100 text-lg">Business Intelligence for Softbase</p>
+              <h1 className="text-5xl font-bold text-white">AIOP</h1>
+              <p className="text-blue-100 text-lg">AI First Operations</p>
             </div>
           </div>
 
@@ -149,7 +149,7 @@ const Login = ({ onLogin }) => {
               Real Time Dashboards
             </h2>
             <p className="text-xl text-blue-100 max-w-md mx-auto">
-              Comprehensive reporting and analytics for Softbase Evolution
+              Comprehensive reporting and analytics powered by AI
             </p>
           </div>
         </div>
@@ -165,8 +165,8 @@ const Login = ({ onLogin }) => {
                 <ChartBar className="h-8 w-8 text-white" />
               </div>
               <div className="text-left">
-                <h1 className="text-2xl font-bold text-gray-900">BIS</h1>
-                <p className="text-gray-600 text-sm">Business Intelligence for Softbase</p>
+                <h1 className="text-2xl font-bold text-gray-900">AIOP</h1>
+                <p className="text-gray-600 text-sm">AI First Operations</p>
               </div>
             </div>
           </div>

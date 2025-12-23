@@ -207,7 +207,7 @@ const Billing = ({ user, organization }) => {
           <div className="space-y-4">
             <div className="flex items-center justify-between py-3 border-b">
               <div>
-                <p className="font-medium">Softbase Reports</p>
+                <p className="font-medium">AI Operations</p>
                 <p className="text-sm text-muted-foreground">Full access to all features</p>
               </div>
               <div className="text-right">
@@ -242,7 +242,7 @@ const Billing = ({ user, organization }) => {
           <CardDescription>
             {hasPaidSubscription
               ? 'Update payment method, view invoices, or cancel subscription'
-              : 'Subscribe to get full access to Softbase Reports'}
+              : 'Subscribe to get full access to AI Operations'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -278,7 +278,7 @@ const Billing = ({ user, organization }) => {
                     ? 'Your subscription has been canceled'
                     : billingStatus?.subscription_status === 'past_due'
                     ? 'Payment is past due - please update your payment method'
-                    : 'Subscribe to get started with Softbase Reports'}
+                    : 'Subscribe to get started with AI Operations'}
                 </span>
               </div>
 
@@ -318,13 +318,13 @@ const Billing = ({ user, organization }) => {
       <Card>
         <CardHeader>
           <CardTitle>What's Included</CardTitle>
-          <CardDescription>Full access to all Softbase Reports features</CardDescription>
+          <CardDescription>Full access to all AI Operations features</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               'Department Dashboards (Parts, Service, Rental, Accounting)',
-              'Real-time Data Sync from Softbase',
+              'Real-time Data Sync',
               'PM Route Planning & Scheduling',
               'Work Order Management & Tracking',
               'Customer Billing Reports',
