@@ -62,7 +62,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
                   e.target.nextSibling.style.display = 'block';
                 }}
               />
-              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>AIOP</h1>
+              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>AIOP.one</h1>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
               <Icons.X className="h-5 w-5" />
@@ -155,7 +155,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
                   e.target.nextSibling.style.display = 'block';
                 }}
               />
-              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>AIOP</h1>
+              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>AIOP.one</h1>
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">
