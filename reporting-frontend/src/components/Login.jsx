@@ -145,11 +145,8 @@ const Login = ({ onLogin }) => {
           </div>
 
           <div className="space-y-6">
-            <h2 className="text-4xl font-bold text-white">
-              Real Time Dashboards
-            </h2>
-            <p className="text-xl text-blue-100 max-w-md mx-auto">
-              Comprehensive reporting and analytics powered by AI
+            <p className="text-2xl text-blue-100 max-w-md mx-auto">
+              One platform. All operations. AI-powered.
             </p>
           </div>
         </div>
