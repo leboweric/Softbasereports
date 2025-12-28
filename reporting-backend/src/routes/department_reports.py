@@ -6628,6 +6628,8 @@ def register_department_routes(reports_bp):
             
             # Query to get sales by salesman and category
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
+            # FIX 1: For used equipment, use WO.EquipmentSell (gross price before trade-in) instead of InvoiceReg fields
+            # FIX 2: For new equipment, include Misc fields (accessories like blue lights)
             sales_query = """
             SELECT 
                 COALESCE(wo.Salesman, 'Unassigned') as SalesRep,
@@ -6643,12 +6645,11 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END) as RentalCost,
                 -- Used equipment sales and costs
+                -- FIX: Use WO.EquipmentSell (gross sale price BEFORE trade-in deduction)
+                -- This ensures commission is calculated on full sale price, not net after trade-in
                 SUM(CASE 
-                    -- USEDEQ is used equipment, RNTSALE is selling used rental units
-                    -- USED K, USED L, USED SL are additional used equipment codes
-                    -- Note: USEDEQP is equipment prep, not sales; USEDCAP is not commissionable
                     WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
-                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    THEN COALESCE(wo.EquipmentSell, COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0))
                     ELSE 0 
                 END) as UsedEquipmentSales,
                 SUM(CASE 
@@ -6668,15 +6669,16 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END) as AlliedEquipmentCost,
                 -- New equipment sales and costs
+                -- FIX: Include Misc fields for accessories (blue lights, etc.) sold with new equipment
                 SUM(CASE 
-                    -- LINDE is new Linde equipment, NEWEQ/NEWEQP-R are other new equipment, KOM is Komatsu
                     WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
-                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) 
+                         + COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
                     ELSE 0 
                 END) as NewEquipmentSales,
                 SUM(CASE 
                     WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
-                    THEN COALESCE(ir.EquipmentCost, 0)
+                    THEN COALESCE(ir.EquipmentCost, 0) + COALESCE(ir.MiscCost, 0)
                     ELSE 0 
                 END) as NewEquipmentCost
             FROM ben002.InvoiceReg ir
