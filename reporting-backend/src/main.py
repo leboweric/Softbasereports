@@ -104,6 +104,7 @@ from src.routes.schema_explorer import schema_explorer_bp
 from src.routes.schema_browser import schema_browser_bp
 from src.routes.invoice_investigator import invoice_investigator_bp
 from src.services.postgres_service import get_postgres_db
+from src.services.forecast_scheduler import init_forecast_scheduler
 from src.init_rbac import initialize_all_rbac
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
@@ -284,16 +285,25 @@ def serve(path):
             return "index.html not found", 404
 
 
+# Initialize PostgreSQL tables and scheduler on startup
+# This runs when the app is imported by gunicorn
+try:
+    postgres_db = get_postgres_db()
+    if postgres_db:
+        postgres_db.create_tables()
+        print("✅ PostgreSQL tables initialized")
+except Exception as e:
+    print(f"⚠️ Could not initialize PostgreSQL tables: {e}")
+
+# Initialize the forecast scheduler (runs in background)
+try:
+    init_forecast_scheduler(app)
+    print("✅ Forecast scheduler initialized")
+except Exception as e:
+    print(f"⚠️ Could not initialize forecast scheduler: {e}")
+
+
 if __name__ == '__main__':
-    # Initialize PostgreSQL tables on startup
-    try:
-        postgres_db = get_postgres_db()
-        if postgres_db:
-            postgres_db.create_tables()
-            print("✅ PostgreSQL tables initialized")
-    except Exception as e:
-        print(f"⚠️ Could not initialize PostgreSQL tables: {e}")
-    
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
 

@@ -210,6 +210,9 @@ class PostgreSQLService:
             absolute_error NUMERIC(18,2) NULL,
             within_range BOOLEAN NULL,
             
+            -- Mid-month snapshot flag (15th of month official forecast)
+            is_mid_month_snapshot BOOLEAN DEFAULT FALSE,
+            
             -- Metadata
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NULL

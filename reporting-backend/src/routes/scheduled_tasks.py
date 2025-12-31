@@ -76,3 +76,60 @@ def test_daily_forecast():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@scheduled_tasks_bp.route('/api/scheduler/status', methods=['GET'])
+@jwt_required()
+def get_scheduler_status():
+    """
+    Get the status of the background scheduler and its jobs.
+    """
+    try:
+        from src.services.forecast_scheduler import get_scheduler_status as get_status
+        
+        status = get_status()
+        
+        return jsonify({
+            'success': True,
+            'scheduler': status
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to get scheduler status: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@scheduled_tasks_bp.route('/api/scheduler/trigger-snapshot', methods=['POST'])
+@jwt_required()
+def trigger_manual_snapshot():
+    """
+    Manually trigger a mid-month forecast snapshot.
+    Useful for testing or capturing snapshots outside the scheduled time.
+    """
+    try:
+        from src.services.forecast_scheduler import trigger_snapshot_now
+        
+        logger.info("Manual mid-month snapshot triggered by user")
+        
+        success = trigger_snapshot_now()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Mid-month snapshot captured successfully'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to capture snapshot'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Manual snapshot trigger failed: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

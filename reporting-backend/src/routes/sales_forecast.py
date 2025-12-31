@@ -315,8 +315,13 @@ def format_currency(value):
     """Format value as currency"""
     return f"${value:,.0f}"
 
-def save_forecast_to_history(forecast_result):
-    """Save forecast to PostgreSQL for accuracy tracking"""
+def save_forecast_to_history(forecast_result, is_scheduled_snapshot=False):
+    """Save forecast to PostgreSQL for accuracy tracking
+    
+    Args:
+        forecast_result: The forecast data to save
+        is_scheduled_snapshot: If True, this is from the scheduled 15th job (always mark as snapshot)
+    """
     try:
         postgres_db = get_postgres_db()
         if not postgres_db:
@@ -326,6 +331,9 @@ def save_forecast_to_history(forecast_result):
         current = forecast_result['current_month']
         forecast = forecast_result['forecast']
         analysis = forecast_result['analysis']
+        
+        # Mark as mid-month snapshot if it's the 15th or if this is a scheduled snapshot
+        is_mid_month_snapshot = (current['day'] == 15) or is_scheduled_snapshot
         
         insert_query = """
         INSERT INTO forecast_history (
@@ -343,11 +351,12 @@ def save_forecast_to_history(forecast_result):
             month_progress_pct,
             days_remaining,
             pipeline_value,
-            avg_pct_complete
+            avg_pct_complete,
+            is_mid_month_snapshot
         ) VALUES (
             CURRENT_DATE,
             CURRENT_TIMESTAMP,
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         RETURNING id
         """
@@ -365,12 +374,14 @@ def save_forecast_to_history(forecast_result):
             current['month_progress_pct'],
             current['days_remaining'],
             forecast['expected_from_pipeline'],
-            analysis['typical_pct_complete_by_today']
+            analysis['typical_pct_complete_by_today'],
+            is_mid_month_snapshot
         )
         
         result = postgres_db.execute_insert_returning(insert_query, params)
         if result:
-            logger.info(f"Saved forecast to history with ID: {result['id']}")
+            snapshot_msg = " (MID-MONTH SNAPSHOT)" if is_mid_month_snapshot else ""
+            logger.info(f"Saved forecast to history with ID: {result['id']}{snapshot_msg}")
         
     except Exception as e:
         logger.error(f"Error saving forecast to history: {str(e)}")
@@ -787,3 +798,104 @@ def generate_test_data():
     except Exception as e:
         logger.error(f"Failed to generate test data: {str(e)}")
         return jsonify({'error': f'Failed to generate test data: {str(e)}'}), 500
+
+
+@sales_forecast_bp.route('/api/dashboard/forecast-snapshot/capture', methods=['POST'])
+def capture_mid_month_snapshot():
+    """
+    Capture a mid-month forecast snapshot.
+    This endpoint is designed to be called by a scheduled job on the 15th of each month.
+    No authentication required for scheduled job access.
+    """
+    try:
+        now = datetime.now()
+        current_year = now.year
+        current_month = now.month
+        current_day = now.day
+        
+        logger.info(f"Capturing mid-month forecast snapshot for {current_year}-{current_month}-{current_day}")
+        
+        # Fetch the forecast data
+        forecast_result = _fetch_sales_forecast_data(current_year, current_month, current_day)
+        
+        # Save to history with snapshot flag
+        save_forecast_to_history(forecast_result, is_scheduled_snapshot=True)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Mid-month snapshot captured for {current_year}-{current_month:02d}',
+            'snapshot_date': f'{current_year}-{current_month:02d}-{current_day:02d}',
+            'projected_total': forecast_result['forecast']['projected_total'],
+            'mtd_sales': forecast_result['current_month']['mtd_sales']
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to capture mid-month snapshot: {str(e)}")
+        return jsonify({'error': f'Failed to capture snapshot: {str(e)}'}), 500
+
+
+@sales_forecast_bp.route('/api/dashboard/forecast-accuracy/snapshots', methods=['GET'])
+@jwt_required()
+def get_mid_month_snapshots():
+    """
+    Get all mid-month snapshots with their accuracy compared to actual results.
+    Shows how accurate the 15th forecasts were vs end-of-month actuals.
+    """
+    try:
+        postgres_db = get_postgres_db()
+        if not postgres_db:
+            return jsonify({'error': 'PostgreSQL not available'}), 500
+        
+        # Get all mid-month snapshots with accuracy data
+        query = """
+        SELECT 
+            target_year,
+            target_month,
+            forecast_date,
+            days_into_month,
+            projected_total,
+            forecast_low,
+            forecast_high,
+            mtd_sales,
+            actual_total,
+            accuracy_pct,
+            absolute_error,
+            within_range,
+            CASE 
+                WHEN actual_total IS NOT NULL THEN 
+                    ROUND(((projected_total - actual_total) / actual_total * 100)::numeric, 1)
+                ELSE NULL 
+            END as variance_pct
+        FROM forecast_history
+        WHERE is_mid_month_snapshot = TRUE
+        ORDER BY target_year DESC, target_month DESC
+        """
+        
+        snapshots = postgres_db.execute_query(query)
+        
+        # Calculate summary statistics
+        completed_snapshots = [s for s in snapshots if s['actual_total'] is not None]
+        
+        summary = {
+            'total_snapshots': len(snapshots),
+            'completed_months': len(completed_snapshots),
+            'pending_months': len(snapshots) - len(completed_snapshots)
+        }
+        
+        if completed_snapshots:
+            accuracies = [float(s['accuracy_pct']) for s in completed_snapshots if s['accuracy_pct']]
+            within_range_count = sum(1 for s in completed_snapshots if s['within_range'])
+            
+            summary['avg_accuracy'] = round(sum(accuracies) / len(accuracies), 1) if accuracies else None
+            summary['within_range_pct'] = round(within_range_count / len(completed_snapshots) * 100, 1)
+            summary['best_accuracy'] = min(accuracies) if accuracies else None
+            summary['worst_accuracy'] = max(accuracies) if accuracies else None
+        
+        return jsonify({
+            'snapshots': snapshots,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to get mid-month snapshots: {str(e)}")
+        return jsonify({'error': f'Failed to get snapshots: {str(e)}'}), 500

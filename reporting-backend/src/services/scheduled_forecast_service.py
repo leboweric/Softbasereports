@@ -243,6 +243,9 @@ class ScheduledForecastService:
             forecast = forecast_result['forecast']
             analysis = forecast_result['analysis']
             
+            # Check if this is the 15th (mid-month snapshot)
+            is_mid_month_snapshot = current['day'] == 15
+            
             insert_query = """
             INSERT INTO forecast_history (
                 forecast_date,
@@ -259,11 +262,12 @@ class ScheduledForecastService:
                 month_progress_pct,
                 days_remaining,
                 pipeline_value,
-                avg_pct_complete
+                avg_pct_complete,
+                is_mid_month_snapshot
             ) VALUES (
                 CURRENT_DATE,
                 CURRENT_TIMESTAMP,
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             RETURNING id
             """
@@ -281,12 +285,14 @@ class ScheduledForecastService:
                 current['month_progress_pct'],
                 current['days_remaining'],
                 forecast['expected_from_pipeline'],
-                analysis['typical_pct_complete_by_today']
+                analysis['typical_pct_complete_by_today'],
+                is_mid_month_snapshot
             )
             
             result = postgres_db.execute_insert_returning(insert_query, params)
             if result:
-                logger.info(f"Saved scheduled forecast to history with ID: {result['id']}")
+                snapshot_msg = " (MID-MONTH SNAPSHOT)" if is_mid_month_snapshot else ""
+                logger.info(f"Saved scheduled forecast to history with ID: {result['id']}{snapshot_msg}")
             
         except Exception as e:
             logger.error(f"Error saving scheduled forecast to history: {str(e)}")
