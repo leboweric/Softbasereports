@@ -554,9 +554,9 @@ def get_forecast_accuracy():
         
         days_trend = postgres_db.execute_query(days_trend_query)
         
-        # Get recent forecasts with details
+        # Get recent forecasts with details - deduplicated to one per day per month
         recent_query = """
-        SELECT 
+        SELECT DISTINCT ON (forecast_date, target_year, target_month)
             forecast_date,
             target_year,
             target_month,
@@ -571,7 +571,7 @@ def get_forecast_accuracy():
             month_progress_pct
         FROM forecast_history
         WHERE actual_total IS NOT NULL
-        ORDER BY forecast_date DESC
+        ORDER BY forecast_date DESC, target_year DESC, target_month DESC, id DESC
         LIMIT 20
         """
         
