@@ -213,6 +213,11 @@ class PostgreSQLService:
             -- Mid-month snapshot flag (15th of month official forecast)
             is_mid_month_snapshot BOOLEAN DEFAULT FALSE,
             
+            -- End-of-month actual capture
+            is_end_of_month_actual BOOLEAN DEFAULT FALSE,
+            end_of_month_captured_at TIMESTAMP NULL,
+            actual_invoice_count INTEGER NULL,
+            
             -- Metadata
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP NULL

@@ -380,10 +380,10 @@ const ForecastAccuracy = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Camera className="h-5 w-5 text-purple-600" />
-            Mid-Month Snapshots (15th)
+            Forecast vs Actual Comparison
           </CardTitle>
           <CardDescription>
-            Official forecast snapshots captured on the 15th of each month for accuracy tracking
+            Side-by-side comparison of 15th forecasts vs end-of-month actuals
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -395,13 +395,13 @@ const ForecastAccuracy = () => {
             <>
               {/* Snapshot Summary */}
               {snapshotData.summary && (
-                <div className="grid gap-4 md:grid-cols-3 mb-6">
+                <div className="grid gap-4 md:grid-cols-4 mb-6">
                   <div className="bg-purple-50 rounded-lg p-4">
                     <p className="text-sm text-purple-600 font-medium">Total Snapshots</p>
                     <p className="text-2xl font-bold">{snapshotData.summary.total_snapshots}</p>
                   </div>
                   <div className="bg-green-50 rounded-lg p-4">
-                    <p className="text-sm text-green-600 font-medium">Avg Accuracy</p>
+                    <p className="text-sm text-green-600 font-medium">Avg Error</p>
                     <p className="text-2xl font-bold">
                       {snapshotData.summary.avg_accuracy ? `${snapshotData.summary.avg_accuracy.toFixed(1)}%` : 'N/A'}
                     </p>
@@ -412,19 +412,24 @@ const ForecastAccuracy = () => {
                       {snapshotData.summary.within_range_count || 0} / {snapshotData.summary.completed_count || 0}
                     </p>
                   </div>
+                  <div className="bg-amber-50 rounded-lg p-4">
+                    <p className="text-sm text-amber-600 font-medium">Avg Variance</p>
+                    <p className="text-2xl font-bold">
+                      {snapshotData.summary.avg_variance ? formatCurrency(snapshotData.summary.avg_variance) : 'N/A'}
+                    </p>
+                  </div>
                 </div>
               )}
               
-              {/* Snapshots Table */}
+              {/* Snapshots Table - Side by Side Comparison */}
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Month</TableHead>
-                    <TableHead>Snapshot Date</TableHead>
-                    <TableHead className="text-right">Projected (15th)</TableHead>
-                    <TableHead className="text-right">Forecast Range</TableHead>
-                    <TableHead className="text-right">Actual (EOM)</TableHead>
-                    <TableHead className="text-right">Accuracy</TableHead>
+                    <TableHead className="text-center bg-purple-50">15th Snapshot</TableHead>
+                    <TableHead className="text-center bg-green-50">End of Month</TableHead>
+                    <TableHead className="text-right">Variance</TableHead>
+                    <TableHead className="text-right">Error %</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -437,31 +442,64 @@ const ForecastAccuracy = () => {
                           {getMonthName(snapshot.target_month)} {snapshot.target_year}
                         </div>
                       </TableCell>
-                      <TableCell>{snapshot.forecast_date}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(snapshot.projected_total)}
+                      {/* 15th Snapshot Column */}
+                      <TableCell className="bg-purple-50/50">
+                        <div className="text-center">
+                          <p className="font-semibold text-purple-700">
+                            {formatCurrency(snapshot.projected_total)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Range: {formatCurrency(snapshot.forecast_low)} - {formatCurrency(snapshot.forecast_high)}
+                          </p>
+                          {snapshot.mtd_sales_at_15th && (
+                            <p className="text-xs text-muted-foreground">
+                              MTD at 15th: {formatCurrency(snapshot.mtd_sales_at_15th)}
+                            </p>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">
-                        {formatCurrency(snapshot.forecast_low)} - {formatCurrency(snapshot.forecast_high)}
+                      {/* End of Month Column */}
+                      <TableCell className="bg-green-50/50">
+                        <div className="text-center">
+                          {snapshot.actual_total ? (
+                            <>
+                              <p className="font-semibold text-green-700">
+                                {formatCurrency(snapshot.actual_total)}
+                              </p>
+                              {snapshot.actual_invoice_count && (
+                                <p className="text-xs text-muted-foreground">
+                                  {snapshot.actual_invoice_count} invoices
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <p className="text-muted-foreground">Pending...</p>
+                          )}
+                        </div>
                       </TableCell>
+                      {/* Variance Column */}
                       <TableCell className="text-right">
-                        {snapshot.actual_total ? (
-                          <span className="font-medium">{formatCurrency(snapshot.actual_total)}</span>
+                        {snapshot.variance_amount !== null ? (
+                          <span className={snapshot.variance_amount > 0 ? 'text-green-600' : 'text-red-600'}>
+                            {snapshot.variance_amount > 0 ? '+' : ''}{formatCurrency(snapshot.variance_amount)}
+                          </span>
                         ) : (
-                          <span className="text-muted-foreground">Pending...</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
+                      {/* Error % Column */}
                       <TableCell className="text-right">
                         {snapshot.accuracy_pct !== null ? (
                           <Badge 
                             variant={snapshot.accuracy_pct < 10 ? 'success' : snapshot.accuracy_pct < 20 ? 'default' : 'destructive'}
                           >
-                            {snapshot.accuracy_pct.toFixed(1)}% error
+                            {snapshot.accuracy_pct.toFixed(1)}%
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
+                      {/* Status Column */}
                       <TableCell className="text-center">
                         {snapshot.actual_total ? (
                           snapshot.within_range ? (
@@ -472,7 +510,7 @@ const ForecastAccuracy = () => {
                           ) : (
                             <Badge className="bg-orange-100 text-orange-800">
                               <AlertCircle className="h-3 w-3 mr-1" />
-                              Outside Range
+                              Outside
                             </Badge>
                           )
                         ) : (
@@ -486,13 +524,22 @@ const ForecastAccuracy = () => {
                   ))}
                 </TableBody>
               </Table>
+              
+              {/* Schedule Info */}
+              <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+                <p><strong>Automatic Capture Schedule:</strong></p>
+                <ul className="list-disc list-inside mt-1">
+                  <li>15th of each month at 8:00 AM - Forecast snapshot</li>
+                  <li>Last day of each month at 7:00 PM - Actual revenue capture</li>
+                </ul>
+              </div>
             </>
           ) : (
             <div className="text-center py-8">
               <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No mid-month snapshots captured yet</p>
+              <p className="text-muted-foreground">No snapshots captured yet</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Snapshots are automatically captured on the 15th of each month at 8:00 AM
+                Snapshots are automatically captured on the 15th at 8 AM and actuals on the last day at 7 PM
               </p>
             </div>
           )}

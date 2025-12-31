@@ -839,7 +839,7 @@ def capture_mid_month_snapshot():
 def get_mid_month_snapshots():
     """
     Get all mid-month snapshots with their accuracy compared to actual results.
-    Shows how accurate the 15th forecasts were vs end-of-month actuals.
+    Shows side-by-side comparison of 15th forecast vs end-of-month actuals.
     """
     try:
         postgres_db = get_postgres_db()
@@ -847,52 +847,95 @@ def get_mid_month_snapshots():
             return jsonify({'error': 'PostgreSQL not available'}), 500
         
         # Get all mid-month snapshots with accuracy data
-        query = """
+        mid_month_query = """
         SELECT 
             target_year,
             target_month,
             forecast_date,
+            forecast_timestamp,
             days_into_month,
             projected_total,
             forecast_low,
             forecast_high,
-            mtd_sales,
+            mtd_sales as mtd_sales_at_15th,
+            mtd_invoices as invoices_at_15th,
+            month_progress_pct,
             actual_total,
+            actual_invoice_count,
             accuracy_pct,
             absolute_error,
             within_range,
+            end_of_month_captured_at,
             CASE 
                 WHEN actual_total IS NOT NULL THEN 
                     ROUND(((projected_total - actual_total) / actual_total * 100)::numeric, 1)
                 ELSE NULL 
-            END as variance_pct
+            END as variance_pct,
+            CASE 
+                WHEN actual_total IS NOT NULL THEN 
+                    projected_total - actual_total
+                ELSE NULL 
+            END as variance_amount
         FROM forecast_history
         WHERE is_mid_month_snapshot = TRUE
         ORDER BY target_year DESC, target_month DESC
         """
         
-        snapshots = postgres_db.execute_query(query)
+        snapshots = postgres_db.execute_query(mid_month_query)
+        
+        # Convert to list of dicts with proper formatting
+        formatted_snapshots = []
+        for s in snapshots:
+            formatted_snapshots.append({
+                'target_year': s['target_year'],
+                'target_month': s['target_month'],
+                'forecast_date': str(s['forecast_date']) if s['forecast_date'] else None,
+                'forecast_timestamp': str(s['forecast_timestamp']) if s.get('forecast_timestamp') else None,
+                'days_into_month': s['days_into_month'],
+                # 15th snapshot data
+                'projected_total': float(s['projected_total']) if s['projected_total'] else None,
+                'forecast_low': float(s['forecast_low']) if s['forecast_low'] else None,
+                'forecast_high': float(s['forecast_high']) if s['forecast_high'] else None,
+                'mtd_sales_at_15th': float(s['mtd_sales_at_15th']) if s['mtd_sales_at_15th'] else None,
+                'invoices_at_15th': s['invoices_at_15th'],
+                'month_progress_pct': float(s['month_progress_pct']) if s['month_progress_pct'] else None,
+                # End-of-month actual data
+                'actual_total': float(s['actual_total']) if s['actual_total'] else None,
+                'actual_invoice_count': s['actual_invoice_count'],
+                'end_of_month_captured_at': str(s['end_of_month_captured_at']) if s.get('end_of_month_captured_at') else None,
+                # Accuracy metrics
+                'accuracy_pct': float(s['accuracy_pct']) if s['accuracy_pct'] else None,
+                'absolute_error': float(s['absolute_error']) if s['absolute_error'] else None,
+                'within_range': s['within_range'],
+                'variance_pct': float(s['variance_pct']) if s['variance_pct'] else None,
+                'variance_amount': float(s['variance_amount']) if s['variance_amount'] else None
+            })
         
         # Calculate summary statistics
-        completed_snapshots = [s for s in snapshots if s['actual_total'] is not None]
+        completed_snapshots = [s for s in formatted_snapshots if s['actual_total'] is not None]
         
         summary = {
-            'total_snapshots': len(snapshots),
-            'completed_months': len(completed_snapshots),
-            'pending_months': len(snapshots) - len(completed_snapshots)
+            'total_snapshots': len(formatted_snapshots),
+            'completed_count': len(completed_snapshots),
+            'pending_count': len(formatted_snapshots) - len(completed_snapshots)
         }
         
         if completed_snapshots:
-            accuracies = [float(s['accuracy_pct']) for s in completed_snapshots if s['accuracy_pct']]
+            accuracies = [s['accuracy_pct'] for s in completed_snapshots if s['accuracy_pct'] is not None]
             within_range_count = sum(1 for s in completed_snapshots if s['within_range'])
             
             summary['avg_accuracy'] = round(sum(accuracies) / len(accuracies), 1) if accuracies else None
+            summary['within_range_count'] = within_range_count
             summary['within_range_pct'] = round(within_range_count / len(completed_snapshots) * 100, 1)
             summary['best_accuracy'] = min(accuracies) if accuracies else None
             summary['worst_accuracy'] = max(accuracies) if accuracies else None
+            
+            # Calculate average variance
+            variances = [s['variance_amount'] for s in completed_snapshots if s['variance_amount'] is not None]
+            summary['avg_variance'] = round(sum(variances) / len(variances), 2) if variances else None
         
         return jsonify({
-            'snapshots': snapshots,
+            'snapshots': formatted_snapshots,
             'summary': summary
         })
         
