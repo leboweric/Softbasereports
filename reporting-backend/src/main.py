@@ -105,6 +105,7 @@ from src.routes.schema_browser import schema_browser_bp
 from src.routes.invoice_investigator import invoice_investigator_bp
 from src.services.postgres_service import get_postgres_db
 from src.services.forecast_scheduler import init_forecast_scheduler
+from src.services.cache_warmer import init_cache_warmer
 from src.init_rbac import initialize_all_rbac
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
@@ -301,6 +302,13 @@ try:
     print("✅ Forecast scheduler initialized")
 except Exception as e:
     print(f"⚠️ Could not initialize forecast scheduler: {e}")
+
+# Initialize the cache warmer (pre-warms dashboard cache on startup)
+try:
+    init_cache_warmer(app)
+    print("✅ Cache warmer initialized")
+except Exception as e:
+    print(f"⚠️ Could not initialize cache warmer: {e}")
 
 
 if __name__ == '__main__':
