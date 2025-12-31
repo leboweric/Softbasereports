@@ -494,7 +494,7 @@ const ServiceInvoiceBilling = () => {
               </div>
 
               <div className="overflow-x-auto max-w-full">
-                <Table className="min-w-[1800px]">
+                <Table className="min-w-[800px] md:min-w-[1800px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>
@@ -518,15 +518,15 @@ const ServiceInvoiceBilling = () => {
                         </Button>
                       </TableHead>
                       <TableHead>Unit</TableHead>
-                      <TableHead>Make/Model</TableHead>
-                      <TableHead>Serial</TableHead>
-                      <TableHead>Hours</TableHead>
-                      <TableHead>PO#</TableHead>
+                      <TableHead className="hidden md:table-cell">Make/Model</TableHead>
+                      <TableHead className="hidden md:table-cell">Serial</TableHead>
+                      <TableHead className="hidden lg:table-cell">Hours</TableHead>
+                      <TableHead className="hidden lg:table-cell">PO#</TableHead>
                       <TableHead className="text-right">Parts</TableHead>
                       <TableHead className="text-right">Labor</TableHead>
-                      <TableHead className="text-right">Misc</TableHead>
-                      <TableHead className="text-right">Freight</TableHead>
-                      <TableHead className="text-right">Tax</TableHead>
+                      <TableHead className="hidden md:table-cell text-right">Misc</TableHead>
+                      <TableHead className="hidden md:table-cell text-right">Freight</TableHead>
+                      <TableHead className="hidden md:table-cell text-right">Tax</TableHead>
                       <TableHead className="text-right">
                         <Button
                           variant="ghost"
@@ -552,16 +552,16 @@ const ServiceInvoiceBilling = () => {
                         <TableCell className="font-medium">{invoice.InvoiceNo}</TableCell>
                         <TableCell>{formatDate(invoice.InvoiceDate)}</TableCell>
                         <TableCell>{invoice.UnitNo || '-'}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {invoice.Make && invoice.Model 
                             ? `${invoice.Make} ${invoice.Model}` 
                             : '-'}
                         </TableCell>
-                        <TableCell>{invoice.SerialNo || '-'}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">{invoice.SerialNo || '-'}</TableCell>
+                        <TableCell className="hidden lg:table-cell">
                           {invoice.HourMeter ? Number(invoice.HourMeter).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '-'}
                         </TableCell>
-                        <TableCell>{invoice.PONo || '-'}</TableCell>
+                        <TableCell className="hidden lg:table-cell">{invoice.PONo || '-'}</TableCell>
                         <TableCell className="text-right">
                           {(() => {
                             const partsTax = parseFloat(invoice.PartsTaxable) || 0;
@@ -578,13 +578,13 @@ const ServiceInvoiceBilling = () => {
                             return total > 0 ? formatCurrency(total) : '$0.00';
                           })()}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="hidden md:table-cell text-right">
                           {invoice.MiscTaxable ? formatCurrency(invoice.MiscTaxable) : '-'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="hidden md:table-cell text-right">
                           {invoice.Freight ? formatCurrency(invoice.Freight) : '-'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="hidden md:table-cell text-right">
                           {invoice.TotalTax ? formatCurrency(invoice.TotalTax) : '-'}
                         </TableCell>
                         <TableCell className="text-right font-medium">

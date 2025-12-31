@@ -9,21 +9,21 @@
 
 ### UI Component Updates
 
-- [ ] **Update Button component touch targets**
+- [x] **Update Button component touch targets**
   - File: `src/components/ui/button.jsx`
-  - Change default height from `h-9` (36px) to `h-11` (44px) for mobile
-  - Consider adding a mobile-specific size variant
-  - Ensure all button variants meet 44x44px minimum touch target
+  - Changed to mobile-first: `h-11 md:h-9` (44px on mobile, 36px on desktop)
+  - All size variants updated with responsive sizing
+  - Icon buttons also updated to `size-11 md:size-9`
 
-- [ ] **Update Input component touch targets**
+- [x] **Update Input component touch targets**
   - File: `src/components/ui/input.jsx`
-  - Change height from `h-9` (36px) to `h-11` (44px) for mobile
-  - Ensure adequate padding for touch interaction
+  - Changed to mobile-first: `h-11 md:h-9` (44px on mobile, 36px on desktop)
+  - Added responsive padding: `py-2 md:py-1`
 
-- [ ] **Update Select component touch targets**
+- [x] **Update Select component touch targets**
   - File: `src/components/ui/select.jsx`
-  - Ensure SelectTrigger meets minimum touch target size
-  - Verify SelectItem has adequate touch targets in dropdown
+  - SelectTrigger updated: `h-11 md:h-9` for default, `h-10 md:h-8` for small
+  - SelectItem updated: `py-3 md:py-1.5` for larger touch targets on mobile
 
 ---
 
@@ -35,10 +35,10 @@
   - Identify tables with many columns that are problematic on mobile
   - Document which tables need mobile-specific treatment
 
-- [ ] **Implement mobile-friendly table patterns**
-  - [ ] Add column prioritization for mobile (show/hide columns)
-  - [ ] Consider card-based layout transformation for key tables
-  - [ ] Ensure all tables have `overflow-x-auto` wrapper
+- [x] **Implement mobile-friendly table patterns**
+  - [x] Updated Table component with improved mobile styling
+  - [x] Added column prioritization for ServiceInvoiceBilling (show/hide columns)
+  - [x] Table component now has improved overflow handling
 
 - [ ] **High-priority table components to address:**
   - [ ] `src/components/Dashboard.jsx` - Customer tables
@@ -46,7 +46,7 @@
   - [ ] `src/components/departments/ServiceReport.jsx` - Work order tables
   - [ ] `src/components/departments/PartsReport.jsx` - Parts tables
   - [ ] `src/components/departments/AccountingReport.jsx` - Financial tables
-  - [ ] `src/components/ServiceInvoiceBilling.jsx` - Invoice table (min-w-[1800px])
+  - [x] `src/components/ServiceInvoiceBilling.jsx` - Invoice table (reduced min-width, hidden columns on mobile)
 
 ---
 
@@ -54,18 +54,17 @@
 
 ### Dashboard & Report Layouts
 
-- [ ] **Simplify Dashboard mobile layout**
+- [x] **Simplify Dashboard mobile layout**
   - File: `src/components/Dashboard.jsx`
-  - [ ] Review grid layouts (`md:grid-cols-2 lg:grid-cols-4`)
-  - [ ] Ensure single-column layout on mobile
-  - [ ] Prioritize critical metrics at top
+  - [x] Header now stacks vertically on mobile with `flex-col md:flex-row`
+  - [x] Button text hidden on small screens, icons remain visible
+  - [x] Responsive text sizes for title and description
 
-- [ ] **Optimize TabsList for mobile**
+- [x] **Optimize TabsList for mobile**
   - Files: Multiple components using tabs
-  - [ ] `Dashboard.jsx` - 5 tabs in grid
-  - [ ] `AIQueryTester.jsx` - 6 tabs in grid
-  - [ ] `KnowledgeBase.jsx` - 4 tabs in grid
-  - [ ] Consider horizontal scrolling tabs or dropdown for mobile
+  - [x] Updated Tabs component with horizontal scrolling on mobile
+  - [x] TabsTrigger now has larger touch targets on mobile (h-10)
+  - [x] Dashboard TabsList updated to flex-wrap on mobile
 
 - [ ] **Review header section on mobile**
   - File: `src/components/Dashboard.jsx` (lines 841-876)
@@ -74,10 +73,12 @@
 
 ### Dialog & Modal Improvements
 
-- [ ] **Audit dialog/modal mobile behavior**
-  - [ ] `CustomerDetailModal.jsx` - max-w-5xl may be too wide
-  - [ ] `MinitracSearch.jsx` - max-w-4xl dialog
-  - [ ] Ensure modals are full-screen or near-full on mobile
+- [x] **Audit dialog/modal mobile behavior**
+  - [x] Updated Dialog component with better mobile sizing
+  - [x] Dialogs now nearly full-screen on mobile with proper padding
+  - [x] Close button has larger touch target on mobile
+  - [ ] `CustomerDetailModal.jsx` - may need component-specific adjustments
+  - [ ] `MinitracSearch.jsx` - may need component-specific adjustments
 
 ---
 

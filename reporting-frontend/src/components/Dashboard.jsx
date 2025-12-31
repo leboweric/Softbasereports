@@ -838,14 +838,14 @@ const Dashboard = ({ user }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">AI Operations Platform</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">AI Operations Platform</h1>
+          <p className="text-muted-foreground text-sm md:text-base">
             Welcome back, {user?.first_name}! Here's what's happening with your business.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-wrap gap-y-2">
           {loadTime && (
             <Badge
               variant={fromCache ? "default" : "secondary"}
@@ -866,18 +866,18 @@ const Dashboard = ({ user }) => {
             disabled={loading}
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
           <Button variant="outline" size="sm">
             <Download className="mr-2 h-4 w-4" />
-            Export Report
+            <span className="hidden sm:inline">Export Report</span>
           </Button>
         </div>
       </div>
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="sales" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full max-w-3xl grid-cols-5">
+        <TabsList className="flex flex-wrap md:grid md:w-full md:max-w-3xl md:grid-cols-5 gap-1">
           <TabsTrigger value="sales">Sales</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
