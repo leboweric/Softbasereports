@@ -31,18 +31,23 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
-  Activity
+  Activity,
+  Camera,
+  Calendar
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 
 const ForecastAccuracy = () => {
   const [accuracyData, setAccuracyData] = useState(null)
+  const [snapshotData, setSnapshotData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [snapshotsLoading, setSnapshotsLoading] = useState(true)
   const [backfilling, setBackfilling] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(null)
 
   useEffect(() => {
     fetchAccuracyData()
+    fetchSnapshotData()
   }, [])
 
   const fetchAccuracyData = async () => {
@@ -66,6 +71,29 @@ const ForecastAccuracy = () => {
       console.error('Error fetching accuracy data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchSnapshotData = async () => {
+    try {
+      setSnapshotsLoading(true)
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/dashboard/forecast-accuracy/snapshots'), {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch snapshot data')
+      }
+
+      const data = await response.json()
+      setSnapshotData(data)
+    } catch (error) {
+      console.error('Error fetching snapshot data:', error)
+    } finally {
+      setSnapshotsLoading(false)
     }
   }
 
@@ -343,6 +371,130 @@ const ForecastAccuracy = () => {
             </ResponsiveContainer>
           ) : (
             <p className="text-center text-muted-foreground py-8">No daily trend data available yet</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Mid-Month Snapshots Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5 text-purple-600" />
+            Mid-Month Snapshots (15th)
+          </CardTitle>
+          <CardDescription>
+            Official forecast snapshots captured on the 15th of each month for accuracy tracking
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {snapshotsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner />
+            </div>
+          ) : snapshotData && snapshotData.snapshots && snapshotData.snapshots.length > 0 ? (
+            <>
+              {/* Snapshot Summary */}
+              {snapshotData.summary && (
+                <div className="grid gap-4 md:grid-cols-3 mb-6">
+                  <div className="bg-purple-50 rounded-lg p-4">
+                    <p className="text-sm text-purple-600 font-medium">Total Snapshots</p>
+                    <p className="text-2xl font-bold">{snapshotData.summary.total_snapshots}</p>
+                  </div>
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <p className="text-sm text-green-600 font-medium">Avg Accuracy</p>
+                    <p className="text-2xl font-bold">
+                      {snapshotData.summary.avg_accuracy ? `${snapshotData.summary.avg_accuracy.toFixed(1)}%` : 'N/A'}
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <p className="text-sm text-blue-600 font-medium">Within Range</p>
+                    <p className="text-2xl font-bold">
+                      {snapshotData.summary.within_range_count || 0} / {snapshotData.summary.completed_count || 0}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Snapshots Table */}
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Month</TableHead>
+                    <TableHead>Snapshot Date</TableHead>
+                    <TableHead className="text-right">Projected (15th)</TableHead>
+                    <TableHead className="text-right">Forecast Range</TableHead>
+                    <TableHead className="text-right">Actual (EOM)</TableHead>
+                    <TableHead className="text-right">Accuracy</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {snapshotData.snapshots.map((snapshot, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          {getMonthName(snapshot.target_month)} {snapshot.target_year}
+                        </div>
+                      </TableCell>
+                      <TableCell>{snapshot.forecast_date}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(snapshot.projected_total)}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground">
+                        {formatCurrency(snapshot.forecast_low)} - {formatCurrency(snapshot.forecast_high)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {snapshot.actual_total ? (
+                          <span className="font-medium">{formatCurrency(snapshot.actual_total)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">Pending...</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {snapshot.accuracy_pct !== null ? (
+                          <Badge 
+                            variant={snapshot.accuracy_pct < 10 ? 'success' : snapshot.accuracy_pct < 20 ? 'default' : 'destructive'}
+                          >
+                            {snapshot.accuracy_pct.toFixed(1)}% error
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {snapshot.actual_total ? (
+                          snapshot.within_range ? (
+                            <Badge className="bg-green-100 text-green-800">
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              In Range
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-orange-100 text-orange-800">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Outside Range
+                            </Badge>
+                          )
+                        ) : (
+                          <Badge variant="outline">
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            In Progress
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Camera className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No mid-month snapshots captured yet</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Snapshots are automatically captured on the 15th of each month at 8:00 AM
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
