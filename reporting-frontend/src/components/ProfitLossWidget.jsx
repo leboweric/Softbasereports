@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -10,10 +10,69 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  ReferenceLine
+  ReferenceLine,
+  Legend
 } from 'recharts'
 import { TrendingUp, TrendingDown, AlertTriangle, DollarSign } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+
+// Utility function to calculate linear regression trendline for P&L data
+// Modified to handle negative values (losses)
+const calculateLinearTrend = (data, yKey, excludeCurrentMonth = true) => {
+  if (!data || data.length === 0) return []
+
+  // Ensure all data has a numeric value for the yKey
+  const cleanedData = data.map(item => ({
+    ...item,
+    [yKey]: parseFloat(item[yKey]) || 0
+  }))
+
+  // For P&L, we want to include all data points (including negative/loss months)
+  // Find the first month with any data (non-null)
+  const firstDataIndex = cleanedData.findIndex(item => item[yKey] !== null && item[yKey] !== undefined)
+
+  if (firstDataIndex === -1) {
+    return cleanedData.map(item => ({ ...item, trendValue: null }))
+  }
+
+  // Get data from the first month with data
+  const dataFromFirstMonth = cleanedData.slice(firstDataIndex)
+
+  let trendData = dataFromFirstMonth
+  if (excludeCurrentMonth && dataFromFirstMonth.length > 1) {
+    trendData = dataFromFirstMonth.slice(0, -1)
+  }
+
+  if (trendData.length < 2) {
+    return cleanedData.map(item => ({ ...item, trendValue: null }))
+  }
+
+  // Calculate linear regression
+  const n = trendData.length
+  const sumX = trendData.reduce((sum, _, index) => sum + index, 0)
+  const sumY = trendData.reduce((sum, item) => sum + item[yKey], 0)
+  const sumXY = trendData.reduce((sum, item, index) => sum + (index * item[yKey]), 0)
+  const sumXX = trendData.reduce((sum, _, index) => sum + (index * index), 0)
+
+  const denominator = (n * sumXX - sumX * sumX)
+  if (denominator === 0) {
+    return cleanedData.map(item => ({ ...item, trendValue: null }))
+  }
+
+  const slope = (n * sumXY - sumX * sumY) / denominator
+  const intercept = (sumY - slope * sumX) / n
+
+  return cleanedData.map((item, index) => {
+    if (index < firstDataIndex) {
+      return { ...item, trendValue: null }
+    }
+    const adjustedIndex = index - firstDataIndex
+    return {
+      ...item,
+      trendValue: slope * adjustedIndex + intercept
+    }
+  })
+}
 
 const ProfitLossWidget = () => {
   const [data, setData] = useState(null)
@@ -50,6 +109,12 @@ const ProfitLossWidget = () => {
       setLoading(false)
     }
   }
+
+  // Calculate trend data with linear regression
+  const trendDataWithRegression = useMemo(() => {
+    if (!data?.trend || data.trend.length === 0) return []
+    return calculateLinearTrend(data.trend, 'profit_loss', true)
+  }, [data?.trend])
 
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return '$0'
@@ -214,12 +279,12 @@ const ProfitLossWidget = () => {
           </div>
         </div>
 
-        {/* 12-Month Trend Chart */}
-        {data.trend && data.trend.length > 0 && (
+        {/* 12-Month Trend Chart with Linear Regression */}
+        {trendDataWithRegression && trendDataWithRegression.length > 0 && (
           <div className="mt-6">
             <h4 className="text-sm font-medium mb-4">12-Month Profit/Loss Trend</h4>
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={data.trend}>
+              <LineChart data={trendDataWithRegression}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="month" 
@@ -230,7 +295,10 @@ const ProfitLossWidget = () => {
                   tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
                 />
                 <Tooltip 
-                  formatter={(value) => {
+                  formatter={(value, name) => {
+                    if (name === 'trendValue') {
+                      return [formatCurrency(value), 'Trend']
+                    }
                     const color = value >= 0 ? '#10b981' : '#ef4444'
                     return [
                       <span style={{ color }}>{formatCurrency(value)}</span>,
@@ -239,18 +307,31 @@ const ProfitLossWidget = () => {
                   }}
                   labelFormatter={(label) => `Month: ${label}`}
                 />
+                <Legend />
                 <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" />
+                {/* Actual P&L Line */}
                 <Line 
                   type="monotone" 
                   dataKey="profit_loss" 
                   stroke="#10b981" 
                   strokeWidth={2}
+                  name="P&L"
                   dot={(props) => {
                     const { cx, cy, payload } = props
                     const color = payload.profit_loss >= 0 ? '#10b981' : '#ef4444'
                     return <circle cx={cx} cy={cy} r={4} fill={color} />
                   }}
                   activeDot={{ r: 6 }}
+                />
+                {/* Linear Regression Trend Line */}
+                <Line 
+                  type="monotone" 
+                  dataKey="trendValue" 
+                  stroke="#8b5cf6" 
+                  strokeWidth={2} 
+                  strokeDasharray="5 5" 
+                  name="Trend"
+                  dot={false}
                 />
               </LineChart>
             </ResponsiveContainer>
