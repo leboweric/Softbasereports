@@ -181,6 +181,7 @@ def get_shop_work_orders():
 
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
+          AND w.DeleterUserId IS NULL  -- Exclude deleted work orders
           AND w.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
           AND c.Name NOT IN (
             'NEW EQUIP PREP - EXPENSE',
