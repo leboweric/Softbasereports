@@ -43,6 +43,7 @@ def get_users():
             'created_at': u.created_at.isoformat() if u.created_at else None,
             'last_login': u.last_login.isoformat() if u.last_login else None,
             'organization_id': u.organization_id,
+            'salesman_name': u.salesman_name,
             'roles': [{'id': r.id, 'name': r.name, 'department': r.department} for r in u.roles]
         } for u in users])
     except Exception as e:
@@ -74,7 +75,8 @@ def create_user():
             password_hash=generate_password_hash(data['password']),
             is_active=data.get('is_active', True),
             organization_id=data.get('organization_id', 4),  # Default to Bennett Material Handling
-            role='user'  # Legacy field
+            role='user',  # Legacy field
+            salesman_name=data.get('salesman_name')  # For Sales Rep users
         )
         
         # Assign roles
@@ -116,6 +118,10 @@ def update_user(user_id):
         user.last_name = data.get('last_name', user.last_name)
         user.is_active = data.get('is_active', user.is_active)
         
+        # Update salesman_name if provided (for Sales Rep users)
+        if 'salesman_name' in data:
+            user.salesman_name = data.get('salesman_name')
+        
         # Update username if provided
         if 'username' in data and data['username']:
             user.username = data['username']
@@ -142,6 +148,7 @@ def update_user(user_id):
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'is_active': user.is_active,
+                'salesman_name': user.salesman_name,
                 'roles': [{'id': r.id, 'name': r.name} for r in user.roles]
             }
         })
