@@ -277,7 +277,8 @@ const Dashboard = ({ user }) => {
     const interval = setInterval(() => {
       // Only fetch if component is still mounted
       if (isMountedRef.current) {
-        fetchForecastData()
+        // fetchForecastData() is not defined
+        // fetchForecastData()
       }
     }, 5 * 60 * 1000) // 5 minutes
 
@@ -344,11 +345,12 @@ const Dashboard = ({ user }) => {
         }
 
         // Fetch supplementary data in parallel for better performance
-        await Promise.allSettled([
-          fetchPaceData(),
-          fetchForecastData(),
-          fetchCustomerRiskData()
-        ])
+        // Note: fetchPaceData, fetchForecastData, and fetchCustomerRiskData are not defined
+        // await Promise.allSettled([
+        //   fetchPaceData(),
+        //   fetchForecastData(),
+        //   fetchCustomerRiskData()
+        // ])
       } else {
         console.error('Dashboard API failed:', response.status, response.statusText)
         // Optionally set an error state here for user feedback
