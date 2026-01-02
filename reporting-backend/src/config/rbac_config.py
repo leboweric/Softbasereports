@@ -133,7 +133,7 @@ ROLE_PERMISSIONS = {
     },
     'Sales Rep': {
         'resources': [
-            'my_commissions', 'minitrac'
+            'my_commissions'
         ],
         'actions': ['view'],
     },
