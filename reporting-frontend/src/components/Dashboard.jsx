@@ -371,10 +371,10 @@ const Dashboard = ({ user }) => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase">AI Operations Platform</h2>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <p className="text-sm text-gray-600 mb-2">AI Operations Platform</p>
+        <p className="text-lg text-gray-700 mb-4">
           Welcome back, {user?.first_name || 'User'}! Here's what's happening with your business.
-        </h1>
+        </p>
       </div>
       {loading && (
         <div className="flex justify-center items-center h-full">
