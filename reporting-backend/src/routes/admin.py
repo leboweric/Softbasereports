@@ -36,11 +36,8 @@ def get_users():
         current_user_id = get_jwt_identity()
         current_user = User.query.get(int(current_user_id))
         
-        # Super admins (org 4 - Bennett) can see all users, others see only their org
-        if current_user.organization_id == 4:  # Bennett Material Handling - platform admin
-            users = User.query.all()
-        else:
-            users = User.query.filter_by(organization_id=current_user.organization_id).all()
+        # All organizations only see their own users - true multi-tenant isolation
+        users = User.query.filter_by(organization_id=current_user.organization_id).all()
         return jsonify([{
             'id': u.id,
             'email': u.email,
@@ -78,11 +75,8 @@ def create_user():
         if User.query.filter_by(email=data['email']).first():
             return jsonify({'error': 'User with this email already exists'}), 400
         
-        # Determine organization - use current user's org unless they're platform admin (org 4)
-        if current_user.organization_id == 4 and data.get('organization_id'):
-            org_id = data.get('organization_id')
-        else:
-            org_id = current_user.organization_id
+        # Always use current user's organization - true multi-tenant isolation
+        org_id = current_user.organization_id
         
         # Create user
         user = User(
