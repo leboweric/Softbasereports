@@ -258,7 +258,8 @@ def initialize_core_roles():
                 name=role_name,
                 description=f"Auto-generated {role_name} role",
                 department='All' if role_name in ['Super Admin', 'Leadership'] else 'Various',
-                level=1 if role_name == 'Super Admin' else 2
+                level=1 if role_name == 'Super Admin' else 2,
+                is_active=True  # Ensure role is active and shows in UI
             )
             
             db.session.add(role)
@@ -298,6 +299,27 @@ def assign_super_admin_to_existing_admin_users():
         print(f"❌ Error assigning Super Admin roles: {e}")
         raise
 
+def activate_all_roles():
+    """Ensure all roles have is_active=True so they show in UI"""
+    try:
+        roles_to_activate = Role.query.filter(
+            (Role.is_active == None) | (Role.is_active == False)
+        ).all()
+        
+        for role in roles_to_activate:
+            role.is_active = True
+            print(f"✅ Activated role: {role.name}")
+        
+        if roles_to_activate:
+            db.session.commit()
+            print(f"✅ Activated {len(roles_to_activate)} roles")
+        else:
+            print("✅ All roles already active")
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error activating roles: {e}")
+
 def initialize_all_rbac():
     """Initialize all RBAC roles and permissions"""
     print("🔧 Initializing RBAC system...")
@@ -317,6 +339,9 @@ def initialize_all_rbac():
 
         # Assign Super Admin to existing admin users
         assign_super_admin_to_existing_admin_users()
+        
+        # Ensure all roles are active (for existing roles that may have is_active=None)
+        activate_all_roles()
 
         print("✅ RBAC initialization complete")
         
