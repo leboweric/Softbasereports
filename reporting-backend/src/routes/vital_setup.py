@@ -35,9 +35,9 @@ def setup_vital_worklife():
             db.session.flush()  # Get the org ID
             org_created = True
         
-        # Get or create Leadership role (for VITAL users)
-        leadership_role = Role.query.filter_by(name='Leadership').first()
-        super_admin_role = Role.query.filter_by(name='Super Admin').first()
+        # Get or create VITAL Admin role
+        vital_admin_role = Role.query.filter_by(name='VITAL Admin').first()
+        vital_user_role = Role.query.filter_by(name='VITAL User').first()
         
         # VITAL Worklife users to create
         vital_users = [
@@ -54,13 +54,20 @@ def setup_vital_worklife():
         
         temp_password = 'VitalDemo2025!'
         created_users = []
+        updated_users = []
         skipped_users = []
         
         for user_data in vital_users:
             # Check if user already exists
             existing_user = User.query.filter_by(email=user_data['email'].lower()).first()
             if existing_user:
-                skipped_users.append(f"{user_data['first_name']} {user_data['last_name']} ({user_data['email']}) - already exists")
+                # Update existing user's roles to VITAL roles
+                existing_user.roles.clear()
+                if user_data['is_admin'] and vital_admin_role:
+                    existing_user.roles.append(vital_admin_role)
+                elif vital_user_role:
+                    existing_user.roles.append(vital_user_role)
+                updated_users.append(f"{user_data['first_name']} {user_data['last_name']} ({user_data['email']})")
                 continue
             
             # Create user
@@ -75,11 +82,11 @@ def setup_vital_worklife():
                 role='admin' if user_data['is_admin'] else 'user'
             )
             
-            # Assign roles
-            if user_data['is_admin'] and super_admin_role:
-                user.roles.append(super_admin_role)
-            elif leadership_role:
-                user.roles.append(leadership_role)
+            # Assign VITAL roles
+            if user_data['is_admin'] and vital_admin_role:
+                user.roles.append(vital_admin_role)
+            elif vital_user_role:
+                user.roles.append(vital_user_role)
             
             db.session.add(user)
             created_users.append(f"{user_data['first_name']} {user_data['last_name']} ({user_data['email']})")
@@ -92,9 +99,10 @@ def setup_vital_worklife():
             'organization_name': org.name,
             'organization_created': org_created,
             'users_created': created_users,
+            'users_updated': updated_users,
             'users_skipped': skipped_users,
             'temporary_password': temp_password if created_users else None,
-            'note': 'Users should change their password on first login' if created_users else 'No new users created'
+            'note': 'Users should change their password on first login' if created_users else 'Existing users updated with VITAL roles'
         }), 201 if created_users or org_created else 200
         
     except Exception as e:
@@ -104,4 +112,62 @@ def setup_vital_worklife():
             'error': str(e),
             'traceback': traceback.format_exc(),
             'message': 'Failed to set up VITAL Worklife'
+        }), 500
+
+
+@vital_setup_bp.route('/update-vital-roles', methods=['POST'])
+def update_vital_roles():
+    """
+    Update existing VITAL users to use VITAL Admin/User roles instead of generic roles.
+    """
+    try:
+        # Get VITAL roles
+        vital_admin_role = Role.query.filter_by(name='VITAL Admin').first()
+        vital_user_role = Role.query.filter_by(name='VITAL User').first()
+        
+        if not vital_admin_role or not vital_user_role:
+            return jsonify({
+                'error': 'VITAL roles not found. Please ensure RBAC is initialized.',
+                'vital_admin_exists': vital_admin_role is not None,
+                'vital_user_exists': vital_user_role is not None
+            }), 400
+        
+        # Get VITAL Worklife organization
+        org = Organization.query.filter_by(name='VITAL Worklife').first()
+        if not org:
+            return jsonify({'error': 'VITAL Worklife organization not found'}), 404
+        
+        # Admin emails
+        admin_emails = [
+            'dane.jensen@vitalworklife.com',
+            'grace.lee@vitalworklife.com',
+            'eric.lebow@vitalworklife.com'
+        ]
+        
+        updated_users = []
+        
+        # Update all users in VITAL organization
+        users = User.query.filter_by(organization_id=org.id).all()
+        for user in users:
+            user.roles.clear()
+            if user.email.lower() in admin_emails:
+                user.roles.append(vital_admin_role)
+                updated_users.append(f"{user.first_name} {user.last_name} -> VITAL Admin")
+            else:
+                user.roles.append(vital_user_role)
+                updated_users.append(f"{user.first_name} {user.last_name} -> VITAL User")
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'VITAL user roles updated',
+            'updated_users': updated_users
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        return jsonify({
+            'error': str(e),
+            'traceback': traceback.format_exc()
         }), 500

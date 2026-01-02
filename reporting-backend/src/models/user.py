@@ -36,6 +36,9 @@ class Organization(db.Model):
     # Fiscal year configuration
     fiscal_year_start_month = db.Column(db.Integer, default=11)  # 1-12, where 1=January, 11=November
     
+    # Organization settings (JSON for flexible config storage)
+    settings = db.Column(db.Text, nullable=True)  # JSON string for data source configs, etc.
+    
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)

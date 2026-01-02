@@ -34,6 +34,11 @@ RESOURCES = {
     'qbr': 'Quarterly Business Review dashboard and PowerPoint export',
     'my_commissions': 'Sales rep personal commission report (view own data only)',
     'manage_rep_comp': 'Manage sales rep compensation plans (admin only)',
+    # VITAL Worklife resources
+    'vital_case_data': 'VITAL Worklife case management data and analytics',
+    'vital_financial': 'VITAL Worklife financial data from QuickBooks',
+    'vital_marketing': 'VITAL Worklife marketing data from HubSpot',
+    'vital_data_sources': 'VITAL Worklife data source configuration (admin only)',
 }
 
 # Action types
@@ -136,6 +141,20 @@ ROLE_PERMISSIONS = {
             'my_commissions'
         ],
         'actions': ['view'],
+    },
+    # VITAL Worklife roles
+    'VITAL Admin': {
+        'resources': [
+            'vital_case_data', 'vital_financial', 'vital_marketing',
+            'vital_data_sources', 'user_management'
+        ],
+        'actions': ACTIONS,  # All actions
+    },
+    'VITAL User': {
+        'resources': [
+            'vital_case_data', 'vital_financial', 'vital_marketing'
+        ],
+        'actions': ['view', 'export'],
     },
     'Read Only': {
         'resources': [
@@ -266,5 +285,34 @@ NAVIGATION_CONFIG = {
         'path': 'rep-comp-admin',
         'required_resource': 'manage_rep_comp',
         'order': 12,
+    },
+    # VITAL Worklife navigation
+    'vital-case-data': {
+        'label': 'Case Data',
+        'icon': 'ClipboardList',
+        'path': 'vital-case-data',
+        'required_resource': 'vital_case_data',
+        'order': 20,
+    },
+    'vital-financial': {
+        'label': 'Financial',
+        'icon': 'DollarSign',
+        'path': 'vital-financial',
+        'required_resource': 'vital_financial',
+        'order': 21,
+    },
+    'vital-marketing': {
+        'label': 'Marketing',
+        'icon': 'TrendingUp',
+        'path': 'vital-marketing',
+        'required_resource': 'vital_marketing',
+        'order': 22,
+    },
+    'vital-data-sources': {
+        'label': 'Data Sources',
+        'icon': 'Database',
+        'path': 'vital-data-sources',
+        'required_resource': 'vital_data_sources',
+        'order': 23,
     },
 }
