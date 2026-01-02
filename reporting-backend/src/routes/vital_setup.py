@@ -81,7 +81,7 @@ def setup_vital_worklife():
                 role='admin' if user_data['is_admin'] else 'user'
             )
             
-            # Assign VITAL roles
+            # Assign role
             if user_data['is_admin'] and vital_admin_role:
                 user.roles.append(vital_admin_role)
             elif vital_user_role:
@@ -93,80 +93,105 @@ def setup_vital_worklife():
         db.session.commit()
         
         return jsonify({
+            'success': True,
             'message': 'VITAL Worklife setup complete',
-            'organization_id': org.id,
-            'organization_name': org.name,
-            'organization_created': org_created,
+            'organization': {
+                'id': org.id,
+                'name': org.name,
+                'created': org_created
+            },
             'users_created': created_users,
             'users_updated': updated_users,
             'users_skipped': skipped_users,
-            'temporary_password': temp_password if created_users else None,
-            'note': 'Users should change their password on first login' if created_users else 'Existing users updated with VITAL roles'
-        }), 201 if created_users or org_created else 200
+            'temp_password': temp_password
+        })
         
     except Exception as e:
         db.session.rollback()
-        import traceback
-        return jsonify({
-            'error': str(e),
-            'traceback': traceback.format_exc(),
-            'message': 'Failed to set up VITAL Worklife'
-        }), 500
+        return jsonify({'error': str(e)}), 500
 
 
-@vital_setup_bp.route('/update-vital-roles', methods=['GET', 'POST'])
+@vital_setup_bp.route('/update-vital-roles', methods=['POST', 'GET'])
 def update_vital_roles():
-    """
-    Update existing VITAL users to use VITAL Admin/User roles instead of generic roles.
-    """
+    """Update VITAL users to have VITAL Admin/User roles"""
     try:
-        # Get VITAL roles
         vital_admin_role = Role.query.filter_by(name='VITAL Admin').first()
         vital_user_role = Role.query.filter_by(name='VITAL User').first()
         
         if not vital_admin_role or not vital_user_role:
-            return jsonify({
-                'error': 'VITAL roles not found. Please ensure RBAC is initialized.',
-                'vital_admin_exists': vital_admin_role is not None,
-                'vital_user_exists': vital_user_role is not None
-            }), 400
+            return jsonify({'error': 'VITAL roles not found'}), 404
         
-        # Get VITAL Worklife organization
-        org = Organization.query.filter_by(name='VITAL Worklife').first()
-        if not org:
-            return jsonify({'error': 'VITAL Worklife organization not found'}), 404
+        # Get all VITAL users (organization_id = 6)
+        vital_users = User.query.filter_by(organization_id=6).all()
         
-        # Admin emails
-        admin_emails = [
-            'dane.jensen@vitalworklife.com',
-            'grace.lee@vitalworklife.com',
-            'eric.lebow@vitalworklife.com'
-        ]
-        
-        updated_users = []
-        
-        # Update all users in VITAL organization
-        users = User.query.filter_by(organization_id=org.id).all()
-        for user in users:
+        updated = []
+        for user in vital_users:
+            # Clear existing roles
             user.roles.clear()
-            if user.email.lower() in admin_emails:
+            
+            # Assign VITAL Admin to admins, VITAL User to others
+            if user.email in ['dane.jensen@vitalworklife.com', 'grace.lee@vitalworklife.com', 'eric.lebow@vitalworklife.com']:
                 user.roles.append(vital_admin_role)
-                updated_users.append(f"{user.first_name} {user.last_name} -> VITAL Admin")
+                updated.append(f"{user.first_name} {user.last_name} -> VITAL Admin")
             else:
                 user.roles.append(vital_user_role)
-                updated_users.append(f"{user.first_name} {user.last_name} -> VITAL User")
+                updated.append(f"{user.first_name} {user.last_name} -> VITAL User")
         
         db.session.commit()
         
         return jsonify({
-            'message': 'VITAL user roles updated',
-            'updated_users': updated_users
-        }), 200
+            'success': True,
+            'updated_users': updated
+        })
         
     except Exception as e:
         db.session.rollback()
-        import traceback
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_setup_bp.route('/assign-roles-to-orgs', methods=['POST', 'GET'])
+def assign_roles_to_orgs():
+    """
+    Assign organization_id to existing roles.
+    Bennett roles -> org 4
+    VITAL roles -> org 6
+    """
+    try:
+        # Bennett Material Handling roles (org 4)
+        bennett_role_names = [
+            'Super Admin', 'Leadership', 'Accounting Manager', 'Parts Manager',
+            'Service Manager', 'Rental Manager', 'Parts Staff', 'Parts User',
+            'Service Tech', 'Sales Rep', 'Accounting User', 'Read Only',
+            'Service User', 'Sales Manager'
+        ]
+        
+        # VITAL Worklife roles (org 6)
+        vital_role_names = ['VITAL Admin', 'VITAL User']
+        
+        updated_roles = []
+        
+        # Assign Bennett roles to org 4
+        for role_name in bennett_role_names:
+            role = Role.query.filter_by(name=role_name).first()
+            if role and role.organization_id is None:
+                role.organization_id = 4  # Bennett Material Handling
+                updated_roles.append(f"{role_name} -> Bennett (org 4)")
+        
+        # Assign VITAL roles to org 6
+        for role_name in vital_role_names:
+            role = Role.query.filter_by(name=role_name).first()
+            if role and role.organization_id is None:
+                role.organization_id = 6  # VITAL Worklife
+                updated_roles.append(f"{role_name} -> VITAL (org 6)")
+        
+        db.session.commit()
+        
         return jsonify({
-            'error': str(e),
-            'traceback': traceback.format_exc()
-        }), 500
+            'success': True,
+            'updated_roles': updated_roles,
+            'message': 'Roles assigned to organizations successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500

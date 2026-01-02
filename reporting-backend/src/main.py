@@ -284,6 +284,20 @@ with app.app_context():
     except Exception as e:
         print(f"Note: settings column migration: {e}")
     
+    # Add organization_id column to role table if it doesn't exist
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('role')]
+        if 'organization_id' not in columns:
+            print("Adding organization_id column to role table...")
+            with db.engine.connect() as conn:
+                conn.execute(text('ALTER TABLE role ADD COLUMN organization_id INTEGER REFERENCES organization(id)'))
+                conn.commit()
+            print("✅ organization_id column added to role table!")
+    except Exception as e:
+        print(f"Note: role organization_id column migration: {e}")
+    
     # Initialize RBAC roles and permissions
     try:
         initialize_all_rbac()

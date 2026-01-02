@@ -21,12 +21,16 @@ role_permissions = db.Table('role_permissions',
 class Role(db.Model):
     """Role model - defines user roles like Admin, Parts Manager, Service Tech, etc."""
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(50), nullable=False)  # Removed unique constraint - roles can have same name in different orgs
     description = db.Column(db.String(255))
     department = db.Column(db.String(50))  # Parts, Service, Rental, Accounting, etc.
     level = db.Column(db.Integer, default=1)  # 1=User, 5=Manager, 10=Admin
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    organization_id = db.Column(db.Integer, db.ForeignKey('organization.id'), nullable=True)  # Null = system-wide role
+    
+    # Add unique constraint on name + organization_id
+    __table_args__ = (db.UniqueConstraint('name', 'organization_id', name='uq_role_name_org'),)
     
     # Relationships
     permissions = db.relationship('Permission', secondary=role_permissions, 
@@ -43,6 +47,7 @@ class Role(db.Model):
             'department': self.department,
             'level': self.level,
             'is_active': self.is_active,
+            'organization_id': self.organization_id,
             'permissions': [p.to_dict() for p in self.permissions]
         }
     

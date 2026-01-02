@@ -189,15 +189,25 @@ def delete_user(user_id):
 @admin_bp.route('/roles', methods=['GET'])
 @require_admin()
 def get_roles():
-    """Get all roles"""
+    """Get roles for current user's organization only"""
     try:
-        roles = Role.query.filter_by(is_active=True).all()
+        # Get current user's organization
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(int(current_user_id))
+        
+        # Filter roles by organization - only show roles belonging to user's org
+        roles = Role.query.filter(
+            Role.is_active == True,
+            Role.organization_id == current_user.organization_id
+        ).all()
+        
         return jsonify([{
             'id': r.id,
             'name': r.name,
             'description': r.description,
             'department': r.department,
             'level': r.level,
+            'organization_id': r.organization_id,
             'user_count': r.users.count()
         } for r in roles])
     except Exception as e:
