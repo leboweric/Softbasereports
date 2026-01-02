@@ -14,7 +14,8 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   // Navigation data processed
 
   // Build navigation items with HARDCODED ORDER to fix menu
-  const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'user-management', 'rep-comp-admin', 'tenant-admin', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources']
+  // Move user-management to the end of the list
+  const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'tenant-admin', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'user-management']
   
   const navItems = hasNavigation 
     ? desiredOrder
@@ -52,17 +53,16 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
           <div className="flex h-16 items-center justify-between px-4 border-b">
             <div className="flex items-center space-x-3">
-              {/* Company Logo - Replace src with your company logo */}
-              <img 
-                src="/bennett-logo.png" 
-                alt="Bennett Equipment" 
-                className="h-10 w-auto"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
-                }}
-              />
-              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>AIOP.one</h1>
+              {/* Company Logo - Organization Logo or AIOP.one text */}
+              {user?.organization?.logo_url ? (
+                <img
+                  className="h-10 w-auto"
+                  src={user.organization.logo_url}
+                  alt={user.organization.name}
+                />
+              ) : (
+                <h1 className="text-lg font-bold text-gray-900">AIOP.one</h1>
+              )}
             </div>
             <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(false)}>
               <Icons.X className="h-5 w-5" />
@@ -131,17 +131,16 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
           <div className="flex h-16 items-center px-4 border-b">
             <div className="flex items-center space-x-3">
-              {/* Company Logo - Replace src with your company logo */}
-              <img 
-                src="/bennett-logo.png" 
-                alt="Bennett Equipment" 
-                className="h-10 w-auto"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
-                }}
-              />
-              <h1 className="text-lg font-bold text-gray-900" style={{ display: 'none' }}>AIOP.one</h1>
+              {/* Company Logo - Organization Logo or AIOP.one text */}
+              {user?.organization?.logo_url ? (
+                <img
+                  className="h-10 w-auto"
+                  src={user.organization.logo_url}
+                  alt={user.organization.name}
+                />
+              ) : (
+                <h1 className="text-lg font-bold text-gray-900">AIOP.one</h1>
+              )}
             </div>
           </div>
           <nav className="flex-1 space-y-1 px-2 py-4">

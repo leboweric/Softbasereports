@@ -283,6 +283,20 @@ with app.app_context():
             print("✅ settings column added successfully!")
     except Exception as e:
         print(f"Note: settings column migration: {e}")
+
+    # Add logo_url column to organization table if it doesn't exist
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('organization')]
+        if 'logo_url' not in columns:
+            print("Adding logo_url column to organization table...")
+            with db.engine.connect() as conn:
+                conn.execute(text('ALTER TABLE organization ADD COLUMN logo_url VARCHAR(255)'))
+                conn.commit()
+            print("✅ logo_url column added successfully!")
+    except Exception as e:
+        print(f"Note: logo_url column migration: {e}")
     
     # Add organization_id column to role table if it doesn't exist
     try:

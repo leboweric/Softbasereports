@@ -149,6 +149,40 @@ def update_vital_roles():
         return jsonify({'error': str(e)}), 500
 
 
+@vital_setup_bp.route('/update-org-logos', methods=['POST', 'GET'])
+def update_org_logos():
+    """
+    Update organization logos with CDN URLs.
+    """
+    try:
+        bennett_logo_url = "https://files.manuscdn.com/user_upload_by_module/session_file/112395888/fQukILbpeKwYoxYP.webp"
+        vital_logo_url = "https://files.manuscdn.com/user_upload_by_module/session_file/112395888/ejZUzfwNYvRJiFhg.webp"
+        
+        bennett = Organization.query.filter_by(name='Bennett Material Handling').first()
+        vital = Organization.query.filter_by(name='VITAL Worklife').first()
+        
+        updated_orgs = []
+        
+        if bennett:
+            bennett.logo_url = bennett_logo_url
+            updated_orgs.append("Bennett Material Handling")
+            
+        if vital:
+            vital.logo_url = vital_logo_url
+            updated_orgs.append("VITAL Worklife")
+            
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'updated_orgs': updated_orgs,
+            'message': 'Organization logos updated successfully'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @vital_setup_bp.route('/assign-roles-to-orgs', methods=['POST', 'GET'])
 def assign_roles_to_orgs():
     """

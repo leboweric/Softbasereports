@@ -38,6 +38,7 @@ class Organization(db.Model):
     
     # Organization settings (JSON for flexible config storage)
     settings = db.Column(db.Text, nullable=True)  # JSON string for data source configs, etc.
+    logo_url = db.Column(db.String(255), nullable=True) # URL for organization logo
     
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -69,7 +70,8 @@ class Organization(db.Model):
             'has_active_subscription': self.has_active_subscription(),
             'fiscal_year_start_month': self.fiscal_year_start_month,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'is_active': self.is_active
+            'is_active': self.is_active,
+            'logo_url': self.logo_url
             # Note: Database credentials and Stripe IDs are intentionally NOT included for security
         }
 
