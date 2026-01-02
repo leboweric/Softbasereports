@@ -177,7 +177,8 @@ class User(db.Model):
             'is_active': self.is_active,
             'salesman_name': self.salesman_name,
             'accessible_departments': self.get_accessible_departments(),
-            'is_admin': self.is_admin
+            'is_admin': self.is_admin,
+            'organization': self.organization.to_dict() if self.organization else None
         }
 
 class ReportTemplate(db.Model):
