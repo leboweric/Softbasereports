@@ -26,8 +26,7 @@ def setup_vital_worklife():
             org = Organization(
                 name='VITAL Worklife',
                 platform_type='demo',  # Demo mode - no external DB connection needed
-                subscription_status='trialing',
-                trial_ends_at=datetime.utcnow() + timedelta(days=30),
+                subscription_status='active',  # No trial - full access
                 fiscal_year_start_month=1,  # January fiscal year
                 is_active=True
             )
