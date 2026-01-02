@@ -170,17 +170,17 @@ def assign_roles_to_orgs():
         
         updated_roles = []
         
-        # Assign Bennett roles to org 4
+        # Assign Bennett roles to org 4 (force update)
         for role_name in bennett_role_names:
             role = Role.query.filter_by(name=role_name).first()
-            if role and role.organization_id is None:
+            if role:
                 role.organization_id = 4  # Bennett Material Handling
                 updated_roles.append(f"{role_name} -> Bennett (org 4)")
         
-        # Assign VITAL roles to org 6
+        # Assign VITAL roles to org 6 (force update)
         for role_name in vital_role_names:
             role = Role.query.filter_by(name=role_name).first()
-            if role and role.organization_id is None:
+            if role:
                 role.organization_id = 6  # VITAL Worklife
                 updated_roles.append(f"{role_name} -> VITAL (org 6)")
         
