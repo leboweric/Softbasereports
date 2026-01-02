@@ -82,6 +82,11 @@ class PermissionService:
             if required_resource and required_resource not in user_resources:
                 continue
             
+            # Multi-tenancy check: VITAL-specific resources should only be visible to VITAL Worklife
+            if required_resource and required_resource.startswith('vital_'):
+                if user.organization.name != 'VITAL Worklife':
+                    continue
+            
             # Filter tabs if they exist
             if 'tabs' in nav_config:
                 accessible_tabs = {}
