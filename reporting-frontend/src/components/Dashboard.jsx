@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
+import VitalExecutiveDashboard from './vital/VitalExecutiveDashboard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
@@ -835,6 +836,12 @@ const Dashboard = ({ user }) => {
     )
   }
 
+  // Render VITAL dashboard if user is from VITAL Worklife organization
+  if (user?.organization?.name === 'VITAL Worklife') {
+    return <VitalExecutiveDashboard user={user} />
+  }
+
+  // Render Bennett Dashboard for all other organizations
   return (
     <div className="space-y-6">
       {/* Header */}
