@@ -6645,11 +6645,9 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END) as RentalCost,
                 -- Used equipment sales and costs
-                -- FIX: Use WO.EquipmentSell (gross sale price BEFORE trade-in deduction)
-                -- This ensures commission is calculated on full sale price, not net after trade-in
                 SUM(CASE 
                     WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
-                    THEN COALESCE(wo.EquipmentSell, COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0))
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 
                 END) as UsedEquipmentSales,
                 SUM(CASE 
