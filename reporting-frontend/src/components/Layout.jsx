@@ -51,7 +51,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
-          <div className="flex h-16 items-center justify-between px-4 border-b">
+          <div className="flex h-auto items-center justify-between px-4 py-2 border-b">
             <div className="flex items-center space-x-3">
               {/* Company Logo - Organization Logo or AIOP.one text */}
               {user?.organization?.logo_url ? (
@@ -129,7 +129,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
-          <div className="flex h-16 items-center px-4 border-b">
+          <div className="flex h-auto items-center px-4 py-2 border-b">
             <div className="flex items-center space-x-3">
               {/* Company Logo - Organization Logo or AIOP.one text */}
               {user?.organization?.logo_url ? (
