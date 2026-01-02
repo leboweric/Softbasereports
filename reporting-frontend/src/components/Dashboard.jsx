@@ -191,7 +191,6 @@ const Dashboard = ({ user }) => {
 
   useEffect(() => {
     fetchDashboardData()
-    fetchExpenseData()
 
     // Set up auto-refresh every 5 minutes for real-time updates
     const interval = setInterval(() => {
