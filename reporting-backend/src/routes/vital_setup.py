@@ -18,24 +18,22 @@ def setup_vital_worklife():
     """
     try:
         # Check if VITAL Worklife already exists
-        existing_org = Organization.query.filter_by(name='VITAL Worklife').first()
-        if existing_org:
-            return jsonify({
-                'message': 'VITAL Worklife organization already exists',
-                'organization_id': existing_org.id
-            }), 200
+        org = Organization.query.filter_by(name='VITAL Worklife').first()
+        org_created = False
         
-        # Create VITAL Worklife organization
-        org = Organization(
-            name='VITAL Worklife',
-            platform_type='demo',  # Demo mode - no external DB connection needed
-            subscription_status='trialing',
-            trial_ends_at=datetime.utcnow() + timedelta(days=30),
-            fiscal_year_start_month=1,  # January fiscal year
-            is_active=True
-        )
-        db.session.add(org)
-        db.session.flush()  # Get the org ID
+        if not org:
+            # Create VITAL Worklife organization
+            org = Organization(
+                name='VITAL Worklife',
+                platform_type='demo',  # Demo mode - no external DB connection needed
+                subscription_status='trialing',
+                trial_ends_at=datetime.utcnow() + timedelta(days=30),
+                fiscal_year_start_month=1,  # January fiscal year
+                is_active=True
+            )
+            db.session.add(org)
+            db.session.flush()  # Get the org ID
+            org_created = True
         
         # Get or create Leadership role (for VITAL users)
         leadership_role = Role.query.filter_by(name='Leadership').first()
@@ -56,11 +54,13 @@ def setup_vital_worklife():
         
         temp_password = 'VitalDemo2025!'
         created_users = []
+        skipped_users = []
         
         for user_data in vital_users:
             # Check if user already exists
             existing_user = User.query.filter_by(email=user_data['email'].lower()).first()
             if existing_user:
+                skipped_users.append(f"{user_data['first_name']} {user_data['last_name']} ({user_data['email']}) - already exists")
                 continue
             
             # Create user
@@ -90,14 +90,18 @@ def setup_vital_worklife():
             'message': 'VITAL Worklife setup complete',
             'organization_id': org.id,
             'organization_name': org.name,
+            'organization_created': org_created,
             'users_created': created_users,
-            'temporary_password': temp_password,
-            'note': 'Users should change their password on first login'
-        }), 201
+            'users_skipped': skipped_users,
+            'temporary_password': temp_password if created_users else None,
+            'note': 'Users should change their password on first login' if created_users else 'No new users created'
+        }), 201 if created_users or org_created else 200
         
     except Exception as e:
         db.session.rollback()
+        import traceback
         return jsonify({
             'error': str(e),
+            'traceback': traceback.format_exc(),
             'message': 'Failed to set up VITAL Worklife'
         }), 500
