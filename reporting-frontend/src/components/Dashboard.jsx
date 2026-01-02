@@ -79,10 +79,10 @@ const VitalExecutiveDashboard = ({ user }) => {
   return (
     <div className="p-6 space-y-6">
       <div className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase">AI Operations Platform</h2>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-4xl font-bold tracking-tight mb-2">AI Operations Platform</h1>
+        <p className="text-lg text-gray-600">
           Welcome back, {user?.first_name || 'User'}! Here's what's happening with your business.
-        </h1>
+        </p>
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -290,10 +290,10 @@ const Dashboard = ({ user }) => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-500 uppercase">AI Operations Platform</h2>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-4xl font-bold tracking-tight mb-2">AI Operations Platform</h1>
+        <p className="text-lg text-gray-600">
           Welcome back, {user?.first_name || 'User'}! Here's what's happening with your business.
-        </h1>
+        </p>
       </div>
       {loading && (
         <div className="flex justify-center items-center h-full">
