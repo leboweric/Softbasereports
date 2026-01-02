@@ -145,14 +145,14 @@ ROLE_PERMISSIONS = {
     # VITAL Worklife roles
     'VITAL Admin': {
         'resources': [
-            'vital_case_data', 'vital_financial', 'vital_marketing',
+            'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing',
             'vital_data_sources', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
-            'vital_case_data', 'vital_financial', 'vital_marketing'
+            'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing'
         ],
         'actions': ['view', 'export'],
     },

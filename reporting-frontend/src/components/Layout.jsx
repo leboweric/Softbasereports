@@ -56,7 +56,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               {/* Company Logo - Organization Logo or AIOP.one text */}
               {user?.organization?.logo_url ? (
                 <img
-                  className="h-10 w-auto max-w-[150px] object-contain"
+                  className="h-32 w-auto max-w-[450px] object-contain"
                   src={user.organization.logo_url}
                   alt={user.organization.name}
                 />
@@ -134,7 +134,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               {/* Company Logo - Organization Logo or AIOP.one text */}
               {user?.organization?.logo_url ? (
                 <img
-                  className="h-10 w-auto max-w-[150px] object-contain"
+                  className="h-32 w-auto max-w-[450px] object-contain"
                   src={user.organization.logo_url}
                   alt={user.organization.name}
                 />
