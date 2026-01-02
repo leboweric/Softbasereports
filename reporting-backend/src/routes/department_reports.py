@@ -6645,9 +6645,11 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END) as RentalCost,
                 -- Used equipment sales and costs
+                -- FIX: Use WOEq.Sell for gross sale price (before trade-in deductions)
+                -- Trade-ins are recorded as negative values in WOEq, so we only sum positive Sell values
                 SUM(CASE 
                     WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
-                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    THEN COALESCE(used_eq.GrossSales, COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0))
                     ELSE 0 
                 END) as UsedEquipmentSales,
                 SUM(CASE 
@@ -6681,6 +6683,12 @@ def register_department_routes(reports_bp):
                 END) as NewEquipmentCost
             FROM ben002.InvoiceReg ir
             LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.WONo
+            LEFT JOIN (
+                SELECT WONo, SUM(CASE WHEN Sell > 0 THEN Sell ELSE 0 END) as GrossSales
+                FROM ben002.WOEq
+                WHERE SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                GROUP BY WONo
+            ) used_eq ON ir.InvoiceNo = used_eq.WONo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
                 AND COALESCE(wo.Salesman, 'Unassigned') != 'Unassigned'
