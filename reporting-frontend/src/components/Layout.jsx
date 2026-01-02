@@ -15,7 +15,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
 
   // Build navigation items with HARDCODED ORDER to fix menu
   // Move user-management to the end of the list
-  const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'tenant-admin', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'user-management']
+  const desiredOrder = ['dashboard', 'vital-case-data', 'vital-financial', 'vital-marketing', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'tenant-admin', 'vital-data-sources', 'user-management']
   
   const navItems = hasNavigation 
     ? desiredOrder
@@ -56,7 +56,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               {/* Company Logo - Organization Logo or AIOP.one text */}
               {user?.organization?.logo_url ? (
                 <img
-                  className="h-10 w-auto"
+                  className="h-10 w-auto max-w-[150px]"
                   src={user.organization.logo_url}
                   alt={user.organization.name}
                 />
@@ -134,7 +134,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               {/* Company Logo - Organization Logo or AIOP.one text */}
               {user?.organization?.logo_url ? (
                 <img
-                  className="h-10 w-auto"
+                  className="h-10 w-auto max-w-[150px]"
                   src={user.organization.logo_url}
                   alt={user.organization.name}
                 />

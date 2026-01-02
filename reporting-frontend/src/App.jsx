@@ -86,8 +86,8 @@ function App() {
         const navigation = getAccessibleNavigation(userWithNavigation)
         if (!navigation[currentPage]) {
           // Redirect to first available page using same order as Layout.jsx
-          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'user-management', 'rep-comp-admin', 'tenant-admin', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources']
-          const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
+          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'tenant-admin']
+          const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
           setCurrentPage(firstAvailablePage)
         }
       } else {
@@ -116,8 +116,8 @@ function App() {
     // Navigation data retrieved
 
     // Use same order as Layout.jsx to ensure Dashboard is first choice
-    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'user-management', 'rep-comp-admin', 'tenant-admin', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources']
-    const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'parts'
+    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'tenant-admin']
+    const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
     // Setting default page
     setCurrentPage(firstAvailablePage)
   }
@@ -158,8 +158,8 @@ function App() {
     const specialPages = ['billing', 'settings']
     if (!navigation[currentPage] && !specialPages.includes(currentPage)) {
       // Redirect to first available page using same order as Layout.jsx
-      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'user-management', 'rep-comp-admin', 'tenant-admin', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources']
-      const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0]
+      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'tenant-admin']
+      const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
       if (firstAvailablePage && firstAvailablePage !== currentPage) {
         setCurrentPage(firstAvailablePage)
         // Return the default page immediately instead of null
