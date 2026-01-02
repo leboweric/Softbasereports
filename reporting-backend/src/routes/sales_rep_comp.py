@@ -378,13 +378,22 @@ def lock_transaction(salesman_name, year_month):
 def get_my_commission_report(year_month):
     """
     Get commission report for the logged-in sales rep.
-    This will be restricted by RBAC to only show the rep's own data.
+    Filters by the user's salesman_name field to only show their own data.
+    Admins/managers can see all reps.
     """
     try:
-        username = get_jwt_identity()
+        from src.models.user import User
+        
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Check if user is admin/manager (can see all reps)
+        is_admin = user.is_admin or user.has_role('Sales Manager') or user.has_role('Super Admin') or user.has_role('Leadership')
+        user_salesman_name = user.salesman_name
 
-        # Get the salesman name mapping for this user
-        # For now we'll use a simple lookup - this can be enhanced later
         pg_service = PostgreSQLService()
         with pg_service.get_connection() as conn:
             if not conn:
@@ -392,21 +401,36 @@ def get_my_commission_report(year_month):
 
             cursor = conn.cursor()
 
-            # First, get the rep's settings (including their salesman name mapping)
-            cursor.execute("""
-                SELECT
-                    s.salesman_name,
-                    s.monthly_draw,
-                    s.starting_balance,
-                    s.start_date
-                FROM sales_rep_comp_settings s
-                WHERE s.is_active = TRUE
-                -- In the future, link to user table via email or user_id
-            """)
+            # Get rep settings - filter by salesman_name if not admin
+            if is_admin:
+                cursor.execute("""
+                    SELECT
+                        s.salesman_name,
+                        s.monthly_draw,
+                        s.starting_balance,
+                        s.start_date
+                    FROM sales_rep_comp_settings s
+                    WHERE s.is_active = TRUE
+                """)
+            elif user_salesman_name:
+                cursor.execute("""
+                    SELECT
+                        s.salesman_name,
+                        s.monthly_draw,
+                        s.starting_balance,
+                        s.start_date
+                    FROM sales_rep_comp_settings s
+                    WHERE s.is_active = TRUE AND s.salesman_name = %s
+                """, (user_salesman_name,))
+            else:
+                # User has no salesman_name linked - return empty
+                return jsonify({
+                    'report': [],
+                    'year_month': year_month,
+                    'message': 'No salesman profile linked to your account. Please contact your administrator.'
+                }), 200
 
             all_reps = cursor.fetchall()
-
-            # For now, return all active reps - will filter by user once RBAC is set up
             report_data = []
 
             for rep in all_reps:

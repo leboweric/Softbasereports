@@ -104,6 +104,8 @@ def update_user(user_id):
             user.username = data['username']
         if 'is_active' in data:
             user.is_active = data['is_active']
+        if 'salesman_name' in data:
+            user.salesman_name = data['salesman_name']
 
         db.session.commit()
 
@@ -269,6 +271,7 @@ def create_user():
             email=data['email'],
             first_name=data.get('first_name', ''),
             last_name=data.get('last_name', ''),
+            salesman_name=data.get('salesman_name'),  # Links user to Softbase salesman for commission reports
             organization_id=g.current_organization.id,
             is_active=True,
             created_at=datetime.utcnow()

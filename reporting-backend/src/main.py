@@ -252,6 +252,20 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
     
+    # Add salesman_name column if it doesn't exist (migration for existing databases)
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        columns = [col['name'] for col in inspector.get_columns('user')]
+        if 'salesman_name' not in columns:
+            print("Adding salesman_name column to user table...")
+            with db.engine.connect() as conn:
+                conn.execute(text('ALTER TABLE "user" ADD COLUMN salesman_name VARCHAR(100)'))
+                conn.commit()
+            print("✅ salesman_name column added successfully!")
+    except Exception as e:
+        print(f"Note: salesman_name column migration: {e}")
+    
     # Initialize RBAC roles and permissions
     try:
         initialize_all_rbac()
