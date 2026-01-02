@@ -125,7 +125,7 @@ const Login = ({ onLogin }) => {
             <img 
               src="/aiop_logo.png" 
               alt="AIOP" 
-              className="h-12 w-auto"
+              className="h-36 w-auto"
             />
           </div>
 
