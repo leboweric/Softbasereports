@@ -30,9 +30,17 @@ def require_admin():
 @admin_bp.route('/users', methods=['GET'])
 @require_admin()
 def get_users():
-    """Get all users"""
+    """Get all users - filtered by organization for multi-tenant isolation"""
     try:
-        users = User.query.all()
+        # Get current user's organization
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(int(current_user_id))
+        
+        # Super admins (org 4 - Bennett) can see all users, others see only their org
+        if current_user.organization_id == 4:  # Bennett Material Handling - platform admin
+            users = User.query.all()
+        else:
+            users = User.query.filter_by(organization_id=current_user.organization_id).all()
         return jsonify([{
             'id': u.id,
             'email': u.email,
@@ -52,9 +60,13 @@ def get_users():
 @admin_bp.route('/users', methods=['POST'])
 @require_admin()
 def create_user():
-    """Create new user"""
+    """Create new user - assigns to current user's organization"""
     try:
         data = request.json
+        
+        # Get current user's organization for multi-tenant isolation
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(int(current_user_id))
         
         # Validate required fields
         required_fields = ['email', 'first_name', 'last_name', 'password']
@@ -66,6 +78,12 @@ def create_user():
         if User.query.filter_by(email=data['email']).first():
             return jsonify({'error': 'User with this email already exists'}), 400
         
+        # Determine organization - use current user's org unless they're platform admin (org 4)
+        if current_user.organization_id == 4 and data.get('organization_id'):
+            org_id = data.get('organization_id')
+        else:
+            org_id = current_user.organization_id
+        
         # Create user
         user = User(
             email=data['email'],
@@ -74,7 +92,7 @@ def create_user():
             last_name=data['last_name'],
             password_hash=generate_password_hash(data['password']),
             is_active=data.get('is_active', True),
-            organization_id=data.get('organization_id', 4),  # Default to Bennett Material Handling
+            organization_id=org_id,
             role='user',  # Legacy field
             salesman_name=data.get('salesman_name')  # For Sales Rep users
         )
