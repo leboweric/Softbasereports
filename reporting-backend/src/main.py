@@ -103,6 +103,7 @@ from src.routes.sales_rep_comp import sales_rep_comp_bp
 from src.routes.schema_explorer import schema_explorer_bp
 from src.routes.schema_browser import schema_browser_bp
 from src.routes.invoice_investigator import invoice_investigator_bp
+from src.routes.vital_setup import vital_setup_bp
 from src.services.postgres_service import get_postgres_db
 from src.services.forecast_scheduler import init_forecast_scheduler
 from src.services.cache_warmer import init_cache_warmer
@@ -230,6 +231,7 @@ app.register_blueprint(sales_rep_comp_bp)
 app.register_blueprint(schema_explorer_bp)
 app.register_blueprint(schema_browser_bp)
 app.register_blueprint(invoice_investigator_bp)
+app.register_blueprint(vital_setup_bp, url_prefix='/api/setup')
 # app.register_blueprint(diagnostics_bp)  # Duplicate - already registered on line 119
 
 # Database configuration
