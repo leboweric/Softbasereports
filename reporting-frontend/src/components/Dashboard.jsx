@@ -61,9 +61,44 @@ import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
 
-// Simple Executive Dashboard for VITAL Worklife (Placeholder)
+// Simple Executive Dashboard for VITAL Worklife (with seeded data)
 const VitalExecutiveDashboard = ({ user }) => {
-  const StatCard = ({ title, value, icon: Icon, color }) => (
+  // Sample data for visualizations
+  const caseVolumeData = [
+    { month: 'Jan', cases: 45, resolved: 42 },
+    { month: 'Feb', cases: 52, resolved: 48 },
+    { month: 'Mar', cases: 48, resolved: 46 },
+    { month: 'Apr', cases: 61, resolved: 58 },
+    { month: 'May', cases: 55, resolved: 52 },
+    { month: 'Jun', cases: 67, resolved: 64 },
+  ];
+
+  const conversionData = [
+    { stage: 'Leads', value: 1200 },
+    { stage: 'Prospects', value: 850 },
+    { stage: 'Qualified', value: 620 },
+    { stage: 'Closed', value: 380 },
+  ];
+
+  const openCases = [
+    { id: 'CS-001', client: 'Acme Corp', status: 'In Progress', daysOpen: 12, priority: 'High' },
+    { id: 'CS-002', client: 'TechStart Inc', status: 'Pending Review', daysOpen: 8, priority: 'Medium' },
+    { id: 'CS-003', client: 'Global Solutions', status: 'In Progress', daysOpen: 5, priority: 'High' },
+    { id: 'CS-004', client: 'Innovation Labs', status: 'Awaiting Client', daysOpen: 3, priority: 'Low' },
+    { id: 'CS-005', client: 'Enterprise Group', status: 'In Progress', daysOpen: 15, priority: 'Critical' },
+  ];
+
+  const getPriorityColor = (priority) => {
+    switch(priority) {
+      case 'Critical': return 'text-red-600 bg-red-50';
+      case 'High': return 'text-orange-600 bg-orange-50';
+      case 'Medium': return 'text-yellow-600 bg-yellow-50';
+      case 'Low': return 'text-green-600 bg-green-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  const StatCard = ({ title, value, icon: Icon, color, trend }) => (
     <Card className="shadow-lg">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
@@ -71,7 +106,7 @@ const VitalExecutiveDashboard = ({ user }) => {
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-gray-500">+20.1% from last month</p>
+        <p className="text-xs text-gray-500">{trend || '+20.1% from last month'}</p>
       </CardContent>
     </Card>
   );
@@ -90,25 +125,29 @@ const VitalExecutiveDashboard = ({ user }) => {
           title="Total Cases Closed" 
           value="1,250" 
           icon={FileText} 
-          color="blue" 
+          color="blue"
+          trend="+8.2% from last month"
         />
         <StatCard 
           title="Avg. Resolution Time" 
           value="4.5 Days" 
           icon={Clock} 
-          color="red" 
+          color="red"
+          trend="↓ 12% improvement"
         />
         <StatCard 
           title="New Clients (HubSpot)" 
           value="+12" 
           icon={Users} 
-          color="purple" 
+          color="purple"
+          trend="+5 from last month"
         />
         <StatCard 
           title="Monthly Revenue" 
           value="$150K" 
           icon={DollarSign} 
-          color="green" 
+          color="green"
+          trend="+15.3% from last month"
         />
       </div>
 
@@ -116,22 +155,38 @@ const VitalExecutiveDashboard = ({ user }) => {
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Case Volume Trend</CardTitle>
+            <CardDescription>Monthly cases and resolutions</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center text-gray-400">
-              [Placeholder for Case Volume Line Chart]
-            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={caseVolumeData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="cases" fill="#3b82f6" name="Total Cases" />
+                <Bar dataKey="resolved" fill="#10b981" name="Resolved" />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
         
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Marketing Funnel Conversion</CardTitle>
+            <CardDescription>Lead to close conversion rates</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center text-gray-400">
-              [Placeholder for Funnel Chart]
-            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={conversionData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="stage" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" fill="#8b5cf6" name="Count" />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
@@ -139,10 +194,36 @@ const VitalExecutiveDashboard = ({ user }) => {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Top 5 Open Cases</CardTitle>
+          <CardDescription>Active cases requiring attention</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-48 flex items-center justify-center text-gray-400">
-            [Placeholder for Data Table]
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Case ID</TableHead>
+                  <TableHead>Client</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Days Open</TableHead>
+                  <TableHead>Priority</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {openCases.map((caseItem) => (
+                  <TableRow key={caseItem.id}>
+                    <TableCell className="font-medium">{caseItem.id}</TableCell>
+                    <TableCell>{caseItem.client}</TableCell>
+                    <TableCell>{caseItem.status}</TableCell>
+                    <TableCell>{caseItem.daysOpen}</TableCell>
+                    <TableCell>
+                      <Badge className={getPriorityColor(caseItem.priority)}>
+                        {caseItem.priority}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
