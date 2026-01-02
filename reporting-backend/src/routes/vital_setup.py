@@ -115,7 +115,7 @@ def setup_vital_worklife():
         }), 500
 
 
-@vital_setup_bp.route('/update-vital-roles', methods=['POST'])
+@vital_setup_bp.route('/update-vital-roles', methods=['GET', 'POST'])
 def update_vital_roles():
     """
     Update existing VITAL users to use VITAL Admin/User roles instead of generic roles.
