@@ -1889,6 +1889,15 @@ def get_dashboard_summary_optimized():
 def export_active_customers():
     """Export detailed active customers list for CSV download"""
     try:
+        # Get tenant schema from current user
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        if not user or not user.organization:
+            return jsonify({'error': 'User organization not found'}), 400
+        schema = user.organization.database_schema
+        if not schema:
+            return jsonify({'error': 'Organization database schema not configured'}), 400
+        
         db = AzureSQLService()
         
         # Get current month period or custom period if specified
@@ -1934,7 +1943,7 @@ def export_active_customers():
             MAX(InvoiceDate) as last_invoice_date,
             SUM(GrandTotal) as total_sales,
             AVG(GrandTotal) as avg_invoice_value
-        FROM {self.schema}.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '{start_date}'
             AND InvoiceDate <= '{end_date}'
             AND BillToName IS NOT NULL
@@ -1986,6 +1995,15 @@ def export_active_customers():
 def analyze_customer_risk():
     """Analyze top customers for behavioral changes and risk factors"""
     try:
+        # Get tenant schema from current user
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        if not user or not user.organization:
+            return jsonify({'error': 'User organization not found'}), 400
+        schema = user.organization.database_schema
+        if not schema:
+            return jsonify({'error': 'Organization database schema not configured'}), 400
+        
         db = AzureSQLService()
         
         # Current fiscal year dates
@@ -2020,7 +2038,7 @@ def analyze_customer_risk():
             SUM(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN GrandTotal ELSE 0 END) as recent_30_sales,
             COUNT(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN 1 ELSE NULL END) as recent_30_invoices,
             DATEDIFF(day, MAX(InvoiceDate), GETDATE()) as days_since_last_invoice
-        FROM {self.schema}.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '{fiscal_year_start_str}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
@@ -2123,6 +2141,15 @@ def analyze_customer_risk():
 def analyze_invoice_delays():
     """Analyze invoice delays by department type"""
     try:
+        # Get tenant schema from current user
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(username=current_user).first()
+        if not user or not user.organization:
+            return jsonify({'error': 'User organization not found'}), 400
+        schema = user.organization.database_schema
+        if not schema:
+            return jsonify({'error': 'Organization database schema not configured'}), 400
+        
         db = AzureSQLService()
         
         # Get breakdown by work order type
@@ -2148,26 +2175,26 @@ def analyze_invoice_delays():
                 COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) as labor_total,
                 COALESCE(p.parts_sell, 0) as parts_total,
                 COALESCE(m.misc_sell, 0) as misc_total
-            FROM {self.schema}.WO w
+            FROM {schema}.WO w
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as labor_sell 
-                FROM {self.schema}.WOLabor 
+                FROM {schema}.WOLabor 
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Amount) as quote_amount 
-                FROM {self.schema}.WOQuote 
+                FROM {schema}.WOQuote 
                 WHERE Type = 'L'
                 GROUP BY WONo
             ) lq ON w.WONo = lq.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_sell 
-                FROM {self.schema}.WOParts 
+                FROM {schema}.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_sell 
-                FROM {self.schema}.WOMisc 
+                FROM {schema}.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             WHERE w.CompletedDate IS NOT NULL
@@ -2255,19 +2282,19 @@ def analyze_invoice_delays():
             DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysWaiting,
             COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) + 
             COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as TotalValue
-        FROM {self.schema}.WO w
-        LEFT JOIN {self.schema}.Customer c ON w.BillTo = c.Number
+        FROM {schema}.WO w
+        LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
         LEFT JOIN (
-            SELECT WONo, SUM(Sell) as labor_sell FROM {self.schema}.WOLabor GROUP BY WONo
+            SELECT WONo, SUM(Sell) as labor_sell FROM {schema}.WOLabor GROUP BY WONo
         ) l ON w.WONo = l.WONo
         LEFT JOIN (
-            SELECT WONo, SUM(Amount) as quote_amount FROM {self.schema}.WOQuote WHERE Type = 'L' GROUP BY WONo
+            SELECT WONo, SUM(Amount) as quote_amount FROM {schema}.WOQuote WHERE Type = 'L' GROUP BY WONo
         ) lq ON w.WONo = lq.WONo
         LEFT JOIN (
-            SELECT WONo, SUM(Sell * Qty) as parts_sell FROM {self.schema}.WOParts GROUP BY WONo
+            SELECT WONo, SUM(Sell * Qty) as parts_sell FROM {schema}.WOParts GROUP BY WONo
         ) p ON w.WONo = p.WONo
         LEFT JOIN (
-            SELECT WONo, SUM(Sell) as misc_sell FROM {self.schema}.WOMisc GROUP BY WONo
+            SELECT WONo, SUM(Sell) as misc_sell FROM {schema}.WOMisc GROUP BY WONo
         ) m ON w.WONo = m.WONo
         WHERE w.CompletedDate IS NOT NULL
           AND w.ClosedDate IS NULL
@@ -2347,7 +2374,7 @@ def check_equipment_sale_codes():
             SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as total_revenue,
             MIN(InvoiceDate) as first_invoice,
             MAX(InvoiceDate) as last_invoice
-        FROM {self.schema}.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE YEAR(InvoiceDate) = 2025 AND MONTH(InvoiceDate) = 7
             AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
         GROUP BY SaleCode, SaleDept
@@ -2360,22 +2387,22 @@ def check_equipment_sale_codes():
         check_query = f"""
         SELECT 
             'LINDE' as code, COUNT(*) as count 
-        FROM {self.schema}.InvoiceReg 
+        FROM {schema}.InvoiceReg 
         WHERE SaleCode = 'LINDE'
         UNION ALL
         SELECT 
             'LINDEN' as code, COUNT(*) as count 
-        FROM {self.schema}.InvoiceReg 
+        FROM {schema}.InvoiceReg 
         WHERE SaleCode = 'LINDEN'
         UNION ALL
         SELECT 
             'NEWEQ' as code, COUNT(*) as count 
-        FROM {self.schema}.InvoiceReg 
+        FROM {schema}.InvoiceReg 
         WHERE SaleCode = 'NEWEQ'
         UNION ALL
         SELECT 
             'KOM' as code, COUNT(*) as count 
-        FROM {self.schema}.InvoiceReg 
+        FROM {schema}.InvoiceReg 
         WHERE SaleCode = 'KOM'
         """
         
@@ -2408,7 +2435,7 @@ def debug_equipment_sales():
             EquipmentTaxable,
             EquipmentNonTax,
             EquipmentCost
-        FROM {self.schema}.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
             AND InvoiceDate >= '2025-03-01'
         ORDER BY InvoiceDate DESC
@@ -2425,7 +2452,7 @@ def debug_equipment_sales():
         # Test 2: Check ALL sale codes that have equipment revenue
         test2_query = f"""
         SELECT DISTINCT SaleCode, COUNT(*) as count
-        FROM {self.schema}.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-03-01'
             AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
         GROUP BY SaleCode
@@ -2464,7 +2491,7 @@ def debug_equipment_sales():
                 THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
                 ELSE 0
             END) as equipment_revenue
-        FROM {self.schema}.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-03-01'
             AND SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -2487,7 +2514,7 @@ def debug_equipment_sales():
                 SerialNo,
                 UnitNo,
                 Description
-            FROM {self.schema}.InvoiceSales
+            FROM {schema}.InvoiceSales
             WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
             """
             try:
@@ -2532,7 +2559,7 @@ def get_equipment_sales_details_endpoint():
             ir.EquipmentTaxable + COALESCE(ir.EquipmentNonTax, 0) as SellPrice,
             ir.EquipmentCost as CostPrice,
             ir.WONo
-        FROM {self.schema}.InvoiceReg ir
+        FROM {schema}.InvoiceReg ir
         WHERE ir.InvoiceDate >= '{start_date}'
             AND ir.InvoiceDate <= '{end_date}'
             AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
