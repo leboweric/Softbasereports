@@ -101,7 +101,6 @@ from src.routes.qbr import qbr_bp
 from src.routes.billing import billing_bp
 from src.routes.sales_rep_comp import sales_rep_comp_bp
 from src.routes.schema_explorer import schema_explorer_bp
-from src.routes.schema_browser import schema_browser_bp
 from src.routes.invoice_investigator import invoice_investigator_bp
 from src.routes.vital_setup import vital_setup_bp
 from src.routes.vital_data_sources import vital_data_sources_bp
@@ -230,7 +229,6 @@ app.register_blueprint(qbr_bp)
 app.register_blueprint(billing_bp, url_prefix='/api')
 app.register_blueprint(sales_rep_comp_bp)
 app.register_blueprint(schema_explorer_bp)
-app.register_blueprint(schema_browser_bp)
 app.register_blueprint(invoice_investigator_bp)
 app.register_blueprint(vital_setup_bp, url_prefix='/api/setup')
 app.register_blueprint(vital_data_sources_bp)
