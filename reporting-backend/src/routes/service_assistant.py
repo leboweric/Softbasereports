@@ -320,6 +320,7 @@ def search_work_orders(query):
     """Search work orders for relevant context"""
     try:
         azure_sql = AzureSQLService()
+        schema = get_tenant_schema()
         keywords = extract_keywords(query)
         
         if not keywords:

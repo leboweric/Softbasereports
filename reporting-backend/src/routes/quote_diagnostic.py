@@ -6,6 +6,23 @@ from flask import Blueprint, jsonify
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 quote_diagnostic_bp = Blueprint('quote_diagnostic', __name__)
@@ -16,6 +33,7 @@ def check_quotes():
     
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # Check WO 91600003 specifically
@@ -31,7 +49,7 @@ def check_quotes():
             BillTo,
             RentalContractNo,
             DeletionTime
-        FROM ben002.WO
+        FROM {schema}.WO
         WHERE WONo = '91600003'
         """
         try:
@@ -46,7 +64,7 @@ def check_quotes():
             Type,
             COUNT(*) as Count,
             MIN(WONo) as SampleWONo
-        FROM ben002.WO
+        FROM {schema}.WO
         WHERE OpenDate >= DATEADD(month, -1, GETDATE())
         GROUP BY Type
         ORDER BY Count DESC
@@ -66,7 +84,7 @@ def check_quotes():
             EstimateNo,
             OpenDate,
             ClosedDate
-        FROM ben002.WO
+        FROM {schema}.WO
         WHERE (QuoteNo IS NOT NULL AND QuoteNo != '')
         OR (EstimateNo IS NOT NULL AND EstimateNo != '')
         OR WONo LIKE '9%'  -- Quotes might start with 9
@@ -87,8 +105,8 @@ def check_quotes():
             wo.Type,
             wo.OpenDate,
             wo.ClosedDate
-        FROM ben002.WORental wr
-        INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+        FROM {schema}.WORental wr
+        INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
         WHERE wr.WONo = '91600003'
         """
         try:

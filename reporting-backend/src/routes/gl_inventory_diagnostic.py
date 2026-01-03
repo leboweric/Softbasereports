@@ -3,6 +3,23 @@ from flask_jwt_extended import jwt_required
 from ..services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 gl_inventory_diagnostic_bp = Blueprint('gl_inventory_diagnostic', __name__)
@@ -16,6 +33,7 @@ def diagnose_gl_inventory():
     """
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # Target GL accounts for inventory
@@ -35,7 +53,7 @@ def diagnose_gl_inventory():
                 WHEN AccountNo = '193000' THEN 'Accumulated Depreciation'
                 ELSE 'Unknown'
             END as Expected_Purpose
-        FROM ben002.ChartOfAccounts
+        FROM {schema}.ChartOfAccounts
         WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         ORDER BY AccountNo
         """
@@ -51,8 +69,8 @@ def diagnose_gl_inventory():
             gl.YTDBalance,
             gl.LastTransDate,
             gl.LastTransAmount
-        FROM ben002.GL gl
-        LEFT JOIN ben002.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
+        FROM {schema}.GL gl
+        LEFT JOIN {schema}.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
         WHERE gl.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         ORDER BY gl.AccountNo
         """
@@ -75,8 +93,8 @@ def diagnose_gl_inventory():
             gld.Description,
             gld.Reference,
             gld.JournalNo
-        FROM ben002.GLDetail gld
-        LEFT JOIN ben002.ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
+        FROM {schema}.GLDetail gld
+        LEFT JOIN {schema}.ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
         WHERE gld.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         AND gld.EffectiveDate >= '2024-11-01'  -- Fiscal year Nov 2024 - Oct 2025
         ORDER BY gld.EffectiveDate DESC, gld.AccountNo
@@ -93,7 +111,7 @@ def diagnose_gl_inventory():
             gld.Description,
             gld.Reference,
             gld.JournalNo
-        FROM ben002.GLDetail gld
+        FROM {schema}.GLDetail gld
         WHERE gld.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         AND (
             gld.Description LIKE '%serial%'
@@ -116,7 +134,7 @@ def diagnose_gl_inventory():
             CHARACTER_MAXIMUM_LENGTH,
             IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME = 'Equipment'
         ORDER BY ORDINAL_POSITION
         """
@@ -134,7 +152,7 @@ def diagnose_gl_inventory():
             BookValue,
             AccumulatedDepreciation,
             InventoryDept
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         ORDER BY SerialNo
         """
@@ -150,7 +168,7 @@ def diagnose_gl_inventory():
         LEFT JOIN INFORMATION_SCHEMA.COLUMNS c 
             ON t.TABLE_NAME = c.TABLE_NAME 
             AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
-        WHERE t.TABLE_SCHEMA = 'ben002'
+        WHERE t.TABLE_SCHEMA = '{schema}'
         AND (
             t.TABLE_NAME LIKE '%equipment%'
             OR t.TABLE_NAME LIKE '%asset%'
@@ -171,7 +189,7 @@ def diagnose_gl_inventory():
             gld.EffectiveDate,
             SUM(gld.Amount) as Monthly_Amount,
             COUNT(*) as Transaction_Count
-        FROM ben002.GLDetail gld
+        FROM {schema}.GLDetail gld
         WHERE gld.AccountNo = '193000'  -- Accumulated Depreciation
         AND gld.EffectiveDate >= '2024-11-01'  -- Fiscal year start
         AND gld.EffectiveDate < '2025-11-01'   -- Fiscal year end
@@ -213,6 +231,7 @@ def explore_equipment_gl_links():
     """
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # Step 1: Look for tables that might link Equipment to GL
@@ -224,7 +243,7 @@ def explore_equipment_gl_links():
         JOIN INFORMATION_SCHEMA.COLUMNS c 
             ON t.TABLE_NAME = c.TABLE_NAME 
             AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
-        WHERE t.TABLE_SCHEMA = 'ben002'
+        WHERE t.TABLE_SCHEMA = '{schema}'
         AND (
             c.COLUMN_NAME LIKE '%serial%'
             OR c.COLUMN_NAME LIKE '%equipment%'
@@ -247,7 +266,7 @@ def explore_equipment_gl_links():
             Description,
             Reference,
             JournalNo
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         AND (
             Description IS NOT NULL 
@@ -265,7 +284,7 @@ def explore_equipment_gl_links():
             COLUMN_NAME,
             DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME LIKE '%asset%'
         ORDER BY TABLE_NAME, ORDINAL_POSITION
         """
@@ -279,7 +298,7 @@ def explore_equipment_gl_links():
             COLUMN_NAME,
             DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND (
             TABLE_NAME LIKE '%journal%'
             OR TABLE_NAME LIKE '%entry%'

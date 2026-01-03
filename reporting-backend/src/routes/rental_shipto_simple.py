@@ -4,6 +4,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/rental/shipto-simple', methods=['GET'])
@@ -12,13 +29,14 @@ def simple_rental_research():
     """Simple research to find rental customer relationships"""
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # 1. Just check if RentalContract table exists and has data
         try:
             query1 = """
             SELECT COUNT(*) as contract_count 
-            FROM ben002.RentalContract
+            FROM {schema}.RentalContract
             """
             result = db.execute_query(query1)
             results['rental_contracts_exist'] = result[0]['contract_count'] if result else 0
@@ -29,7 +47,7 @@ def simple_rental_research():
         try:
             query2 = """
             SELECT COUNT(*) as rental_wo_count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE Type = 'R'
             """
             result = db.execute_query(query2)
@@ -46,7 +64,7 @@ def simple_rental_research():
                 BillTo,
                 ShipTo,
                 UnitNo
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE Type = 'R'
             ORDER BY OpenDate DESC
             """
@@ -71,7 +89,7 @@ def simple_rental_research():
                 SerialNo,
                 CustomerNo,
                 RentalStatus
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE RentalStatus IS NOT NULL
             AND RentalStatus != ''
             """
@@ -98,8 +116,8 @@ def simple_rental_research():
                 e.RentalStatus,
                 rh.DaysRented,
                 rh.RentAmount
-            FROM ben002.Equipment e
-            INNER JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+            FROM {schema}.Equipment e
+            INNER JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
             WHERE rh.Year = YEAR(GETDATE())
             AND rh.Month = MONTH(GETDATE())
             AND rh.DaysRented > 0
@@ -127,7 +145,7 @@ def simple_rental_research():
                             CustomerNo,
                             StartDate,
                             EndDate
-                        FROM ben002.RentalContract
+                        FROM {schema}.RentalContract
                         WHERE SerialNo = '{serial_no}'
                         ORDER BY StartDate DESC
                         """
@@ -149,7 +167,7 @@ def simple_rental_research():
                                 BillTo,
                                 ShipTo,
                                 Type
-                            FROM ben002.WO
+                            FROM {schema}.WO
                             WHERE UnitNo = '{unit_no}'
                             AND Type = 'R'
                             ORDER BY OpenDate DESC

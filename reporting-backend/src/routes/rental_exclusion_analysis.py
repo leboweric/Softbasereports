@@ -8,6 +8,23 @@ from flask_jwt_extended import jwt_required
 import logging
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 rental_exclusion_analysis_bp = Blueprint('rental_exclusion_analysis', __name__)
@@ -19,7 +36,7 @@ def analyze_excluded_units():
     
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Units that should be excluded
         excluded_units = {
             'Not a Rental Unit': ['293060', '218919', 'Z452512A-43084', '21775', 'SER01'],
@@ -85,9 +102,9 @@ def analyze_excluded_units():
                 WHEN e.InventoryDept = 60 THEN 'InventoryDept = 60'
                 ELSE 'Unknown'
             END as WhyIncluded
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
+        LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
             AND rh.Year = YEAR(GETDATE()) 
             AND rh.Month = MONTH(GETDATE())
             AND rh.DeletionTime IS NULL

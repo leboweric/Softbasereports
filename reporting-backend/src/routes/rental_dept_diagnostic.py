@@ -7,6 +7,23 @@ from flask_jwt_extended import jwt_required
 import logging
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 rental_dept_diagnostic_bp = Blueprint('rental_dept_diagnostic', __name__)
@@ -18,14 +35,14 @@ def rental_department_diagnostic():
     
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Query 1: Count units by InventoryDept
         dept_query = """
         SELECT 
             InventoryDept,
             COUNT(*) as UnitCount,
             COUNT(DISTINCT RentalStatus) as UniqueStatuses
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE IsDeleted = 0 OR IsDeleted IS NULL
         GROUP BY InventoryDept
         ORDER BY InventoryDept
@@ -46,7 +63,7 @@ def rental_department_diagnostic():
                 THEN 'Has Rental Rates' 
                 ELSE 'No Rental Rates' 
             END as RateStatus
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE InventoryDept = 60
             AND (IsDeleted = 0 OR IsDeleted IS NULL)
         GROUP BY RentalStatus
@@ -78,7 +95,7 @@ def rental_department_diagnostic():
                 WHEN Location LIKE '%AUCTION%' THEN 'AUCTION in Location'
                 ELSE 'None'
             END as ProblemIndicator
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE InventoryDept = 60
             AND (IsDeleted = 0 OR IsDeleted IS NULL)
             AND (
@@ -98,8 +115,8 @@ def rental_department_diagnostic():
         SELECT 
             'Currently On Rent' as Status,
             COUNT(DISTINCT e.UnitNo) as Count
-        FROM ben002.Equipment e
-        JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+        FROM {schema}.Equipment e
+        JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
         WHERE e.InventoryDept = 60
             AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
             AND rh.Year = YEAR(GETDATE())
@@ -112,13 +129,13 @@ def rental_department_diagnostic():
         SELECT 
             'Available (Ready To Rent)' as Status,
             COUNT(*) as Count
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE e.InventoryDept = 60
             AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
             AND e.RentalStatus = 'Ready To Rent'
             AND e.SerialNo NOT IN (
                 SELECT SerialNo 
-                FROM ben002.RentalHistory 
+                FROM {schema}.RentalHistory 
                 WHERE Year = YEAR(GETDATE()) 
                     AND Month = MONTH(GETDATE())
                     AND DaysRented > 0
@@ -130,7 +147,7 @@ def rental_department_diagnostic():
         SELECT 
             'On Hold' as Status,
             COUNT(*) as Count
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE e.InventoryDept = 60
             AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
             AND e.RentalStatus = 'Hold'
@@ -144,8 +161,8 @@ def rental_department_diagnostic():
             e.InventoryDept,
             sd.Description as DeptName,
             COUNT(*) as UnitsWithRentalRates
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.SaleCodes sd ON e.InventoryDept = sd.Dept
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.SaleCodes sd ON e.InventoryDept = sd.Dept
         WHERE (e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0)
             AND (e.IsDeleted = 0 OR e.IsDeleted IS NULL)
         GROUP BY e.InventoryDept, sd.Description

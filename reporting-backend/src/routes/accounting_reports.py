@@ -5,6 +5,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/accounting/find-control-fields', methods=['GET'])
@@ -17,7 +34,9 @@ def find_control_fields():
         
         # Get all equipment with various identification fields
         # Since we don't know what the control number field is, we'll show all potential fields
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             e.UnitNo,
             e.SerialNo,
@@ -41,18 +60,18 @@ def find_control_fields():
             e.Retail,
             e.RentalYTD,
             e.RentalITD
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         LEFT JOIN (
             SELECT SerialNo, RentalContractNo, StartDate, EndDate,
                    ROW_NUMBER() OVER (PARTITION BY SerialNo ORDER BY StartDate DESC) as rn
-            FROM ben002.RentalContract
+            FROM {schema}.RentalContract
             WHERE DeletionTime IS NULL
         ) rc ON e.SerialNo = rc.SerialNo AND rc.rn = 1
         LEFT JOIN (
             SELECT UnitNo, WONo, OpenDate,
                    ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY OpenDate DESC) as rn
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE DeletionTime IS NULL
         ) wo ON e.UnitNo = wo.UnitNo AND wo.rn = 1
         WHERE e.SerialNo IS NOT NULL
@@ -125,7 +144,9 @@ def get_control_serial_link_report():
         db = AzureSQLService()
         
         # Get all rental contracts with their associated equipment
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT DISTINCT
             rc.RentalContractNo as ControlNumber,
             rc.SerialNo,
@@ -154,9 +175,9 @@ def get_control_serial_link_report():
                 WHEN e.DayRent > 0 THEN e.DayRent * 30
                 ELSE 0
             END as EstimatedMonthlyRevenue
-        FROM ben002.RentalContract rc
-        LEFT JOIN ben002.Equipment e ON rc.SerialNo = e.SerialNo
-        LEFT JOIN ben002.Customer c ON rc.CustomerNo = c.Number
+        FROM {schema}.RentalContract rc
+        LEFT JOIN {schema}.Equipment e ON rc.SerialNo = e.SerialNo
+        LEFT JOIN {schema}.Customer c ON rc.CustomerNo = c.Number
         WHERE rc.DeletionTime IS NULL
         ORDER BY 
             CASE 
@@ -266,8 +287,8 @@ def get_control_serial_summary():
             MIN(rc.StartDate) as FirstContractDate,
             MAX(rc.StartDate) as LatestContractDate,
             SUM(CASE WHEN rc.EndDate IS NULL OR rc.EndDate > GETDATE() THEN 1 ELSE 0 END) as ActiveContracts
-        FROM ben002.RentalContract rc
-        LEFT JOIN ben002.Customer c ON rc.CustomerNo = c.Number
+        FROM {schema}.RentalContract rc
+        LEFT JOIN {schema}.Customer c ON rc.CustomerNo = c.Number
         WHERE rc.DeletionTime IS NULL
         GROUP BY c.Number, c.Name
         HAVING COUNT(DISTINCT rc.RentalContractNo) > 0
@@ -284,8 +305,8 @@ def get_control_serial_summary():
             COUNT(DISTINCT e.SerialNo) as TotalUnits,
             COUNT(DISTINCT rc.SerialNo) as UnitsOnContract,
             CAST(COUNT(DISTINCT rc.SerialNo) * 100.0 / NULLIF(COUNT(DISTINCT e.SerialNo), 0) as DECIMAL(5,2)) as UtilizationRate
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.RentalContract rc ON e.SerialNo = rc.SerialNo 
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.RentalContract rc ON e.SerialNo = rc.SerialNo 
             AND rc.DeletionTime IS NULL
             AND (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
         WHERE e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0

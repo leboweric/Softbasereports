@@ -8,11 +8,28 @@ from flask import Blueprint, jsonify
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 january_investigation_bp = Blueprint('january_investigation', __name__)
 sql_service = AzureSQLService()
-
+schema = get_tenant_schema()
 @january_investigation_bp.route('/api/investigation/january2025', methods=['GET'])
 def investigate_january_2025():
     """
@@ -34,7 +51,7 @@ def investigate_january_2025():
             SUM(CASE WHEN Amount > 0 THEN 1 ELSE 0 END) as DebitCount,
             SUM(CASE WHEN Amount < 0 THEN 1 ELSE 0 END) as CreditCount,
             SUM(ABS(Amount)) as TotalVolume
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2024-11-01' AND EffectiveDate < '2025-05-01'
           AND Posted = 1
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -63,7 +80,7 @@ def investigate_january_2025():
             AccountNo,
             Amount,
             Posted
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND ABS(Amount) > 50000
           AND Posted = 1
@@ -82,7 +99,7 @@ def investigate_january_2025():
             SUM(ABS(Amount)) as TotalVolume,
             MIN(Amount) as MinAmount,
             MAX(Amount) as MaxAmount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
         GROUP BY AccountNo
@@ -99,7 +116,7 @@ def investigate_january_2025():
             AccountNo,
             Amount,
             COUNT(*) as DuplicateCount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
         GROUP BY EffectiveDate, AccountNo, Amount
@@ -118,7 +135,7 @@ def investigate_january_2025():
             AccountNo,
             -SUM(Amount) as Amount,
             COUNT(*) as TransactionCount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
           AND AccountNo LIKE '4%'
@@ -132,7 +149,7 @@ def investigate_january_2025():
             AccountNo,
             SUM(Amount) as Amount,
             COUNT(*) as TransactionCount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
           AND AccountNo LIKE '5%'
@@ -146,7 +163,7 @@ def investigate_january_2025():
             AccountNo,
             SUM(Amount) as Amount,
             COUNT(*) as TransactionCount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
           AND (AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%')
@@ -185,7 +202,7 @@ def investigate_january_2025():
             -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as Revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as COGS,
             SUM(CASE WHEN AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%' THEN Amount ELSE 0 END) as Expenses
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2024-12-01' AND EffectiveDate < '2025-03-01'
           AND Posted = 1
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -208,7 +225,7 @@ def investigate_january_2025():
             EffectiveDate,
             AccountNo,
             Amount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
           AND Posted = 1
         ORDER BY ABS(Amount) DESC
@@ -221,13 +238,13 @@ def investigate_january_2025():
         query8 = """
         WITH JanAccounts AS (
             SELECT DISTINCT AccountNo
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE EffectiveDate >= '2025-01-01' AND EffectiveDate < '2025-02-01'
               AND Posted = 1
         ),
         DecFebAccounts AS (
             SELECT DISTINCT AccountNo
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE ((EffectiveDate >= '2024-12-01' AND EffectiveDate < '2025-01-01')
                 OR (EffectiveDate >= '2025-02-01' AND EffectiveDate < '2025-03-01'))
               AND Posted = 1
@@ -238,7 +255,7 @@ def investigate_january_2025():
             SUM(g.Amount) as TotalAmount
         FROM JanAccounts j
         LEFT JOIN DecFebAccounts d ON j.AccountNo = d.AccountNo
-        JOIN ben002.GLDetail g ON j.AccountNo = g.AccountNo
+        JOIN {schema}.GLDetail g ON j.AccountNo = g.AccountNo
             AND g.EffectiveDate >= '2025-01-01' 
             AND g.EffectiveDate < '2025-02-01'
             AND g.Posted = 1

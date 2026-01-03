@@ -5,6 +5,23 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 depreciation_explorer_bp = Blueprint('depreciation_explorer', __name__)
 
 @depreciation_explorer_bp.route('/api/diagnostic/depreciation-fields', methods=['GET'])
@@ -13,6 +30,7 @@ def explore_depreciation_fields():
     """Explore database for depreciation-related fields and data"""
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # Find tables with depreciation-related names
@@ -21,7 +39,7 @@ def explore_depreciation_fields():
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE (TABLE_NAME LIKE '%deprec%' OR TABLE_NAME LIKE '%depr%'
                OR TABLE_NAME LIKE '%asset%' OR TABLE_NAME LIKE '%book%')
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY TABLE_NAME
         """
         results['depreciation_tables'] = db.execute_query(tables_query)
@@ -35,7 +53,7 @@ def explore_depreciation_fields():
                OR COLUMN_NAME LIKE '%asset%' OR COLUMN_NAME LIKE '%value%'
                OR COLUMN_NAME LIKE '%cost%' OR COLUMN_NAME LIKE '%basis%'
                OR COLUMN_NAME LIKE '%original%' OR COLUMN_NAME LIKE '%purchase%')
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY TABLE_NAME, COLUMN_NAME
         """
         results['financial_columns'] = db.execute_query(columns_query)
@@ -45,7 +63,7 @@ def explore_depreciation_fields():
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH,
                COLUMN_DEFAULT, NUMERIC_PRECISION, NUMERIC_SCALE
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'Equipment' AND TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_NAME = 'Equipment' AND TABLE_SCHEMA = '{schema}'
         ORDER BY ORDINAL_POSITION
         """
         results['equipment_columns'] = db.execute_query(equipment_columns_query)
@@ -61,7 +79,7 @@ def explore_depreciation_fields():
             Retail,
             RentalYTD,
             RentalITD
-        FROM ben002.Equipment 
+        FROM {schema}.Equipment 
         WHERE SerialNo IS NOT NULL
         AND (Cost IS NOT NULL OR Sell IS NOT NULL)
         ORDER BY Cost DESC
@@ -71,9 +89,9 @@ def explore_depreciation_fields():
         # All tables in database
         all_tables_query = """
         SELECT TABLE_NAME, 
-               (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = t.TABLE_NAME AND TABLE_SCHEMA = 'ben002') as COLUMN_COUNT
+               (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = t.TABLE_NAME AND TABLE_SCHEMA = '{schema}') as COLUMN_COUNT
         FROM INFORMATION_SCHEMA.TABLES t
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_TYPE = 'BASE TABLE'
         ORDER BY TABLE_NAME
         """
@@ -83,7 +101,7 @@ def explore_depreciation_fields():
         views_query = """
         SELECT TABLE_NAME as VIEW_NAME
         FROM INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_TYPE = 'VIEW'
         ORDER BY TABLE_NAME
         """

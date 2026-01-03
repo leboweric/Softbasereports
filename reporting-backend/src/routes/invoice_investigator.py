@@ -6,6 +6,23 @@ from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 import json
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 invoice_investigator_bp = Blueprint('invoice_investigator', __name__)
 
 @invoice_investigator_bp.route('/api/investigate-invoice', methods=['GET'])
@@ -13,11 +30,11 @@ def investigate_invoice():
     """Show ALL fields from a specific invoice - No auth required for debugging"""
     try:
         db = AzureSQLService()
-
+        schema = get_tenant_schema()
         invoice_no = request.args.get('invoice_no', '110000014')
 
         # Get the invoice
-        query = f"SELECT * FROM ben002.InvoiceReg WHERE InvoiceNo = '{invoice_no}'"
+        query = f"SELECT * FROM {schema}.InvoiceReg WHERE InvoiceNo = '{invoice_no}'"
         invoice = db.execute_query(query)
 
         if not invoice:
@@ -29,7 +46,7 @@ def investigate_invoice():
         sale_dept = invoice_data.get('SaleDept')
         dept_data = None
         if sale_dept:
-            dept_query = f"SELECT * FROM ben002.Dept WHERE Dept = {sale_dept}"
+            dept_query = f"SELECT * FROM {schema}.Dept WHERE Dept = {sale_dept}"
             dept_result = db.execute_query(dept_query)
             if dept_result:
                 dept_data = dept_result[0]
@@ -37,20 +54,20 @@ def investigate_invoice():
         # Get all salesmen with the same SaleGroup
         salesmen_data = []
         if dept_data and dept_data.get('SaleGroup'):
-            salesmen_query = f"SELECT * FROM ben002.Salesman WHERE SalesGroup = {dept_data['SaleGroup']}"
+            salesmen_query = f"SELECT * FROM {schema}.Salesman WHERE SalesGroup = {dept_data['SaleGroup']}"
             salesmen_data = db.execute_query(salesmen_query)
 
         # Get Customer info
         bill_to = invoice_data.get('BillTo')
         customer_data = None
         if bill_to:
-            customer_query = f"SELECT * FROM ben002.Customer WHERE Number = '{bill_to}'"
+            customer_query = f"SELECT * FROM {schema}.Customer WHERE Number = '{bill_to}'"
             customer_result = db.execute_query(customer_query)
             if customer_result:
                 customer_data = customer_result[0]
 
         # Get WO info (join on WONo = InvoiceNo)
-        wo_query = f"SELECT * FROM ben002.WO WHERE WONo = {invoice_no}"
+        wo_query = f"SELECT * FROM {schema}.WO WHERE WONo = {invoice_no}"
         wo_data = db.execute_query(wo_query)
 
         html = f"""

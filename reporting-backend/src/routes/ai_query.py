@@ -11,6 +11,23 @@ from src.models.user import User
 from datetime import datetime, timedelta
 import calendar
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 ai_query_bp = Blueprint('ai_query', __name__)
 
@@ -100,7 +117,7 @@ def generate_sql_from_analysis(analysis):
         SELECT 
             'Linde' as Make,
             COUNT(*) as quantity_in_stock
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE RentalStatus = 'In Stock'
         AND UPPER(Make) LIKE '%LINDE%'
         AND (UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORKLIFT%')
@@ -121,7 +138,7 @@ def generate_sql_from_analysis(analysis):
                 WHEN p.OnHand <= (p.MinStock * 1.5) THEN 'LOW'
                 ELSE 'OK'
             END as Status
-        FROM ben002.Parts p
+        FROM {schema}.Parts p
         WHERE p.OnHand <= CASE 
             WHEN p.MinStock * 1.5 > 10 THEN p.MinStock * 1.5 
             ELSE 10 
@@ -149,7 +166,7 @@ def generate_sql_from_analysis(analysis):
             e.Make,
             e.Model,
             e.Sell as SaleAmount
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE e.RentalStatus = 'In Stock'
         AND e.Sell > 0
         AND e.Sell <= {price_limit}
@@ -169,8 +186,8 @@ def generate_sql_from_analysis(analysis):
             wo.WONo as ServiceOrderNo,
             wo.OpenDate as MaintenanceStartDate,
             wo.Comments
-        FROM ben002.Equipment e
-        INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.WO wo ON e.UnitNo = wo.UnitNo
         WHERE wo.Type = 'S'
         AND wo.ClosedDate IS NULL
         ORDER BY wo.OpenDate DESC
@@ -190,8 +207,8 @@ def generate_sql_from_analysis(analysis):
                 e.SerialNo,
                 e.Make,
                 e.Model
-            FROM ben002.Equipment e
-            INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE e.CustomerNo IS NOT NULL 
             AND e.CustomerNo != ''
             AND (e.RentalStatus LIKE '%rent%' 
@@ -211,7 +228,7 @@ def generate_sql_from_analysis(analysis):
                 e.SerialNo,
                 e.Make,
                 e.Model
-            FROM ben002.Equipment e
+            FROM {schema}.Equipment e
             WHERE e.RentalStatus = 'Rented'
             AND (UPPER(e.Model) LIKE '%FORK%' OR UPPER(e.Make) LIKE '%FORK%')
             ORDER BY e.SerialNo
@@ -227,8 +244,8 @@ def generate_sql_from_analysis(analysis):
             c.Name as customer,
             MAX(i.InvoiceDate) as last_purchase,
             DATEDIFF(day, MAX(i.InvoiceDate), GETDATE()) as days_since_purchase
-        FROM ben002.Customer c
-        LEFT JOIN ben002.InvoiceReg i ON c.ID = i.Customer
+        FROM {schema}.Customer c
+        LEFT JOIN {schema}.InvoiceReg i ON c.ID = i.Customer
         GROUP BY c.ID, c.Name
         HAVING MAX(i.InvoiceDate) < '{six_months_ago.strftime('%Y-%m-%d')}'
            OR MAX(i.InvoiceDate) IS NULL
@@ -243,8 +260,8 @@ def generate_sql_from_analysis(analysis):
             ar.CustomerNo,
             c.Name as customer,
             SUM(ar.Amount) as balance
-        FROM ben002.ARDetail ar
-        INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
+        FROM {schema}.ARDetail ar
+        INNER JOIN {schema}.Customer c ON ar.CustomerNo = c.Number
         WHERE ar.Amount > 0
         GROUP BY ar.CustomerNo, c.Name
         HAVING SUM(ar.Amount) > 0
@@ -260,7 +277,7 @@ def generate_sql_from_analysis(analysis):
         SELECT TOP 20
             i.BillToName as customer,
             AVG(i.GrandTotal) as average_value
-        FROM ben002.InvoiceReg i
+        FROM {schema}.InvoiceReg i
         WHERE i.GrandTotal > 0
         AND i.BillToName IS NOT NULL
         GROUP BY i.BillToName
@@ -282,8 +299,8 @@ def generate_sql_from_analysis(analysis):
         SELECT DISTINCT
             wp.PartNo,
             wp.Description
-        FROM ben002.WOParts wp
-        INNER JOIN ben002.WO wo ON wp.WONo = wo.WONo
+        FROM {schema}.WOParts wp
+        INNER JOIN {schema}.WO wo ON wp.WONo = wo.WONo
         WHERE {last_week_filter}
         AND (wp.PartNo LIKE 'L%' OR UPPER(wp.Description) LIKE '%LINDE%')
         AND wp.BOQty > 0
@@ -303,8 +320,8 @@ def generate_sql_from_analysis(analysis):
                 WHEN wo.Comments IS NOT NULL THEN wo.Comments
                 ELSE 'Service for ' + ISNULL(wo.UnitNo, 'Equipment')
             END as service
-        FROM ben002.WO wo
-        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        FROM {schema}.WO wo
+        LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
         WHERE wo.Type = 'S'
         AND CAST(wo.ScheduleDate AS DATE) = '{tomorrow_str}'
         AND wo.ClosedDate IS NULL
@@ -318,7 +335,7 @@ def generate_sql_from_analysis(analysis):
             p.PartNo,
             p.Description,
             p.OnHand as QtyOnHand
-        FROM ben002.Parts p
+        FROM {schema}.Parts p
         WHERE p.OnHand < 10
         AND p.PartNo NOT LIKE '%OIL%'
         AND p.PartNo NOT LIKE '%GREASE%'
@@ -337,7 +354,7 @@ def generate_sql_from_analysis(analysis):
         SELECT TOP 1
             wo.Technician as technician,
             COUNT(DISTINCT wo.WONo) as service_count
-        FROM ben002.WO wo
+        FROM {schema}.WO wo
         WHERE wo.Type = 'S'
         AND wo.ClosedDate IS NOT NULL
         AND {month_filter}
@@ -356,9 +373,9 @@ def generate_sql_from_analysis(analysis):
         SELECT DISTINCT
             c.Name as customer,
             e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
-        FROM ben002.RentalHistory rh
-        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.RentalHistory rh
+        INNER JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE rh.Year = {current_year}
         AND rh.Month = {current_month}
         AND rh.DaysRented > 0
@@ -371,9 +388,9 @@ def generate_sql_from_analysis(analysis):
             e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental,
             DATEADD(day, 30, wo.OpenDate) as due_date,
             DATEDIFF(day, DATEADD(day, 30, wo.OpenDate), GETDATE()) as overdue
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        INNER JOIN ben002.WO wo ON e.UnitNo = wo.UnitNo
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
+        INNER JOIN {schema}.WO wo ON e.UnitNo = wo.UnitNo
         WHERE e.CustomerNo IS NOT NULL 
         AND e.CustomerNo != ''
         AND (e.RentalStatus LIKE '%rent%' 
@@ -403,9 +420,9 @@ def generate_sql_from_analysis(analysis):
             c.Name as CustomerName,
             rh.DaysRented,
             rh.RentAmount
-        FROM ben002.RentalHistory rh
-        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.RentalHistory rh
+        INNER JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE rh.Year = {current_year}
         AND rh.Month = {current_month}
         AND rh.DaysRented > 0
@@ -419,8 +436,8 @@ def generate_sql_from_analysis(analysis):
         SELECT 
             e.UnitNo as equipment,
             c.Name as customer
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.CustomerNo IS NOT NULL 
         AND e.CustomerNo != ''
         AND (e.RentalStatus LIKE '%rent%' 
@@ -442,8 +459,8 @@ def generate_sql_from_analysis(analysis):
             e.Make,
             e.Model,
             c.Name as CustomerName
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         ORDER BY c.Name, e.UnitNo
         """
@@ -472,7 +489,7 @@ def generate_sql_from_analysis(analysis):
         SELECT TOP {limit}
             i.BillToName as CustomerName,
             SUM(i.GrandTotal) as TotalRevenue
-        FROM ben002.InvoiceReg i
+        FROM {schema}.InvoiceReg i
         WHERE {date_filter}
         AND i.BillToName IS NOT NULL
         GROUP BY i.BillToName
@@ -501,8 +518,8 @@ def generate_sql_from_analysis(analysis):
                 WHEN eh.Description LIKE '%LINDE%' THEN 'Linde'
                 ELSE 'Other'
             END as Make
-        FROM ben002.InvoiceReg i
-        INNER JOIN ben002.EquipmentHistory eh ON i.InvoiceNo = eh.WONo
+        FROM {schema}.InvoiceReg i
+        INNER JOIN {schema}.EquipmentHistory eh ON i.InvoiceNo = eh.WONo
         WHERE {date_filter}
         AND eh.EntryType = 'SALE'
         {make_filter}
@@ -542,7 +559,7 @@ def generate_sql_from_analysis(analysis):
         SELECT TOP 1
             'Top Salesperson' as salesperson,
             SUM(i.GrandTotal) as sales
-        FROM ben002.InvoiceReg i
+        FROM {schema}.InvoiceReg i
         WHERE {date_filter}
         """
     
@@ -623,7 +640,7 @@ def generate_sql_from_analysis(analysis):
             AVG(GrandTotal) as average_service_invoice,
             MIN(InvoiceDate) as period_start,
             MAX(InvoiceDate) as period_end
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {date_filter}
         AND Department IN (10, 40, 45)  -- Service departments (10=Service, 40=Field Service, 45=Shop Service)
         """
@@ -636,8 +653,8 @@ def generate_sql_from_analysis(analysis):
         SELECT DISTINCT
             c.Name as customer,
             e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.CustomerNo IS NOT NULL 
         AND e.CustomerNo != ''
         AND (e.RentalStatus LIKE '%rent%' 
@@ -662,9 +679,9 @@ def generate_sql_from_analysis(analysis):
             e.Model,
             rc.EndDate as DueDate,
             DATEDIFF(day, rc.EndDate, GETDATE()) as DaysOverdue
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
-        INNER JOIN ben002.RentalContract rc ON e.UnitNo = rc.UnitNo
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
+        INNER JOIN {schema}.RentalContract rc ON e.UnitNo = rc.UnitNo
         WHERE e.RentalStatus = 'Rented'
         AND rc.EndDate < GETDATE()
         ORDER BY DaysOverdue DESC
@@ -684,8 +701,8 @@ def generate_sql_from_analysis(analysis):
             e.ModelYear,
             e.RentalStatus,
             c.Name as CustomerName
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Rented'
         AND UPPER(c.Name) LIKE '%POLARIS%'
         ORDER BY e.UnitNo
@@ -703,7 +720,7 @@ def generate_sql_from_analysis(analysis):
         #     COUNT(DISTINCT rh.SerialNo) as equipment_count,
         #     SUM(rh.DaysRented) as total_days_rented,
         #     SUM(rh.RentAmount) as total_rental_sales
-        # FROM ben002.RentalHistory rh
+        # FROM {schema}.RentalHistory rh
         # WHERE rh.Year = {current_year}
         # AND rh.Month = {current_month}
         # """
@@ -763,7 +780,7 @@ def generate_sql_from_analysis(analysis):
             AVG(GrandTotal) as average_rental_invoice,
             MIN(InvoiceDate) as period_start,
             MAX(InvoiceDate) as period_end
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {date_filter}
         AND SaleCode IN ('RENTR', 'RENTRS')
         """
@@ -826,7 +843,7 @@ def generate_sql_from_analysis(analysis):
             AVG(ISNULL(LaborTaxable, 0) + ISNULL(LaborNonTax, 0)) as average_labor_per_invoice,
             MIN(InvoiceDate) as period_start,
             MAX(InvoiceDate) as period_end
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {date_filter}
         AND (LaborTaxable > 0 OR LaborNonTax > 0)
         """
@@ -858,7 +875,7 @@ def generate_sql_from_analysis(analysis):
             AVG(ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) as average_parts_per_invoice,
             MIN(InvoiceDate) as period_start,
             MAX(InvoiceDate) as period_end
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {date_filter}
         AND (PartsTaxable > 0 OR PartsNonTax > 0)
         """
@@ -942,7 +959,7 @@ def generate_sql_from_analysis(analysis):
                 AVG(GrandTotal) as average_sale,
                 MIN(InvoiceDate) as period_start,
                 MAX(InvoiceDate) as period_end
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE {date_filter}
             """
         else:
@@ -953,7 +970,7 @@ def generate_sql_from_analysis(analysis):
                 Customer,
                 BillToName,
                 GrandTotal
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE {date_filter}
             ORDER BY InvoiceDate DESC
             """
@@ -967,8 +984,8 @@ def generate_sql_from_analysis(analysis):
             c.Name as CustomerName,
             COUNT(DISTINCT ar.InvoiceNo) as OutstandingInvoices,
             SUM(ar.Amount) as TotalOutstanding
-        FROM ben002.ARDetail ar
-        INNER JOIN ben002.Customer c ON ar.CustomerNo = c.Number
+        FROM {schema}.ARDetail ar
+        INNER JOIN {schema}.Customer c ON ar.CustomerNo = c.Number
         WHERE ar.Amount > 0
         GROUP BY c.ID, c.Name
         HAVING SUM(ar.Amount) > 0
@@ -986,8 +1003,8 @@ def generate_sql_from_analysis(analysis):
             c.State,
             s.LastSaleDate,
             DATEDIFF(day, s.LastSaleDate, GETDATE()) as DaysSinceLastSale
-        FROM ben002.Customer c
-        LEFT JOIN ben002.Sales s ON c.Number = s.CustomerNo
+        FROM {schema}.Customer c
+        LEFT JOIN {schema}.Sales s ON c.Number = s.CustomerNo
         WHERE s.LastSaleDate < DATEADD(month, -6, GETDATE())
            OR s.LastSaleDate IS NULL
         ORDER BY s.LastSaleDate ASC
@@ -1000,7 +1017,7 @@ def generate_sql_from_analysis(analysis):
         SELECT TOP 20
             i.BillToName as customer,
             AVG(i.GrandTotal) as average_value
-        FROM ben002.InvoiceReg i
+        FROM {schema}.InvoiceReg i
         WHERE i.InvoiceDate >= DATEADD(year, -1, GETDATE())
         AND i.BillToName IS NOT NULL
         GROUP BY i.BillToName
@@ -1078,20 +1095,20 @@ def generate_sql_from_analysis(analysis):
                     ISNULL(parts.PartsCost, 0) as PartsCost,
                     ISNULL(misc.MiscCost, 0) as MiscCost,
                     ISNULL(labor.LaborCost, 0) + ISNULL(parts.PartsCost, 0) + ISNULL(misc.MiscCost, 0) as TotalCost
-                FROM ben002.WO wo
+                FROM {schema}.WO wo
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell) as LaborCost
-                    FROM ben002.WOLabor
+                    FROM {schema}.WOLabor
                     GROUP BY WONo
                 ) labor ON wo.WONo = labor.WONo
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell * Qty) as PartsCost
-                    FROM ben002.WOParts
+                    FROM {schema}.WOParts
                     GROUP BY WONo
                 ) parts ON wo.WONo = parts.WONo
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell) as MiscCost
-                    FROM ben002.WOMisc
+                    FROM {schema}.WOMisc
                     GROUP BY WONo
                 ) misc ON wo.WONo = misc.WONo
                 WHERE 1=1{date_filter}
@@ -1118,7 +1135,7 @@ def generate_sql_from_analysis(analysis):
                 COUNT(CASE WHEN Type = 'I' THEN 1 END) as internal_orders,
                 COUNT(CASE WHEN ClosedDate IS NULL THEN 1 END) as open_orders,
                 COUNT(CASE WHEN ClosedDate IS NOT NULL THEN 1 END) as closed_orders
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE 1=1{date_filter}
             """
         else:
@@ -1132,7 +1149,7 @@ def generate_sql_from_analysis(analysis):
                 UnitNo,
                 CompletedDate,
                 ClosedDate
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE 1=1{date_filter}
             ORDER BY OpenDate DESC
             """
@@ -1153,8 +1170,8 @@ def generate_sql_from_analysis(analysis):
             wo.ScheduleDate as AppointmentTime,
             wo.Technician,
             wo.Comments
-        FROM ben002.WO wo
-        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        FROM {schema}.WO wo
+        LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
         WHERE wo.Type = 'S'
         AND CAST(wo.ScheduleDate AS DATE) = '{tomorrow_str}'
         AND wo.ClosedDate IS NULL
@@ -1171,8 +1188,8 @@ def generate_sql_from_analysis(analysis):
             COUNT(DISTINCT wo.WONo) as CompletedServices,
             SUM(wl.Hours) as TotalHours,
             AVG(wl.Hours) as AvgHoursPerService
-        FROM ben002.WO wo
-        LEFT JOIN ben002.WOLabor wl ON wo.WONo = wl.WONo
+        FROM {schema}.WO wo
+        LEFT JOIN {schema}.WOLabor wl ON wo.WONo = wl.WONo
         WHERE wo.Type = 'S'
         AND wo.ClosedDate IS NOT NULL
         AND {date_filter}
@@ -1198,7 +1215,7 @@ def generate_sql_from_analysis(analysis):
             COUNT(CASE WHEN CloseDate IS NOT NULL THEN 1 END) as closed_claims,
             SUM(TotalLabor + TotalParts) as total_service_cost,
             AVG(TotalLabor + TotalParts) as avg_service_cost
-        FROM ben002.ServiceClaim
+        FROM {schema}.ServiceClaim
         WHERE 1=1{date_filter}
         """
     
@@ -1221,10 +1238,10 @@ def generate_sql_from_analysis(analysis):
                 wp.BOQty as BackorderQty,
                 p.OnHand as CurrentStock,
                 c.Name as CustomerName
-            FROM ben002.WOParts wp
-            INNER JOIN ben002.WO wo ON wp.WONo = wo.WONo
-            LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.ID
+            FROM {schema}.WOParts wp
+            INNER JOIN {schema}.WO wo ON wp.WONo = wo.WONo
+            LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.ID
             WHERE {date_filter}
             AND (wp.PartNo LIKE 'L%' OR UPPER(wp.Description) LIKE '%LINDE%')
             AND wp.BOQty > 0
@@ -1237,7 +1254,7 @@ def generate_sql_from_analysis(analysis):
                 p.PartNo,
                 p.Description,
                 p.OnHand as QtyOnHand
-            FROM ben002.Parts p
+            FROM {schema}.Parts p
             WHERE p.OnHand <= ISNULL(p.MinStock, 10)
             ORDER BY p.OnHand ASC
             """
@@ -1250,7 +1267,7 @@ def generate_sql_from_analysis(analysis):
                 Bin,
                 Cost,
                 List as Price
-            FROM ben002.Parts
+            FROM {schema}.Parts
             WHERE OnHand < 10
             ORDER BY OnHand ASC
             """
@@ -1263,7 +1280,7 @@ def generate_sql_from_analysis(analysis):
                 Bin,
                 Cost,
                 List as Price
-            FROM ben002.Parts
+            FROM {schema}.Parts
             WHERE OnHand > 0
             ORDER BY OnHand DESC
             """
@@ -1326,7 +1343,7 @@ def check_sale_codes():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get all unique SaleCodes with counts
         sale_codes_query = """
         SELECT 
@@ -1335,7 +1352,7 @@ def check_sale_codes():
             SUM(GrandTotal) as total_sales,
             MIN(InvoiceDate) as first_invoice,
             MAX(InvoiceDate) as last_invoice
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-07-01'
         GROUP BY SaleCode
         ORDER BY total_sales DESC
@@ -1349,7 +1366,7 @@ def check_sale_codes():
             SUM(GrandTotal) as total_sales,
             MIN(InvoiceDate) as first_invoice,
             MAX(InvoiceDate) as last_invoice
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-07-01'
         AND Department IS NOT NULL
         GROUP BY Department
@@ -1380,7 +1397,7 @@ def test_date_ranges():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         results = {}
         
         # Test 1: Current fiscal year (Nov 1, 2024 - Oct 31, 2025)
@@ -1389,7 +1406,7 @@ def test_date_ranges():
             '2024-11-01 to present' as period,
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2024-11-01'
         """
         results['current_fiscal'] = db.execute_query(query1)
@@ -1400,7 +1417,7 @@ def test_date_ranges():
             '2023-11-01 to 2024-10-31' as period,
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2023-11-01' AND InvoiceDate <= '2024-10-31'
         """
         results['previous_fiscal'] = db.execute_query(query2)
@@ -1411,7 +1428,7 @@ def test_date_ranges():
             '2023-11-01 to present' as period,
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2023-11-01'
         """
         results['both_fiscal_years'] = db.execute_query(query3)
@@ -1422,7 +1439,7 @@ def test_date_ranges():
             '2024-01-01 to 2024-12-31' as period,
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2024-01-01' AND InvoiceDate <= '2024-12-31'
         """
         results['calendar_2024'] = db.execute_query(query4)
@@ -1435,7 +1452,7 @@ def test_date_ranges():
             SUM(GrandTotal) as total_sales,
             MIN(InvoiceDate) as first_invoice,
             MAX(InvoiceDate) as last_invoice
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         """
         results['all_time'] = db.execute_query(query5)
         
@@ -1445,7 +1462,7 @@ def test_date_ranges():
             'Last 12 months' as period,
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
         """
         results['last_12_months'] = db.execute_query(query6)
@@ -1467,13 +1484,13 @@ def test_sql():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Test 1: Check if Customer table has data
-        test1 = "SELECT TOP 5 ID, Name FROM ben002.Customer ORDER BY ID"
+        test1 = "SELECT TOP 5 ID, Name FROM {schema}.Customer ORDER BY ID"
         results1 = db.execute_query(test1)
         
         # Test 2: Check if InvoiceReg has data
-        test2 = "SELECT TOP 5 InvoiceNo, Customer, GrandTotal FROM ben002.InvoiceReg ORDER BY InvoiceDate DESC"
+        test2 = "SELECT TOP 5 InvoiceNo, Customer, GrandTotal FROM {schema}.InvoiceReg ORDER BY InvoiceDate DESC"
         results2 = db.execute_query(test2)
         
         # Test 3: Try simple join
@@ -1484,8 +1501,8 @@ def test_sql():
             i.InvoiceNo,
             i.Customer as InvoiceCustomerID,
             i.GrandTotal
-        FROM ben002.Customer c
-        INNER JOIN ben002.InvoiceReg i ON c.ID = i.Customer
+        FROM {schema}.Customer c
+        INNER JOIN {schema}.InvoiceReg i ON c.ID = i.Customer
         """
         results3 = db.execute_query(test3)
         
@@ -1496,7 +1513,7 @@ def test_sql():
             SQL_VARIANT_PROPERTY(c.ID, 'BaseType') as CustomerIDType,
             i.Customer as InvoiceCustomer,
             SQL_VARIANT_PROPERTY(i.Customer, 'BaseType') as InvoiceCustomerType
-        FROM ben002.Customer c, ben002.InvoiceReg i
+        FROM {schema}.Customer c, {schema}.InvoiceReg i
         """
         results4 = db.execute_query(test4)
         
@@ -1520,7 +1537,7 @@ def check_rental_history():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get current rentals from RentalHistory
         current_year = datetime.now().year
         current_month = datetime.now().month
@@ -1537,9 +1554,9 @@ def check_rental_history():
             e.Model,
             e.CustomerNo,
             c.Name as CustomerName
-        FROM ben002.RentalHistory rh
-        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.RentalHistory rh
+        INNER JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE rh.Year = {current_year}
         AND rh.Month = {current_month}
         AND rh.DaysRented > 0
@@ -1556,7 +1573,7 @@ def check_rental_history():
             COUNT(DISTINCT SerialNo) as EquipmentCount,
             SUM(DaysRented) as TotalDaysRented,
             SUM(RentAmount) as TotalRevenue
-        FROM ben002.RentalHistory
+        FROM {schema}.RentalHistory
         WHERE Year >= {current_year - 1}
         GROUP BY Year, Month
         ORDER BY Year DESC, Month DESC
@@ -1583,13 +1600,13 @@ def check_rental_data():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Check rental status values
         status_query = """
         SELECT 
             RentalStatus,
             COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         GROUP BY RentalStatus
         ORDER BY count DESC
         """
@@ -1605,7 +1622,7 @@ def check_rental_data():
             Customer as CustomerFlag,
             Make,
             Model
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE CustomerNo IS NOT NULL
         AND CustomerNo != ''
         """
@@ -1620,8 +1637,8 @@ def check_rental_data():
             e.CustomerNo,
             c.Number,
             c.Name
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.CustomerNo IS NOT NULL
         """
         
@@ -1636,8 +1653,8 @@ def check_rental_data():
             e.RentalStatus,
             e.CustomerNo,
             c.Name as CustomerName
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.CustomerNo IS NOT NULL
         AND e.CustomerNo != ''
         AND (e.RentalStatus LIKE '%rent%' 
@@ -1674,7 +1691,7 @@ def check_customer_columns():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get column info
         columns_query = """
         SELECT 
@@ -1683,7 +1700,7 @@ def check_customer_columns():
             CHARACTER_MAXIMUM_LENGTH,
             IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'Customer'
         ORDER BY ORDINAL_POSITION
         """
@@ -1693,7 +1710,7 @@ def check_customer_columns():
         # Try to get sample data
         sample_query = """
         SELECT TOP 5 *
-        FROM ben002.Customer
+        FROM {schema}.Customer
         ORDER BY ID
         """
         
@@ -1718,7 +1735,7 @@ def inspect_invoice_columns():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Test 1: Get all columns from InvoiceReg table with their data types
         test1 = """
         SELECT 
@@ -1728,7 +1745,7 @@ def inspect_invoice_columns():
             IS_NULLABLE,
             COLUMN_DEFAULT
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'InvoiceReg'
         ORDER BY ORDINAL_POSITION
         """
@@ -1751,7 +1768,7 @@ def inspect_invoice_columns():
                     SELECT TOP 10
                         [{col_name}] as value,
                         COUNT(*) as count
-                    FROM ben002.InvoiceReg
+                    FROM {schema}.InvoiceReg
                     WHERE [{col_name}] IS NOT NULL
                     GROUP BY [{col_name}]
                     ORDER BY COUNT(*) DESC
@@ -1789,8 +1806,8 @@ def inspect_invoice_columns():
                     i.InvoiceNo,
                     i.[{col_name}] as InvoiceCustomerValue,
                     i.GrandTotal
-                FROM ben002.Customer c
-                INNER JOIN ben002.InvoiceReg i ON c.ID = i.[{col_name}]
+                FROM {schema}.Customer c
+                INNER JOIN {schema}.InvoiceReg i ON c.ID = i.[{col_name}]
                 """
                 results = db.execute_query(query)
                 join_tests[col_name] = {
@@ -1809,7 +1826,7 @@ def inspect_invoice_columns():
         # Test 5: Get a sample of InvoiceReg data to visually inspect
         test5 = """
         SELECT TOP 5 *
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         ORDER BY InvoiceDate DESC
         """
         sample_invoice_data = db.execute_query(test5)
@@ -1909,7 +1926,7 @@ def natural_language_query():
             # Execute the SQL query
             from src.services.azure_sql_service import AzureSQLService
             db = AzureSQLService()
-            
+            schema = get_tenant_schema()
             logger.info("Executing SQL query...")
             results = db.execute_query(sql_query)
             

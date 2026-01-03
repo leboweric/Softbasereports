@@ -5,6 +5,23 @@ from src.services.cache_service import cache_service
 import logging
 from datetime import datetime, timedelta
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 pm_report_bp = Blueprint('pm_report', __name__)
@@ -41,7 +58,9 @@ def _fetch_pms_due_data():
     db = AzureSQLService()
     
     # Query PM table for active PM schedules
-    query = """
+    schema = get_tenant_schema()
+
+    query = f"""
     SELECT 
         pm.Id,
         pm.SerialNo,
@@ -76,9 +95,9 @@ def _fetch_pms_due_data():
             WHEN pm.NextPMDate < GETDATE() THEN DATEDIFF(day, pm.NextPMDate, GETDATE()) * -1
             ELSE DATEDIFF(day, GETDATE(), pm.NextPMDate)
         END as DaysUntilDue
-    FROM ben002.PM pm
-    LEFT JOIN ben002.Customer c ON pm.ShipTo = c.Number
-    LEFT JOIN ben002.Equipment e ON pm.SerialNo = e.SerialNo
+    FROM {schema}.PM pm
+    LEFT JOIN {schema}.Customer c ON pm.ShipTo = c.Number
+    LEFT JOIN {schema}.Equipment e ON pm.SerialNo = e.SerialNo
     WHERE pm.PMCancelled = 0
     AND (
         pm.NextPMDate IS NULL 

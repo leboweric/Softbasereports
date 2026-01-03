@@ -4,6 +4,23 @@ import logging
 from datetime import datetime
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 full_schema_export_bp = Blueprint('full_schema_export', __name__)
 
@@ -13,14 +30,14 @@ def export_full_schema():
     """Export complete database schema for all tables"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get all tables in ben002 schema
         tables_query = """
         SELECT 
             TABLE_NAME,
             TABLE_TYPE
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         ORDER BY TABLE_NAME
         """
         
@@ -34,7 +51,7 @@ def export_full_schema():
         
         # Build comprehensive schema information
         schema_data = {
-            'schema_name': 'ben002',
+            'schema_name': '{schema}',
             'export_date': datetime.now().isoformat(),
             'tables': {}
         }
@@ -59,7 +76,7 @@ def export_full_schema():
                 COLUMN_DEFAULT,
                 ORDINAL_POSITION
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = '{table_name}'
             ORDER BY ORDINAL_POSITION
             """
@@ -70,7 +87,7 @@ def export_full_schema():
             pk_query = f"""
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = '{table_name}'
             AND CONSTRAINT_NAME LIKE 'PK%'
             """
@@ -91,7 +108,7 @@ def export_full_schema():
             JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE pk
                 ON rc.UNIQUE_CONSTRAINT_NAME = pk.CONSTRAINT_NAME
                 AND rc.UNIQUE_CONSTRAINT_SCHEMA = pk.CONSTRAINT_SCHEMA
-            WHERE fk.TABLE_SCHEMA = 'ben002' 
+            WHERE fk.TABLE_SCHEMA = '{schema}' 
             AND fk.TABLE_NAME = '{table_name}'
             """
             
@@ -106,7 +123,7 @@ def export_full_schema():
             # Get row count (for small tables only)
             row_count = None
             try:
-                count_query = f"SELECT COUNT(*) as count FROM ben002.{table_name}"
+                count_query = f"SELECT COUNT(*) as count FROM {schema}.{table_name}"
                 count_result = db.execute_query(count_query)
                 if count_result:
                     row_count = count_result[0]['count']
@@ -180,12 +197,12 @@ def export_schema_markdown():
     """Export schema as formatted markdown for CLAUDE.md"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get all tables
         tables_query = """
         SELECT TABLE_NAME, TABLE_TYPE
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         ORDER BY TABLE_NAME
         """
         
@@ -227,11 +244,11 @@ def export_schema_markdown():
             LEFT JOIN (
                 SELECT COLUMN_NAME
                 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-                WHERE TABLE_SCHEMA = 'ben002' 
+                WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = '{table_name}'
                 AND CONSTRAINT_NAME LIKE 'PK%'
             ) pk ON c.COLUMN_NAME = pk.COLUMN_NAME
-            WHERE c.TABLE_SCHEMA = 'ben002' 
+            WHERE c.TABLE_SCHEMA = '{schema}' 
             AND c.TABLE_NAME = '{table_name}'
             ORDER BY c.ORDINAL_POSITION
             """
@@ -240,7 +257,7 @@ def export_schema_markdown():
             
             # Get row count
             try:
-                count_result = db.execute_query(f"SELECT COUNT(*) as count FROM ben002.{table_name}")
+                count_result = db.execute_query(f"SELECT COUNT(*) as count FROM {schema}.{table_name}")
                 row_count = count_result[0]['count'] if count_result else 'Unknown'
             except:
                 row_count = 'Error'
@@ -263,7 +280,7 @@ def export_schema_markdown():
             # Add sample queries
             markdown_lines.append(f"\nSample query:")
             markdown_lines.append(f"```sql")
-            markdown_lines.append(f"SELECT TOP 10 * FROM ben002.{table_name}")
+            markdown_lines.append(f"SELECT TOP 10 * FROM {schema}.{table_name}")
             markdown_lines.append(f"```")
         
         # Add summary
@@ -273,7 +290,7 @@ def export_schema_markdown():
             f"- Total tables: {total_tables}",
             f"- Schema: ben002",
             "\n## Important Notes",
-            "- All table names should be prefixed with 'ben002.' when querying",
+            "- All table names should be prefixed with '{schema}.' when querying",
             "- Use exact column names as shown above (case-sensitive)",
             "- Foreign key relationships may exist but are not always enforced at the database level"
         ])

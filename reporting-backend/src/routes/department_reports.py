@@ -1,7 +1,8 @@
 # Department-specific report endpoints
 # Version 1.0.1 - Added Guaranteed Maintenance profitability endpoint
 from flask import jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.models.user import User
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from flask import request
@@ -13,6 +14,18 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(int(user_id))
+        if user and user.organization and user.organization.database_schema:
+            return user.organization.database_schema
+        return 'ben002'  # Fallback for backward compatibility
+    except Exception as e:
+        logger.error(f"Error getting tenant schema: {e}")
+        return 'ben002'
 
 # Salesman name aliases - maps variant names to canonical names
 # This handles cases where the same person has multiple entries in Softbase
@@ -42,6 +55,7 @@ def register_department_routes(reports_bp):
         """Get service department revenue pace comparing current month to previous month"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get current date info
             now = datetime.now()
@@ -61,7 +75,7 @@ def register_department_routes(reports_bp):
             # Using LaborTaxable + LaborNonTax to match the main labor revenue query
             current_query = f"""
             SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {current_year}
                 AND MONTH(InvoiceDate) = {current_month}
                 AND DAY(InvoiceDate) <= {current_day}
@@ -70,7 +84,7 @@ def register_department_routes(reports_bp):
             
             prev_query = f"""
             SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND DAY(InvoiceDate) <= {current_day}
@@ -80,7 +94,7 @@ def register_department_routes(reports_bp):
             # Get full previous month total for comparison
             full_month_query = f"""
             SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
@@ -93,7 +107,7 @@ def register_department_routes(reports_bp):
                     YEAR(InvoiceDate) as year,
                     MONTH(InvoiceDate) as month,
                     SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
                     AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
                     AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
@@ -186,6 +200,7 @@ def register_department_routes(reports_bp):
         try:
             from src.routes.dashboard_optimized import DashboardQueries
             db = get_db()
+            schema = get_tenant_schema()
             queries = DashboardQueries(db)
             
             result = queries.get_open_parts_work_orders()
@@ -201,8 +216,12 @@ def register_department_routes(reports_bp):
         """Get detailed list of open Parts work orders"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
-            query = """
+            schema = get_tenant_schema()
+
+            
+            query = f"""
             SELECT 
                 w.WONo,
                 w.Type,
@@ -215,8 +234,8 @@ def register_department_routes(reports_bp):
                 COALESCE(p.parts_total, 0) as parts_total,
                 COALESCE(m.misc_total, 0) as misc_total,
                 COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0) as total_value
-            FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+            FROM {schema}.WO w
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
             LEFT JOIN (
                 SELECT 
                     WONo, 
@@ -224,12 +243,12 @@ def register_department_routes(reports_bp):
                     STRING_AGG(CAST(PartNo + ' (' + CAST(CAST(Qty AS INT) AS VARCHAR) + ')' AS VARCHAR(MAX)), ', ') 
                         WITHIN GROUP (ORDER BY PartNo) as parts_list,
                     SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
+                FROM {schema}.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
+                FROM {schema}.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             WHERE w.ClosedDate IS NULL
@@ -288,6 +307,7 @@ def register_department_routes(reports_bp):
         """Diagnostic endpoint to check Parts work order status"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # First query for counts
             count_query = """
@@ -298,7 +318,7 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN Type = 'P' AND ClosedDate IS NOT NULL THEN 1 END) as parts_closed,
                 COUNT(CASE WHEN Type = 'P' AND InvoiceDate IS NOT NULL THEN 1 END) as parts_invoiced,
                 COUNT(CASE WHEN Type = 'P' AND CompletedDate IS NOT NULL AND ClosedDate IS NULL THEN 1 END) as parts_awaiting_invoice
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE DeletionTime IS NULL
             """
             
@@ -306,15 +326,15 @@ def register_department_routes(reports_bp):
             value_query = """
             SELECT 
                 SUM(COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0)) as open_parts_value
-            FROM ben002.WO w
+            FROM {schema}.WO w
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_total
-                FROM ben002.WOParts
+                FROM {schema}.WOParts
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_total
-                FROM ben002.WOMisc
+                FROM {schema}.WOMisc
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             WHERE w.Type = 'P' 
@@ -348,7 +368,7 @@ def register_department_routes(reports_bp):
                     WHEN ClosedDate IS NULL THEN 'Awaiting Invoice'
                     ELSE 'Closed/Invoiced'
                 END as Status
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE Type = 'P' AND DeletionTime IS NULL
             AND WONo NOT LIKE '91%'  -- Exclude quotes (quotes start with 91)
             ORDER BY WONo DESC
@@ -371,8 +391,12 @@ def register_department_routes(reports_bp):
         """Get detailed list of Parts work orders awaiting invoice"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
-            query = """
+            schema = get_tenant_schema()
+
+            
+            query = f"""
             SELECT 
                 w.WONo,
                 w.Type,
@@ -387,17 +411,17 @@ def register_department_routes(reports_bp):
                 COALESCE(p.parts_sell, 0) as parts_total,
                 COALESCE(m.misc_sell, 0) as misc_total,
                 COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as total_value
-            FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
-            LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
+            FROM {schema}.WO w
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
+            LEFT JOIN {schema}.Equipment e ON w.UnitNo = e.UnitNo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_sell 
-                FROM ben002.WOParts 
+                FROM {schema}.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_sell 
-                FROM ben002.WOMisc 
+                FROM {schema}.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             WHERE w.CompletedDate IS NOT NULL
@@ -457,12 +481,16 @@ def register_department_routes(reports_bp):
         """Get all unique work order types from the database"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
-            query = """
+            schema = get_tenant_schema()
+
+            
+            query = f"""
             SELECT DISTINCT 
                 Type,
                 COUNT(*) as count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE Type IS NOT NULL
             GROUP BY Type
             ORDER BY COUNT(*) DESC
@@ -503,8 +531,12 @@ def register_department_routes(reports_bp):
         """Get detailed list of Service, Shop, and PM work orders awaiting invoice"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
-            query = """
+            schema = get_tenant_schema()
+
+            
+            query = f"""
             SELECT 
                 w.WONo,
                 w.Type,
@@ -522,28 +554,28 @@ def register_department_routes(reports_bp):
                 COALESCE(m.misc_sell, 0) as misc_total,
                 COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) + 
                 COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as total_value
-            FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
-            LEFT JOIN ben002.Equipment e ON w.UnitNo = e.UnitNo
+            FROM {schema}.WO w
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
+            LEFT JOIN {schema}.Equipment e ON w.UnitNo = e.UnitNo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as labor_sell 
-                FROM ben002.WOLabor 
+                FROM {schema}.WOLabor 
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Amount) as quote_amount 
-                FROM ben002.WOQuote 
+                FROM {schema}.WOQuote 
                 WHERE Type = 'L'
                 GROUP BY WONo
             ) lq ON w.WONo = lq.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_sell 
-                FROM ben002.WOParts 
+                FROM {schema}.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_sell 
-                FROM ben002.WOMisc 
+                FROM {schema}.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             WHERE w.CompletedDate IS NOT NULL
@@ -610,6 +642,7 @@ def register_department_routes(reports_bp):
         """Get Service Department report data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Monthly Labor Revenue and Margins - Last 12 months
             # Using GLDetail for 100% accurate P&L matching
@@ -628,7 +661,7 @@ def register_department_routes(reports_bp):
                 -- Shop (410005 / 510005)
                 ABS(SUM(CASE WHEN AccountNo = '410005' THEN Amount ELSE 0 END)) as shop_revenue,
                 ABS(SUM(CASE WHEN AccountNo = '510005' THEN Amount ELSE 0 END)) as shop_cost
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE AccountNo IN ('410004', '410005', '510004', '510005')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
@@ -742,6 +775,7 @@ def register_department_routes(reports_bp):
         """Get parts department sales pace comparing current month to previous month"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get current date info
             now = datetime.now()
@@ -761,7 +795,7 @@ def register_department_routes(reports_bp):
             # Using PartsTaxable + PartsNonTax to match the main parts revenue query
             current_query = f"""
             SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {current_year}
                 AND MONTH(InvoiceDate) = {current_month}
                 AND DAY(InvoiceDate) <= {current_day}
@@ -770,7 +804,7 @@ def register_department_routes(reports_bp):
             
             prev_query = f"""
             SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND DAY(InvoiceDate) <= {current_day}
@@ -780,7 +814,7 @@ def register_department_routes(reports_bp):
             # Get full previous month total for comparison
             full_month_query = f"""
             SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
@@ -793,7 +827,7 @@ def register_department_routes(reports_bp):
                     YEAR(InvoiceDate) as year,
                     MONTH(InvoiceDate) as month,
                     SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
                     AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
                     AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
@@ -885,6 +919,7 @@ def register_department_routes(reports_bp):
         """Get Parts Department report data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Monthly Parts Revenue and Margins - Last 12 months
             # Using GLDetail for 100% accurate P&L matching
@@ -903,7 +938,7 @@ def register_department_routes(reports_bp):
                 -- Repair Order (410012 / 510012)
                 ABS(SUM(CASE WHEN AccountNo = '410012' THEN Amount ELSE 0 END)) as repair_order_revenue,
                 ABS(SUM(CASE WHEN AccountNo = '510012' THEN Amount ELSE 0 END)) as repair_order_cost
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE AccountNo IN ('410003', '410012', '510003', '510012')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
@@ -1017,6 +1052,7 @@ def register_department_routes(reports_bp):
         """Get top 10 parts by quantity sold in last 30 days"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             top_parts_query = """
             SELECT TOP 10
@@ -1033,9 +1069,9 @@ def register_department_routes(reports_bp):
                     WHEN MAX(p.OnHand) < 10 THEN 'Low Stock'
                     ELSE 'In Stock'
                 END as StockStatus
-            FROM ben002.WOParts wp
-            LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
-            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            FROM {schema}.WOParts wp
+            LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
+            INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
             WHERE w.OpenDate >= DATEADD(day, -30, GETDATE())
             AND wp.Qty > 0
             AND wp.Description NOT LIKE '%OIL%'
@@ -1081,6 +1117,7 @@ def register_department_routes(reports_bp):
         """Get parts reorder point alerts - identifies parts needing reorder"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Calculate average daily usage and current stock levels
             reorder_alert_query = """
@@ -1093,8 +1130,8 @@ def register_department_routes(reports_bp):
                     SUM(wp.Qty) as TotalQtyUsed,
                     DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1 as DaysInPeriod,
                     CAST(SUM(wp.Qty) AS FLOAT) / NULLIF(DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1, 0) as AvgDailyUsage
-                FROM ben002.WOParts wp
-                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
                 WHERE w.OpenDate >= DATEADD(day, -90, GETDATE())
                     AND wp.Qty > 0
                 GROUP BY wp.PartNo
@@ -1112,7 +1149,7 @@ def register_department_routes(reports_bp):
                     -- This should be replaced with actual reorder point field if available
                     0 as ReorderPoint,
                     0 as MinStock
-                FROM ben002.Parts
+                FROM {schema}.Parts
                 WHERE OnHand IS NOT NULL
                 GROUP BY PartNo
             )
@@ -1165,8 +1202,8 @@ def register_department_routes(reports_bp):
                 SELECT 
                     wp.PartNo,
                     CAST(SUM(wp.Qty) AS FLOAT) / NULLIF(DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1, 0) as AvgDailyUsage
-                FROM ben002.WOParts wp
-                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
                 WHERE w.OpenDate >= DATEADD(day, -90, GETDATE())
                     AND wp.Qty > 0
                 GROUP BY wp.PartNo
@@ -1176,7 +1213,7 @@ def register_department_routes(reports_bp):
                 SELECT 
                     PartNo,
                     MAX(OnHand) as OnHand
-                FROM ben002.Parts
+                FROM {schema}.Parts
                 GROUP BY PartNo
             )
             SELECT 
@@ -1252,6 +1289,7 @@ def register_department_routes(reports_bp):
         """Get parts velocity analysis - identifies fast vs slow moving inventory"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get time period from query params (default 365 days)
             days_back = int(request.args.get('days', 365))
@@ -1281,7 +1319,7 @@ def register_department_routes(reports_bp):
                         THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / MAX(p.OnHand)
                         ELSE 0
                     END as AnnualTurnoverRate
-                FROM ben002.Parts p
+                FROM {schema}.Parts p
                 LEFT JOIN (
                     SELECT 
                         wp.PartNo,
@@ -1294,8 +1332,8 @@ def register_department_routes(reports_bp):
                             THEN DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) / (COUNT(DISTINCT w.OpenDate) - 1)
                             ELSE NULL
                         END as AvgDaysBetweenOrders
-                    FROM ben002.WOParts wp
-                    INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                    FROM {schema}.WOParts wp
+                    INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
                     WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     GROUP BY wp.PartNo
                 ) wp ON p.PartNo = wp.PartNo
@@ -1352,14 +1390,14 @@ def register_department_routes(reports_bp):
                         THEN CAST(wp.TotalQtyMoved AS FLOAT) * (365.0 / {days_back}) / MAX(p.OnHand)
                         ELSE 0
                     END as AnnualTurnoverRate
-                FROM ben002.Parts p
+                FROM {schema}.Parts p
                 LEFT JOIN (
                     SELECT 
                         wp.PartNo,
                         SUM(wp.Qty) as TotalQtyMoved,
                         MAX(w.OpenDate) as LastMovementDate
-                    FROM ben002.WOParts wp
-                    INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                    FROM {schema}.WOParts wp
+                    INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
                     WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     GROUP BY wp.PartNo
                 ) wp ON p.PartNo = wp.PartNo
@@ -1405,8 +1443,8 @@ def register_department_routes(reports_bp):
                 COUNT(DISTINCT wp.WONo) as OrderCount,
                 SUM(wp.Qty) as TotalQuantity,
                 SUM(wp.Qty * wp.Cost) as TotalValue
-            FROM ben002.WOParts wp
-            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            FROM {schema}.WOParts wp
+            INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
             WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
             GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate)
             ORDER BY Year, Month
@@ -1484,6 +1522,7 @@ def register_department_routes(reports_bp):
         """Get parts demand forecast based on historical usage and trends"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get forecast period from query params (default 90 days)
             forecast_days = int(request.args.get('days', 90))
@@ -1499,8 +1538,8 @@ def register_department_routes(reports_bp):
                     MONTH(w.OpenDate) as Month,
                     SUM(wp.Qty) as MonthlyQty,
                     COUNT(DISTINCT wp.WONo) as OrderCount
-                FROM ben002.WOParts wp
-                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
                 WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
                     AND wp.Qty > 0
                 GROUP BY wp.PartNo, YEAR(w.OpenDate), MONTH(w.OpenDate)
@@ -1530,7 +1569,7 @@ def register_department_routes(reports_bp):
                     MAX(OnHand) as CurrentStock,
                     MAX(OnOrder) as OnOrder,
                     MAX(Cost) as UnitCost
-                FROM ben002.Parts
+                FROM {schema}.Parts
                 GROUP BY PartNo
             ),
             EquipmentCounts AS (
@@ -1539,8 +1578,8 @@ def register_department_routes(reports_bp):
                     wp.PartNo,
                     COUNT(DISTINCT CASE WHEN w.UnitNo IS NOT NULL THEN w.UnitNo END) as EquipmentCount,
                     0 as AvgEquipmentHours
-                FROM ben002.WOParts wp
-                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
                 WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
                 GROUP BY wp.PartNo
             )
@@ -1612,8 +1651,8 @@ def register_department_routes(reports_bp):
                 COUNT(DISTINCT wp.PartNo) as UniqueParts,
                 SUM(wp.Qty) as TotalQuantity,
                 COUNT(DISTINCT w.WONo) as WorkOrders
-            FROM ben002.WOParts wp
-            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
+            FROM {schema}.WOParts wp
+            INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
             WHERE w.OpenDate >= DATEADD(month, -12, GETDATE())
             GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate)
             ORDER BY Year, Month
@@ -1734,6 +1773,7 @@ def register_department_routes(reports_bp):
         """Get parts fill rate analysis - shows parts that were not in stock when ordered"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get the time period (default last 30 days)
             days_back = request.args.get('days', 30, type=int)
@@ -1759,9 +1799,9 @@ def register_department_routes(reports_bp):
                         ELSE 'In Stock'
                     END as StockStatus,
                     w.BillTo as Customer
-                FROM ben002.WOParts wp
-                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
+                LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
                 WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')  -- Linde parts
             )
@@ -1793,9 +1833,9 @@ def register_department_routes(reports_bp):
                         WHEN p.OnHand < wp.Qty THEN 'Insufficient Stock'
                         ELSE 'In Stock'
                     END as StockStatus
-                FROM ben002.WOParts wp
-                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
+                LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
                 WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
             )
@@ -1859,9 +1899,9 @@ def register_department_routes(reports_bp):
                         WHEN p.OnHand IS NULL OR p.OnHand = 0 OR p.OnHand < wp.Qty 
                         THEN 0 ELSE 1 
                     END) as FilledOrders
-                FROM ben002.WOParts wp
-                INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
+                LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
                 WHERE w.OpenDate >= DATEADD(month, -6, GETDATE())
                     AND (wp.PartNo LIKE 'L%' OR wp.Description LIKE '%LINDE%')
                 GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate)
@@ -1910,6 +1950,7 @@ def register_department_routes(reports_bp):
         """Get parts inventory value by bin location"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get optional location filter from query params
             location_filter = request.args.get('location', '')
@@ -1941,7 +1982,7 @@ def register_department_routes(reports_bp):
                     OnHand,
                     Cost,
                     CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                FROM ben002.Parts 
+                FROM {schema}.Parts 
                 WHERE Bin IS NOT NULL AND Bin != '' AND OnHand > 0
                 
                 UNION ALL
@@ -1954,7 +1995,7 @@ def register_department_routes(reports_bp):
                     OnHand,
                     Cost,
                     CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                FROM ben002.Parts 
+                FROM {schema}.Parts 
                 WHERE Bin1 IS NOT NULL AND Bin1 != '' AND OnHand > 0
                 
                 UNION ALL
@@ -1967,7 +2008,7 @@ def register_department_routes(reports_bp):
                     OnHand,
                     Cost,
                     CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                FROM ben002.Parts 
+                FROM {schema}.Parts 
                 WHERE Bin2 IS NOT NULL AND Bin2 != '' AND OnHand > 0
                 
                 UNION ALL
@@ -1980,7 +2021,7 @@ def register_department_routes(reports_bp):
                     OnHand,
                     Cost,
                     CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                FROM ben002.Parts 
+                FROM {schema}.Parts 
                 WHERE Bin3 IS NOT NULL AND Bin3 != '' AND OnHand > 0
                 
                 UNION ALL
@@ -1993,7 +2034,7 @@ def register_department_routes(reports_bp):
                     OnHand,
                     Cost,
                     CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                FROM ben002.Parts 
+                FROM {schema}.Parts 
                 WHERE Bin4 IS NOT NULL AND Bin4 != '' AND OnHand > 0
             ),
             LocationSummary AS (
@@ -2038,7 +2079,7 @@ def register_department_routes(reports_bp):
                 WITH AllBins AS (
                     SELECT 'Primary' as BinType, Bin as Location, PartNo, Description, OnHand, Cost,
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                    FROM ben002.Parts 
+                    FROM {schema}.Parts 
                     WHERE Bin IS NOT NULL AND Bin != '' AND OnHand > 0
                         AND UPPER(Bin) LIKE '%{safe_filter}%'
                     
@@ -2046,7 +2087,7 @@ def register_department_routes(reports_bp):
                     
                     SELECT 'Alt 1' as BinType, Bin1 as Location, PartNo, Description, OnHand, Cost,
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                    FROM ben002.Parts 
+                    FROM {schema}.Parts 
                     WHERE Bin1 IS NOT NULL AND Bin1 != '' AND OnHand > 0
                         AND UPPER(Bin1) LIKE '%{safe_filter}%'
                     
@@ -2054,7 +2095,7 @@ def register_department_routes(reports_bp):
                     
                     SELECT 'Alt 2' as BinType, Bin2 as Location, PartNo, Description, OnHand, Cost,
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                    FROM ben002.Parts 
+                    FROM {schema}.Parts 
                     WHERE Bin2 IS NOT NULL AND Bin2 != '' AND OnHand > 0
                         AND UPPER(Bin2) LIKE '%{safe_filter}%'
                     
@@ -2062,7 +2103,7 @@ def register_department_routes(reports_bp):
                     
                     SELECT 'Alt 3' as BinType, Bin3 as Location, PartNo, Description, OnHand, Cost,
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                    FROM ben002.Parts 
+                    FROM {schema}.Parts 
                     WHERE Bin3 IS NOT NULL AND Bin3 != '' AND OnHand > 0
                         AND UPPER(Bin3) LIKE '%{safe_filter}%'
                     
@@ -2070,7 +2111,7 @@ def register_department_routes(reports_bp):
                     
                     SELECT 'Alt 4' as BinType, Bin4 as Location, PartNo, Description, OnHand, Cost,
                            CAST(OnHand * Cost AS DECIMAL(10,2)) as TotalValue
-                    FROM ben002.Parts 
+                    FROM {schema}.Parts 
                     WHERE Bin4 IS NOT NULL AND Bin4 != '' AND OnHand > 0
                         AND UPPER(Bin4) LIKE '%{safe_filter}%'
                 )
@@ -2149,6 +2190,7 @@ def register_department_routes(reports_bp):
         """Get detailed invoice list for a specific employee's parts sales using OpenBy field"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             employee_id = request.args.get('employee_id')  # This is now the employee name
             start_date = request.args.get('start_date')
@@ -2185,7 +2227,7 @@ def register_department_routes(reports_bp):
                 GrandTotal,
                 SaleCode,
                 ISNULL(ClosedBy, OpenBy) as ClosedBy
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
                 AND SaleCode = 'CSTPRT'
                 AND OpenBy IS NOT NULL
@@ -2236,6 +2278,7 @@ def register_department_routes(reports_bp):
         """Get parts sales performance by employee using OpenBy field for actual names"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get date range from query params
             days_back = request.args.get('days', 30, type=int)
@@ -2259,7 +2302,7 @@ def register_department_routes(reports_bp):
                     AVG(ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) as AvgInvoiceValue,
                     MAX(InvoiceDate) as LastSaleDate,
                     MIN(InvoiceDate) as FirstSaleDate
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE (ISNULL(PartsTaxable, 0) > 0 OR ISNULL(PartsNonTax, 0) > 0)
                     AND SaleCode = 'CSTPRT'
                     AND OpenBy IS NOT NULL
@@ -2308,7 +2351,7 @@ def register_department_routes(reports_bp):
             check_columns_query = """
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = 'InvoiceReg'
                 AND (COLUMN_NAME LIKE '%Created%' 
                     OR COLUMN_NAME LIKE '%Changed%' 
@@ -2396,6 +2439,7 @@ def register_department_routes(reports_bp):
         """Get rental department revenue pace comparing current month to previous month"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get current date info
             now = datetime.now()
@@ -2415,7 +2459,7 @@ def register_department_routes(reports_bp):
             # Use RentalTaxable + RentalNonTax to match the monthly revenue calculation
             current_query = f"""
             SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {current_year}
                 AND MONTH(InvoiceDate) = {current_month}
                 AND DAY(InvoiceDate) <= {current_day}
@@ -2424,7 +2468,7 @@ def register_department_routes(reports_bp):
             
             prev_query = f"""
             SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND DAY(InvoiceDate) <= {current_day}
@@ -2434,7 +2478,7 @@ def register_department_routes(reports_bp):
             # Get full previous month total for comparison
             full_month_query = f"""
             SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {prev_year}
                 AND MONTH(InvoiceDate) = {prev_month}
                 AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
@@ -2447,7 +2491,7 @@ def register_department_routes(reports_bp):
                     YEAR(InvoiceDate) as year,
                     MONTH(InvoiceDate) as month,
                     SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
                     AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
                     AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
@@ -2539,21 +2583,22 @@ def register_department_routes(reports_bp):
         """Get Rental Department report data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # 1. Summary metrics
             summary_query = """
             SELECT 
                 -- Total Fleet Size
-                (SELECT COUNT(*) FROM ben002.Equipment 
+                (SELECT COUNT(*) FROM {schema}.Equipment 
                  WHERE WebRentalFlag = 1) as totalFleetSize,
                 
                 -- Units on Rent
-                (SELECT COUNT(*) FROM ben002.Equipment 
+                (SELECT COUNT(*) FROM {schema}.Equipment 
                  WHERE RentalStatus = 'Rented') as unitsOnRent,
                  
                 -- Monthly Revenue
                 (SELECT SUM(GrandTotal) 
-                 FROM ben002.InvoiceReg 
+                 FROM {schema}.InvoiceReg 
                  WHERE MONTH(InvoiceDate) = MONTH(GETDATE())
                  AND YEAR(InvoiceDate) = YEAR(GETDATE())) as monthlyRevenue
             """
@@ -2584,7 +2629,7 @@ def register_department_routes(reports_bp):
                 END as category,
                 COUNT(*) as total,
                 SUM(CASE WHEN RentalStatus = 'Rented' THEN 1 ELSE 0 END) as onRent
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE WebRentalFlag = 1
             GROUP BY 
                 CASE 
@@ -2619,9 +2664,9 @@ def register_department_routes(reports_bp):
                 NULL as endDate,  -- Would need return tracking
                 0 as dailyRate,   -- Would need rate table
                 'Active' as status
-            FROM ben002.WO w
+            FROM {schema}.WO w
             -- Equipment join removed - column mapping issues
-            -- JOIN ben002.Equipment e ON w.UnitNo = e.StockNo
+            -- JOIN {schema}.Equipment e ON w.UnitNo = e.StockNo
             WHERE w.Type = 'R' AND w.ClosedDate IS NULL
             ORDER BY w.OpenDate DESC
             """
@@ -2646,7 +2691,7 @@ def register_department_routes(reports_bp):
                 DATENAME(month, InvoiceDate) as month,
                 SUM(GrandTotal) as revenue,
                 COUNT(*) as rentals
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY DATENAME(month, InvoiceDate), MONTH(InvoiceDate), YEAR(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -2689,6 +2734,7 @@ def register_department_routes(reports_bp):
         """Get all unique SaleCodes to identify rental patterns"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get unique sale codes with counts
             codes_query = """
@@ -2697,8 +2743,8 @@ def register_department_routes(reports_bp):
                 w.SaleDept,
                 COUNT(*) as Count,
                 MIN(c.CustomerName) as SampleCustomer
-            FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.Customer
+            FROM {schema}.WO w
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Customer
             WHERE w.Type = 'S'
             AND w.OpenDate >= DATEADD(month, -3, GETDATE())
             GROUP BY w.SaleCode, w.SaleDept
@@ -2716,8 +2762,8 @@ def register_department_routes(reports_bp):
                 w.BillTo,
                 c.CustomerName,
                 w.Comments
-            FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.Customer
+            FROM {schema}.WO w
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Customer
             WHERE w.Type = 'S'
             AND (
                 c.CustomerName LIKE '%Rental%' OR
@@ -2746,6 +2792,7 @@ def register_department_routes(reports_bp):
         """Diagnostic endpoint to understand WO table structure"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get column information for WO table
             schema_query = """
@@ -2755,7 +2802,7 @@ def register_department_routes(reports_bp):
                 CHARACTER_MAXIMUM_LENGTH,
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'WO'
             ORDER BY ORDINAL_POSITION
             """
@@ -2765,7 +2812,7 @@ def register_department_routes(reports_bp):
             # Get a sample work order to see actual data
             sample_query = """
             SELECT TOP 1 *
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE Type = 'S'
             ORDER BY OpenDate DESC
             """
@@ -2784,14 +2831,14 @@ def register_department_routes(reports_bp):
             labor_cols_query = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'WOLabor'
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'WOLabor'
             ORDER BY ORDINAL_POSITION
             """
             
             parts_cols_query = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'WOParts'
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'WOParts'
             ORDER BY ORDINAL_POSITION
             """
             
@@ -2840,6 +2887,7 @@ def register_department_routes(reports_bp):
         """Internal function to fetch rental service report data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Optimized query for rental work orders based on BillTo and Department
             optimized_query = """
@@ -2874,7 +2922,7 @@ def register_department_routes(reports_bp):
                     END as DaysSinceCompleted,
                     w.SaleCode,
                     w.SaleDept
-                FROM ben002.WO w
+                FROM {schema}.WO w
                 WHERE w.BillTo IN ('900006', '900066')  -- Specific BillTo customers
                 AND w.SaleDept IN ('47', '45', '40')  -- PM (47), Shop Service (45), Field Service (40)
                 AND (
@@ -2900,7 +2948,7 @@ def register_department_routes(reports_bp):
                     WONo,
                     SUM(Cost) as LaborCost,
                     SUM(Sell) as LaborSell
-                FROM ben002.WOLabor
+                FROM {schema}.WOLabor
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
             ),
@@ -2909,7 +2957,7 @@ def register_department_routes(reports_bp):
                 SELECT 
                     WONo,
                     SUM(Amount) as QuoteAmount
-                FROM ben002.WOQuote
+                FROM {schema}.WOQuote
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                   AND Type = 'L'
                 GROUP BY WONo
@@ -2919,7 +2967,7 @@ def register_department_routes(reports_bp):
                     WONo,
                     SUM(Cost) as PartsCost,
                     SUM(Sell) as PartsSell
-                FROM ben002.WOParts
+                FROM {schema}.WOParts
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
             ),
@@ -2928,7 +2976,7 @@ def register_department_routes(reports_bp):
                     WONo,
                     SUM(Cost) as MiscCost,
                     SUM(Sell) as MiscSell
-                FROM ben002.WOMisc
+                FROM {schema}.WOMisc
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
             )
@@ -2958,15 +3006,15 @@ def register_department_routes(reports_bp):
                     wr.SerialNo, 
                     wr.UnitNo, 
                     MAX(wo.WONo) as MaxWONo
-                FROM ben002.WORental wr
-                INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                FROM {schema}.WORental wr
+                INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
                 WHERE wo.Type = 'R' 
                 AND wo.RentalContractNo IS NOT NULL 
                 AND wo.RentalContractNo > 0
                 GROUP BY wr.SerialNo, wr.UnitNo
             ) latest_rental ON (r.SerialNumber = latest_rental.SerialNo OR r.Equipment = latest_rental.UnitNo)
-            LEFT JOIN ben002.WO rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
-            LEFT JOIN ben002.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
+            LEFT JOIN {schema}.WO rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
+            LEFT JOIN {schema}.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
             ORDER BY InvoiceTotal DESC, r.OpenDate DESC
             """
             
@@ -3044,7 +3092,7 @@ def register_department_routes(reports_bp):
                     YEAR(w.OpenDate) as Year,
                     MONTH(w.OpenDate) as Month,
                     DATENAME(month, w.OpenDate) as MonthName
-                FROM ben002.WO w
+                FROM {schema}.WO w
                 WHERE w.BillTo IN ('900006', '900066')
                 AND w.SaleDept IN ('47', '45', '40')
                 AND w.ClosedDate IS NULL  -- Only open work orders
@@ -3067,9 +3115,9 @@ def register_department_routes(reports_bp):
                 COALESCE(SUM(m.Cost), 0) as MiscCost,
                 COALESCE(SUM(l.Cost) + SUM(p.Cost) + SUM(m.Cost), 0) as TotalCost
             FROM MonthlyWOs mw
-            LEFT JOIN ben002.WOLabor l ON mw.WONo = l.WONo
-            LEFT JOIN ben002.WOParts p ON mw.WONo = p.WONo
-            LEFT JOIN ben002.WOMisc m ON mw.WONo = m.WONo
+            LEFT JOIN {schema}.WOLabor l ON mw.WONo = l.WONo
+            LEFT JOIN {schema}.WOParts p ON mw.WONo = p.WONo
+            LEFT JOIN {schema}.WOMisc m ON mw.WONo = m.WONo
             GROUP BY mw.Year, mw.Month, mw.MonthName
             ORDER BY mw.Year DESC, mw.Month DESC
             """
@@ -3109,14 +3157,15 @@ def register_department_routes(reports_bp):
         """Get detailed breakdown of a specific work order"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get work order header
             wo_query = """
             SELECT 
                 w.*,
                 c.Name as CustomerName
-            FROM ben002.WO w
-            LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+            FROM {schema}.WO w
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
             WHERE w.WONo = %s
             """
             
@@ -3134,7 +3183,7 @@ def register_department_routes(reports_bp):
                 Hours,
                 Cost,
                 Sell
-            FROM ben002.WOLabor
+            FROM {schema}.WOLabor
             WHERE WONo = %s
             ORDER BY DateOfLabor
             """
@@ -3143,7 +3192,7 @@ def register_department_routes(reports_bp):
             # Debug: Check if flat rate labor might be in WOMisc or other tables
             # First, let's get all columns from WO to see what's available
             wo_columns_query = """
-            SELECT TOP 1 * FROM ben002.WO WHERE WONo = %s
+            SELECT TOP 1 * FROM {schema}.WO WHERE WONo = %s
             """
             wo_full_data = db.execute_query(wo_columns_query, [wo_number])
             
@@ -3157,7 +3206,7 @@ def register_department_routes(reports_bp):
             
             # Also check if flat rate labor might be stored as a misc charge
             flat_rate_check_query = """
-            SELECT * FROM ben002.WOMisc 
+            SELECT * FROM {schema}.WOMisc 
             WHERE WONo = %s 
             AND (UPPER(Description) LIKE '%LABOR%' 
                  OR UPPER(Description) LIKE '%FLAT%' 
@@ -3176,7 +3225,7 @@ def register_department_routes(reports_bp):
                 Sell,
                 Cost * Qty as ExtendedCost,
                 Sell * Qty as ExtendedSell
-            FROM ben002.WOParts
+            FROM {schema}.WOParts
             WHERE WONo = %s
             ORDER BY PartNo
             """
@@ -3189,7 +3238,7 @@ def register_department_routes(reports_bp):
                 Cost,
                 Sell,
                 Taxable
-            FROM ben002.WOMisc
+            FROM {schema}.WOMisc
             WHERE WONo = %s
             ORDER BY Description
             """
@@ -3203,7 +3252,7 @@ def register_department_routes(reports_bp):
                 Type,
                 Description,
                 Amount
-            FROM ben002.WOQuote
+            FROM {schema}.WOQuote
             WHERE WONo = %s
             ORDER BY QuoteLine
             """
@@ -3234,7 +3283,7 @@ def register_department_routes(reports_bp):
                 MiscTaxable + MiscNonTax as MiscTotal,
                 EquipmentTaxable + EquipmentNonTax as EquipmentTotal,
                 TotalTax
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE Comments LIKE %s
             """
             
@@ -3292,6 +3341,7 @@ def register_department_routes(reports_bp):
         """Get Accounting Department report data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get current year start
             today = datetime.now()
@@ -3302,7 +3352,7 @@ def register_department_routes(reports_bp):
             summary_query = f"""
             SELECT 
                 -- Total Revenue YTD
-                (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
+                (SELECT SUM(GrandTotal) FROM {schema}.InvoiceReg 
                  WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}' 
                  AND InvoiceDate < '{today.strftime('%Y-%m-%d')}') as totalRevenue,
                  
@@ -3310,15 +3360,15 @@ def register_department_routes(reports_bp):
                 0 as totalExpenses,
                 
                 -- Accounts Receivable
-                (SELECT SUM(Balance) FROM ben002.Customer WHERE Balance > 0) as accountsReceivable,
+                (SELECT SUM(Balance) FROM {schema}.Customer WHERE Balance > 0) as accountsReceivable,
                 
                 -- Overdue Invoices
-                (SELECT COUNT(*) FROM ben002.InvoiceReg 
+                (SELECT COUNT(*) FROM {schema}.InvoiceReg 
                  WHERE InvoiceStatus = 'Open' 
                  AND DATEDIFF(day, InvoiceDate, GETDATE()) > 30) as overdueInvoices,
                  
                 -- Monthly Cash Flow
-                (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
+                (SELECT SUM(GrandTotal) FROM {schema}.InvoiceReg 
                  WHERE InvoiceDate >= '{month_start.strftime('%Y-%m-%d')}'
                  AND InvoiceDate < '{today.strftime('%Y-%m-%d')}') as cashFlow
             """
@@ -3345,7 +3395,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 Department,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
             AND Department IS NOT NULL
             GROUP BY Department
@@ -3371,7 +3421,7 @@ def register_department_routes(reports_bp):
                 DATENAME(month, InvoiceDate) as month,
                 SUM(GrandTotal) as revenue,
                 COUNT(*) as invoiceCount
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             GROUP BY DATENAME(month, InvoiceDate), MONTH(InvoiceDate), YEAR(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -3402,7 +3452,7 @@ def register_department_routes(reports_bp):
                     WHEN DATEDIFF(day, InvoiceDate, GETDATE()) > 30 THEN 'Late'
                     ELSE 'Current'
                 END as status
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceStatus = 'Open'
             ORDER BY InvoiceDate ASC
             """
@@ -3447,6 +3497,7 @@ def register_department_routes(reports_bp):
         """Get accounting department report data with expenses over time"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get G&A expenses over time since March 2025
             # Note: This query needs to be updated based on your actual G&A expense tables
@@ -3461,7 +3512,7 @@ def register_department_routes(reports_bp):
                     YEAR(gld.EffectiveDate) as year,
                     MONTH(gld.EffectiveDate) as month,
                     SUM(gld.Amount) as total_expenses
-                FROM ben002.GLDetail gld
+                FROM {schema}.GLDetail gld
                 WHERE gld.AccountNo LIKE '6%'  -- Expense accounts start with 6
                     AND gld.EffectiveDate >= DATEADD(month, -13, GETDATE())
                     AND gld.EffectiveDate < DATEADD(DAY, 1, GETDATE())
@@ -3483,7 +3534,7 @@ def register_department_routes(reports_bp):
                         ELSE 'Other Expenses'
                     END as category,
                     SUM(gld.Amount) as amount
-                FROM ben002.GLDetail gld
+                FROM {schema}.GLDetail gld
                 WHERE gld.AccountNo LIKE '6%'
                     AND gld.EffectiveDate >= DATEADD(MONTH, -6, GETDATE())
                 GROUP BY 
@@ -3618,6 +3669,7 @@ def register_department_routes(reports_bp):
         """Get Professional Services (603000) expenses over time"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             # Get Professional Services expenses from GLDetail table
             # Account 603000 is Professional Services
@@ -3627,7 +3679,7 @@ def register_department_routes(reports_bp):
                     YEAR(gld.EffectiveDate) as year,
                     MONTH(gld.EffectiveDate) as month,
                     SUM(gld.Amount) as total_expenses
-                FROM ben002.GLDetail gld
+                FROM {schema}.GLDetail gld
                 WHERE gld.AccountNo = '603000'
                     AND gld.EffectiveDate >= DATEADD(month, -13, GETDATE())
                     AND gld.EffectiveDate < DATEADD(DAY, 1, GETDATE())
@@ -3718,6 +3770,7 @@ def register_department_routes(reports_bp):
         """Get Professional Services (603000) invoice details for a specific month"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             # Get year and month from query params
             year = request.args.get('year', type=int)
@@ -3733,7 +3786,7 @@ def register_department_routes(reports_bp):
                 EffectiveDate,
                 Amount,
                 Description
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE AccountNo = '603000'
                 AND YEAR(EffectiveDate) = {year}
                 AND MONTH(EffectiveDate) = {month}
@@ -3789,6 +3842,7 @@ def register_department_routes(reports_bp):
         """Get G&A Expenses (6xx accounts) invoice details for a specific month"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             # Get year and month from query params
             year = request.args.get('year', type=int)
@@ -3807,8 +3861,8 @@ def register_department_routes(reports_bp):
                 gld.Amount,
                 gld.Description,
                 coa.Description as AccountTitle
-            FROM ben002.GLDetail gld
-            LEFT JOIN ben002.ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
+            FROM {schema}.GLDetail gld
+            LEFT JOIN {schema}.ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
             WHERE gld.AccountNo LIKE '6%'
                 AND YEAR(gld.EffectiveDate) = {year}
                 AND MONTH(gld.EffectiveDate) = {month}
@@ -3883,13 +3937,16 @@ def register_department_routes(reports_bp):
         """Get total accounts payable balance"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get total AP balance - sum all unpaid AP amounts
             # AP amounts are stored as negative values, so we need to negate them
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 SUM(Amount) as total_ap
-            FROM ben002.APDetail
+            FROM {schema}.APDetail
             WHERE (CheckNo IS NULL OR CheckNo = 0)
                 AND (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
@@ -3917,6 +3974,7 @@ def register_department_routes(reports_bp):
         """Get comprehensive accounts payable report with aging and details"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get all unpaid AP invoices with vendor info
             ap_detail_query = """
@@ -3938,8 +3996,8 @@ def register_department_routes(reports_bp):
                         WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 61 AND 90 THEN '61-90'
                         WHEN DATEDIFF(day, ap.DueDate, GETDATE()) > 90 THEN 'Over 90'
                     END as AgingBucket
-                FROM ben002.APDetail ap
-                LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
+                FROM {schema}.APDetail ap
+                LEFT JOIN {schema}.Vendor v ON ap.VendorNo = v.VendorNo
                 WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                     AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                     AND ap.DeletionTime IS NULL
@@ -3977,7 +4035,7 @@ def register_department_routes(reports_bp):
                         WHEN DATEDIFF(day, ap.DueDate, GETDATE()) BETWEEN 61 AND 90 THEN '61-90'
                         WHEN DATEDIFF(day, ap.DueDate, GETDATE()) > 90 THEN 'Over 90'
                     END as AgingBucket
-                FROM ben002.APDetail ap
+                FROM {schema}.APDetail ap
                 WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                     AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                     AND ap.DeletionTime IS NULL
@@ -4004,8 +4062,8 @@ def register_department_routes(reports_bp):
                 ABS(SUM(ap.Amount)) as TotalOwed,
                 MIN(ap.DueDate) as OldestDueDate,
                 DATEDIFF(day, MIN(ap.DueDate), GETDATE()) as OldestDaysOverdue
-            FROM ben002.APDetail ap
-            LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
+            FROM {schema}.APDetail ap
+            LEFT JOIN {schema}.Vendor v ON ap.VendorNo = v.VendorNo
             WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                 AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                 AND ap.DeletionTime IS NULL
@@ -4018,7 +4076,7 @@ def register_department_routes(reports_bp):
             # Calculate summary metrics - get the real total from raw sum like ap-total endpoint
             total_query = """
             SELECT SUM(Amount) as raw_total
-            FROM ben002.APDetail
+            FROM {schema}.APDetail
             WHERE (CheckNo IS NULL OR CheckNo = 0)
                 AND (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
@@ -4108,6 +4166,7 @@ def register_department_routes(reports_bp):
         """Get AP validation data to verify accuracy"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get total AP by different methods to cross-check
             validation_queries = {
@@ -4115,7 +4174,7 @@ def register_department_routes(reports_bp):
                     SELECT COUNT(DISTINCT APInvoiceNo) as invoice_count,
                            SUM(Amount) as total_amount_raw,
                            SUM(ABS(Amount)) as total_amount_abs
-                    FROM ben002.APDetail
+                    FROM {schema}.APDetail
                     WHERE (CheckNo IS NULL OR CheckNo = 0)
                         AND (HistoryFlag IS NULL OR HistoryFlag = 0)
                         AND DeletionTime IS NULL
@@ -4125,7 +4184,7 @@ def register_department_routes(reports_bp):
                     SELECT EntryType, 
                            COUNT(*) as record_count,
                            SUM(Amount) as total_amount
-                    FROM ben002.APDetail
+                    FROM {schema}.APDetail
                     WHERE (CheckNo IS NULL OR CheckNo = 0)
                         AND (HistoryFlag IS NULL OR HistoryFlag = 0)
                         AND DeletionTime IS NULL
@@ -4142,8 +4201,8 @@ def register_department_routes(reports_bp):
                         ap.Amount,
                         ap.EntryType,
                         ap.Comments
-                    FROM ben002.APDetail ap
-                    LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
+                    FROM {schema}.APDetail ap
+                    LEFT JOIN {schema}.Vendor v ON ap.VendorNo = v.VendorNo
                     WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                         AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                         AND ap.DeletionTime IS NULL
@@ -4152,7 +4211,7 @@ def register_department_routes(reports_bp):
                 
                 'vendors_with_balances': """
                     SELECT COUNT(DISTINCT ap.VendorNo) as vendor_count
-                    FROM ben002.APDetail ap
+                    FROM {schema}.APDetail ap
                     WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                         AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                         AND ap.DeletionTime IS NULL
@@ -4183,11 +4242,12 @@ def register_department_routes(reports_bp):
         """Get accounts receivable aging report"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # First get the total AR amount
             total_ar_query = """
             SELECT SUM(Amount) as total_ar
-            FROM ben002.ARDetail
+            FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
             """
@@ -4204,7 +4264,7 @@ def register_department_routes(reports_bp):
                     ar.CustomerNo,
                     MIN(ar.Due) as Due,  -- Use earliest due date for the invoice
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL  -- Exclude non-invoice transactions
@@ -4244,7 +4304,7 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL
@@ -4268,7 +4328,7 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo
@@ -4285,7 +4345,7 @@ def register_department_routes(reports_bp):
                 MIN(ib.Due) as OldestDueDate,
                 MAX(DATEDIFF(day, ib.Due, GETDATE())) as MaxDaysOverdue
             FROM InvoiceBalances ib
-            INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            INNER JOIN {schema}.Customer c ON ib.CustomerNo = c.Number
             WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 90  -- 90 days and over
                 AND (
                     UPPER(c.Name) LIKE '%POLARIS%' OR
@@ -4358,6 +4418,7 @@ def register_department_routes(reports_bp):
         """Debug endpoint to analyze AR calculations"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get raw AR totals and check EntryType values
             raw_query = """
@@ -4370,7 +4431,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN EntryType = 'Journal' THEN Amount ELSE 0 END) as journal_total,
                 SUM(CASE WHEN EntryType = 'AR Journal' THEN Amount ELSE 0 END) as ar_journal_total,
                 COUNT(DISTINCT InvoiceNo) as unique_invoices
-            FROM ben002.ARDetail
+            FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
             """
@@ -4381,7 +4442,7 @@ def register_department_routes(reports_bp):
                 EntryType,
                 COUNT(*) as count,
                 SUM(Amount) as total_amount
-            FROM ben002.ARDetail
+            FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
             GROUP BY EntryType
@@ -4402,7 +4463,7 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     ar.Due,
                     SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
@@ -4425,7 +4486,7 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     ar.Due,
                     SUM(ar.Amount) as NetBalance  -- Amounts already have correct signs
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo, ar.Due
@@ -4438,7 +4499,7 @@ def register_department_routes(reports_bp):
                 ib.NetBalance,
                 ib.Due
             FROM InvoiceBalances ib
-            LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            LEFT JOIN {schema}.Customer c ON ib.CustomerNo = c.Number
             ORDER BY ib.NetBalance DESC
             """
             
@@ -4465,11 +4526,12 @@ def register_department_routes(reports_bp):
         """Debug specific customer AR over 90 days"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get all customers matching our criteria
             customer_list_query = """
             SELECT DISTINCT c.Number, c.Name
-            FROM ben002.Customer c
+            FROM {schema}.Customer c
             WHERE UPPER(c.Name) LIKE '%POLARIS%' 
                OR UPPER(c.Name) LIKE '%GREDE%' 
                OR UPPER(c.Name) LIKE '%OWENS%'
@@ -4486,7 +4548,7 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo
@@ -4499,7 +4561,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as TotalOpenInvoices,
                 SUM(ib.NetBalance) as TotalARBalance
             FROM InvoiceBalances ib
-            INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            INNER JOIN {schema}.Customer c ON ib.CustomerNo = c.Number
             WHERE UPPER(c.Name) LIKE '%POLARIS%' 
                OR UPPER(c.Name) LIKE '%GREDE%' 
                OR UPPER(c.Name) LIKE '%OWENS%'
@@ -4517,7 +4579,7 @@ def register_department_routes(reports_bp):
                     ar.InvoiceNo,
                     MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                 GROUP BY ar.CustomerNo, ar.InvoiceNo
@@ -4530,7 +4592,7 @@ def register_department_routes(reports_bp):
                 DATEDIFF(day, ib.Due, GETDATE()) as DaysOverdue,
                 ib.NetBalance
             FROM InvoiceBalances ib
-            INNER JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            INNER JOIN {schema}.Customer c ON ib.CustomerNo = c.Number
             WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 90
                 AND (UPPER(c.Name) LIKE '%POLARIS%' 
                      OR UPPER(c.Name) LIKE '%GREDE%' 
@@ -4558,16 +4620,19 @@ def register_department_routes(reports_bp):
         """Get ALL invoices over 90 days for detailed analysis"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get all invoices over 90 days with details
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.InvoiceNo,
                     ar.CustomerNo,
                     MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL
@@ -4582,7 +4647,7 @@ def register_department_routes(reports_bp):
                 DATEDIFF(day, ib.Due, GETDATE()) as DaysOld,
                 ib.NetBalance
             FROM InvoiceBalances ib
-            LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            LEFT JOIN {schema}.Customer c ON ib.CustomerNo = c.Number
             WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 90
             ORDER BY DATEDIFF(day, ib.Due, GETDATE()) DESC, ib.NetBalance DESC
             """
@@ -4633,6 +4698,7 @@ def register_department_routes(reports_bp):
         """
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             # Get optional as_of_date parameter for historical views
             as_of_date_str = request.args.get('as_of_date')
@@ -4657,7 +4723,7 @@ def register_department_routes(reports_bp):
                     ar.CustomerNo,
                     MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL
@@ -4682,8 +4748,8 @@ def register_department_routes(reports_bp):
                     ELSE '120+'
                 END as AgingBucket
             FROM InvoiceBalances ib
-            LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
-            LEFT JOIN ben002.InvoiceReg ir ON ib.InvoiceNo = ir.InvoiceNo
+            LEFT JOIN {schema}.Customer c ON ib.CustomerNo = c.Number
+            LEFT JOIN {schema}.InvoiceReg ir ON ib.InvoiceNo = ir.InvoiceNo
             WHERE ir.InvoiceDate <= '{as_of_date_sql}'
             ORDER BY c.Name, ib.Due
             """
@@ -4740,6 +4806,7 @@ def register_department_routes(reports_bp):
         """
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             # Get optional as_of_date parameter for historical views
             as_of_date_str = request.args.get('as_of_date')
@@ -4778,8 +4845,8 @@ def register_department_routes(reports_bp):
                         WHEN DATEDIFF(day, ap.DueDate, '{as_of_date_sql}') BETWEEN 61 AND 90 THEN '61-90'
                         WHEN DATEDIFF(day, ap.DueDate, '{as_of_date_sql}') > 90 THEN 'Over 90'
                     END as AgingBucket
-                FROM ben002.APDetail ap
-                LEFT JOIN ben002.Vendor v ON ap.VendorNo = v.VendorNo
+                FROM {schema}.APDetail ap
+                LEFT JOIN {schema}.Vendor v ON ap.VendorNo = v.VendorNo
                 WHERE (ap.CheckNo IS NULL OR ap.CheckNo = 0)
                     AND (ap.HistoryFlag IS NULL OR ap.HistoryFlag = 0)
                     AND ap.DeletionTime IS NULL
@@ -4867,16 +4934,19 @@ def register_department_routes(reports_bp):
         """Debug over 90 days AR calculation"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get all invoices over 90 days with details
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.InvoiceNo,
                     ar.CustomerNo,
                     MIN(ar.Due) as Due,
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL
@@ -4891,7 +4961,7 @@ def register_department_routes(reports_bp):
                 DATEDIFF(day, ib.Due, GETDATE()) as DaysOld,
                 ib.NetBalance
             FROM InvoiceBalances ib
-            LEFT JOIN ben002.Customer c ON ib.CustomerNo = c.Number
+            LEFT JOIN {schema}.Customer c ON ib.CustomerNo = c.Number
             WHERE DATEDIFF(day, ib.Due, GETDATE()) >= 90
             ORDER BY ib.NetBalance DESC
             """
@@ -4937,11 +5007,12 @@ def register_department_routes(reports_bp):
         """Comprehensive AR aging debug endpoint"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # 1. Get total AR same way as main report
             total_query = """
             SELECT SUM(Amount) as total_ar
-            FROM ben002.ARDetail
+            FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
             """
@@ -4956,7 +5027,7 @@ def register_department_routes(reports_bp):
                     ar.CustomerNo,
                     MIN(ar.Due) as Due,  -- Use earliest due date for the invoice
                     SUM(ar.Amount) as NetBalance
-                FROM ben002.ARDetail ar
+                FROM {schema}.ARDetail ar
                 WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                     AND ar.DeletionTime IS NULL
                     AND ar.InvoiceNo IS NOT NULL  -- Exclude non-invoice transactions
@@ -5005,7 +5076,7 @@ def register_department_routes(reports_bp):
             # 3. Check for NULL due dates
             null_due_query = """
             SELECT COUNT(*) as count, SUM(Amount) as amount
-            FROM ben002.ARDetail
+            FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
                 AND Due IS NULL
@@ -5016,7 +5087,7 @@ def register_department_routes(reports_bp):
             # 4. Get EntryType breakdown
             entry_type_query = """
             SELECT EntryType, COUNT(*) as count, SUM(Amount) as amount
-            FROM ben002.ARDetail
+            FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
             GROUP BY EntryType
@@ -5034,7 +5105,7 @@ def register_department_routes(reports_bp):
                 Amount,
                 Due,
                 DATEDIFF(day, Due, GETDATE()) as DaysOld
-            FROM ben002.ARDetail
+            FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
                 AND DeletionTime IS NULL
                 AND DATEDIFF(day, Due, GETDATE()) BETWEEN 85 AND 95
@@ -5093,6 +5164,7 @@ def register_department_routes(reports_bp):
         """Debug endpoint to analyze expense calculations"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get detailed breakdown for a specific month
             month = request.args.get('month', '2025-07')  # Default to July 2025
@@ -5113,7 +5185,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_revenue,
                 SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
                 SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE FORMAT(InvoiceDate, 'yyyy-MM') = '{month}'
             """
             
@@ -5139,7 +5211,7 @@ def register_department_routes(reports_bp):
                      COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
                      COALESCE(MiscCost, 0)) as total_cost,
                     GrandTotal as revenue
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE FORMAT(InvoiceDate, 'yyyy-MM') = '{month}'
                 ORDER BY (COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + 
                          COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
@@ -5161,7 +5233,7 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + 
                         COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
                         COALESCE(MiscCost, 0)) as total
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE InvoiceDate >= '2025-03-01'
                 GROUP BY FORMAT(InvoiceDate, 'yyyy-MM')
                 ORDER BY FORMAT(InvoiceDate, 'yyyy-MM')
@@ -5225,6 +5297,7 @@ def register_department_routes(reports_bp):
         """Help identify G&A expense tables in the database"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Query to find potential expense-related tables
             table_query = """
@@ -5232,7 +5305,7 @@ def register_department_routes(reports_bp):
                 TABLE_NAME,
                 TABLE_TYPE
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%expense%'
                 OR TABLE_NAME LIKE '%payable%'
@@ -5266,7 +5339,7 @@ def register_department_routes(reports_bp):
                     CHARACTER_MAXIMUM_LENGTH,
                     IS_NULLABLE
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = 'ben002'
+                WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = '{table_name}'
                 ORDER BY ORDINAL_POSITION
                 """
@@ -5275,7 +5348,7 @@ def register_department_routes(reports_bp):
                 
                 # Try to get row count
                 try:
-                    count_query = f"SELECT COUNT(*) as row_count FROM ben002.{table_name}"
+                    count_query = f"SELECT COUNT(*) as row_count FROM {schema}.{table_name}"
                     count_result = db.execute_query(count_query)
                     row_count = count_result[0]['row_count'] if count_result else 0
                 except:
@@ -5308,6 +5381,7 @@ def register_department_routes(reports_bp):
         """Get monthly rental revenue with gross margin"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             current_month = datetime.now().month
             current_year = datetime.now().year
             
@@ -5315,7 +5389,9 @@ def register_department_routes(reports_bp):
             # Using same GL accounts as Currie report for consistency
             # Revenue: 411001, 419000, 420000, 421000, 434012, 410008
             # Cost: 510008, 511001, 519000, 520000, 521008, 537001, 539000, 534014, 545000
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
@@ -5325,7 +5401,7 @@ def register_department_routes(reports_bp):
                 -- Rental cost (debit accounts, stored as positive)
                 ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') 
                              THEN Amount ELSE 0 END)) as rental_cost
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008',
                                 '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
@@ -5417,13 +5493,14 @@ def register_department_routes(reports_bp):
         """Debug endpoint to check rental revenue data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # First check what columns exist in InvoiceReg
             columns_query = """
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_NAME = 'InvoiceReg' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             AND (COLUMN_NAME LIKE '%dept%' OR COLUMN_NAME LIKE '%Dept%' OR COLUMN_NAME = 'SaleCode')
             ORDER BY COLUMN_NAME
             """
@@ -5434,7 +5511,7 @@ def register_department_routes(reports_bp):
             # Check SaleCodes
             dept_query = """
             SELECT DISTINCT SaleCode, COUNT(*) as count
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
             GROUP BY SaleCode
             ORDER BY SaleCode
@@ -5453,7 +5530,7 @@ def register_department_routes(reports_bp):
                     SaleCode,
                     COUNT(*) as invoice_count,
                     SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
                     AND SaleCode IN ('RENTR', 'RENTRS', 'RENTPM')
                 GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), SaleCode
@@ -5469,7 +5546,7 @@ def register_department_routes(reports_bp):
                     RentalNonTax,
                     RentalCost,
                     GrandTotal
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
                 ORDER BY InvoiceDate DESC
                 """,
@@ -5488,7 +5565,7 @@ def register_department_routes(reports_bp):
                     EquipmentTaxable,
                     EquipmentNonTax,
                     GrandTotal
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -1, GETDATE())
                 ORDER BY InvoiceDate DESC
                 """
@@ -5524,10 +5601,13 @@ def register_department_routes(reports_bp):
         """Get top 10 rental customers by revenue"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get top 10 rental customers by total revenue with current rental count
             # Combine POLARIS INDUSTRIES and POLARIS as one customer
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH RentalRevenue AS (
                 SELECT 
                     CASE 
@@ -5538,7 +5618,7 @@ def register_department_routes(reports_bp):
                     COUNT(DISTINCT InvoiceNo) as invoice_count,
                     SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue,
                     MAX(InvoiceDate) as last_invoice_date
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
                     AND BillToName IS NOT NULL
                     AND BillToName != ''
@@ -5571,9 +5651,9 @@ def register_department_routes(reports_bp):
                         ELSE c.Name
                     END as customer_name,
                     COUNT(DISTINCT rh.SerialNo) as units_on_rent
-                FROM ben002.RentalHistory rh
-                INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-                INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                FROM {schema}.RentalHistory rh
+                INNER JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+                INNER JOIN {schema}.Customer c ON e.CustomerNo = c.Number
                 WHERE rh.Year = YEAR(GETDATE()) 
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
@@ -5603,7 +5683,7 @@ def register_department_routes(reports_bp):
             # Calculate total YTD revenue for percentage calculation
             total_query = """
             SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
                 AND BillToName NOT LIKE '%RENTAL FLEET%'
                 AND BillToName NOT LIKE '%EXPENSE%'
@@ -5647,12 +5727,15 @@ def register_department_routes(reports_bp):
         """Get count of units currently on rent based on RentalHistory"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Count distinct units with rental activity in current month
             # This directly shows what's on rent regardless of ownership
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT COUNT(DISTINCT SerialNo) as units_on_rent
-            FROM ben002.RentalHistory
+            FROM {schema}.RentalHistory
             WHERE Year = YEAR(GETDATE()) 
                 AND Month = MONTH(GETDATE())
                 AND DaysRented > 0
@@ -5679,9 +5762,12 @@ def register_department_routes(reports_bp):
         """Get detailed list of units currently on rent with customer information"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get units on rent from RentalHistory with equipment details
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 rh.SerialNo,
                 rh.DaysRented,
@@ -5696,9 +5782,9 @@ def register_department_routes(reports_bp):
                 e.MonthRent,
                 e.CustomerNo,
                 c.Name as CustomerName
-            FROM ben002.RentalHistory rh
-            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.RentalHistory rh
+            INNER JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
@@ -5749,11 +5835,14 @@ def register_department_routes(reports_bp):
         """Get count of units currently on hold"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Count units with RentalStatus = 'Hold'
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT COUNT(*) as units_on_hold
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE RentalStatus = 'Hold'
             """
             
@@ -5776,9 +5865,12 @@ def register_department_routes(reports_bp):
         """Get detailed list of units currently on hold"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get detailed information for units on hold
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 e.UnitNo,
                 e.SerialNo,
@@ -5795,8 +5887,8 @@ def register_department_routes(reports_bp):
                 -- Get customer info if assigned
                 e.CustomerNo,
                 c.Name as CustomerName
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE e.RentalStatus = 'Hold'
             ORDER BY e.Make, e.Model, e.UnitNo
             """
@@ -5839,9 +5931,12 @@ def register_department_routes(reports_bp):
         """Get all equipment associated with the rental department"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get equipment owned by rental department (900006)
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH RentalEquipment AS (
                 SELECT 
                     e.UnitNo,
@@ -5872,15 +5967,15 @@ def register_department_routes(reports_bp):
                     END as CurrentStatus,
                     rh.DaysRented as CurrentMonthDays,
                     rh.RentAmount as CurrentMonthRevenue
-                FROM ben002.Equipment e
-                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-                LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                FROM {schema}.Equipment e
+                LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
+                LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                     AND rh.Year = YEAR(GETDATE()) 
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
                 WHERE EXISTS (
-                    SELECT 1 FROM ben002.RentalHistory rh 
+                    SELECT 1 FROM {schema}.RentalHistory rh 
                     WHERE rh.SerialNo = e.SerialNo 
                     AND rh.DaysRented > 0
                 )
@@ -5930,8 +6025,8 @@ def register_department_routes(reports_bp):
                 SUM(e.Cost) as total_fleet_value,
                 SUM(e.RentalYTD) as total_ytd_revenue,
                 SUM(rh.RentAmount) as current_month_revenue
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                 AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
@@ -5953,8 +6048,8 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN rh.SerialNo IS NOT NULL THEN 1 END) as on_rent_count,
                 SUM(e.Cost) as total_value,
                 SUM(e.RentalYTD) as ytd_revenue
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                 AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
@@ -5985,6 +6080,7 @@ def register_department_routes(reports_bp):
         """Diagnostic to understand the rental fleet ownership"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             diagnostics = {}
             
@@ -5995,7 +6091,7 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN RentalStatus = 'Ready To Rent' THEN 1 END) as ready_to_rent,
                 COUNT(CASE WHEN RentalStatus = 'Hold' THEN 1 END) as on_hold,
                 COUNT(CASE WHEN RentalStatus IS NULL THEN 1 END) as null_status
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE CustomerNo = '900006'
             """
             diagnostics['rental_fleet_owned'] = db.execute_query(query1)
@@ -6005,10 +6101,10 @@ def register_department_routes(reports_bp):
             SELECT 
                 COUNT(DISTINCT e.SerialNo) as units_with_activity,
                 COUNT(DISTINCT CASE WHEN rh.SerialNo IS NOT NULL THEN e.SerialNo END) as units_in_rental_history
-            FROM ben002.Equipment e
+            FROM {schema}.Equipment e
             LEFT JOIN (
                 SELECT DISTINCT SerialNo 
-                FROM ben002.RentalHistory 
+                FROM {schema}.RentalHistory 
                 WHERE Year = YEAR(GETDATE()) 
                 AND Month = MONTH(GETDATE())
                 AND DaysRented > 0
@@ -6028,7 +6124,7 @@ def register_department_routes(reports_bp):
                 e.DayRent,
                 e.WeekRent,
                 e.MonthRent
-            FROM ben002.Equipment e
+            FROM {schema}.Equipment e
             WHERE e.CustomerNo = '900006'
             ORDER BY e.UnitNo
             """
@@ -6038,7 +6134,7 @@ def register_department_routes(reports_bp):
             query4 = """
             SELECT 
                 COUNT(*) as total_contracts
-            FROM ben002.RentalContract
+            FROM {schema}.RentalContract
             WHERE DeletionTime IS NULL
             """
             diagnostics['rental_contract_summary'] = db.execute_query(query4)
@@ -6049,8 +6145,8 @@ def register_department_routes(reports_bp):
                 CustomerNo,
                 c.Name as CustomerName,
                 COUNT(*) as equipment_count
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE CustomerNo IN ('900006', '900007', '900008', '900009')
             GROUP BY CustomerNo, c.Name
             ORDER BY equipment_count DESC
@@ -6071,6 +6167,7 @@ def register_department_routes(reports_bp):
         """Diagnostic to determine if CustomerNo means rental or sale"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             diagnostics = {}
             
@@ -6084,7 +6181,7 @@ def register_department_routes(reports_bp):
                 END as customer_flag_status,
                 COUNT(*) as count,
                 COUNT(CASE WHEN CustomerNo IS NOT NULL AND CustomerNo != '' THEN 1 END) as has_customer_no
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             GROUP BY Customer
             """
             diagnostics['customer_flag_analysis'] = db.execute_query(query1)
@@ -6107,16 +6204,16 @@ def register_department_routes(reports_bp):
                 CASE WHEN rh.SerialNo IS NOT NULL THEN 'Has Rental History' ELSE 'No Rental History' END as rental_history_status,
                 -- Check if sold through invoice
                 CASE WHEN inv.SerialNo IS NOT NULL THEN 'Found in Invoice' ELSE 'Not in Invoice' END as invoice_status
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             LEFT JOIN (
                 SELECT DISTINCT SerialNo 
-                FROM ben002.RentalHistory 
+                FROM {schema}.RentalHistory 
                 WHERE Year >= 2024
             ) rh ON e.SerialNo = rh.SerialNo
             LEFT JOIN (
                 SELECT DISTINCT SerialNo 
-                FROM ben002.InvoiceReg 
+                FROM {schema}.InvoiceReg 
                 WHERE SerialNo IS NOT NULL
             ) inv ON e.SerialNo = inv.SerialNo
             WHERE e.CustomerNo IS NOT NULL 
@@ -6136,8 +6233,8 @@ def register_department_routes(reports_bp):
                 rc.EndDate,
                 rc.DeliveryCharge,
                 rc.PickupCharge
-            FROM ben002.RentalContract rc
-            LEFT JOIN ben002.Customer c ON rc.CustomerNo = c.Number
+            FROM {schema}.RentalContract rc
+            LEFT JOIN {schema}.Customer c ON rc.CustomerNo = c.Number
             WHERE rc.DeletionTime IS NULL
             ORDER BY rc.RentalContractNo DESC
             """
@@ -6147,7 +6244,7 @@ def register_department_routes(reports_bp):
             query4 = """
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME LIKE '%Rental%Equipment%'
             """
             diagnostics['rental_equipment_tables'] = db.execute_query(query4)
@@ -6166,13 +6263,14 @@ def register_department_routes(reports_bp):
         """Diagnostic to find where the 400 units on rent are tracked"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             diagnostics = {}
             
             # 1. Check Equipment table RentalStatus values
             status_query = """
             SELECT RentalStatus, COUNT(*) as count
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             GROUP BY RentalStatus
             ORDER BY count DESC
             """
@@ -6187,7 +6285,7 @@ def register_department_routes(reports_bp):
                     ELSE 'Has CustomerNo Only'
                 END as status,
                 COUNT(*) as count
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             GROUP BY 
                 CASE 
                     WHEN CustomerNo IS NULL OR CustomerNo = '' THEN 'No Customer'
@@ -6200,7 +6298,7 @@ def register_department_routes(reports_bp):
             # 3. Count Equipment with CustomerNo that are likely on rent
             on_rent_query = """
             SELECT COUNT(*) as count
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE CustomerNo IS NOT NULL 
                 AND CustomerNo != ''
                 AND CustomerNo != '0'
@@ -6218,8 +6316,8 @@ def register_department_routes(reports_bp):
                 e.CustomerNo,
                 e.Customer as CustomerFlag,
                 c.Name as CustomerName
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE e.CustomerNo IS NOT NULL 
                 AND e.CustomerNo != ''
                 AND e.CustomerNo != '0'
@@ -6230,7 +6328,7 @@ def register_department_routes(reports_bp):
             # 5. Check RentalContract table
             contract_query = """
             SELECT COUNT(*) as active_contracts
-            FROM ben002.RentalContract
+            FROM {schema}.RentalContract
             WHERE DeletionTime IS NULL
             """
             diagnostics['rental_contracts'] = db.execute_query(contract_query)
@@ -6240,7 +6338,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 COUNT(DISTINCT SerialNo) as unique_units,
                 COUNT(*) as total_records
-            FROM ben002.RentalHistory
+            FROM {schema}.RentalHistory
             WHERE Year = YEAR(GETDATE()) AND Month = MONTH(GETDATE())
             """
             diagnostics['rental_history_current_month'] = db.execute_query(history_query)
@@ -6259,9 +6357,12 @@ def register_department_routes(reports_bp):
         """Get list of all available rental equipment (Ready To Rent status)"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get ALL equipment that is Ready To Rent (matches the inventory count logic)
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 UnitNo,
                 SerialNo,
@@ -6275,7 +6376,7 @@ def register_department_routes(reports_bp):
                 DayRent,
                 WeekRent,
                 MonthRent
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE RentalStatus = 'Ready To Rent'
             ORDER BY Make, Model, UnitNo
             """
@@ -6316,9 +6417,12 @@ def register_department_routes(reports_bp):
         """Diagnostic to understand what the forklift query actually returns"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Test the exact query from available-forklifts endpoint
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 UnitNo,
                 SerialNo,
@@ -6336,7 +6440,7 @@ def register_department_routes(reports_bp):
                     WHEN UPPER(Make) LIKE '%FORK%' THEN 'Make contains FORK'
                     ELSE 'No match'
                 END as MatchReason
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE UPPER(Model) LIKE '%FORK%' OR UPPER(Make) LIKE '%FORK%'
             ORDER BY Make, Model, UnitNo
             """
@@ -6344,7 +6448,7 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             
             # Count total equipment
-            count_query = "SELECT COUNT(*) as total_equipment FROM ben002.Equipment"
+            count_query = "SELECT COUNT(*) as total_equipment FROM {schema}.Equipment"
             count_result = db.execute_query(count_query)
             total_equipment = count_result[0]['total_equipment'] if count_result else 0
             
@@ -6357,7 +6461,7 @@ def register_department_routes(reports_bp):
                 Model,
                 UPPER(Make) as UpperMake,
                 UPPER(Model) as UpperModel
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE Make IS NOT NULL AND Model IS NOT NULL
             ORDER BY UnitNo
             """
@@ -6369,7 +6473,7 @@ def register_department_routes(reports_bp):
             
             # Query 1: More specific forklift matching
             alt1_query = """
-            SELECT COUNT(*) as count FROM ben002.Equipment
+            SELECT COUNT(*) as count FROM {schema}.Equipment
             WHERE (UPPER(Model) LIKE '%FORKLIFT%' 
                    OR UPPER(Model) LIKE 'FORK%'
                    OR UPPER(Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE')
@@ -6380,7 +6484,7 @@ def register_department_routes(reports_bp):
             
             # Query 2: Just looking for FORKLIFT in model
             alt2_query = """
-            SELECT COUNT(*) as count FROM ben002.Equipment
+            SELECT COUNT(*) as count FROM {schema}.Equipment
             WHERE UPPER(Model) LIKE '%FORKLIFT%'
             """
             alt2_result = db.execute_query(alt2_query)
@@ -6388,7 +6492,7 @@ def register_department_routes(reports_bp):
             
             # Query 3: Common forklift manufacturers
             alt3_query = """
-            SELECT COUNT(*) as count FROM ben002.Equipment
+            SELECT COUNT(*) as count FROM {schema}.Equipment
             WHERE UPPER(Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'CATERPILLAR', 'KOMATSU')
             """
             alt3_result = db.execute_query(alt3_query)
@@ -6415,9 +6519,12 @@ def register_department_routes(reports_bp):
         """Diagnostic to understand customer rental units"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Check RentalHistory for current month
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 COUNT(*) as total_records,
                 COUNT(DISTINCT SerialNo) as unique_units,
@@ -6425,7 +6532,7 @@ def register_department_routes(reports_bp):
                 MAX(Year) as max_year,
                 MIN(Month) as min_month,
                 MAX(Month) as max_month
-            FROM ben002.RentalHistory
+            FROM {schema}.RentalHistory
             WHERE Year = YEAR(GETDATE()) AND Month = MONTH(GETDATE())
             """
             
@@ -6442,9 +6549,9 @@ def register_department_routes(reports_bp):
                 e.UnitNo,
                 e.CustomerNo,
                 c.Name as CustomerName
-            FROM ben002.RentalHistory rh
-            LEFT JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.RentalHistory rh
+            LEFT JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
@@ -6459,9 +6566,9 @@ def register_department_routes(reports_bp):
                 COALESCE(c.Name, 'No Customer') as customer_name,
                 COUNT(DISTINCT rh.SerialNo) as units_on_rent,
                 SUM(rh.RentAmount) as total_rent
-            FROM ben002.RentalHistory rh
-            LEFT JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.RentalHistory rh
+            LEFT JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
@@ -6489,14 +6596,15 @@ def register_department_routes(reports_bp):
         """Diagnostic endpoint to check rental indicators"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Check rental contracts - this is the real answer!
             rental_contract_query = """
             SELECT 
                 COUNT(DISTINCT rc.RentalContractNo) as active_contracts,
                 COUNT(DISTINCT re.SerialNo) as units_on_contract
-            FROM ben002.RentalContract rc
-            LEFT JOIN ben002.RentalContractEquipment re ON rc.RentalContractNo = re.RentalContractNo
+            FROM {schema}.RentalContract rc
+            LEFT JOIN {schema}.RentalContractEquipment re ON rc.RentalContractNo = re.RentalContractNo
             WHERE rc.DeletionTime IS NULL
                 AND (rc.EndDate IS NULL OR rc.EndDate >= GETDATE() OR rc.OpenEndedContract = 1)
             """
@@ -6508,14 +6616,16 @@ def register_department_routes(reports_bp):
                 # Fallback if join table doesn't exist
                 rental_contract_query = """
                 SELECT COUNT(*) as active_contracts
-                FROM ben002.RentalContract
+                FROM {schema}.RentalContract
                 WHERE DeletionTime IS NULL
                     AND (EndDate IS NULL OR EndDate >= GETDATE() OR OpenEndedContract = 1)
                 """
                 contract_results = db.execute_query(rental_contract_query)
             
             # Check various rental indicators in Equipment table
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 -- Unit types
                 COUNT(*) as total_equipment,
@@ -6531,7 +6641,7 @@ def register_department_routes(reports_bp):
                 -- Combinations
                 COUNT(CASE WHEN (UnitType = 'Rental' OR WebRentalFlag = 1) AND CustomerNo IS NOT NULL AND CustomerNo != '' THEN 1 END) as rental_units_with_customer,
                 COUNT(CASE WHEN (UnitType = 'Rental' OR WebRentalFlag = 1) AND (RentalStatus = 'Ready To Rent' OR RentalStatus = 'Hold') THEN 1 END) as rental_units_available
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             """
             
             results = db.execute_query(query)
@@ -6539,7 +6649,7 @@ def register_department_routes(reports_bp):
             # Check UnitType values
             unit_type_query = """
             SELECT DISTINCT UnitType, COUNT(*) as count
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE UnitType IS NOT NULL
             GROUP BY UnitType
             ORDER BY count DESC
@@ -6553,8 +6663,8 @@ def register_department_routes(reports_bp):
                 e.UnitNo, e.Make, e.Model, e.UnitType, e.WebRentalFlag, e.RentalStatus, 
                 e.CustomerNo, c.Name as CustomerName,
                 e.RentalRateCode, e.DayRent, e.WeekRent, e.MonthRent
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE (e.UnitType = 'Rental' OR e.WebRentalFlag = 1 OR e.RentalRateCode IS NOT NULL)
                 AND e.CustomerNo IS NOT NULL AND e.CustomerNo != ''
             """
@@ -6571,13 +6681,13 @@ def register_department_routes(reports_bp):
                 e.UnitNo,
                 e.CustomerNo,
                 c.Name as CustomerName
-            FROM ben002.RentalContract rc
-            INNER JOIN ben002.Equipment e ON e.CustomerNo IS NOT NULL
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.RentalContract rc
+            INNER JOIN {schema}.Equipment e ON e.CustomerNo IS NOT NULL
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE rc.DeletionTime IS NULL
                 AND (rc.EndDate IS NULL OR rc.EndDate >= GETDATE() OR rc.OpenEndedContract = 1)
                 AND EXISTS (
-                    SELECT 1 FROM ben002.RentalHistory rh 
+                    SELECT 1 FROM {schema}.RentalHistory rh 
                     WHERE rh.SerialNo = e.SerialNo 
                     AND rh.Year = YEAR(GETDATE()) 
                     AND rh.Month = MONTH(GETDATE())
@@ -6609,6 +6719,7 @@ def register_department_routes(reports_bp):
         """Get sales commission report for a specific month"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get month parameter (format: YYYY-MM)
             month_param = request.args.get('month')
@@ -6681,11 +6792,11 @@ def register_department_routes(reports_bp):
                     THEN COALESCE(ir.EquipmentCost, 0) + COALESCE(ir.MiscCost, 0)
                     ELSE 0 
                 END) as NewEquipmentCost
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.WONo
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(CASE WHEN Sell > 0 THEN Sell ELSE 0 END) as GrossSales
-                FROM ben002.WOEq
+                FROM {schema}.WOEq
                 WHERE SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
                 GROUP BY WONo
             ) used_eq ON ir.InvoiceNo = used_eq.WONo
@@ -6809,6 +6920,7 @@ def register_department_routes(reports_bp):
         """Diagnostic endpoint to understand sales data structure"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get month parameter
             month_param = request.args.get('month')
@@ -6832,7 +6944,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)) as RentalRevenue,
                 SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) as EquipmentRevenue,
                 SUM(ir.GrandTotal) as TotalRevenue
-            FROM ben002.InvoiceReg ir
+            FROM {schema}.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
             GROUP BY ir.SaleCode
             ORDER BY COUNT(*) DESC
@@ -6852,8 +6964,8 @@ def register_department_routes(reports_bp):
                 ir.EquipmentNonTax,
                 ir.RentalTaxable,
                 ir.RentalNonTax
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
             ORDER BY ir.InvoiceDate DESC
@@ -6867,8 +6979,8 @@ def register_department_routes(reports_bp):
                 c.Salesman1,
                 COUNT(DISTINCT ir.InvoiceNo) as InvoiceCount,
                 SUM(ir.GrandTotal) as TotalSales
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
                 AND c.Salesman1 IS NOT NULL
             GROUP BY c.Salesman1
@@ -6882,7 +6994,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 COUNT(*) as RentalInvoiceCount,
                 SUM(ir.RentalTaxable + ir.RentalNonTax) as TotalRentalRevenue
-            FROM ben002.InvoiceReg ir
+            FROM {schema}.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
                 AND (ir.RentalTaxable > 0 OR ir.RentalNonTax > 0)
             """
@@ -6917,6 +7029,7 @@ def register_department_routes(reports_bp):
         """Find invoices by invoice number to diagnose missing commission entries"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             # Get invoice numbers from query parameter (comma-separated)
             invoice_numbers = request.args.get('invoices', '')
@@ -6953,8 +7066,8 @@ def register_department_routes(reports_bp):
                 ir.LaborTaxable,
                 ir.LaborNonTax,
                 ir.Comments
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceNo IN ({placeholders})
             ORDER BY ir.InvoiceNo
             """
@@ -6964,7 +7077,7 @@ def register_department_routes(reports_bp):
             # Also get all unique sale codes for reference
             sale_codes_query = """
             SELECT DISTINCT SaleCode, COUNT(*) as Count
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -3, GETDATE())
             GROUP BY SaleCode
             ORDER BY COUNT(*) DESC
@@ -6998,6 +7111,7 @@ def register_department_routes(reports_bp):
         """Look up a specific invoice to determine its commission status"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             invoice_no = request.args.get('invoice_no', '').strip()
             if not invoice_no:
@@ -7009,7 +7123,9 @@ def register_department_routes(reports_bp):
 
             # Query to find the invoice with all relevant details
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT
                 ir.InvoiceNo,
                 ir.InvoiceDate,
@@ -7022,8 +7138,8 @@ def register_department_routes(reports_bp):
                 COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0) as RentalAmount,
                 COALESCE(ir.EquipmentCost, 0) as EquipmentCost,
                 COALESCE(ir.RentalCost, 0) as RentalCost
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.WONo
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
             WHERE ir.InvoiceNo = %s
             """
 
@@ -7117,6 +7233,7 @@ def register_department_routes(reports_bp):
         """Get detailed bucket diagnostics with sample invoices for each category"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get month parameter
             month_param = request.args.get('month')
@@ -7203,11 +7320,11 @@ def register_department_routes(reports_bp):
                                     WHEN c3.Salesman1 IS NOT NULL THEN 3
                                     ELSE 4
                                 END as Priority
-                            FROM ben002.InvoiceReg ir
-                            LEFT JOIN ben002.Customer c1 ON ir.BillTo = c1.Number
-                            LEFT JOIN ben002.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
+                            FROM {schema}.InvoiceReg ir
+                            LEFT JOIN {schema}.Customer c1 ON ir.BillTo = c1.Number
+                            LEFT JOIN {schema}.Customer c2 ON ir.BillToName = c2.Name AND c2.Salesman1 IS NOT NULL
                             -- Try matching on first word of company name (e.g., SIMONSON)
-                            LEFT JOIN ben002.Customer c3 ON 
+                            LEFT JOIN {schema}.Customer c3 ON 
                                 c3.Salesman1 IS NOT NULL
                                 AND LEN(ir.BillToName) >= 4
                                 AND LEN(c3.Name) >= 4
@@ -7247,7 +7364,7 @@ def register_department_routes(reports_bp):
                         THEN COALESCE(ir.RentalTaxable, 0) + COALESCE(ir.RentalNonTax, 0)
                         ELSE COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     END as CategoryAmount
-                FROM ben002.InvoiceReg ir
+                FROM {schema}.InvoiceReg ir
                 LEFT JOIN SalesmanLookup sl ON ir.InvoiceNo = sl.InvoiceNo
                 WHERE ir.InvoiceDate >= %s 
                     AND ir.InvoiceDate <= %s
@@ -7295,7 +7412,7 @@ def register_department_routes(reports_bp):
                     ELSE 0 
                 END) as NewTotal,
                 COUNT(CASE WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM') THEN 1 ELSE NULL END) as NewCount
-            FROM ben002.InvoiceReg ir
+            FROM {schema}.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s AND ir.InvoiceDate <= %s
             """
             
@@ -7308,7 +7425,7 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 COUNT(*) as InvoiceCount,
                 SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) as EquipmentRevenue
-            FROM ben002.InvoiceReg ir
+            FROM {schema}.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
@@ -7336,8 +7453,8 @@ def register_department_routes(reports_bp):
                 COALESCE(ir.LaborTaxable, 0) + COALESCE(ir.LaborNonTax, 0) as LaborAmount,
                 COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0) as MiscAmount,
                 ir.GrandTotal
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND NOT (
@@ -7415,6 +7532,7 @@ def register_department_routes(reports_bp):
         """Get detailed commission invoices by salesman"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get month parameter
             month_param = request.args.get('month')
@@ -7498,8 +7616,8 @@ def register_department_routes(reports_bp):
 
                     ELSE 0
                 END as Commission
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.WONo
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
                 AND COALESCE(wo.Salesman, 'House') IS NOT NULL
@@ -7664,8 +7782,8 @@ def register_department_routes(reports_bp):
                     ELSE 0
                 END as CategoryAmount,
                 ir.GrandTotal
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.WO wo ON ir.InvoiceNo = wo.WONo
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
                 AND (wo.Salesman IS NULL OR wo.Salesman = '' OR UPPER(wo.Salesman) = 'HOUSE')
@@ -7736,6 +7854,7 @@ def register_department_routes(reports_bp):
         """Diagnostic endpoint to explore InvoiceSales table for cost data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # First, get column info
             columns_query = """
@@ -7745,7 +7864,7 @@ def register_department_routes(reports_bp):
                 CHARACTER_MAXIMUM_LENGTH,
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = 'InvoiceSales'
             ORDER BY ORDINAL_POSITION
             """
@@ -7755,10 +7874,10 @@ def register_department_routes(reports_bp):
             # Get sample data
             sample_query = """
             SELECT TOP 10 *
-            FROM ben002.InvoiceSales
+            FROM {schema}.InvoiceSales
             WHERE InvoiceNo IN (
                 SELECT TOP 10 InvoiceNo 
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE SaleCode IN ('LINDEN', 'NEWEQ', 'USEDEQ', 'RNTSALE')
                 AND InvoiceDate >= '2025-01-01'
                 ORDER BY InvoiceDate DESC
@@ -7787,6 +7906,7 @@ def register_department_routes(reports_bp):
         """Diagnostic to find all equipment sale codes for a specific month"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             month_param = request.args.get('month', '2025-03')
             year, month = map(int, month_param.split('-'))
@@ -7805,7 +7925,7 @@ def register_department_routes(reports_bp):
                 SUM(ir.GrandTotal) as TotalRevenue,
                 MIN(ir.InvoiceDate) as FirstInvoice,
                 MAX(ir.InvoiceDate) as LastInvoice
-            FROM ben002.InvoiceReg ir
+            FROM {schema}.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
@@ -7825,7 +7945,7 @@ def register_department_routes(reports_bp):
                 ir.Comments,
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 ir.GrandTotal
-            FROM ben002.InvoiceReg ir
+            FROM {schema}.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
@@ -7841,7 +7961,7 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 COUNT(*) as InvoiceCount,
                 SUM(COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)) as EquipmentRevenue
-            FROM ben002.InvoiceReg ir
+            FROM {schema}.InvoiceReg ir
             WHERE ir.InvoiceDate >= %s 
                 AND ir.InvoiceDate <= %s
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
@@ -7878,9 +7998,12 @@ def register_department_routes(reports_bp):
         """Find specific LINDE invoice around $113K"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Search for LINDE invoices in March 2025 around $113K
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
@@ -7894,8 +8017,8 @@ def register_department_routes(reports_bp):
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 ir.GrandTotal,
                 ir.Comments
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceDate >= '2025-03-01' 
                 AND ir.InvoiceDate < '2025-04-01'
                 AND ir.SaleCode = 'LINDE'
@@ -7920,8 +8043,8 @@ def register_department_routes(reports_bp):
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 ir.GrandTotal,
                 ir.Comments
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceDate >= '2025-03-01' 
                 AND ir.InvoiceDate < '2025-04-01'
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
@@ -7942,8 +8065,8 @@ def register_department_routes(reports_bp):
                 ir.SaleCode,
                 COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) as EquipmentAmount,
                 ir.GrandTotal
-            FROM ben002.InvoiceReg ir
-            LEFT JOIN ben002.Customer c ON ir.BillTo = c.Number
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
             WHERE ir.InvoiceDate >= '2025-03-01' 
                 AND ir.InvoiceDate < '2025-04-01'
                 AND ir.SaleCode = 'LINDE'
@@ -7976,7 +8099,9 @@ def register_department_routes(reports_bp):
                 return jsonify({'error': 'Start date and end date are required'}), 400
                 
             # Query - removed unreliable work order matching since there's no direct link
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 -- Customer info
                 i.BillTo,
@@ -8009,9 +8134,9 @@ def register_department_routes(reports_bp):
                 -- Comments
                 i.Comments
                 
-            FROM ben002.InvoiceReg i
-            LEFT JOIN ben002.Customer c ON i.BillTo = c.Number
-            LEFT JOIN ben002.Equipment e ON i.SerialNo = e.SerialNo
+            FROM {schema}.InvoiceReg i
+            LEFT JOIN {schema}.Customer c ON i.BillTo = c.Number
+            LEFT JOIN {schema}.Equipment e ON i.SerialNo = e.SerialNo
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
@@ -8035,6 +8160,7 @@ def register_department_routes(reports_bp):
             query += " ORDER BY i.InvoiceDate, i.InvoiceNo"
             
             db = get_db()
+            schema = get_tenant_schema()
             invoices = db.execute_query(query, params)
                 
             # Calculate totals
@@ -8074,14 +8200,16 @@ def register_department_routes(reports_bp):
                 return jsonify({'error': 'Start date and end date are required'}), 400
             
             # Get customers with service invoices in the specified date range
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 c.Number as CustomerNo,
                 c.Name as CustomerName,
                 COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
                 SUM(i.GrandTotal) as TotalRevenue
-            FROM ben002.Customer c
-            INNER JOIN ben002.InvoiceReg i ON c.Number = i.BillTo
+            FROM {schema}.Customer c
+            INNER JOIN {schema}.InvoiceReg i ON c.Number = i.BillTo
             WHERE i.DeletionTime IS NULL
               AND i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
@@ -8096,6 +8224,7 @@ def register_department_routes(reports_bp):
             """
             
             db = get_db()
+            schema = get_tenant_schema()
             customers = db.execute_query(query, [start_date, end_date])
             
             # Format the response
@@ -8130,6 +8259,7 @@ def register_department_routes(reports_bp):
             end_date = request.args.get('end_date', '2025-08-01')
             
             db = get_db()
+            schema = get_tenant_schema()
             
             # Check total invoices in date range
             total_query = """
@@ -8137,7 +8267,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as total_invoices,
                 COUNT(DISTINCT BillTo) as unique_customers,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND DeletionTime IS NULL
@@ -8153,7 +8283,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as service_invoices,
                 COUNT(DISTINCT BillTo) as service_customers,
                 SUM(GrandTotal) as service_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND DeletionTime IS NULL
@@ -8174,7 +8304,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as invoice_count,
                 COUNT(DISTINCT BillTo) as customer_count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= %s
               AND InvoiceDate <= %s
               AND DeletionTime IS NULL
@@ -8194,7 +8324,7 @@ def register_department_routes(reports_bp):
                 MIN(i.InvoiceNo) as first_invoice,
                 MAX(i.InvoiceNo) as last_invoice,
                 SUM(i.GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg i
+            FROM {schema}.InvoiceReg i
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
@@ -8230,6 +8360,7 @@ def register_department_routes(reports_bp):
         """Diagnostic endpoint to explore InvoiceReg table structure"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get column information
             schema_query = """
@@ -8240,7 +8371,7 @@ def register_department_routes(reports_bp):
                 IS_NULLABLE,
                 COLUMN_DEFAULT
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = 'InvoiceReg'
             ORDER BY ORDINAL_POSITION
             """
@@ -8250,7 +8381,7 @@ def register_department_routes(reports_bp):
             # Get a sample invoice with all fields
             sample_query = """
             SELECT TOP 1 * 
-            FROM ben002.InvoiceReg 
+            FROM {schema}.InvoiceReg 
             WHERE InvoiceDate >= '2025-07-01'
                 AND GrandTotal > 1000
                 AND (SaleCode IN ('SVE', 'SVES', 'SVEW', 'SVER', 'SVE-STL', 'FREIG') 
@@ -8266,7 +8397,7 @@ def register_department_routes(reports_bp):
                 COLUMN_NAME,
                 DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = 'InvoiceReg'
                 AND (COLUMN_NAME LIKE '%freight%' 
                      OR COLUMN_NAME LIKE '%ship%'
@@ -8290,7 +8421,7 @@ def register_department_routes(reports_bp):
             JOIN INFORMATION_SCHEMA.COLUMNS c 
                 ON t.TABLE_SCHEMA = c.TABLE_SCHEMA 
                 AND t.TABLE_NAME = c.TABLE_NAME
-            WHERE t.TABLE_SCHEMA = 'ben002'
+            WHERE t.TABLE_SCHEMA = '{schema}'
                 AND (t.TABLE_NAME LIKE '%Invoice%' OR c.COLUMN_NAME LIKE '%Invoice%')
                 AND c.COLUMN_NAME IN ('InvoiceNo', 'WONo', 'WorkOrderNo', 'Freight', 'ShipCharge')
             ORDER BY t.TABLE_NAME, c.COLUMN_NAME
@@ -8303,7 +8434,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME IN ('InvoiceSales', 'InvoiceDetail', 'InvoiceLines', 'InvoiceArchive')
             """
             
@@ -8328,6 +8459,7 @@ def register_department_routes(reports_bp):
         """Find how work orders are linked to invoices"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Check WO table for invoice fields
             wo_invoice_query = """
@@ -8335,7 +8467,7 @@ def register_department_routes(reports_bp):
                 COLUMN_NAME,
                 DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = 'WO'
                 AND COLUMN_NAME LIKE '%Invoice%'
             """
@@ -8352,7 +8484,7 @@ def register_department_routes(reports_bp):
                 w.UnitNo,
                 w.WorkPerformed,
                 w.*
-            FROM ben002.WO w
+            FROM {schema}.WO w
             WHERE w.ClosedDate IS NOT NULL
                 AND w.ClosedDate >= '2025-07-01'
                 AND w.Type = 'S'
@@ -8367,8 +8499,8 @@ def register_department_routes(reports_bp):
                 m.*,
                 w.WONo,
                 w.ClosedDate
-            FROM ben002.WOMisc m
-            JOIN ben002.WO w ON m.WONo = w.WONo
+            FROM {schema}.WOMisc m
+            JOIN {schema}.WO w ON m.WONo = w.WONo
             WHERE w.ClosedDate >= '2025-07-01'
                 AND (UPPER(m.Description) LIKE '%FREIGHT%' 
                      OR UPPER(m.Description) LIKE '%SHIP%'
@@ -8384,7 +8516,7 @@ def register_department_routes(reports_bp):
                 COLUMN_NAME,
                 DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = 'WO'
             ORDER BY ORDINAL_POSITION
             """
@@ -8409,6 +8541,7 @@ def register_department_routes(reports_bp):
         try:
             logger.info("Starting rental availability report")
             db = get_db()
+            schema = get_tenant_schema()
             
             # UPDATED LOGIC: Check for OPEN rental work orders (Type='R' and ClosedDate IS NULL)
             # This matches what the Rental Manager sees in Softbase under "Open Rental Orders"
@@ -8455,8 +8588,8 @@ def register_department_routes(reports_bp):
                 e.DayRent,
                 e.WeekRent,
                 e.MonthRent
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             -- Check for OPEN rental work orders (matching Softbase "Open Rental Orders")
             LEFT JOIN (
                 SELECT DISTINCT
@@ -8473,10 +8606,10 @@ def register_department_routes(reports_bp):
                     COALESCE(ship_cust.City, bill_cust.City) as CustomerCity,
                     COALESCE(ship_cust.State, bill_cust.State) as CustomerState,
                     COALESCE(ship_cust.ZipCode, bill_cust.ZipCode) as CustomerZip
-                FROM ben002.WORental wr
-                INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-                LEFT JOIN ben002.Customer bill_cust ON wo.BillTo = bill_cust.Number
-                LEFT JOIN ben002.Customer ship_cust ON wo.ShipTo = ship_cust.Number
+                FROM {schema}.WORental wr
+                INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+                LEFT JOIN {schema}.Customer bill_cust ON wo.BillTo = bill_cust.Number
+                LEFT JOIN {schema}.Customer ship_cust ON wo.ShipTo = ship_cust.Number
                 WHERE wo.Type = 'R'
                 AND wo.ClosedDate IS NULL  -- This is the key: OPEN rental orders only
                 AND wo.DeletionTime IS NULL
@@ -8547,8 +8680,8 @@ def register_department_routes(reports_bp):
                     e.DayRent,
                     e.WeekRent,
                     e.MonthRent
-                FROM ben002.Equipment e
-                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                FROM {schema}.Equipment e
+                LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
                 -- Check for OPEN rental work orders
                 LEFT JOIN (
                     SELECT DISTINCT
@@ -8559,8 +8692,8 @@ def register_department_routes(reports_bp):
                         wo.RentalContractNo,
                         wo.BillTo,
                         wo.ShipTo
-                    FROM ben002.WORental wr
-                    INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+                    FROM {schema}.WORental wr
+                    INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
                     WHERE wo.Type = 'R'
                     AND wo.ClosedDate IS NULL  -- OPEN rental orders only
                     AND wo.DeletionTime IS NULL
@@ -8574,8 +8707,8 @@ def register_department_routes(reports_bp):
                     OR (e.SerialNo IS NOT NULL AND e.SerialNo != '' AND e.SerialNo = open_rental.SerialNo)
                 )
                 -- Join to get Ship To customer info first, fall back to Bill To
-                LEFT JOIN ben002.Customer ship_cust ON open_rental.ShipTo = ship_cust.Number
-                LEFT JOIN ben002.Customer bill_cust ON open_rental.BillTo = bill_cust.Number
+                LEFT JOIN {schema}.Customer ship_cust ON open_rental.ShipTo = ship_cust.Number
+                LEFT JOIN {schema}.Customer bill_cust ON open_rental.BillTo = bill_cust.Number
                 WHERE 
                 -- PRIMARY FILTER: Units owned by Rental Department
                 e.InventoryDept = 60
@@ -8639,7 +8772,9 @@ def register_department_routes(reports_bp):
             logger.info("No equipment found with simple query, trying complex query...")
             
             # Use the SAME working query from equipment-report
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH RentalEquipment AS (
                 SELECT 
                     e.UnitNo,
@@ -8664,15 +8799,15 @@ def register_department_routes(reports_bp):
                         ELSE COALESCE(e.RentalStatus, 'Unknown')
                     END as CurrentStatus,
                     rh.DaysRented as CurrentMonthDays
-                FROM ben002.Equipment e
-                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-                LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                FROM {schema}.Equipment e
+                LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
+                LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                     AND rh.Year = YEAR(GETDATE()) 
                     AND rh.Month = MONTH(GETDATE())
                     AND rh.DaysRented > 0
                     AND rh.DeletionTime IS NULL
                 WHERE EXISTS (
-                    SELECT 1 FROM ben002.RentalHistory rh 
+                    SELECT 1 FROM {schema}.RentalHistory rh 
                     WHERE rh.SerialNo = e.SerialNo 
                     AND rh.DaysRented > 0
                 )
@@ -8723,8 +8858,8 @@ def register_department_routes(reports_bp):
                 COUNT(CASE WHEN e.RentalStatus = 'Ready To Rent' THEN 1 END) as available_units,
                 COUNT(CASE WHEN rh.SerialNo IS NOT NULL AND rh.DaysRented > 0 THEN 1 END) as on_rent_units,
                 COUNT(CASE WHEN e.RentalStatus = 'On Hold' THEN 1 END) as on_hold_units
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                 AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
@@ -8797,6 +8932,7 @@ def register_department_routes(reports_bp):
         """Debug endpoint to troubleshoot rental availability data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             debug_info = {}
             
             # Test 0: Direct query of what availability endpoint would return
@@ -8811,9 +8947,9 @@ def register_department_routes(reports_bp):
                     e.DayRent,
                     e.WeekRent,
                     e.MonthRent
-                FROM ben002.Equipment e
+                FROM {schema}.Equipment e
                 WHERE EXISTS (
-                    SELECT 1 FROM ben002.RentalHistory rh 
+                    SELECT 1 FROM {schema}.RentalHistory rh 
                     WHERE rh.SerialNo = e.SerialNo 
                     AND rh.DaysRented > 0
                 )
@@ -8826,7 +8962,7 @@ def register_department_routes(reports_bp):
             
             # Test 1: Check if Equipment table is accessible
             try:
-                test1 = "SELECT COUNT(*) as total FROM ben002.Equipment"
+                test1 = "SELECT COUNT(*) as total FROM {schema}.Equipment"
                 result1 = db.execute_query(test1)
                 debug_info['equipment_table_count'] = result1[0]['total'] if result1 else 0
             except Exception as e:
@@ -8835,7 +8971,7 @@ def register_department_routes(reports_bp):
             # Test 2: Check Equipment table columns
             try:
                 test2 = """
-                SELECT TOP 1 * FROM ben002.Equipment
+                SELECT TOP 1 * FROM {schema}.Equipment
                 """
                 result2 = db.execute_query(test2)
                 if result2:
@@ -8848,7 +8984,7 @@ def register_department_routes(reports_bp):
             try:
                 test3 = """
                 SELECT RentalStatus, COUNT(*) as count
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 GROUP BY RentalStatus
                 ORDER BY count DESC
                 """
@@ -8861,7 +8997,7 @@ def register_department_routes(reports_bp):
             try:
                 test4 = """
                 SELECT COUNT(*) as count
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE DayRent > 0 OR WeekRent > 0 OR MonthRent > 0
                 """
                 result4 = db.execute_query(test4)
@@ -8873,7 +9009,7 @@ def register_department_routes(reports_bp):
             try:
                 test5 = """
                 SELECT COUNT(*) as count
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE Make IS NOT NULL AND Make != ''
                 """
                 result5 = db.execute_query(test5)
@@ -8887,7 +9023,7 @@ def register_department_routes(reports_bp):
                 SELECT TOP 10 
                     Make, Model, UnitNo, SerialNo, RentalStatus,
                     CustomerNo, DayRent, WeekRent, MonthRent
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE (DayRent > 0 OR WeekRent > 0 OR MonthRent > 0)
                     AND Make IS NOT NULL AND Make != ''
                 """
@@ -8901,8 +9037,8 @@ def register_department_routes(reports_bp):
                 test7 = """
                 SELECT TOP 5
                     e.UnitNo, e.CustomerNo, c.Name as CustomerName
-                FROM ben002.Equipment e
-                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+                FROM {schema}.Equipment e
+                LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
                 WHERE e.CustomerNo IS NOT NULL AND e.CustomerNo != ''
                 """
                 result7 = db.execute_query(test7)
@@ -8923,7 +9059,7 @@ def register_department_routes(reports_bp):
                     e.DayRent,
                     e.WeekRent,
                     e.MonthRent
-                FROM ben002.Equipment e
+                FROM {schema}.Equipment e
                 WHERE e.Make IS NOT NULL 
                     AND e.Make != ''
                 ORDER BY e.UnitNo
@@ -8950,8 +9086,8 @@ def register_department_routes(reports_bp):
                     rh.Month,
                     rh.DaysRented,
                     rh.RentAmount
-                FROM ben002.Equipment e
-                INNER JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+                FROM {schema}.Equipment e
+                INNER JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
                 WHERE rh.DaysRented > 0
                 ORDER BY rh.Year DESC, rh.Month DESC
                 """
@@ -8961,8 +9097,8 @@ def register_department_routes(reports_bp):
                 # Count total equipment with ANY rental history
                 count_query = """
                 SELECT COUNT(DISTINCT e.SerialNo) as count
-                FROM ben002.Equipment e
-                INNER JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+                FROM {schema}.Equipment e
+                INNER JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
                 WHERE rh.DaysRented > 0
                 """
                 count_result = db.execute_query(count_query)
@@ -8974,7 +9110,7 @@ def register_department_routes(reports_bp):
             try:
                 test10 = """
                 SELECT InventoryDept, COUNT(*) as count
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE InventoryDept IS NOT NULL
                 GROUP BY InventoryDept
                 ORDER BY count DESC
@@ -8991,7 +9127,7 @@ def register_department_routes(reports_bp):
                     COUNT(CASE WHEN CustomerNo = '900006' THEN 1 END) as with_900006,
                     COUNT(CASE WHEN InventoryDept = 40 THEN 1 END) as with_dept_40,
                     COUNT(CASE WHEN RentalStatus IS NOT NULL THEN 1 END) as with_rental_status
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE UPPER(Make) IN ('LINDE', 'KOMATSU', 'BENDI', 'CLARK', 'CROWN', 'UNICARRIERS')
                 """
                 result11 = db.execute_query(test11)
@@ -9014,11 +9150,14 @@ def register_department_routes(reports_bp):
         """
         try:
             db = get_db()
+            schema = get_tenant_schema()
 
             # Get all active depreciation records with remaining months
             # Join with Equipment to get unit info
             # Note: For newly added units, LastUpdatedAmount may be 0 - calculate from StartingValue/TotalMonths
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT
                 d.SerialNo,
                 e.UnitNo,
@@ -9041,8 +9180,8 @@ def register_department_routes(reports_bp):
                 d.Method,
                 -- Calculate depreciation end date (LastUpdated + RemainingMonths)
                 DATEADD(month, COALESCE(d.RemainingMonths, 0), COALESCE(d.LastUpdated, GETDATE())) as DepreciationEndDate
-            FROM ben002.Depreciation d
-            LEFT JOIN ben002.Equipment e ON d.SerialNo = e.SerialNo
+            FROM {schema}.Depreciation d
+            LEFT JOIN {schema}.Equipment e ON d.SerialNo = e.SerialNo
             WHERE d.Inactive = 0  -- Only active depreciation
                 AND d.RemainingMonths > 0  -- Only items still depreciating
                 AND d.TotalMonths > 0  -- Must have valid depreciation period
@@ -9160,6 +9299,7 @@ def register_department_routes(reports_bp):
         try:
             from datetime import datetime
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get date parameters from query string
             start_date = request.args.get('start_date')
@@ -9191,7 +9331,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
                 SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue
-            FROM [ben002].InvoiceReg
+            FROM [{schema}].InvoiceReg
             WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -9204,7 +9344,7 @@ def register_department_routes(reports_bp):
             # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
             maintenance_customers_query = """
             SELECT DISTINCT ShipTo as customer_number
-            FROM [ben002].InvoiceReg
+            FROM [{schema}].InvoiceReg
             WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND ShipTo IS NOT NULL
@@ -9228,26 +9368,26 @@ def register_department_routes(reports_bp):
                         w.ShipTo,
                         YEAR(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as year,
                         MONTH(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as month
-                    FROM [ben002].WO w
+                    FROM [{schema}].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, PM work orders
                     {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [ben002].WOLabor
+                    FROM [{schema}].WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [ben002].WOParts
+                    FROM [{schema}].WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [ben002].WOMisc
+                    FROM [{schema}].WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9275,26 +9415,26 @@ def register_department_routes(reports_bp):
                     SELECT
                         w.WONo,
                         w.ShipTo
-                    FROM [ben002].WO w
+                    FROM [{schema}].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [ben002].WOLabor
+                    FROM [{schema}].WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [ben002].WOParts
+                    FROM [{schema}].WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [ben002].WOMisc
+                    FROM [{schema}].WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9307,7 +9447,7 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
                     SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
                 FROM ServiceWOs sw
-                LEFT JOIN [ben002].Customer c ON sw.ShipTo = c.Number
+                LEFT JOIN [{schema}].Customer c ON sw.ShipTo = c.Number
                 LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
                 LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
                 LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
@@ -9321,26 +9461,26 @@ def register_department_routes(reports_bp):
                 total_service_costs_query = f"""
                 WITH ServiceWOs AS (
                     SELECT w.WONo, w.ShipTo
-                    FROM [ben002].WO w
+                    FROM [{schema}].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [ben002].WOLabor
+                    FROM [{schema}].WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [ben002].WOParts
+                    FROM [{schema}].WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [ben002].WOMisc
+                    FROM [{schema}].WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9369,7 +9509,7 @@ def register_department_routes(reports_bp):
                         w.Make,
                         w.Model,
                         w.Type as wo_type
-                    FROM [ben002].WO w
+                    FROM [{schema}].WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
@@ -9378,19 +9518,19 @@ def register_department_routes(reports_bp):
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [ben002].WOLabor
+                    FROM [{schema}].WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [ben002].WOParts
+                    FROM [{schema}].WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [ben002].WOMisc
+                    FROM [{schema}].WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9409,7 +9549,7 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
                     SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
                 FROM ServiceWOs sw
-                LEFT JOIN [ben002].Customer c ON sw.ShipTo = c.Number
+                LEFT JOIN [{schema}].Customer c ON sw.ShipTo = c.Number
                 LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
                 LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
                 LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
@@ -9439,9 +9579,9 @@ def register_department_routes(reports_bp):
                 MIN(i.InvoiceDate) as first_invoice,
                 MAX(i.InvoiceDate) as last_invoice,
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue
-            FROM [ben002].InvoiceReg i
-            LEFT JOIN [ben002].Customer c ON i.ShipTo = c.Number
-            LEFT JOIN [ben002].Customer bc ON i.BillTo = bc.Number
+            FROM [{schema}].InvoiceReg i
+            LEFT JOIN [{schema}].Customer c ON i.ShipTo = c.Number
+            LEFT JOIN [{schema}].Customer bc ON i.BillTo = bc.Number
             WHERE i.SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND i.ShipTo IS NOT NULL
@@ -9460,7 +9600,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue,
                 MIN(InvoiceDate) as earliest_invoice,
                 MAX(InvoiceDate) as latest_invoice
-            FROM [ben002].InvoiceReg
+            FROM [{schema}].InvoiceReg
             WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND ShipTo IS NOT NULL
@@ -9711,6 +9851,7 @@ def register_department_routes(reports_bp):
         try:
             from datetime import datetime
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get date parameters from query string
             start_date = request.args.get('start_date')
@@ -9742,9 +9883,9 @@ def register_department_routes(reports_bp):
                 MIN(i.InvoiceDate) as first_invoice,
                 MAX(i.InvoiceDate) as last_invoice,
                 SUM(COALESCE(i.GrandTotal, 0)) as total_revenue
-            FROM [ben002].InvoiceReg i
-            LEFT JOIN [ben002].Customer c ON i.ShipTo = c.Number
-            LEFT JOIN [ben002].Customer bc ON i.BillTo = bc.Number
+            FROM [{schema}].InvoiceReg i
+            LEFT JOIN [{schema}].Customer c ON i.ShipTo = c.Number
+            LEFT JOIN [{schema}].Customer bc ON i.BillTo = bc.Number
             WHERE 1=1
                 {date_filter}
                 AND i.ShipTo IS NOT NULL
@@ -9761,8 +9902,8 @@ def register_department_routes(reports_bp):
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wol.Cost, 0)) as total_labor_cost
-            FROM [ben002].WO wo
-            INNER JOIN [ben002].WOLabor wol ON wo.WONo = wol.WONo
+            FROM [{schema}].WO wo
+            INNER JOIN [{schema}].WOLabor wol ON wo.WONo = wol.WONo
             WHERE 1=1
                 {wo_date_filter}
                 AND wo.ShipTo IS NOT NULL
@@ -9777,8 +9918,8 @@ def register_department_routes(reports_bp):
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wop.Cost, 0)) as total_parts_cost
-            FROM [ben002].WO wo
-            INNER JOIN [ben002].WOParts wop ON wo.WONo = wop.WONo
+            FROM [{schema}].WO wo
+            INNER JOIN [{schema}].WOParts wop ON wo.WONo = wop.WONo
             WHERE 1=1
                 {wo_date_filter}
                 AND wo.ShipTo IS NOT NULL
@@ -9793,8 +9934,8 @@ def register_department_routes(reports_bp):
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wom.Cost, 0)) as total_misc_cost
-            FROM [ben002].WO wo
-            INNER JOIN [ben002].WOMisc wom ON wo.WONo = wom.WONo
+            FROM [{schema}].WO wo
+            INNER JOIN [{schema}].WOMisc wom ON wo.WONo = wom.WONo
             WHERE 1=1
                 {wo_date_filter}
                 AND wo.ShipTo IS NOT NULL
@@ -10110,6 +10251,7 @@ def register_department_routes(reports_bp):
         try:
             from datetime import datetime
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get parameters
             start_date = request.args.get('start_date')
@@ -10145,8 +10287,8 @@ def register_department_routes(reports_bp):
                         COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) + 
                         COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as TotalRepairCost,
                     COUNT(DISTINCT i.InvoiceNo) as InvoiceCount
-                FROM ben002.InvoiceReg i
-                LEFT JOIN ben002.Equipment e ON i.SerialNo = e.SerialNo
+                FROM {schema}.InvoiceReg i
+                LEFT JOIN {schema}.Equipment e ON i.SerialNo = e.SerialNo
                 WHERE i.InvoiceDate >= %s
                   AND i.InvoiceDate <= %s
                   AND i.DeletionTime IS NULL
@@ -10223,7 +10365,7 @@ def register_department_routes(reports_bp):
             # Get customer info
             customer_query = """
             SELECT Number, Name, Address, City, State, ZipCode
-            FROM ben002.Customer
+            FROM {schema}.Customer
             WHERE Number = %s
             """
             customer_info = db.execute_query(customer_query, [customer_no])

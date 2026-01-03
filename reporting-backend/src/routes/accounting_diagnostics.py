@@ -13,7 +13,7 @@ def discover_accounting_tables():
     """Comprehensive discovery of accounting and finance related tables"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Step 1: Find all potential accounting/finance tables
         discovery_query = """
         SELECT 
@@ -24,7 +24,7 @@ def discover_accounting_tables():
         LEFT JOIN sys.partitions p 
             ON p.object_id = OBJECT_ID(t.TABLE_SCHEMA + '.' + t.TABLE_NAME)
             AND p.index_id IN (0,1)
-        WHERE t.TABLE_SCHEMA = 'ben002'
+        WHERE t.TABLE_SCHEMA = '{schema}'
         AND (
             -- Accounting/Finance keywords
             t.TABLE_NAME LIKE '%account%'
@@ -85,7 +85,7 @@ def discover_accounting_tables():
                 IS_NULLABLE,
                 COLUMN_DEFAULT
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME = '{table_name}'
             ORDER BY ORDINAL_POSITION
             """
@@ -112,14 +112,14 @@ def discover_accounting_tables():
                         date_col = date_columns[0]
                         sample_query = f"""
                         SELECT TOP 5 *
-                        FROM ben002.{table_name}
+                        FROM {schema}.{table_name}
                         WHERE {date_col} >= '2025-01-01'
                         ORDER BY {date_col} DESC
                         """
                     else:
                         sample_query = f"""
                         SELECT TOP 5 *
-                        FROM ben002.{table_name}
+                        FROM {schema}.{table_name}
                         """
                     
                     sample_data = db.execute_query(sample_query)
@@ -228,7 +228,7 @@ def analyze_expense_patterns(db, tables):
             try:
                 account_query = f"""
                 SELECT TOP 20 *
-                FROM ben002.{table_name}
+                FROM {schema}.{table_name}
                 WHERE 1=1
                 """
                 accounts = db.execute_query(account_query)

@@ -8,11 +8,28 @@ from flask import Blueprint, jsonify
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 october_investigation_bp = Blueprint('october_investigation', __name__)
 sql_service = AzureSQLService()
-
+schema = get_tenant_schema()
 @october_investigation_bp.route('/api/investigation/october2025', methods=['GET'])
 def investigate_october_2025():
     """Detailed investigation of October 2025 P&L"""
@@ -30,7 +47,7 @@ def investigate_october_2025():
             -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) - 
              SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) -
              SUM(CASE WHEN AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%' THEN Amount ELSE 0 END) as OperatingProfit
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -44,7 +61,7 @@ def investigate_october_2025():
             SUM(Amount) as Amount,
             COUNT(*) as TransactionCount,
             SUM(ABS(Amount)) as TotalVolume
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -61,7 +78,7 @@ def investigate_october_2025():
             SUM(Amount) as Amount,
             COUNT(*) as TransactionCount,
             SUM(ABS(Amount)) as TotalVolume
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -78,7 +95,7 @@ def investigate_october_2025():
             AccountNo,
             Amount,
             Posted
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -95,8 +112,8 @@ def investigate_october_2025():
             t1.Amount as DebitAmount,
             t2.Amount as CreditAmount,
             ABS(t1.Amount + t2.Amount) as NetDifference
-        FROM ben002.GLDetail t1
-        JOIN ben002.GLDetail t2 
+        FROM {schema}.GLDetail t1
+        JOIN {schema}.GLDetail t2 
             ON t1.AccountNo = t2.AccountNo
             AND t1.EffectiveDate = t2.EffectiveDate
             AND ABS(t1.Amount + t2.Amount) < 1000
@@ -118,7 +135,7 @@ def investigate_october_2025():
             SUM(CASE WHEN Amount > 0 THEN 1 ELSE 0 END) as DebitCount,
             SUM(CASE WHEN Amount < 0 THEN 1 ELSE 0 END) as CreditCount,
             SUM(ABS(Amount)) as TotalVolume
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -131,7 +148,7 @@ def investigate_october_2025():
             DAY(EffectiveDate) as Day,
             COUNT(*) as Transactions,
             SUM(ABS(Amount)) as Volume
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -150,7 +167,7 @@ def investigate_october_2025():
             -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) - 
              SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) -
              SUM(CASE WHEN AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%' THEN Amount ELSE 0 END) as OperatingProfit
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-09-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -167,7 +184,7 @@ def investigate_october_2025():
             MIN(Amount) as MinAmount,
             MAX(Amount) as MaxAmount,
             SUM(ABS(Amount)) as TotalVolume
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
@@ -181,7 +198,7 @@ def investigate_october_2025():
             AccountNo,
             SUM(Amount) as NetAmount,
             COUNT(*) as TransactionCount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2025-10-01' 
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1

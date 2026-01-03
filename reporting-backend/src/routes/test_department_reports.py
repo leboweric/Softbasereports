@@ -5,6 +5,23 @@ from datetime import datetime, timedelta
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,6 +55,7 @@ def register_department_routes(reports_bp):
         """Simple version that just returns table names"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Just get table names and counts
             tables_query = """
@@ -45,8 +63,8 @@ def register_department_routes(reports_bp):
                 t.TABLE_NAME as table_name,
                 p.rows as row_count
             FROM INFORMATION_SCHEMA.TABLES t
-            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
-            WHERE t.TABLE_SCHEMA = 'ben002'
+            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('{schema}.' + t.TABLE_NAME)
+            WHERE t.TABLE_SCHEMA = '{schema}'
             AND t.TABLE_TYPE = 'BASE TABLE'
             AND p.index_id IN (0,1)
             ORDER BY p.rows DESC
@@ -75,13 +93,17 @@ def register_department_routes(reports_bp):
         """Just list all SaleCodes and their July totals"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
-            query = """
+            schema = get_tenant_schema()
+
+            
+            query = f"""
             SELECT 
                 SaleCode,
                 COUNT(*) as count,
                 SUM(GrandTotal) as total
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
             GROUP BY SaleCode
@@ -114,14 +136,17 @@ def register_department_routes(reports_bp):
         """Simple test to find Service revenue"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # First, let's just get July 2025 totals by SaleCode
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 SaleCode,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
             GROUP BY SaleCode
@@ -139,7 +164,7 @@ def register_department_routes(reports_bp):
                     RecvAccount,
                     COUNT(*) as invoice_count,
                     SUM(GrandTotal) as total_revenue
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE MONTH(InvoiceDate) = 7
                 AND YEAR(InvoiceDate) = 2025
                 AND RecvAccount IS NOT NULL
@@ -175,6 +200,7 @@ def register_department_routes(reports_bp):
         """Get ALL column names from InvoiceReg and WO tables"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get InvoiceReg columns
             invoice_query = """
@@ -183,7 +209,7 @@ def register_department_routes(reports_bp):
                 DATA_TYPE,
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'InvoiceReg'
             ORDER BY ORDINAL_POSITION
             """
@@ -197,7 +223,7 @@ def register_department_routes(reports_bp):
                 DATA_TYPE,
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'WO'
             ORDER BY ORDINAL_POSITION
             """
@@ -205,8 +231,8 @@ def register_department_routes(reports_bp):
             wo_columns = db.execute_query(wo_query)
             
             # Get sample data
-            invoice_sample = db.execute_query("SELECT TOP 1 * FROM ben002.InvoiceReg WHERE MONTH(InvoiceDate) = 7 AND YEAR(InvoiceDate) = 2025")
-            wo_sample = db.execute_query("SELECT TOP 1 * FROM ben002.WO WHERE Type = 'S'")
+            invoice_sample = db.execute_query("SELECT TOP 1 * FROM {schema}.InvoiceReg WHERE MONTH(InvoiceDate) = 7 AND YEAR(InvoiceDate) = 2025")
+            wo_sample = db.execute_query("SELECT TOP 1 * FROM {schema}.WO WHERE Type = 'S'")
             
             return jsonify({
                 'invoice_columns': invoice_columns,
@@ -226,14 +252,17 @@ def register_department_routes(reports_bp):
         """Get InvoiceReg table columns to find the right linkage"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get all columns from InvoiceReg
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'InvoiceReg'
             ORDER BY ORDINAL_POSITION
             """
@@ -242,7 +271,7 @@ def register_department_routes(reports_bp):
             
             # Also get a sample row to see actual data
             sample_query = """
-            SELECT TOP 1 * FROM ben002.InvoiceReg
+            SELECT TOP 1 * FROM {schema}.InvoiceReg
             """
             
             sample_result = db.execute_query(sample_query)
@@ -262,6 +291,7 @@ def register_department_routes(reports_bp):
         """Debug where $23,511.68 is coming from"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             today = datetime.now()
             
             results = {
@@ -282,7 +312,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_revenue,
                 MIN(InvoiceDate) as min_date,
                 MAX(InvoiceDate) as max_date
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE RecvAccount IN ('410004', '410005')
             AND MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
@@ -301,7 +331,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_revenue,
                 MIN(InvoiceDate) as min_date,
                 MAX(InvoiceDate) as max_date
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE Dept IN (40, 45)
             AND MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
@@ -320,7 +350,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_revenue,
                 MIN(InvoiceDate) as min_date,
                 MAX(InvoiceDate) as max_date
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('FMROAD', 'FMSHOP')
             AND MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
@@ -336,7 +366,7 @@ def register_department_routes(reports_bp):
                 RecvAccount,
                 COUNT(*) as count,
                 SUM(GrandTotal) as total
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             GROUP BY SaleCode, Dept, RecvAccount
@@ -352,7 +382,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as count,
                 SUM(GrandTotal) as total
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             GROUP BY SaleCode
@@ -368,7 +398,7 @@ def register_department_routes(reports_bp):
                 'July RecvAccount' as method,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE RecvAccount IN ('410004', '410005')
             AND MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
@@ -385,7 +415,7 @@ def register_department_routes(reports_bp):
                 RecvAccount,
                 COUNT(*) as count,
                 SUM(GrandTotal) as total
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             AND RecvAccount IS NOT NULL
@@ -409,6 +439,7 @@ def register_department_routes(reports_bp):
         """Test current month Service revenue calculation"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             today = datetime.now()
             
             results = {}
@@ -418,7 +449,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 COUNT(*) as count,
                 SUM(GrandTotal) as total
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             """
@@ -430,7 +461,7 @@ def register_department_routes(reports_bp):
                 Dept,
                 COUNT(*) as count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             AND Dept IN (40, 45)
@@ -447,7 +478,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             AND SaleCode IN ('FMROAD', 'FMSHOP')
@@ -461,7 +492,7 @@ def register_department_routes(reports_bp):
                 Dept,
                 COUNT(*) as count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = {today.month}
             AND YEAR(InvoiceDate) = {today.year}
             GROUP BY Dept
@@ -490,6 +521,7 @@ def register_department_routes(reports_bp):
         """Verify Service revenue calculations against known values"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             results = {}
             
@@ -499,8 +531,8 @@ def register_department_routes(reports_bp):
                 COUNT(DISTINCT i.InvoiceNo) as invoice_count,
                 COUNT(*) as row_count,
                 SUM(i.GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            FROM {schema}.InvoiceReg i
+            INNER JOIN {schema}.WO w ON i.ControlNo = w.UnitNo
             WHERE w.Type = 'S'
             AND MONTH(i.InvoiceDate) = 7
             AND YEAR(i.InvoiceDate) = 2025
@@ -515,8 +547,8 @@ def register_department_routes(reports_bp):
                 i.ControlNo,
                 i.GrandTotal,
                 COUNT(*) as match_count
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            FROM {schema}.InvoiceReg i
+            INNER JOIN {schema}.WO w ON i.ControlNo = w.UnitNo
             WHERE w.Type = 'S'
             AND MONTH(i.InvoiceDate) = 7
             AND YEAR(i.InvoiceDate) = 2025
@@ -533,7 +565,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
             GROUP BY SaleDept, SaleCode
@@ -549,7 +581,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as count,
                 SUM(LaborCost + LaborTaxable + LaborNonTax) as labor_revenue,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
             AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
@@ -567,7 +599,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN SaleCode IN ('FMROAD', 'FMSHOP') THEN GrandTotal ELSE 0 END) as total_service_revenue,
                 SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as field_cost,
                 SUM(CASE WHEN SaleCode = 'SHPCST' THEN GrandTotal ELSE 0 END) as shop_cost
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
             """
@@ -581,7 +613,7 @@ def register_department_routes(reports_bp):
                     SUM(CASE WHEN Dept = 40 THEN GrandTotal ELSE 0 END) as field_service_dept,
                     SUM(CASE WHEN Dept = 45 THEN GrandTotal ELSE 0 END) as shop_service_dept,
                     SUM(CASE WHEN Dept IN (40, 45) THEN GrandTotal ELSE 0 END) as total_service_dept
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE MONTH(InvoiceDate) = 7
                 AND YEAR(InvoiceDate) = 2025
                 """
@@ -600,6 +632,7 @@ def register_department_routes(reports_bp):
         """Test using Account numbers for Service revenue"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             results = {}
             
@@ -607,7 +640,7 @@ def register_department_routes(reports_bp):
             column_check = """
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'InvoiceReg'
             AND COLUMN_NAME LIKE '%Account%'
             ORDER BY COLUMN_NAME
@@ -624,7 +657,7 @@ def register_department_routes(reports_bp):
                         {col_name} as account,
                         COUNT(*) as count,
                         SUM(GrandTotal) as revenue
-                    FROM ben002.InvoiceReg
+                    FROM {schema}.InvoiceReg
                     WHERE {col_name} IN ('410004', '410005')
                     AND MONTH(InvoiceDate) = 7
                     AND YEAR(InvoiceDate) = 2025
@@ -641,7 +674,7 @@ def register_department_routes(reports_bp):
                             SUM(CASE WHEN {col_name} = '410004' THEN GrandTotal ELSE 0 END) as field_revenue,
                             SUM(CASE WHEN {col_name} = '410005' THEN GrandTotal ELSE 0 END) as shop_revenue,
                             SUM(GrandTotal) as total_revenue
-                        FROM ben002.InvoiceReg
+                        FROM {schema}.InvoiceReg
                         WHERE {col_name} IN ('410004', '410005')
                         AND InvoiceDate >= '2025-03-01'
                         AND InvoiceDate < '2025-08-01'
@@ -659,7 +692,7 @@ def register_department_routes(reports_bp):
                 SaleAcct,
                 COUNT(*) as count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleAcct LIKE '4100%'
             AND MONTH(InvoiceDate) = 7
             AND YEAR(InvoiceDate) = 2025
@@ -678,7 +711,7 @@ def register_department_routes(reports_bp):
                             {col} as account,
                             COUNT(*) as count,
                             SUM(GrandTotal) as revenue
-                        FROM ben002.InvoiceReg
+                        FROM {schema}.InvoiceReg
                         WHERE {col} LIKE '4100%'
                         AND MONTH(InvoiceDate) = 7
                         AND YEAR(InvoiceDate) = 2025
@@ -701,6 +734,7 @@ def register_department_routes(reports_bp):
         """Try to match historical Service revenue numbers"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Target values to match (from user's historical data)
             targets = {
@@ -718,7 +752,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 CONCAT(YEAR(InvoiceDate), '-', RIGHT('0' + CAST(MONTH(InvoiceDate) AS VARCHAR), 2)) as month,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE Dept = 40
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-08-01'
@@ -736,7 +770,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 CONCAT(YEAR(InvoiceDate), '-', RIGHT('0' + CAST(MONTH(InvoiceDate) AS VARCHAR), 2)) as month,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode = 'FMROAD'
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-08-01'
@@ -753,7 +787,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN Dept = 40 THEN GrandTotal ELSE 0 END) as field_revenue,
                 SUM(CASE WHEN Dept = 45 THEN GrandTotal ELSE 0 END) as shop_revenue,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE Dept IN (40, 45)
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-08-01'
@@ -773,7 +807,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN SaleCode = 'FMROAD' THEN GrandTotal ELSE 0 END) as field_revenue,
                 SUM(CASE WHEN SaleCode = 'FMSHOP' THEN GrandTotal ELSE 0 END) as shop_revenue,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('FMROAD', 'FMSHOP')
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-08-01'
@@ -789,7 +823,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 SUM(CASE WHEN MONTH(InvoiceDate) = 7 THEN GrandTotal ELSE 0 END) as july_revenue,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-08-01'
             GROUP BY SaleCode
@@ -810,6 +844,7 @@ def register_department_routes(reports_bp):
         """Validate March 2025 revenue breakdown by SaleCode"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get March revenue broken down by each SaleCode
             revenue_breakdown_query = """
@@ -817,7 +852,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -832,7 +867,7 @@ def register_department_routes(reports_bp):
             # Get total for March with our current filter
             total_query = """
             SELECT SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -845,7 +880,7 @@ def register_department_routes(reports_bp):
             # Get service-only codes (excluding rental/equipment)
             service_only_query = """
             SELECT SUM(GrandTotal) as service_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 'SERVP-A')
             AND YEAR(InvoiceDate) = 2025
             AND MONTH(InvoiceDate) = 3
@@ -856,7 +891,7 @@ def register_department_routes(reports_bp):
             # Get rental codes separately
             rental_query = """
             SELECT SUM(GrandTotal) as rental_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RENTR', 'RENTPM', 'NEWEQP-R')
             AND YEAR(InvoiceDate) = 2025
             AND MONTH(InvoiceDate) = 3
@@ -889,13 +924,14 @@ def register_department_routes(reports_bp):
         """Validate March 2025 completed work orders by SaleCode"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get March completed WOs broken down by SaleCode
             breakdown_query = """
             SELECT 
                 SaleCode,
                 COUNT(*) as count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -911,7 +947,7 @@ def register_department_routes(reports_bp):
             # Get total for March
             total_query = """
             SELECT COUNT(*) as total_count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -933,7 +969,7 @@ def register_department_routes(reports_bp):
                 Model,
                 ClosedDate,
                 Technician
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -950,7 +986,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 Type,
                 COUNT(*) as count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE ClosedDate IS NOT NULL
             AND YEAR(ClosedDate) = 2025
             AND MONTH(ClosedDate) = 3
@@ -978,6 +1014,7 @@ def register_department_routes(reports_bp):
         """Get detailed list of open work orders for RDCST and SHPCST only"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get all open work orders for RDCST and SHPCST only
             detail_query = """
@@ -997,7 +1034,7 @@ def register_department_routes(reports_bp):
                 SaleBranch,
                 PONo,
                 Comments
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE ClosedDate IS NULL
             AND SaleCode IN ('RDCST', 'SHPCST')
             ORDER BY OpenDate DESC
@@ -1010,7 +1047,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 SaleCode,
                 COUNT(*) as count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE ClosedDate IS NULL
             AND SaleCode IN ('RDCST', 'SHPCST')
             GROUP BY SaleCode
@@ -1034,12 +1071,13 @@ def register_department_routes(reports_bp):
         """Explore Work Order table to find SaleCode field"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # 1. Check if WO table has SaleCode or similar columns
             column_query = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'WO'
             AND (COLUMN_NAME LIKE '%Sale%' OR COLUMN_NAME LIKE '%Code%' 
                  OR COLUMN_NAME LIKE '%Type%' OR COLUMN_NAME LIKE '%Category%')
@@ -1051,7 +1089,7 @@ def register_department_routes(reports_bp):
             # 2. Get sample of open work orders
             sample_query = """
             SELECT TOP 10 *
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE ClosedDate IS NULL
             ORDER BY DateOpened DESC
             """
@@ -1063,7 +1101,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 Type,
                 COUNT(*) as count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE ClosedDate IS NULL
             GROUP BY Type
             ORDER BY count DESC
@@ -1077,7 +1115,7 @@ def register_department_routes(reports_bp):
                 SELECT 
                     SaleCode,
                     COUNT(*) as count
-                FROM ben002.WO
+                FROM {schema}.WO
                 WHERE ClosedDate IS NULL
                 AND SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                                'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
@@ -1105,6 +1143,7 @@ def register_department_routes(reports_bp):
         """Verify all labor-related Service SaleCodes"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Define all labor-related SaleCodes
             labor_salecodes = ['RDCST', 'SHPCST', 'FMROAD', 'PM', 'PM-FM', 'EDCO', 
@@ -1121,7 +1160,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN SaleCode IN ('RENTR', 'NEWEQP-R') THEN GrandTotal ELSE 0 END) as rental_revenue,
                 SUM(CASE WHEN SaleCode IN ('EDCO', 'SERVP-A') THEN GrandTotal ELSE 0 END) as other_revenue,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -1159,7 +1198,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN SaleCode IN ('RENTR', 'NEWEQP-R') THEN GrandTotal ELSE 0 END) as rental_revenue,
                 SUM(CASE WHEN SaleCode IN ('EDCO', 'SERVP-A') THEN GrandTotal ELSE 0 END) as other_revenue,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -1185,6 +1224,7 @@ def register_department_routes(reports_bp):
         """Analyze Labor Sales data to match OData wolabor endpoint"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # 1. First, let's find labor-related columns in InvoiceReg
             labor_columns_query = """
@@ -1194,7 +1234,7 @@ def register_department_routes(reports_bp):
                 SUM(LaborNonTax) as total_labor_nontax,
                 SUM(LaborCost + LaborTaxable + LaborNonTax) as total_labor_revenue,
                 COUNT(*) as invoice_count
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
@@ -1212,7 +1252,7 @@ def register_department_routes(reports_bp):
                 SUM(LaborNonTax) as labor_nontax,
                 SUM(LaborCost + LaborTaxable + LaborNonTax) as total_labor,
                 SUM(GrandTotal) as grand_total
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
@@ -1226,7 +1266,7 @@ def register_department_routes(reports_bp):
             tables_query = """
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (TABLE_NAME LIKE '%labor%' OR TABLE_NAME LIKE '%Labor%' OR TABLE_NAME = 'WOLabor')
             ORDER BY TABLE_NAME
             """
@@ -1240,7 +1280,7 @@ def register_department_routes(reports_bp):
                 MONTH(InvoiceDate) as month,
                 SUM(LaborCost + LaborTaxable + LaborNonTax) as labor_revenue,
                 COUNT(*) as invoice_count
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             AND InvoiceDate < '2025-08-01'
             AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
@@ -1258,7 +1298,7 @@ def register_department_routes(reports_bp):
                 LaborCost,
                 LaborPrice,
                 Hours
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE Type = 'S'
             AND (LaborCost > 0 OR LaborPrice > 0)
             ORDER BY DateOpened DESC
@@ -1270,7 +1310,7 @@ def register_department_routes(reports_bp):
                 # Try different column names
                 wo_labor_query_alt = """
                 SELECT TOP 5 * 
-                FROM ben002.WO
+                FROM {schema}.WO
                 WHERE Type = 'S'
                 """
                 try:
@@ -1296,6 +1336,7 @@ def register_department_routes(reports_bp):
         """Comprehensive Service revenue analysis"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # 1. Get all July invoices grouped by SaleCode with RecvAccount
             salecode_query = """
@@ -1304,7 +1345,7 @@ def register_department_routes(reports_bp):
                 RecvAccount,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             GROUP BY SaleCode, RecvAccount
@@ -1320,7 +1361,7 @@ def register_department_routes(reports_bp):
                 RecvAccount,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             AND SaleCode IN ('FMROAD', 'FMSHOP')
@@ -1336,7 +1377,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             AND RecvAccount IN ('410004', '410005')
@@ -1353,7 +1394,7 @@ def register_department_routes(reports_bp):
                 RecvAccount,
                 COUNT(*) as invoice_count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             AND SaleCode LIKE 'FM%'
@@ -1367,7 +1408,7 @@ def register_department_routes(reports_bp):
             total_query = """
             SELECT 
                 SUM(GrandTotal) as total_july_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             """
@@ -1383,7 +1424,7 @@ def register_department_routes(reports_bp):
                 RecvAccount,
                 GrandTotal,
                 InvoiceDate
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = 2025 
             AND MONTH(InvoiceDate) = 7
             AND SaleCode IN ('FMROAD', 'FMSHOP')
@@ -1410,6 +1451,7 @@ def register_department_routes(reports_bp):
         """Find the correct SaleCode values for Service revenue"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             results = {}
             
@@ -1422,7 +1464,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_revenue,
                 AVG(LaborCost + LaborTaxable + LaborNonTax) as avg_labor,
                 AVG(PartsCost + PartsTaxable + PartsNonTax) as avg_parts
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7 
             AND YEAR(InvoiceDate) = 2025
             GROUP BY SaleCode, SaleDept
@@ -1439,7 +1481,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7 
             AND YEAR(InvoiceDate) = 2025
             AND Dept IN (40, 45)
@@ -1458,7 +1500,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as count,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE MONTH(InvoiceDate) = 7 
             AND YEAR(InvoiceDate) = 2025
             AND SaleCode NOT LIKE '%CST%'
@@ -1480,6 +1522,7 @@ def register_department_routes(reports_bp):
         """Test SaleDept values in InvoiceReg to find Service department code"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get distribution of SaleDept values
             dept_query = """
@@ -1488,7 +1531,7 @@ def register_department_routes(reports_bp):
                 SaleCode,
                 COUNT(*) as count,
                 SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -1, GETDATE())
             GROUP BY SaleDept, SaleCode
             ORDER BY COUNT(*) DESC
@@ -1509,7 +1552,7 @@ def register_department_routes(reports_bp):
                         GrandTotal,
                         LaborCost,
                         PartsCost
-                    FROM ben002.InvoiceReg
+                    FROM {schema}.InvoiceReg
                     WHERE SaleDept = {dept['SaleDept']}
                     ORDER BY InvoiceDate DESC
                     """
@@ -1529,11 +1572,12 @@ def register_department_routes(reports_bp):
         """Test the actual revenue query to see why it's returning 0"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Test 1: Count total invoices in last 6 months
             total_invoices_query = """
             SELECT COUNT(*) as total, SUM(GrandTotal) as total_revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             """
             total_result = db.execute_query(total_invoices_query)
@@ -1541,7 +1585,7 @@ def register_department_routes(reports_bp):
             # Test 2: Count invoices that have ControlNo
             with_control_query = """
             SELECT COUNT(*) as count, SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
             AND ControlNo IS NOT NULL
             """
@@ -1550,8 +1594,8 @@ def register_department_routes(reports_bp):
             # Test 3: Try the join to see how many match
             join_test_query = """
             SELECT COUNT(*) as matches, SUM(i.GrandTotal) as matched_revenue
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            FROM {schema}.InvoiceReg i
+            INNER JOIN {schema}.WO w ON i.ControlNo = w.UnitNo
             WHERE i.InvoiceDate >= DATEADD(month, -6, GETDATE())
             """
             join_result = db.execute_query(join_test_query)
@@ -1559,8 +1603,8 @@ def register_department_routes(reports_bp):
             # Test 4: Try the full service filter
             service_test_query = """
             SELECT COUNT(*) as service_matches, SUM(i.GrandTotal) as service_revenue
-            FROM ben002.InvoiceReg i
-            INNER JOIN ben002.WO w ON i.ControlNo = w.UnitNo
+            FROM {schema}.InvoiceReg i
+            INNER JOIN {schema}.WO w ON i.ControlNo = w.UnitNo
             WHERE w.Type = 'S'
             AND i.InvoiceDate >= DATEADD(month, -6, GETDATE())
             """
@@ -1569,11 +1613,11 @@ def register_department_routes(reports_bp):
             # Test 5: Sample of unmatched ControlNo values
             unmatched_query = """
             SELECT TOP 10 i.ControlNo, i.InvoiceNo, i.GrandTotal
-            FROM ben002.InvoiceReg i
+            FROM {schema}.InvoiceReg i
             WHERE i.InvoiceDate >= DATEADD(month, -6, GETDATE())
             AND i.ControlNo IS NOT NULL
             AND NOT EXISTS (
-                SELECT 1 FROM ben002.WO w WHERE w.UnitNo = i.ControlNo
+                SELECT 1 FROM {schema}.WO w WHERE w.UnitNo = i.ControlNo
             )
             """
             unmatched_result = db.execute_query(unmatched_query)
@@ -1595,12 +1639,13 @@ def register_department_routes(reports_bp):
         """Test linking InvoiceReg to WO table - try different approaches"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Try to find which column in WO table matches ControlNo format
             # First, let's see what ControlNo values look like
             control_sample_query = """
             SELECT DISTINCT TOP 5 ControlNo
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE ControlNo IS NOT NULL 
             AND ControlNo != ''
             """
@@ -1614,8 +1659,8 @@ def register_department_routes(reports_bp):
             try:
                 test1 = """
                 SELECT COUNT(*) as matches
-                FROM ben002.InvoiceReg i
-                INNER JOIN ben002.WO w ON i.ControlNo = w.ControlNo
+                FROM {schema}.InvoiceReg i
+                INNER JOIN {schema}.WO w ON i.ControlNo = w.ControlNo
                 WHERE i.ControlNo IS NOT NULL
                 """
                 result1 = db.execute_query(test1)
@@ -1627,8 +1672,8 @@ def register_department_routes(reports_bp):
             try:
                 test2 = """
                 SELECT COUNT(*) as matches
-                FROM ben002.InvoiceReg i
-                INNER JOIN ben002.WO w ON i.ControlNo = CAST(w.Id AS NVARCHAR)
+                FROM {schema}.InvoiceReg i
+                INNER JOIN {schema}.WO w ON i.ControlNo = CAST(w.Id AS NVARCHAR)
                 WHERE i.ControlNo IS NOT NULL
                 """
                 result2 = db.execute_query(test2)
@@ -1640,7 +1685,7 @@ def register_department_routes(reports_bp):
             string_columns_query = """
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'WO'
             AND DATA_TYPE IN ('nvarchar', 'varchar', 'char')
             """
@@ -1662,12 +1707,13 @@ def register_department_routes(reports_bp):
         """Test linking InvoiceReg to WO table via ControlNo"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # First, get ALL column names from WO table
             wo_columns_query = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'WO'
             ORDER BY ORDINAL_POSITION
             """
@@ -1676,7 +1722,7 @@ def register_department_routes(reports_bp):
             
             # Get sample from WO table to see structure
             wo_sample_query = """
-            SELECT TOP 1 * FROM ben002.WO WHERE Type = 'S'
+            SELECT TOP 1 * FROM {schema}.WO WHERE Type = 'S'
             """
             
             wo_sample = db.execute_query(wo_sample_query)
@@ -1689,7 +1735,7 @@ def register_department_routes(reports_bp):
                 i.ControlNo,
                 i.InvoiceDate,
                 i.GrandTotal
-            FROM ben002.InvoiceReg i
+            FROM {schema}.InvoiceReg i
             WHERE i.ControlNo IS NOT NULL
             ORDER BY i.InvoiceDate DESC
             """
@@ -1712,6 +1758,7 @@ def register_department_routes(reports_bp):
         """Get Service Department report data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get current date info for month calculations
             today = datetime.now()
@@ -1734,7 +1781,7 @@ def register_department_routes(reports_bp):
                     AND ClosedDate < '{current_month_start.strftime('%Y-%m-%d')}'
                     THEN 1 ELSE 0 
                 END) as closed_last_month
-            FROM ben002.WO 
+            FROM {schema}.WO 
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             GROUP BY SaleCode
             """
@@ -1746,7 +1793,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 SaleCode,
                 AVG(CAST(DATEDIFF(day, OpenDate, ClosedDate) AS FLOAT)) as avg_days
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND ClosedDate IS NOT NULL
             AND OpenDate IS NOT NULL
@@ -1768,7 +1815,7 @@ def register_department_routes(reports_bp):
                     (ClosedDate IS NOT NULL AND ClosedDate >= '{current_month_start.strftime('%Y-%m-%d')}')
                     OR ClosedDate IS NULL 
                     THEN 1 END), 0) as efficiency_percent
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND Technician IS NOT NULL
             AND Technician != ''
@@ -1784,7 +1831,7 @@ def register_department_routes(reports_bp):
                       THEN 1 END) as completed_this_month,
                 COUNT(CASE WHEN ClosedDate IS NULL THEN 1 END) as currently_open,
                 COUNT(*) as total_with_technician
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND Technician IS NOT NULL
             AND Technician != ''
@@ -1805,7 +1852,7 @@ def register_department_routes(reports_bp):
                     THEN DATEDIFF(day, OpenDate, ClosedDate) ELSE NULL END) as shop_avg_days,
                 AVG(CASE WHEN SaleCode = 'RDCST' AND OpenDate IS NOT NULL 
                     THEN DATEDIFF(day, OpenDate, ClosedDate) ELSE NULL END) as road_avg_days
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND ClosedDate IS NOT NULL
             AND ClosedDate >= '2025-03-01'
@@ -1826,7 +1873,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN SaleCode = 'SHPCST' THEN GrandTotal ELSE 0 END) as shop_sales,
                 SUM(CASE WHEN SaleCode = 'RDCST' THEN GrandTotal ELSE 0 END) as road_sales,
                 SUM(GrandTotal) as total_sales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND InvoiceDate >= '2025-03-01'
             AND InvoiceDate < DATEADD(month, 1, GETDATE())
@@ -1850,7 +1897,7 @@ def register_department_routes(reports_bp):
                     (ClosedDate >= DATEADD(day, -30, GETDATE())) OR 
                     (ClosedDate IS NULL) 
                     THEN 1 END), 0) as efficiency
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND Technician IS NOT NULL
             AND Technician != ''
@@ -1870,7 +1917,7 @@ def register_department_routes(reports_bp):
                 COUNT(*) as total_count,
                 COUNT(CASE WHEN ClosedDate IS NOT NULL THEN 1 END) as closed_count,
                 COUNT(CASE WHEN ClosedDate IS NULL THEN 1 END) as open_count
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             GROUP BY Technician
             ORDER BY total_count DESC
@@ -1886,7 +1933,7 @@ def register_department_routes(reports_bp):
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -1942,7 +1989,7 @@ def register_department_routes(reports_bp):
             # Updated to match OData exactly - excluding pure rental codes
             current_month_revenue_query = f"""
             SELECT COALESCE(SUM(GrandTotal), 0) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
@@ -2035,6 +2082,7 @@ def register_department_routes(reports_bp):
         logger.info("Accounting endpoint called from test_department_reports.py")
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Get current date info
             today = datetime.now()
@@ -2060,7 +2108,7 @@ def register_department_routes(reports_bp):
                     ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as total_cost,
                 -- Invoice count
                 COUNT(DISTINCT InvoiceNo) as invoice_count
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
             AND InvoiceDate < DATEADD(month, 1, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DATENAME(month, InvoiceDate)
@@ -2106,16 +2154,16 @@ def register_department_routes(reports_bp):
                 SUM(ISNULL(LaborCost, 0) + ISNULL(PartsCost, 0) + ISNULL(MiscCost, 0) + 
                     ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as total_cogs,
                 -- Accounts Receivable (from Customer table)
-                (SELECT SUM(Balance) FROM ben002.Customer WHERE Balance > 0) as accounts_receivable,
+                (SELECT SUM(Balance) FROM {schema}.Customer WHERE Balance > 0) as accounts_receivable,
                 -- Overdue Invoices
-                (SELECT COUNT(*) FROM ben002.InvoiceReg 
+                (SELECT COUNT(*) FROM {schema}.InvoiceReg 
                  WHERE InvoiceStatus = 'Open' 
                  AND DATEDIFF(day, InvoiceDate, GETDATE()) > 30) as overdue_invoices,
                 -- Current Month Cash Flow
-                (SELECT SUM(GrandTotal) FROM ben002.InvoiceReg 
+                (SELECT SUM(GrandTotal) FROM {schema}.InvoiceReg 
                  WHERE MONTH(InvoiceDate) = {today.month}
                  AND YEAR(InvoiceDate) = {today.year}) as monthly_cash_flow
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
             AND InvoiceDate < '{today.strftime('%Y-%m-%d')}'
             """
@@ -2165,7 +2213,7 @@ def register_department_routes(reports_bp):
                     ELSE 'Other'
                 END as department,
                 SUM(GrandTotal) as revenue
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
             GROUP BY 
                 CASE 
@@ -2205,7 +2253,7 @@ def register_department_routes(reports_bp):
                 SUM(ISNULL(RentalCost, 0)) as rental_cost,
                 SUM(ISNULL(LaborCost, 0) + ISNULL(PartsCost, 0) + ISNULL(MiscCost, 0) + 
                     ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as total_cost
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{year_start.strftime('%Y-%m-%d')}'
             """
             
@@ -2263,6 +2311,7 @@ def register_department_routes(reports_bp):
         """Explore database schema and data"""
         try:
             db = get_db()
+            schema = get_tenant_schema()
             table_name = request.args.get('table')
             
             if not table_name:
@@ -2273,8 +2322,8 @@ def register_department_routes(reports_bp):
                     t.TABLE_TYPE,
                     p.rows AS row_count
                 FROM INFORMATION_SCHEMA.TABLES t
-                LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
-                WHERE t.TABLE_SCHEMA = 'ben002'
+                LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('{schema}.' + t.TABLE_NAME)
+                WHERE t.TABLE_SCHEMA = '{schema}'
                 AND p.index_id IN (0,1)
                 ORDER BY p.rows DESC
                 """
@@ -2296,7 +2345,7 @@ def register_department_routes(reports_bp):
                     IS_NULLABLE,
                     COLUMN_DEFAULT
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = 'ben002'
+                WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = '{table_name}'
                 ORDER BY ORDINAL_POSITION
                 """
@@ -2305,7 +2354,7 @@ def register_department_routes(reports_bp):
                 
                 # Get sample data
                 limit = request.args.get('limit', 10)
-                sample_query = f"SELECT TOP {limit} * FROM ben002.{table_name}"
+                sample_query = f"SELECT TOP {limit} * FROM {schema}.{table_name}"
                 
                 try:
                     sample_data = db.execute_query(sample_query)
@@ -2314,7 +2363,7 @@ def register_department_routes(reports_bp):
                     logger.error(f"Error getting sample data: {str(e)}")
                 
                 # Get row count
-                count_query = f"SELECT COUNT(*) as total_rows FROM ben002.{table_name}"
+                count_query = f"SELECT COUNT(*) as total_rows FROM {schema}.{table_name}"
                 count_result = db.execute_query(count_query)
                 
                 return jsonify({
@@ -2340,6 +2389,7 @@ def register_department_routes(reports_bp):
             
         try:
             db = get_db()
+            schema = get_tenant_schema()
             
             # Just return a simple response to test
             tables_query = """
@@ -2347,8 +2397,8 @@ def register_department_routes(reports_bp):
                 t.TABLE_NAME as table_name,
                 p.rows as row_count
             FROM INFORMATION_SCHEMA.TABLES t
-            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
-            WHERE t.TABLE_SCHEMA = 'ben002'
+            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('{schema}.' + t.TABLE_NAME)
+            WHERE t.TABLE_SCHEMA = '{schema}'
             AND t.TABLE_TYPE = 'BASE TABLE'
             AND p.index_id IN (0,1)
             ORDER BY p.rows DESC
@@ -2391,6 +2441,7 @@ def register_department_routes(reports_bp):
         
         try:
             db = get_db()
+            schema = get_tenant_schema()
             logger.info("Database connection established")
             
             # Check if this is a full export request
@@ -2402,8 +2453,8 @@ def register_department_routes(reports_bp):
                 t.TABLE_NAME as table_name,
                 p.rows as row_count
             FROM INFORMATION_SCHEMA.TABLES t
-            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('ben002.' + t.TABLE_NAME)
-            WHERE t.TABLE_SCHEMA = 'ben002'
+            LEFT JOIN sys.partitions p ON p.object_id = OBJECT_ID('{schema}.' + t.TABLE_NAME)
+            WHERE t.TABLE_SCHEMA = '{schema}'
             AND t.TABLE_TYPE = 'BASE TABLE'
             AND p.index_id IN (0,1)
             ORDER BY t.TABLE_NAME
@@ -2430,7 +2481,7 @@ def register_department_routes(reports_bp):
                     IS_NULLABLE as is_nullable,
                     COLUMN_DEFAULT as column_default
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = 'ben002'
+                WHERE TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = '{table_name}'
                 ORDER BY ORDINAL_POSITION
                 """
@@ -2442,7 +2493,7 @@ def register_department_routes(reports_bp):
                 SELECT COLUMN_NAME
                 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
                 WHERE OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + CONSTRAINT_NAME), 'IsPrimaryKey') = 1
-                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_SCHEMA = '{schema}'
                 AND TABLE_NAME = '{table_name}'
                 """
                 
@@ -2451,7 +2502,7 @@ def register_department_routes(reports_bp):
                 
                 # Get sample data
                 try:
-                    sample_query = f"SELECT TOP 5 * FROM ben002.{table_name}"
+                    sample_query = f"SELECT TOP 5 * FROM {schema}.{table_name}"
                     sample_data = db.execute_query(sample_query)
                 except:
                     sample_data = []
@@ -2472,7 +2523,7 @@ def register_department_routes(reports_bp):
                 JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS pk
                     ON pkc.CONSTRAINT_NAME = pk.CONSTRAINT_NAME
                     AND pkc.CONSTRAINT_SCHEMA = pk.CONSTRAINT_SCHEMA
-                WHERE fkc.TABLE_SCHEMA = 'ben002'
+                WHERE fkc.TABLE_SCHEMA = '{schema}'
                 AND fkc.TABLE_NAME = '{table_name}'
                 """
                 
@@ -2505,7 +2556,7 @@ def register_department_routes(reports_bp):
             relationships_query = """
             SELECT COUNT(*) as count
             FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS
-            WHERE CONSTRAINT_SCHEMA = 'ben002'
+            WHERE CONSTRAINT_SCHEMA = '{schema}'
             """
             rel_result = db.execute_query(relationships_query)
             total_relationships = rel_result[0]['count'] if rel_result else 0

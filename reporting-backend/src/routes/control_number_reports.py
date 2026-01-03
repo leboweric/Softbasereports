@@ -5,6 +5,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/accounting/control-serial-mapping', methods=['GET'])
@@ -14,7 +31,7 @@ def get_control_serial_mapping():
     try:
         logger.info("Starting control number to serial number mapping report")
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get all equipment with control numbers or serial numbers
         mapping_query = """
         SELECT 
@@ -46,14 +63,14 @@ def get_control_serial_mapping():
                 WHEN gl.ControlNo IS NOT NULL THEN 'Yes'
                 ELSE 'No'
             END as InGLSystem
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         -- Get most recent work order
         LEFT JOIN (
             SELECT ControlNo, 
                    MAX(WONo) as LastWONo,
                    MAX(OpenDate) as LastWODate
-            FROM ben002.WO
+            FROM {schema}.WO
             WHERE ControlNo IS NOT NULL AND ControlNo != ''
             GROUP BY ControlNo
         ) wo ON e.ControlNo = wo.ControlNo
@@ -62,14 +79,14 @@ def get_control_serial_mapping():
             SELECT ControlNo,
                    MAX(InvoiceNo) as LastInvoiceNo,
                    MAX(InvoiceDate) as LastInvoiceDate
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE ControlNo IS NOT NULL AND ControlNo != ''
             GROUP BY ControlNo
         ) inv ON e.ControlNo = inv.ControlNo
         -- Check if exists in GL
         LEFT JOIN (
             SELECT DISTINCT ControlNo
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE ControlNo IS NOT NULL AND ControlNo != ''
         ) gl ON e.ControlNo = gl.ControlNo
         WHERE e.SerialNo IS NOT NULL
@@ -163,7 +180,7 @@ def get_control_number_summary():
     try:
         logger.info("Starting control number summary report")
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get usage statistics
         summary_query = """
         SELECT 
@@ -171,7 +188,7 @@ def get_control_number_summary():
             COUNT(*) as TotalRecords,
             COUNT(DISTINCT ControlNo) as UniqueControlNos,
             COUNT(CASE WHEN ControlNo IS NOT NULL AND ControlNo != '' THEN 1 END) as RecordsWithControlNo
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         
         UNION ALL
@@ -181,7 +198,7 @@ def get_control_number_summary():
             COUNT(*) as TotalRecords,
             COUNT(DISTINCT ControlNo) as UniqueControlNos,
             COUNT(CASE WHEN ControlNo IS NOT NULL AND ControlNo != '' THEN 1 END) as RecordsWithControlNo
-        FROM ben002.WO
+        FROM {schema}.WO
         
         UNION ALL
         
@@ -190,7 +207,7 @@ def get_control_number_summary():
             COUNT(*) as TotalRecords,
             COUNT(DISTINCT ControlNo) as UniqueControlNos,
             COUNT(CASE WHEN ControlNo IS NOT NULL AND ControlNo != '' THEN 1 END) as RecordsWithControlNo
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         
         UNION ALL
         
@@ -199,7 +216,7 @@ def get_control_number_summary():
             COUNT(*) as TotalRecords,
             COUNT(DISTINCT ControlNo) as UniqueControlNos,
             COUNT(CASE WHEN ControlNo IS NOT NULL AND ControlNo != '' THEN 1 END) as RecordsWithControlNo
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         """
         
         usage_result = db.execute_query(summary_query)
@@ -214,7 +231,7 @@ def get_control_number_summary():
             NewControlNo,
             ChangeDate,
             ChangedBy
-        FROM ben002.EQControlNoChange
+        FROM {schema}.EQControlNoChange
         ORDER BY ChangeDate DESC
         """
         
@@ -250,7 +267,7 @@ def get_control_number_summary():
         # Get next control number from Company table
         next_control_query = """
         SELECT NextControlNo
-        FROM ben002.Company
+        FROM {schema}.Company
         """
         
         next_control_result = db.execute_query(next_control_query)

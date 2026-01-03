@@ -3,6 +3,23 @@ from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 pm_table_diagnostic_bp = Blueprint('pm_table_diagnostic', __name__)
@@ -16,7 +33,7 @@ def get_pm_table_structure():
     """
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         results_data = {
             'pm_columns': [],
             'sample_records': [],
@@ -28,7 +45,7 @@ def get_pm_table_structure():
         pm_columns_query = """
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'PM'
         ORDER BY ORDINAL_POSITION
         """
@@ -50,7 +67,7 @@ def get_pm_table_structure():
         # Step 2: Get sample PM records
         pm_sample_query = """
         SELECT TOP 20 *
-        FROM ben002.PM
+        FROM {schema}.PM
         ORDER BY Id DESC
         """
         
@@ -72,7 +89,7 @@ def get_pm_table_structure():
         lpm_columns_query = """
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'LPM'
         ORDER BY ORDINAL_POSITION
         """
@@ -93,7 +110,7 @@ def get_pm_table_structure():
         # Step 4: Get sample LPM records
         lpm_sample_query = """
         SELECT TOP 10 *
-        FROM ben002.LPM
+        FROM {schema}.LPM
         """
         
         logger.info("Fetching sample LPM records...")
@@ -135,7 +152,7 @@ def get_pm_by_serial():
     """
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Serial numbers from screenshot
         serial_numbers = ['35955', '35951', '38762', '61300', '900006']
         
@@ -145,7 +162,7 @@ def get_pm_by_serial():
             # Try to find PM records for this equipment
             query = f"""
             SELECT TOP 5 *
-            FROM ben002.PM
+            FROM {schema}.PM
             WHERE SerialNo = '{serial_no}' 
                OR UnitNo = '{serial_no}'
                OR Equipment = '{serial_no}'

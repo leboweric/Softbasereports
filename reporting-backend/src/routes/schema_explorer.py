@@ -6,6 +6,23 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 schema_explorer_bp = Blueprint('schema_explorer', __name__)
 
 @schema_explorer_bp.route('/api/schema/tables', methods=['GET'])
@@ -15,12 +32,15 @@ def get_all_tables():
     try:
         sql_service = AzureSQLService()
 
-        query = """
+        schema = get_tenant_schema()
+
+
+        query = f"""
         SELECT
             TABLE_NAME,
             TABLE_TYPE
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         ORDER BY TABLE_NAME
         """
 
@@ -28,7 +48,7 @@ def get_all_tables():
 
         return jsonify({
             'success': True,
-            'schema': 'ben002',
+            'schema': '{schema}',
             'tables': tables,
             'count': len(tables)
         }), 200
@@ -57,7 +77,7 @@ def get_table_structure(table_name):
             COLUMN_DEFAULT,
             ORDINAL_POSITION
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME = %s
         ORDER BY ORDINAL_POSITION
         """
@@ -68,7 +88,7 @@ def get_table_structure(table_name):
         pk_query = """
         SELECT COLUMN_NAME
         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME = %s
         AND CONSTRAINT_NAME LIKE 'PK_%'
         """
@@ -92,14 +112,14 @@ def get_table_structure(table_name):
         foreign_keys = sql_service.execute_query(fk_query, [table_name])
 
         # Get row count
-        count_query = f"SELECT COUNT(*) as total FROM ben002.[{table_name}]"
+        count_query = f"SELECT COUNT(*) as total FROM {schema}.[{table_name}]"
         count_result = sql_service.execute_query(count_query)
         row_count = count_result[0]['total'] if count_result else 0
 
         return jsonify({
             'success': True,
             'table': table_name,
-            'schema': 'ben002',
+            'schema': '{schema}',
             'columns': columns,
             'column_count': len(columns),
             'primary_keys': primary_keys,
@@ -123,7 +143,7 @@ def get_table_sample(table_name):
 
         limit = request.args.get('limit', 10, type=int)
 
-        query = f"SELECT TOP {limit} * FROM ben002.[{table_name}]"
+        query = f"SELECT TOP {limit} * FROM {schema}.[{table_name}]"
 
         sample = sql_service.execute_query(query)
 
@@ -202,7 +222,10 @@ def find_column():
                 'error': 'Column pattern is required'
             }), 400
 
-        query = """
+        schema = get_tenant_schema()
+
+
+        query = f"""
         SELECT
             TABLE_NAME,
             COLUMN_NAME,
@@ -210,7 +233,7 @@ def find_column():
             IS_NULLABLE,
             ORDINAL_POSITION
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND COLUMN_NAME LIKE %s
         ORDER BY TABLE_NAME, ORDINAL_POSITION
         """
@@ -295,7 +318,7 @@ def get_single_record(table_name, record_id):
         # Allow specifying which column to use for lookup
         id_column = request.args.get('id_column', 'Number')
 
-        query = f"SELECT * FROM ben002.[{table_name}] WHERE [{id_column}] = %s"
+        query = f"SELECT * FROM {schema}.[{table_name}] WHERE [{id_column}] = %s"
 
         results = sql_service.execute_query(query, [record_id])
 

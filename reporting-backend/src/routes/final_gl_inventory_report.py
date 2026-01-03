@@ -8,6 +8,23 @@ import io
 import pandas as pd
 from datetime import datetime
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 final_gl_inventory_report_bp = Blueprint('final_gl_inventory_report', __name__)
@@ -33,7 +50,7 @@ def get_final_gl_inventory_report():
     """
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Fiscal year parameters (Nov 2024 - Oct 2025)
         fiscal_start = '2024-11-01'
         fiscal_end = '2025-10-31'
@@ -56,7 +73,7 @@ def get_final_gl_inventory_report():
                 WHEN AccountNo = '193000' THEN 'Accumulated Depreciation'
                 ELSE 'Other'
             END as Category
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         AND Year = 2025
         AND Month = 10
@@ -71,7 +88,7 @@ def get_final_gl_inventory_report():
         SELECT 
             CAST(SUM(CASE WHEN gld.Amount < 0 THEN ABS(gld.Amount) ELSE 0 END) AS DECIMAL(18,2)) as YTD_Depreciation_Expense,
             COUNT(*) as Transaction_Count
-        FROM ben002.GLDetail gld
+        FROM {schema}.GLDetail gld
         WHERE gld.AccountNo = '193000'  -- Accumulated Depreciation
         AND gld.EffectiveDate >= CAST('2024-11-01' AS datetime)
         AND gld.EffectiveDate <= CAST('2025-10-31' AS datetime)
@@ -101,8 +118,8 @@ def get_final_gl_inventory_report():
                 WHEN gld.AccountNo = '193000' THEN 'Accumulated Depreciation'
                 ELSE 'Other'
             END as Category
-        FROM ben002.GLDetail gld
-        LEFT JOIN ben002.Equipment e ON gld.ControlNo = e.SerialNo
+        FROM {schema}.GLDetail gld
+        LEFT JOIN {schema}.Equipment e ON gld.ControlNo = e.SerialNo
         WHERE gld.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         AND gld.EffectiveDate >= CAST('2024-11-01' AS datetime)
         AND gld.EffectiveDate < CAST('2025-11-01' AS datetime)
@@ -225,6 +242,7 @@ def export_final_gl_inventory_report():
         
         # Get the report data first
         db = AzureSQLService()
+        schema = get_tenant_schema()
         report_generator = ReportGenerator()
         
         # Re-run a simplified query for export (using correct Equipment table fields)
@@ -243,7 +261,7 @@ def export_final_gl_inventory_report():
                 WHEN e.InventoryDept = 60 THEN '183000 - Rental Fleet'
                 ELSE 'Other'
             END as GL_Account_Category
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE e.InventoryDept IN (10, 20, 30, 60)
         AND e.SerialNo IS NOT NULL
         ORDER BY e.InventoryDept, e.SerialNo

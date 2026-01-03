@@ -7,6 +7,23 @@ from flask_jwt_extended import jwt_required
 import logging
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 rental_test_bp = Blueprint('rental_test', __name__)
@@ -18,12 +35,13 @@ def test_rental_query():
     
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # Test 1: Simple count of Department 60
         test1_query = """
         SELECT COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE InventoryDept = 60
         """
         try:
@@ -35,7 +53,7 @@ def test_rental_query():
         # Test 2: Count with IsDeleted filter
         test2_query = """
         SELECT COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE InventoryDept = 60
         AND (IsDeleted = 0 OR IsDeleted IS NULL)
         """
@@ -55,7 +73,7 @@ def test_rental_query():
             RentalStatus,
             Location,
             IsDeleted
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE InventoryDept = 60
         """
         try:
@@ -67,8 +85,8 @@ def test_rental_query():
         # Test 4: Check RentalHistory
         test4_query = """
         SELECT COUNT(DISTINCT e.SerialNo) as count
-        FROM ben002.Equipment e
-        JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+        FROM {schema}.Equipment e
+        JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
         WHERE e.InventoryDept = 60
         AND rh.Year = YEAR(GETDATE())
         AND rh.Month = MONTH(GETDATE())
@@ -83,8 +101,8 @@ def test_rental_query():
         # Test 5: Simple version of main query
         test5_query = """
         SELECT COUNT(*) as count
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
             AND rh.Year = YEAR(GETDATE()) 
             AND rh.Month = MONTH(GETDATE())
             AND rh.DaysRented > 0

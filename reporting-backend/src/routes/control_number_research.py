@@ -4,6 +4,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/accounting/find-control-fields', methods=['GET'])
@@ -13,7 +30,7 @@ def find_control_fields():
     try:
         logger.info("Starting control fields search")
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Check Equipment table for control-related columns
         equipment_cols_query = """
         SELECT 
@@ -21,7 +38,7 @@ def find_control_fields():
             DATA_TYPE,
             CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME = 'Equipment'
         ORDER BY ORDINAL_POSITION
         """
@@ -56,7 +73,7 @@ def find_control_fields():
             Location,
             CustomerNo,
             RentalStatus
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         """
         
@@ -69,7 +86,7 @@ def find_control_fields():
             COLUMN_NAME,
             DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND (
             COLUMN_NAME LIKE '%Control%'
             OR COLUMN_NAME LIKE '%Ctrl%'

@@ -13,6 +13,23 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 import io
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 accounting_inventory_bp = Blueprint('accounting_inventory', __name__)
 
@@ -34,11 +51,12 @@ def get_accounting_inventory():
     """
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         
         # Step 1: First, find the correct date column name in GLDetail
         column_discovery_query = """
         SELECT TOP 1 * 
-        FROM [ben002].GLDetail 
+        FROM [{schema}].GLDetail 
         WHERE AccountNo IN ('131300', '131000', '193000')
         ORDER BY EffectiveDate DESC
         """
@@ -50,7 +68,7 @@ def get_accounting_inventory():
         # Allied Equipment (131300) - Get balance for period 3/1/25 - 10/31/25
         allied_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
-        FROM [ben002].GLDetail  
+        FROM [{schema}].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
           AND EffectiveDate >= '2025-03-01'
@@ -60,7 +78,7 @@ def get_accounting_inventory():
         # New Equipment (131000) - Get balance for period 3/1/25 - 10/31/25
         new_equipment_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
           AND EffectiveDate >= '2025-03-01'
@@ -72,7 +90,7 @@ def get_accounting_inventory():
         SELECT 
             '131200' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '131200' AND Posted = 1 
           AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         
@@ -81,7 +99,7 @@ def get_accounting_inventory():
         SELECT 
             '183000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '183000' AND Posted = 1 
           AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         
@@ -90,7 +108,7 @@ def get_accounting_inventory():
         SELECT 
             '193000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '193000' AND Posted = 1 
           AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         """
@@ -111,7 +129,7 @@ def get_accounting_inventory():
             -- Debug: Verify date filtering is working
             COUNT(CASE WHEN EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31' THEN 1 END) as Period_Count,
             COUNT(CASE WHEN EffectiveDate < '2025-03-01' OR EffectiveDate > '2025-10-31' THEN 1 END) as Outside_Period_Count
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE AccountNo = '193000'
         AND Posted = 1
         AND EffectiveDate >= '2025-03-01' 
@@ -163,14 +181,14 @@ def get_accounting_inventory():
             END as current_status,
             c.State as location_state,
             c.Name as customer_name
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         LEFT JOIN (
             SELECT DISTINCT 
                 wr.SerialNo,
                 1 as is_on_rental
-            FROM ben002.WORental wr
-            INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+            FROM {schema}.WORental wr
+            INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
             WHERE wo.Type = 'R' 
             AND wo.ClosedDate IS NULL
             AND wo.WONo NOT LIKE '9%'
@@ -459,6 +477,7 @@ def export_inventory_excel():
     try:
         # Get the same inventory data as the main report
         db = AzureSQLService()
+        schema = get_tenant_schema()
         
         # Reuse the same queries from the main endpoint to ensure consistency
         # (This is a simplified version - in production we'd refactor the common logic)
@@ -466,7 +485,7 @@ def export_inventory_excel():
         # Get Allied Equipment GL balance
         allied_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
-        FROM [ben002].GLDetail  
+        FROM [{schema}].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
           AND EffectiveDate >= '2025-03-01'
@@ -476,7 +495,7 @@ def export_inventory_excel():
         # Get New Equipment GL balance
         new_equipment_query = """
         SELECT COALESCE(SUM(Amount), 0) as Balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
           AND EffectiveDate >= '2025-03-01'
@@ -488,7 +507,7 @@ def export_inventory_excel():
         SELECT 
             '131200' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '131200' AND Posted = 1 
           AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         
@@ -497,7 +516,7 @@ def export_inventory_excel():
         SELECT 
             '183000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '183000' AND Posted = 1 
           AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         
@@ -506,7 +525,7 @@ def export_inventory_excel():
         SELECT 
             '193000' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
-        FROM [ben002].GLDetail
+        FROM [{schema}].GLDetail
         WHERE AccountNo = '193000' AND Posted = 1 
           AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
         """
@@ -515,7 +534,7 @@ def export_inventory_excel():
         ytd_depreciation_query = """
         SELECT 
             COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation_Expense
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE AccountNo = '193000'
         AND Posted = 1
         AND EffectiveDate >= '2025-03-01' 
@@ -538,14 +557,14 @@ def export_inventory_excel():
             END as current_status,
             c.State as location_state,
             c.Name as customer_name
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         LEFT JOIN (
             SELECT DISTINCT 
                 wr.SerialNo,
                 1 as is_on_rental
-            FROM ben002.WORental wr
-            INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+            FROM {schema}.WORental wr
+            INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
             WHERE wo.Type = 'R' 
             AND wo.ClosedDate IS NULL
             AND wo.WONo NOT LIKE '9%'

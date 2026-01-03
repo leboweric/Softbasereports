@@ -3,6 +3,23 @@ from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 service_shop_bp = Blueprint('service_shop', __name__)
@@ -22,7 +39,7 @@ def get_shop_work_orders():
         SELECT DISTINCT 
             Type,
             COUNT(*) as Count
-        FROM [ben002].WO
+        FROM [{schema}].WO
         WHERE ClosedDate IS NULL
         GROUP BY Type
         ORDER BY COUNT(*) DESC
@@ -36,7 +53,7 @@ def get_shop_work_orders():
         # DEBUG QUERY 2: Investigate WOMisc descriptions for labor
         debug_misc_query = """
         SELECT DISTINCT TOP 30 Description 
-        FROM [ben002].WOMisc 
+        FROM [{schema}].WOMisc 
         WHERE Description LIKE '%LABOR%'
            OR Description LIKE '%SHOP%'
            OR Description LIKE '%REPAIR%'
@@ -55,9 +72,9 @@ def get_shop_work_orders():
             wm.Description,
             wm.Sell,
             w.Type
-        FROM [ben002].WOMisc wm
-        INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
-        LEFT JOIN [ben002].Customer c ON w.BillTo = c.Number
+        FROM [{schema}].WOMisc wm
+        INNER JOIN [{schema}].WO w ON wm.WONo = w.WONo
+        LEFT JOIN [{schema}].Customer c ON w.BillTo = c.Number
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
           AND w.WONo NOT LIKE '9%'  -- CRITICAL: Exclude quotes!
@@ -82,7 +99,9 @@ def get_shop_work_orders():
         # QuotedHours = QuotedAmount / (LaborRate * (1 - Discount/100))
         # Rounded to whole number since quotes are always in whole hours
         # Using NULLIF to prevent divide-by-zero errors
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT
             w.WONo,
             w.BillTo as CustomerNo,
@@ -160,24 +179,24 @@ def get_shop_work_orders():
                 ELSE 'GREEN'
             END as AlertLevel
 
-        FROM [ben002].WO w
+        FROM [{schema}].WO w
 
-        LEFT JOIN [ben002].Customer c ON w.BillTo = c.Number
+        LEFT JOIN [{schema}].Customer c ON w.BillTo = c.Number
 
         -- Join LaborRate view to get actual hourly rate for this work order
-        LEFT JOIN [ben002].LaborRate lr ON lr.Code = w.LaborRate
+        LEFT JOIN [{schema}].LaborRate lr ON lr.Code = w.LaborRate
 
         -- Get quoted labor amount from WOQuote table
         LEFT JOIN (
             SELECT
                 WONo,
                 SUM(Amount) as QuotedAmount
-            FROM [ben002].WOQuote
+            FROM [{schema}].WOQuote
             WHERE Type = 'L'  -- L = Labor quotes
             GROUP BY WONo
         ) quoted ON w.WONo = quoted.WONo
 
-        LEFT JOIN [ben002].WOLabor l ON w.WONo = l.WONo
+        LEFT JOIN [{schema}].WOLabor l ON w.WONo = l.WONo
 
         WHERE w.Type = 'SH'  -- Shop work orders only
           AND w.ClosedDate IS NULL
@@ -307,15 +326,17 @@ def debug_womisc_descriptions():
         db = AzureSQLService()
         
         # Get actual WOMisc records for open shop WOs
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT DISTINCT TOP 50
             wm.WONo,
             wm.Description,
             wm.Sell,
             w.Type
-        FROM [ben002].WOMisc wm
-        INNER JOIN [ben002].WO w ON wm.WONo = w.WONo
-        LEFT JOIN [ben002].Customer c ON w.BillTo = c.Number
+        FROM [{schema}].WOMisc wm
+        INNER JOIN [{schema}].WO w ON wm.WONo = w.WONo
+        LEFT JOIN [{schema}].Customer c ON w.BillTo = c.Number
         WHERE w.Type = 'SH'
           AND w.ClosedDate IS NULL
           AND w.WONo NOT LIKE '9%'
@@ -361,9 +382,11 @@ def debug_wo_fields():
         db = AzureSQLService()
         
         # Get WO record for known quoted work order
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT TOP 5 *
-        FROM [ben002].WO
+        FROM [{schema}].WO
         WHERE Type = 'SH'
           AND WONo NOT LIKE '9%'
           AND ClosedDate IS NULL
@@ -404,12 +427,14 @@ def debug_find_quote():
         db = AzureSQLService()
         
         # Simple query - just get everything from WOMisc for this WO
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             WONo,
             Description,
             Sell
-        FROM [ben002].WOMisc
+        FROM [{schema}].WOMisc
         WHERE WONo = '140000582'
         ORDER BY Sell DESC
         """
@@ -452,7 +477,9 @@ def debug_tables():
         db = AzureSQLService()
         
         # Just get ALL tables, no schema filter
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             SCHEMA_NAME(schema_id) as SchemaName,
             name as TableName
@@ -470,7 +497,7 @@ def debug_tables():
             })
         
         # Filter for ben002 schema
-        ben002_tables = [t['table'] for t in all_tables if t['schema'] == 'ben002']
+        ben002_tables = [t['table'] for t in all_tables if t['schema'] == '{schema}']
         
         # Filter for relevant keywords
         rate_tables = [t for t in ben002_tables if any(keyword in t.lower() for keyword in ['flat', 'rate', 'quote', 'estimate', 'labor', 'service', 'charge'])]
@@ -500,7 +527,7 @@ def debug_woquote():
         columns_query = """
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
           AND TABLE_NAME = 'WOQuote'
         ORDER BY ORDINAL_POSITION
         """
@@ -517,7 +544,7 @@ def debug_woquote():
         # Query 2: Get actual data using the correct columns
         data_query = """
         SELECT TOP 3 *
-        FROM [ben002].WOQuote
+        FROM [{schema}].WOQuote
         WHERE WONo = '140000582'
         """
 
@@ -553,7 +580,7 @@ def debug_labor_rates():
         laborrate_structure_query = """
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
           AND TABLE_NAME = 'LaborRate'
         ORDER BY ORDINAL_POSITION
         """
@@ -564,7 +591,7 @@ def debug_labor_rates():
         # Query 2: Sample LaborRate data
         laborrate_data_query = """
         SELECT TOP 10 *
-        FROM [ben002].LaborRate
+        FROM [{schema}].LaborRate
         ORDER BY Code
         """
 
@@ -575,7 +602,7 @@ def debug_labor_rates():
         wo_rate_structure_query = """
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
           AND TABLE_NAME = 'WO'
           AND COLUMN_NAME IN ('LaborRate', 'LaborDiscount')
         ORDER BY ORDINAL_POSITION
@@ -595,8 +622,8 @@ def debug_labor_rates():
             LR.Rate as LaborRateAmount,
             LR.Code as RateCode,
             LR.Description as RateDescription
-        FROM [ben002].WO
-        LEFT JOIN [ben002].LaborRate LR on LR.Code = WO.LaborRate
+        FROM [{schema}].WO
+        LEFT JOIN [{schema}].LaborRate LR on LR.Code = WO.LaborRate
         WHERE WO.Type = 'SH'
           AND WO.ClosedDate IS NULL
           AND WO.WONo NOT LIKE '9%'
@@ -610,7 +637,7 @@ def debug_labor_rates():
         wolabor_structure_query = """
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
           AND TABLE_NAME = 'WOLabor'
           AND COLUMN_NAME IN ('Rate', 'SellRate', 'Hours', 'Sell', 'LaborRateType')
         ORDER BY ORDINAL_POSITION
@@ -628,8 +655,8 @@ def debug_labor_rates():
             WOL.SellRate,
             WOL.Sell,
             WOL.LaborRateType
-        FROM [ben002].WOLabor WOL
-        INNER JOIN [ben002].WO W ON WOL.WONo = W.WONo
+        FROM [{schema}].WOLabor WOL
+        INNER JOIN [{schema}].WO W ON WOL.WONo = W.WONo
         WHERE W.Type = 'SH'
           AND W.ClosedDate IS NULL
           AND W.WONo NOT LIKE '9%'

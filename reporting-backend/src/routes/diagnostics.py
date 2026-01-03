@@ -5,6 +5,23 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 diagnostics_bp = Blueprint('diagnostics', __name__)
 
 @diagnostics_bp.route('/api/diagnostic/depreciation-view-details', methods=['GET'])
@@ -19,7 +36,7 @@ def get_depreciation_view_details():
         SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'Depreciation' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY ORDINAL_POSITION
         """
         columns = sql_service.execute_query(columns_query)
@@ -27,18 +44,18 @@ def get_depreciation_view_details():
         # Get sample data from Depreciation view
         sample_query = """
         SELECT TOP 10 *
-        FROM ben002.Depreciation
+        FROM {schema}.Depreciation
         """
         sample_data = sql_service.execute_query(sample_query)
         
         # Get row count
-        count_query = "SELECT COUNT(*) as total FROM ben002.Depreciation"
+        count_query = "SELECT COUNT(*) as total FROM {schema}.Depreciation"
         count = sql_service.execute_query(count_query)
         
         # Get sample data with specific equipment info if available
         equipment_sample_query = """
         SELECT TOP 5 *
-        FROM ben002.Depreciation
+        FROM {schema}.Depreciation
         WHERE SerialNo IS NOT NULL
         ORDER BY SerialNo
         """
@@ -75,8 +92,8 @@ def get_equipment_depreciation_join():
             e.Model,
             e.Cost as EquipmentCost,
             d.*
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Depreciation d ON e.SerialNo = d.SerialNo
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Depreciation d ON e.SerialNo = d.SerialNo
         WHERE e.SerialNo IS NOT NULL
         ORDER BY e.SerialNo
         """
@@ -86,9 +103,9 @@ def get_equipment_depreciation_join():
         join_count_query = """
         SELECT 
             COUNT(DISTINCT e.SerialNo) as equipment_with_depreciation,
-            (SELECT COUNT(*) FROM ben002.Equipment WHERE SerialNo IS NOT NULL) as total_equipment
-        FROM ben002.Equipment e
-        INNER JOIN ben002.Depreciation d ON e.SerialNo = d.SerialNo
+            (SELECT COUNT(*) FROM {schema}.Equipment WHERE SerialNo IS NOT NULL) as total_equipment
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.Depreciation d ON e.SerialNo = d.SerialNo
         """
         join_count = sql_service.execute_query(join_count_query)
         
@@ -113,10 +130,12 @@ def get_gl_table_columns():
         sql_service = AzureSQLService()
         
         # Get column information for GL-related tables
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME IN ('GL', 'GLDetail', 'ChartOfAccounts', 'GLField', 'GLGroup')
         ORDER BY TABLE_NAME, ORDINAL_POSITION
         """
@@ -126,16 +145,16 @@ def get_gl_table_columns():
         # Get sample data from GL table if it exists
         sample_data = []
         try:
-            sample_query = "SELECT TOP 3 * FROM ben002.GL WHERE AccountNo IN ('131000', '183000')"
+            sample_query = "SELECT TOP 3 * FROM {schema}.GL WHERE AccountNo IN ('131000', '183000')"
             sample_data = sql_service.execute_query(sample_query)
         except Exception as e:
             # If AccountNo doesn't exist, try other common account field names
             try:
-                sample_query = "SELECT TOP 3 * FROM ben002.GL WHERE Account IN ('131000', '183000')"
+                sample_query = "SELECT TOP 3 * FROM {schema}.GL WHERE Account IN ('131000', '183000')"
                 sample_data = sql_service.execute_query(sample_query)
             except Exception as e2:
                 try:
-                    sample_query = "SELECT TOP 3 * FROM ben002.GL"
+                    sample_query = "SELECT TOP 3 * FROM {schema}.GL"
                     sample_data = sql_service.execute_query(sample_query)
                 except Exception as e3:
                     sample_data = [{'error': f'Could not get GL sample data: {str(e3)}'}]
@@ -143,7 +162,7 @@ def get_gl_table_columns():
         # Get sample data from GLDetail table if it exists
         gldetail_sample = []
         try:
-            gldetail_query = "SELECT TOP 3 * FROM ben002.GLDetail"
+            gldetail_query = "SELECT TOP 3 * FROM {schema}.GLDetail"
             gldetail_sample = sql_service.execute_query(gldetail_query)
         except Exception as e:
             gldetail_sample = [{'error': f'Could not get GLDetail sample data: {str(e)}'}]
@@ -188,7 +207,7 @@ def get_invoice_raw():
         sql_service = AzureSQLService()
 
         # Get ALL fields from the invoice
-        query = "SELECT * FROM ben002.InvoiceReg WHERE InvoiceNo = %s"
+        query = "SELECT * FROM {schema}.InvoiceReg WHERE InvoiceNo = %s"
         results = sql_service.execute_query(query, [invoice_no])
 
         if not results:
@@ -202,7 +221,7 @@ def get_invoice_raw():
         columns_query = """
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME = 'InvoiceReg'
         ORDER BY ORDINAL_POSITION
         """

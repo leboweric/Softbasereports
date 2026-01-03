@@ -4,6 +4,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/rental/deep-search', methods=['GET'])
@@ -19,8 +36,10 @@ def rental_deep_search():
         
         # 1. Check ALL columns in Equipment table for this serial
         try:
-            query = """
-            SELECT * FROM ben002.Equipment 
+            schema = get_tenant_schema()
+
+            query = f"""
+            SELECT * FROM {schema}.Equipment 
             WHERE SerialNo = %s
             """
             equip_result = db.execute_query(query, [test_serial])
@@ -31,13 +50,15 @@ def rental_deep_search():
         
         # 2. Find ALL tables that reference this serial number
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT DISTINCT 
                 t.TABLE_NAME,
                 c.COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS c
             JOIN INFORMATION_SCHEMA.TABLES t ON c.TABLE_NAME = t.TABLE_NAME
-            WHERE c.TABLE_SCHEMA = 'ben002'
+            WHERE c.TABLE_SCHEMA = '{schema}'
             AND c.DATA_TYPE IN ('nvarchar', 'varchar', 'char')
             AND c.CHARACTER_MAXIMUM_LENGTH >= 8
             ORDER BY t.TABLE_NAME, c.COLUMN_NAME
@@ -51,7 +72,7 @@ def rental_deep_search():
                 try:
                     check_query = f"""
                     SELECT TOP 1 '{table}' as TableName, '{column}' as ColumnName
-                    FROM ben002.[{table}]
+                    FROM {schema}.[{table}]
                     WHERE [{column}] = %s
                     """
                     if db.execute_query(check_query, [test_serial]):
@@ -65,7 +86,9 @@ def rental_deep_search():
         
         # 3. Check for ANY work order with Type='R' (Rental) that has customer info
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 10
                 wo.WONo,
                 wo.Type,
@@ -79,8 +102,8 @@ def rental_deep_search():
                 wo.RentalPeriod,
                 wo.RentalStart,
                 wo.RentalEnd
-            FROM ben002.WO wo
-            LEFT JOIN ben002.Customer c1 ON wo.BillTo = c1.Number
+            FROM {schema}.WO wo
+            LEFT JOIN {schema}.Customer c1 ON wo.BillTo = c1.Number
             WHERE wo.Type = 'R'
             AND wo.SerialNo IS NOT NULL
             ORDER BY wo.OpenDate DESC
@@ -91,7 +114,9 @@ def rental_deep_search():
         
         # 4. Check most recent invoices for this equipment
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 5
                 i.InvoiceNo,
                 i.InvoiceDate,
@@ -100,9 +125,9 @@ def rental_deep_search():
                 i.ControlNo,
                 i.SaleCode,
                 i.Department
-            FROM ben002.InvoiceReg i
+            FROM {schema}.InvoiceReg i
             WHERE i.ControlNo IN (
-                SELECT ControlNo FROM ben002.Equipment WHERE SerialNo = %s
+                SELECT ControlNo FROM {schema}.Equipment WHERE SerialNo = %s
             )
             ORDER BY i.InvoiceDate DESC
             """
@@ -112,10 +137,12 @@ def rental_deep_search():
         
         # 5. Check if there's a RentalEquipment or EquipmentRental table
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TABLE_NAME, TABLE_TYPE
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%RentalEquip%'
                 OR TABLE_NAME LIKE '%EquipRental%'
@@ -129,14 +156,16 @@ def rental_deep_search():
         
         # 6. Check WORental for customer linkage
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 10
                 wr.*,
                 wo.BillTo,
                 c.Name as CustomerName
-            FROM ben002.WORental wr
-            INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+            FROM {schema}.WORental wr
+            INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
             WHERE wr.SerialNo = %s
             ORDER BY wo.OpenDate DESC
             """
@@ -146,10 +175,12 @@ def rental_deep_search():
         
         # 7. Look for a "current rental" or "active rental" view
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA.VIEWS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%Current%Rental%'
                 OR TABLE_NAME LIKE '%Active%Rental%'
@@ -164,10 +195,12 @@ def rental_deep_search():
         
         # 8. Check if there's a ShipTo or Delivery address in Equipment
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME = 'Equipment'
             AND (
                 COLUMN_NAME LIKE '%Ship%'

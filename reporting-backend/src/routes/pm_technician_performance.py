@@ -4,6 +4,23 @@ from src.services.azure_sql_service import AzureSQLService
 import logging
 from datetime import datetime, timedelta
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 pm_technician_performance_bp = Blueprint('pm_technician_performance', __name__)
@@ -29,7 +46,9 @@ def get_pm_technician_performance():
         
         # Query to get PM completions by technician
         # Only counts INVOICED PMs (wo.InvoiceDate IS NOT NULL)
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         WITH TechPMs AS (
             SELECT
                 l.MechanicName as technician,
@@ -40,8 +59,8 @@ def get_pm_technician_performance():
                 wo.UnitNo,
                 wo.SerialNo,
                 wo.Model
-            FROM ben002.WOLabor l
-            INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
+            FROM {schema}.WOLabor l
+            INNER JOIN {schema}.WO wo ON l.WONo = wo.WONo
             WHERE wo.Type = 'PM'
                 AND wo.InvoiceDate IS NOT NULL
                 AND l.DateOfLabor >= %s
@@ -148,7 +167,9 @@ def get_pm_technician_details():
         
         # Query pattern copied from department_reports.py
         # Only shows INVOICED PMs (wo.InvoiceDate IS NOT NULL)
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT
             l.WONo,
             l.DateOfLabor,
@@ -162,10 +183,10 @@ def get_pm_technician_details():
             wo.Model,
             wo.Make,
             wo.InvoiceDate
-        FROM ben002.WOLabor l
-        INNER JOIN ben002.WO wo ON l.WONo = wo.WONo
-        LEFT JOIN ben002.Customer shipToCustomer ON wo.ShipTo = shipToCustomer.Number
-        LEFT JOIN ben002.Customer billToCustomer ON wo.BillTo = billToCustomer.Number
+        FROM {schema}.WOLabor l
+        INNER JOIN {schema}.WO wo ON l.WONo = wo.WONo
+        LEFT JOIN {schema}.Customer shipToCustomer ON wo.ShipTo = shipToCustomer.Number
+        LEFT JOIN {schema}.Customer billToCustomer ON wo.BillTo = billToCustomer.Number
         WHERE wo.Type = 'PM'
             AND wo.InvoiceDate IS NOT NULL
             AND l.MechanicName = %s

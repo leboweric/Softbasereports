@@ -4,6 +4,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/rental/customer-solution', methods=['GET'])
@@ -16,7 +33,9 @@ def rental_customer_solution():
         
         # 1. Test the discovered linkage: RentalContract -> WO -> Customer
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 10
                 rc.RentalContractNo,
                 rc.StartDate,
@@ -28,9 +47,9 @@ def rental_customer_solution():
                 wo.ShipName,
                 wo.UnitNo,
                 wo.SerialNo as WOSerialNo
-            FROM ben002.RentalContract rc
-            INNER JOIN ben002.WO wo ON rc.RentalContractNo = wo.RentalContractNo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+            FROM {schema}.RentalContract rc
+            INNER JOIN {schema}.WO wo ON rc.RentalContractNo = wo.RentalContractNo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
             WHERE (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
             ORDER BY rc.StartDate DESC
             """
@@ -40,14 +59,16 @@ def rental_customer_solution():
         
         # 2. Find equipment currently on rent with proper customer info
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH CurrentRentals AS (
                 -- Equipment that's currently rented (has rental history this month)
                 SELECT DISTINCT 
                     rh.SerialNo,
                     rh.DaysRented,
                     rh.RentAmount
-                FROM ben002.RentalHistory rh
+                FROM {schema}.RentalHistory rh
                 WHERE rh.Year = YEAR(GETDATE())
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DaysRented > 0
@@ -65,9 +86,9 @@ def rental_customer_solution():
                     wo.ShipName,
                     rc.StartDate,
                     rc.EndDate
-                FROM ben002.RentalContract rc
-                INNER JOIN ben002.WO wo ON rc.RentalContractNo = wo.RentalContractNo
-                LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+                FROM {schema}.RentalContract rc
+                INNER JOIN {schema}.WO wo ON rc.RentalContractNo = wo.RentalContractNo
+                LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
                 WHERE (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
                 AND wo.SerialNo IS NOT NULL
             )
@@ -85,9 +106,9 @@ def rental_customer_solution():
                 cr.RentAmount,
                 e.Location
             FROM CurrentRentals cr
-            INNER JOIN ben002.Equipment e ON cr.SerialNo = e.SerialNo
+            INNER JOIN {schema}.Equipment e ON cr.SerialNo = e.SerialNo
             LEFT JOIN RentalCustomers rc ON e.SerialNo = rc.SerialNo
-            LEFT JOIN ben002.Customer c2 ON e.CustomerNo = c2.Number
+            LEFT JOIN {schema}.Customer c2 ON e.CustomerNo = c2.Number
             ORDER BY cr.RentAmount DESC
             """
             results['current_rentals_fixed'] = db.execute_query(query)
@@ -96,13 +117,15 @@ def rental_customer_solution():
         
         # 3. Check how many rental contracts have associated work orders
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 COUNT(DISTINCT rc.RentalContractNo) as TotalContracts,
                 COUNT(DISTINCT wo.RentalContractNo) as ContractsWithWO,
                 COUNT(DISTINCT CASE WHEN wo.BillTo IS NOT NULL THEN rc.RentalContractNo END) as ContractsWithCustomer
-            FROM ben002.RentalContract rc
-            LEFT JOIN ben002.WO wo ON rc.RentalContractNo = wo.RentalContractNo
+            FROM {schema}.RentalContract rc
+            LEFT JOIN {schema}.WO wo ON rc.RentalContractNo = wo.RentalContractNo
             WHERE (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
             """
             results['contract_coverage'] = db.execute_query(query)
@@ -111,7 +134,9 @@ def rental_customer_solution():
         
         # 4. Find rental work orders with equipment info
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 10
                 wo.WONo,
                 wo.Type,
@@ -124,9 +149,9 @@ def rental_customer_solution():
                 wo.Model,
                 wr.SerialNo as WORentalSerialNo,
                 wr.UnitNo as WORentalUnitNo
-            FROM ben002.WO wo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
-            LEFT JOIN ben002.WORental wr ON wo.WONo = wr.WONo
+            FROM {schema}.WO wo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
+            LEFT JOIN {schema}.WORental wr ON wo.WONo = wr.WONo
             WHERE wo.RentalContractNo IS NOT NULL
             AND wo.RentalContractNo > 0
             ORDER BY wo.OpenDate DESC
@@ -137,7 +162,9 @@ def rental_customer_solution():
         
         # 5. Alternative approach using WORental table
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 10
                 wr.WONo,
                 wr.SerialNo,
@@ -151,9 +178,9 @@ def rental_customer_solution():
                 wo.ShipName,
                 wr.DayRent,
                 wr.MonthRent
-            FROM ben002.WORental wr
-            INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+            FROM {schema}.WORental wr
+            INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
             WHERE wo.RentalContractNo IS NOT NULL
             ORDER BY wo.OpenDate DESC
             """
@@ -163,12 +190,14 @@ def rental_customer_solution():
         
         # 6. Summary of findings
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             -- Count different scenarios
             SELECT 
                 'Total Active Rental Contracts' as Metric,
                 COUNT(*) as Count
-            FROM ben002.RentalContract
+            FROM {schema}.RentalContract
             WHERE (EndDate IS NULL OR EndDate > GETDATE())
             
             UNION ALL
@@ -176,8 +205,8 @@ def rental_customer_solution():
             SELECT 
                 'Contracts with Work Orders' as Metric,
                 COUNT(DISTINCT rc.RentalContractNo) as Count
-            FROM ben002.RentalContract rc
-            INNER JOIN ben002.WO wo ON rc.RentalContractNo = wo.RentalContractNo
+            FROM {schema}.RentalContract rc
+            INNER JOIN {schema}.WO wo ON rc.RentalContractNo = wo.RentalContractNo
             WHERE (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
             
             UNION ALL
@@ -185,7 +214,7 @@ def rental_customer_solution():
             SELECT 
                 'Equipment Currently Rented' as Metric,
                 COUNT(DISTINCT SerialNo) as Count
-            FROM ben002.RentalHistory
+            FROM {schema}.RentalHistory
             WHERE Year = YEAR(GETDATE())
             AND Month = MONTH(GETDATE())
             AND DaysRented > 0
@@ -195,7 +224,7 @@ def rental_customer_solution():
             SELECT 
                 'Rental WOs with Equipment' as Metric,
                 COUNT(DISTINCT wo.WONo) as Count
-            FROM ben002.WO wo
+            FROM {schema}.WO wo
             WHERE wo.RentalContractNo IS NOT NULL
             AND wo.SerialNo IS NOT NULL
             """

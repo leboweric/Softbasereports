@@ -2,6 +2,23 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 def get_db():
     """Get database connection"""
     return AzureSQLService()
@@ -14,6 +31,7 @@ def diagnose_invoice_fields():
     """Diagnostic to find ALL fields in InvoiceReg that might identify employees"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         results = {}
         
@@ -25,7 +43,7 @@ def diagnose_invoice_fields():
                 DATA_TYPE,
                 CHARACTER_MAXIMUM_LENGTH
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = 'InvoiceReg'
             ORDER BY ORDINAL_POSITION
             """
@@ -50,7 +68,7 @@ def diagnose_invoice_fields():
                 DATA_TYPE,
                 CHARACTER_MAXIMUM_LENGTH
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = 'InvoiceReg'
                 AND (
                     COLUMN_NAME LIKE '%Create%' 
@@ -82,7 +100,7 @@ def diagnose_invoice_fields():
         try:
             sample_query = """
             SELECT TOP 3 *
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode = 'CSTPRT'
                 AND (PartsTaxable > 0 OR PartsNonTax > 0)
             ORDER BY InvoiceDate DESC
@@ -111,7 +129,7 @@ def diagnose_invoice_fields():
             text_columns_query = """
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = 'InvoiceReg'
                 AND DATA_TYPE IN ('nvarchar', 'varchar', 'char', 'nchar', 'text', 'ntext')
                 AND (
@@ -136,7 +154,7 @@ def diagnose_invoice_fields():
                     CreatorUserId,
                     LastModifierUserId,
                     {column_selects}
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE SaleCode = 'CSTPRT'
                     AND InvoiceDate >= '2025-08-01'
                 ORDER BY InvoiceDate DESC
@@ -165,7 +183,7 @@ def diagnose_invoice_fields():
                 CreatorUserId,
                 LastModifierUserId,
                 COUNT(*) as Count
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode = 'CSTPRT'
             GROUP BY CreatorUserId, LastModifierUserId
             ORDER BY COUNT(*) DESC

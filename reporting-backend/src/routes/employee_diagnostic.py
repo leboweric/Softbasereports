@@ -2,6 +2,23 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 def get_db():
     """Get database connection"""
     return AzureSQLService()
@@ -14,6 +31,7 @@ def diagnose_employee_mapping():
     """Diagnostic endpoint to figure out employee ID mapping"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         results = {}
         
@@ -24,7 +42,7 @@ def diagnose_employee_mapping():
                 CreatorUserId,
                 COUNT(*) as InvoiceCount,
                 SUM(ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) as TotalPartsSales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE CreatorUserId IS NOT NULL
                 AND SaleCode = 'CSTPRT'
             GROUP BY CreatorUserId
@@ -165,7 +183,7 @@ def diagnose_employee_mapping():
                 BillToName,
                 InvoiceDate,
                 PartsTaxable + PartsNonTax as PartsTotal
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE (PartsTaxable > 0 OR PartsNonTax > 0)
                 AND CreatorUserId IN ('2316', '2334', '2293', '2318')
             ORDER BY InvoiceDate DESC

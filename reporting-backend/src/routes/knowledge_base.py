@@ -10,6 +10,23 @@ import logging
 from src.services.postgres_service import get_postgres_db
 from src.services.permission_service import PermissionService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 knowledge_base_bp = Blueprint('knowledge_base', __name__)
@@ -32,7 +49,9 @@ def get_articles():
         equipment_make = request.args.get('equipment_make', '')
         
         # Build query with filters
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
             SELECT 
                 kb.id,
                 kb.title,
@@ -131,7 +150,9 @@ def get_article(article_id):
         postgres_db.execute_update(update_query, [article_id])
         
         # Get article
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
             SELECT 
                 id,
                 title,
@@ -197,7 +218,10 @@ def create_article():
             if not data.get(field):
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
             INSERT INTO knowledge_base (
                 title, equipment_make, equipment_model, issue_category,
                 symptoms, root_cause, solution, related_wo_numbers,
@@ -243,7 +267,10 @@ def update_article(article_id):
         data = request.json
         current_user = get_jwt_identity()
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
             UPDATE knowledge_base SET
                 title = %s,
                 equipment_make = %s,
@@ -307,7 +334,9 @@ def delete_article(article_id):
 def get_categories():
     """Get all unique issue categories"""
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
             SELECT DISTINCT issue_category 
             FROM knowledge_base 
             WHERE issue_category IS NOT NULL AND issue_category != ''
@@ -330,9 +359,11 @@ def get_equipment_makes():
         from src.services.azure_sql_service import AzureSQLService
         
         azure_db = AzureSQLService()
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
             SELECT DISTINCT Make
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE Make IS NOT NULL AND Make != ''
             ORDER BY Make
         """
@@ -357,9 +388,11 @@ def get_equipment_models():
         
         if make:
             # Filter models by make
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
                 SELECT DISTINCT Model
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE Make = %s
                   AND Model IS NOT NULL 
                   AND Model != ''
@@ -368,9 +401,11 @@ def get_equipment_models():
             results = azure_db.execute_query(query, [make])
         else:
             # Get all models
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
                 SELECT DISTINCT Model
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE Model IS NOT NULL AND Model != ''
                 ORDER BY Model
             """
@@ -408,7 +443,9 @@ def upload_attachment(article_id):
             return jsonify({'error': 'File size exceeds 10MB limit'}), 400
         
         # Insert attachment
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
             INSERT INTO kb_attachments (
                 article_id, filename, file_data, file_size, mime_type, uploaded_by
             ) VALUES (
@@ -446,7 +483,9 @@ def upload_attachment(article_id):
 def get_attachments(article_id):
     """Get all attachments for an article (metadata only, no file data)"""
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
             SELECT 
                 id, filename, file_size, mime_type, uploaded_by, uploaded_date
             FROM kb_attachments
@@ -481,7 +520,10 @@ def download_attachment(attachment_id):
         from flask import send_file
         import io
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
             SELECT filename, file_data, mime_type
             FROM kb_attachments
             WHERE id = %s
@@ -583,12 +625,12 @@ def search_work_orders():
             -- Concatenate all WOMisc descriptions
             STUFF((
                 SELECT CHAR(13) + CHAR(10) + Description
-                FROM [ben002].WOMisc wm2
+                FROM [{schema}].WOMisc wm2
                 WHERE wm2.WONo = w.WONo
                 FOR XML PATH(''), TYPE
             ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') as workDescription
-        FROM [ben002].WO w
-        LEFT JOIN [ben002].WOMisc wm ON w.WONo = wm.WONo
+        FROM [{schema}].WO w
+        LEFT JOIN [{schema}].WOMisc wm ON w.WONo = wm.WONo
         WHERE {' AND '.join(where_conditions)}
         ORDER BY w.ClosedDate DESC
         """
@@ -632,12 +674,12 @@ def count_work_orders():
         azure_sql = AzureSQLService()
         
         # Count all work orders
-        query_all = "SELECT COUNT(*) as total FROM [ben002].WO"
+        query_all = "SELECT COUNT(*) as total FROM [{schema}].WO"
         result_all = azure_sql.execute_query(query_all)
         total_all = result_all[0]['total'] if result_all else 0
         
         # Count closed work orders
-        query_closed = "SELECT COUNT(*) as total FROM [ben002].WO WHERE ClosedDate IS NOT NULL"
+        query_closed = "SELECT COUNT(*) as total FROM [{schema}].WO WHERE ClosedDate IS NOT NULL"
         result_closed = azure_sql.execute_query(query_closed)
         total_closed = result_closed[0]['total'] if result_closed else 0
         
@@ -664,13 +706,15 @@ def get_work_order_date_range():
         azure_sql = AzureSQLService()
         
         # Get oldest and newest work orders by ClosedDate and WONo
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             MIN(WONo) as oldest_wo_number,
             MAX(WONo) as newest_wo_number,
             MIN(ClosedDate) as oldest_closed,
             MAX(ClosedDate) as newest_closed
-        FROM [ben002].WO
+        FROM [{schema}].WO
         """
         result = azure_sql.execute_query(query)
         

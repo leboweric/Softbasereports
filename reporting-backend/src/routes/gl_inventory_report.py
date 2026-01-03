@@ -4,6 +4,23 @@ from ..services.azure_sql_service import AzureSQLService
 from decimal import Decimal, ROUND_HALF_UP
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 gl_inventory_report_bp = Blueprint('gl_inventory_report', __name__)
@@ -27,7 +44,7 @@ def get_gl_inventory_report():
     """
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Fiscal year parameters (Nov 2024 - Oct 2025)
         fiscal_start = '2024-11-01'
         fiscal_end = '2025-10-31'
@@ -47,8 +64,8 @@ def get_gl_inventory_report():
                 WHEN gl.AccountNo = '193000' THEN 'Accumulated Depreciation'
                 ELSE 'Other'
             END as Category
-        FROM ben002.GL gl
-        LEFT JOIN ben002.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
+        FROM {schema}.GL gl
+        LEFT JOIN {schema}.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
         WHERE gl.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         ORDER BY gl.AccountNo
         """
@@ -59,7 +76,7 @@ def get_gl_inventory_report():
         ytd_depreciation_query = f"""
         SELECT 
             SUM(gld.Amount) as YTD_Depreciation_Expense
-        FROM ben002.GLDetail gld
+        FROM {schema}.GLDetail gld
         WHERE gld.AccountNo = '193000'  -- Accumulated Depreciation
         AND gld.EffectiveDate >= '{fiscal_start}'
         AND gld.EffectiveDate <= '{fiscal_end}'
@@ -77,7 +94,7 @@ def get_gl_inventory_report():
             SUM(CASE WHEN AcquisitionCost IS NOT NULL THEN AcquisitionCost ELSE 0 END) as Total_Acquisition_Cost,
             SUM(CASE WHEN BookValue IS NOT NULL THEN BookValue ELSE 0 END) as Total_Book_Value,
             SUM(CASE WHEN AccumulatedDepreciation IS NOT NULL THEN AccumulatedDepreciation ELSE 0 END) as Total_Accumulated_Depreciation
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE InventoryDept IS NOT NULL
         GROUP BY InventoryDept
         ORDER BY InventoryDept
@@ -104,7 +121,7 @@ def get_gl_inventory_report():
                 WHEN e.InventoryDept = 60 THEN '183000'  -- Rental dept
                 ELSE 'Unknown'
             END as Estimated_GL_Account
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE e.InventoryDept IN (10, 20, 30, 60)
         ORDER BY e.InventoryDept, e.SerialNo
         """
@@ -193,7 +210,7 @@ def export_gl_inventory_report():
         
         # Get the report data first
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Re-run the report query for export
         # (In production, you might cache this or pass it as parameter)
         

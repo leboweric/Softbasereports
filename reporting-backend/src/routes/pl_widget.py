@@ -16,9 +16,26 @@ logger = logging.getLogger(__name__)
 
 pl_widget_bp = Blueprint('pl_widget', __name__)
 sql_service = AzureSQLService()
-
+schema = get_tenant_schema()
 # Import GL account mappings from pl_report
 from src.routes.pl_report import GL_ACCOUNTS, EXPENSE_ACCOUNTS, OTHER_INCOME_ACCOUNTS
+
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
 
 @pl_widget_bp.route('/api/pl/widget', methods=['GET'])
 @jwt_required()
@@ -142,7 +159,7 @@ def get_monthly_pl(year, month):
             -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN MTD ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN MTD ELSE 0 END) as cogs,
             SUM(CASE WHEN AccountNo IN ('{expense_list}') THEN MTD ELSE 0 END) as expenses
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s AND Month = %s
           AND (AccountNo IN ('{revenue_list}') 
                OR AccountNo IN ('{cogs_list}')

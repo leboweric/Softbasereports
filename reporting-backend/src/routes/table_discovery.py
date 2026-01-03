@@ -4,6 +4,23 @@ import logging
 from datetime import datetime
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 table_discovery_bp = Blueprint('table_discovery', __name__)
 
@@ -13,7 +30,7 @@ def list_all_tables():
     """List all tables in the ben002 schema"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get all tables with basic info
         tables_query = """
         SELECT 
@@ -26,7 +43,7 @@ def list_all_tables():
                 AND c.TABLE_NAME = t.TABLE_NAME
             ) as COLUMN_COUNT
         FROM INFORMATION_SCHEMA.TABLES t
-        WHERE t.TABLE_SCHEMA = 'ben002'
+        WHERE t.TABLE_SCHEMA = '{schema}'
         ORDER BY t.TABLE_NAME
         """
         
@@ -77,6 +94,7 @@ def get_table_details():
             }), 400
         
         db = AzureSQLService()
+        schema = get_tenant_schema()
         table_details = {}
         
         for table_name in table_names:
@@ -93,7 +111,7 @@ def get_table_details():
                     COLUMN_DEFAULT,
                     ORDINAL_POSITION
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = 'ben002' 
+                WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = '{table_name}'
                 ORDER BY ORDINAL_POSITION
                 """
@@ -104,7 +122,7 @@ def get_table_details():
                 pk_query = f"""
                 SELECT COLUMN_NAME
                 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-                WHERE TABLE_SCHEMA = 'ben002' 
+                WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = '{table_name}'
                 AND CONSTRAINT_NAME LIKE 'PK%'
                 """
@@ -117,7 +135,7 @@ def get_table_details():
                 try:
                     # Only count for smaller tables to avoid timeouts
                     if len(columns) < 50:  # Arbitrary threshold
-                        count_query = f"SELECT COUNT(*) as count FROM ben002.{table_name}"
+                        count_query = f"SELECT COUNT(*) as count FROM {schema}.{table_name}"
                         count_result = db.execute_query(count_query)
                         if count_result:
                             row_count = count_result[0]['count']
@@ -127,7 +145,7 @@ def get_table_details():
                 # Get sample data (first 3 rows)
                 sample_data = []
                 try:
-                    sample_query = f"SELECT TOP 3 * FROM ben002.{table_name}"
+                    sample_query = f"SELECT TOP 3 * FROM {schema}.{table_name}"
                     sample_data = db.execute_query(sample_query)
                 except:
                     sample_data = []
@@ -185,7 +203,7 @@ def export_selected_schema():
             }), 400
         
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         markdown_lines = [
             "# Softbase Database Schema Documentation",
             f"\nGenerated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
@@ -212,11 +230,11 @@ def export_selected_schema():
                 LEFT JOIN (
                     SELECT COLUMN_NAME
                     FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-                    WHERE TABLE_SCHEMA = 'ben002' 
+                    WHERE TABLE_SCHEMA = '{schema}' 
                     AND TABLE_NAME = '{table_name}'
                     AND CONSTRAINT_NAME LIKE 'PK%'
                 ) pk ON c.COLUMN_NAME = pk.COLUMN_NAME
-                WHERE c.TABLE_SCHEMA = 'ben002' 
+                WHERE c.TABLE_SCHEMA = '{schema}' 
                 AND c.TABLE_NAME = '{table_name}'
                 ORDER BY c.ORDINAL_POSITION
                 """
@@ -226,7 +244,7 @@ def export_selected_schema():
                 # Get row count
                 row_count = 'Unknown'
                 try:
-                    count_result = db.execute_query(f"SELECT COUNT(*) as count FROM ben002.{table_name}")
+                    count_result = db.execute_query(f"SELECT COUNT(*) as count FROM {schema}.{table_name}")
                     if count_result:
                         row_count = f"{count_result[0]['count']:,}"
                 except:
@@ -251,7 +269,7 @@ def export_selected_schema():
                 
                 markdown_lines.append(f"\nSample query:")
                 markdown_lines.append(f"```sql")
-                markdown_lines.append(f"SELECT TOP 10 * FROM ben002.{table_name}")
+                markdown_lines.append(f"SELECT TOP 10 * FROM {schema}.{table_name}")
                 markdown_lines.append(f"```")
                 
             except Exception as e:
@@ -290,7 +308,7 @@ def get_column_values():
             }), 400
         
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Build the WHERE clause
         where_clause = ""
         if filter_column and filter_value is not None:
@@ -302,7 +320,7 @@ def get_column_values():
             {column_name} as Value,
             COUNT(*) as Count,
             CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() as DECIMAL(5,2)) as Percentage
-        FROM ben002.{table_name}
+        FROM {schema}.{table_name}
         {where_clause}
         GROUP BY {column_name}
         ORDER BY COUNT(*) DESC
@@ -321,7 +339,7 @@ def get_column_values():
                 # Get 3 sample records for this value
                 sample_query = f"""
                 SELECT TOP 3 *
-                FROM ben002.{table_name}
+                FROM {schema}.{table_name}
                 WHERE {column_name} {'IS NULL' if value is None else f"= '{value}'"}
                 {f"AND {where_clause[6:]}" if where_clause else ""}  # Add filter if exists
                 """
@@ -335,7 +353,7 @@ def get_column_values():
         # Get total count
         total_query = f"""
         SELECT COUNT(*) as total
-        FROM ben002.{table_name}
+        FROM {schema}.{table_name}
         {where_clause}
         """
         total_result = db.execute_query(total_query)
@@ -372,12 +390,12 @@ def investigate_gl_structure():
     """Investigate GL table structure and find target accounts"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Step 1: Find GL-related tables
         gl_tables_query = """
         SELECT TABLE_NAME
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME LIKE '%GL%'
         ORDER BY TABLE_NAME
         """
@@ -405,7 +423,7 @@ def investigate_gl_structure():
                     CHARACTER_MAXIMUM_LENGTH,
                     IS_NULLABLE
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = 'ben002' 
+                WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = '{table_name}'
                 ORDER BY ORDINAL_POSITION
                 """
@@ -417,7 +435,7 @@ def investigate_gl_structure():
                 }
                 
                 # Get sample data
-                sample_query = f"SELECT TOP 5 * FROM ben002.{table_name}"
+                sample_query = f"SELECT TOP 5 * FROM {schema}.{table_name}"
                 sample_data = db.execute_query(sample_query)
                 results['sample_data'][table_name]['sample_rows'] = sample_data
                 
@@ -432,7 +450,7 @@ def investigate_gl_structure():
                         # Check if any of our target accounts exist
                         target_check_query = f"""
                         SELECT DISTINCT {account_col} as AccountNumber, COUNT(*) as RecordCount
-                        FROM ben002.{table_name}
+                        FROM {schema}.{table_name}
                         WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
                         GROUP BY {account_col}
                         ORDER BY {account_col}
@@ -455,7 +473,7 @@ def investigate_gl_structure():
         equipment_link_query = """
         SELECT TABLE_NAME, COLUMN_NAME
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND (COLUMN_NAME LIKE '%Serial%' OR COLUMN_NAME LIKE '%Equipment%' OR COLUMN_NAME LIKE '%Asset%')
         ORDER BY TABLE_NAME, COLUMN_NAME
         """
@@ -484,7 +502,7 @@ def analyze_gl_detail():
         fiscal_year_filter = data.get('fiscal_year', True)  # Default to current fiscal year
         
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Step 1: Check if GLDetail table exists and get its structure
         gldetail_check_query = """
         SELECT 
@@ -493,7 +511,7 @@ def analyze_gl_detail():
             CHARACTER_MAXIMUM_LENGTH,
             IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'GLDetail'
         ORDER BY ORDINAL_POSITION
         """
@@ -538,7 +556,7 @@ def analyze_gl_detail():
             COUNT(*) as TransactionCount,
             MIN(Date) as EarliestTransaction,
             MAX(Date) as LatestTransaction
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
         GROUP BY {account_col}
         ORDER BY {account_col}
@@ -555,7 +573,7 @@ def analyze_gl_detail():
                 SUM(CASE WHEN Credit IS NOT NULL THEN -Credit ELSE 0 END + 
                     CASE WHEN Debit IS NOT NULL THEN Debit ELSE 0 END) as FiscalYearActivity,
                 COUNT(*) as FiscalYearTransactions
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
             AND Date >= '2024-11-01' AND Date <= '2025-10-31'
             GROUP BY {account_col}
@@ -585,7 +603,7 @@ def analyze_gl_detail():
                     Debit,
                     Credit,
                     Description
-                FROM ben002.GLDetail
+                FROM {schema}.GLDetail
                 WHERE {account_col} IN ('131000', '131200', '131300', '183000', '193000')
                 AND {link_col} IS NOT NULL
                 AND {link_col} != ''
@@ -607,7 +625,7 @@ def analyze_gl_detail():
                 Credit,
                 Description,
                 Reference
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE {account_col} = '{account}'
             ORDER BY Date DESC
             """
@@ -636,12 +654,12 @@ def check_gl_columns():
     """Check actual column names in GL-related tables"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get column names from GL-related tables
         column_check_query = """
         SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_NAME IN ('GL', 'GLDetail', 'ChartOfAccounts')
         ORDER BY TABLE_NAME, ORDINAL_POSITION
         """
@@ -667,7 +685,7 @@ def check_gl_columns():
         # Get sample data for each table
         for table_name in tables_info.keys():
             try:
-                sample_query = f"SELECT TOP 3 * FROM ben002.{table_name}"
+                sample_query = f"SELECT TOP 3 * FROM {schema}.{table_name}"
                 sample_data = db.execute_query(sample_query)
                 tables_info[table_name]['sample_data'] = sample_data
             except Exception as e:

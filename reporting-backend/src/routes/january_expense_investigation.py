@@ -7,11 +7,28 @@ from flask import Blueprint, jsonify
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 january_expense_bp = Blueprint('january_expense_investigation', __name__)
 sql_service = AzureSQLService()
-
+schema = get_tenant_schema()
 @january_expense_bp.route('/api/investigation/january2025/expenses', methods=['GET'])
 def investigate_january_expenses():
     """
@@ -27,7 +44,7 @@ def investigate_january_expenses():
             SUM(CASE WHEN MONTH(EffectiveDate) = 12 AND YEAR(EffectiveDate) = 2024 THEN Amount ELSE 0 END) as Dec2024,
             SUM(CASE WHEN MONTH(EffectiveDate) = 1 AND YEAR(EffectiveDate) = 2025 THEN Amount ELSE 0 END) as Jan2025,
             SUM(CASE WHEN MONTH(EffectiveDate) = 2 AND YEAR(EffectiveDate) = 2025 THEN Amount ELSE 0 END) as Feb2025
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2024-12-01' AND EffectiveDate < '2025-03-01'
           AND Posted = 1
           AND (AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%')
@@ -45,7 +62,7 @@ def investigate_january_expenses():
                 SUM(CASE WHEN MONTH(EffectiveDate) = 12 AND YEAR(EffectiveDate) = 2024 THEN Amount ELSE 0 END) as Dec2024,
                 SUM(CASE WHEN MONTH(EffectiveDate) = 1 AND YEAR(EffectiveDate) = 2025 THEN Amount ELSE 0 END) as Jan2025,
                 SUM(CASE WHEN MONTH(EffectiveDate) = 2 AND YEAR(EffectiveDate) = 2025 THEN Amount ELSE 0 END) as Feb2025
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE EffectiveDate >= '2024-12-01' AND EffectiveDate < '2025-03-01'
               AND Posted = 1
               AND (AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%')
@@ -69,8 +86,8 @@ def investigate_january_expenses():
         SELECT DISTINCT
             gl.AccountNo,
             a.Name as AccountName
-        FROM ben002.GLDetail gl
-        LEFT JOIN ben002.Accounts a ON gl.AccountNo = a.AccountNo
+        FROM {schema}.GLDetail gl
+        LEFT JOIN {schema}.Accounts a ON gl.AccountNo = a.AccountNo
         WHERE gl.EffectiveDate >= '2025-01-01' AND gl.EffectiveDate < '2025-02-01'
           AND gl.Posted = 1
           AND (gl.AccountNo LIKE '6%' OR gl.AccountNo LIKE '7%' OR gl.AccountNo LIKE '8%')
@@ -86,8 +103,8 @@ def investigate_january_expenses():
             a.Name as AccountName,
             gl.Amount,
             gl.Posted
-        FROM ben002.GLDetail gl
-        LEFT JOIN ben002.Accounts a ON gl.AccountNo = a.AccountNo
+        FROM {schema}.GLDetail gl
+        LEFT JOIN {schema}.Accounts a ON gl.AccountNo = a.AccountNo
         WHERE gl.EffectiveDate >= '2025-01-01' AND gl.EffectiveDate < '2025-02-01'
           AND gl.Posted = 1
           AND gl.AccountNo LIKE '602%'
@@ -102,7 +119,7 @@ def investigate_january_expenses():
             YEAR(EffectiveDate) as Year,
             MONTH(EffectiveDate) as Month,
             SUM(Amount) as TotalExpenses
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= '2024-11-01' AND EffectiveDate < '2025-04-01'
           AND Posted = 1
           AND (AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '8%')

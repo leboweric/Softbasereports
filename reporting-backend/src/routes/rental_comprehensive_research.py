@@ -4,6 +4,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/rental/comprehensive-research', methods=['GET'])
@@ -16,12 +33,14 @@ def comprehensive_rental_research():
         
         # 1. Check RentalHistory table structure - maybe it has customer info
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME = 'RentalHistory'
             ORDER BY ORDINAL_POSITION
             """
@@ -31,7 +50,9 @@ def comprehensive_rental_research():
         
         # 2. Sample RentalHistory data with all columns
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 3
                 SerialNo,
                 Year,
@@ -46,7 +67,7 @@ def comprehensive_rental_research():
                 DeleterUserId,
                 TenantId,
                 Id
-            FROM ben002.RentalHistory
+            FROM {schema}.RentalHistory
             WHERE Year = YEAR(GETDATE())
             AND Month = MONTH(GETDATE())
             AND DaysRented > 0
@@ -57,12 +78,14 @@ def comprehensive_rental_research():
         
         # 3. Find ALL tables with "Rental" in the name
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 TABLE_NAME,
                 TABLE_TYPE
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME LIKE '%Rental%'
             ORDER BY TABLE_NAME
             """
@@ -72,11 +95,13 @@ def comprehensive_rental_research():
         
         # 4. Check if there's a RentalDetail or RentalInvoice table
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%RentalDetail%'
                 OR TABLE_NAME LIKE '%RentalInvoice%'
@@ -90,11 +115,13 @@ def comprehensive_rental_research():
         
         # 5. Check InvoiceReg for rental invoices with ship info
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME = 'InvoiceReg'
             AND (
                 COLUMN_NAME LIKE '%Ship%'
@@ -107,7 +134,9 @@ def comprehensive_rental_research():
         
         # 6. Find a rental invoice and check its data
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 3
                 InvoiceNo,
                 InvoiceDate,
@@ -116,7 +145,7 @@ def comprehensive_rental_research():
                 SaleCode,
                 ControlNo,
                 Customer
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE SaleCode LIKE 'RENT%'
             ORDER BY InvoiceDate DESC
             """
@@ -126,11 +155,13 @@ def comprehensive_rental_research():
         
         # 7. Check for Views related to rentals
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 TABLE_NAME
             FROM INFORMATION_SCHEMA.VIEWS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%Rental%'
                 OR TABLE_NAME LIKE '%Equipment%'
@@ -143,11 +174,13 @@ def comprehensive_rental_research():
         
         # 8. Check if Equipment has additional customer fields we missed
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME = 'Equipment'
             AND (
                 COLUMN_NAME LIKE '%Customer%'
@@ -164,7 +197,9 @@ def comprehensive_rental_research():
         # 9. Try to find how equipment links to actual rental customer
         # Check if there's a pattern in the data
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             -- Find equipment that's on rent and has different customer patterns
             SELECT TOP 5
                 e.UnitNo,
@@ -175,13 +210,13 @@ def comprehensive_rental_research():
                 rc.CustomerNo as ContractCustomer,
                 c2.Name as ContractCustomerName,
                 rc.RentalContractNo
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c1 ON e.CustomerNo = c1.Number
-            LEFT JOIN ben002.RentalContract rc ON e.SerialNo = rc.SerialNo
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c1 ON e.CustomerNo = c1.Number
+            LEFT JOIN {schema}.RentalContract rc ON e.SerialNo = rc.SerialNo
                 AND (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
-            LEFT JOIN ben002.Customer c2 ON rc.CustomerNo = c2.Number
+            LEFT JOIN {schema}.Customer c2 ON rc.CustomerNo = c2.Number
             WHERE EXISTS (
-                SELECT 1 FROM ben002.RentalHistory rh
+                SELECT 1 FROM {schema}.RentalHistory rh
                 WHERE rh.SerialNo = e.SerialNo
                 AND rh.Year = YEAR(GETDATE())
                 AND rh.Month = MONTH(GETDATE())
@@ -194,12 +229,14 @@ def comprehensive_rental_research():
         
         # 10. Check if RentalContract has additional fields for delivery/ship-to
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND TABLE_NAME = 'RentalContract'
             AND (
                 COLUMN_NAME LIKE '%Ship%'
@@ -215,11 +252,13 @@ def comprehensive_rental_research():
         
         # 11. Look for any EquipmentLocation or similar tables
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%Location%'
                 OR TABLE_NAME LIKE '%Delivery%'
@@ -233,12 +272,14 @@ def comprehensive_rental_research():
         
         # 12. CRITICAL: Look for RentalContractDetail or any link table
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 TABLE_NAME,
                 TABLE_TYPE
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%RentalContract%'
                 OR TABLE_NAME LIKE '%ContractCustomer%'
@@ -254,14 +295,16 @@ def comprehensive_rental_research():
         
         # 13. Check if RentalContract has an Id that links elsewhere
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             -- Find tables with RentalContractNo or ContractId columns
             SELECT 
                 TABLE_NAME,
                 COLUMN_NAME,
                 DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 COLUMN_NAME LIKE '%RentalContract%'
                 OR COLUMN_NAME LIKE '%ContractNo%'
@@ -276,14 +319,16 @@ def comprehensive_rental_research():
         
         # 14. Check RecentCustomer table - might have rental info
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 5
                 rc.CustomerNo,
                 rc.EntryDate,
                 c.Name as CustomerName,
                 rc.SecureName
-            FROM ben002.RecentCustomer rc
-            LEFT JOIN ben002.Customer c ON rc.CustomerNo = c.Number
+            FROM {schema}.RecentCustomer rc
+            LEFT JOIN {schema}.Customer c ON rc.CustomerNo = c.Number
             WHERE rc.CustomerNo IS NOT NULL
             ORDER BY rc.EntryDate DESC
             """
@@ -293,7 +338,9 @@ def comprehensive_rental_research():
         
         # 15. Try to find how RentalContract.Id links to anything
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 3
                 rc.Id as ContractId,
                 rc.RentalContractNo,
@@ -301,7 +348,7 @@ def comprehensive_rental_research():
                 rc.EndDate,
                 rc.DeliveryCharge,
                 rc.PickupCharge
-            FROM ben002.RentalContract rc
+            FROM {schema}.RentalContract rc
             WHERE rc.EndDate IS NULL OR rc.EndDate > GETDATE()
             ORDER BY rc.StartDate DESC
             """

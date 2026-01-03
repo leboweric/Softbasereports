@@ -6,6 +6,23 @@ from flask import Blueprint, jsonify
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 check_rental_fleet_bp = Blueprint('check_rental_fleet', __name__)
@@ -16,12 +33,13 @@ def check_rental_fleet():
     
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # 1. Check if RENTAL FLEET - EXPENSE is a customer
         customer_check = """
         SELECT Number, Name, Address, City, State
-        FROM ben002.Customer
+        FROM {schema}.Customer
         WHERE Name LIKE '%RENTAL FLEET%'
         OR Number = '900006'
         """
@@ -41,8 +59,8 @@ def check_rental_fleet():
             e.InventoryDept,
             e.Customer as CustomerOwnedFlag,
             c.Name as CustomerName
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.UnitNo = '21515'
         """
         try:
@@ -62,9 +80,9 @@ def check_rental_fleet():
             c.Name as CustomerName,
             wr.UnitNo,
             wr.SerialNo
-        FROM ben002.WORental wr
-        INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        FROM {schema}.WORental wr
+        INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+        LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
         WHERE wr.UnitNo = '21515'
         AND wo.Type = 'R'
         AND wo.ClosedDate IS NULL
@@ -84,9 +102,9 @@ def check_rental_fleet():
             wo.ClosedDate,
             wo.BillTo,
             c.Name as CustomerName
-        FROM ben002.WORental wr
-        INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-        LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+        FROM {schema}.WORental wr
+        INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+        LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
         WHERE wr.UnitNo = '21515'
         AND wo.Type = 'R'
         AND wo.ClosedDate IS NOT NULL
@@ -101,8 +119,8 @@ def check_rental_fleet():
         # 5. Check how many units show RENTAL FLEET - EXPENSE
         count_check = """
         SELECT COUNT(*) as count
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.InventoryDept = 60
         AND c.Name = 'RENTAL FLEET - EXPENSE'
         """

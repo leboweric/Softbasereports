@@ -11,6 +11,23 @@ from datetime import datetime, timedelta
 import logging
 import calendar
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 currie_bp = Blueprint('currie', __name__)
@@ -194,11 +211,13 @@ def get_new_equipment_sales(start_date, end_date):
     """Get new equipment sales broken down by category using GLDetail table"""
     try:
         # Query for equipment sales and costs from GLDetail using approved GL accounts
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             AccountNo,
             SUM(Amount) as total_amount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -280,11 +299,13 @@ def get_rental_revenue(start_date, end_date):
     """Get rental revenue as a single consolidated category using GLDetail"""
     try:
         # Query rental revenue and costs from GLDetail using approved GL accounts
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             AccountNo,
             SUM(Amount) as total_amount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -332,7 +353,9 @@ def get_service_revenue(start_date, end_date):
     """Get service revenue broken down by customer, internal, warranty, sublet using GLDetail"""
     try:
         # Query service revenue from GLDetail table with exact GL accounts
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             -- Customer Labor: Field (410004) + Shop (410005) + Full Maint (410007)
             -SUM(CASE WHEN AccountNo IN ('410004', '410005', '410007') THEN Amount ELSE 0 END) as customer_sales,
@@ -353,7 +376,7 @@ def get_service_revenue(start_date, end_date):
             -- Other Service Sales (PM Contracts, etc)
             -SUM(CASE WHEN AccountNo IN ('428000', '429002') THEN Amount ELSE 0 END) as other_sales,
             SUM(CASE WHEN AccountNo IN ('528000', '529001') THEN Amount ELSE 0 END) as other_cogs
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -411,11 +434,13 @@ def get_parts_revenue(start_date, end_date):
     """Get parts revenue broken down by counter, RO, internal, warranty using GLDetail"""
     try:
         # Query parts sales and costs from GLDetail using approved GL accounts
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             AccountNo,
             SUM(Amount) as total_amount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -490,7 +515,9 @@ def get_trucking_revenue(start_date, end_date):
     """Get trucking/delivery revenue using GLDetail with all trucking GL accounts"""
     try:
         # Query trucking revenue from GLDetail table with exact GL accounts
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             -- All Trucking Revenue Accounts
             -SUM(CASE WHEN AccountNo IN (
@@ -519,7 +546,7 @@ def get_trucking_revenue(start_date, end_date):
                 '534014',  -- COS - TRUCKING/DELIVERY - Rental
                 '534015'   -- COS - TRUCKING/DELIVERY - Service
             ) THEN Amount ELSE 0 END) as cogs
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -738,7 +765,7 @@ def get_ar_aging():
         # Get total AR
         total_ar_query = """
         SELECT SUM(Amount) as total_ar
-        FROM ben002.ARDetail
+        FROM {schema}.ARDetail
         WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
             AND DeletionTime IS NULL
         """
@@ -753,7 +780,7 @@ def get_ar_aging():
                 ar.CustomerNo,
                 MIN(ar.Due) as Due,
                 SUM(ar.Amount) as NetBalance
-            FROM ben002.ARDetail ar
+            FROM {schema}.ARDetail ar
             WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
                 AND ar.DeletionTime IS NULL
                 AND ar.InvoiceNo IS NOT NULL
@@ -814,9 +841,11 @@ def get_ar_aging():
 def get_service_calls_per_day(start_date, end_date, num_days):
     """Calculate average service calls per day"""
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT COUNT(*) as total_service_calls
-        FROM ben002.WO
+        FROM {schema}.WO
         WHERE OpenDate >= %s 
           AND OpenDate <= %s
           AND SaleDept IN ('40', '45', '47')  -- Field Service (40), Shop Service (45), PM (47)
@@ -841,9 +870,11 @@ def get_service_calls_per_day(start_date, end_date, num_days):
 def get_technician_count(start_date, end_date):
     """Count unique technicians who worked during the period"""
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT COUNT(DISTINCT Technician) as technician_count
-        FROM ben002.WO
+        FROM {schema}.WO
         WHERE OpenDate >= %s 
           AND OpenDate <= %s
           AND Technician IS NOT NULL
@@ -885,9 +916,9 @@ def get_parts_inventory_metrics(start_date, end_date):
                     WHEN p.OnHand < wp.Qty THEN 'Partial Stock'
                     ELSE 'In Stock'
                 END as StockStatus
-            FROM ben002.WOParts wp
-            INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-            LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+            FROM {schema}.WOParts wp
+            INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
+            LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
             WHERE w.OpenDate >= %s AND w.OpenDate <= %s
         )
         SELECT 
@@ -905,7 +936,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         # 2. Inventory Value - TOTAL current inventory (not period-specific)
         inventory_query = """
         SELECT SUM(OnHand * Cost) as TotalInventoryValue
-        FROM ben002.Parts
+        FROM {schema}.Parts
         WHERE OnHand > 0 AND Cost > 0
         """
         
@@ -916,9 +947,9 @@ def get_parts_inventory_metrics(start_date, end_date):
         turnover_query = """
         SELECT 
             SUM(wp.Qty * p.Cost) as TotalCOGS
-        FROM ben002.WOParts wp
-        INNER JOIN ben002.WO w ON wp.WONo = w.WONo
-        LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+        FROM {schema}.WOParts wp
+        INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
+        LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
         WHERE w.OpenDate >= %s AND w.OpenDate <= %s
         """
         
@@ -936,9 +967,9 @@ def get_parts_inventory_metrics(start_date, end_date):
                 MAX(p.OnHand) as CurrentStock,
                 MAX(p.Cost) as Cost,
                 MAX(w.OpenDate) as LastMovementDate
-            FROM ben002.Parts p
-            LEFT JOIN ben002.WOParts wp ON p.PartNo = wp.PartNo
-            LEFT JOIN ben002.WO w ON wp.WONo = w.WONo
+            FROM {schema}.Parts p
+            LEFT JOIN {schema}.WOParts wp ON p.PartNo = wp.PartNo
+            LEFT JOIN {schema}.WO w ON wp.WONo = w.WONo
             WHERE p.OnHand > 0
             GROUP BY p.PartNo
         )
@@ -983,7 +1014,9 @@ def get_labor_metrics(start_date, end_date):
     """Get labor productivity metrics from WOLabor"""
     try:
         # Use the same pattern as other successful queries: SUM(Sell) for labor value
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             COUNT(DISTINCT l.WONo) as wo_count,
             SUM(l.Hours) as total_hours,
@@ -992,8 +1025,8 @@ def get_labor_metrics(start_date, end_date):
                 ELSE 0 
             END as avg_rate,
             SUM(l.Sell) as total_labor_value
-        FROM ben002.WOLabor l
-        INNER JOIN ben002.WO w ON l.WONo = w.WONo
+        FROM {schema}.WOLabor l
+        INNER JOIN {schema}.WO w ON l.WONo = w.WONo
         WHERE w.OpenDate >= %s 
           AND w.OpenDate <= %s
         """
@@ -1439,12 +1472,15 @@ def discover_gl_accounts():
         start_date = request.args.get('start_date', '2025-09-01')
         end_date = request.args.get('end_date', '2025-11-30')
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
         SELECT 
             AccountNo,
             COUNT(*) as TransactionCount,
             SUM(Amount) as TotalAmount
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE Posted = 1
           AND EffectiveDate >= %s
           AND EffectiveDate <= %s
@@ -1556,7 +1592,7 @@ def get_gl_expenses_from_gl_mtd(year, month):
             SUM(CASE WHEN AccountNo = '601100' THEN MTD ELSE 0 END) as payroll_taxes,
             SUM(CASE WHEN AccountNo IN ('601500', '602700', '602701') THEN MTD ELSE 0 END) as benefits,
             SUM(CASE WHEN AccountNo = '600400' THEN MTD ELSE 0 END) as commissions
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400')
@@ -1571,7 +1607,7 @@ def get_gl_expenses_from_gl_mtd(year, month):
             SUM(CASE WHEN AccountNo = '601700' THEN MTD ELSE 0 END) as insurance,
             SUM(CASE WHEN AccountNo = '600300' THEN MTD ELSE 0 END) as building_maintenance,
             SUM(CASE WHEN AccountNo = '600900' THEN MTD ELSE 0 END) as depreciation
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND AccountNo IN ('600200', '600201', '600300', '604000', '601700', '600900')
@@ -1590,7 +1626,7 @@ def get_gl_expenses_from_gl_mtd(year, month):
             SUM(CASE WHEN AccountNo = '604100' THEN MTD ELSE 0 END) as vehicle_expense,
             SUM(CASE WHEN AccountNo = '603000' THEN MTD ELSE 0 END) as professional_services,
             SUM(CASE WHEN AccountNo IN ('601000', '601200', '602900', '603300', '603900', '602100', '602200') THEN MTD ELSE 0 END) as other
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND AccountNo IN (
@@ -1668,7 +1704,7 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
             SUM(CASE WHEN AccountNo = '601100' THEN Amount ELSE 0 END) as payroll_taxes,
             SUM(CASE WHEN AccountNo IN ('601500', '602700', '602701') THEN Amount ELSE 0 END) as benefits,
             SUM(CASE WHEN AccountNo = '600400' THEN Amount ELSE 0 END) as commissions
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE Posted = 1
           AND EffectiveDate >= %s
           AND EffectiveDate <= %s
@@ -1684,7 +1720,7 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
             SUM(CASE WHEN AccountNo = '601700' THEN Amount ELSE 0 END) as insurance,
             SUM(CASE WHEN AccountNo = '600300' THEN Amount ELSE 0 END) as building_maintenance,
             SUM(CASE WHEN AccountNo = '600900' THEN Amount ELSE 0 END) as depreciation
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE Posted = 1
           AND EffectiveDate >= %s
           AND EffectiveDate <= %s
@@ -1704,7 +1740,7 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
             SUM(CASE WHEN AccountNo = '604100' THEN Amount ELSE 0 END) as vehicle_expense,
             SUM(CASE WHEN AccountNo = '603000' THEN Amount ELSE 0 END) as professional_services,
             SUM(CASE WHEN AccountNo IN ('601000', '601200', '602900', '603300', '603900', '602100', '602200') THEN Amount ELSE 0 END) as other
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE Posted = 1
           AND EffectiveDate >= %s
           AND EffectiveDate <= %s
@@ -1803,12 +1839,14 @@ def get_other_income_and_interest(start_date, end_date):
     - F & I Income = 440000
     """
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             SUM(CASE WHEN AccountNo IN ('601400', '602500', '603400', '604200', '999999') THEN Amount ELSE 0 END) as other_expenses,
             SUM(CASE WHEN AccountNo = '601800' THEN Amount ELSE 0 END) as interest_expense,
             SUM(CASE WHEN AccountNo = '440000' THEN Amount ELSE 0 END) as fi_income
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -1863,13 +1901,15 @@ def get_balance_sheet_data(as_of_date):
         
         # Query GL.YTD for balance sheet accounts
         # For balance sheet accounts, we want the cumulative Year-To-Date balance
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             gl.AccountNo,
             COALESCE(coa.Description, gl.AccountNo) as Description,
             gl.YTD as balance
-        FROM ben002.GL gl
-        LEFT JOIN ben002.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
+        FROM {schema}.GL gl
+        LEFT JOIN {schema}.ChartOfAccounts coa ON gl.AccountNo = coa.AccountNo
         WHERE gl.Year = %s 
           AND gl.Month = %s
           AND (

@@ -5,6 +5,23 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 inventory_diagnostic_bp = Blueprint('inventory_diagnostic', __name__)
 
 @inventory_diagnostic_bp.route('/api/diagnostic/equipment-schema', methods=['GET'])
@@ -13,13 +30,13 @@ def get_equipment_schema():
     """Get Equipment table schema to understand available fields"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get Equipment table schema
         schema_query = """
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'Equipment' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY ORDINAL_POSITION;
         """
         
@@ -39,11 +56,11 @@ def get_equipment_sample():
     """Get sample equipment data to understand categorization"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get sample equipment records with all fields
         sample_query = """
         SELECT TOP 20 *
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         ORDER BY Id DESC;
         """
@@ -64,14 +81,14 @@ def analyze_equipment_categories():
     """Analyze how equipment might be categorized"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Check for status/type fields
         status_analysis = """
         SELECT 
             'Status Values' as analysis_type,
             ISNULL(Status, 'NULL') as value,
             COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         GROUP BY Status
         
@@ -81,7 +98,7 @@ def analyze_equipment_categories():
             'Type Values' as analysis_type,
             ISNULL(Type, 'NULL') as value,
             COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         GROUP BY Type
         
@@ -91,7 +108,7 @@ def analyze_equipment_categories():
             'Category Values' as analysis_type,
             ISNULL(Category, 'NULL') as value,
             COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         GROUP BY Category
         
@@ -105,9 +122,9 @@ def analyze_equipment_categories():
         SELECT 
             COUNT(DISTINCT e.Id) as total_rental_equipment,
             COUNT(DISTINCT wo.WONo) as open_rental_work_orders
-        FROM ben002.Equipment e
-        INNER JOIN ben002.WORental wr ON e.Id = wr.EquipmentId
-        INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
+        FROM {schema}.Equipment e
+        INNER JOIN {schema}.WORental wr ON e.Id = wr.EquipmentId
+        INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
         WHERE wo.Type = 'R' 
         AND wo.ClosedDate IS NULL
         AND wo.WONo NOT LIKE '9%'
@@ -122,7 +139,7 @@ def analyze_equipment_categories():
             'Make Analysis' as analysis_type,
             Make as value,
             COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         AND Make IS NOT NULL
         GROUP BY Make
@@ -134,7 +151,7 @@ def analyze_equipment_categories():
             'Battery/Charger Models' as analysis_type,
             Model as value,
             COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         AND (Model LIKE '%battery%' OR Model LIKE '%charger%' OR Model LIKE '%batt%')
         GROUP BY Model
@@ -159,7 +176,7 @@ def analyze_financial_fields():
     """Analyze financial data fields in Equipment table"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Check financial fields
         financial_query = """
         SELECT TOP 10
@@ -173,7 +190,7 @@ def analyze_financial_fields():
             InServiceDate,
             PurchaseDate,
             VendorInvoiceNo
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
         AND BookValue > 0
         ORDER BY BookValue DESC;
@@ -186,7 +203,7 @@ def analyze_financial_fields():
         SELECT COLUMN_NAME
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'Equipment' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         AND (COLUMN_NAME LIKE '%depreciat%' 
              OR COLUMN_NAME LIKE '%accum%'
              OR COLUMN_NAME LIKE '%gross%'

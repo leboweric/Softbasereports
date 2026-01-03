@@ -3,6 +3,23 @@ from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 equipment_pm_diagnostic_bp = Blueprint('equipment_pm_diagnostic', __name__)
@@ -31,7 +48,7 @@ def get_equipment_pm_fields():
         columns_query = """
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'Equipment'
         ORDER BY ORDINAL_POSITION
         """
@@ -64,8 +81,8 @@ def get_equipment_pm_fields():
         for serial_no in test_serial_numbers:
             query = f"""
             SELECT TOP 1 *
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             WHERE e.SerialNo = '{serial_no}' OR e.UnitNo = '{serial_no}'
             """
             
@@ -102,7 +119,7 @@ def get_equipment_pm_fields():
         tables_query = """
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND (
             TABLE_NAME LIKE '%PM%'
             OR TABLE_NAME LIKE '%Service%'
@@ -147,7 +164,10 @@ def get_equipment_pm_sample():
     try:
         db = AzureSQLService()
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
         SELECT TOP 20
             e.SerialNo,
             e.UnitNo,
@@ -159,8 +179,8 @@ def get_equipment_pm_sample():
             c.State,
             e.RentalStatus,
             e.Location
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.CustomerNo IS NOT NULL
         AND e.CustomerNo != ''
         AND e.SerialNo IS NOT NULL

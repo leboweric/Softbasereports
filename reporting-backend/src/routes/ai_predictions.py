@@ -10,6 +10,23 @@ from src.config.openai_config import OpenAIConfig
 from decimal import Decimal
 import openai
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 ai_predictions_bp = Blueprint('ai_predictions', __name__)
@@ -35,7 +52,9 @@ class AIPredictionService:
     def get_work_order_history(self):
         """Get historical work order data for predictions"""
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH WOCosts AS (
                 SELECT 
                     w.WONo,
@@ -43,20 +62,20 @@ class AIPredictionService:
                     w.ClosedDate,
                     w.Type,
                     COALESCE(l.LaborCost, 0) + COALESCE(p.PartsCost, 0) + COALESCE(m.MiscCost, 0) as TotalCost
-                FROM ben002.WO w
+                FROM {schema}.WO w
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell) as LaborCost
-                    FROM ben002.WOLabor
+                    FROM {schema}.WOLabor
                     GROUP BY WONo
                 ) l ON w.WONo = l.WONo
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell) as PartsCost
-                    FROM ben002.WOParts
+                    FROM {schema}.WOParts
                     GROUP BY WONo
                 ) p ON w.WONo = p.WONo
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell) as MiscCost
-                    FROM ben002.WOMisc
+                    FROM {schema}.WOMisc
                     GROUP BY WONo
                 ) m ON w.WONo = m.WONo
                 WHERE w.OpenDate >= DATEADD(MONTH, -12, GETDATE())
@@ -86,7 +105,9 @@ class AIPredictionService:
     def get_customer_behavior_data(self):
         """Get customer behavior data for churn predictions"""
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH CustomerMetrics AS (
                 SELECT 
                     i.BillToName as CustName,
@@ -96,7 +117,7 @@ class AIPredictionService:
                     DATEDIFF(day, MAX(i.InvoiceDate), GETDATE()) as days_since_last_invoice,
                     AVG(i.GrandTotal) as avg_invoice_value,
                     COUNT(i.InvoiceNo) as invoice_count
-                FROM ben002.InvoiceReg i
+                FROM {schema}.InvoiceReg i
                 WHERE i.InvoiceDate >= DATEADD(MONTH, -12, GETDATE())
                 AND i.BillToName NOT LIKE '%Wells Fargo%'
                 AND i.BillToName NOT LIKE '%Maintenance contract%'
@@ -115,7 +136,9 @@ class AIPredictionService:
     def get_parts_demand_history(self):
         """Get parts demand history for forecasting"""
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             WITH PartsHistory AS (
                 SELECT 
                     wp.PartNo,
@@ -125,9 +148,9 @@ class AIPredictionService:
                     SUM(wp.Qty) as quantity_used,
                     COUNT(DISTINCT w.WONo) as order_count,
                     AVG(p.OnHand) as avg_on_hand
-                FROM ben002.WOParts wp
-                JOIN ben002.WO w ON wp.WONo = w.WONo
-                LEFT JOIN ben002.Parts p ON wp.PartNo = p.PartNo
+                FROM {schema}.WOParts wp
+                JOIN {schema}.WO w ON wp.WONo = w.WONo
+                LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
                 WHERE w.OpenDate >= DATEADD(MONTH, -12, GETDATE())
                 AND wp.PartNo NOT LIKE '%OIL%'
                 AND wp.PartNo NOT LIKE '%GREASE%'

@@ -3,6 +3,23 @@ from flask_jwt_extended import jwt_required
 import logging
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 equipment_diagnostic_bp = Blueprint('equipment_diagnostic', __name__)
 
@@ -12,7 +29,7 @@ def check_equipment_columns():
     """Check the actual columns in the Equipment table"""
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get column information
         columns_query = """
         SELECT 
@@ -21,7 +38,7 @@ def check_equipment_columns():
             CHARACTER_MAXIMUM_LENGTH,
             IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'Equipment'
         ORDER BY ORDINAL_POSITION
         """
@@ -31,7 +48,7 @@ def check_equipment_columns():
         # Get sample data
         sample_query = """
         SELECT TOP 5 *
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         """
         
         sample_data = db.execute_query(sample_query)

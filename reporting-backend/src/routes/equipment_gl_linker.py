@@ -3,6 +3,23 @@ from flask_jwt_extended import jwt_required
 from ..services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 equipment_gl_linker_bp = Blueprint('equipment_gl_linker', __name__)
@@ -16,6 +33,7 @@ def analyze_equipment_gl_linking():
     """
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         results = {}
         
         # Strategy 1: Check for direct references in GLDetail descriptions/references
@@ -32,7 +50,7 @@ def analyze_equipment_gl_linking():
                      OR gld.Reference LIKE '%[0-9][0-9][0-9][0-9][0-9]%' THEN 'Potential_Serial'
                 ELSE 'No_Serial_Pattern'
             END as Serial_Pattern
-        FROM ben002.GLDetail gld
+        FROM {schema}.GLDetail gld
         WHERE gld.AccountNo IN ('131000', '131200', '131300', '183000', '193000')
         AND (
             gld.Description IS NOT NULL 
@@ -53,7 +71,7 @@ def analyze_equipment_gl_linking():
         JOIN INFORMATION_SCHEMA.COLUMNS c 
             ON t.TABLE_NAME = c.TABLE_NAME 
             AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
-        WHERE t.TABLE_SCHEMA = 'ben002'
+        WHERE t.TABLE_SCHEMA = '{schema}'
         AND (
             t.TABLE_NAME LIKE '%asset%'
             OR t.TABLE_NAME LIKE '%depreciation%'
@@ -76,7 +94,7 @@ def analyze_equipment_gl_linking():
         LEFT JOIN sys.partitions p 
             ON p.object_id = OBJECT_ID(t.TABLE_SCHEMA + '.' + t.TABLE_NAME)
             AND p.index_id IN (0,1)
-        WHERE t.TABLE_SCHEMA = 'ben002'
+        WHERE t.TABLE_SCHEMA = '{schema}'
         AND (
             t.TABLE_NAME LIKE '%journal%'
             OR t.TABLE_NAME LIKE '%entry%'
@@ -99,8 +117,8 @@ def analyze_equipment_gl_linking():
             ir.InvoiceNo,
             ir.InvoiceDate,
             ir.Amount
-        FROM ben002.WO wo
-        LEFT JOIN ben002.InvoiceReg ir ON wo.WONo = ir.WONo
+        FROM {schema}.WO wo
+        LEFT JOIN {schema}.InvoiceReg ir ON wo.WONo = ir.WONo
         WHERE wo.SerialNo IS NOT NULL
         AND wo.CompletedDate >= '2024-01-01'
         AND wo.Type IN ('S', 'R', 'P')  -- Service, Rental, Parts
@@ -117,7 +135,7 @@ def analyze_equipment_gl_linking():
             MIN(e.SerialNo) as Sample_SerialNo,
             AVG(e.AcquisitionCost) as Avg_Acquisition_Cost,
             AVG(e.BookValue) as Avg_Book_Value
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE e.InventoryDept IS NOT NULL
         GROUP BY e.InventoryDept
         ORDER BY e.InventoryDept
@@ -135,7 +153,7 @@ def analyze_equipment_gl_linking():
         JOIN INFORMATION_SCHEMA.COLUMNS c 
             ON t.TABLE_NAME = c.TABLE_NAME 
             AND t.TABLE_SCHEMA = c.TABLE_SCHEMA
-        WHERE t.TABLE_SCHEMA = 'ben002'
+        WHERE t.TABLE_SCHEMA = '{schema}'
         AND c.COLUMN_NAME IN ('SerialNo', 'SerialNumber', 'EquipmentNo', 'AssetNo', 'AccountNo')
         ORDER BY t.TABLE_NAME, c.COLUMN_NAME
         """
@@ -154,7 +172,7 @@ def analyze_equipment_gl_linking():
             e.AccumulatedDepreciation,
             e.LastServiceDate,
             e.Notes
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE e.SerialNo IS NOT NULL
         AND (
             e.LastServiceDate >= '2024-01-01'
@@ -194,7 +212,7 @@ def test_linking_strategy():
         strategy = data.get('strategy', 'department_mapping')
         
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         if strategy == 'department_mapping':
             # Test department-based mapping
             test_query = """
@@ -210,7 +228,7 @@ def test_linking_strategy():
                     WHEN e.InventoryDept = 60 THEN '183000'  -- Rental
                     ELSE 'Unknown'
                 END as Mapped_GL_Account
-            FROM ben002.Equipment e
+            FROM {schema}.Equipment e
             WHERE e.InventoryDept IS NOT NULL
             GROUP BY e.InventoryDept
             ORDER BY e.InventoryDept
@@ -229,7 +247,7 @@ def test_linking_strategy():
                     Amount,
                     Description,
                     Reference
-                FROM ben002.GLDetail
+                FROM {schema}.GLDetail
                 WHERE (
                     Description LIKE '%{sample_serial}%'
                     OR Reference LIKE '%{sample_serial}%'

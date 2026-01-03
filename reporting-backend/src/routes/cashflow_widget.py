@@ -15,6 +15,23 @@ from datetime import datetime, timedelta
 import logging
 import calendar
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 cashflow_widget_bp = Blueprint('cashflow_widget', __name__)
@@ -100,9 +117,11 @@ def get_current_cash_balance(year, month):
     Includes: 110000 (Operating), 113000 (Petty Cash), 114000 (Short-term Investments)
     """
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT SUM(YTD) as cash_balance
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND AccountNo IN ('110000', '113000', '114000')
@@ -126,9 +145,11 @@ def get_total_cash_movement(year, month):
     Includes: 110000 (Operating), 113000 (Petty Cash), 114000 (Investments)
     """
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT SUM(MTD) as cash_movement
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND AccountNo IN ('110000', '113000', '114000')
@@ -151,7 +172,9 @@ def get_non_operating_breakdown(year, month):
     Shows where the difference between total cash movement and operating CF comes from
     """
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             CASE 
                 -- Working Capital Changes
@@ -188,7 +211,7 @@ def get_non_operating_breakdown(year, month):
             SUM(MTD) as amount,
             COUNT(*) as account_count
             
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           -- Exclude cash accounts (we're analyzing what changed cash)
@@ -325,12 +348,15 @@ def get_monthly_net_income(year, month):
         # COGS (5xxxxx accounts - positive because they're debits)
         # Expenses (6xxxxx accounts - positive because they're debits)
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
         SELECT 
             -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
             SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END) as expenses
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
@@ -356,9 +382,11 @@ def get_monthly_net_income(year, month):
 def get_monthly_depreciation(year, month):
     """Get depreciation expense for the month (account 600900)"""
     try:
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT SUM(MTD) as depreciation
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND AccountNo = '600900'

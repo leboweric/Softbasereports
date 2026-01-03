@@ -6,6 +6,23 @@ from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 rental_diag_bp = Blueprint('rental_diagnostic', __name__, url_prefix='/api/rental-diagnostic')
 
@@ -19,6 +36,7 @@ def get_equipment_schema():
     """Get all columns in Equipment table"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         # Get all columns from Equipment table
         schema_query = """
@@ -28,7 +46,7 @@ def get_equipment_schema():
             IS_NULLABLE,
             CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
         AND TABLE_NAME = 'Equipment'
         ORDER BY ORDINAL_POSITION
         """
@@ -50,12 +68,16 @@ def get_rental_status_values():
     """Get all unique RentalStatus values"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
         SELECT DISTINCT 
             RentalStatus,
             COUNT(*) as count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE RentalStatus IS NOT NULL
         GROUP BY RentalStatus
         ORDER BY COUNT(*) DESC
@@ -78,6 +100,7 @@ def analyze_problem_units():
     """Analyze the specific units that manager said should not appear"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         # Units from manager's feedback that are marked as sold
         problem_units = [
@@ -135,17 +158,17 @@ def analyze_problem_units():
             RentalITD,
             -- Check for recent rental history
             (SELECT TOP 1 1 
-             FROM ben002.RentalHistory rh 
+             FROM {schema}.RentalHistory rh 
              WHERE rh.SerialNo = e.SerialNo 
              AND rh.Year >= YEAR(DATEADD(MONTH, -12, GETDATE()))
             ) as HasRecentRentalHistory,
             -- Get last rental date
             (SELECT MAX(CAST(CAST(Year AS VARCHAR(4)) + '-' + CAST(Month AS VARCHAR(2)) + '-01' AS DATE))
-             FROM ben002.RentalHistory rh
+             FROM {schema}.RentalHistory rh
              WHERE rh.SerialNo = e.SerialNo
              AND rh.DaysRented > 0
             ) as LastRentalMonth
-        FROM ben002.Equipment e
+        FROM {schema}.Equipment e
         WHERE UnitNo IN ('{units_str}')
         ORDER BY UnitNo
         """
@@ -203,8 +226,12 @@ def get_units_on_hold():
     """Get details of all units with RentalStatus = 'Hold'"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
-        query = """
+        schema = get_tenant_schema()
+
+        
+        query = f"""
         SELECT 
             e.UnitNo,
             e.SerialNo,
@@ -224,19 +251,19 @@ def get_units_on_hold():
             e.LastModificationTime,
             -- Check for recent rental history
             (SELECT MAX(CAST(CAST(Year AS VARCHAR(4)) + '-' + CAST(Month AS VARCHAR(2)) + '-01' AS DATE))
-             FROM ben002.RentalHistory rh
+             FROM {schema}.RentalHistory rh
              WHERE rh.SerialNo = e.SerialNo
              AND rh.DaysRented > 0
             ) as LastRentalMonth,
             -- Check if currently on rent
             (SELECT TOP 1 rh.DaysRented
-             FROM ben002.RentalHistory rh
+             FROM {schema}.RentalHistory rh
              WHERE rh.SerialNo = e.SerialNo
              AND rh.Year = YEAR(GETDATE())
              AND rh.Month = MONTH(GETDATE())
             ) as CurrentMonthDaysRented
-        FROM ben002.Equipment e
-        LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {schema}.Equipment e
+        LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
         WHERE e.RentalStatus = 'Hold'
         ORDER BY e.UnitNo
         """
@@ -259,6 +286,7 @@ def check_equipment_removed():
     """Check if sold units are in EquipmentRemoved view"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         # Units from manager's feedback that are marked as sold
         problem_units = [
@@ -277,7 +305,7 @@ def check_equipment_removed():
             RemovedDate,
             RemovedBy,
             RemovedReason
-        FROM ben002.EquipmentRemoved
+        FROM {schema}.EquipmentRemoved
         WHERE UnitNo IN ('{units_str}')
         """
         
@@ -296,7 +324,7 @@ def check_equipment_removed():
             Customer,
             CustomerNo,
             Location
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE UnitNo IN ('{units_str}')
         """
         
@@ -319,9 +347,12 @@ def find_sold_pattern():
     """Try to find what distinguishes sold units from available ones"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         # Compare a known sold unit with a known available unit
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             'Sold Unit (15597)' as Category,
             UnitNo,
@@ -332,7 +363,7 @@ def find_sold_pattern():
             DeletionTime,
             WebRentalFlag,
             CASE WHEN DayRent > 0 OR WeekRent > 0 OR MonthRent > 0 THEN 'Yes' ELSE 'No' END as HasRentalRates
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE UnitNo = '15597'
         
         UNION ALL
@@ -347,7 +378,7 @@ def find_sold_pattern():
             DeletionTime,
             WebRentalFlag,
             CASE WHEN DayRent > 0 OR WeekRent > 0 OR MonthRent > 0 THEN 'Yes' ELSE 'No' END as HasRentalRates
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE RentalStatus = 'Available'
         AND DayRent > 0
         AND InventoryDept = 40

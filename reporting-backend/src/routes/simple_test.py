@@ -3,6 +3,23 @@ from flask_jwt_extended import jwt_required
 import re
 from datetime import datetime
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 simple_test_bp = Blueprint('simple_test', __name__)
 
 @simple_test_bp.route('/api/simple-test/azure-sql', methods=['GET'])
@@ -139,7 +156,7 @@ def public_schema_analysis():
                 SELECT TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_TYPE = 'VIEW'
-                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_SCHEMA = '{schema}'
                 ORDER BY TABLE_NAME
             """)
             tables = [row[0] for row in cursor.fetchall()]
@@ -168,7 +185,7 @@ def public_schema_analysis():
                             SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
                             FROM INFORMATION_SCHEMA.COLUMNS
                             WHERE TABLE_NAME = ?
-                            AND TABLE_SCHEMA = 'ben002'
+                            AND TABLE_SCHEMA = '{schema}'
                             ORDER BY ORDINAL_POSITION
                         """, (sample_table,))
                         columns = []
@@ -255,7 +272,7 @@ def db_diagnostics():
                 SELECT TABLE_SCHEMA, TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_TYPE = 'VIEW'
-                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_SCHEMA = '{schema}'
             """,
             "views_sys": """
                 SELECT 
@@ -263,7 +280,7 @@ def db_diagnostics():
                     v.name AS view_name
                 FROM sys.views v
                 INNER JOIN sys.schemas s ON v.schema_id = s.schema_id
-                WHERE s.name = 'ben002'
+                WHERE s.name = '{schema}'
             """,
             "all_objects": """
                 SELECT 
@@ -272,7 +289,7 @@ def db_diagnostics():
                     o.type_desc
                 FROM sys.objects o
                 INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
-                WHERE s.name = 'ben002'
+                WHERE s.name = '{schema}'
                 AND o.type IN ('U', 'V')
             """
         }
@@ -379,7 +396,7 @@ def permissions_check():
                 AND p.state_desc = 'GRANT'
                 AND p.major_id = s.schema_id
             )
-            OR s.name = 'ben002'
+            OR s.name = '{schema}'
             ORDER BY s.name
         """)
         accessible_schemas = [row[0] for row in cursor.fetchall()]
@@ -387,14 +404,14 @@ def permissions_check():
         
         # 3. Try to query tables with explicit schema prefix
         test_queries = {
-            "direct_query": "SELECT name FROM ben002.sysobjects WHERE xtype = 'U'",
+            "direct_query": "SELECT name FROM {schema}.sysobjects WHERE xtype = 'U'",
             "prefixed_tables": """
                 SELECT 
                     TABLE_SCHEMA,
                     TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
                 WHERE TABLE_CATALOG = 'evo'
-                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_SCHEMA = '{schema}'
             """,
             "all_user_tables": """
                 SELECT 
@@ -412,7 +429,7 @@ def permissions_check():
                     o.type_desc
                 FROM sys.objects o
                 JOIN sys.schemas s ON o.schema_id = s.schema_id
-                WHERE s.name = 'ben002'
+                WHERE s.name = '{schema}'
             """
         }
         
@@ -438,7 +455,7 @@ def permissions_check():
         cursor.execute("""
             SELECT TOP 10 name, type_desc 
             FROM sys.objects 
-            WHERE schema_id = SCHEMA_ID('ben002')
+            WHERE schema_id = SCHEMA_ID('{schema}')
             ORDER BY name
         """)
         ben002_objects = cursor.fetchall()
@@ -477,11 +494,11 @@ def quick_report_test():
         queries = {
             "total_customers": """
                 SELECT COUNT(*) as count 
-                FROM ben002.Customer
+                FROM {schema}.Customer
             """,
             "equipment_by_rental_status": """
                 SELECT COUNT(*) as count, RentalStatus
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 WHERE RentalStatus IS NOT NULL
                 GROUP BY RentalStatus
             """,
@@ -492,7 +509,7 @@ def quick_report_test():
                     Customer,
                     BillToName,
                     GrandTotal
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 ORDER BY InvoiceDate DESC
             """,
             "top_customers_by_limit": """
@@ -501,7 +518,7 @@ def quick_report_test():
                     Name,
                     CreditLimit,
                     CreditBalance
-                FROM ben002.Customer
+                FROM {schema}.Customer
                 WHERE CreditLimit > 0
                 ORDER BY CreditLimit DESC
             """
@@ -543,7 +560,7 @@ def inspect_columns():
         for view_name in views:
             try:
                 # Get first row to see column names
-                query = f"SELECT TOP 1 * FROM ben002.{view_name}"
+                query = f"SELECT TOP 1 * FROM {schema}.{view_name}"
                 results = db.execute_query(query)
                 
                 if results:
@@ -598,11 +615,13 @@ def find_sales_columns():
         db = AzureSQLService()
         
         # Get column info
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'Customer'
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             AND (
                 COLUMN_NAME LIKE '%YTD%'
                 OR COLUMN_NAME LIKE '%Sales%'
@@ -627,7 +646,7 @@ def find_sales_columns():
                 LastSale,
                 LastSaleDate,
                 LastPaymentDate
-            FROM ben002.Customer
+            FROM {schema}.Customer
             WHERE Customer IS NOT NULL
         """
         
@@ -668,7 +687,7 @@ def customer_structure():
                 CHARACTER_MAXIMUM_LENGTH
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'Customer'
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             ORDER BY ORDINAL_POSITION
         """
         
@@ -700,7 +719,7 @@ def customer_structure():
             sample_query = f"""
                 SELECT TOP 1
                     {fin_cols_str}
-                FROM ben002.Customer
+                FROM {schema}.Customer
                 WHERE Name IS NOT NULL
             """
             
@@ -716,7 +735,7 @@ def customer_structure():
             test_cols = ["CustomerNo", "Customer", "CustNo", "CustID", "ID"]
             for col in test_cols:
                 try:
-                    test_query = f"SELECT TOP 1 {col}, Name FROM ben002.Customer"
+                    test_query = f"SELECT TOP 1 {col}, Name FROM {schema}.Customer"
                     test_result = db.execute_query(test_query)
                     if test_result:
                         result["primary_key_column"] = col

@@ -2,6 +2,23 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 def get_db():
     """Get database connection"""
     return AzureSQLService()
@@ -14,12 +31,15 @@ def get_employee_names():
     """Get mapping of employee IDs to names from Softbase user table"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         # Query to get employee ID to name mapping
         # We'll try multiple potential table/column names since we're not sure of exact structure
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         -- First try Users table
-        IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Users' AND TABLE_SCHEMA = 'ben002')
+        IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Users' AND TABLE_SCHEMA = '{schema}')
         BEGIN
             SELECT 
                 CAST(EmployeeNumber AS NVARCHAR(50)) as EmployeeId,
@@ -27,11 +47,11 @@ def get_employee_names():
                 LastName,
                 Email,
                 FirstName + ' ' + LastName as FullName
-            FROM ben002.Users
+            FROM {schema}.Users
             WHERE EmployeeNumber IS NOT NULL
         END
         -- Try User table (singular)
-        ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'User' AND TABLE_SCHEMA = 'ben002')
+        ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'User' AND TABLE_SCHEMA = '{schema}')
         BEGIN
             SELECT 
                 CAST(EmployeeNumber AS NVARCHAR(50)) as EmployeeId,
@@ -39,11 +59,11 @@ def get_employee_names():
                 LastName,
                 Email,
                 FirstName + ' ' + LastName as FullName
-            FROM ben002.[User]
+            FROM {schema}.[User]
             WHERE EmployeeNumber IS NOT NULL
         END
         -- Try Employee table
-        ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Employee' AND TABLE_SCHEMA = 'ben002')
+        ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Employee' AND TABLE_SCHEMA = '{schema}')
         BEGIN
             SELECT 
                 CAST(EmployeeId AS NVARCHAR(50)) as EmployeeId,
@@ -51,11 +71,11 @@ def get_employee_names():
                 LastName,
                 Email,
                 FirstName + ' ' + LastName as FullName
-            FROM ben002.Employee
+            FROM {schema}.Employee
             WHERE EmployeeId IS NOT NULL
         END
         -- Try AbpUsers table (common in some systems)
-        ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'AbpUsers' AND TABLE_SCHEMA = 'ben002')
+        ELSE IF EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'AbpUsers' AND TABLE_SCHEMA = '{schema}')
         BEGIN
             SELECT 
                 CAST(Id AS NVARCHAR(50)) as EmployeeId,
@@ -63,7 +83,7 @@ def get_employee_names():
                 Surname as LastName,
                 EmailAddress as Email,
                 Name + ' ' + Surname as FullName
-            FROM ben002.AbpUsers
+            FROM {schema}.AbpUsers
             WHERE Id IS NOT NULL
         END
         ELSE
@@ -112,9 +132,12 @@ def discover_employee_table():
     """Discover which user/employee tables exist in the database"""
     try:
         db = get_db()
+        schema = get_tenant_schema()
         
         # Query to find all tables that might contain user/employee data
-        query = """
+        schema = get_tenant_schema()
+
+        query = f"""
         SELECT 
             TABLE_SCHEMA,
             TABLE_NAME,
@@ -130,7 +153,7 @@ def discover_employee_table():
                 OR TABLE_NAME LIKE '%Person%'
                 OR TABLE_NAME LIKE '%Worker%'
             )
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
         ORDER BY RelevantColumns DESC, TABLE_NAME
         """
         

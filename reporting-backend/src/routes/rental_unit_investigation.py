@@ -7,6 +7,23 @@ import logging
 from src.services.azure_sql_service import AzureSQLService
 from datetime import datetime
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 rental_investigation_bp = Blueprint('rental_investigation', __name__)
@@ -17,7 +34,7 @@ def investigate_units():
     
     try:
         db = AzureSQLService()
-        
+        schema = get_tenant_schema()
         # Get unit numbers from query params or use defaults
         units = request.args.get('units', '21515,21728,21729').split(',')
         
@@ -42,7 +59,7 @@ def investigate_units():
                 DayRent,
                 WeekRent,
                 MonthRent
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE UnitNo = '{unit_no}'
             """
             
@@ -69,7 +86,7 @@ def investigate_units():
                 RentAmount,
                 CustomerNo,
                 DeletionTime
-            FROM ben002.RentalHistory
+            FROM {schema}.RentalHistory
             WHERE (UnitNo = '{unit_no}' OR SerialNo = '{serial_no}')
             AND Year = {current_year}
             AND Month = {current_month}
@@ -86,7 +103,7 @@ def investigate_units():
                 RentAmount,
                 CustomerNo,
                 DeletionTime
-            FROM ben002.RentalHistory
+            FROM {schema}.RentalHistory
             WHERE (UnitNo = '{unit_no}' OR SerialNo = '{serial_no}')
             AND ((Year = {current_year} AND Month >= {max(1, current_month - 2)})
                  OR (Year = {current_year - 1} AND Month >= {current_month + 10}))
@@ -108,9 +125,9 @@ def investigate_units():
                 wo.RentalContractNo,
                 wo.BillTo,
                 c.Name as CustomerName
-            FROM ben002.WORental wr
-            JOIN ben002.WO wo ON wr.WONo = wo.WONo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+            FROM {schema}.WORental wr
+            JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
             WHERE (wr.UnitNo = '{unit_no}' OR wr.SerialNo = '{serial_no}')
             ORDER BY wo.OpenDate DESC
             """
@@ -126,9 +143,9 @@ def investigate_units():
                 wo.RentalContractNo,
                 wo.BillTo,
                 c.Name as CustomerName
-            FROM ben002.WORental wr
-            JOIN ben002.WO wo ON wr.WONo = wo.WONo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+            FROM {schema}.WORental wr
+            JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
             WHERE (wr.UnitNo = '{unit_no}' OR wr.SerialNo = '{serial_no}')
             AND wo.ClosedDate IS NULL
             AND wo.Type = 'R'
@@ -148,9 +165,9 @@ def investigate_units():
                     c.Name as CustomerName,
                     wr.UnitNo,
                     wr.SerialNo
-                FROM ben002.WO wo
-                LEFT JOIN ben002.WORental wr ON wo.WONo = wr.WONo
-                LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+                FROM {schema}.WO wo
+                LEFT JOIN {schema}.WORental wr ON wo.WONo = wr.WONo
+                LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
                 WHERE wo.WONo LIKE '%16001378%'
                 OR wo.RentalContractNo = '16001378'
                 """
@@ -168,8 +185,8 @@ def investigate_units():
                 END as CalculatedStatus,
                 rh.DaysRented as CurrentMonthDaysRented,
                 rh.RentAmount as CurrentMonthRentAmount
-            FROM ben002.Equipment e
-            LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+            FROM {schema}.Equipment e
+            LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                 AND rh.Year = {current_year}
                 AND rh.Month = {current_month}
                 AND rh.DaysRented > 0

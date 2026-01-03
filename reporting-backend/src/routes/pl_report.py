@@ -11,10 +11,27 @@ from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
 from src.utils.fiscal_year import get_fiscal_ytd_start
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 pl_report_bp = Blueprint('pl_report', __name__)
 sql_service = AzureSQLService()
-
+schema = get_tenant_schema()
 # GL Account Mappings by Department (Source: Softbase P&L)
 GL_ACCOUNTS = {
     'new_equipment': {
@@ -136,7 +153,7 @@ def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False)
             SELECT 
                 AccountNo,
                 -MTD as total
-            FROM ben002.GL
+            FROM {schema}.GL
             WHERE Year = %s
               AND Month = %s
               AND AccountNo IN ('{account_list}')
@@ -182,7 +199,7 @@ def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False)
             SELECT 
                 -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN MTD ELSE 0 END) as revenue,
                 SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN MTD ELSE 0 END) as cogs
-            FROM ben002.GL
+            FROM {schema}.GL
             WHERE Year = %s
               AND Month = %s
               AND AccountNo IN ('{account_list}')
@@ -239,7 +256,7 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
             SELECT 
                 AccountNo,
                 -SUM(Amount) as total
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE EffectiveDate >= %s 
               AND EffectiveDate <= %s
               AND Posted = 1
@@ -287,7 +304,7 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
             SELECT 
                 -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as revenue,
                 SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END) as cogs
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE EffectiveDate >= %s 
               AND EffectiveDate <= %s
               AND Posted = 1
@@ -356,7 +373,7 @@ def get_other_income(start_date, end_date):
         query = f"""
         SELECT
             -SUM(Amount) as total
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -456,7 +473,7 @@ def get_expense_data_from_gl_mtd(year, month):
         SELECT 
             AccountNo,
             MTD as total
-        FROM ben002.GL
+        FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
           AND AccountNo IN ('{expense_list}')
@@ -512,7 +529,7 @@ def get_expense_data_from_gldetail(start_date, end_date):
         SELECT 
             AccountNo,
             SUM(Amount) as total
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
@@ -1113,7 +1130,7 @@ def get_all_departments_data(start_date, end_date):
         # Get revenue (negative because credits)
         revenue_query = f"""
         SELECT -SUM(Amount) as total
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE AccountNo IN ('{"', '".join(revenue_accounts)}')
           AND EffectiveDate >= %s
           AND EffectiveDate <= %s
@@ -1126,7 +1143,7 @@ def get_all_departments_data(start_date, end_date):
         # Get COGS (positive because debits)
         cogs_query = f"""
         SELECT SUM(Amount) as total
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE AccountNo IN ('{"', '".join(cogs_accounts)}')
           AND EffectiveDate >= %s
           AND EffectiveDate <= %s
@@ -1153,7 +1170,7 @@ def get_overhead_expenses(start_date, end_date):
     
     query = f"""
     SELECT SUM(Amount) as total
-    FROM ben002.GLDetail
+    FROM {schema}.GLDetail
     WHERE AccountNo IN ('{"', '".join(all_expense_accounts)}')
       AND EffectiveDate >= %s
       AND EffectiveDate <= %s

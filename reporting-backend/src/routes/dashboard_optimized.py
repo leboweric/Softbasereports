@@ -66,7 +66,7 @@ OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000']
 class DashboardQueries:
     """Encapsulate all dashboard queries for parallel execution"""
     
-    def __init__(self, db, schema='ben002'):
+    def __init__(self, db, schema='{schema}'):
         self.db = db
         self.schema = schema  # Tenant-specific database schema
         self.current_date = datetime.now()
@@ -1678,7 +1678,7 @@ class DashboardQueries:
                 CHARACTER_MAXIMUM_LENGTH,
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_SCHEMA = 'ben002' 
+            WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME = 'InvoiceDetail'
             ORDER BY ORDINAL_POSITION
             """
@@ -2470,7 +2470,7 @@ def debug_equipment_sales():
         test3_query = f"""
         SELECT COUNT(*) as total_count
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002' 
+        WHERE TABLE_SCHEMA = '{schema}' 
             AND TABLE_NAME = 'InvoiceSales'
         """
         

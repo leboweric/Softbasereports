@@ -4,6 +4,23 @@ from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
+from flask_jwt_extended import get_jwt_identity
+from src.models.user import User
+
+def get_tenant_schema():
+    """Get the database schema for the current user's organization"""
+    try:
+        user_id = get_jwt_identity()
+        if user_id:
+            user = User.query.get(int(user_id))
+            if user and user.organization and user.organization.database_schema:
+                return user.organization.database_schema
+        return 'ben002'  # Fallback
+    except:
+        return 'ben002'
+
+
+
 logger = logging.getLogger(__name__)
 
 @reports_bp.route('/departments/rental/diagnose-equipment', methods=['GET'])
@@ -26,7 +43,9 @@ def diagnose_rental_equipment():
         # 1. Get equipment details
         for serial in test_serials:
             try:
-                query = """
+                schema = get_tenant_schema()
+
+                query = f"""
                 SELECT 
                     e.SerialNo,
                     e.UnitNo,
@@ -37,9 +56,9 @@ def diagnose_rental_equipment():
                     e.RentalStatus,
                     rh.DaysRented,
                     rh.RentAmount
-                FROM ben002.Equipment e
-                LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
-                LEFT JOIN ben002.RentalHistory rh ON e.SerialNo = rh.SerialNo
+                FROM {schema}.Equipment e
+                LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
+                LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
                     AND rh.Year = YEAR(GETDATE())
                     AND rh.Month = MONTH(GETDATE())
                 WHERE e.SerialNo = %s
@@ -52,7 +71,9 @@ def diagnose_rental_equipment():
         
         # 2. Check for rental contracts via WO
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT 
                 wo.SerialNo,
                 wo.UnitNo,
@@ -67,9 +88,9 @@ def diagnose_rental_equipment():
                 wo.ClosedDate,
                 rc.StartDate as ContractStart,
                 rc.EndDate as ContractEnd
-            FROM ben002.WO wo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
-            LEFT JOIN ben002.RentalContract rc ON wo.RentalContractNo = rc.RentalContractNo
+            FROM {schema}.WO wo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
+            LEFT JOIN {schema}.RentalContract rc ON wo.RentalContractNo = rc.RentalContractNo
             WHERE wo.SerialNo IN (%s)
             AND wo.RentalContractNo IS NOT NULL
             ORDER BY wo.OpenDate DESC
@@ -82,7 +103,9 @@ def diagnose_rental_equipment():
         
         # 3. Check ALL work orders for these serials
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 50
                 wo.SerialNo,
                 wo.UnitNo,
@@ -93,11 +116,11 @@ def diagnose_rental_equipment():
                 c.Name as BillToName,
                 wo.OpenDate,
                 wo.ClosedDate
-            FROM ben002.WO wo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+            FROM {schema}.WO wo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
             WHERE wo.SerialNo IN (%s)
             OR wo.UnitNo IN (
-                SELECT UnitNo FROM ben002.Equipment 
+                SELECT UnitNo FROM {schema}.Equipment 
                 WHERE SerialNo IN (%s)
             )
             ORDER BY wo.OpenDate DESC
@@ -151,7 +174,9 @@ def diagnose_rental_equipment():
         
         # 5. Alternative approach - check WORental table
         try:
-            query = """
+            schema = get_tenant_schema()
+
+            query = f"""
             SELECT TOP 20
                 wr.SerialNo,
                 wr.UnitNo,
@@ -160,12 +185,12 @@ def diagnose_rental_equipment():
                 wo.BillTo,
                 c.Name as BillToName,
                 wo.Type
-            FROM ben002.WORental wr
-            INNER JOIN ben002.WO wo ON wr.WONo = wo.WONo
-            LEFT JOIN ben002.Customer c ON wo.BillTo = c.Number
+            FROM {schema}.WORental wr
+            INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+            LEFT JOIN {schema}.Customer c ON wo.BillTo = c.Number
             WHERE wr.SerialNo IN (%s)
             OR wr.UnitNo IN (
-                SELECT UnitNo FROM ben002.Equipment 
+                SELECT UnitNo FROM {schema}.Equipment 
                 WHERE SerialNo IN (%s)
             )
             """ % (','.join(['%s'] * len(test_serials)), ','.join(['%s'] * len(test_serials)))
