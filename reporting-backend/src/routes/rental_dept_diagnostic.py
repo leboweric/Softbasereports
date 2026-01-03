@@ -37,7 +37,7 @@ def rental_department_diagnostic():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Query 1: Count units by InventoryDept
-        dept_query = """
+        dept_query = f"""
         SELECT 
             InventoryDept,
             COUNT(*) as UnitCount,
@@ -51,7 +51,7 @@ def rental_department_diagnostic():
         dept_results = db.execute_query(dept_query)
         
         # Query 2: For Dept 60 (Rental), breakdown by RentalStatus
-        rental_status_query = """
+        rental_status_query = f"""
         SELECT 
             RentalStatus,
             COUNT(*) as Count,
@@ -73,7 +73,7 @@ def rental_department_diagnostic():
         rental_status_results = db.execute_query(rental_status_query)
         
         # Query 3: Check for problematic statuses in Dept 60
-        problem_query = """
+        problem_query = f"""
         SELECT 
             UnitNo,
             SerialNo,
@@ -111,7 +111,7 @@ def rental_department_diagnostic():
         problem_results = db.execute_query(problem_query)
         
         # Query 4: Current rental activity for Dept 60
-        activity_query = """
+        activity_query = f"""
         SELECT 
             'Currently On Rent' as Status,
             COUNT(DISTINCT e.UnitNo) as Count
@@ -156,7 +156,7 @@ def rental_department_diagnostic():
         activity_results = db.execute_query(activity_query)
         
         # Query 5: Check other departments that might have rental equipment
-        cross_dept_query = """
+        cross_dept_query = f"""
         SELECT 
             e.InventoryDept,
             sd.Description as DeptName,

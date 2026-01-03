@@ -103,7 +103,7 @@ def diagnose_gl_inventory():
         results['recent_transactions'] = db.execute_query(gldetail_query)
         
         # Step 4: Look for equipment-related entries
-        equipment_connection_query = """
+        equipment_connection_query = f"""
         SELECT TOP 20
             gld.AccountNo,
             gld.EffectiveDate,
@@ -127,7 +127,7 @@ def diagnose_gl_inventory():
         results['equipment_related_transactions'] = db.execute_query(equipment_connection_query)
         
         # Step 5: Check Equipment table structure to understand serial number fields
-        equipment_structure_query = """
+        equipment_structure_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE,
@@ -142,7 +142,7 @@ def diagnose_gl_inventory():
         results['equipment_table_structure'] = db.execute_query(equipment_structure_query)
         
         # Step 6: Sample equipment records to see serial number format
-        equipment_sample_query = """
+        equipment_sample_query = f"""
         SELECT TOP 10
             SerialNo,
             Make,
@@ -160,7 +160,7 @@ def diagnose_gl_inventory():
         results['equipment_samples'] = db.execute_query(equipment_sample_query)
         
         # Step 7: Look for potential linking tables between Equipment and GL
-        linking_tables_query = """
+        linking_tables_query = f"""
         SELECT 
             t.TABLE_NAME,
             COUNT(c.COLUMN_NAME) as column_count
@@ -235,7 +235,7 @@ def explore_equipment_gl_links():
         results = {}
         
         # Step 1: Look for tables that might link Equipment to GL
-        potential_link_query = """
+        potential_link_query = f"""
         SELECT 
             t.TABLE_NAME,
             STRING_AGG(c.COLUMN_NAME, ', ') as columns
@@ -278,7 +278,7 @@ def explore_equipment_gl_links():
         results['gldetail_with_descriptions'] = db.execute_query(gldetail_equipment_check)
         
         # Step 3: Look for Asset or FixedAsset tables
-        asset_tables_query = """
+        asset_tables_query = f"""
         SELECT 
             TABLE_NAME,
             COLUMN_NAME,
@@ -292,7 +292,7 @@ def explore_equipment_gl_links():
         results['asset_table_structures'] = db.execute_query(asset_tables_query)
         
         # Step 4: Check Journal tables that might link GL to assets
-        journal_tables_query = """
+        journal_tables_query = f"""
         SELECT 
             TABLE_NAME,
             COLUMN_NAME,

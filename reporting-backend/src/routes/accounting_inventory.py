@@ -54,7 +54,7 @@ def get_accounting_inventory():
         schema = get_tenant_schema()
         
         # Step 1: First, find the correct date column name in GLDetail
-        column_discovery_query = """
+        column_discovery_query = f"""
         SELECT TOP 1 * 
         FROM [{schema}].GLDetail 
         WHERE AccountNo IN ('131300', '131000', '193000')
@@ -66,7 +66,7 @@ def get_accounting_inventory():
         
         # Based on previous queries, EffectiveDate appears to be the date column
         # Allied Equipment (131300) - Get balance for period 3/1/25 - 10/31/25
-        allied_query = """
+        allied_query = f"""
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [{schema}].GLDetail  
         WHERE AccountNo = '131300'
@@ -76,7 +76,7 @@ def get_accounting_inventory():
         """
         
         # New Equipment (131000) - Get balance for period 3/1/25 - 10/31/25
-        new_equipment_query = """
+        new_equipment_query = f"""
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '131000'
@@ -86,7 +86,7 @@ def get_accounting_inventory():
         """
         
         # Get balances for period 3/1/25 - 10/31/25 for other accounts (131200, 183000, 193000)
-        other_accounts_query = """
+        other_accounts_query = f"""
         SELECT 
             '131200' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
@@ -120,7 +120,7 @@ def get_accounting_inventory():
         
         # Step 2: Get depreciation expense for period 3/1/25 - 10/31/25
         # Period: March 1, 2025 through October 31, 2025 (8 months)
-        ytd_depreciation_query = """
+        ytd_depreciation_query = f"""
         SELECT 
             COUNT(*) as Transaction_Count,
             COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation_Expense,
@@ -166,7 +166,7 @@ def get_accounting_inventory():
         # Step 4: SIMPLIFIED - Use department mapping with keyword overrides
         
         # Get ALL equipment and categorize by business rules
-        all_equipment_query = """
+        all_equipment_query = f"""
         SELECT 
             e.SerialNo as serial_number,
             e.Make,
@@ -483,7 +483,7 @@ def export_inventory_excel():
         # (This is a simplified version - in production we'd refactor the common logic)
         
         # Get Allied Equipment GL balance
-        allied_query = """
+        allied_query = f"""
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [{schema}].GLDetail  
         WHERE AccountNo = '131300'
@@ -493,7 +493,7 @@ def export_inventory_excel():
         """
         
         # Get New Equipment GL balance
-        new_equipment_query = """
+        new_equipment_query = f"""
         SELECT COALESCE(SUM(Amount), 0) as Balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '131000'
@@ -503,7 +503,7 @@ def export_inventory_excel():
         """
         
         # Get other account balances
-        other_accounts_query = """
+        other_accounts_query = f"""
         SELECT 
             '131200' as AccountNo,
             COALESCE(SUM(Amount), 0) as current_balance
@@ -531,7 +531,7 @@ def export_inventory_excel():
         """
         
         # Get YTD Depreciation
-        ytd_depreciation_query = """
+        ytd_depreciation_query = f"""
         SELECT 
             COALESCE(ABS(SUM(Amount)), 0) as YTD_Depreciation_Expense
         FROM {schema}.GLDetail
@@ -542,7 +542,7 @@ def export_inventory_excel():
         """
         
         # Get all equipment data
-        all_equipment_query = """
+        all_equipment_query = f"""
         SELECT 
             e.SerialNo as serial_number,
             e.Make,

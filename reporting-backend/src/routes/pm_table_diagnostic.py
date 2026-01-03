@@ -42,7 +42,7 @@ def get_pm_table_structure():
         }
         
         # Step 1: Get PM table columns
-        pm_columns_query = """
+        pm_columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = '{schema}' 
@@ -65,7 +65,7 @@ def get_pm_table_structure():
             ]
         
         # Step 2: Get sample PM records
-        pm_sample_query = """
+        pm_sample_query = f"""
         SELECT TOP 20 *
         FROM {schema}.PM
         ORDER BY Id DESC
@@ -86,7 +86,7 @@ def get_pm_table_structure():
                 results_data['sample_records'].append(pm_data)
         
         # Step 3: Get LPM table columns (Last PM)
-        lpm_columns_query = """
+        lpm_columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = '{schema}' 
@@ -108,7 +108,7 @@ def get_pm_table_structure():
             ]
         
         # Step 4: Get sample LPM records
-        lpm_sample_query = """
+        lpm_sample_query = f"""
         SELECT TOP 10 *
         FROM {schema}.LPM
         """

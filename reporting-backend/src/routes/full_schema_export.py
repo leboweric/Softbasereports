@@ -32,7 +32,7 @@ def export_full_schema():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get all tables in ben002 schema
-        tables_query = """
+        tables_query = f"""
         SELECT 
             TABLE_NAME,
             TABLE_TYPE
@@ -199,7 +199,7 @@ def export_schema_markdown():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get all tables
-        tables_query = """
+        tables_query = f"""
         SELECT TABLE_NAME, TABLE_TYPE
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_SCHEMA = '{schema}'

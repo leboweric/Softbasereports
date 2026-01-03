@@ -37,7 +37,7 @@ def analyze_equipment_gl_linking():
         results = {}
         
         # Strategy 1: Check for direct references in GLDetail descriptions/references
-        strategy1_query = """
+        strategy1_query = f"""
         SELECT 
             gld.AccountNo,
             gld.EffectiveDate,
@@ -63,7 +63,7 @@ def analyze_equipment_gl_linking():
         results['strategy1_description_analysis'] = db.execute_query(strategy1_query)
         
         # Strategy 2: Look for Asset or Fixed Asset tables that might bridge Equipment to GL
-        strategy2_query = """
+        strategy2_query = f"""
         SELECT 
             t.TABLE_NAME,
             STRING_AGG(c.COLUMN_NAME, ', ') as Columns
@@ -86,7 +86,7 @@ def analyze_equipment_gl_linking():
         results['strategy2_asset_tables'] = db.execute_query(strategy2_query)
         
         # Strategy 3: Check if there are Journal Entry tables with equipment references
-        strategy3_query = """
+        strategy3_query = f"""
         SELECT 
             t.TABLE_NAME,
             COUNT(*) as Row_Count
@@ -107,7 +107,7 @@ def analyze_equipment_gl_linking():
         results['strategy3_journal_tables'] = db.execute_query(strategy3_query)
         
         # Strategy 4: Look for work orders or invoices that might link equipment to GL
-        strategy4_query = """
+        strategy4_query = f"""
         SELECT 
             wo.WONo,
             wo.Type,
@@ -128,7 +128,7 @@ def analyze_equipment_gl_linking():
         results['strategy4_wo_invoice_links'] = db.execute_query(strategy4_query)
         
         # Strategy 5: Check for department-based GL account mapping
-        strategy5_query = """
+        strategy5_query = f"""
         SELECT 
             e.InventoryDept,
             COUNT(*) as Equipment_Count,
@@ -144,7 +144,7 @@ def analyze_equipment_gl_linking():
         results['strategy5_dept_mapping'] = db.execute_query(strategy5_query)
         
         # Strategy 6: Look for depreciation schedules or asset registers
-        strategy6_query = """
+        strategy6_query = f"""
         SELECT 
             t.TABLE_NAME,
             c.COLUMN_NAME,
@@ -161,7 +161,7 @@ def analyze_equipment_gl_linking():
         results['strategy6_serial_columns'] = db.execute_query(strategy6_query)
         
         # Strategy 7: Sample recent equipment transactions to understand patterns
-        strategy7_query = """
+        strategy7_query = f"""
         SELECT TOP 20
             e.SerialNo,
             e.Make,
@@ -215,7 +215,7 @@ def test_linking_strategy():
         schema = get_tenant_schema()
         if strategy == 'department_mapping':
             # Test department-based mapping
-            test_query = """
+            test_query = f"""
             SELECT 
                 e.InventoryDept,
                 COUNT(*) as Equipment_Count,

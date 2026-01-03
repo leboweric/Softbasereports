@@ -57,7 +57,7 @@ def get_final_gl_inventory_report():
         current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         # Step 1: Get actual GL account balances for Oct 2025 (using proper accounting fields)
-        gl_balances_query = """
+        gl_balances_query = f"""
         SELECT 
             AccountNo,
             CAST(YTD AS DECIMAL(18,2)) as current_balance,
@@ -98,7 +98,7 @@ def get_final_gl_inventory_report():
         ytd_depreciation = format_currency(ytd_depreciation_result[0]['YTD_Depreciation_Expense']) if ytd_depreciation_result else Decimal('0.00')
         
         # Step 3: Get equipment linked to GL accounts via transactions (Nov 2024 - Oct 2025)
-        equipment_transactions_query = """
+        equipment_transactions_query = f"""
         SELECT 
             gld.AccountNo,
             gld.ControlNo as serial_no,
@@ -246,7 +246,7 @@ def export_final_gl_inventory_report():
         report_generator = ReportGenerator()
         
         # Re-run a simplified query for export (using correct Equipment table fields)
-        export_query = """
+        export_query = f"""
         SELECT 
             e.SerialNo,
             e.Make,

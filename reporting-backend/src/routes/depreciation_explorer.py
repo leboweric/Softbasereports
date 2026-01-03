@@ -34,7 +34,7 @@ def explore_depreciation_fields():
         results = {}
         
         # Find tables with depreciation-related names
-        tables_query = """
+        tables_query = f"""
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE (TABLE_NAME LIKE '%deprec%' OR TABLE_NAME LIKE '%depr%'
@@ -45,7 +45,7 @@ def explore_depreciation_fields():
         results['depreciation_tables'] = db.execute_query(tables_query)
         
         # Find columns with depreciation/book value keywords
-        columns_query = """
+        columns_query = f"""
         SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE (COLUMN_NAME LIKE '%deprec%' OR COLUMN_NAME LIKE '%depr%' 
@@ -59,7 +59,7 @@ def explore_depreciation_fields():
         results['financial_columns'] = db.execute_query(columns_query)
         
         # Get ALL Equipment table columns
-        equipment_columns_query = """
+        equipment_columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH,
                COLUMN_DEFAULT, NUMERIC_PRECISION, NUMERIC_SCALE
         FROM INFORMATION_SCHEMA.COLUMNS 
@@ -69,7 +69,7 @@ def explore_depreciation_fields():
         results['equipment_columns'] = db.execute_query(equipment_columns_query)
         
         # Sample equipment financial data
-        equipment_sample_query = """
+        equipment_sample_query = f"""
         SELECT TOP 10 
             SerialNo,
             Make,
@@ -87,7 +87,7 @@ def explore_depreciation_fields():
         results['equipment_sample'] = db.execute_query(equipment_sample_query)
         
         # All tables in database
-        all_tables_query = """
+        all_tables_query = f"""
         SELECT TABLE_NAME, 
                (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = t.TABLE_NAME AND TABLE_SCHEMA = '{schema}') as COLUMN_COUNT
         FROM INFORMATION_SCHEMA.TABLES t
@@ -98,7 +98,7 @@ def explore_depreciation_fields():
         results['all_tables'] = db.execute_query(all_tables_query)
         
         # Database views
-        views_query = """
+        views_query = f"""
         SELECT TABLE_NAME as VIEW_NAME
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_SCHEMA = '{schema}'

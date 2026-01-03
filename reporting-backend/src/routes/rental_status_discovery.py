@@ -37,7 +37,7 @@ def discover_rental_status():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Query 1: Get all unique RentalStatus values for Dept 60
-        dept60_status_query = """
+        dept60_status_query = f"""
         SELECT 
             RentalStatus,
             COUNT(*) as Count,
@@ -68,7 +68,7 @@ def discover_rental_status():
         dept60_results = db.execute_query(dept60_status_query)
         
         # Query 2: Get all unique RentalStatus values across ALL departments for comparison
-        all_status_query = """
+        all_status_query = f"""
         SELECT 
             RentalStatus,
             COUNT(*) as TotalCount,
@@ -83,7 +83,7 @@ def discover_rental_status():
         all_results = db.execute_query(all_status_query)
         
         # Query 3: Check Location field patterns for Dept 60
-        location_patterns_query = """
+        location_patterns_query = f"""
         SELECT 
             CASE 
                 WHEN UPPER(Location) LIKE '%SOLD%' THEN 'Contains SOLD'
@@ -123,7 +123,7 @@ def discover_rental_status():
         location_results = db.execute_query(location_patterns_query)
         
         # Query 4: Sample problematic combinations
-        problem_samples_query = """
+        problem_samples_query = f"""
         SELECT TOP 20
             UnitNo,
             SerialNo,

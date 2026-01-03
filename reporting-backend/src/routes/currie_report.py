@@ -763,7 +763,7 @@ def get_ar_aging():
     """Get AR aging buckets (reusing logic from department_reports)"""
     try:
         # Get total AR
-        total_ar_query = """
+        total_ar_query = f"""
         SELECT SUM(Amount) as total_ar
         FROM {schema}.ARDetail
         WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
@@ -773,7 +773,7 @@ def get_ar_aging():
         total_ar = float(total_ar_result[0]['total_ar']) if total_ar_result and total_ar_result[0]['total_ar'] else 0
         
         # Get AR aging buckets
-        ar_query = """
+        ar_query = f"""
         WITH InvoiceBalances AS (
             SELECT 
                 ar.InvoiceNo,
@@ -934,7 +934,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         fill_rate = (filled_orders / total_orders * 100) if total_orders > 0 else 0
         
         # 2. Inventory Value - TOTAL current inventory (not period-specific)
-        inventory_query = """
+        inventory_query = f"""
         SELECT SUM(OnHand * Cost) as TotalInventoryValue
         FROM {schema}.Parts
         WHERE OnHand > 0 AND Cost > 0
@@ -944,7 +944,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         inventory_value = float(inventory_result[0]['TotalInventoryValue'] or 0) if inventory_result else 0
         
         # 3. Inventory Turnover - annualized based on period movement
-        turnover_query = """
+        turnover_query = f"""
         SELECT 
             SUM(wp.Qty * p.Cost) as TotalCOGS
         FROM {schema}.WOParts wp
@@ -1585,7 +1585,7 @@ def get_gl_expenses_from_gl_mtd(year, month):
     """
     try:
         # Personnel Costs
-        personnel_query = """
+        personnel_query = f"""
         SELECT 
             SUM(CASE WHEN AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400') THEN MTD ELSE 0 END) as personnel_total,
             SUM(CASE WHEN AccountNo = '602600' THEN MTD ELSE 0 END) as payroll,
@@ -1599,7 +1599,7 @@ def get_gl_expenses_from_gl_mtd(year, month):
         """
         
         # Occupancy Costs
-        occupancy_query = """
+        occupancy_query = f"""
         SELECT 
             SUM(MTD) as occupancy_total,
             SUM(CASE WHEN AccountNo IN ('600200', '600201') THEN MTD ELSE 0 END) as rent,
@@ -1614,7 +1614,7 @@ def get_gl_expenses_from_gl_mtd(year, month):
         """
         
         # Operating Expenses
-        operating_query = """
+        operating_query = f"""
         SELECT 
             SUM(MTD) as operating_total,
             SUM(CASE WHEN AccountNo = '600000' THEN MTD ELSE 0 END) as advertising,
@@ -1697,7 +1697,7 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
     """
     try:
         # Personnel Costs
-        personnel_query = """
+        personnel_query = f"""
         SELECT 
             SUM(CASE WHEN AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400') THEN Amount ELSE 0 END) as personnel_total,
             SUM(CASE WHEN AccountNo = '602600' THEN Amount ELSE 0 END) as payroll,
@@ -1712,7 +1712,7 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
         """
         
         # Occupancy Costs
-        occupancy_query = """
+        occupancy_query = f"""
         SELECT 
             SUM(Amount) as occupancy_total,
             SUM(CASE WHEN AccountNo IN ('600200', '600201') THEN Amount ELSE 0 END) as rent,
@@ -1728,7 +1728,7 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
         """
         
         # Operating Expenses
-        operating_query = """
+        operating_query = f"""
         SELECT 
             SUM(Amount) as operating_total,
             SUM(CASE WHEN AccountNo = '600000' THEN Amount ELSE 0 END) as advertising,

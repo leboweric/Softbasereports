@@ -142,7 +142,7 @@ def get_article(article_id):
     """Get a single article and increment view count"""
     try:
         # Increment view count
-        update_query = """
+        update_query = f"""
             UPDATE knowledge_base 
             SET view_count = view_count + 1
             WHERE id = %s

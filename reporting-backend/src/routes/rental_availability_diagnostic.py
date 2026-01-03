@@ -39,7 +39,7 @@ def get_equipment_schema():
         schema = get_tenant_schema()
         
         # Get all columns from Equipment table
-        schema_query = """
+        schema_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE,

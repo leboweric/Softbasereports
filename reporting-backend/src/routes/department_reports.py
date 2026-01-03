@@ -310,7 +310,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # First query for counts
-            count_query = """
+            count_query = f"""
             SELECT 
                 COUNT(*) as total_count,
                 COUNT(CASE WHEN Type = 'P' THEN 1 END) as parts_count,
@@ -323,7 +323,7 @@ def register_department_routes(reports_bp):
             """
             
             # Second query for open parts value
-            value_query = """
+            value_query = f"""
             SELECT 
                 SUM(COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0)) as open_parts_value
             FROM {schema}.WO w
@@ -354,7 +354,7 @@ def register_department_routes(reports_bp):
                 result['open_parts_value'] = 0
             
             # Also get a sample of Parts work orders
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10 
                 WONo,
                 Type,
@@ -648,7 +648,7 @@ def register_department_routes(reports_bp):
             # Using GLDetail for 100% accurate P&L matching
             # Revenue: GL 410004 (Field) + GL 410005 (Shop)
             # Cost: GL 510004 (Field Cost) + GL 510005 (Shop Cost)
-            labor_revenue_query = """
+            labor_revenue_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
@@ -925,7 +925,7 @@ def register_department_routes(reports_bp):
             # Using GLDetail for 100% accurate P&L matching
             # Revenue: GL 410003 (Counter) + GL 410012 (Customer Repair Order)
             # Cost: GL 510003 (Counter Cost) + GL 510012 (Customer Repair Order Cost)
-            parts_revenue_query = """
+            parts_revenue_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
@@ -1054,7 +1054,7 @@ def register_department_routes(reports_bp):
             db = get_db()
             schema = get_tenant_schema()
             
-            top_parts_query = """
+            top_parts_query = f"""
             SELECT TOP 10
                 wp.PartNo,
                 MAX(wp.Description) as Description,
@@ -1120,7 +1120,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Calculate average daily usage and current stock levels
-            reorder_alert_query = """
+            reorder_alert_query = f"""
             WITH PartUsage AS (
                 -- Calculate average daily usage over last 90 days
                 SELECT 
@@ -1197,7 +1197,7 @@ def register_department_routes(reports_bp):
             reorder_alerts = db.execute_query(reorder_alert_query)
             
             # Get summary statistics
-            summary_query = """
+            summary_query = f"""
             WITH PartUsage AS (
                 SELECT 
                     wp.PartNo,
@@ -1644,7 +1644,7 @@ def register_department_routes(reports_bp):
             forecast_results = db.execute_query(forecast_query)
             
             # Monthly trend for visualization
-            monthly_trend_query = """
+            monthly_trend_query = f"""
             SELECT 
                 YEAR(w.OpenDate) as Year,
                 MONTH(w.OpenDate) as Month,
@@ -2348,7 +2348,7 @@ def register_department_routes(reports_bp):
             
             # First, let's check what columns exist for employee tracking
             # Looking for CreatedBy, ChangedBy, ClosedBy or similar fields
-            check_columns_query = """
+            check_columns_query = f"""
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = '{schema}' 
@@ -2586,7 +2586,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # 1. Summary metrics
-            summary_query = """
+            summary_query = f"""
             SELECT 
                 -- Total Fleet Size
                 (SELECT COUNT(*) FROM {schema}.Equipment 
@@ -2618,7 +2618,7 @@ def register_department_routes(reports_bp):
             }
             
             # 2. Fleet by Category
-            fleet_query = """
+            fleet_query = f"""
             SELECT 
                 CASE 
                     WHEN Model LIKE '%EXCAVATOR%' THEN 'Excavators'
@@ -2655,7 +2655,7 @@ def register_department_routes(reports_bp):
                 })
             
             # 3. Active Rentals
-            rentals_query = """
+            rentals_query = f"""
             SELECT TOP 5
                 w.WONo,
                 w.BillTo as Customer,
@@ -2686,7 +2686,7 @@ def register_department_routes(reports_bp):
                 })
             
             # 4. Monthly Trend
-            trend_query = """
+            trend_query = f"""
             SELECT 
                 DATENAME(month, InvoiceDate) as month,
                 SUM(GrandTotal) as revenue,
@@ -2737,7 +2737,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Get unique sale codes with counts
-            codes_query = """
+            codes_query = f"""
             SELECT 
                 w.SaleCode,
                 w.SaleDept,
@@ -2754,7 +2754,7 @@ def register_department_routes(reports_bp):
             codes = db.execute_query(codes_query)
             
             # Also get a sample of work orders that might be rental
-            rental_sample_query = """
+            rental_sample_query = f"""
             SELECT TOP 10
                 w.WONo,
                 w.SaleCode,
@@ -2795,7 +2795,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Get column information for WO table
-            schema_query = """
+            schema_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -2810,7 +2810,7 @@ def register_department_routes(reports_bp):
             columns = db.execute_query(schema_query)
             
             # Get a sample work order to see actual data
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 1 *
             FROM {schema}.WO
             WHERE Type = 'S'
@@ -2828,14 +2828,14 @@ def register_department_routes(reports_bp):
                         customer_fields.append(col.get('COLUMN_NAME'))
             
             # Check WOLabor, WOParts, WOMisc table structures
-            labor_cols_query = """
+            labor_cols_query = f"""
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'WOLabor'
             ORDER BY ORDINAL_POSITION
             """
             
-            parts_cols_query = """
+            parts_cols_query = f"""
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'WOParts'
@@ -2890,7 +2890,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Optimized query for rental work orders based on BillTo and Department
-            optimized_query = """
+            optimized_query = f"""
             WITH RentalWOs AS (
                 SELECT TOP 100
                     w.WONo,
@@ -3085,7 +3085,7 @@ def register_department_routes(reports_bp):
             }
             
             # Monthly trend query for rental work orders
-            monthly_trend_query = """
+            monthly_trend_query = f"""
             WITH MonthlyWOs AS (
                 SELECT 
                     w.WONo,
@@ -3160,7 +3160,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Get work order header
-            wo_query = """
+            wo_query = f"""
             SELECT 
                 w.*,
                 c.Name as CustomerName
@@ -3176,7 +3176,7 @@ def register_department_routes(reports_bp):
             wo_data = dict(wo_result[0])
             
             # Get labor details
-            labor_query = """
+            labor_query = f"""
             SELECT 
                 MechanicName,
                 DateOfLabor,
@@ -3191,7 +3191,7 @@ def register_department_routes(reports_bp):
             
             # Debug: Check if flat rate labor might be in WOMisc or other tables
             # First, let's get all columns from WO to see what's available
-            wo_columns_query = """
+            wo_columns_query = f"""
             SELECT TOP 1 * FROM {schema}.WO WHERE WONo = %s
             """
             wo_full_data = db.execute_query(wo_columns_query, [wo_number])
@@ -3205,7 +3205,7 @@ def register_department_routes(reports_bp):
                         labor_fields[key] = value
             
             # Also check if flat rate labor might be stored as a misc charge
-            flat_rate_check_query = """
+            flat_rate_check_query = f"""
             SELECT * FROM {schema}.WOMisc 
             WHERE WONo = %s 
             AND (UPPER(Description) LIKE '%LABOR%' 
@@ -3216,7 +3216,7 @@ def register_department_routes(reports_bp):
             flat_rate_misc = db.execute_query(flat_rate_check_query, [wo_number])
             
             # Get parts details
-            parts_query = """
+            parts_query = f"""
             SELECT 
                 PartNo,
                 Description,
@@ -3232,7 +3232,7 @@ def register_department_routes(reports_bp):
             parts_details = db.execute_query(parts_query, [wo_number])
             
             # Get misc details - let's see ALL misc items
-            misc_query = """
+            misc_query = f"""
             SELECT 
                 Description,
                 Cost,
@@ -3246,7 +3246,7 @@ def register_department_routes(reports_bp):
             
             # Let's also check if there's a separate labor estimate or quote table
             # Check WOQuote for labor items
-            quote_query = """
+            quote_query = f"""
             SELECT 
                 QuoteLine,
                 Type,
@@ -3273,7 +3273,7 @@ def register_department_routes(reports_bp):
             
             # Check invoice if exists
             # Note: InvoiceSales table doesn't exist, so we'll just search by Comments field
-            invoice_query = """
+            invoice_query = f"""
             SELECT 
                 InvoiceNo,
                 InvoiceDate,
@@ -3416,7 +3416,7 @@ def register_department_routes(reports_bp):
                 })
             
             # 3. Monthly Financial Trend
-            financial_trend_query = """
+            financial_trend_query = f"""
             SELECT 
                 DATENAME(month, InvoiceDate) as month,
                 SUM(GrandTotal) as revenue,
@@ -3441,7 +3441,7 @@ def register_department_routes(reports_bp):
                 })
             
             # 4. Outstanding Invoices
-            invoices_query = """
+            invoices_query = f"""
             SELECT TOP 5
                 InvoiceNo,
                 CustomerName,
@@ -3506,7 +3506,7 @@ def register_department_routes(reports_bp):
             
             # Get G&A expenses from GLDetail table (which has the actual expense transactions)
             # Use trailing 13 months to match other dashboard charts
-            expenses_query = """
+            expenses_query = f"""
             WITH MonthlyExpenses AS (
                 SELECT
                     YEAR(gld.EffectiveDate) as year,
@@ -3673,7 +3673,7 @@ def register_department_routes(reports_bp):
 
             # Get Professional Services expenses from GLDetail table
             # Account 603000 is Professional Services
-            expenses_query = """
+            expenses_query = f"""
             WITH MonthlyExpenses AS (
                 SELECT
                     YEAR(gld.EffectiveDate) as year,
@@ -3977,7 +3977,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Get all unpaid AP invoices with vendor info
-            ap_detail_query = """
+            ap_detail_query = f"""
             WITH APInvoices AS (
                 SELECT 
                     ap.APInvoiceNo,
@@ -4021,7 +4021,7 @@ def register_department_routes(reports_bp):
             ap_results = db.execute_query(ap_detail_query)
             
             # Get aging summary - calculate based on net invoice amounts
-            aging_query = """
+            aging_query = f"""
             WITH APInvoices AS (
                 SELECT 
                     ap.APInvoiceNo,
@@ -4054,7 +4054,7 @@ def register_department_routes(reports_bp):
             aging_results = db.execute_query(aging_query)
             
             # Get top vendors by amount owed - calculate net amounts per vendor like main total
-            vendor_query = """
+            vendor_query = f"""
             SELECT TOP 10
                 ap.VendorNo,
                 v.Name as VendorName,
@@ -4074,7 +4074,7 @@ def register_department_routes(reports_bp):
             vendor_results = db.execute_query(vendor_query)
             
             # Calculate summary metrics - get the real total from raw sum like ap-total endpoint
-            total_query = """
+            total_query = f"""
             SELECT SUM(Amount) as raw_total
             FROM {schema}.APDetail
             WHERE (CheckNo IS NULL OR CheckNo = 0)
@@ -4245,7 +4245,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # First get the total AR amount
-            total_ar_query = """
+            total_ar_query = f"""
             SELECT SUM(Amount) as total_ar
             FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
@@ -4257,7 +4257,7 @@ def register_department_routes(reports_bp):
             
             # Get AR aging buckets by invoice balance (not individual records)
             # Using source system bucket structure: Current (0-29), 30-60, 60-90, 90-120, 120+
-            ar_query = """
+            ar_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.InvoiceNo,
@@ -4298,7 +4298,7 @@ def register_department_routes(reports_bp):
             
             # Calculate over 90 days directly from the data
             # Get a direct calculation of invoices over 90 days
-            over_90_query = """
+            over_90_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.InvoiceNo,
@@ -4321,7 +4321,7 @@ def register_department_routes(reports_bp):
             over_90_percentage = (over_90_amount / total_ar * 100) if total_ar > 0 else 0
             
             # Get specific customer AR over 90 days
-            customer_query = """
+            customer_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.CustomerNo,
@@ -4421,7 +4421,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Get raw AR totals and check EntryType values
-            raw_query = """
+            raw_query = f"""
             SELECT 
                 COUNT(*) as total_records,
                 SUM(Amount) as raw_total,
@@ -4437,7 +4437,7 @@ def register_department_routes(reports_bp):
             """
             
             # Get EntryType distribution
-            entry_type_query = """
+            entry_type_query = f"""
             SELECT 
                 EntryType,
                 COUNT(*) as count,
@@ -4456,7 +4456,7 @@ def register_department_routes(reports_bp):
             entry_types = [dict(row) for row in entry_type_results]
             
             # Get net AR using the same logic as the main query
-            net_query = """
+            net_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.CustomerNo,
@@ -4479,7 +4479,7 @@ def register_department_routes(reports_bp):
             net_data = dict(net_results[0]) if net_results else {}
             
             # Get sample of largest open balances
-            sample_query = """
+            sample_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.CustomerNo,
@@ -4529,7 +4529,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Get all customers matching our criteria
-            customer_list_query = """
+            customer_list_query = f"""
             SELECT DISTINCT c.Number, c.Name
             FROM {schema}.Customer c
             WHERE UPPER(c.Name) LIKE '%POLARIS%' 
@@ -4541,7 +4541,7 @@ def register_department_routes(reports_bp):
             customers = db.execute_query(customer_list_query)
             
             # Get AR balances for these customers
-            balance_query = """
+            balance_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.CustomerNo,
@@ -4572,7 +4572,7 @@ def register_department_routes(reports_bp):
             balances = db.execute_query(balance_query)
             
             # Get specific invoices over 90 days
-            detail_query = """
+            detail_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.CustomerNo,
@@ -5010,7 +5010,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # 1. Get total AR same way as main report
-            total_query = """
+            total_query = f"""
             SELECT SUM(Amount) as total_ar
             FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
@@ -5020,7 +5020,7 @@ def register_department_routes(reports_bp):
             total_ar = float(total_result[0]['total_ar']) if total_result and total_result[0]['total_ar'] else 0
             
             # 2. Get aging buckets by invoice balance (matching main report)
-            buckets_query = """
+            buckets_query = f"""
             WITH InvoiceBalances AS (
                 SELECT 
                     ar.InvoiceNo,
@@ -5074,7 +5074,7 @@ def register_department_routes(reports_bp):
             over_90 = sum(buckets.get(b, {}).get('amount', 0) for b in ['90-120', '120+'])
             
             # 3. Check for NULL due dates
-            null_due_query = """
+            null_due_query = f"""
             SELECT COUNT(*) as count, SUM(Amount) as amount
             FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
@@ -5085,7 +5085,7 @@ def register_department_routes(reports_bp):
             null_due_data = dict(null_due_result[0]) if null_due_result else {}
             
             # 4. Get EntryType breakdown
-            entry_type_query = """
+            entry_type_query = f"""
             SELECT EntryType, COUNT(*) as count, SUM(Amount) as amount
             FROM {schema}.ARDetail
             WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
@@ -5097,7 +5097,7 @@ def register_department_routes(reports_bp):
             entry_types = [dict(row) for row in entry_type_results]
             
             # 5. Sample records around 90 days
-            sample_90_query = """
+            sample_90_query = f"""
             SELECT TOP 20
                 InvoiceNo,
                 CustomerNo,
@@ -5221,7 +5221,7 @@ def register_department_routes(reports_bp):
                 samples = db.execute_query(sample_query)
                 
                 # Get monthly trend with breakdown
-                trend_query = """
+                trend_query = f"""
                 SELECT 
                     FORMAT(InvoiceDate, 'yyyy-MM') as month,
                     COUNT(*) as invoices,
@@ -5300,7 +5300,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Query to find potential expense-related tables
-            table_query = """
+            table_query = f"""
             SELECT 
                 TABLE_NAME,
                 TABLE_TYPE
@@ -5496,7 +5496,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # First check what columns exist in InvoiceReg
-            columns_query = """
+            columns_query = f"""
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_NAME = 'InvoiceReg' 
@@ -5509,7 +5509,7 @@ def register_department_routes(reports_bp):
             column_names = [row['COLUMN_NAME'] for row in columns_result]
             
             # Check SaleCodes
-            dept_query = """
+            dept_query = f"""
             SELECT DISTINCT SaleCode, COUNT(*) as count
             FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
@@ -5681,7 +5681,7 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             
             # Calculate total YTD revenue for percentage calculation
-            total_query = """
+            total_query = f"""
             SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total
             FROM {schema}.InvoiceReg
             WHERE (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
@@ -6015,7 +6015,7 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             
             # Get summary statistics
-            summary_query = """
+            summary_query = f"""
             SELECT 
                 COUNT(*) as total_units,
                 COUNT(CASE WHEN e.CustomerNo = '900006' THEN 1 END) as fleet_owned_units,
@@ -6041,7 +6041,7 @@ def register_department_routes(reports_bp):
             summary = summary_result[0] if summary_result else {}
             
             # Get breakdown by make
-            make_breakdown_query = """
+            make_breakdown_query = f"""
             SELECT 
                 e.Make,
                 COUNT(*) as unit_count,
@@ -6268,7 +6268,7 @@ def register_department_routes(reports_bp):
             diagnostics = {}
             
             # 1. Check Equipment table RentalStatus values
-            status_query = """
+            status_query = f"""
             SELECT RentalStatus, COUNT(*) as count
             FROM {schema}.Equipment
             GROUP BY RentalStatus
@@ -6277,7 +6277,7 @@ def register_department_routes(reports_bp):
             diagnostics['equipment_rental_status'] = db.execute_query(status_query)
             
             # 2. Check Equipment table for units with CustomerNo
-            customer_query = """
+            customer_query = f"""
             SELECT 
                 CASE 
                     WHEN CustomerNo IS NULL OR CustomerNo = '' THEN 'No Customer'
@@ -6296,7 +6296,7 @@ def register_department_routes(reports_bp):
             diagnostics['equipment_customer_status'] = db.execute_query(customer_query)
             
             # 3. Count Equipment with CustomerNo that are likely on rent
-            on_rent_query = """
+            on_rent_query = f"""
             SELECT COUNT(*) as count
             FROM {schema}.Equipment
             WHERE CustomerNo IS NOT NULL 
@@ -6306,7 +6306,7 @@ def register_department_routes(reports_bp):
             diagnostics['equipment_with_customer'] = db.execute_query(on_rent_query)
             
             # 4. Sample of equipment with customers
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10
                 e.UnitNo,
                 e.SerialNo,
@@ -6326,7 +6326,7 @@ def register_department_routes(reports_bp):
             diagnostics['sample_equipment_with_customer'] = db.execute_query(sample_query)
             
             # 5. Check RentalContract table
-            contract_query = """
+            contract_query = f"""
             SELECT COUNT(*) as active_contracts
             FROM {schema}.RentalContract
             WHERE DeletionTime IS NULL
@@ -6334,7 +6334,7 @@ def register_department_routes(reports_bp):
             diagnostics['rental_contracts'] = db.execute_query(contract_query)
             
             # 6. Check RentalHistory current month total
-            history_query = """
+            history_query = f"""
             SELECT 
                 COUNT(DISTINCT SerialNo) as unique_units,
                 COUNT(*) as total_records
@@ -6453,7 +6453,7 @@ def register_department_routes(reports_bp):
             total_equipment = count_result[0]['total_equipment'] if count_result else 0
             
             # Get some sample equipment records to understand the data better
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10
                 UnitNo,
                 SerialNo,
@@ -6472,7 +6472,7 @@ def register_department_routes(reports_bp):
             alt_queries = {}
             
             # Query 1: More specific forklift matching
-            alt1_query = """
+            alt1_query = f"""
             SELECT COUNT(*) as count FROM {schema}.Equipment
             WHERE (UPPER(Model) LIKE '%FORKLIFT%' 
                    OR UPPER(Model) LIKE 'FORK%'
@@ -6483,7 +6483,7 @@ def register_department_routes(reports_bp):
             alt_queries['specific_forklift_terms'] = alt1_result[0]['count'] if alt1_result else 0
             
             # Query 2: Just looking for FORKLIFT in model
-            alt2_query = """
+            alt2_query = f"""
             SELECT COUNT(*) as count FROM {schema}.Equipment
             WHERE UPPER(Model) LIKE '%FORKLIFT%'
             """
@@ -6491,7 +6491,7 @@ def register_department_routes(reports_bp):
             alt_queries['model_contains_forklift'] = alt2_result[0]['count'] if alt2_result else 0
             
             # Query 3: Common forklift manufacturers
-            alt3_query = """
+            alt3_query = f"""
             SELECT COUNT(*) as count FROM {schema}.Equipment
             WHERE UPPER(Make) IN ('YALE', 'HYSTER', 'TOYOTA', 'CROWN', 'CLARK', 'LINDE', 'CATERPILLAR', 'KOMATSU')
             """
@@ -6539,7 +6539,7 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             
             # Get sample rental history with customer info
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10
                 rh.SerialNo,
                 rh.Year,
@@ -6561,7 +6561,7 @@ def register_department_routes(reports_bp):
             sample_results = db.execute_query(sample_query)
             
             # Count by customer
-            customer_query = """
+            customer_query = f"""
             SELECT 
                 COALESCE(c.Name, 'No Customer') as customer_name,
                 COUNT(DISTINCT rh.SerialNo) as units_on_rent,
@@ -6599,7 +6599,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Check rental contracts - this is the real answer!
-            rental_contract_query = """
+            rental_contract_query = f"""
             SELECT 
                 COUNT(DISTINCT rc.RentalContractNo) as active_contracts,
                 COUNT(DISTINCT re.SerialNo) as units_on_contract
@@ -6614,7 +6614,7 @@ def register_department_routes(reports_bp):
                 contract_results = db.execute_query(rental_contract_query)
             except:
                 # Fallback if join table doesn't exist
-                rental_contract_query = """
+                rental_contract_query = f"""
                 SELECT COUNT(*) as active_contracts
                 FROM {schema}.RentalContract
                 WHERE DeletionTime IS NULL
@@ -6647,7 +6647,7 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             
             # Check UnitType values
-            unit_type_query = """
+            unit_type_query = f"""
             SELECT DISTINCT UnitType, COUNT(*) as count
             FROM {schema}.Equipment
             WHERE UnitType IS NOT NULL
@@ -6658,7 +6658,7 @@ def register_department_routes(reports_bp):
             unit_type_results = db.execute_query(unit_type_query)
             
             # Sample rental units with customer info
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10
                 e.UnitNo, e.Make, e.Model, e.UnitType, e.WebRentalFlag, e.RentalStatus, 
                 e.CustomerNo, c.Name as CustomerName,
@@ -6672,7 +6672,7 @@ def register_department_routes(reports_bp):
             sample_results = db.execute_query(sample_query)
             
             # Check if RentalContractEquipment or similar table exists to link contracts to equipment/customers
-            contract_link_query = """
+            contract_link_query = f"""
             SELECT TOP 5 
                 rc.RentalContractNo,
                 rc.StartDate,
@@ -6741,7 +6741,7 @@ def register_department_routes(reports_bp):
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
             # FIX 1: For used equipment, use WO.EquipmentSell (gross price before trade-in) instead of InvoiceReg fields
             # FIX 2: For new equipment, include Misc fields (accessories like blue lights)
-            sales_query = """
+            sales_query = f"""
             SELECT 
                 COALESCE(wo.Salesman, 'Unassigned') as SalesRep,
                 -- Rental sales and costs (only Month and 4 Week rentals are commissionable)
@@ -6937,7 +6937,7 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # 1. Check what SaleCodes exist
-            sale_codes_query = """
+            sale_codes_query = f"""
             SELECT 
                 ir.SaleCode,
                 COUNT(*) as InvoiceCount,
@@ -6953,7 +6953,7 @@ def register_department_routes(reports_bp):
             sale_codes = db.execute_query(sale_codes_query, [start_date, end_date])
             
             # 2. Check sample invoices with equipment sales
-            equipment_sample_query = """
+            equipment_sample_query = f"""
             SELECT TOP 20
                 ir.InvoiceNo,
                 ir.SaleCode,
@@ -6974,7 +6974,7 @@ def register_department_routes(reports_bp):
             equipment_samples = db.execute_query(equipment_sample_query, [start_date, end_date])
             
             # 3. Check salesmen distribution
-            salesmen_query = """
+            salesmen_query = f"""
             SELECT 
                 c.Salesman1,
                 COUNT(DISTINCT ir.InvoiceNo) as InvoiceCount,
@@ -6990,7 +6990,7 @@ def register_department_routes(reports_bp):
             salesmen = db.execute_query(salesmen_query, [start_date, end_date])
             
             # 4. Check rental invoices
-            rental_check_query = """
+            rental_check_query = f"""
             SELECT 
                 COUNT(*) as RentalInvoiceCount,
                 SUM(ir.RentalTaxable + ir.RentalNonTax) as TotalRentalRevenue
@@ -7075,7 +7075,7 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query, invoice_list)
 
             # Also get all unique sale codes for reference
-            sale_codes_query = """
+            sale_codes_query = f"""
             SELECT DISTINCT SaleCode, COUNT(*) as Count
             FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= DATEADD(month, -3, GETDATE())
@@ -7383,7 +7383,7 @@ def register_department_routes(reports_bp):
                     bucket_info['sample_invoices'].append(invoice)
             
             # Get summary statistics for each bucket
-            summary_query = """
+            summary_query = f"""
             SELECT 
                 SUM(CASE 
                     WHEN ir.SaleCode = 'RENTAL'
@@ -7420,7 +7420,7 @@ def register_department_routes(reports_bp):
             summary_data = dict(summary[0]) if summary else {}
             
             # Check all SaleCodes that have equipment revenue but aren't mapped
-            unmapped_query = """
+            unmapped_query = f"""
             SELECT 
                 ir.SaleCode,
                 COUNT(*) as InvoiceCount,
@@ -7437,7 +7437,7 @@ def register_department_routes(reports_bp):
             unmapped = db.execute_query(unmapped_query, [start_date, end_date])
             
             # Get ALL OTHER invoices that don't fall into our defined categories
-            all_other_query = """
+            all_other_query = f"""
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
@@ -7550,7 +7550,7 @@ def register_department_routes(reports_bp):
             
             # Query to get all commission-eligible invoices with details
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
-            details_query = """
+            details_query = f"""
             SELECT
                 ir.InvoiceNo,
                 ir.InvoiceDate,
@@ -7755,7 +7755,7 @@ def register_department_routes(reports_bp):
             
             # Query for unassigned invoices
             # Use WO.Salesman field directly - join on WONo = InvoiceNo
-            unassigned_query = """
+            unassigned_query = f"""
             SELECT
                 ir.InvoiceNo,
                 ir.InvoiceDate,
@@ -7857,7 +7857,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # First, get column info
-            columns_query = """
+            columns_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -7872,7 +7872,7 @@ def register_department_routes(reports_bp):
             columns = db.execute_query(columns_query)
             
             # Get sample data
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10 *
             FROM {schema}.InvoiceSales
             WHERE InvoiceNo IN (
@@ -7917,7 +7917,7 @@ def register_department_routes(reports_bp):
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Find all sale codes with equipment revenue
-            equipment_codes_query = """
+            equipment_codes_query = f"""
             SELECT 
                 ir.SaleCode,
                 COUNT(*) as InvoiceCount,
@@ -7936,7 +7936,7 @@ def register_department_routes(reports_bp):
             equipment_codes = db.execute_query(equipment_codes_query, [start_date, end_date])
             
             # Check specific codes that might be new equipment
-            new_equipment_check_query = """
+            new_equipment_check_query = f"""
             SELECT 
                 ir.SaleCode,
                 ir.InvoiceNo,
@@ -7956,7 +7956,7 @@ def register_department_routes(reports_bp):
             new_equipment_invoices = db.execute_query(new_equipment_check_query, [start_date, end_date])
             
             # Look for codes containing 'NEW' or 'LINDE'
-            pattern_check_query = """
+            pattern_check_query = f"""
             SELECT DISTINCT 
                 ir.SaleCode,
                 COUNT(*) as InvoiceCount,
@@ -8029,7 +8029,7 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             
             # Also search for any equipment invoice around $113K in March
-            broad_query = """
+            broad_query = f"""
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
@@ -8055,7 +8055,7 @@ def register_department_routes(reports_bp):
             broad_results = db.execute_query(broad_query)
             
             # Get ALL LINDE invoices for March to see what we have
-            all_linde_query = """
+            all_linde_query = f"""
             SELECT 
                 ir.InvoiceNo,
                 ir.InvoiceDate,
@@ -8262,7 +8262,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Check total invoices in date range
-            total_query = """
+            total_query = f"""
             SELECT 
                 COUNT(*) as total_invoices,
                 COUNT(DISTINCT BillTo) as unique_customers,
@@ -8278,7 +8278,7 @@ def register_department_routes(reports_bp):
             
             # Check service department invoices (using broader criteria)
             # The third-party appears to include all service-related work regardless of SaleCode
-            service_query = """
+            service_query = f"""
             SELECT 
                 COUNT(*) as service_invoices,
                 COUNT(DISTINCT BillTo) as service_customers,
@@ -8297,7 +8297,7 @@ def register_department_routes(reports_bp):
             service_results = db.execute_query(service_query, [start_date, end_date])
             
             # Get breakdown by SaleCode
-            breakdown_query = """
+            breakdown_query = f"""
             SELECT 
                 SaleCode,
                 SaleDept,
@@ -8316,7 +8316,7 @@ def register_department_routes(reports_bp):
             breakdown_results = db.execute_query(breakdown_query, [start_date, end_date])
             
             # Get list of Service customers with their invoices
-            service_customers_query = """
+            service_customers_query = f"""
             SELECT 
                 i.BillTo,
                 i.BillToName,
@@ -8363,7 +8363,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Get column information
-            schema_query = """
+            schema_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -8379,7 +8379,7 @@ def register_department_routes(reports_bp):
             columns = db.execute_query(schema_query)
             
             # Get a sample invoice with all fields
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 1 * 
             FROM {schema}.InvoiceReg 
             WHERE InvoiceDate >= '2025-07-01'
@@ -8392,7 +8392,7 @@ def register_department_routes(reports_bp):
             sample = db.execute_query(sample_query)
             
             # Look for any freight-related or PO-related fields
-            search_query = """
+            search_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE
@@ -8413,7 +8413,7 @@ def register_department_routes(reports_bp):
             related_fields = db.execute_query(search_query)
             
             # Check for invoice-related tables that might have work order links
-            related_tables_query = """
+            related_tables_query = f"""
             SELECT DISTINCT 
                 t.TABLE_NAME,
                 c.COLUMN_NAME
@@ -8430,7 +8430,7 @@ def register_department_routes(reports_bp):
             related_tables = db.execute_query(related_tables_query)
             
             # Look for InvoiceSales or InvoiceDetail table
-            invoice_detail_query = """
+            invoice_detail_query = f"""
             SELECT 
                 TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
@@ -8462,7 +8462,7 @@ def register_department_routes(reports_bp):
             schema = get_tenant_schema()
             
             # Check WO table for invoice fields
-            wo_invoice_query = """
+            wo_invoice_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE
@@ -8475,7 +8475,7 @@ def register_department_routes(reports_bp):
             wo_invoice_fields = db.execute_query(wo_invoice_query)
             
             # Get a sample of closed work orders with their invoice info
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10
                 w.WONo,
                 w.Type,
@@ -8494,7 +8494,7 @@ def register_department_routes(reports_bp):
             closed_wos = db.execute_query(sample_query)
             
             # Check if there's a freight field in WOMisc
-            misc_query = """
+            misc_query = f"""
             SELECT TOP 10
                 m.*,
                 w.WONo,
@@ -8511,7 +8511,7 @@ def register_department_routes(reports_bp):
             freight_charges = db.execute_query(misc_query)
             
             # Check all WO columns
-            wo_columns_query = """
+            wo_columns_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE
@@ -8545,7 +8545,7 @@ def register_department_routes(reports_bp):
             
             # UPDATED LOGIC: Check for OPEN rental work orders (Type='R' and ClosedDate IS NULL)
             # This matches what the Rental Manager sees in Softbase under "Open Rental Orders"
-            combined_query = """
+            combined_query = f"""
             SELECT DISTINCT
                 e.UnitNo, 
                 e.SerialNo, 
@@ -8637,7 +8637,7 @@ def register_department_routes(reports_bp):
             except Exception as query_error:
                 logger.warning(f"Enhanced rental query failed: {str(query_error)}. Falling back to simple query.")
                 # Fallback to simpler query without full customer info
-                fallback_query = """
+                fallback_query = f"""
                 SELECT DISTINCT
                     e.UnitNo, 
                     e.SerialNo, 
@@ -8852,7 +8852,7 @@ def register_department_routes(reports_bp):
             logger.info(f"Found {len(results) if results else 0} equipment records")
             
             # Get summary counts - EXACT same as equipment-report
-            summary_query = """
+            summary_query = f"""
             SELECT 
                 COUNT(*) as total_units,
                 COUNT(CASE WHEN e.RentalStatus = 'Ready To Rent' THEN 1 END) as available_units,
@@ -9095,7 +9095,7 @@ def register_department_routes(reports_bp):
                 debug_info['equipment_with_rental_history'] = result9 if result9 else []
                 
                 # Count total equipment with ANY rental history
-                count_query = """
+                count_query = f"""
                 SELECT COUNT(DISTINCT e.SerialNo) as count
                 FROM {schema}.Equipment e
                 INNER JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
@@ -9322,7 +9322,7 @@ def register_department_routes(reports_bp):
                 wo_date_filter = "AND w.OpenDate >= DATEADD(month, -13, GETDATE())"
 
             # Get FMBILL revenue by year/month (contract billing)
-            revenue_query = """
+            revenue_query = f"""
             SELECT
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
@@ -9342,7 +9342,7 @@ def register_department_routes(reports_bp):
 
             # Get list of ShipTo locations that have maintenance contract invoices
             # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
-            maintenance_customers_query = """
+            maintenance_customers_query = f"""
             SELECT DISTINCT ShipTo as customer_number
             FROM [{schema}].InvoiceReg
             WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
@@ -9565,7 +9565,7 @@ def register_department_routes(reports_bp):
                 equipment_costs_results = []
 
             # Get FMBILL revenue by customer
-            customer_query = """
+            customer_query = f"""
             SELECT
                 i.ShipTo as customer_number,
                 COALESCE(
@@ -9593,7 +9593,7 @@ def register_department_routes(reports_bp):
             customer_results = db.execute_query(customer_query)
 
             # Get overall summary
-            summary_query = """
+            summary_query = f"""
             SELECT
                 COUNT(*) as total_invoices,
                 COUNT(DISTINCT ShipTo) as unique_customers,
@@ -9869,7 +9869,7 @@ def register_department_routes(reports_bp):
                 wo_date_filter = "AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) >= DATEADD(month, -12, GETDATE())"
 
             # Get revenue by customer (all sale codes)
-            customer_revenue_query = """
+            customer_revenue_query = f"""
             SELECT
                 i.ShipTo as customer_number,
                 COALESCE(
@@ -9898,7 +9898,7 @@ def register_department_routes(reports_bp):
             customer_revenue_results = db.execute_query(customer_revenue_query)
 
             # Get labor costs by customer
-            labor_costs_query = """
+            labor_costs_query = f"""
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wol.Cost, 0)) as total_labor_cost
@@ -9914,7 +9914,7 @@ def register_department_routes(reports_bp):
             labor_costs_results = db.execute_query(labor_costs_query)
 
             # Get parts costs by customer
-            parts_costs_query = """
+            parts_costs_query = f"""
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wop.Cost, 0)) as total_parts_cost
@@ -9930,7 +9930,7 @@ def register_department_routes(reports_bp):
             parts_costs_results = db.execute_query(parts_costs_query)
 
             # Get misc costs by customer
-            misc_costs_query = """
+            misc_costs_query = f"""
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wom.Cost, 0)) as total_misc_cost
@@ -10268,7 +10268,7 @@ def register_department_routes(reports_bp):
             # Uses InvoiceReg to get actual billed amounts
             # Note: Equipment table has Make, Model, ModelYear - no Series column
             # We'll derive "Series" from the Model prefix for grouping similar models
-            units_query = """
+            units_query = f"""
             WITH UnitCosts AS (
                 SELECT 
                     COALESCE(i.SerialNo, e.SerialNo) as SerialNo,
@@ -10363,7 +10363,7 @@ def register_department_routes(reports_bp):
                 })
             
             # Get customer info
-            customer_query = """
+            customer_query = f"""
             SELECT Number, Name, Address, City, State, ZipCode
             FROM {schema}.Customer
             WHERE Number = %s

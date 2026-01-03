@@ -31,7 +31,7 @@ def check_equipment_columns():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get column information
-        columns_query = """
+        columns_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE,
@@ -46,7 +46,7 @@ def check_equipment_columns():
         columns = db.execute_query(columns_query)
         
         # Get sample data
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 5 *
         FROM {schema}.Equipment
         """

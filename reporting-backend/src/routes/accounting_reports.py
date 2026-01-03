@@ -278,7 +278,7 @@ def get_control_serial_summary():
         db = AzureSQLService()
         
         # Get summary by customer
-        customer_summary_query = """
+        customer_summary_query = f"""
         SELECT 
             c.Number as CustomerNo,
             c.Name as CustomerName,
@@ -298,7 +298,7 @@ def get_control_serial_summary():
         customer_results = db.execute_query(customer_summary_query)
         
         # Get equipment utilization
-        utilization_query = """
+        utilization_query = f"""
         SELECT 
             e.Make,
             e.Model,

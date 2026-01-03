@@ -33,7 +33,7 @@ def research_rental_shipto():
         research_results = {}
         
         # 1. Check RentalContract columns
-        contract_cols_query = """
+        contract_cols_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE,
@@ -46,7 +46,7 @@ def research_rental_shipto():
         research_results['rental_contract_columns'] = db.execute_query(contract_cols_query)
         
         # 2. Sample RentalContract data - simpler query without *
-        contract_sample_query = """
+        contract_sample_query = f"""
         SELECT TOP 5 
             RentalContractNo,
             SerialNo,
@@ -65,7 +65,7 @@ def research_rental_shipto():
             research_results['rental_contract_sample'] = []
         
         # 3. Check WO table for rental work orders with ShipTo
-        wo_rental_query = """
+        wo_rental_query = f"""
         SELECT TOP 10
             wo.WONo,
             wo.Type,
@@ -86,7 +86,7 @@ def research_rental_shipto():
         research_results['rental_work_orders'] = db.execute_query(wo_rental_query)
         
         # 4. Check WORental table columns
-        worental_cols_query = """
+        worental_cols_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE
@@ -98,7 +98,7 @@ def research_rental_shipto():
         research_results['worental_columns'] = db.execute_query(worental_cols_query)
         
         # 5. Sample WORental data - check if table exists first
-        worental_sample_query = """
+        worental_sample_query = f"""
         SELECT TOP 5 
             WONo,
             ControlNo,
@@ -112,7 +112,7 @@ def research_rental_shipto():
             research_results['worental_note'] = 'WORental table may not exist or is empty'
         
         # 6. Find all ShipTo related fields
-        shipto_fields_query = """
+        shipto_fields_query = f"""
         SELECT DISTINCT
             TABLE_NAME,
             COLUMN_NAME,
@@ -128,7 +128,7 @@ def research_rental_shipto():
         research_results['shipto_fields'] = db.execute_query(shipto_fields_query)
         
         # 7. Trace a specific rental unit through the system
-        trace_query = """
+        trace_query = f"""
         -- Find a unit that's currently on rent
         WITH CurrentRental AS (
             SELECT TOP 1
@@ -206,7 +206,7 @@ def research_rental_shipto():
             research_results['rental_trace_error'] = str(e)
         
         # 8. Check if RentalContract has a relationship with WO
-        contract_wo_link_query = """
+        contract_wo_link_query = f"""
         SELECT TOP 10
             rc.RentalContractNo,
             rc.SerialNo,
@@ -226,7 +226,7 @@ def research_rental_shipto():
         research_results['contract_wo_relationships'] = db.execute_query(contract_wo_link_query)
         
         # 9. Check InvoiceReg structure for ShipTo fields
-        invoice_cols_query = """
+        invoice_cols_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE

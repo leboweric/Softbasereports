@@ -32,7 +32,7 @@ def get_depreciation_view_details():
         sql_service = AzureSQLService()
         
         # Get columns from Depreciation view
-        columns_query = """
+        columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'Depreciation' 
@@ -42,7 +42,7 @@ def get_depreciation_view_details():
         columns = sql_service.execute_query(columns_query)
         
         # Get sample data from Depreciation view
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 10 *
         FROM {schema}.Depreciation
         """
@@ -53,7 +53,7 @@ def get_depreciation_view_details():
         count = sql_service.execute_query(count_query)
         
         # Get sample data with specific equipment info if available
-        equipment_sample_query = """
+        equipment_sample_query = f"""
         SELECT TOP 5 *
         FROM {schema}.Depreciation
         WHERE SerialNo IS NOT NULL
@@ -85,7 +85,7 @@ def get_equipment_depreciation_join():
         sql_service = AzureSQLService()
         
         # Test join between Equipment and Depreciation
-        join_query = """
+        join_query = f"""
         SELECT TOP 5
             e.SerialNo,
             e.Make,
@@ -100,7 +100,7 @@ def get_equipment_depreciation_join():
         join_results = sql_service.execute_query(join_query)
         
         # Count how many equipment records have depreciation data
-        join_count_query = """
+        join_count_query = f"""
         SELECT 
             COUNT(DISTINCT e.SerialNo) as equipment_with_depreciation,
             (SELECT COUNT(*) FROM {schema}.Equipment WHERE SerialNo IS NOT NULL) as total_equipment
@@ -218,7 +218,7 @@ def get_invoice_raw():
             }), 404
 
         # Get column names and types
-        columns_query = """
+        columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = '{schema}'

@@ -37,7 +37,7 @@ def diagnose_invoice_fields():
         
         # 1. Get ALL columns from InvoiceReg table
         try:
-            columns_query = """
+            columns_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -62,7 +62,7 @@ def diagnose_invoice_fields():
         
         # 2. Look specifically for fields with 'Created', 'Changed', 'Closed', 'Modified' in the name
         try:
-            name_fields_query = """
+            name_fields_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -98,7 +98,7 @@ def diagnose_invoice_fields():
         
         # 2b. Get a sample invoice with ALL fields to see what data we have
         try:
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 3 *
             FROM {schema}.InvoiceReg
             WHERE SaleCode = 'CSTPRT'
@@ -126,7 +126,7 @@ def diagnose_invoice_fields():
         # 3. Check if there are text fields that might contain actual employee names
         try:
             # First, get all text columns that might contain names
-            text_columns_query = """
+            text_columns_query = f"""
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = '{schema}' 
@@ -178,7 +178,7 @@ def diagnose_invoice_fields():
         
         # 3b. Look for any user/employee related fields
         try:
-            user_fields_query = """
+            user_fields_query = f"""
             SELECT DISTINCT
                 CreatorUserId,
                 LastModifierUserId,
@@ -203,7 +203,7 @@ def diagnose_invoice_fields():
         
         # 4. Check if there are any other tables linked to InvoiceReg
         try:
-            linked_tables_query = """
+            linked_tables_query = f"""
             SELECT DISTINCT
                 fk.TABLE_NAME as ForeignTable,
                 fk.COLUMN_NAME as ForeignColumn,

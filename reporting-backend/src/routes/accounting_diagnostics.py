@@ -15,7 +15,7 @@ def discover_accounting_tables():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Step 1: Find all potential accounting/finance tables
-        discovery_query = """
+        discovery_query = f"""
         SELECT 
             t.TABLE_NAME,
             t.TABLE_TYPE,

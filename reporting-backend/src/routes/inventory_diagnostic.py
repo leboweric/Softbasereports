@@ -32,7 +32,7 @@ def get_equipment_schema():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get Equipment table schema
-        schema_query = """
+        schema_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_NAME = 'Equipment' 
@@ -58,7 +58,7 @@ def get_equipment_sample():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get sample equipment records with all fields
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 20 *
         FROM {schema}.Equipment
         WHERE SerialNo IS NOT NULL
@@ -178,7 +178,7 @@ def analyze_financial_fields():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Check financial fields
-        financial_query = """
+        financial_query = f"""
         SELECT TOP 10
             SerialNo,
             Make,

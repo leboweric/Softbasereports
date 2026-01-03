@@ -637,7 +637,7 @@ def find_sales_columns():
         result["sales_columns"] = [col["COLUMN_NAME"] for col in columns]
         
         # Test a sample query with likely columns
-        sample_query = """
+        sample_query = f"""
             SELECT TOP 1
                 Customer,
                 Name,
@@ -680,7 +680,7 @@ def customer_structure():
         db = AzureSQLService()
         
         # Get all columns with data types
-        column_query = """
+        column_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,

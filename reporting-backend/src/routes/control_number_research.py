@@ -32,7 +32,7 @@ def find_control_fields():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Check Equipment table for control-related columns
-        equipment_cols_query = """
+        equipment_cols_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE,
@@ -64,7 +64,7 @@ def find_control_fields():
                     })
         
         # Get sample equipment data with basic fields we know exist
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 10
             UnitNo,
             SerialNo,
@@ -80,7 +80,7 @@ def find_control_fields():
         sample_data = db.execute_query(sample_query)
         
         # Check all tables for control number columns
-        all_control_query = """
+        all_control_query = f"""
         SELECT DISTINCT
             TABLE_NAME,
             COLUMN_NAME,

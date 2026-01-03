@@ -37,7 +37,7 @@ def diagnose_employee_mapping():
         
         # 1. Check what CreatorUserId values look like for CSTPRT sale code
         try:
-            creator_query = """
+            creator_query = f"""
             SELECT TOP 20
                 CreatorUserId,
                 COUNT(*) as InvoiceCount,
@@ -63,7 +63,7 @@ def diagnose_employee_mapping():
         
         # 2. Find all tables with 'User' in the name
         try:
-            user_tables_query = """
+            user_tables_query = f"""
             SELECT 
                 TABLE_SCHEMA,
                 TABLE_NAME,
@@ -89,7 +89,7 @@ def diagnose_employee_mapping():
         
         # 3. Check for AbpUsers table
         try:
-            abp_query = """
+            abp_query = f"""
             SELECT TOP 1 TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
             WHERE TABLE_NAME = 'AbpUsers'
@@ -98,7 +98,7 @@ def diagnose_employee_mapping():
             
             if abp_exists and len(abp_exists) > 0:
                 # Table exists, get sample data
-                abp_data_query = """
+                abp_data_query = f"""
                 SELECT TOP 10
                     Id,
                     UserName,
@@ -126,7 +126,7 @@ def diagnose_employee_mapping():
         
         # 4. Check what schemas exist
         try:
-            schema_query = """
+            schema_query = f"""
             SELECT DISTINCT TABLE_SCHEMA
             FROM INFORMATION_SCHEMA.TABLES
             WHERE TABLE_TYPE = 'BASE TABLE'
@@ -143,7 +143,7 @@ def diagnose_employee_mapping():
         
         # 5. Look for any table with ID columns that might contain our employee IDs
         try:
-            id_search_query = """
+            id_search_query = f"""
             SELECT TOP 20
                 c.TABLE_SCHEMA,
                 c.TABLE_NAME,
@@ -175,7 +175,7 @@ def diagnose_employee_mapping():
         
         # 6. Get sample of parts invoices with creator info
         try:
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 5
                 InvoiceNo,
                 CreatorUserId,

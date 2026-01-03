@@ -45,7 +45,7 @@ def get_equipment_pm_fields():
         }
         
         # Step 1: Get ALL column names from Equipment table
-        columns_query = """
+        columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = '{schema}' 
@@ -116,7 +116,7 @@ def get_equipment_pm_fields():
                 logger.info(f"Equipment {serial_no} not found")
         
         # Step 3: Check for PM-related tables
-        tables_query = """
+        tables_query = f"""
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_SCHEMA = '{schema}'

@@ -33,7 +33,7 @@ def get_control_serial_mapping():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get all equipment with control numbers or serial numbers
-        mapping_query = """
+        mapping_query = f"""
         SELECT 
             e.ControlNo,
             e.SerialNo,
@@ -182,7 +182,7 @@ def get_control_number_summary():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get usage statistics
-        summary_query = """
+        summary_query = f"""
         SELECT 
             'Equipment' as TableName,
             COUNT(*) as TotalRecords,
@@ -222,7 +222,7 @@ def get_control_number_summary():
         usage_result = db.execute_query(summary_query)
         
         # Get control number changes history
-        changes_query = """
+        changes_query = f"""
         SELECT TOP 100
             ControlNo,
             SerialNo,
@@ -265,7 +265,7 @@ def get_control_number_summary():
                 })
         
         # Get next control number from Company table
-        next_control_query = """
+        next_control_query = f"""
         SELECT NextControlNo
         FROM {schema}.Company
         """

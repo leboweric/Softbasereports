@@ -50,7 +50,7 @@ def get_gl_inventory_report():
         fiscal_end = '2025-10-31'
         
         # Step 1: Get GL account balances for target accounts
-        gl_balances_query = """
+        gl_balances_query = f"""
         SELECT 
             gl.AccountNo,
             coa.AccountDescription,
@@ -87,7 +87,7 @@ def get_gl_inventory_report():
         ytd_depreciation = abs(float(ytd_depreciation_result[0]['YTD_Depreciation_Expense'])) if ytd_depreciation_result and ytd_depreciation_result[0]['YTD_Depreciation_Expense'] else 0
         
         # Step 3: Get equipment counts by department to validate
-        equipment_counts_query = """
+        equipment_counts_query = f"""
         SELECT 
             InventoryDept,
             COUNT(*) as Equipment_Count,
@@ -104,7 +104,7 @@ def get_gl_inventory_report():
         
         # Step 4: Try to identify equipment by GL account relationship
         # This is exploratory - we'll need to find the actual linking mechanism
-        equipment_by_account_query = """
+        equipment_by_account_query = f"""
         SELECT 
             e.SerialNo,
             e.Make,

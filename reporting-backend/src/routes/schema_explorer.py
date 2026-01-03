@@ -68,7 +68,7 @@ def get_table_structure(table_name):
         sql_service = AzureSQLService()
 
         # Get columns
-        columns_query = """
+        columns_query = f"""
         SELECT
             COLUMN_NAME,
             DATA_TYPE,
@@ -85,7 +85,7 @@ def get_table_structure(table_name):
         columns = sql_service.execute_query(columns_query, [table_name])
 
         # Get primary keys
-        pk_query = """
+        pk_query = f"""
         SELECT COLUMN_NAME
         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
         WHERE TABLE_SCHEMA = '{schema}'
@@ -96,7 +96,7 @@ def get_table_structure(table_name):
         primary_keys = sql_service.execute_query(pk_query, [table_name])
 
         # Get foreign keys
-        fk_query = """
+        fk_query = f"""
         SELECT
             fk.name AS FK_NAME,
             OBJECT_NAME(fk.parent_object_id) AS TABLE_NAME,
@@ -262,7 +262,7 @@ def get_table_relationships(table_name):
         sql_service = AzureSQLService()
 
         # Outgoing FKs (this table references other tables)
-        outgoing_query = """
+        outgoing_query = f"""
         SELECT
             fk.name AS FK_NAME,
             OBJECT_NAME(fk.parent_object_id) AS FROM_TABLE,
@@ -278,7 +278,7 @@ def get_table_relationships(table_name):
         outgoing = sql_service.execute_query(outgoing_query, [table_name])
 
         # Incoming FKs (other tables reference this table)
-        incoming_query = """
+        incoming_query = f"""
         SELECT
             fk.name AS FK_NAME,
             OBJECT_NAME(fk.parent_object_id) AS FROM_TABLE,

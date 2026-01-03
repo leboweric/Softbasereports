@@ -155,7 +155,7 @@ def investigate_units():
             
             # 6. For units 21728/21729, check for document 16001378
             if unit_no in ['21728', '21729']:
-                doc_query = """
+                doc_query = f"""
                 SELECT 
                     wo.WONo,
                     wo.Type,

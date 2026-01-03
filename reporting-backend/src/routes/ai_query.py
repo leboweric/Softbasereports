@@ -1345,7 +1345,7 @@ def check_sale_codes():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get all unique SaleCodes with counts
-        sale_codes_query = """
+        sale_codes_query = f"""
         SELECT 
             SaleCode,
             COUNT(*) as invoice_count,
@@ -1359,7 +1359,7 @@ def check_sale_codes():
         """
         
         # Get all unique Departments with counts
-        departments_query = """
+        departments_query = f"""
         SELECT 
             Department,
             COUNT(*) as invoice_count,
@@ -1602,7 +1602,7 @@ def check_rental_data():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Check rental status values
-        status_query = """
+        status_query = f"""
         SELECT 
             RentalStatus,
             COUNT(*) as count
@@ -1614,7 +1614,7 @@ def check_rental_data():
         rental_statuses = db.execute_query(status_query)
         
         # Check equipment with CustomerNo
-        customer_query = """
+        customer_query = f"""
         SELECT TOP 10
             UnitNo,
             RentalStatus,
@@ -1645,7 +1645,7 @@ def check_rental_data():
         join_results = db.execute_query(join_test)
         
         # Check specific rental statuses that might mean 'rented'
-        rental_variations_query = """
+        rental_variations_query = f"""
         SELECT TOP 20
             e.UnitNo,
             e.Make,
@@ -1693,7 +1693,7 @@ def check_customer_columns():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get column info
-        columns_query = """
+        columns_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE,
@@ -1708,7 +1708,7 @@ def check_customer_columns():
         columns = db.execute_query(columns_query)
         
         # Try to get sample data
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 5 *
         FROM {schema}.Customer
         ORDER BY ID

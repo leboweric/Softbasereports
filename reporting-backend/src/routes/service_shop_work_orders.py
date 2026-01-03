@@ -35,7 +35,7 @@ def get_shop_work_orders():
         db = AzureSQLService()
         
         # DEBUG QUERY 1: Investigate work order types
-        debug_type_query = """
+        debug_type_query = f"""
         SELECT DISTINCT 
             Type,
             COUNT(*) as Count
@@ -51,7 +51,7 @@ def get_shop_work_orders():
             logger.info(f"Type: {row['Type']}, Count: {row['Count']}")
         
         # DEBUG QUERY 2: Investigate WOMisc descriptions for labor
-        debug_misc_query = """
+        debug_misc_query = f"""
         SELECT DISTINCT TOP 30 Description 
         FROM [{schema}].WOMisc 
         WHERE Description LIKE '%LABOR%'
@@ -66,7 +66,7 @@ def get_shop_work_orders():
             logger.info(f"Description: '{row['Description']}'")
         
         # DEBUG QUERY 3: Check specific work orders with quotes
-        debug_quotes_query = """
+        debug_quotes_query = f"""
         SELECT TOP 20
             wm.WONo,
             wm.Description,
@@ -524,7 +524,7 @@ def debug_woquote():
         db = AzureSQLService()
 
         # Query 1: Get all column names from SQL Server system tables
-        columns_query = """
+        columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = '{schema}'
@@ -542,7 +542,7 @@ def debug_woquote():
             })
 
         # Query 2: Get actual data using the correct columns
-        data_query = """
+        data_query = f"""
         SELECT TOP 3 *
         FROM [{schema}].WOQuote
         WHERE WONo = '140000582'
@@ -577,7 +577,7 @@ def debug_labor_rates():
         results = {}
 
         # Query 1: Get LaborRate view structure
-        laborrate_structure_query = """
+        laborrate_structure_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = '{schema}'
@@ -589,7 +589,7 @@ def debug_labor_rates():
         results['laborrate_columns'] = [{'name': row[0], 'type': row[1]} for row in lr_columns]
 
         # Query 2: Sample LaborRate data
-        laborrate_data_query = """
+        laborrate_data_query = f"""
         SELECT TOP 10 *
         FROM [{schema}].LaborRate
         ORDER BY Code
@@ -599,7 +599,7 @@ def debug_labor_rates():
         results['laborrate_sample'] = lr_data
 
         # Query 3: Check WO table for LaborRate and LaborDiscount columns
-        wo_rate_structure_query = """
+        wo_rate_structure_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = '{schema}'
@@ -612,7 +612,7 @@ def debug_labor_rates():
         results['wo_rate_columns'] = [{'name': row[0], 'type': row[1]} for row in wo_rate_columns]
 
         # Query 4: The query from Softbase support - sample of shop WOs with labor rates
-        softbase_query = """
+        softbase_query = f"""
         SELECT TOP 10
             WO.WONO,
             WO.BillTo,
@@ -634,7 +634,7 @@ def debug_labor_rates():
         results['wo_with_labor_rates'] = softbase_data
 
         # Query 5: Check WOLabor for SellRate field
-        wolabor_structure_query = """
+        wolabor_structure_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = '{schema}'
@@ -647,7 +647,7 @@ def debug_labor_rates():
         results['wolabor_columns'] = [{'name': row[0], 'type': row[1]} for row in wolabor_columns]
 
         # Query 6: Sample WOLabor with rates for open shop WOs
-        wolabor_sample_query = """
+        wolabor_sample_query = f"""
         SELECT TOP 10
             WOL.WONo,
             WOL.MechanicNo,

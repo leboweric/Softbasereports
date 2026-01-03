@@ -32,7 +32,7 @@ def list_all_tables():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get all tables with basic info
-        tables_query = """
+        tables_query = f"""
         SELECT 
             t.TABLE_NAME,
             t.TABLE_TYPE,
@@ -392,7 +392,7 @@ def investigate_gl_structure():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Step 1: Find GL-related tables
-        gl_tables_query = """
+        gl_tables_query = f"""
         SELECT TABLE_NAME
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_SCHEMA = '{schema}'
@@ -470,7 +470,7 @@ def investigate_gl_structure():
                 results['sample_data'][table_name] = {'error': str(e)}
         
         # Step 3: Look for equipment linking patterns
-        equipment_link_query = """
+        equipment_link_query = f"""
         SELECT TABLE_NAME, COLUMN_NAME
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = '{schema}'
@@ -504,7 +504,7 @@ def analyze_gl_detail():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Step 1: Check if GLDetail table exists and get its structure
-        gldetail_check_query = """
+        gldetail_check_query = f"""
         SELECT 
             COLUMN_NAME,
             DATA_TYPE,
@@ -656,7 +656,7 @@ def check_gl_columns():
         db = AzureSQLService()
         schema = get_tenant_schema()
         # Get column names from GL-related tables
-        column_check_query = """
+        column_check_query = f"""
         SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS 
         WHERE TABLE_SCHEMA = '{schema}'

@@ -39,7 +39,7 @@ def test_rental_query():
         results = {}
         
         # Test 1: Simple count of Department 60
-        test1_query = """
+        test1_query = f"""
         SELECT COUNT(*) as count
         FROM {schema}.Equipment
         WHERE InventoryDept = 60
@@ -51,7 +51,7 @@ def test_rental_query():
             results['dept_60_count'] = f"Error: {str(e)}"
         
         # Test 2: Count with IsDeleted filter
-        test2_query = """
+        test2_query = f"""
         SELECT COUNT(*) as count
         FROM {schema}.Equipment
         WHERE InventoryDept = 60
@@ -64,7 +64,7 @@ def test_rental_query():
             results['dept_60_not_deleted'] = f"Error: {str(e)}"
         
         # Test 3: Sample records
-        test3_query = """
+        test3_query = f"""
         SELECT TOP 5 
             UnitNo,
             SerialNo,
@@ -83,7 +83,7 @@ def test_rental_query():
             results['sample_records'] = f"Error: {str(e)}"
         
         # Test 4: Check RentalHistory
-        test4_query = """
+        test4_query = f"""
         SELECT COUNT(DISTINCT e.SerialNo) as count
         FROM {schema}.Equipment e
         JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo
@@ -99,7 +99,7 @@ def test_rental_query():
             results['currently_on_rent'] = f"Error: {str(e)}"
         
         # Test 5: Simple version of main query
-        test5_query = """
+        test5_query = f"""
         SELECT COUNT(*) as count
         FROM {schema}.Equipment e
         LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
