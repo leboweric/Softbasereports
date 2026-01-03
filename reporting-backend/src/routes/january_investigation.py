@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 january_investigation_bp = Blueprint('january_investigation', __name__)
 sql_service = AzureSQLService()
-schema = get_tenant_schema()
 @january_investigation_bp.route('/api/investigation/january2025', methods=['GET'])
 def investigate_january_2025():
     """

@@ -31,7 +31,6 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 pl_report_bp = Blueprint('pl_report', __name__)
 sql_service = AzureSQLService()
-schema = get_tenant_schema()
 # GL Account Mappings by Department (Source: Softbase P&L)
 GL_ACCOUNTS = {
     'new_equipment': {

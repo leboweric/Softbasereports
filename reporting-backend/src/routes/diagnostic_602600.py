@@ -24,7 +24,6 @@ def get_tenant_schema():
 
 diagnostic_bp = Blueprint('diagnostic', __name__)
 sql_service = AzureSQLService()
-schema = get_tenant_schema()
 @diagnostic_bp.route('/diagnostic/account-602600', methods=['GET'])
 def diagnose_account_602600():
     """

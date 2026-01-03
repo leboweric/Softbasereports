@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 softbase_months_bp = Blueprint('softbase_months', __name__)
 sql_service = AzureSQLService()
-schema = get_tenant_schema()
 def analyze_month(year, month, month_name):
     """Analyze a single Softbase-native month"""
     

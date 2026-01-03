@@ -4,10 +4,11 @@ Provides monthly profit/loss metrics for dashboard display
 """
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
 from src.utils.fiscal_year import SOFTBASE_CUTOVER_DATE, get_fiscal_ytd_start
+from src.models.user import User
 from datetime import datetime, timedelta
 import logging
 import calendar
@@ -16,12 +17,9 @@ logger = logging.getLogger(__name__)
 
 pl_widget_bp = Blueprint('pl_widget', __name__)
 sql_service = AzureSQLService()
-schema = get_tenant_schema()
+
 # Import GL account mappings from pl_report
 from src.routes.pl_report import GL_ACCOUNTS, EXPENSE_ACCOUNTS, OTHER_INCOME_ACCOUNTS
-
-from flask_jwt_extended import get_jwt_identity
-from src.models.user import User
 
 def get_tenant_schema():
     """Get the database schema for the current user's organization"""
@@ -36,7 +34,6 @@ def get_tenant_schema():
         return 'ben002'
 
 
-
 @pl_widget_bp.route('/api/pl/widget', methods=['GET'])
 @jwt_required()
 def get_pl_widget():
@@ -45,6 +42,8 @@ def get_pl_widget():
     Returns current month P&L, YTD P&L, average monthly P&L, and 12-month trend
     """
     try:
+        schema = get_tenant_schema()
+        
         # Get current date or use provided date
         as_of_date = request.args.get('as_of_date')
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
@@ -55,10 +54,10 @@ def get_pl_widget():
             current_date = datetime.now()
         
         # Use cache with 1-hour TTL
-        cache_key = f'pl_widget:{as_of_date or current_date.strftime("%Y-%m-%d")}'
+        cache_key = f'pl_widget:{schema}:{as_of_date or current_date.strftime("%Y-%m-%d")}'
         
         def fetch_pl_widget_data():
-            return _fetch_pl_widget_data(current_date)
+            return _fetch_pl_widget_data(current_date, schema)
         
         result = cache_service.cache_query(cache_key, fetch_pl_widget_data, ttl_seconds=3600, force_refresh=force_refresh)
         return jsonify(result), 200
@@ -69,7 +68,7 @@ def get_pl_widget():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-def _fetch_pl_widget_data(current_date):
+def _fetch_pl_widget_data(current_date, schema):
     """Internal function to fetch P&L widget data"""
     # Always use last closed month (previous month)
     last_closed_month = current_date.replace(day=1) - timedelta(days=1)
@@ -77,10 +76,10 @@ def _fetch_pl_widget_data(current_date):
     current_month = last_closed_month.month
     
     # Get current month P&L
-    current_pl = get_monthly_pl(current_year, current_month)
+    current_pl = get_monthly_pl(current_year, current_month, schema)
     
     # Get 12-month trend
-    trend_data = get_pl_trend(current_year, current_month, months=12)
+    trend_data = get_pl_trend(current_year, current_month, schema, months=12)
     
     # Debug logging
     logger.info(f"=" * 80)
@@ -122,7 +121,7 @@ def _fetch_pl_widget_data(current_date):
     }
 
 
-def get_monthly_pl(year, month):
+def get_monthly_pl(year, month, schema):
     """
     Get monthly profit/loss from GL.MTD
     Uses the same GL account mappings as the P&L Report
@@ -192,7 +191,7 @@ def get_monthly_pl(year, month):
         return 0.0
 
 
-def get_ytd_pl(year, month):
+def get_ytd_pl(year, month, schema):
     """
     Get year-to-date profit/loss
     Sum of all months from January to current month
@@ -201,7 +200,7 @@ def get_ytd_pl(year, month):
         # Sum up monthly P&L for each month YTD
         ytd_total = 0.0
         for m in range(1, month + 1):
-            monthly_pl = get_monthly_pl(year, m)
+            monthly_pl = get_monthly_pl(year, m, schema)
             ytd_total += monthly_pl
         
         return ytd_total
@@ -211,7 +210,7 @@ def get_ytd_pl(year, month):
         return 0.0
 
 
-def get_pl_trend(year, month, months=12):
+def get_pl_trend(year, month, schema, months=12):
     """
     Get P&L trend for the last N months (or all available months since November 2024)
     Includes the current month
@@ -239,7 +238,7 @@ def get_pl_trend(year, month, months=12):
             target_month = current.month
             
             # Get P&L for this month
-            monthly_pl = get_monthly_pl(target_year, target_month)
+            monthly_pl = get_monthly_pl(target_year, target_month, schema)
             
             # Format month label
             month_label = f"{target_year}-{target_month:02d}"

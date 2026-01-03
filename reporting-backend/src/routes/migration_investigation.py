@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 migration_investigation_bp = Blueprint('migration_investigation', __name__)
 sql_service = AzureSQLService()
-schema = get_tenant_schema()
 def investigate_month(year, month, month_name):
     """
     Investigate a single month for migration issues

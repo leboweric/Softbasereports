@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 january_expense_bp = Blueprint('january_expense_investigation', __name__)
 sql_service = AzureSQLService()
-schema = get_tenant_schema()
 @january_expense_bp.route('/api/investigation/january2025/expenses', methods=['GET'])
 def investigate_january_expenses():
     """
