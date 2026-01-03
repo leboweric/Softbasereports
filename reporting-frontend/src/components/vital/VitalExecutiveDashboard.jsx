@@ -80,8 +80,8 @@ const VitalExecutiveDashboard = ({ user, loading }) => {
   return (
     <div className="p-6 space-y-6">
       <div className="mb-6">
-        <p className="text-sm text-gray-600 mb-2">AI Operations Platform</p>
-        <h1 className="text-4xl font-bold tracking-tight mb-2">Welcome back, {user?.first_name || 'User'}! Here's what's happening with your business.</h1>
+        <h1 className="text-3xl font-bold tracking-tight">AI Operations Platform</h1>
+        <p className="text-gray-600">Welcome back, {user?.first_name || 'User'}! Here's what's happening with your business.</p>
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
