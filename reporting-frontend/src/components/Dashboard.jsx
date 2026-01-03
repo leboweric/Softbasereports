@@ -203,6 +203,12 @@ const Dashboard = ({ user }) => {
   }, [dashboardData, customerSearchTerm, customerRiskFilter, customerRiskData]);
 
   useEffect(() => {
+    // Skip API calls for VITAL Worklife users - they use different data sources
+    if (user?.organization?.name === 'VITAL Worklife') {
+      setLoading(false)
+      return
+    }
+
     fetchDashboardData()
     fetchExpenseData()
 
@@ -218,14 +224,17 @@ const Dashboard = ({ user }) => {
       isMountedRef.current = false
       clearInterval(interval)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
+    // Skip for VITAL users
+    if (user?.organization?.name === 'VITAL Worklife') return
+    
     // Fetch invoice delay analysis when Work Orders tab is selected
     if (activeTab === 'workorders' && !invoiceDelayData) {
       fetchInvoiceDelayAnalysis()
     }
-  }, [activeTab, invoiceDelayData])
+  }, [activeTab, invoiceDelayData, user])
 
   const fetchDashboardData = async (forceRefresh = false) => {
     const startTime = Date.now()
