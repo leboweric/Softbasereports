@@ -129,8 +129,8 @@ const VitalExecutiveDashboard = ({ user, loading }) => {
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="cases" fill="#3b82f6" name="Total Cases" />
-                <Bar dataKey="resolved" fill="#10b981" name="Resolved" />
+                <Bar dataKey="cases" fill="#3b82f6" name="Total Cases" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="resolved" fill="#10b981" name="Resolved" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -148,7 +148,7 @@ const VitalExecutiveDashboard = ({ user, loading }) => {
                 <XAxis dataKey="stage" />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="value" fill="#8b5cf6" name="Count" />
+                <Bar dataKey="value" fill="#8b5cf6" name="Count" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
