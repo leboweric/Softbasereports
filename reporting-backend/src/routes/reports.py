@@ -52,7 +52,7 @@ def debug_dashboard():
         sales_query = f"""
         SELECT COALESCE(SUM(GrandTotal), 0) as total_sales,
                COUNT(*) as invoice_count
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '{month_start}'
         AND MONTH(InvoiceDate) = {current_date.month}
         AND YEAR(InvoiceDate) = {current_date.year}
@@ -75,7 +75,7 @@ def debug_dashboard():
         # Test inventory query
         inventory_query = """
         SELECT COUNT(*) as inventory_count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE RentalStatus IN ('In Stock', 'Available')
         """
         
@@ -96,7 +96,7 @@ def debug_dashboard():
         # Test customers query
         customers_query = """
         SELECT COUNT(DISTINCT ID) as active_customers
-        FROM ben002.Customer
+        FROM {schema}.Customer
         WHERE Balance > 0 OR YTD > 0
         """
         
@@ -140,7 +140,7 @@ def check_service_claims():
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'ServiceClaim' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY ORDINAL_POSITION
         """
         
@@ -149,7 +149,7 @@ def check_service_claims():
         # First get a sample record to see actual columns
         sample_all = """
         SELECT TOP 5 *
-        FROM ben002.ServiceClaim
+        FROM {schema}.ServiceClaim
         """
         
         try:
@@ -159,7 +159,7 @@ def check_service_claims():
         
         # Get total count
         try:
-            count_result = db.execute_query("SELECT COUNT(*) as count FROM ben002.ServiceClaim")
+            count_result = db.execute_query("SELECT COUNT(*) as count FROM {schema}.ServiceClaim")
             results['total_count'] = count_result[0]['count'] if count_result else 0
         except Exception as e:
             results['count_error'] = str(e)
@@ -184,7 +184,7 @@ def check_service_claims():
         try:
             cost_query = """
             SELECT TOP 5 *
-            FROM ben002.ServiceClaim
+            FROM {schema}.ServiceClaim
             WHERE (TotalLabor > 0 OR TotalParts > 0)
             """
             results['records_with_costs'] = db.execute_query(cost_query)
@@ -194,7 +194,7 @@ def check_service_claims():
                 # Just get any 5 records
                 any_query = """
                 SELECT TOP 5 ServiceClaimID, *
-                FROM ben002.ServiceClaim
+                FROM {schema}.ServiceClaim
                 ORDER BY ServiceClaimID DESC
                 """
                 results['recent_records'] = db.execute_query(any_query)
@@ -225,7 +225,7 @@ def find_work_orders():
         tables_query = """
         SELECT TABLE_NAME
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         AND TABLE_TYPE = 'VIEW'
         AND (
             TABLE_NAME LIKE '%Work%' OR 
@@ -245,7 +245,7 @@ def find_work_orders():
             table_name = table['TABLE_NAME']
             try:
                 # Get count
-                count_query = f"SELECT COUNT(*) as count FROM ben002.{table_name}"
+                count_query = f"SELECT COUNT(*) as count FROM {schema}.{table_name}"
                 count_result = db.execute_query(count_query)
                 
                 # Get columns
@@ -253,7 +253,7 @@ def find_work_orders():
                 SELECT COLUMN_NAME, DATA_TYPE 
                 FROM INFORMATION_SCHEMA.COLUMNS 
                 WHERE TABLE_NAME = '{table_name}' 
-                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_SCHEMA = '{schema}'
                 AND (
                     COLUMN_NAME LIKE '%Invoice%' OR 
                     COLUMN_NAME LIKE '%Total%' OR 
@@ -294,7 +294,7 @@ def check_work_order_data():
         
         # Check if ServiceClaim has any data
         try:
-            sc_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.ServiceClaim")
+            sc_count = db.execute_query("SELECT COUNT(*) as count FROM {schema}.ServiceClaim")
             results['service_claim_count'] = sc_count[0]['count'] if sc_count else 0
         except Exception as e:
             results['service_claim_error'] = str(e)
@@ -304,7 +304,7 @@ def check_work_order_data():
             wo_tables = db.execute_query("""
                 SELECT TABLE_NAME 
                 FROM INFORMATION_SCHEMA.TABLES 
-                WHERE TABLE_SCHEMA = 'ben002' 
+                WHERE TABLE_SCHEMA = '{schema}' 
                 AND TABLE_NAME LIKE '%WO%'
                 ORDER BY TABLE_NAME
             """)
@@ -312,13 +312,13 @@ def check_work_order_data():
             
             # Check WOHeader if it exists
             if any('WOHeader' in t['TABLE_NAME'] for t in wo_tables):
-                wo_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.WOHeader")
+                wo_count = db.execute_query("SELECT COUNT(*) as count FROM {schema}.WOHeader")
                 results['wo_header_count'] = wo_count[0]['count'] if wo_count else 0
                 
                 # Get sample work order
                 wo_sample = db.execute_query("""
                     SELECT TOP 3 * 
-                    FROM ben002.WOHeader 
+                    FROM {schema}.WOHeader 
                     ORDER BY WONumber DESC
                 """)
                 results['wo_header_sample'] = wo_sample
@@ -327,7 +327,7 @@ def check_work_order_data():
         
         # Check for JobHeader table (another common name for work orders)
         try:
-            job_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.JobHeader")
+            job_count = db.execute_query("SELECT COUNT(*) as count FROM {schema}.JobHeader")
             results['job_header_count'] = job_count[0]['count'] if job_count else 0
         except:
             pass
@@ -337,7 +337,7 @@ def check_work_order_data():
             labor_parts_tables = db.execute_query("""
                 SELECT DISTINCT TABLE_NAME 
                 FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_SCHEMA = 'ben002' 
+                WHERE TABLE_SCHEMA = '{schema}' 
                 AND (COLUMN_NAME LIKE '%Labor%' OR COLUMN_NAME LIKE '%Parts%')
                 AND TABLE_NAME NOT LIKE '%Claim%'
                 ORDER BY TABLE_NAME
@@ -371,7 +371,7 @@ def analyze_wo_table():
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'WO' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             ORDER BY ORDINAL_POSITION
         """)
         results['wo_columns'] = wo_columns
@@ -380,7 +380,7 @@ def analyze_wo_table():
         try:
             wo_sample = db.execute_query("""
                 SELECT TOP 3 *
-                FROM ben002.WO
+                FROM {schema}.WO
                 ORDER BY WONumber DESC
             """)
             results['wo_sample'] = wo_sample
@@ -389,7 +389,7 @@ def analyze_wo_table():
         
         # Count total work orders
         try:
-            wo_count = db.execute_query("SELECT COUNT(*) as count FROM ben002.WO")
+            wo_count = db.execute_query("SELECT COUNT(*) as count FROM {schema}.WO")
             results['wo_total_count'] = wo_count[0]['count'] if wo_count else 0
         except Exception as e:
             results['wo_count_error'] = str(e)
@@ -413,14 +413,14 @@ def analyze_wo_table():
             SELECT TOP 5
                 w.WONumber,
                 COALESCE(
-                    (SELECT SUM(ExtLabor) FROM ben002.WOLabor WHERE WONumber = w.WONumber), 
+                    (SELECT SUM(ExtLabor) FROM {schema}.WOLabor WHERE WONumber = w.WONumber), 
                     0
                 ) as TotalLabor,
                 COALESCE(
-                    (SELECT SUM(ExtPrice) FROM ben002.WOParts WHERE WONumber = w.WONumber), 
+                    (SELECT SUM(ExtPrice) FROM {schema}.WOParts WHERE WONumber = w.WONumber), 
                     0
                 ) as TotalParts
-            FROM ben002.WO w
+            FROM {schema}.WO w
             ORDER BY w.WONumber DESC
             """
             labor_parts_sample = db.execute_query(labor_parts_query)
@@ -453,14 +453,14 @@ def test_uninvoiced_wo():
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_NAME = 'WO' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             AND COLUMN_NAME IN ('TotalLabor', 'TotalParts', 'TotalMisc', 'Labor', 'Parts', 'Misc')
         """)
         results['available_total_columns'] = [c['COLUMN_NAME'] for c in col_check]
         
         # Get a sample WO record to see structure
         try:
-            sample = db.execute_query("SELECT TOP 1 * FROM ben002.WO WHERE CompletedDate IS NOT NULL")
+            sample = db.execute_query("SELECT TOP 1 * FROM {schema}.WO WHERE CompletedDate IS NOT NULL")
             if sample:
                 # Extract just the relevant fields
                 results['sample_wo'] = {
@@ -476,7 +476,7 @@ def test_uninvoiced_wo():
                 "name": "Count completed but not invoiced",
                 "query": """
                     SELECT COUNT(*) as count
-                    FROM ben002.WO
+                    FROM {schema}.WO
                     WHERE CompletedDate IS NOT NULL
                     AND InvoiceDate IS NULL
                 """
@@ -487,7 +487,7 @@ def test_uninvoiced_wo():
                     SELECT 
                         COUNT(*) as count,
                         SUM(ISNULL(TotalLabor, 0) + ISNULL(TotalParts, 0) + ISNULL(TotalMisc, 0)) as total_value
-                    FROM ben002.WO
+                    FROM {schema}.WO
                     WHERE CompletedDate IS NOT NULL
                     AND InvoiceDate IS NULL
                 """
@@ -502,7 +502,7 @@ def test_uninvoiced_wo():
                             WHEN CompletedDate IS NULL THEN 'Not Completed'
                         END as status,
                         COUNT(*) as count
-                    FROM ben002.WO
+                    FROM {schema}.WO
                     GROUP BY 
                         CASE 
                             WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NULL THEN 'Completed Not Invoiced'
@@ -528,9 +528,9 @@ def test_uninvoiced_wo():
                 w.WO,
                 w.CompletedDate,
                 w.InvoiceDate,
-                (SELECT COALESCE(SUM(ExtLabor), 0) FROM ben002.WOLabor WHERE WO = w.WO) as LaborTotal,
-                (SELECT COALESCE(SUM(ExtPrice), 0) FROM ben002.WOParts WHERE WO = w.WO) as PartsTotal
-            FROM ben002.WO w
+                (SELECT COALESCE(SUM(ExtLabor), 0) FROM {schema}.WOLabor WHERE WO = w.WO) as LaborTotal,
+                (SELECT COALESCE(SUM(ExtPrice), 0) FROM {schema}.WOParts WHERE WO = w.WO) as PartsTotal
+            FROM {schema}.WO w
             WHERE w.CompletedDate IS NOT NULL
             AND w.InvoiceDate IS NULL
             ORDER BY w.CompletedDate DESC
@@ -564,10 +564,10 @@ def calculate_uninvoiced_value():
         SELECT 
             w.WONo,
             w.CompletedDate,
-            COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as LaborTotal,
-            COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as PartsTotal,
-            COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as MiscTotal
-        FROM ben002.WO w
+            COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as LaborTotal,
+            COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as PartsTotal,
+            COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as MiscTotal
+        FROM {schema}.WO w
         WHERE w.CompletedDate IS NOT NULL
         AND w.InvoiceDate IS NULL
         """
@@ -605,10 +605,10 @@ def calculate_uninvoiced_value():
             FROM (
                 SELECT 
                     w.WONo,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-                FROM ben002.WO w
+                    COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                    COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                    COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                FROM {schema}.WO w
                 WHERE w.CompletedDate IS NOT NULL
                 AND w.InvoiceDate IS NULL
             ) as uninvoiced
@@ -643,7 +643,7 @@ def check_wo_columns():
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'WOLabor' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             AND (COLUMN_NAME LIKE '%Labor%' OR COLUMN_NAME LIKE '%Ext%' OR COLUMN_NAME LIKE '%Total%' OR COLUMN_NAME LIKE '%Amount%')
             ORDER BY ORDINAL_POSITION
         """)
@@ -654,7 +654,7 @@ def check_wo_columns():
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'WOParts' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             AND (COLUMN_NAME LIKE '%Price%' OR COLUMN_NAME LIKE '%Ext%' OR COLUMN_NAME LIKE '%Total%' OR COLUMN_NAME LIKE '%Amount%')
             ORDER BY ORDINAL_POSITION
         """)
@@ -665,20 +665,20 @@ def check_wo_columns():
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'WOMisc' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             ORDER BY ORDINAL_POSITION
         """)
         results['womisc_columns'] = misc_cols
         
         # Get sample data
         try:
-            labor_sample = db.execute_query("SELECT TOP 1 * FROM ben002.WOLabor WHERE WONo > 0")
+            labor_sample = db.execute_query("SELECT TOP 1 * FROM {schema}.WOLabor WHERE WONo > 0")
             results['labor_sample'] = labor_sample
         except Exception as e:
             results['labor_sample_error'] = str(e)
             
         try:
-            parts_sample = db.execute_query("SELECT TOP 1 * FROM ben002.WOParts WHERE WONo > 0")
+            parts_sample = db.execute_query("SELECT TOP 1 * FROM {schema}.WOParts WHERE WONo > 0")
             results['parts_sample'] = parts_sample
         except Exception as e:
             results['parts_sample_error'] = str(e)
@@ -708,7 +708,7 @@ def check_invoice_cost_columns():
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'InvoiceReg' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             AND (
                 COLUMN_NAME LIKE '%Cost%' OR 
                 COLUMN_NAME LIKE '%COGS%' OR 
@@ -724,7 +724,7 @@ def check_invoice_cost_columns():
         try:
             sample = db.execute_query("""
                 SELECT TOP 1 * 
-                FROM ben002.InvoiceReg 
+                FROM {schema}.InvoiceReg 
                 WHERE GrandTotal > 0
                 ORDER BY InvoiceDate DESC
             """)
@@ -743,7 +743,7 @@ def check_invoice_cost_columns():
             detail_tables = db.execute_query("""
                 SELECT TABLE_NAME
                 FROM INFORMATION_SCHEMA.TABLES
-                WHERE TABLE_SCHEMA = 'ben002'
+                WHERE TABLE_SCHEMA = '{schema}'
                 AND (
                     TABLE_NAME LIKE '%InvoiceDet%' OR 
                     TABLE_NAME LIKE '%InvoiceLine%' OR
@@ -778,7 +778,7 @@ def find_quotes_data():
         quote_tables = db.execute_query("""
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_SCHEMA = 'ben002'
+            WHERE TABLE_SCHEMA = '{schema}'
             AND (
                 TABLE_NAME LIKE '%Quote%' OR 
                 TABLE_NAME LIKE '%Quot%' OR
@@ -794,7 +794,7 @@ def find_quotes_data():
             table_name = table['TABLE_NAME']
             try:
                 # Get count
-                count_query = f"SELECT COUNT(*) as count FROM ben002.{table_name}"
+                count_query = f"SELECT COUNT(*) as count FROM {schema}.{table_name}"
                 count_result = db.execute_query(count_query)
                 
                 # Get columns
@@ -802,7 +802,7 @@ def find_quotes_data():
                 SELECT COLUMN_NAME, DATA_TYPE 
                 FROM INFORMATION_SCHEMA.COLUMNS 
                 WHERE TABLE_NAME = '{table_name}' 
-                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_SCHEMA = '{schema}'
                 AND (
                     COLUMN_NAME LIKE '%Date%' OR 
                     COLUMN_NAME LIKE '%Amount%' OR 
@@ -815,7 +815,7 @@ def find_quotes_data():
                 
                 if count_result[0]['count'] > 0:
                     # Get a sample record
-                    sample_query = f"SELECT TOP 1 * FROM ben002.{table_name}"
+                    sample_query = f"SELECT TOP 1 * FROM {schema}.{table_name}"
                     sample = db.execute_query(sample_query)
                     
                     results[table_name] = {
@@ -832,7 +832,7 @@ def find_quotes_data():
                 SELECT COLUMN_NAME, DATA_TYPE
                 FROM INFORMATION_SCHEMA.COLUMNS
                 WHERE TABLE_NAME = 'WO' 
-                AND TABLE_SCHEMA = 'ben002'
+                AND TABLE_SCHEMA = '{schema}'
                 AND (
                     COLUMN_NAME LIKE '%Quote%' OR 
                     COLUMN_NAME LIKE '%Estimate%'
@@ -844,7 +844,7 @@ def find_quotes_data():
             # Check if there are WOs with quote dates
             wo_quote_check = db.execute_query("""
                 SELECT COUNT(*) as count
-                FROM ben002.WO
+                FROM {schema}.WO
                 WHERE ShopQuoteDate IS NOT NULL
             """)
             results['wo_with_quotes'] = wo_quote_check[0]['count'] if wo_quote_check else 0
@@ -877,7 +877,7 @@ def analyze_woquote_data():
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'WOQuote' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             ORDER BY ORDINAL_POSITION
         """)
         results['woquote_columns'] = cols
@@ -892,8 +892,8 @@ def analyze_woquote_data():
             wq.*,
             w.OpenDate as WO_OpenDate,
             w.ShopQuoteDate as WO_QuoteDate
-        FROM ben002.WOQuote wq
-        LEFT JOIN ben002.WO w ON wq.WONo = w.WONo
+        FROM {schema}.WOQuote wq
+        LEFT JOIN {schema}.WO w ON wq.WONo = w.WONo
         WHERE wq.Amount > 0
         ORDER BY wq.Id DESC
         """
@@ -906,7 +906,7 @@ def analyze_woquote_data():
             MONTH(CreationTime) as month,
             COUNT(*) as quote_count,
             SUM(Amount) as total_quoted
-        FROM ben002.WOQuote
+        FROM {schema}.WOQuote
         WHERE CreationTime >= '2024-03-01'
         AND Amount > 0
         GROUP BY YEAR(CreationTime), MONTH(CreationTime)
@@ -921,8 +921,8 @@ def analyze_woquote_data():
             MONTH(w.ShopQuoteDate) as month,
             COUNT(DISTINCT w.WONo) as quote_count,
             SUM(wq.Amount) as total_quoted
-        FROM ben002.WO w
-        INNER JOIN ben002.WOQuote wq ON w.WONo = wq.WONo
+        FROM {schema}.WO w
+        INNER JOIN {schema}.WOQuote wq ON w.WONo = wq.WONo
         WHERE w.ShopQuoteDate >= '2024-03-01'
         AND wq.Amount > 0
         GROUP BY YEAR(w.ShopQuoteDate), MONTH(w.ShopQuoteDate)
@@ -955,7 +955,7 @@ def analyze_department_margins():
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = 'InvoiceReg' 
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             AND (
                 COLUMN_NAME LIKE '%Dept%' OR 
                 COLUMN_NAME LIKE '%Department%' OR 
@@ -970,7 +970,7 @@ def analyze_department_margins():
         # Get a sample invoice to see department data
         sample = db.execute_query("""
             SELECT TOP 5 *
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE GrandTotal > 0
             ORDER BY InvoiceDate DESC
         """)
@@ -994,7 +994,7 @@ def analyze_department_margins():
                 THEN ((SUM(PartsRevenue) - SUM(PartsCost)) / SUM(PartsRevenue)) * 100
                 ELSE 0 
             END as parts_margin_pct
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-01-01'
         AND PartsRevenue > 0
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1015,7 +1015,7 @@ def analyze_department_margins():
                 SUM(TotalExclusive) as total_revenue,
                 SUM(PartsCost) as parts_cost,
                 AVG(CASE WHEN TotalExclusive > 0 THEN ((TotalExclusive - PartsCost) / TotalExclusive) * 100 ELSE 0 END) as avg_margin_pct
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '2025-01-01'
             AND PartsCost > 0
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1052,7 +1052,7 @@ def find_duplicate_customers():
                 BillToName,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '2024-11-01'
             AND BillToName IS NOT NULL
             AND BillToName != ''
@@ -1119,7 +1119,7 @@ def analyze_total_work_orders():
                 ELSE 'Other'
             END as status,
             COUNT(*) as count
-        FROM ben002.WO
+        FROM {schema}.WO
         GROUP BY 
             CASE 
                 WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NOT NULL THEN 'Completed and Invoiced'
@@ -1142,10 +1142,10 @@ def analyze_total_work_orders():
             SELECT 
                 w.WONo,
                 w.CompletedDate,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-            FROM ben002.WO w
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM {schema}.WO w
         ) as wo_values
         """
         
@@ -1162,10 +1162,10 @@ def analyze_total_work_orders():
         FROM (
             SELECT 
                 w.WONo,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-            FROM ben002.WO w
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM {schema}.WO w
             WHERE w.CompletedDate IS NULL
             AND w.ClosedDate IS NULL
         ) as open_wo
@@ -1201,7 +1201,7 @@ def analyze_wo_types():
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'WO' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         AND (
             COLUMN_NAME LIKE '%Type%' OR 
             COLUMN_NAME LIKE '%Category%' OR 
@@ -1216,7 +1216,7 @@ def analyze_wo_types():
         # Get sample WO records to see type data
         sample_query = """
         SELECT TOP 10 *
-        FROM ben002.WO
+        FROM {schema}.WO
         WHERE CompletedDate IS NULL
         AND ClosedDate IS NULL
         ORDER BY WONo DESC
@@ -1246,10 +1246,10 @@ def analyze_wo_types():
                     SELECT 
                         w.WONo,
                         w.{col},
-                        COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                        COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                        COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-                    FROM ben002.WO w
+                        COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                        COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                        COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                    FROM {schema}.WO w
                     WHERE w.CompletedDate IS NULL
                     AND w.ClosedDate IS NULL
                 ) as open_wo
@@ -1273,10 +1273,10 @@ def analyze_wo_types():
         FROM (
             SELECT 
                 w.WONo,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-            FROM ben002.WO w
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM {schema}.WO w
             WHERE w.CompletedDate IS NULL
             AND w.ClosedDate IS NULL
         ) as open_wo
@@ -1308,7 +1308,7 @@ def debug_wo_types():
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'WO' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY ORDINAL_POSITION
         """
         results['all_columns'] = db.execute_query(all_columns_query)
@@ -1316,7 +1316,7 @@ def debug_wo_types():
         # Get sample of open work orders to see actual data
         sample_query = """
         SELECT TOP 10 *
-        FROM ben002.WO
+        FROM {schema}.WO
         WHERE CompletedDate IS NULL
         AND ClosedDate IS NULL
         ORDER BY WONo DESC
@@ -1348,7 +1348,7 @@ def debug_wo_types():
                     {col} as type_value,
                     COUNT(*) as count,
                     SUM(CASE WHEN CompletedDate IS NULL AND ClosedDate IS NULL THEN 1 ELSE 0 END) as open_count
-                FROM ben002.WO
+                FROM {schema}.WO
                 WHERE {col} IS NOT NULL
                 GROUP BY {col}
                 ORDER BY COUNT(*) DESC
@@ -1371,10 +1371,10 @@ def debug_wo_types():
             SELECT 
                 w.WONo,
                 w.QuoteType,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-            FROM ben002.WO w
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+            FROM {schema}.WO w
             WHERE w.CompletedDate IS NULL
             AND w.ClosedDate IS NULL
         ) as open_wo
@@ -1407,7 +1407,7 @@ def check_tables():
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'Equipment' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY ORDINAL_POSITION
         """
         
@@ -1418,7 +1418,7 @@ def check_tables():
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'Customer' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY ORDINAL_POSITION
         """
         
@@ -1428,7 +1428,7 @@ def check_tables():
         try:
             equipment_sample = """
             SELECT TOP 1 *
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             """
             results['equipment_sample'] = db.execute_query(equipment_sample)
         except Exception as e:
@@ -1438,7 +1438,7 @@ def check_tables():
         try:
             customer_sample = """
             SELECT TOP 1 *
-            FROM ben002.Customer
+            FROM {schema}.Customer
             """
             results['customer_sample'] = db.execute_query(customer_sample)
         except Exception as e:
@@ -1449,7 +1449,7 @@ def check_tables():
             # Try Status column
             status_count = """
             SELECT Status, COUNT(*) as count
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             GROUP BY Status
             """
             results['equipment_status_values'] = db.execute_query(status_count)
@@ -1458,7 +1458,7 @@ def check_tables():
                 # Try RentalStatus column
                 rental_status_count = """
                 SELECT RentalStatus, COUNT(*) as count
-                FROM ben002.Equipment
+                FROM {schema}.Equipment
                 GROUP BY RentalStatus
                 """
                 results['equipment_rentalstatus_values'] = db.execute_query(rental_status_count)
@@ -1493,7 +1493,7 @@ def validate_sales():
             SUM(GrandTotal) as total_sales,
             MIN(InvoiceDate) as first_invoice,
             MAX(InvoiceDate) as last_invoice
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2024-11-01'
         """
         result1 = db.execute_query(query1)
@@ -1509,7 +1509,7 @@ def validate_sales():
         SELECT 
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE (InvoiceDate >= '2024-11-01' AND InvoiceDate <= '2024-12-31')
         """
         result2 = db.execute_query(query2)
@@ -1531,7 +1531,7 @@ def validate_sales():
         SELECT 
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2024-11-01' AND InvoiceDate <= '2025-10-31'
         """
         result4 = db.execute_query(query4)
@@ -1547,7 +1547,7 @@ def validate_sales():
             MONTH(InvoiceDate) as month,
             COUNT(DISTINCT InvoiceNo) as invoice_count,
             SUM(GrandTotal) as monthly_total
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2024-11-01' OR InvoiceDate >= '2025-01-01'
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         ORDER BY year, month
@@ -1576,6 +1576,13 @@ def validate_sales():
 @jwt_required()
 def get_current_month_sales():
     """Simple endpoint that returns current month sales"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e), 'month_sales': 0}), 400
+    
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
@@ -1586,7 +1593,7 @@ def get_current_month_sales():
         
         query = f"""
         SELECT COALESCE(SUM(GrandTotal), 0) as month_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '{month_start}'
         AND MONTH(InvoiceDate) = {current_date.month}
         AND YEAR(InvoiceDate) = {current_date.year}
@@ -1614,6 +1621,13 @@ def get_current_month_sales():
 @jwt_required()
 def get_dashboard_summary():
     """Simplified dashboard - just return YTD sales for now"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
@@ -1624,7 +1638,7 @@ def get_dashboard_summary():
         
         sales_query = f"""
         SELECT COALESCE(SUM(GrandTotal), 0) as total_sales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '{month_start}'
         AND MONTH(InvoiceDate) = {current_date.month}
         AND YEAR(InvoiceDate) = {current_date.year}
@@ -1640,7 +1654,7 @@ def get_dashboard_summary():
         # Get inventory count - only count equipment that is "Ready To Rent"
         inventory_query = """
         SELECT COUNT(*) as inventory_count
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE RentalStatus = 'Ready To Rent'
         """
         
@@ -1655,7 +1669,7 @@ def get_dashboard_summary():
         thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         customers_query = f"""
         SELECT COUNT(DISTINCT BillToName) as active_customers
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '{thirty_days_ago}'
         AND BillToName IS NOT NULL
         AND BillToName != ''
@@ -1679,7 +1693,7 @@ def get_dashboard_summary():
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 SUM(GrandTotal) as amount
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{twelve_months_ago}'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1731,7 +1745,7 @@ def get_dashboard_summary():
                 SUM(GrandTotal) as sales,
                 SUM(ISNULL(LaborCost, 0) + ISNULL(PartsCost, 0) + ISNULL(MiscCost, 0) + 
                     ISNULL(EquipmentCost, 0) + ISNULL(RentalCost, 0)) as cost_of_sales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{twelve_months_ago}'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1776,7 +1790,7 @@ def get_dashboard_summary():
                     MONTH(i.InvoiceDate) as month,
                     SUM(i.GrandTotal) as sales,
                     SUM(i.TotalExclusive * 0.7) as estimated_cost
-                FROM ben002.InvoiceReg i
+                FROM {schema}.InvoiceReg i
                 WHERE i.InvoiceDate >= '{twelve_months_ago}'
                 GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
                 ORDER BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
@@ -1805,7 +1819,7 @@ def get_dashboard_summary():
             SELECT 
                 COUNT(*) as count,
                 COALESCE(SUM(DealerTotal), 0) as total_value
-            FROM ben002.ServiceClaim
+            FROM {schema}.ServiceClaim
             WHERE ProcessedDate IS NOT NULL
             AND (CustomerInvoiceNo IS NULL OR CustomerInvoiceNo = '' OR CustomerInvoiceNo = '0')
             """
@@ -1827,10 +1841,10 @@ def get_dashboard_summary():
                     FROM (
                         SELECT 
                             w.WONo,
-                            COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                            COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                            COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-                        FROM ben002.WO w
+                            COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                            COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                            COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                        FROM {schema}.WO w
                         WHERE w.CompletedDate IS NOT NULL
                         AND w.InvoiceDate IS NULL
                     ) as uninvoiced
@@ -1845,7 +1859,7 @@ def get_dashboard_summary():
                     try:
                         simple_query = """
                         SELECT COUNT(*) as count
-                        FROM ben002.WO
+                        FROM {schema}.WO
                         WHERE CompletedDate IS NOT NULL
                         AND InvoiceDate IS NULL
                         """
@@ -1871,7 +1885,7 @@ def get_dashboard_summary():
                 YEAR(CreationTime) as year,
                 MONTH(CreationTime) as month,
                 SUM(Amount) as amount
-            FROM ben002.WOQuote
+            FROM {schema}.WOQuote
             WHERE CreationTime >= '2025-03-01'
             AND Amount > 0
             GROUP BY YEAR(CreationTime), MONTH(CreationTime)
@@ -1934,10 +1948,10 @@ def get_dashboard_summary():
                     w.WONo,
                     w.OpenDate,
                     w.Type,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                    COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-                FROM ben002.WO w
+                    COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                    COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                    COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                FROM {schema}.WO w
                 WHERE w.OpenDate >= '2025-03-01'
                 AND w.OpenDate IS NOT NULL
             ) as wo_with_values
@@ -2025,7 +2039,7 @@ def get_dashboard_summary():
                 END as customer_name,
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{fiscal_year_start.strftime('%Y-%m-%d')}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
@@ -2091,7 +2105,7 @@ def get_dashboard_summary():
                     THEN ((SUM(RentalTaxable + RentalNonTax) - SUM(RentalCost)) / SUM(RentalTaxable + RentalNonTax)) * 100
                     ELSE 0 
                 END as rental_margin_pct
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE InvoiceDate >= '{twelve_months_ago}'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -2145,10 +2159,10 @@ def get_dashboard_summary():
                     SELECT 
                         w.WONo,
                         w.{successful_type_column},
-                        COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                        COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                        COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-                    FROM ben002.WO w
+                        COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                        COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                        COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                    FROM {schema}.WO w
                     WHERE w.CompletedDate IS NULL
                     AND w.ClosedDate IS NULL
                 ) as open_wo
@@ -2177,10 +2191,10 @@ def get_dashboard_summary():
                     FROM (
                         SELECT 
                             w.WONo,
-                            COALESCE((SELECT SUM(Sell) FROM ben002.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
-                            COALESCE((SELECT SUM(Sell) FROM ben002.WOParts WHERE WONo = w.WONo), 0) as parts_total,
-                            COALESCE((SELECT SUM(Sell) FROM ben002.WOMisc WHERE WONo = w.WONo), 0) as misc_total
-                        FROM ben002.WO w
+                            COALESCE((SELECT SUM(Sell) FROM {schema}.WOLabor WHERE WONo = w.WONo), 0) as labor_total,
+                            COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
+                            COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
+                        FROM {schema}.WO w
                         WHERE w.CompletedDate IS NULL
                         AND w.ClosedDate IS NULL
                     ) as open_wo
@@ -2252,6 +2266,13 @@ def get_dashboard_summary():
 @jwt_required()
 def get_inventory_details():
     """Get detailed list of available inventory"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e), 'equipment': [], 'total': 0}), 400
+    
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
@@ -2272,7 +2293,7 @@ def get_inventory_details():
                 WHEN WebRentalFlag = 1 THEN 'Yes' 
                 ELSE 'No' 
             END as WebAvailable
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE RentalStatus = 'Ready To Rent'
         ORDER BY Make, Model, UnitNo
         """

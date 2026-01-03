@@ -12,6 +12,13 @@ customer_details_bp = Blueprint('customer_details', __name__)
 @jwt_required()
 def get_customer_details(customer_id):
     """Get detailed information for a specific customer"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         db = AzureSQLService()
         
@@ -35,7 +42,7 @@ def get_customer_details(customer_id):
             MIN(InvoiceDate) as first_purchase_date,
             MAX(InvoiceDate) as last_purchase_date,
             DATEDIFF(day, MAX(InvoiceDate), GETDATE()) as days_since_last_invoice
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE Customer = {customer_id}
             AND InvoiceDate >= '{fiscal_year_start_str}'
         GROUP BY Customer
@@ -62,7 +69,7 @@ def get_customer_details(customer_id):
                 WHEN DATEDIFF(day, InvoiceDate, GETDATE()) <= 90 THEN 'Normal'
                 ELSE 'Old'
             END as status
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE Customer = {customer_id}
             AND InvoiceDate >= '{fiscal_year_start_str}'
         ORDER BY InvoiceDate DESC
@@ -79,7 +86,7 @@ def get_customer_details(customer_id):
             MONTH(InvoiceDate) as month,
             SUM(GrandTotal) as sales,
             COUNT(DISTINCT InvoiceNo) as invoice_count
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE Customer = {customer_id}
             AND InvoiceDate >= '{twelve_months_ago}'
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)

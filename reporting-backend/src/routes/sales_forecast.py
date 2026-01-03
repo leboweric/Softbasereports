@@ -17,6 +17,13 @@ sales_forecast_bp = Blueprint('sales_forecast', __name__)
 @jwt_required()
 def get_sales_forecast():
     """Generate sales forecast for current month based on historical patterns"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         from flask import request
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
@@ -26,11 +33,11 @@ def get_sales_forecast():
         current_month = now.month
         current_day = now.day
         
-        # Use cache with 1-hour TTL
-        cache_key = f'sales_forecast:{current_year}:{current_month}:{current_day}'
+        # Use cache with 1-hour TTL (include schema for tenant isolation)
+        cache_key = f'sales_forecast:{schema}:{current_year}:{current_month}:{current_day}'
         
         def fetch_forecast():
-            return _fetch_sales_forecast_data(current_year, current_month, current_day)
+            return _fetch_sales_forecast_data(current_year, current_month, current_day, schema)
         
         result = cache_service.cache_query(cache_key, fetch_forecast, ttl_seconds=3600, force_refresh=force_refresh)
         return jsonify(result)
@@ -38,7 +45,7 @@ def get_sales_forecast():
     except Exception as e:
         return jsonify({'error': f'Failed to generate forecast: {str(e)}'}), 500
 
-def _fetch_sales_forecast_data(current_year, current_month, current_day):
+def _fetch_sales_forecast_data(current_year, current_month, current_day, schema):
     """Internal function to fetch sales forecast data"""
     db = AzureSQLService()
     
@@ -51,7 +58,7 @@ def _fetch_sales_forecast_data(current_year, current_month, current_day):
             DAY(InvoiceDate) as day,
             SUM(GrandTotal) as daily_total,
             COUNT(*) as invoice_count
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
             AND InvoiceDate < CAST(GETDATE() AS DATE)
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DAY(InvoiceDate)
@@ -89,7 +96,7 @@ def _fetch_sales_forecast_data(current_year, current_month, current_day):
         SUM(GrandTotal) as mtd_sales,
         COUNT(*) as mtd_invoices,
         AVG(GrandTotal) as avg_invoice_value
-    FROM ben002.InvoiceReg
+    FROM {schema}.InvoiceReg
     WHERE YEAR(InvoiceDate) = {current_year}
         AND MONTH(InvoiceDate) = {current_month}
     """
@@ -100,7 +107,7 @@ def _fetch_sales_forecast_data(current_year, current_month, current_day):
         SELECT 
             WONo,
             MAX(CAST(CreationTime AS DATE)) as latest_quote_date
-        FROM ben002.WOQuote
+        FROM {schema}.WOQuote
         WHERE YEAR(CreationTime) = {current_year}
             AND MONTH(CreationTime) = {current_month}
             AND Amount > 0
@@ -110,7 +117,7 @@ def _fetch_sales_forecast_data(current_year, current_month, current_day):
         COUNT(DISTINCT lq.WONo) as open_quotes,
         SUM(wq.Amount) as pipeline_value
     FROM LatestQuotes lq
-    INNER JOIN ben002.WOQuote wq
+    INNER JOIN {schema}.WOQuote wq
         ON lq.WONo = wq.WONo
         AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
     WHERE wq.Amount > 0
@@ -392,6 +399,13 @@ def save_forecast_to_history(forecast_result, is_scheduled_snapshot=False):
 @jwt_required()
 def backfill_forecast_actuals():
     """Backfill actual totals for completed months in forecast history"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         postgres_db = get_postgres_db()
         azure_db = AzureSQLService()
@@ -436,7 +450,7 @@ def backfill_forecast_actuals():
             SELECT 
                 SUM(GrandTotal) as actual_total,
                 COUNT(*) as actual_invoices
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {target_year}
                 AND MONTH(InvoiceDate) = {target_month}
             """
@@ -651,6 +665,13 @@ def get_performance_rating(mape):
 @jwt_required()
 def generate_test_data():
     """Generate test forecast data for October 2025 for demonstration purposes"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         postgres_db = get_postgres_db()
         azure_db = AzureSQLService()
@@ -663,7 +684,7 @@ def generate_test_data():
         SELECT 
             SUM(GrandTotal) as actual_total,
             COUNT(*) as actual_invoices
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE YEAR(InvoiceDate) = 2025
             AND MONTH(InvoiceDate) = 10
         """

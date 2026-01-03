@@ -17,11 +17,11 @@ class Organization(db.Model):
     
     # Multi-tenant database connection fields
     platform_type = db.Column(db.String(20), nullable=True)  # 'evolution' or 'legacy'
+    database_schema = db.Column(db.String(50), nullable=True)  # Schema name for tenant data isolation (e.g., 'ben002', 'vital001')
     db_server = db.Column(db.String(255), nullable=True)
     db_name = db.Column(db.String(255), nullable=True)
     db_username = db.Column(db.String(255), nullable=True)
-    db_password_encrypted = db.Column(db.Text, nullable=True)
-    
+    db_password_encrypted = db.Column(db.Text, nullable=True)    
     # Stripe subscription management
     stripe_customer_id = db.Column(db.String(255), nullable=True)
     stripe_subscription_id = db.Column(db.String(255), nullable=True)
@@ -64,6 +64,7 @@ class Organization(db.Model):
             'id': self.id,
             'name': self.name,
             'platform_type': self.platform_type,
+            'database_schema': self.database_schema,
             'subscription_status': self.subscription_status,
             'subscription_ends_at': self.subscription_ends_at.isoformat() if self.subscription_ends_at else None,
             'trial_ends_at': self.trial_ends_at.isoformat() if self.trial_ends_at else None,

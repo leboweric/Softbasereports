@@ -26,8 +26,15 @@ def calculate_inventory_turns():
     """
     Calculate min/max inventory levels for parts to achieve target turns
     """
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
     try:
-        logger.info("Starting inventory turns calculation")
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+    
+    try:
+        logger.info(f"Starting inventory turns calculation for tenant: {schema}")
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
         # Get query parameters with validation
@@ -45,11 +52,11 @@ def calculate_inventory_turns():
                 'error': f'Invalid parameters: {str(e)}'
             }), 400
         
-        # Use cache with 1-hour TTL
-        cache_key = f'parts_inventory_turns:{months}:{lead_time_days}:{service_level}:{target_turns}:{min_usage_threshold}'
+        # Use cache with 1-hour TTL (include schema for tenant isolation)
+        cache_key = f'parts_inventory_turns:{schema}:{months}:{lead_time_days}:{service_level}:{target_turns}:{min_usage_threshold}'
         
         def fetch_inventory_turns():
-            return _fetch_inventory_turns_data(months, lead_time_days, service_level, target_turns, min_usage_threshold)
+            return _fetch_inventory_turns_data(months, lead_time_days, service_level, target_turns, min_usage_threshold, schema)
         
         result = cache_service.cache_query(cache_key, fetch_inventory_turns, ttl_seconds=3600, force_refresh=force_refresh)
         return jsonify(result)
@@ -61,7 +68,7 @@ def calculate_inventory_turns():
             'error': str(e)
         }), 500
 
-def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_turns, min_usage_threshold):
+def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_turns, min_usage_threshold, schema):
     """Internal function to fetch inventory turns data"""
     try:
         
@@ -97,8 +104,8 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
                 SUM(CASE WHEN wo.OpenDate >= DATEADD(MONTH, -12, GETDATE()) 
                     THEN COALESCE(wop.Qty, 0) 
                     ELSE 0 END) as WorkOrderQuantity
-            FROM ben002.WOParts wop
-            JOIN ben002.WO wo ON wop.WONo = wo.WONo
+            FROM {schema}.WOParts wop
+            JOIN {schema}.WO wo ON wop.WONo = wo.WONo
             WHERE wop.PartNo IS NOT NULL
             GROUP BY wop.PartNo
         ),
@@ -125,8 +132,8 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
                 SUM(COALESCE(ps.Sales11, 0)) as Sales11_Total,
                 SUM(COALESCE(ps.Sales12, 0)) as Sales12_Total
                 
-            FROM ben002.Parts p
-            LEFT JOIN ben002.PartsSales ps ON p.PartNo = ps.PartNo
+            FROM {schema}.Parts p
+            LEFT JOIN {schema}.PartsSales ps ON p.PartNo = ps.PartNo
             WHERE p.PartNo IS NOT NULL 
             AND p.PartNo != ''
             AND (p.Cost > 0 OR p.List > 0)
@@ -503,7 +510,7 @@ def get_inventory_summary():
             AVG(Cost) as avg_part_cost,
             COUNT(CASE WHEN OnHand = 0 THEN 1 END) as zero_stock_parts,
             COUNT(CASE WHEN OnHand < MinStock THEN 1 END) as below_min_parts
-        FROM ben002.Parts
+        FROM {schema}.Parts
         WHERE Cost > 0
         """
         
@@ -572,7 +579,7 @@ def get_part_detail():
             MinStock,
             MaxStock,
             Bin
-        FROM ben002.Parts
+        FROM {schema}.Parts
         WHERE PartNo = '{part_no}'
         """
         
@@ -591,8 +598,8 @@ def get_part_detail():
                 MONTH(ir.InvoiceDate) as Month,
                 SUM(COALESCE(id.Quantity, 0)) as SoldQty,
                 SUM(COALESCE(id.Quantity * id.Price, 0)) as SoldValue
-            FROM ben002.InvDetail id
-            JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            FROM {schema}.InvDetail id
+            JOIN {schema}.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             WHERE id.PartNo = '{part_no}'
             AND ir.InvoiceDate >= DATEADD(MONTH, -12, GETDATE())
             GROUP BY YEAR(ir.InvoiceDate), MONTH(ir.InvoiceDate)
@@ -604,8 +611,8 @@ def get_part_detail():
                 MONTH(wo.OpenDate) as Month,
                 SUM(COALESCE(wop.Qty, 0)) as UsedQty,
                 SUM(COALESCE(wop.Qty * wop.Cost, 0)) as UsedValue
-            FROM ben002.WOParts wop
-            JOIN ben002.WO wo ON wop.WONo = wo.WONo
+            FROM {schema}.WOParts wop
+            JOIN {schema}.WO wo ON wop.WONo = wo.WONo
             WHERE wop.PartNo = '{part_no}'
             AND wo.OpenDate >= DATEADD(MONTH, -12, GETDATE())
             GROUP BY YEAR(wo.OpenDate), MONTH(wo.OpenDate)
@@ -652,7 +659,7 @@ def test_tables():
             parts_schema_query = """
             SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'Parts'
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'Parts'
             ORDER BY ORDINAL_POSITION
             """
             parts_columns = db.execute_query(parts_schema_query)
@@ -670,7 +677,7 @@ def test_tables():
         try:
             parts_sample_query = """
             SELECT TOP 3 PartNo, Description, Cost, List, OnHand
-            FROM ben002.Parts 
+            FROM {schema}.Parts 
             WHERE PartNo IS NOT NULL AND PartNo != ''
             """
             parts_sample = db.execute_query(parts_sample_query)
@@ -689,7 +696,7 @@ def test_tables():
             invoice_detail_query = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'InvDetail'
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'InvDetail'
             ORDER BY ORDINAL_POSITION
             """
             invoice_columns = db.execute_query(invoice_detail_query)
@@ -708,7 +715,7 @@ def test_tables():
             woparts_query = """
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = 'WOParts'
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'WOParts'
             ORDER BY ORDINAL_POSITION
             """
             woparts_columns = db.execute_query(woparts_query)
@@ -730,9 +737,9 @@ def test_tables():
                 p.Description,
                 id.Quantity,
                 ir.InvoiceDate
-            FROM ben002.Parts p
-            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
-            LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            FROM {schema}.Parts p
+            LEFT JOIN {schema}.InvDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN {schema}.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             WHERE p.PartNo IS NOT NULL 
             AND ir.InvoiceDate >= DATEADD(MONTH, -1, GETDATE())
             """
@@ -775,20 +782,20 @@ def test_tables():
 @jwt_required()
 def get_schema_tables():
     """
-    Discover all tables in ben002 schema to find correct table names
+    Discover all tables in tenant schema to find correct table names
     """
     try:
         db = AzureSQLService()
-        logger.info("Discovering tables in ben002 schema...")
+        logger.info("Discovering tables in tenant schema...")
         
-        # Get all tables in ben002 schema
+        # Get all tables in tenant schema
         tables_query = """
         SELECT 
             TABLE_SCHEMA,
             TABLE_NAME,
             TABLE_TYPE
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002'
+        WHERE TABLE_SCHEMA = '{schema}'
         ORDER BY TABLE_NAME
         """
         
@@ -813,7 +820,7 @@ def get_schema_tables():
                     IS_NULLABLE,
                     COLUMN_DEFAULT
                 FROM INFORMATION_SCHEMA.COLUMNS 
-                WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = '{table_name}'
+                WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table_name}'
                 ORDER BY ORDINAL_POSITION
                 """
                 
@@ -822,7 +829,7 @@ def get_schema_tables():
                 # Get sample data
                 sample_query = f"""
                 SELECT TOP 3 *
-                FROM ben002.{table_name}
+                FROM {schema}.{table_name}
                 """
                 try:
                     sample_data = db.execute_query(sample_query)
@@ -891,14 +898,14 @@ def get_table_sample(table_name):
         check_query = f"""
         SELECT TABLE_NAME
         FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = '{table_name}'
+        WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table_name}'
         """
         
         table_exists = db.execute_query(check_query)
         if not table_exists:
             return jsonify({
                 'success': False,
-                'error': f'Table ben002.{table_name} does not exist'
+                'error': f'Table {schema}.{table_name} does not exist'
             }), 404
         
         # Get columns
@@ -911,7 +918,7 @@ def get_table_sample(table_name):
             NUMERIC_PRECISION,
             NUMERIC_SCALE
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = 'ben002' AND TABLE_NAME = '{table_name}'
+        WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table_name}'
         ORDER BY ORDINAL_POSITION
         """
         
@@ -920,7 +927,7 @@ def get_table_sample(table_name):
         # Get sample data
         sample_query = f"""
         SELECT TOP 10 *
-        FROM ben002.{table_name}
+        FROM {schema}.{table_name}
         """
         
         sample_data = db.execute_query(sample_query)
@@ -928,7 +935,7 @@ def get_table_sample(table_name):
         # Get row count
         count_query = f"""
         SELECT COUNT(*) as row_count
-        FROM ben002.{table_name}
+        FROM {schema}.{table_name}
         """
         
         count_result = db.execute_query(count_query)
@@ -965,7 +972,7 @@ def simple_test():
         
         # Test 1: Simple Parts table query
         try:
-            parts_query = "SELECT TOP 5 PartNo, Description, Cost, OnHand FROM ben002.Parts WHERE PartNo IS NOT NULL"
+            parts_query = "SELECT TOP 5 PartNo, Description, Cost, OnHand FROM {schema}.Parts WHERE PartNo IS NOT NULL"
             logger.info(f"Testing Parts query: {parts_query}")
             parts_result = db.execute_query(parts_query)
             logger.info(f"Parts query succeeded, got {len(parts_result)} rows")
@@ -980,7 +987,7 @@ def simple_test():
         
         # Test 2: Simple InvDetail query (corrected table name)
         try:
-            invoice_query = "SELECT TOP 5 PartNo, Quantity FROM ben002.InvDetail WHERE PartNo IS NOT NULL"
+            invoice_query = "SELECT TOP 5 PartNo, Quantity FROM {schema}.InvDetail WHERE PartNo IS NOT NULL"
             logger.info(f"Testing InvDetail query: {invoice_query}")
             invoice_result = db.execute_query(invoice_query)
             logger.info(f"InvDetail query succeeded, got {len(invoice_result)} rows")
@@ -995,7 +1002,7 @@ def simple_test():
         
         # Test 3: Simple WOParts query
         try:
-            woparts_query = "SELECT TOP 5 PartNo, Qty FROM ben002.WOParts WHERE PartNo IS NOT NULL"
+            woparts_query = "SELECT TOP 5 PartNo, Qty FROM {schema}.WOParts WHERE PartNo IS NOT NULL"
             logger.info(f"Testing WOParts query: {woparts_query}")
             woparts_result = db.execute_query(woparts_query)
             logger.info(f"WOParts query succeeded, got {len(woparts_result)} rows")
@@ -1012,8 +1019,8 @@ def simple_test():
         try:
             join_query = """
             SELECT TOP 5 p.PartNo, p.Description, id.Quantity
-            FROM ben002.Parts p
-            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
+            FROM {schema}.Parts p
+            LEFT JOIN {schema}.InvDetail id ON p.PartNo = id.PartNo
             WHERE p.PartNo IS NOT NULL
             """
             logger.info(f"Testing simple join: {join_query}")
@@ -1032,9 +1039,9 @@ def simple_test():
         try:
             date_query = """
             SELECT TOP 5 p.PartNo, ir.InvoiceDate
-            FROM ben002.Parts p
-            LEFT JOIN ben002.InvDetail id ON p.PartNo = id.PartNo
-            LEFT JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            FROM {schema}.Parts p
+            LEFT JOIN {schema}.InvDetail id ON p.PartNo = id.PartNo
+            LEFT JOIN {schema}.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             WHERE ir.InvoiceDate >= '2024-01-01'
             """
             logger.info(f"Testing date filtering: {date_query}")
@@ -1089,7 +1096,7 @@ def test_columns():
         # Test InvDetail
         try:
             logger.info("Testing InvDetail table...")
-            invdetail_query = "SELECT TOP 3 * FROM ben002.InvDetail"
+            invdetail_query = "SELECT TOP 3 * FROM {schema}.InvDetail"
             invdetail_data = db.execute_query(invdetail_query)
             results['InvDetail'] = {
                 'exists': True,
@@ -1105,7 +1112,7 @@ def test_columns():
         # Test InvoiceReg
         try:
             logger.info("Testing InvoiceReg table...")
-            invoicereg_query = "SELECT TOP 3 * FROM ben002.InvoiceReg"
+            invoicereg_query = "SELECT TOP 3 * FROM {schema}.InvoiceReg"
             invoicereg_data = db.execute_query(invoicereg_query)
             results['InvoiceReg'] = {
                 'exists': True,
@@ -1121,7 +1128,7 @@ def test_columns():
         # Test WOParts
         try:
             logger.info("Testing WOParts table...")
-            woparts_query = "SELECT TOP 3 * FROM ben002.WOParts"
+            woparts_query = "SELECT TOP 3 * FROM {schema}.WOParts"
             woparts_data = db.execute_query(woparts_query)
             results['WOParts'] = {
                 'exists': True,
@@ -1137,7 +1144,7 @@ def test_columns():
         # Test WO
         try:
             logger.info("Testing WO table...")
-            wo_query = "SELECT TOP 3 * FROM ben002.WO"
+            wo_query = "SELECT TOP 3 * FROM {schema}.WO"
             wo_data = db.execute_query(wo_query)
             results['WO'] = {
                 'exists': True,
@@ -1153,7 +1160,7 @@ def test_columns():
         # Test Parts
         try:
             logger.info("Testing Parts table...")
-            parts_query = "SELECT TOP 3 * FROM ben002.Parts"
+            parts_query = "SELECT TOP 3 * FROM {schema}.Parts"
             parts_data = db.execute_query(parts_query)
             results['Parts'] = {
                 'exists': True,
@@ -1169,7 +1176,7 @@ def test_columns():
         # Test ARDetail (likely has invoice line items)
         try:
             logger.info("Testing ARDetail table...")
-            ardetail_query = "SELECT TOP 3 * FROM ben002.ARDetail"
+            ardetail_query = "SELECT TOP 3 * FROM {schema}.ARDetail"
             ardetail_data = db.execute_query(ardetail_query)
             results['ARDetail'] = {
                 'exists': True,
@@ -1185,7 +1192,7 @@ def test_columns():
         # Test Sales table
         try:
             logger.info("Testing Sales table...")
-            sales_query = "SELECT TOP 3 * FROM ben002.Sales"
+            sales_query = "SELECT TOP 3 * FROM {schema}.Sales"
             sales_data = db.execute_query(sales_query)
             results['Sales'] = {
                 'exists': True,
@@ -1201,7 +1208,7 @@ def test_columns():
         # Test PartsSales table
         try:
             logger.info("Testing PartsSales table...")
-            partssales_query = "SELECT TOP 3 * FROM ben002.PartsSales"
+            partssales_query = "SELECT TOP 3 * FROM {schema}.PartsSales"
             partssales_data = db.execute_query(partssales_query)
             results['PartsSales'] = {
                 'exists': True,

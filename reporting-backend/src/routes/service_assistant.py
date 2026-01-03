@@ -394,7 +394,7 @@ def search_work_orders(query):
                 w.ShopComments,
                 w.ClosedDate,
                 w.BillTo
-            FROM [ben002].WO w
+            FROM {schema}.WO w
             WHERE 
                 w.ClosedDate IS NOT NULL
                 AND ({' AND '.join(conditions)})

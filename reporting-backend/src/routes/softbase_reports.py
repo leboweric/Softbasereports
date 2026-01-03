@@ -30,6 +30,13 @@ def get_date_range(period='month'):
 @jwt_required()
 def customer_activity_report():
     """Get customer activity report including sales, service, and equipment"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         # Get parameters
         customer_no = request.args.get('customer_no')
@@ -58,7 +65,7 @@ def customer_activity_report():
                 LastPaymentDate,
                 YTD as YTDSales,
                 YTD as YTDPayments
-            FROM ben002.Customer
+            FROM {schema}.Customer
             WHERE ID = ?
             """
             customers = db.execute_query(customer_query, (customer_no,))
@@ -76,7 +83,7 @@ def customer_activity_report():
                 YTD as YTDSales,
                 YTD as YTDPayments,
                 LastSaleDate
-            FROM ben002.Customer
+            FROM {schema}.Customer
             WHERE YTD > 0
             ORDER BY YTD DESC
             """
@@ -96,7 +103,7 @@ def customer_activity_report():
                 InvoiceStatus as Status,
                 InvoiceType,
                 Department as DepartmentNo
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE Customer = ?
             AND InvoiceDate >= ?
             ORDER BY InvoiceDate DESC
@@ -117,7 +124,7 @@ def customer_activity_report():
                 AcquiredDate as PurchaseDate,
                 SaleAmount as SellingPrice,
                 Hours
-            FROM ben002.Equipment
+            FROM {schema}.Equipment
             WHERE Customer = ?
             AND RentalStatus IN ('Sold', 'Rented')
             ORDER BY AcquiredDate DESC
@@ -137,7 +144,7 @@ def customer_activity_report():
                 TotalLabor,
                 TotalParts,
                 CASE WHEN CloseDate IS NULL THEN 'Open' ELSE 'Closed' END as Status
-            FROM ben002.ServiceClaim
+            FROM {schema}.ServiceClaim
             WHERE Customer = ?
             AND OpenDate >= ?
             ORDER BY OpenDate DESC
@@ -153,7 +160,7 @@ def customer_activity_report():
                 SUM(GrandTotal) as total_sales,
                 AVG(GrandTotal) as avg_invoice_amount,
                 COUNT(DISTINCT InvoiceNo) as equipment_count
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE Customer = ?
             AND InvoiceDate >= ?
             """
@@ -176,6 +183,13 @@ def customer_activity_report():
 @jwt_required()
 def equipment_inventory_report():
     """Get equipment inventory status report"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         # Get parameters
         status = request.args.get('status', 'all')
@@ -200,7 +214,7 @@ def equipment_inventory_report():
             SUM(Cost) as TotalCost,
             SUM(SellingPrice) as TotalSellingPrice,
             AVG(Hours) as AvgHours
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         {where_clause}
         GROUP BY Status
         ORDER BY Count DESC
@@ -223,7 +237,7 @@ def equipment_inventory_report():
             LastServiceDate,
             CustomerNo,
             Added
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         {where_clause}
         ORDER BY Added DESC
         """
@@ -237,7 +251,7 @@ def equipment_inventory_report():
             COUNT(*) as Count,
             AVG(Cost) as AvgCost,
             AVG(SellingPrice) as AvgSellingPrice
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         {where_clause}
         GROUP BY Make, Model
         ORDER BY Count DESC
@@ -251,7 +265,7 @@ def equipment_inventory_report():
             COUNT(*) as Count,
             AVG(Hours) as AvgHours,
             SUM(Cost) as TotalCost
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE ModelYear IS NOT NULL
         {' AND ' + where_clause.replace('WHERE ', '') if where_clause else ''}
         GROUP BY ModelYear
@@ -279,6 +293,13 @@ def equipment_inventory_report():
 @jwt_required()
 def sales_analysis_report():
     """Get sales analysis report"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         period = request.args.get('period', 'month')
         department = request.args.get('department')
@@ -306,7 +327,7 @@ def sales_analysis_report():
             SUM(TotalTax) as TotalTax,
             AVG(TotalAmount) as AvgInvoiceAmount,
             MAX(TotalAmount) as LargestInvoice
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {where_clause}
         """
         summary = db.execute_query(summary_query)
@@ -317,7 +338,7 @@ def sales_analysis_report():
             CAST(InvoiceDate as DATE) as SaleDate,
             COUNT(*) as InvoiceCount,
             SUM(TotalAmount) as DailySales
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {where_clause}
         GROUP BY CAST(InvoiceDate as DATE)
         ORDER BY SaleDate DESC
@@ -331,7 +352,7 @@ def sales_analysis_report():
             COUNT(*) as InvoiceCount,
             SUM(TotalAmount) as TotalSales,
             AVG(TotalAmount) as AvgSale
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {where_clause}
         GROUP BY DepartmentNo
         ORDER BY TotalSales DESC
@@ -346,7 +367,7 @@ def sales_analysis_report():
             COUNT(*) as InvoiceCount,
             SUM(TotalAmount) as TotalPurchases,
             AVG(TotalAmount) as AvgPurchase
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {where_clause}
         GROUP BY CustomerNo, CustomerName
         ORDER BY TotalPurchases DESC
@@ -359,7 +380,7 @@ def sales_analysis_report():
             InvoiceType,
             COUNT(*) as Count,
             SUM(TotalAmount) as Total
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE {where_clause}
         GROUP BY InvoiceType
         ORDER BY Total DESC
@@ -389,6 +410,13 @@ def sales_analysis_report():
 @jwt_required()
 def service_history_report():
     """Get service history report"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         period = request.args.get('period', 'month')
         status = request.args.get('status', 'all')
@@ -415,7 +443,7 @@ def service_history_report():
             SUM(TotalParts) as TotalPartsRevenue,
             SUM(TotalLabor + TotalParts) as TotalRevenue,
             AVG(DATEDIFF(day, DateOpened, DateClosed)) as AvgDaysToClose
-        FROM ben002.ServiceClaim
+        FROM {schema}.ServiceClaim
         WHERE {where_clause}
         """
         summary = db.execute_query(summary_query)
@@ -436,7 +464,7 @@ def service_history_report():
             TotalParts,
             Status,
             TechnicianNo
-        FROM ben002.ServiceClaim
+        FROM {schema}.ServiceClaim
         WHERE {where_clause}
         ORDER BY DateOpened DESC
         """
@@ -450,9 +478,9 @@ def service_history_report():
             COUNT(*) as Frequency,
             SUM(scr.LaborHours) as TotalHours,
             SUM(scr.LaborAmount) as TotalLabor
-        FROM ben002.ServiceClaimRepairCode scr
-        JOIN ben002.RepairCode rc ON scr.RepairCodeId = rc.Id
-        JOIN ben002.ServiceClaim sc ON scr.ServiceClaimId = sc.Id
+        FROM {schema}.ServiceClaimRepairCode scr
+        JOIN {schema}.RepairCode rc ON scr.RepairCodeId = rc.Id
+        JOIN {schema}.ServiceClaim sc ON scr.ServiceClaimId = sc.Id
         WHERE sc.DateOpened BETWEEN '{start_date}' AND '{end_date}'
         GROUP BY rc.Code, rc.Description
         ORDER BY Frequency DESC
@@ -468,7 +496,7 @@ def service_history_report():
             Model,
             COUNT(*) as ServiceCount,
             SUM(TotalLabor + TotalParts) as TotalServiceCost
-        FROM ben002.ServiceClaim
+        FROM {schema}.ServiceClaim
         WHERE {where_clause}
         GROUP BY StockNo, SerialNo, Make, Model
         HAVING COUNT(*) > 1
@@ -498,6 +526,13 @@ def service_history_report():
 @jwt_required()
 def parts_usage_report():
     """Get parts usage and inventory report"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         period = request.args.get('period', 'month')
         part_no = request.args.get('part_no')
@@ -515,7 +550,7 @@ def parts_usage_report():
             SUM(Quantity) as TotalQuantity,
             SUM(ExtendedPrice) as TotalRevenue,
             AVG(Price) as AvgPrice
-        FROM ben002.InvoicePartsDetail
+        FROM {schema}.InvoicePartsDetail
         WHERE InvoiceDate BETWEEN '{start_date}' AND '{end_date}'
         {f"AND PartNo = '{part_no}'" if part_no else ''}
         GROUP BY PartNo, Description
@@ -533,7 +568,7 @@ def parts_usage_report():
             Cost,
             List,
             BinLocation
-        FROM ben002.NationalParts
+        FROM {schema}.NationalParts
         WHERE OnHand > 0
         ORDER BY (OnHand * Cost) DESC
         """
@@ -548,7 +583,7 @@ def parts_usage_report():
             MinimumStock,
             OnOrder,
             LastSaleDate
-        FROM ben002.NationalParts
+        FROM {schema}.NationalParts
         WHERE OnHand < MinimumStock
         AND MinimumStock > 0
         ORDER BY (MinimumStock - OnHand) DESC
@@ -562,7 +597,7 @@ def parts_usage_report():
             COUNT(*) as PartCount,
             SUM(OnHand * Cost) as InventoryValue,
             AVG(List - Cost) as AvgMarkup
-        FROM ben002.NationalParts
+        FROM {schema}.NationalParts
         WHERE SupplierCode IS NOT NULL
         GROUP BY SupplierCode
         ORDER BY InventoryValue DESC
@@ -590,6 +625,13 @@ def parts_usage_report():
 @jwt_required()
 def financial_summary_report():
     """Get financial summary report"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         period = request.args.get('period', 'month')
         start_date, end_date = get_date_range(period)
@@ -605,7 +647,7 @@ def financial_summary_report():
             SUM(CASE WHEN DaysPastDue > 30 THEN Balance ELSE 0 END) as Over30Days,
             SUM(CASE WHEN DaysPastDue > 60 THEN Balance ELSE 0 END) as Over60Days,
             SUM(CASE WHEN DaysPastDue > 90 THEN Balance ELSE 0 END) as Over90Days
-        FROM ben002.Customer
+        FROM {schema}.Customer
         WHERE Balance > 0
         """
         ar_summary = db.execute_query(ar_summary_query)
@@ -620,7 +662,7 @@ def financial_summary_report():
             DaysPastDue,
             LastPaymentDate,
             LastPaymentAmount
-        FROM ben002.Customer
+        FROM {schema}.Customer
         WHERE Balance > 0
         ORDER BY Balance DESC
         """
@@ -633,7 +675,7 @@ def financial_summary_report():
             COUNT(*) as TransactionCount,
             SUM(TotalAmount) as Revenue,
             SUM(TotalTax) as TaxCollected
-        FROM ben002.InvoiceReg
+        FROM {schema}.InvoiceReg
         WHERE InvoiceDate BETWEEN '{start_date}' AND '{end_date}'
         GROUP BY DepartmentNo
         ORDER BY Revenue DESC
@@ -646,7 +688,7 @@ def financial_summary_report():
             CAST(PaymentDate as DATE) as Date,
             SUM(PaymentAmount) as DailyCollections,
             COUNT(*) as PaymentCount
-        FROM ben002.ARDetail
+        FROM {schema}.ARDetail
         WHERE PaymentDate BETWEEN '{start_date}' AND '{end_date}'
         AND TransactionType = 'Payment'
         GROUP BY CAST(PaymentDate as DATE)
@@ -661,7 +703,7 @@ def financial_summary_report():
             COUNT(*) as Count,
             SUM(Cost) as TotalCost,
             SUM(SellingPrice) as TotalRetailValue
-        FROM ben002.Equipment
+        FROM {schema}.Equipment
         WHERE Status IN ('In Stock', 'On Order')
         GROUP BY Status
         """

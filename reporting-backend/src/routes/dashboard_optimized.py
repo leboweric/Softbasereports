@@ -65,8 +65,9 @@ OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000']
 class DashboardQueries:
     """Encapsulate all dashboard queries for parallel execution"""
     
-    def __init__(self, db):
+    def __init__(self, db, schema='ben002'):
         self.db = db
+        self.schema = schema  # Tenant-specific database schema
         self.current_date = datetime.now()
         self.month_start = self.current_date.replace(day=1).strftime('%Y-%m-%d')
         self.thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -95,7 +96,7 @@ class DashboardQueries:
             # Get current month's revenue from GLDetail
             query = f"""
             SELECT -SUM(Amount) as total_sales
-            FROM ben002.GLDetail
+            FROM {self.schema}.GLDetail
             WHERE AccountNo IN ('{revenue_list}')
                 AND MONTH(EffectiveDate) = {self.current_date.month}
                 AND YEAR(EffectiveDate) = {self.current_date.year}
@@ -125,7 +126,7 @@ class DashboardQueries:
             # Get YTD revenue from GLDetail
             query = f"""
             SELECT -SUM(Amount) as ytd_sales
-            FROM ben002.GLDetail
+            FROM {self.schema}.GLDetail
             WHERE AccountNo IN ('{revenue_list}')
                 AND EffectiveDate >= '{self.fiscal_year_start}'
                 AND EffectiveDate < DATEADD(DAY, 1, GETDATE())
@@ -142,7 +143,7 @@ class DashboardQueries:
         try:
             query = """
             SELECT COUNT(*) as inventory_count
-            FROM ben002.Equipment
+            FROM {self.schema}.Equipment
             WHERE RentalStatus = 'Ready To Rent'
             """
             result = self.db.execute_query(query)
@@ -177,7 +178,7 @@ class DashboardQueries:
                     END
                     ELSE NULL 
                 END) as previous_month_customers
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE InvoiceDate >= '{sixty_days_ago}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
@@ -206,7 +207,7 @@ class DashboardQueries:
             # First try without WHERE clause to see if we get any customers
             query = """
             SELECT COUNT(*) as total_customers
-            FROM ben002.Customer
+            FROM {self.schema}.Customer
             """
             result = self.db.execute_query(query)
             return int(result[0]['total_customers']) if result else 0
@@ -220,7 +221,7 @@ class DashboardQueries:
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END) as total_customers
-                FROM ben002.InvoiceReg
+                FROM {self.schema}.InvoiceReg
                 WHERE BillToName IS NOT NULL
                 AND BillToName != ''
                 AND BillToName NOT LIKE '%Wells Fargo%'
@@ -260,7 +261,7 @@ class DashboardQueries:
                 -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_revenue,
                 -- Cost (Debit accounts, so positive sum)
                 SUM(CASE WHEN AccountNo IN ('{cost_list}') THEN Amount ELSE 0 END) as total_cost
-            FROM ben002.GLDetail
+            FROM {self.schema}.GLDetail
             WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
@@ -369,7 +370,7 @@ class DashboardQueries:
                 -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_revenue,
                 -- Cost (Debit accounts, so positive sum)
                 SUM(CASE WHEN AccountNo IN ('{cost_list}') THEN Amount ELSE 0 END) as total_cost
-            FROM ben002.GLDetail
+            FROM {self.schema}.GLDetail
             WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
@@ -478,7 +479,7 @@ class DashboardQueries:
                 -- Rental Revenue and Cost
                 -SUM(CASE WHEN AccountNo IN ('{rental_rev_list}') THEN Amount ELSE 0 END) as rental_revenue,
                 SUM(CASE WHEN AccountNo IN ('{rental_cost_list}') THEN Amount ELSE 0 END) as rental_cost
-            FROM ben002.GLDetail
+            FROM {self.schema}.GLDetail
             WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
@@ -576,20 +577,20 @@ class DashboardQueries:
                     COALESCE(p.parts_total, 0) + 
                     COALESCE(m.misc_total, 0)
                 ), 0) as total_value
-            FROM ben002.WO w
+            FROM {self.schema}.WO w
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
+                FROM {self.schema}.WOLabor 
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
+                FROM {self.schema}.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
+                FROM {self.schema}.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             WHERE w.CompletedDate IS NOT NULL
@@ -609,7 +610,7 @@ class DashboardQueries:
             try:
                 simple_query = """
                 SELECT COUNT(*) as count
-                FROM ben002.WO
+                FROM {self.schema}.WO
                 WHERE CompletedDate IS NOT NULL
                 AND InvoiceDate IS NULL
                 """
@@ -630,7 +631,7 @@ class DashboardQueries:
                 MONTH(EffectiveDate) as month,
                 ABS(SUM(CASE WHEN AccountNo = '413001' THEN Amount ELSE 0 END)) as equipment_revenue,
                 ABS(SUM(CASE WHEN AccountNo = '513001' THEN Amount ELSE 0 END)) as equipment_cost
-            FROM ben002.GLDetail
+            FROM {self.schema}.GLDetail
             WHERE AccountNo IN ('413001', '513001')  -- Linde new truck sales only
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
@@ -647,7 +648,7 @@ class DashboardQueries:
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
                 COUNT(*) as unit_count
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE SaleCode = 'LINDEN'
                 AND InvoiceDate >= DATEADD(month, -13, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -735,7 +736,7 @@ class DashboardQueries:
                     MONTH(CreationTime) as month,
                     WONo,
                     MAX(CAST(CreationTime AS DATE)) as latest_quote_date
-                FROM ben002.WOQuote
+                FROM {self.schema}.WOQuote
                 WHERE CreationTime >= '2025-03-01'
                 AND Amount > 0
                 GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
@@ -748,7 +749,7 @@ class DashboardQueries:
                     lq.WONo,
                     SUM(wq.Amount) as wo_total
                 FROM LatestQuotes lq
-                INNER JOIN ben002.WOQuote wq
+                INNER JOIN {self.schema}.WOQuote wq
                     ON lq.WONo = wq.WONo
                     AND lq.year = YEAR(wq.CreationTime)
                     AND lq.month = MONTH(wq.CreationTime)
@@ -821,17 +822,17 @@ class DashboardQueries:
             query = """
             WITH LaborTotals AS (
                 SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
+                FROM {self.schema}.WOLabor 
                 GROUP BY WONo
             ),
             PartsTotals AS (
                 SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
+                FROM {self.schema}.WOParts 
                 GROUP BY WONo
             ),
             MiscTotals AS (
                 SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
+                FROM {self.schema}.WOMisc 
                 GROUP BY WONo
             )
             SELECT 
@@ -851,7 +852,7 @@ class DashboardQueries:
                     COALESCE(p.parts_total, 0) + 
                     COALESCE(m.misc_total, 0)
                 ) as total_value
-            FROM ben002.WO w
+            FROM {self.schema}.WO w
             LEFT JOIN LaborTotals l ON w.WONo = l.WONo
             LEFT JOIN PartsTotals p ON w.WONo = p.WONo
             LEFT JOIN MiscTotals m ON w.WONo = m.WONo
@@ -865,17 +866,17 @@ class DashboardQueries:
             previous_query = f"""
             WITH LaborTotals AS (
                 SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
+                FROM {self.schema}.WOLabor 
                 GROUP BY WONo
             ),
             PartsTotals AS (
                 SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
+                FROM {self.schema}.WOParts 
                 GROUP BY WONo
             ),
             MiscTotals AS (
                 SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
+                FROM {self.schema}.WOMisc 
                 GROUP BY WONo
             )
             SELECT SUM(
@@ -883,7 +884,7 @@ class DashboardQueries:
                 COALESCE(p.parts_total, 0) + 
                 COALESCE(m.misc_total, 0)
             ) as previous_total_value
-            FROM ben002.WO w
+            FROM {self.schema}.WO w
             LEFT JOIN LaborTotals l ON w.WONo = l.WONo
             LEFT JOIN PartsTotals p ON w.WONo = p.WONo
             LEFT JOIN MiscTotals m ON w.WONo = m.WONo
@@ -938,23 +939,23 @@ class DashboardQueries:
             query = """
             WITH LaborTotals AS (
                 SELECT WONo, SUM(Sell) as labor_sell 
-                FROM ben002.WOLabor 
+                FROM {self.schema}.WOLabor 
                 GROUP BY WONo
             ),
             LaborQuotes AS (
                 SELECT WONo, SUM(Amount) as quote_amount 
-                FROM ben002.WOQuote 
+                FROM {self.schema}.WOQuote 
                 WHERE Type = 'L'
                 GROUP BY WONo
             ),
             PartsTotals AS (
                 SELECT WONo, SUM(Sell * Qty) as parts_sell 
-                FROM ben002.WOParts 
+                FROM {self.schema}.WOParts 
                 GROUP BY WONo
             ),
             MiscTotals AS (
                 SELECT WONo, SUM(Sell) as misc_sell 
-                FROM ben002.WOMisc 
+                FROM {self.schema}.WOMisc 
                 GROUP BY WONo
             ),
             CompletedWOs AS (
@@ -967,12 +968,12 @@ class DashboardQueries:
                     COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) as labor_total,
                     COALESCE(p.parts_sell, 0) as parts_total,
                     COALESCE(m.misc_sell, 0) as misc_total
-                FROM ben002.WO w
+                FROM {self.schema}.WO w
                 LEFT JOIN LaborTotals l ON w.WONo = l.WONo
                 LEFT JOIN LaborQuotes lq ON w.WONo = lq.WONo
                 LEFT JOIN PartsTotals p ON w.WONo = p.WONo
                 LEFT JOIN MiscTotals m ON w.WONo = m.WONo
-                LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+                LEFT JOIN {self.schema}.Customer c ON w.BillTo = c.Number
                 WHERE w.CompletedDate IS NOT NULL
                   AND w.ClosedDate IS NULL
                   AND w.InvoiceDate IS NULL
@@ -1038,15 +1039,15 @@ class DashboardQueries:
                     DATEDIFF(day, w.OpenDate, GETDATE()) as DaysSinceOpened,
                     COALESCE(p.parts_total, 0) as parts_total,
                     COALESCE(m.misc_total, 0) as misc_total
-                FROM ben002.WO w
+                FROM {self.schema}.WO w
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell * Qty) as parts_total 
-                    FROM ben002.WOParts 
+                    FROM {self.schema}.WOParts 
                     GROUP BY WONo
                 ) p ON w.WONo = p.WONo
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell) as misc_total 
-                    FROM ben002.WOMisc 
+                    FROM {self.schema}.WOMisc 
                     GROUP BY WONo
                 ) m ON w.WONo = m.WONo
                 WHERE w.ClosedDate IS NULL
@@ -1097,15 +1098,15 @@ class DashboardQueries:
                     DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysSinceCompleted,
                     COALESCE(p.parts_sell, 0) as parts_total,
                     COALESCE(m.misc_sell, 0) as misc_total
-                FROM ben002.WO w
+                FROM {self.schema}.WO w
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell * Qty) as parts_sell 
-                    FROM ben002.WOParts 
+                    FROM {self.schema}.WOParts 
                     GROUP BY WONo
                 ) p ON w.WONo = p.WONo
                 LEFT JOIN (
                     SELECT WONo, SUM(Sell) as misc_sell 
-                    FROM ben002.WOMisc 
+                    FROM {self.schema}.WOMisc 
                     GROUP BY WONo
                 ) m ON w.WONo = m.WONo
                 WHERE w.CompletedDate IS NOT NULL
@@ -1165,7 +1166,7 @@ class DashboardQueries:
                     YEAR(CompletedDate) as year,
                     MONTH(CompletedDate) as month,
                     EOMONTH(CompletedDate) as month_end
-                FROM ben002.WO
+                FROM {self.schema}.WO
                 WHERE CompletedDate >= '2025-03-01'
                     AND CompletedDate <= GETDATE()
                     AND Type IN ('S', 'SH', 'PM')  -- Service, Shop, and PM work orders
@@ -1186,7 +1187,7 @@ class DashboardQueries:
                         ELSE DATEDIFF(day, w.CompletedDate, me.month_end)
                     END as DaysWaiting
                 FROM MonthEnds me
-                INNER JOIN ben002.WO w 
+                INNER JOIN {self.schema}.WO w 
                     ON YEAR(w.CompletedDate) = me.year 
                     AND MONTH(w.CompletedDate) = me.month
                 WHERE w.CompletedDate IS NOT NULL
@@ -1233,7 +1234,7 @@ class DashboardQueries:
             # First get total sales since March 2025 (excluding non-customers)
             total_sales_query = f"""
             SELECT SUM(GrandTotal) as total_sales
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE InvoiceDate >= '{ytd_start}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
@@ -1259,7 +1260,7 @@ class DashboardQueries:
                         WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                         ELSE BillToName
                     END as customer_name
-                FROM ben002.InvoiceReg
+                FROM {self.schema}.InvoiceReg
                 WHERE InvoiceDate >= '{ytd_start}'
                 AND BillToName IS NOT NULL
                 AND BillToName != ''
@@ -1354,17 +1355,17 @@ class DashboardQueries:
             query = """
             WITH LaborTotals AS (
                 SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
+                FROM {self.schema}.WOLabor 
                 GROUP BY WONo
             ),
             PartsTotals AS (
                 SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
+                FROM {self.schema}.WOParts 
                 GROUP BY WONo
             ),
             MiscTotals AS (
                 SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
+                FROM {self.schema}.WOMisc 
                 GROUP BY WONo
             )
             SELECT 
@@ -1377,7 +1378,7 @@ class DashboardQueries:
                     COALESCE(p.parts_total, 0) + 
                     COALESCE(m.misc_total, 0)
                 ) as total_value
-            FROM ben002.WO w
+            FROM {self.schema}.WO w
             LEFT JOIN LaborTotals l ON w.WONo = l.WONo
             LEFT JOIN PartsTotals p ON w.WONo = p.WONo
             LEFT JOIN MiscTotals m ON w.WONo = m.WONo
@@ -1473,7 +1474,7 @@ class DashboardQueries:
                 -- Rental margin
                 SUM(RentalTaxable + RentalNonTax) as rental_revenue,
                 SUM(RentalCost) as rental_cost
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE InvoiceDate >= '{self.twelve_months_ago}'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1536,7 +1537,7 @@ class DashboardQueries:
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END) as active_customers
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE InvoiceDate >= '2025-03-01'
             AND BillToName IS NOT NULL
             AND BillToName != ''
@@ -1587,7 +1588,7 @@ class DashboardQueries:
                     YEAR(OpenDate) as year,
                     MONTH(OpenDate) as month,
                     EOMONTH(OpenDate) as month_end
-                FROM ben002.WO
+                FROM {self.schema}.WO
                 WHERE OpenDate >= '2025-03-01'
                 AND EOMONTH(OpenDate) < EOMONTH(GETDATE())  -- Only include completed months
             )
@@ -1604,20 +1605,20 @@ class DashboardQueries:
                     END
                 ) as open_value
             FROM MonthEnds me
-            CROSS JOIN ben002.WO w
+            CROSS JOIN {self.schema}.WO w
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as labor_total 
-                FROM ben002.WOLabor 
+                FROM {self.schema}.WOLabor 
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM ben002.WOParts 
+                FROM {self.schema}.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_total 
-                FROM ben002.WOMisc 
+                FROM {self.schema}.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             GROUP BY me.year, me.month, me.month_end
@@ -1693,8 +1694,8 @@ class DashboardQueries:
             sample_query = """
             SELECT TOP 10
                 id.*
-            FROM ben002.InvoiceDetail id
-            INNER JOIN ben002.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
+            FROM {self.schema}.InvoiceDetail id
+            INNER JOIN {self.schema}.InvoiceReg ir ON id.InvoiceNo = ir.InvoiceNo
             WHERE ir.SaleCode = 'LINDEN'
                 AND ir.InvoiceDate >= DATEADD(month, -3, GETDATE())
             ORDER BY ir.InvoiceDate DESC
@@ -1733,12 +1734,19 @@ def get_dashboard_summary_optimized():
     # Check for cache refresh parameter
     force_refresh = request.args.get('refresh', '').lower() == 'true'
     
+    # Get tenant schema from current user's organization
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        tenant_schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     # Log cache status
-    logger.info(f"Dashboard request - force_refresh: {force_refresh}, cache_enabled: {cache_service.enabled}")
+    logger.info(f"Dashboard request - tenant: {tenant_schema}, force_refresh: {force_refresh}, cache_enabled: {cache_service.enabled}")
     
     try:
         db = AzureSQLService()
-        queries = DashboardQueries(db)
+        queries = DashboardQueries(db, schema=tenant_schema)
         
         # Cache TTL settings (in seconds) - all set to 1 hour for performance
         cache_ttl = {
@@ -1755,9 +1763,9 @@ def get_dashboard_summary_optimized():
             'department_margins': 3600  # 1 hour
         }
         
-        # Define all query tasks with caching
+        # Define all query tasks with caching (include tenant schema in cache key for isolation)
         def cached_query(key, func, ttl):
-            cache_key = f"dashboard:{key}:{datetime.now().strftime('%Y-%m')}"
+            cache_key = f"dashboard:{tenant_schema}:{key}:{datetime.now().strftime('%Y-%m')}"
             return cache_service.cache_query(cache_key, func, ttl, force_refresh)
         
         query_tasks = {
@@ -1926,7 +1934,7 @@ def export_active_customers():
             MAX(InvoiceDate) as last_invoice_date,
             SUM(GrandTotal) as total_sales,
             AVG(GrandTotal) as avg_invoice_value
-        FROM ben002.InvoiceReg
+        FROM {self.schema}.InvoiceReg
         WHERE InvoiceDate >= '{start_date}'
             AND InvoiceDate <= '{end_date}'
             AND BillToName IS NOT NULL
@@ -2012,7 +2020,7 @@ def analyze_customer_risk():
             SUM(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN GrandTotal ELSE 0 END) as recent_30_sales,
             COUNT(CASE WHEN InvoiceDate >= '{very_recent_start}' THEN 1 ELSE NULL END) as recent_30_invoices,
             DATEDIFF(day, MAX(InvoiceDate), GETDATE()) as days_since_last_invoice
-        FROM ben002.InvoiceReg
+        FROM {self.schema}.InvoiceReg
         WHERE InvoiceDate >= '{fiscal_year_start_str}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
@@ -2140,26 +2148,26 @@ def analyze_invoice_delays():
                 COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) as labor_total,
                 COALESCE(p.parts_sell, 0) as parts_total,
                 COALESCE(m.misc_sell, 0) as misc_total
-            FROM ben002.WO w
+            FROM {self.schema}.WO w
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as labor_sell 
-                FROM ben002.WOLabor 
+                FROM {self.schema}.WOLabor 
                 GROUP BY WONo
             ) l ON w.WONo = l.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Amount) as quote_amount 
-                FROM ben002.WOQuote 
+                FROM {self.schema}.WOQuote 
                 WHERE Type = 'L'
                 GROUP BY WONo
             ) lq ON w.WONo = lq.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_sell 
-                FROM ben002.WOParts 
+                FROM {self.schema}.WOParts 
                 GROUP BY WONo
             ) p ON w.WONo = p.WONo
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as misc_sell 
-                FROM ben002.WOMisc 
+                FROM {self.schema}.WOMisc 
                 GROUP BY WONo
             ) m ON w.WONo = m.WONo
             WHERE w.CompletedDate IS NOT NULL
@@ -2247,19 +2255,19 @@ def analyze_invoice_delays():
             DATEDIFF(day, w.CompletedDate, GETDATE()) as DaysWaiting,
             COALESCE(l.labor_sell, 0) + COALESCE(lq.quote_amount, 0) + 
             COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as TotalValue
-        FROM ben002.WO w
-        LEFT JOIN ben002.Customer c ON w.BillTo = c.Number
+        FROM {self.schema}.WO w
+        LEFT JOIN {self.schema}.Customer c ON w.BillTo = c.Number
         LEFT JOIN (
-            SELECT WONo, SUM(Sell) as labor_sell FROM ben002.WOLabor GROUP BY WONo
+            SELECT WONo, SUM(Sell) as labor_sell FROM {self.schema}.WOLabor GROUP BY WONo
         ) l ON w.WONo = l.WONo
         LEFT JOIN (
-            SELECT WONo, SUM(Amount) as quote_amount FROM ben002.WOQuote WHERE Type = 'L' GROUP BY WONo
+            SELECT WONo, SUM(Amount) as quote_amount FROM {self.schema}.WOQuote WHERE Type = 'L' GROUP BY WONo
         ) lq ON w.WONo = lq.WONo
         LEFT JOIN (
-            SELECT WONo, SUM(Sell * Qty) as parts_sell FROM ben002.WOParts GROUP BY WONo
+            SELECT WONo, SUM(Sell * Qty) as parts_sell FROM {self.schema}.WOParts GROUP BY WONo
         ) p ON w.WONo = p.WONo
         LEFT JOIN (
-            SELECT WONo, SUM(Sell) as misc_sell FROM ben002.WOMisc GROUP BY WONo
+            SELECT WONo, SUM(Sell) as misc_sell FROM {self.schema}.WOMisc GROUP BY WONo
         ) m ON w.WONo = m.WONo
         WHERE w.CompletedDate IS NOT NULL
           AND w.ClosedDate IS NULL
@@ -2339,7 +2347,7 @@ def check_equipment_sale_codes():
             SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as total_revenue,
             MIN(InvoiceDate) as first_invoice,
             MAX(InvoiceDate) as last_invoice
-        FROM ben002.InvoiceReg
+        FROM {self.schema}.InvoiceReg
         WHERE YEAR(InvoiceDate) = 2025 AND MONTH(InvoiceDate) = 7
             AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
         GROUP BY SaleCode, SaleDept
@@ -2352,22 +2360,22 @@ def check_equipment_sale_codes():
         check_query = """
         SELECT 
             'LINDE' as code, COUNT(*) as count 
-        FROM ben002.InvoiceReg 
+        FROM {self.schema}.InvoiceReg 
         WHERE SaleCode = 'LINDE'
         UNION ALL
         SELECT 
             'LINDEN' as code, COUNT(*) as count 
-        FROM ben002.InvoiceReg 
+        FROM {self.schema}.InvoiceReg 
         WHERE SaleCode = 'LINDEN'
         UNION ALL
         SELECT 
             'NEWEQ' as code, COUNT(*) as count 
-        FROM ben002.InvoiceReg 
+        FROM {self.schema}.InvoiceReg 
         WHERE SaleCode = 'NEWEQ'
         UNION ALL
         SELECT 
             'KOM' as code, COUNT(*) as count 
-        FROM ben002.InvoiceReg 
+        FROM {self.schema}.InvoiceReg 
         WHERE SaleCode = 'KOM'
         """
         
@@ -2400,7 +2408,7 @@ def debug_equipment_sales():
             EquipmentTaxable,
             EquipmentNonTax,
             EquipmentCost
-        FROM ben002.InvoiceReg
+        FROM {self.schema}.InvoiceReg
         WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
             AND InvoiceDate >= '2025-03-01'
         ORDER BY InvoiceDate DESC
@@ -2417,7 +2425,7 @@ def debug_equipment_sales():
         # Test 2: Check ALL sale codes that have equipment revenue
         test2_query = """
         SELECT DISTINCT SaleCode, COUNT(*) as count
-        FROM ben002.InvoiceReg
+        FROM {self.schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-03-01'
             AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
         GROUP BY SaleCode
@@ -2456,7 +2464,7 @@ def debug_equipment_sales():
                 THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)
                 ELSE 0
             END) as equipment_revenue
-        FROM ben002.InvoiceReg
+        FROM {self.schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-03-01'
             AND SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -2479,7 +2487,7 @@ def debug_equipment_sales():
                 SerialNo,
                 UnitNo,
                 Description
-            FROM ben002.InvoiceSales
+            FROM {self.schema}.InvoiceSales
             WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
             """
             try:
@@ -2524,7 +2532,7 @@ def get_equipment_sales_details_endpoint():
             ir.EquipmentTaxable + COALESCE(ir.EquipmentNonTax, 0) as SellPrice,
             ir.EquipmentCost as CostPrice,
             ir.WONo
-        FROM ben002.InvoiceReg ir
+        FROM {self.schema}.InvoiceReg ir
         WHERE ir.InvoiceDate >= '{start_date}'
             AND ir.InvoiceDate <= '{end_date}'
             AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)

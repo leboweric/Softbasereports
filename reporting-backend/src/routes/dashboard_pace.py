@@ -9,6 +9,13 @@ dashboard_pace_bp = Blueprint('dashboard_pace', __name__)
 @jwt_required()
 def get_sales_pace():
     """Get sales and quotes pace data comparing current month to previous month through same day"""
+    # Get tenant schema
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
     try:
         db = AzureSQLService()
         
@@ -81,7 +88,7 @@ def get_sales_pace():
         SELECT 
             -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
             -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE YEAR(EffectiveDate) = {current_year}
             AND MONTH(EffectiveDate) = {current_month}
             AND DAY(EffectiveDate) <= {current_day}
@@ -92,7 +99,7 @@ def get_sales_pace():
         SELECT 
             -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
             -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE YEAR(EffectiveDate) = {prev_year}
             AND MONTH(EffectiveDate) = {prev_month}
             AND DAY(EffectiveDate) <= {current_day}
@@ -122,7 +129,7 @@ def get_sales_pace():
         SELECT 
             -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
             -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
-        FROM ben002.GLDetail
+        FROM {schema}.GLDetail
         WHERE YEAR(EffectiveDate) = {prev_year}
             AND MONTH(EffectiveDate) = {prev_month}
             AND Posted = 1
@@ -140,7 +147,7 @@ def get_sales_pace():
                 MONTH(EffectiveDate) as month,
                 -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
                 -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
-            FROM ben002.GLDetail
+            FROM {schema}.GLDetail
             WHERE EffectiveDate >= DATEADD(month, -12, GETDATE())
                 AND YEAR(EffectiveDate) * 100 + MONTH(EffectiveDate) < {current_year} * 100 + {current_month}
                 AND Posted = 1
@@ -215,7 +222,7 @@ def get_sales_pace():
             SELECT 
                 WONo,
                 MAX(CAST(CreationTime AS DATE)) as latest_quote_date
-            FROM ben002.WOQuote
+            FROM {schema}.WOQuote
             WHERE YEAR(CreationTime) = {current_year}
                 AND MONTH(CreationTime) = {current_month}
                 AND DAY(CreationTime) <= {current_day}
@@ -227,7 +234,7 @@ def get_sales_pace():
                 lq.WONo,
                 SUM(wq.Amount) as wo_total
             FROM LatestQuotes lq
-            INNER JOIN ben002.WOQuote wq
+            INNER JOIN {schema}.WOQuote wq
                 ON lq.WONo = wq.WONo
                 AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
             WHERE wq.Amount > 0
@@ -242,7 +249,7 @@ def get_sales_pace():
             SELECT 
                 WONo,
                 MAX(CAST(CreationTime AS DATE)) as latest_quote_date
-            FROM ben002.WOQuote
+            FROM {schema}.WOQuote
             WHERE YEAR(CreationTime) = {prev_year}
                 AND MONTH(CreationTime) = {prev_month}
                 AND DAY(CreationTime) <= {current_day}
@@ -254,7 +261,7 @@ def get_sales_pace():
                 lq.WONo,
                 SUM(wq.Amount) as wo_total
             FROM LatestQuotes lq
-            INNER JOIN ben002.WOQuote wq
+            INNER JOIN {schema}.WOQuote wq
                 ON lq.WONo = wq.WONo
                 AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
             WHERE wq.Amount > 0
