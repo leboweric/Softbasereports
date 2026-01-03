@@ -66,7 +66,7 @@ OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000']
 class DashboardQueries:
     """Encapsulate all dashboard queries for parallel execution"""
     
-    def __init__(self, db, schema='{schema}'):
+    def __init__(self, db, schema='ben002'):
         self.db = db
         self.schema = schema  # Tenant-specific database schema
         self.current_date = datetime.now()
@@ -2346,7 +2346,9 @@ def analyze_invoice_delays():
 def debug_no_equipment_sales():
     """Debug endpoint to check Monthly Sales (No Equipment) data"""
     try:
-        queries = DashboardQueries()
+        db = get_db()
+        schema = get_tenant_schema()
+        queries = DashboardQueries(db, schema=schema)
         data = queries.get_monthly_sales_excluding_equipment()
         
         return jsonify({
