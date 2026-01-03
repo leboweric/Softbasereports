@@ -50,7 +50,7 @@ def _fetch_sales_forecast_data(current_year, current_month, current_day, schema)
     db = AzureSQLService()
     
     # Get historical daily sales patterns (last 12 months for better patterns)
-    daily_pattern_query = """
+    daily_pattern_query = f"""
     WITH DailySales AS (
         SELECT 
             YEAR(InvoiceDate) as year,
@@ -342,7 +342,7 @@ def save_forecast_to_history(forecast_result, is_scheduled_snapshot=False):
         # Mark as mid-month snapshot if it's the 15th or if this is a scheduled snapshot
         is_mid_month_snapshot = (current['day'] == 15) or is_scheduled_snapshot
         
-        insert_query = """
+        insert_query = f"""
         INSERT INTO forecast_history (
             forecast_date,
             forecast_timestamp,
@@ -414,7 +414,7 @@ def backfill_forecast_actuals():
             return jsonify({'error': 'PostgreSQL not available'}), 500
         
         # Get all forecasts that don't have actuals yet
-        pending_query = """
+        pending_query = f"""
         SELECT DISTINCT target_year, target_month
         FROM forecast_history
         WHERE actual_total IS NULL
@@ -460,7 +460,7 @@ def backfill_forecast_actuals():
             actual_invoices = int(actual_result['actual_invoices'] or 0)
             
             # Update all forecasts for this month
-            update_query = """
+            update_query = f"""
             UPDATE forecast_history
             SET 
                 actual_total = %s,
@@ -518,7 +518,7 @@ def get_forecast_accuracy():
             return jsonify({'error': 'PostgreSQL not available'}), 500
         
         # Get overall accuracy metrics
-        metrics_query = """
+        metrics_query = f"""
         SELECT 
             COUNT(*) as total_forecasts,
             COUNT(CASE WHEN actual_total IS NOT NULL THEN 1 END) as completed_forecasts,
@@ -534,7 +534,7 @@ def get_forecast_accuracy():
         metrics = postgres_db.execute_query(metrics_query)
         
         # Get accuracy by month
-        monthly_query = """
+        monthly_query = f"""
         SELECT 
             target_year,
             target_month,
@@ -554,7 +554,7 @@ def get_forecast_accuracy():
         monthly_accuracy = postgres_db.execute_query(monthly_query)
         
         # Get accuracy trend by days into month
-        days_trend_query = """
+        days_trend_query = f"""
         SELECT 
             days_into_month,
             COUNT(*) as forecast_count,
@@ -569,7 +569,7 @@ def get_forecast_accuracy():
         days_trend = postgres_db.execute_query(days_trend_query)
         
         # Get recent forecasts with details - deduplicated to one per day per month
-        recent_query = """
+        recent_query = f"""
         SELECT DISTINCT ON (forecast_date, target_year, target_month)
             forecast_date,
             target_year,
@@ -680,7 +680,7 @@ def generate_test_data():
             return jsonify({'error': 'PostgreSQL not available'}), 500
         
         # Get October 2025 actual sales
-        actual_query = """
+        actual_query = f"""
         SELECT 
             SUM(GrandTotal) as actual_total,
             COUNT(*) as actual_invoices
@@ -694,7 +694,7 @@ def generate_test_data():
         actual_invoices = int(actual_result['actual_invoices'] or 165)
         
         # Clear existing October 2025 test data
-        delete_query = """
+        delete_query = f"""
         DELETE FROM forecast_history
         WHERE target_year = 2025 AND target_month = 10
         """
@@ -734,7 +734,7 @@ def generate_test_data():
             avg_pct_complete = (day / days_in_month) * 100 * (0.95 + (day % 2) * 0.05)
             
             # Insert forecast
-            insert_query = """
+            insert_query = f"""
             INSERT INTO forecast_history (
                 forecast_date,
                 forecast_timestamp,
@@ -793,7 +793,7 @@ def generate_test_data():
             forecasts_created += 1
         
         # Get summary stats
-        summary_query = """
+        summary_query = f"""
         SELECT 
             COUNT(*) as count,
             AVG(accuracy_pct) as avg_mape,
@@ -868,7 +868,7 @@ def get_mid_month_snapshots():
             return jsonify({'error': 'PostgreSQL not available'}), 500
         
         # Get all mid-month snapshots with accuracy data
-        mid_month_query = """
+        mid_month_query = f"""
         SELECT 
             target_year,
             target_month,

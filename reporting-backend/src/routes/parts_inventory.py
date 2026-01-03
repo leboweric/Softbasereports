@@ -502,7 +502,7 @@ def get_inventory_summary():
     try:
         db = AzureSQLService()
         
-        summary_query = """
+        summary_query = f"""
         SELECT 
             COUNT(*) as total_parts,
             SUM(CASE WHEN OnHand > 0 THEN 1 ELSE 0 END) as parts_in_stock,
@@ -656,7 +656,7 @@ def test_tables():
         
         # Test 1: Check if Parts table exists and get column names
         try:
-            parts_schema_query = """
+            parts_schema_query = f"""
             SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'Parts'
@@ -675,7 +675,7 @@ def test_tables():
         
         # Test 2: Sample Parts data
         try:
-            parts_sample_query = """
+            parts_sample_query = f"""
             SELECT TOP 3 PartNo, Description, Cost, List, OnHand
             FROM {schema}.Parts 
             WHERE PartNo IS NOT NULL AND PartNo != ''
@@ -693,7 +693,7 @@ def test_tables():
         
         # Test 3: Check if InvDetail table exists
         try:
-            invoice_detail_query = """
+            invoice_detail_query = f"""
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'InvDetail'
@@ -712,7 +712,7 @@ def test_tables():
         
         # Test 4: Check if WOParts table exists
         try:
-            woparts_query = """
+            woparts_query = f"""
             SELECT COLUMN_NAME, DATA_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'WOParts'
@@ -731,7 +731,7 @@ def test_tables():
         
         # Test 5: Test join between Parts and InvDetail
         try:
-            join_test_query = """
+            join_test_query = f"""
             SELECT TOP 3 
                 p.PartNo, 
                 p.Description,
@@ -789,7 +789,7 @@ def get_schema_tables():
         logger.info("Discovering tables in tenant schema...")
         
         # Get all tables in tenant schema
-        tables_query = """
+        tables_query = f"""
         SELECT 
             TABLE_SCHEMA,
             TABLE_NAME,
@@ -1017,7 +1017,7 @@ def simple_test():
         
         # Test 4: Simple join between Parts and InvDetail
         try:
-            join_query = """
+            join_query = f"""
             SELECT TOP 5 p.PartNo, p.Description, id.Quantity
             FROM {schema}.Parts p
             LEFT JOIN {schema}.InvDetail id ON p.PartNo = id.PartNo
@@ -1037,7 +1037,7 @@ def simple_test():
         
         # Test 5: Date filtering with corrected table name
         try:
-            date_query = """
+            date_query = f"""
             SELECT TOP 5 p.PartNo, ir.InvoiceDate
             FROM {schema}.Parts p
             LEFT JOIN {schema}.InvDetail id ON p.PartNo = id.PartNo

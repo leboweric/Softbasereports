@@ -73,7 +73,7 @@ def debug_dashboard():
             }
         
         # Test inventory query
-        inventory_query = """
+        inventory_query = f"""
         SELECT COUNT(*) as inventory_count
         FROM {schema}.Equipment
         WHERE RentalStatus IN ('In Stock', 'Available')
@@ -94,7 +94,7 @@ def debug_dashboard():
             }
         
         # Test customers query
-        customers_query = """
+        customers_query = f"""
         SELECT COUNT(DISTINCT ID) as active_customers
         FROM {schema}.Customer
         WHERE Balance > 0 OR YTD > 0
@@ -136,7 +136,7 @@ def check_service_claims():
         results = {}
         
         # Get ServiceClaim columns
-        columns_query = """
+        columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'ServiceClaim' 
@@ -182,7 +182,7 @@ def check_service_claims():
         
         # Try to get a work order with costs
         try:
-            cost_query = """
+            cost_query = f"""
             SELECT TOP 5 *
             FROM {schema}.ServiceClaim
             WHERE (TotalLabor > 0 OR TotalParts > 0)
@@ -192,7 +192,7 @@ def check_service_claims():
             # If TotalLabor/TotalParts don't exist, try other approaches
             try:
                 # Just get any 5 records
-                any_query = """
+                any_query = f"""
                 SELECT TOP 5 ServiceClaimID, *
                 FROM {schema}.ServiceClaim
                 ORDER BY ServiceClaimID DESC
@@ -222,7 +222,7 @@ def find_work_orders():
         results = {}
         
         # Get all tables that might contain work order data
-        tables_query = """
+        tables_query = f"""
         SELECT TABLE_NAME
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_SCHEMA = '{schema}'
@@ -409,7 +409,7 @@ def analyze_wo_table():
         # Try to get labor and parts totals
         try:
             # Check if we can join with WOLabor and WOParts
-            labor_parts_query = """
+            labor_parts_query = f"""
             SELECT TOP 5
                 w.WONumber,
                 COALESCE(
@@ -523,7 +523,7 @@ def test_uninvoiced_wo():
         # Check WOLabor and WOParts tables
         try:
             # Get uninvoiced work orders with labor/parts from related tables
-            complex_query = """
+            complex_query = f"""
             SELECT TOP 10
                 w.WO,
                 w.CompletedDate,
@@ -560,7 +560,7 @@ def calculate_uninvoiced_value():
         results = {}
         
         # Get uninvoiced work orders with their labor and parts totals
-        query = """
+        query = f"""
         SELECT 
             w.WONo,
             w.CompletedDate,
@@ -598,7 +598,7 @@ def calculate_uninvoiced_value():
             
         # Also test a simplified query for the dashboard
         try:
-            dashboard_query = """
+            dashboard_query = f"""
             SELECT 
                 COUNT(*) as count,
                 SUM(labor_total + parts_total + misc_total) as total_value
@@ -887,7 +887,7 @@ def analyze_woquote_data():
         results['date_columns'] = date_cols
         
         # Get sample records with amounts
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 10 
             wq.*,
             w.OpenDate as WO_OpenDate,
@@ -900,7 +900,7 @@ def analyze_woquote_data():
         results['sample_quotes'] = db.execute_query(sample_query)
         
         # Get monthly quote totals using CreationTime
-        monthly_query = """
+        monthly_query = f"""
         SELECT 
             YEAR(CreationTime) as year,
             MONTH(CreationTime) as month,
@@ -915,7 +915,7 @@ def analyze_woquote_data():
         results['monthly_by_creation'] = db.execute_query(monthly_query)
         
         # Also try using WO.ShopQuoteDate
-        wo_monthly_query = """
+        wo_monthly_query = f"""
         SELECT 
             YEAR(w.ShopQuoteDate) as year,
             MONTH(w.ShopQuoteDate) as month,
@@ -983,7 +983,7 @@ def analyze_department_margins():
                 results['sample_dept_fields'].append(dept_data)
         
         # Test query for parts margin by month
-        test_query = """
+        test_query = f"""
         SELECT 
             YEAR(InvoiceDate) as year,
             MONTH(InvoiceDate) as month,
@@ -1007,7 +1007,7 @@ def analyze_department_margins():
             results['parts_margin_error'] = str(e)
             
             # Try alternative column names
-            alt_query = """
+            alt_query = f"""
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
@@ -1109,7 +1109,7 @@ def analyze_total_work_orders():
         results = {}
         
         # Get breakdown of all work orders
-        breakdown_query = """
+        breakdown_query = f"""
         SELECT 
             CASE 
                 WHEN CompletedDate IS NOT NULL AND InvoiceDate IS NOT NULL THEN 'Completed and Invoiced'
@@ -1132,7 +1132,7 @@ def analyze_total_work_orders():
         results['wo_breakdown'] = db.execute_query(breakdown_query)
         
         # Get total value of ALL work orders (complete and incomplete)
-        all_wo_value_query = """
+        all_wo_value_query = f"""
         SELECT 
             COUNT(DISTINCT w.WONo) as total_count,
             SUM(labor_total + parts_total + misc_total) as total_value,
@@ -1155,7 +1155,7 @@ def analyze_total_work_orders():
             results['value_error'] = str(e)
         
         # Get just open/incomplete work orders value
-        open_wo_query = """
+        open_wo_query = f"""
         SELECT 
             COUNT(*) as count,
             SUM(labor_total + parts_total + misc_total) as total_value
@@ -1197,7 +1197,7 @@ def analyze_wo_types():
         results = {}
         
         # First, find type-related columns in WO table
-        wo_columns_query = """
+        wo_columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'WO' 
@@ -1214,7 +1214,7 @@ def analyze_wo_types():
         results['wo_type_columns'] = db.execute_query(wo_columns_query)
         
         # Get sample WO records to see type data
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 10 *
         FROM {schema}.WO
         WHERE CompletedDate IS NULL
@@ -1266,7 +1266,7 @@ def analyze_wo_types():
                 continue
         
         # Also get overall open/in progress summary
-        summary_query = """
+        summary_query = f"""
         SELECT 
             COUNT(*) as total_count,
             SUM(labor_total + parts_total + misc_total) as total_value
@@ -1304,7 +1304,7 @@ def debug_wo_types():
         results = {}
         
         # Get ALL columns from WO table
-        all_columns_query = """
+        all_columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'WO' 
@@ -1314,7 +1314,7 @@ def debug_wo_types():
         results['all_columns'] = db.execute_query(all_columns_query)
         
         # Get sample of open work orders to see actual data
-        sample_query = """
+        sample_query = f"""
         SELECT TOP 10 *
         FROM {schema}.WO
         WHERE CompletedDate IS NULL
@@ -1361,7 +1361,7 @@ def debug_wo_types():
                 continue
         
         # Get summary of open work orders
-        summary_query = """
+        summary_query = f"""
         SELECT 
             COUNT(*) as total_open,
             COUNT(CASE WHEN QuoteType IS NOT NULL THEN 1 END) as has_quotetype,
@@ -1403,7 +1403,7 @@ def check_tables():
         results = {}
         
         # Check Equipment table columns
-        equipment_columns_query = """
+        equipment_columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'Equipment' 
@@ -1414,7 +1414,7 @@ def check_tables():
         results['equipment_columns'] = db.execute_query(equipment_columns_query)
         
         # Check Customer table columns
-        customer_columns_query = """
+        customer_columns_query = f"""
         SELECT COLUMN_NAME, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'Customer' 
@@ -1541,7 +1541,7 @@ def validate_sales():
         }
         
         # Get monthly breakdown for better understanding
-        monthly_query = """
+        monthly_query = f"""
         SELECT 
             YEAR(InvoiceDate) as year,
             MONTH(InvoiceDate) as month,
@@ -1652,7 +1652,7 @@ def get_dashboard_summary():
             total_sales = 0
         
         # Get inventory count - only count equipment that is "Ready To Rent"
-        inventory_query = """
+        inventory_query = f"""
         SELECT COUNT(*) as inventory_count
         FROM {schema}.Equipment
         WHERE RentalStatus = 'Ready To Rent'
@@ -1815,7 +1815,7 @@ def get_dashboard_summary():
         uninvoiced_count = 0
         try:
             # First try ServiceClaim table (appears to be empty)
-            uninvoiced_query = """
+            uninvoiced_query = f"""
             SELECT 
                 COUNT(*) as count,
                 COALESCE(SUM(DealerTotal), 0) as total_value
@@ -1834,7 +1834,7 @@ def get_dashboard_summary():
                 try:
                     # Query WO table for completed but not invoiced work orders
                     # Using subqueries to get labor, parts, and misc totals
-                    wo_query = """
+                    wo_query = f"""
                     SELECT 
                         COUNT(*) as count,
                         COALESCE(SUM(labor_total + parts_total + misc_total), 0) as total_value
@@ -1857,7 +1857,7 @@ def get_dashboard_summary():
                     logger.error(f"Complex WO query failed: {str(e)}")
                     # If the complex query fails, at least get the count
                     try:
-                        simple_query = """
+                        simple_query = f"""
                         SELECT COUNT(*) as count
                         FROM {schema}.WO
                         WHERE CompletedDate IS NOT NULL
@@ -1880,7 +1880,7 @@ def get_dashboard_summary():
         monthly_quotes = []
         try:
             # Query WOQuote table for monthly quote totals
-            quotes_query = """
+            quotes_query = f"""
             SELECT 
                 YEAR(CreationTime) as year,
                 MONTH(CreationTime) as month,
@@ -1936,7 +1936,7 @@ def get_dashboard_summary():
         monthly_work_orders_by_type = []
         try:
             # Use OpenDate to track when work orders are opened
-            wo_type_trends_query = """
+            wo_type_trends_query = f"""
             SELECT 
                 YEAR(OpenDate) as year,
                 MONTH(OpenDate) as month,
@@ -2184,7 +2184,7 @@ def get_dashboard_summary():
             else:
                 # If no type column found or no results, get total of all open work orders
                 try:
-                    total_query = """
+                    total_query = f"""
                     SELECT 
                         COUNT(*) as count,
                         SUM(labor_total + parts_total + misc_total) as total_value
@@ -2278,7 +2278,7 @@ def get_inventory_details():
         db = AzureSQLService()
         
         # Get all equipment that is Ready To Rent with details
-        query = """
+        query = f"""
         SELECT 
             UnitNo,
             Make,

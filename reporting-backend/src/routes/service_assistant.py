@@ -231,7 +231,7 @@ def log_query(query_text, kb_results_count, wo_results_count, web_results_count,
         keywords = extract_keywords(query_text)
         equipment_make, equipment_model = extract_equipment_info(query_text)
         
-        insert_query = """
+        insert_query = f"""
             INSERT INTO service_assistant_queries 
             (query_text, keywords, equipment_make, equipment_model, 
              kb_results_count, wo_results_count, web_results_count, 

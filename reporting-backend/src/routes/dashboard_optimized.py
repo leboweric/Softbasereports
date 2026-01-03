@@ -141,7 +141,7 @@ class DashboardQueries:
     def get_inventory_count(self):
         """Get count of equipment ready to rent"""
         try:
-            query = """
+            query = f"""
             SELECT COUNT(*) as inventory_count
             FROM {self.schema}.Equipment
             WHERE RentalStatus = 'Ready To Rent'
@@ -205,7 +205,7 @@ class DashboardQueries:
         """Get total number of customers in the system"""
         try:
             # First try without WHERE clause to see if we get any customers
-            query = """
+            query = f"""
             SELECT COUNT(*) as total_customers
             FROM {self.schema}.Customer
             """
@@ -215,7 +215,7 @@ class DashboardQueries:
             logger.error(f"Total customers query failed: {str(e)}")
             # If Customer table doesn't exist, try counting unique customers from invoices
             try:
-                query = """
+                query = f"""
                 SELECT COUNT(DISTINCT CASE 
                     WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -569,7 +569,7 @@ class DashboardQueries:
         """Get uninvoiced work orders value and count"""
         try:
             # Try WO table approach with a single optimized query
-            query = """
+            query = f"""
             SELECT 
                 COUNT(*) as count,
                 COALESCE(SUM(
@@ -608,7 +608,7 @@ class DashboardQueries:
             logger.error(f"Uninvoiced work orders query failed: {str(e)}")
             # Fallback to simple count
             try:
-                simple_query = """
+                simple_query = f"""
                 SELECT COUNT(*) as count
                 FROM {self.schema}.WO
                 WHERE CompletedDate IS NOT NULL
@@ -625,7 +625,7 @@ class DashboardQueries:
         try:
             # 1. Get Revenue/Cost from GLDetail
             # Use GLDetail for Linde new truck sales only (GL account 413001 revenue, 513001 cost)
-            gl_query = """
+            gl_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
@@ -643,7 +643,7 @@ class DashboardQueries:
             
             # 2. Get Unit Counts from InvoiceReg
             # Count invoices with SaleCode LINDEN only (per user request)
-            unit_query = """
+            unit_query = f"""
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
@@ -728,7 +728,7 @@ class DashboardQueries:
         """Get monthly quotes since March - latest quote per work order"""
         try:
             # Use only the latest quote per WO per month
-            query = """
+            query = f"""
             WITH LatestQuotes AS (
                 -- First, get the latest quote date for each WO per month
                 SELECT 
@@ -819,7 +819,7 @@ class DashboardQueries:
             previous_month_end_str = previous_month_end.strftime('%Y-%m-%d')
             
             # Current open work orders query - OPTIMIZED with CTEs
-            query = """
+            query = f"""
             WITH LaborTotals AS (
                 SELECT WONo, SUM(Sell) as labor_total 
                 FROM {self.schema}.WOLabor 
@@ -936,7 +936,7 @@ class DashboardQueries:
     def get_awaiting_invoice_work_orders(self):
         """Get completed SERVICE, SHOP, and PM work orders awaiting invoice"""
         try:
-            query = """
+            query = f"""
             WITH LaborTotals AS (
                 SELECT WONo, SUM(Sell) as labor_sell 
                 FROM {self.schema}.WOLabor 
@@ -1031,7 +1031,7 @@ class DashboardQueries:
     def get_open_parts_work_orders(self):
         """Get open PARTS work orders (not yet invoiced)"""
         try:
-            query = """
+            query = f"""
             WITH OpenPartsWOs AS (
                 SELECT 
                     w.WONo,
@@ -1088,7 +1088,7 @@ class DashboardQueries:
     def get_parts_awaiting_invoice_work_orders(self):
         """Get completed PARTS work orders awaiting invoice"""
         try:
-            query = """
+            query = f"""
             WITH CompletedWOs AS (
                 SELECT 
                     w.WONo,
@@ -1160,7 +1160,7 @@ class DashboardQueries:
     def get_monthly_invoice_delay_avg(self):
         """Get average days waiting for invoice at month end for Service, Shop, and PM work orders"""
         try:
-            query = """
+            query = f"""
             WITH MonthEnds AS (
                 SELECT DISTINCT 
                     YEAR(CompletedDate) as year,
@@ -1352,7 +1352,7 @@ class DashboardQueries:
     def get_monthly_work_orders_by_type(self):
         """Get monthly work orders by type since March"""
         try:
-            query = """
+            query = f"""
             WITH LaborTotals AS (
                 SELECT WONo, SUM(Sell) as labor_total 
                 FROM {self.schema}.WOLabor 
@@ -1528,7 +1528,7 @@ class DashboardQueries:
     def get_monthly_active_customers(self):
         """Get monthly active customers count since March 2025"""
         try:
-            query = """
+            query = f"""
             SELECT 
                 YEAR(InvoiceDate) as year,
                 MONTH(InvoiceDate) as month,
@@ -1582,7 +1582,7 @@ class DashboardQueries:
         """Get monthly open work orders value since March 2025"""
         try:
             # Get snapshot of open work orders value at the end of each month (completed months only)
-            query = """
+            query = f"""
             WITH MonthEnds AS (
                 SELECT DISTINCT 
                     YEAR(OpenDate) as year,
@@ -1670,7 +1670,7 @@ class DashboardQueries:
             db = AzureSQLService() # Changed from get_db() to AzureSQLService() to match surrounding code's pattern
             
             # 1. Check if InvoiceDetail table exists and get its columns
-            columns_query = """
+            columns_query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -1691,7 +1691,7 @@ class DashboardQueries:
                 }), 404
             
             # 2. Get sample records from InvoiceDetail for LINDEN invoices
-            sample_query = """
+            sample_query = f"""
             SELECT TOP 10
                 id.*
             FROM {self.schema}.InvoiceDetail id
@@ -2126,7 +2126,7 @@ def analyze_invoice_delays():
         db = AzureSQLService()
         
         # Get breakdown by work order type
-        query = """
+        query = f"""
         WITH CompletedWOs AS (
             SELECT 
                 w.WONo,
@@ -2237,7 +2237,7 @@ def analyze_invoice_delays():
                 total_all['over_thirty'] += dept_data['over_thirty']
         
         # Get detailed work orders for worst performers
-        detail_query = """
+        detail_query = f"""
         SELECT TOP 20
             w.WONo,
             CASE 
@@ -2339,7 +2339,7 @@ def check_equipment_sale_codes():
         db = DatabaseService()
         
         # Get all sale codes that have equipment revenue for July 2025 specifically
-        query = """
+        query = f"""
         SELECT 
             SaleCode,
             SaleDept,
@@ -2357,7 +2357,7 @@ def check_equipment_sale_codes():
         results = db.execute_query(query)
         
         # Also check if our specific codes exist at all (even before March)
-        check_query = """
+        check_query = f"""
         SELECT 
             'LINDE' as code, COUNT(*) as count 
         FROM {self.schema}.InvoiceReg 
@@ -2400,7 +2400,7 @@ def debug_equipment_sales():
         result = {}
         
         # Test 1: Check if we have any equipment sales
-        test1_query = """
+        test1_query = f"""
         SELECT TOP 10
             InvoiceNo,
             InvoiceDate,
@@ -2423,7 +2423,7 @@ def debug_equipment_sales():
             result['invoice_error'] = str(e)
         
         # Test 2: Check ALL sale codes that have equipment revenue
-        test2_query = """
+        test2_query = f"""
         SELECT DISTINCT SaleCode, COUNT(*) as count
         FROM {self.schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-03-01'
@@ -2439,7 +2439,7 @@ def debug_equipment_sales():
             result['sale_codes_error'] = str(e)
         
         # Test 3: Check if InvoiceSales table exists
-        test3_query = """
+        test3_query = f"""
         SELECT COUNT(*) as total_count
         FROM INFORMATION_SCHEMA.TABLES
         WHERE TABLE_SCHEMA = 'ben002' 
@@ -2454,7 +2454,7 @@ def debug_equipment_sales():
             result['table_check_error'] = str(e)
         
         # Test 4: Monthly aggregation without InvoiceSales
-        test4_query = """
+        test4_query = f"""
         SELECT 
             YEAR(InvoiceDate) as year,
             MONTH(InvoiceDate) as month,
@@ -2479,7 +2479,7 @@ def debug_equipment_sales():
         
         # If InvoiceSales exists, try to query it
         if result.get('invoice_sales_exists'):
-            test5_query = """
+            test5_query = f"""
             SELECT TOP 5
                 InvoiceNo,
                 SaleCode,

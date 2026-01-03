@@ -49,7 +49,7 @@ def customer_activity_report():
         
         # 1. Customer Information
         if customer_no:
-            customer_query = """
+            customer_query = f"""
             SELECT TOP 1
                 ID as CustomerNo,
                 Name,
@@ -73,7 +73,7 @@ def customer_activity_report():
             customer_query = None  # Clear to avoid double execution
         else:
             # Get top customers by YTD sales
-            customer_query = """
+            customer_query = f"""
             SELECT TOP 20
                 ID as CustomerNo,
                 Name,
@@ -92,7 +92,7 @@ def customer_activity_report():
         
         # 2. Recent Invoices
         if customer_no:
-            invoice_query = """
+            invoice_query = f"""
             SELECT TOP 20
                 InvoiceNo,
                 InvoiceDate,
@@ -113,7 +113,7 @@ def customer_activity_report():
         
         # 3. Equipment owned by customer
         if customer_no:
-            equipment_query = """
+            equipment_query = f"""
             SELECT 
                 StockNo,
                 SerialNo,
@@ -134,7 +134,7 @@ def customer_activity_report():
         
         # 4. Service history
         if customer_no:
-            service_query = """
+            service_query = f"""
             SELECT TOP 20
                 ServiceClaimNo as ClaimNo,
                 OpenDate as DateOpened,
@@ -154,7 +154,7 @@ def customer_activity_report():
         
         # 5. Summary statistics
         if customer_no:
-            summary_query = """
+            summary_query = f"""
             SELECT 
                 COUNT(DISTINCT InvoiceNo) as total_invoices,
                 SUM(GrandTotal) as total_sales,
@@ -559,7 +559,7 @@ def parts_usage_report():
         parts_usage = db.execute_query(usage_query)
         
         # 2. Parts inventory levels
-        inventory_query = """
+        inventory_query = f"""
         SELECT TOP 50
             PartNo,
             Description,
@@ -575,7 +575,7 @@ def parts_usage_report():
         inventory = db.execute_query(inventory_query)
         
         # 3. Low stock alert
-        low_stock_query = """
+        low_stock_query = f"""
         SELECT 
             PartNo,
             Description,
@@ -591,7 +591,7 @@ def parts_usage_report():
         low_stock = db.execute_query(low_stock_query)
         
         # 4. Parts by supplier
-        supplier_query = """
+        supplier_query = f"""
         SELECT 
             SupplierCode,
             COUNT(*) as PartCount,
@@ -653,7 +653,7 @@ def financial_summary_report():
         ar_summary = db.execute_query(ar_summary_query)
         
         # 2. Top AR balances
-        ar_detail_query = """
+        ar_detail_query = f"""
         SELECT TOP 20
             CustomerNo,
             Name,
@@ -697,7 +697,7 @@ def financial_summary_report():
         cashflow = db.execute_query(cashflow_query)
         
         # 5. Inventory value
-        inventory_value_query = """
+        inventory_value_query = f"""
         SELECT 
             Status,
             COUNT(*) as Count,
