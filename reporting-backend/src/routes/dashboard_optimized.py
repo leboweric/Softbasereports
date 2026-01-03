@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
+from src.models.user import User
 from src.utils.fiscal_year import get_fiscal_year_months
 
 logger = logging.getLogger(__name__)
