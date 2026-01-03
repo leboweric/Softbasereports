@@ -643,8 +643,8 @@ const MaintenanceContractProfitability = () => {
                 labelFormatter={(label) => `Month: ${label}`}
               />
               <Legend />
-              <Bar dataKey="contract_revenue" name="Contract Revenue" fill="#3b82f6" />
-              <Bar dataKey="service_total_cost" name="Service Cost" fill="#ef4444" />
+              <Bar dataKey="contract_revenue" name="Contract Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="service_total_cost" name="Service Cost" fill="#ef4444" radius={[4, 4, 0, 0]} />
               <Line
                 type="monotone"
                 dataKey="true_profit"

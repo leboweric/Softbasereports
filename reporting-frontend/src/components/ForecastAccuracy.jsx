@@ -320,7 +320,7 @@ const ForecastAccuracy = () => {
                 />
                 <ReferenceLine y={10} stroke="green" strokeDasharray="3 3" label="Excellent" />
                 <ReferenceLine y={20} stroke="orange" strokeDasharray="3 3" label="Good" />
-                <Bar dataKey="mape" fill="#3b82f6" />
+                <Bar dataKey="mape" fill="#3b82f6" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

@@ -443,7 +443,7 @@ const QBRDashboard = () => {
                         <XAxis dataKey="equipment_type" />
                         <YAxis />
                         <Tooltip />
-                        <Bar dataKey="count" fill="#6366f1" />
+                        <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -652,7 +652,7 @@ const QBRDashboard = () => {
                         <XAxis dataKey="type" />
                         <YAxis />
                         <Tooltip />
-                        <Bar dataKey="count" fill="#8b5cf6" />
+                        <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

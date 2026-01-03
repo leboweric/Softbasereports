@@ -258,7 +258,7 @@ const CashFlowWidget = () => {
                   }}
                 />
                 <Legend />
-                <Bar yAxisId="right" dataKey="netChange" name="Net Change" barSize={20}>
+                <Bar yAxisId="right" dataKey="netChange" name="Net Change" barSize={20} radius={[4, 4, 0, 0]}>
                   {data.trend.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.netChange >= 0 ? '#10b981' : '#ef4444'} />
                   ))}

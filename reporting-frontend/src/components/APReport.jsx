@@ -285,7 +285,7 @@ const APReport = ({ user }) => {
                 formatter={(value) => `$${value.toLocaleString()}`}
                 labelFormatter={(label) => `${label} days`}
               />
-              <Bar dataKey="amount">
+              <Bar dataKey="amount" radius={[4, 4, 0, 0]}>
                 {apData.aging_summary.map((entry, index) => (
                   <Cell 
                     key={`cell-${index}`} 

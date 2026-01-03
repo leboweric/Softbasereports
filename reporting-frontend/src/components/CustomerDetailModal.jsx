@@ -240,7 +240,7 @@ const CustomerDetailModal = ({ customer, isOpen, onClose }) => {
                         formatter={(value) => formatCurrency(value)}
                         labelStyle={{ color: '#000' }}
                       />
-                      <Bar dataKey="sales" fill="#3b82f6" />
+                      <Bar dataKey="sales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (

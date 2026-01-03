@@ -583,7 +583,7 @@ const Dashboard = ({ user }) => {
       paceData
     return (
       <g>
-        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
         {isCurrentMonth && paceData && (
           <g>
             {/* Pace indicator */}
@@ -638,7 +638,7 @@ const Dashboard = ({ user }) => {
 
     return (
       <g>
-        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
         {isCurrentMonth && paceData && (
           <g>
             {/* Pace indicator */}
@@ -693,7 +693,7 @@ const Dashboard = ({ user }) => {
 
     return (
       <g>
-        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
         {isCurrentMonth && paceData && paceData.quotes && (
           <g>
             {/* Pace indicator */}
@@ -1335,7 +1335,7 @@ const Dashboard = ({ user }) => {
                       return null
                     }} />
                     <Legend />
-                    <Bar yAxisId="left" dataKey="amount" fill="#06b6d4" name="Revenue" />
+                    <Bar yAxisId="left" dataKey="amount" fill="#06b6d4" name="Revenue" radius={[4, 4, 0, 0]} />
                     <Line
                       yAxisId="right"
                       type="monotone"
@@ -1846,7 +1846,7 @@ const Dashboard = ({ user }) => {
                           <XAxis dataKey="range" />
                           <YAxis tickFormatter={(value) => `${value}%`} />
                           <Tooltip formatter={(value) => `${value.toFixed(1)}%`} />
-                          <Bar dataKey="percentage" fill="#8884d8">
+                          <Bar dataKey="percentage" fill="#8884d8" radius={[4, 4, 0, 0]}>
                             <Cell fill="#22c55e" />
                             <Cell fill="#fbbf24" />
                             <Cell fill="#f97316" />
