@@ -303,8 +303,8 @@ const RentalServiceReport = () => {
                 <YAxis />
                 <RechartsTooltip formatter={(value: number) => formatCurrency(value)} />
                 <Legend />
-                <Bar dataKey="cost" fill="#ef4444" name="Cost" />
-                <Bar dataKey="revenue" fill="#3b82f6" name="Revenue" />
+                <Bar dataKey="cost" fill="#ef4444" name="Cost" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="revenue" fill="#3b82f6" name="Revenue" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

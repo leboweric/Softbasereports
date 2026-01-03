@@ -447,7 +447,7 @@ const AccountingReport = ({ user }) => {
                     return null
                   }} />
                   <Legend />
-                  <Bar yAxisId="left" dataKey="gross_margin_dollars" fill="#10b981" name="Gross Margin $" maxBarSize={60} />
+                  <Bar yAxisId="left" dataKey="gross_margin_dollars" fill="#10b981" name="Gross Margin $" maxBarSize={60} radius={[4, 4, 0, 0]} />
                   <Line
                     yAxisId="left"
                     type="monotone"

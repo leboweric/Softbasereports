@@ -461,7 +461,7 @@ const PartsReport = ({ user, onNavigate }) => {
     
     return (
       <g>
-        <rect x={x} y={y} width={width} height={height} fill={fill} />
+        <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
         {isCurrentMonth && paceData && (
           <g>
             {/* Pace indicator */}
