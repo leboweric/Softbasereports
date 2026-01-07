@@ -23,18 +23,16 @@ def get_hubspot_service():
 def is_vital_user():
     """Check if current user belongs to VITAL organization"""
     try:
-        from src.services.postgres_service import get_postgres_db
-        pg = get_postgres_db()
+        from src.models.user import User, Organization
         user_id = get_jwt_identity()
+        user = User.query.get(user_id)
         
-        user = pg.execute_query(
-            "SELECT o.name FROM users u JOIN organizations o ON u.organization_id = o.id WHERE u.id = %s",
-            (user_id,)
-        )
+        if not user or not user.organization_id:
+            return False
         
-        if user and len(user) > 0:
-            org_name = user[0].get('name', '').lower()
-            return 'vital' in org_name
+        org = Organization.query.get(user.organization_id)
+        if org and org.name:
+            return 'vital' in org.name.lower()
         return False
     except Exception as e:
         logger.error(f"Error checking VITAL user: {str(e)}")
