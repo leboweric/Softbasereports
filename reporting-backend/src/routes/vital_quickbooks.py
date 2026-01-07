@@ -18,6 +18,14 @@ QB_CLIENT_SECRET = os.environ.get('QB_CLIENT_SECRET')
 QB_REDIRECT_URI = os.environ.get('QB_REDIRECT_URI', 
     'https://softbasereports-production.up.railway.app/api/vital/quickbooks/callback')
 
+# Store tokens in memory for POC (will persist across requests but not restarts)
+# In production, use database or Redis
+_qb_tokens = {
+    'access_token': os.environ.get('VITAL_QB_ACCESS_TOKEN', ''),
+    'refresh_token': os.environ.get('VITAL_QB_REFRESH_TOKEN', ''),
+    'realm_id': os.environ.get('VITAL_QB_REALM_ID', '9130348352184736')  # Default to VITAL's realm
+}
+
 def get_quickbooks_service():
     """Get QuickBooks service instance"""
     from src.services.quickbooks_service import QuickBooksService
@@ -60,53 +68,17 @@ def get_vital_org():
         return None
 
 def get_qb_tokens():
-    """Get stored QuickBooks tokens for VITAL"""
-    try:
-        org = get_vital_org()
-        if not org:
-            return None
-        
-        settings = {}
-        if hasattr(org, 'settings') and org.settings:
-            try:
-                settings = json.loads(org.settings) if isinstance(org.settings, str) else org.settings
-            except:
-                settings = {}
-        
-        return settings.get('quickbooks', {})
-    except Exception as e:
-        logger.error(f"Error getting QB tokens: {str(e)}")
-        return None
+    """Get stored QuickBooks tokens"""
+    global _qb_tokens
+    return _qb_tokens
 
-def save_qb_tokens(tokens, realm_id):
-    """Save QuickBooks tokens for VITAL organization"""
-    try:
-        from src.models.user import db
-        org = get_vital_org()
-        if not org:
-            return False
-        
-        settings = {}
-        if hasattr(org, 'settings') and org.settings:
-            try:
-                settings = json.loads(org.settings) if isinstance(org.settings, str) else org.settings
-            except:
-                settings = {}
-        
-        settings['quickbooks'] = {
-            'access_token': tokens.get('access_token'),
-            'refresh_token': tokens.get('refresh_token'),
-            'realm_id': realm_id,
-            'expires_at': tokens.get('expires_at'),
-            'connected': True
-        }
-        
-        org.settings = json.dumps(settings)
-        db.session.commit()
-        return True
-    except Exception as e:
-        logger.error(f"Error saving QB tokens: {str(e)}")
-        return False
+def save_qb_tokens(access_token, refresh_token, realm_id):
+    """Save QuickBooks tokens"""
+    global _qb_tokens
+    _qb_tokens['access_token'] = access_token
+    _qb_tokens['refresh_token'] = refresh_token
+    _qb_tokens['realm_id'] = realm_id
+    logger.info(f"Saved QB tokens for realm: {realm_id}")
 
 
 # ==================== OAuth Endpoints ====================
@@ -145,7 +117,6 @@ def quickbooks_callback():
         
         if error:
             logger.error(f"QuickBooks OAuth error: {error}")
-            # Redirect to frontend with error
             return redirect(f"https://aiop.one/vital-quickbooks?error={error}")
         
         if not code or not realm_id:
@@ -154,14 +125,25 @@ def quickbooks_callback():
         qb_service = get_quickbooks_service()
         tokens = qb_service.exchange_code_for_tokens(code)
         
-        # Store tokens - we need to get the org differently since no JWT in callback
-        # For now, store in environment or use a temporary storage
-        # In production, you'd use a state parameter to identify the user
+        access_token = tokens.get('access_token', '')
+        refresh_token = tokens.get('refresh_token', '')
         
-        # Store tokens temporarily in environment (not ideal, but works for POC)
-        os.environ['VITAL_QB_ACCESS_TOKEN'] = tokens.get('access_token', '')
-        os.environ['VITAL_QB_REFRESH_TOKEN'] = tokens.get('refresh_token', '')
-        os.environ['VITAL_QB_REALM_ID'] = realm_id
+        # Log tokens for debugging (first 50 chars only for security)
+        logger.info(f"QB OAuth Success - Realm: {realm_id}")
+        logger.info(f"QB Access Token (first 50 chars): {access_token[:50] if access_token else 'None'}...")
+        logger.info(f"QB Refresh Token (first 50 chars): {refresh_token[:50] if refresh_token else 'None'}...")
+        logger.info(f"QB Full tokens received - access: {len(access_token)} chars, refresh: {len(refresh_token)} chars")
+        
+        # IMPORTANT: Print full tokens to logs for manual env var setup
+        # Remove this in production!
+        print(f"=== VITAL QB TOKENS ===")
+        print(f"VITAL_QB_ACCESS_TOKEN={access_token}")
+        print(f"VITAL_QB_REFRESH_TOKEN={refresh_token}")
+        print(f"VITAL_QB_REALM_ID={realm_id}")
+        print(f"=======================")
+        
+        # Save tokens to memory (persists across requests)
+        save_qb_tokens(access_token, refresh_token, realm_id)
         
         logger.info(f"QuickBooks connected successfully for realm: {realm_id}")
         
@@ -182,9 +164,8 @@ def quickbooks_disconnect():
             return jsonify({'error': 'Access denied. VITAL users only.'}), 403
         
         # Clear stored tokens
-        os.environ.pop('VITAL_QB_ACCESS_TOKEN', None)
-        os.environ.pop('VITAL_QB_REFRESH_TOKEN', None)
-        os.environ.pop('VITAL_QB_REALM_ID', None)
+        global _qb_tokens
+        _qb_tokens = {'access_token': '', 'refresh_token': '', 'realm_id': ''}
         
         return jsonify({
             'success': True,
@@ -203,8 +184,9 @@ def quickbooks_status():
         if not is_vital_user():
             return jsonify({'error': 'Access denied. VITAL users only.'}), 403
         
-        access_token = os.environ.get('VITAL_QB_ACCESS_TOKEN')
-        realm_id = os.environ.get('VITAL_QB_REALM_ID')
+        tokens = get_qb_tokens()
+        access_token = tokens.get('access_token')
+        realm_id = tokens.get('realm_id')
         
         if access_token and realm_id:
             return jsonify({
@@ -232,8 +214,10 @@ def quickbooks_dashboard():
         if not is_vital_user():
             return jsonify({'error': 'Access denied. VITAL users only.'}), 403
         
-        access_token = os.environ.get('VITAL_QB_ACCESS_TOKEN')
-        realm_id = os.environ.get('VITAL_QB_REALM_ID')
+        tokens = get_qb_tokens()
+        access_token = tokens.get('access_token')
+        refresh_token = tokens.get('refresh_token')
+        realm_id = tokens.get('realm_id')
         
         if not access_token or not realm_id:
             return jsonify({
@@ -242,7 +226,29 @@ def quickbooks_dashboard():
             }), 400
         
         qb_service = get_quickbooks_service()
-        dashboard_data = qb_service.get_financial_dashboard(access_token, realm_id)
+        
+        # Try to get dashboard data, refresh token if needed
+        try:
+            dashboard_data = qb_service.get_financial_dashboard(access_token, realm_id)
+        except Exception as api_error:
+            # Token might be expired, try to refresh
+            if refresh_token:
+                logger.info("Access token may be expired, attempting refresh...")
+                try:
+                    new_tokens = qb_service.refresh_access_token(refresh_token)
+                    save_qb_tokens(
+                        new_tokens.get('access_token', ''),
+                        new_tokens.get('refresh_token', refresh_token),
+                        realm_id
+                    )
+                    dashboard_data = qb_service.get_financial_dashboard(
+                        new_tokens.get('access_token'), realm_id
+                    )
+                except Exception as refresh_error:
+                    logger.error(f"Token refresh failed: {str(refresh_error)}")
+                    raise api_error
+            else:
+                raise api_error
         
         return jsonify({
             'success': True,
@@ -261,8 +267,9 @@ def quickbooks_profit_loss():
         if not is_vital_user():
             return jsonify({'error': 'Access denied. VITAL users only.'}), 403
         
-        access_token = os.environ.get('VITAL_QB_ACCESS_TOKEN')
-        realm_id = os.environ.get('VITAL_QB_REALM_ID')
+        tokens = get_qb_tokens()
+        access_token = tokens.get('access_token')
+        realm_id = tokens.get('realm_id')
         
         if not access_token or not realm_id:
             return jsonify({'error': 'QuickBooks not connected'}), 400
@@ -290,8 +297,9 @@ def quickbooks_balance_sheet():
         if not is_vital_user():
             return jsonify({'error': 'Access denied. VITAL users only.'}), 403
         
-        access_token = os.environ.get('VITAL_QB_ACCESS_TOKEN')
-        realm_id = os.environ.get('VITAL_QB_REALM_ID')
+        tokens = get_qb_tokens()
+        access_token = tokens.get('access_token')
+        realm_id = tokens.get('realm_id')
         
         if not access_token or not realm_id:
             return jsonify({'error': 'QuickBooks not connected'}), 400
@@ -316,14 +324,15 @@ def quickbooks_ar_aging():
         if not is_vital_user():
             return jsonify({'error': 'Access denied. VITAL users only.'}), 403
         
-        access_token = os.environ.get('VITAL_QB_ACCESS_TOKEN')
-        realm_id = os.environ.get('VITAL_QB_REALM_ID')
+        tokens = get_qb_tokens()
+        access_token = tokens.get('access_token')
+        realm_id = tokens.get('realm_id')
         
         if not access_token or not realm_id:
             return jsonify({'error': 'QuickBooks not connected'}), 400
         
         qb_service = get_quickbooks_service()
-        ar_data = qb_service.get_ar_aging_summary(access_token, realm_id)
+        ar_data = qb_service.get_ar_aging(access_token, realm_id)
         
         return jsonify({
             'success': True,
@@ -331,59 +340,4 @@ def quickbooks_ar_aging():
         })
     except Exception as e:
         logger.error(f"Error getting AR Aging: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-
-@vital_quickbooks_bp.route('/api/vital/quickbooks/company', methods=['GET'])
-@jwt_required()
-def quickbooks_company():
-    """Get company information"""
-    try:
-        if not is_vital_user():
-            return jsonify({'error': 'Access denied. VITAL users only.'}), 403
-        
-        access_token = os.environ.get('VITAL_QB_ACCESS_TOKEN')
-        realm_id = os.environ.get('VITAL_QB_REALM_ID')
-        
-        if not access_token or not realm_id:
-            return jsonify({'error': 'QuickBooks not connected'}), 400
-        
-        qb_service = get_quickbooks_service()
-        company_data = qb_service.get_company_info(access_token, realm_id)
-        
-        return jsonify({
-            'success': True,
-            'data': company_data
-        })
-    except Exception as e:
-        logger.error(f"Error getting company info: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-
-@vital_quickbooks_bp.route('/api/vital/quickbooks/invoices', methods=['GET'])
-@jwt_required()
-def quickbooks_invoices():
-    """Get recent invoices"""
-    try:
-        if not is_vital_user():
-            return jsonify({'error': 'Access denied. VITAL users only.'}), 403
-        
-        access_token = os.environ.get('VITAL_QB_ACCESS_TOKEN')
-        realm_id = os.environ.get('VITAL_QB_REALM_ID')
-        
-        if not access_token or not realm_id:
-            return jsonify({'error': 'QuickBooks not connected'}), 400
-        
-        limit = request.args.get('limit', 50, type=int)
-        
-        qb_service = get_quickbooks_service()
-        invoices = qb_service.get_invoices(access_token, realm_id, limit)
-        
-        return jsonify({
-            'success': True,
-            'data': invoices,
-            'count': len(invoices)
-        })
-    except Exception as e:
-        logger.error(f"Error getting invoices: {str(e)}")
         return jsonify({'error': str(e)}), 500
