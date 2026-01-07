@@ -219,7 +219,9 @@ def quickbooks_dashboard():
         refresh_token = tokens.get('refresh_token')
         realm_id = tokens.get('realm_id')
         
-        if not access_token or not realm_id:
+        logger.info(f"QB Dashboard request - has access_token: {bool(access_token)}, has refresh_token: {bool(refresh_token)}, realm_id: {realm_id}")
+        
+        if not realm_id:
             return jsonify({
                 'error': 'QuickBooks not connected',
                 'connected': False
@@ -227,33 +229,81 @@ def quickbooks_dashboard():
         
         qb_service = get_quickbooks_service()
         
-        # Try to get dashboard data, refresh token if needed
+        # If no access token but we have refresh token, try to refresh first
+        if not access_token and refresh_token:
+            logger.info("No access token, attempting to refresh using refresh token...")
+            try:
+                new_tokens = qb_service.refresh_access_token(refresh_token)
+                access_token = new_tokens.get('access_token', '')
+                new_refresh = new_tokens.get('refresh_token', refresh_token)
+                save_qb_tokens(access_token, new_refresh, realm_id)
+                logger.info(f"Token refresh successful, new access token length: {len(access_token)}")
+                # Log for manual env var update
+                print(f"=== REFRESHED QB TOKENS ===")
+                print(f"VITAL_QB_ACCESS_TOKEN={access_token}")
+                print(f"VITAL_QB_REFRESH_TOKEN={new_refresh}")
+                print(f"===========================")
+            except Exception as refresh_error:
+                logger.error(f"Initial token refresh failed: {str(refresh_error)}")
+                return jsonify({
+                    'error': 'QuickBooks token expired. Please reconnect.',
+                    'connected': False,
+                    'needs_reconnect': True
+                }), 401
+        
+        if not access_token:
+            return jsonify({
+                'error': 'QuickBooks not connected',
+                'connected': False
+            }), 400
+        
+        # Try to get dashboard data
         try:
             dashboard_data = qb_service.get_financial_dashboard(access_token, realm_id)
+            return jsonify({
+                'success': True,
+                'data': dashboard_data
+            })
         except Exception as api_error:
-            # Token might be expired, try to refresh
-            if refresh_token:
-                logger.info("Access token may be expired, attempting refresh...")
-                try:
-                    new_tokens = qb_service.refresh_access_token(refresh_token)
-                    save_qb_tokens(
-                        new_tokens.get('access_token', ''),
-                        new_tokens.get('refresh_token', refresh_token),
-                        realm_id
-                    )
-                    dashboard_data = qb_service.get_financial_dashboard(
-                        new_tokens.get('access_token'), realm_id
-                    )
-                except Exception as refresh_error:
-                    logger.error(f"Token refresh failed: {str(refresh_error)}")
-                    raise api_error
+            error_str = str(api_error)
+            logger.error(f"API error: {error_str}")
+            
+            # Check if it's an auth error (401)
+            if '401' in error_str or 'Unauthorized' in error_str:
+                if refresh_token:
+                    logger.info("Got 401, attempting token refresh...")
+                    try:
+                        new_tokens = qb_service.refresh_access_token(refresh_token)
+                        new_access = new_tokens.get('access_token', '')
+                        new_refresh = new_tokens.get('refresh_token', refresh_token)
+                        save_qb_tokens(new_access, new_refresh, realm_id)
+                        logger.info(f"Token refresh successful after 401")
+                        # Log for manual env var update
+                        print(f"=== REFRESHED QB TOKENS ===")
+                        print(f"VITAL_QB_ACCESS_TOKEN={new_access}")
+                        print(f"VITAL_QB_REFRESH_TOKEN={new_refresh}")
+                        print(f"===========================")
+                        # Retry with new token
+                        dashboard_data = qb_service.get_financial_dashboard(new_access, realm_id)
+                        return jsonify({
+                            'success': True,
+                            'data': dashboard_data
+                        })
+                    except Exception as refresh_error:
+                        logger.error(f"Token refresh failed after 401: {str(refresh_error)}")
+                        return jsonify({
+                            'error': 'QuickBooks token expired and refresh failed. Please reconnect.',
+                            'connected': False,
+                            'needs_reconnect': True
+                        }), 401
+                else:
+                    return jsonify({
+                        'error': 'QuickBooks token expired. Please reconnect.',
+                        'connected': False,
+                        'needs_reconnect': True
+                    }), 401
             else:
                 raise api_error
-        
-        return jsonify({
-            'success': True,
-            'data': dashboard_data
-        })
     except Exception as e:
         logger.error(f"Error getting QB dashboard: {str(e)}")
         return jsonify({'error': str(e)}), 500
