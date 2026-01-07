@@ -30,6 +30,7 @@ import VitalFinancial from './components/vital/VitalFinancial'
 import VitalMarketing from './components/vital/VitalMarketing'
 import VitalDataSources from './components/vital/VitalDataSources'
 import VitalHubSpotDashboard from './components/vital/VitalHubSpotDashboard'
+import VitalQuickBooksDashboard from './components/vital/VitalQuickBooksDashboard'
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -87,7 +88,7 @@ function App() {
         const navigation = getAccessibleNavigation(userWithNavigation)
         if (!navigation[currentPage]) {
           // Redirect to first available page using same order as Layout.jsx
-          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'vital-hubspot', 'user-management', 'rep-comp-admin', 'tenant-admin']
+          const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'vital-hubspot', 'vital-quickbooks', 'user-management', 'rep-comp-admin', 'tenant-admin']
           const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
           setCurrentPage(firstAvailablePage)
         }
@@ -117,7 +118,7 @@ function App() {
     // Navigation data retrieved
 
     // Use same order as Layout.jsx to ensure Dashboard is first choice
-    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'vital-hubspot', 'user-management', 'rep-comp-admin', 'tenant-admin']
+    const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'vital-hubspot', 'vital-quickbooks', 'user-management', 'rep-comp-admin', 'tenant-admin']
     const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
     // Setting default page
     setCurrentPage(firstAvailablePage)
@@ -159,7 +160,7 @@ function App() {
     const specialPages = ['billing', 'settings']
     if (!navigation[currentPage] && !specialPages.includes(currentPage)) {
       // Redirect to first available page using same order as Layout.jsx
-      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'vital-hubspot', 'user-management', 'rep-comp-admin', 'tenant-admin']
+      const desiredOrder = ['dashboard', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-data-sources', 'vital-hubspot', 'vital-quickbooks', 'user-management', 'rep-comp-admin', 'tenant-admin']
       const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
       if (firstAvailablePage && firstAvailablePage !== currentPage) {
         setCurrentPage(firstAvailablePage)
@@ -232,6 +233,8 @@ function App() {
         return <VitalDataSources user={user} organization={organization} />
       case 'vital-hubspot':
         return <VitalHubSpotDashboard user={user} organization={organization} />
+      case 'vital-quickbooks':
+        return <VitalQuickBooksDashboard user={user} organization={organization} />
       default:
         return <Dashboard user={user} organization={organization} />
     }

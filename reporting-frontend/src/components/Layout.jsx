@@ -15,7 +15,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
 
   // Build navigation items with HARDCODED ORDER to fix menu
   // Move user-management to the end of the list
-  const desiredOrder = ['dashboard', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'tenant-admin', 'vital-data-sources', 'user-management']
+  const desiredOrder = ['dashboard', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-quickbooks', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'tenant-admin', 'vital-data-sources', 'user-management']
   
   const navItems = hasNavigation 
     ? desiredOrder

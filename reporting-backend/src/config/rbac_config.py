@@ -40,6 +40,7 @@ RESOURCES = {
     'vital_marketing': 'VITAL Worklife marketing data from HubSpot',
     'vital_data_sources': 'VITAL Worklife data source configuration (admin only)',
     'vital_hubspot': 'VITAL Worklife HubSpot CRM dashboard and analytics',
+    'vital_quickbooks': 'VITAL Worklife QuickBooks financial dashboard',
 }
 
 # Action types
@@ -147,14 +148,14 @@ ROLE_PERMISSIONS = {
     'VITAL Admin': {
         'resources': [
             'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing',
-            'vital_data_sources', 'vital_hubspot', 'user_management'
+            'vital_data_sources', 'vital_hubspot', 'vital_quickbooks', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
             'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing',
-            'vital_hubspot'
+            'vital_hubspot', 'vital_quickbooks'
         ],
         'actions': ['view', 'export'],
     },
@@ -323,5 +324,12 @@ NAVIGATION_CONFIG = {
         'path': 'vital-hubspot',
         'required_resource': 'vital_hubspot',
         'order': 24,
+    },
+    'vital-quickbooks': {
+        'label': 'QuickBooks',
+        'icon': 'Calculator',
+        'path': 'vital-quickbooks',
+        'required_resource': 'vital_quickbooks',
+        'order': 25,
     },
 }
