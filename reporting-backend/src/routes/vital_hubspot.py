@@ -23,8 +23,8 @@ def get_hubspot_service():
 def is_vital_user():
     """Check if current user belongs to VITAL organization"""
     try:
-        from src.services.postgres_service import PostgresService
-        pg = PostgresService()
+        from src.services.postgres_service import get_postgres_db
+        pg = get_postgres_db()
         user_id = get_jwt_identity()
         
         user = pg.execute_query(
