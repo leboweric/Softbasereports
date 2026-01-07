@@ -41,6 +41,7 @@ RESOURCES = {
     'vital_data_sources': 'VITAL Worklife data source configuration (admin only)',
     'vital_hubspot': 'VITAL Worklife HubSpot CRM dashboard and analytics',
     'vital_quickbooks': 'VITAL Worklife QuickBooks financial dashboard',
+    'vital_azure_sql': 'VITAL Worklife Azure SQL Case Data dashboard',
 }
 
 # Action types
@@ -148,14 +149,14 @@ ROLE_PERMISSIONS = {
     'VITAL Admin': {
         'resources': [
             'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing',
-            'vital_data_sources', 'vital_hubspot', 'vital_quickbooks', 'user_management'
+            'vital_data_sources', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
             'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing',
-            'vital_hubspot', 'vital_quickbooks'
+            'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql'
         ],
         'actions': ['view', 'export'],
     },
@@ -331,5 +332,12 @@ NAVIGATION_CONFIG = {
         'path': 'vital-quickbooks',
         'required_resource': 'vital_quickbooks',
         'order': 25,
+    },
+    'vital-azure-sql': {
+        'label': 'Case Data',
+        'icon': 'Database',
+        'path': 'vital-azure-sql',
+        'required_resource': 'vital_azure_sql',
+        'order': 26,
     },
 }
