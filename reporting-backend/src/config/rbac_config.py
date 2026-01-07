@@ -149,15 +149,13 @@ ROLE_PERMISSIONS = {
     # VITAL Worklife roles
     'VITAL Admin': {
         'resources': [
-            'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing',
-            'vital_data_sources', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'user_management'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
-            'dashboard', 'vital_case_data', 'vital_financial', 'vital_marketing',
-            'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom'
         ],
         'actions': ['view', 'export'],
     },
