@@ -2983,7 +2983,7 @@ def register_department_routes(reports_bp):
             SELECT 
                 r.*,
                 -- Get actual rental customer name using same approach as Availability Report
-                COALESCE(rental_cust.Name, r.ShipToCustomer) as ActualShipToCustomer,
+                r.ShipToCustomer as ActualShipToCustomer,
                 COALESCE(l.LaborCost, 0) as LaborCost,
                 COALESCE(p.PartsCost, 0) as PartsCost,
                 COALESCE(m.MiscCost, 0) as MiscCost,
@@ -3000,21 +3000,8 @@ def register_department_routes(reports_bp):
             LEFT JOIN LaborQuotes lq ON r.WONo = lq.WONo
             LEFT JOIN PartsCosts p ON r.WONo = p.WONo
             LEFT JOIN MiscCosts m ON r.WONo = m.WONo
-            -- Join to find rental customer OUTSIDE the CTE, just like Availability Report
-            LEFT JOIN (
-                SELECT 
-                    wr.SerialNo, 
-                    wr.UnitNo, 
-                    MAX(wo.WONo) as MaxWONo
-                FROM {schema}.WORental wr
-                INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
-                WHERE wo.Type = 'R' 
-                AND wo.RentalContractNo IS NOT NULL 
-                AND wo.RentalContractNo > 0
-                GROUP BY wr.SerialNo, wr.UnitNo
-            ) latest_rental ON (r.SerialNumber = latest_rental.SerialNo OR r.Equipment = latest_rental.UnitNo)
-            LEFT JOIN {schema}.WO rental_wo ON latest_rental.MaxWONo = rental_wo.WONo
-            LEFT JOIN {schema}.Customer rental_cust ON rental_wo.BillTo = rental_cust.Number
+            -- OPTIMIZED: Removed complex rental customer lookup that caused timeout
+            -- Using ShipToCustomer directly instead of complex OR-based JOIN
             ORDER BY InvoiceTotal DESC, r.OpenDate DESC
             """
             
