@@ -65,21 +65,21 @@ class BennettSalesETL(BaseETL):
                 THEN COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) ELSE 0 END) as parts_revenue,
             
             -- Rental Revenue
-            SUM(CASE WHEN COALESCE(RentTaxable, 0) + COALESCE(RentNonTax, 0) > 0 
-                THEN COALESCE(RentTaxable, 0) + COALESCE(RentNonTax, 0) ELSE 0 END) as rental_revenue,
+            SUM(CASE WHEN COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0) > 0 
+                THEN COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0) ELSE 0 END) as rental_revenue,
             
             -- Sales/Equipment Revenue
-            SUM(CASE WHEN COALESCE(EquipTaxable, 0) + COALESCE(EquipNonTax, 0) > 0 
-                THEN COALESCE(EquipTaxable, 0) + COALESCE(EquipNonTax, 0) ELSE 0 END) as sales_revenue,
+            SUM(CASE WHEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0) > 0 
+                THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0) ELSE 0 END) as sales_revenue,
             
             -- Total Revenue
-            SUM(COALESCE(InvoiceTotal, 0)) as total_revenue,
+            SUM(COALESCE(GrandTotal, 0)) as total_revenue,
             
             -- Invoice Counts by type
             COUNT(CASE WHEN COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) > 0 THEN 1 END) as service_invoices,
             COUNT(CASE WHEN COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) > 0 THEN 1 END) as parts_invoices,
-            COUNT(CASE WHEN COALESCE(RentTaxable, 0) + COALESCE(RentNonTax, 0) > 0 THEN 1 END) as rental_invoices,
-            COUNT(CASE WHEN COALESCE(EquipTaxable, 0) + COALESCE(EquipNonTax, 0) > 0 THEN 1 END) as sales_invoices,
+            COUNT(CASE WHEN COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0) > 0 THEN 1 END) as rental_invoices,
+            COUNT(CASE WHEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0) > 0 THEN 1 END) as sales_invoices,
             COUNT(*) as total_invoices
             
         FROM {self.BENNETT_SCHEMA}.InvoiceReg
