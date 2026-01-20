@@ -57,23 +57,26 @@ class BennettSalesETL(BaseETL):
             DATEPART(WEEKDAY, InvoiceDate) - 1 as day_of_week,
             
             -- Service Revenue (Labor)
-            SUM(CASE WHEN COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) > 0 
-                THEN COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) ELSE 0 END) as service_revenue,
+            SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as service_revenue,
             
             -- Parts Revenue
-            SUM(CASE WHEN COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) > 0 
-                THEN COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) ELSE 0 END) as parts_revenue,
+            SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
             
             -- Rental Revenue
-            SUM(CASE WHEN COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0) > 0 
-                THEN COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0) ELSE 0 END) as rental_revenue,
+            SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue,
             
             -- Sales/Equipment Revenue
-            SUM(CASE WHEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0) > 0 
-                THEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0) ELSE 0 END) as sales_revenue,
+            SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as sales_revenue,
             
             -- Total Revenue
             SUM(COALESCE(GrandTotal, 0)) as total_revenue,
+            
+            -- Cost of Goods Sold by department
+            SUM(COALESCE(LaborCost, 0)) as service_cost,
+            SUM(COALESCE(PartsCost, 0)) as parts_cost,
+            SUM(COALESCE(RentalCost, 0)) as rental_cost,
+            SUM(COALESCE(EquipmentCost, 0)) as sales_cost,
+            SUM(COALESCE(LaborCost, 0) + COALESCE(PartsCost, 0) + COALESCE(RentalCost, 0) + COALESCE(EquipmentCost, 0)) as total_cost,
             
             -- Invoice Counts by type
             COUNT(CASE WHEN COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) > 0 THEN 1 END) as service_invoices,
@@ -114,6 +117,11 @@ class BennettSalesETL(BaseETL):
                 'rental_revenue': float(row['rental_revenue'] or 0),
                 'sales_revenue': float(row['sales_revenue'] or 0),
                 'total_revenue': float(row['total_revenue'] or 0),
+                'service_cost': float(row['service_cost'] or 0),
+                'parts_cost': float(row['parts_cost'] or 0),
+                'rental_cost': float(row['rental_cost'] or 0),
+                'sales_cost': float(row['sales_cost'] or 0),
+                'total_cost': float(row['total_cost'] or 0),
                 'service_invoices': int(row['service_invoices'] or 0),
                 'parts_invoices': int(row['parts_invoices'] or 0),
                 'rental_invoices': int(row['rental_invoices'] or 0),

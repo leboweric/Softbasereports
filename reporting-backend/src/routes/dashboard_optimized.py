@@ -1542,7 +1542,86 @@ class DashboardQueries:
             return []
     
     def get_department_margins(self):
-        """Get department gross margin percentages by month"""
+        """Get department gross margin percentages by month - uses Mart tables for speed"""
+        # Try Mart table first (fast, pre-aggregated)
+        if self.pg_db:
+            try:
+                mart_result = self._get_department_margins_from_mart()
+                if mart_result:
+                    logger.info("Department margins loaded from Mart table")
+                    return mart_result
+            except Exception as e:
+                logger.warning(f"Mart query failed, falling back to Azure SQL: {str(e)}")
+        
+        # Fallback to Azure SQL (slow, may timeout)
+        return self._get_department_margins_from_azure()
+    
+    def _get_department_margins_from_mart(self):
+        """Get department margins from pre-aggregated Mart table"""
+        query = """
+        SELECT 
+            year,
+            month,
+            SUM(service_revenue) as labor_revenue,
+            SUM(service_cost) as labor_cost,
+            SUM(parts_revenue) as parts_revenue,
+            SUM(parts_cost) as parts_cost,
+            SUM(sales_revenue) as equipment_revenue,
+            SUM(sales_cost) as equipment_cost,
+            SUM(rental_revenue) as rental_revenue,
+            SUM(rental_cost) as rental_cost
+        FROM mart_sales_daily
+        WHERE org_id = %s
+          AND sales_date >= CURRENT_DATE - INTERVAL '12 months'
+        GROUP BY year, month
+        ORDER BY year, month
+        """
+        
+        results = self.pg_db.execute_query(query, (self.org_id,))
+        if not results:
+            return None
+        
+        department_margins = []
+        for row in results:
+            month_date = datetime(row['year'], row['month'], 1)
+            
+            # Calculate margins - handle nulls and division by zero
+            parts_revenue = float(row.get('parts_revenue') or 0)
+            parts_cost = float(row.get('parts_cost') or 0)
+            parts_margin = 0
+            if parts_revenue > 0:
+                parts_margin = ((parts_revenue - parts_cost) / parts_revenue) * 100
+            
+            labor_revenue = float(row.get('labor_revenue') or 0)
+            labor_cost = float(row.get('labor_cost') or 0)
+            labor_margin = 0
+            if labor_revenue > 0:
+                labor_margin = ((labor_revenue - labor_cost) / labor_revenue) * 100
+            
+            equipment_revenue = float(row.get('equipment_revenue') or 0)
+            equipment_cost = float(row.get('equipment_cost') or 0)
+            equipment_margin = 0
+            if equipment_revenue > 0:
+                equipment_margin = ((equipment_revenue - equipment_cost) / equipment_revenue) * 100
+            
+            rental_revenue = float(row.get('rental_revenue') or 0)
+            rental_cost = float(row.get('rental_cost') or 0)
+            rental_margin = 0
+            if rental_revenue > 0:
+                rental_margin = ((rental_revenue - rental_cost) / rental_revenue) * 100
+            
+            department_margins.append({
+                'month': month_date.strftime("%b"),
+                'parts_margin': round(parts_margin, 1),
+                'labor_margin': round(labor_margin, 1),
+                'equipment_margin': round(equipment_margin, 1),
+                'rental_margin': round(rental_margin, 1)
+            })
+        
+        return department_margins
+    
+    def _get_department_margins_from_azure(self):
+        """Original Azure SQL query for department margins (fallback)"""
         try:
             # Use the same calculation as the original dashboard - sum the taxable/nontax fields
             query = f"""
