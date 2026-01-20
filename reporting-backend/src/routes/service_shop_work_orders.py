@@ -33,6 +33,7 @@ def get_shop_work_orders():
     """
     try:
         db = AzureSQLService()
+        schema = get_tenant_schema()
         
         # DEBUG QUERY 1: Investigate work order types
         debug_type_query = f"""
@@ -99,7 +100,7 @@ def get_shop_work_orders():
         # QuotedHours = QuotedAmount / (LaborRate * (1 - Discount/100))
         # Rounded to whole number since quotes are always in whole hours
         # Using NULLIF to prevent divide-by-zero errors
-        schema = get_tenant_schema()
+        # schema already defined at the start of the function
 
         query = f"""
         SELECT
