@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
+from src.services.postgres_service import get_postgres_db
 from src.models.user import User
 from src.utils.fiscal_year import get_fiscal_year_months
 
@@ -66,9 +67,17 @@ OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000']
 class DashboardQueries:
     """Encapsulate all dashboard queries for parallel execution"""
     
-    def __init__(self, db, schema='ben002'):
+    # Organization ID mapping for Mart queries
+    ORG_ID_MAP = {
+        'ben002': 4,   # Bennett
+        'vital': 6     # VITAL WorkLife
+    }
+    
+    def __init__(self, db, schema='ben002', pg_db=None):
         self.db = db
+        self.pg_db = pg_db  # PostgreSQL connection for Mart queries
         self.schema = schema  # Tenant-specific database schema
+        self.org_id = self.ORG_ID_MAP.get(schema, 4)  # Default to Bennett
         self.current_date = datetime.now()
         self.month_start = self.current_date.replace(day=1).strftime('%Y-%m-%d')
         self.thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -1351,7 +1360,84 @@ class DashboardQueries:
             return []
     
     def get_monthly_work_orders_by_type(self):
-        """Get monthly work orders by type since March"""
+        """Get monthly work orders by type since March - uses Mart tables for speed"""
+        # Try Mart table first (fast, pre-aggregated)
+        if self.pg_db:
+            try:
+                mart_result = self._get_monthly_work_orders_from_mart()
+                if mart_result:
+                    logger.info("Monthly work orders loaded from Mart table")
+                    return mart_result
+            except Exception as e:
+                logger.warning(f"Mart query failed, falling back to Azure SQL: {str(e)}")
+        
+        # Fallback to Azure SQL (slow, may timeout)
+        return self._get_monthly_work_orders_from_azure()
+    
+    def _get_monthly_work_orders_from_mart(self):
+        """Get monthly work orders from pre-aggregated Mart table"""
+        query = """
+        SELECT 
+            year,
+            month,
+            SUM(service_revenue) as service_value,
+            SUM(parts_revenue) as parts_value,
+            SUM(rental_revenue) as rental_value,
+            SUM(sales_revenue) as equipment_value
+        FROM mart_sales_daily
+        WHERE org_id = %s
+          AND sales_date >= '2025-03-01'
+        GROUP BY year, month
+        ORDER BY year, month
+        """
+        
+        results = self.pg_db.execute_query(query, (self.org_id,))
+        if not results:
+            return None
+        
+        months_data = {}
+        for row in results:
+            month_date = datetime(row['year'], row['month'], 1)
+            month_key = month_date.strftime("%b")
+            months_data[month_key] = {
+                'month': month_key,
+                'service_value': float(row['service_value'] or 0),
+                'rental_value': float(row['rental_value'] or 0),
+                'parts_value': float(row['parts_value'] or 0),
+                'pm_value': 0,  # PM not tracked separately in Mart yet
+                'shop_value': 0,  # Shop not tracked separately in Mart yet
+                'equipment_value': float(row['equipment_value'] or 0)
+            }
+        
+        # Convert to list and ensure all months are present
+        start_date = datetime(2025, 3, 1)
+        monthly_data = []
+        date = start_date
+        
+        while date <= self.current_date:
+            month_key = date.strftime("%b")
+            if month_key in months_data:
+                monthly_data.append(months_data[month_key])
+            else:
+                monthly_data.append({
+                    'month': month_key,
+                    'service_value': 0,
+                    'rental_value': 0,
+                    'parts_value': 0,
+                    'pm_value': 0,
+                    'shop_value': 0,
+                    'equipment_value': 0
+                })
+            
+            if date.month == 12:
+                date = date.replace(year=date.year + 1, month=1)
+            else:
+                date = date.replace(month=date.month + 1)
+        
+        return monthly_data
+    
+    def _get_monthly_work_orders_from_azure(self):
+        """Original Azure SQL query for monthly work orders (fallback)"""
         try:
             query = f"""
             WITH LaborTotals AS (
@@ -1410,7 +1496,7 @@ class DashboardQueries:
                     
                     # Map work order types to categories
                     wo_type = row['Type']
-                    value = float(row['total_value'])
+                    value = float(row['total_value'] or 0)
                     
                     if wo_type == 'S':
                         months_data[month_key]['service_value'] += value
@@ -1747,7 +1833,8 @@ def get_dashboard_summary_optimized():
     
     try:
         db = AzureSQLService()
-        queries = DashboardQueries(db, schema=tenant_schema)
+        pg_db = get_postgres_db()  # PostgreSQL for Mart table queries
+        queries = DashboardQueries(db, schema=tenant_schema, pg_db=pg_db)
         
         # Cache TTL settings (in seconds) - all set to 1 hour for performance
         cache_ttl = {
