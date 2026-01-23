@@ -12,11 +12,11 @@ import json
 vital_finance_bp = Blueprint('vital_finance', __name__)
 
 # Import services
-from src.services.postgres_service import PostgresService
+from src.services.postgres_service import get_postgres_db
 
 def get_db():
     """Get PostgreSQL database connection"""
-    return PostgresService()
+    return get_postgres_db()
 
 
 # =============================================================================
