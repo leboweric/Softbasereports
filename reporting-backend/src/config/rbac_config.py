@@ -43,6 +43,7 @@ RESOURCES = {
     'vital_quickbooks': 'VITAL Worklife QuickBooks financial dashboard',
     'vital_azure_sql': 'VITAL Worklife Azure SQL Case Data dashboard',
     'vital_zoom': 'VITAL Worklife Zoom call center analytics',
+    'vital_finance': 'VITAL Worklife Finance billing management and revenue tracking',
 }
 
 # Action types
@@ -149,13 +150,13 @@ ROLE_PERMISSIONS = {
     # VITAL Worklife roles
     'VITAL Admin': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'user_management'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance'
         ],
         'actions': ['view', 'export'],
     },
@@ -345,5 +346,12 @@ NAVIGATION_CONFIG = {
         'path': 'vital-zoom',
         'required_resource': 'vital_zoom',
         'order': 27,
+    },
+    'vital-finance': {
+        'label': 'Finance',
+        'icon': 'Wallet',
+        'path': 'vital-finance',
+        'required_resource': 'vital_finance',
+        'order': 28,
     },
 }
