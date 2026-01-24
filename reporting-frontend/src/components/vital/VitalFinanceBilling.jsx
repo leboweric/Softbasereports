@@ -1237,136 +1237,8 @@ const VitalFinanceBilling = ({ user, organization }) => {
                 <div className="text-center py-8 text-gray-500">Loading pivot data...</div>
               ) : (
                 <div className="space-y-8">
-                  {/* Count of Companies Pivot */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Count of Companies</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse">
-                        <thead>
-                          <tr className="bg-gray-100">
-                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
-                            {tierProductPivotData.products?.map(product => (
-                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
-                            ))}
-                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tierProductPivotData.count_pivot?.map((row, idx) => (
-                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
-                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
-                              {tierProductPivotData.products?.map(product => (
-                                <td key={product} className="border px-3 py-2 text-right">
-                                  {row[product] || '-'}
-                                </td>
-                              ))}
-                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">{row['Grand Total']}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Sum of Population Pivot */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Sum of Population</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse">
-                        <thead>
-                          <tr className="bg-gray-100">
-                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
-                            {tierProductPivotData.products?.map(product => (
-                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
-                            ))}
-                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tierProductPivotData.population_pivot?.map((row, idx) => (
-                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
-                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
-                              {tierProductPivotData.products?.map(product => (
-                                <td key={product} className="border px-3 py-2 text-right">
-                                  {row[product]?.toLocaleString() || '-'}
-                                </td>
-                              ))}
-                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">{row['Grand Total']?.toLocaleString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Sum of Revenue Pivot */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Sum of Annual Revenue ({tierProductRevenueTiming === 'cash' ? 'Cash' : 'RevRec'})</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse">
-                        <thead>
-                          <tr className="bg-gray-100">
-                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
-                            {tierProductPivotData.products?.map(product => (
-                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
-                            ))}
-                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tierProductPivotData.revenue_pivot?.map((row, idx) => (
-                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
-                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
-                              {tierProductPivotData.products?.map(product => (
-                                <td key={product} className="border px-3 py-2 text-right">
-                                  {row[product] ? `$${row[product].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}` : '-'}
-                                </td>
-                              ))}
-                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">
-                                ${row['Grand Total']?.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Average PEPM Pivot */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-3">Average {selectedYear} PEPM</h3>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse">
-                        <thead>
-                          <tr className="bg-gray-100">
-                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
-                            {tierProductPivotData.products?.map(product => (
-                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
-                            ))}
-                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {tierProductPivotData.pepm_pivot?.map((row, idx) => (
-                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
-                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
-                              {tierProductPivotData.products?.map(product => (
-                                <td key={product} className="border px-3 py-2 text-right">
-                                  {row[product] ? `$${row[product].toFixed(2)}` : '-'}
-                                </td>
-                              ))}
-                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">
-                                ${row['Grand Total']?.toFixed(2)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Actionable Insights Cards */}
-                  <div className="grid grid-cols-5 gap-4 mt-6">
+                  {/* Actionable Insights Cards - AT THE TOP */}
+                  <div className="grid grid-cols-5 gap-4">
                     {(() => {
                       // Calculate insights from pivot data
                       const revenueData = tierProductPivotData.revenue_pivot?.filter(r => r.tier !== 'Grand Total') || []
@@ -1490,7 +1362,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
                   </div>
 
                   {/* Stacked Bar Chart - Revenue by Tier */}
-                  <div className="mt-8">
+                  <div>
                     <h3 className="text-lg font-semibold mb-3">Revenue by Tier (Stacked by Product)</h3>
                     <div className="h-80">
                       <ResponsiveContainer width="100%" height="100%">
@@ -1526,7 +1398,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
                   </div>
 
                   {/* PEPM Heatmap */}
-                  <div className="mt-8">
+                  <div>
                     <h3 className="text-lg font-semibold mb-3">PEPM Heatmap (Pricing Analysis)</h3>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm border-collapse">
@@ -1579,7 +1451,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
                   </div>
 
                   {/* Grand Totals Summary */}
-                  <div className="grid grid-cols-4 gap-4 mt-6">
+                  <div className="grid grid-cols-4 gap-4">
                     <Card>
                       <CardContent className="pt-4">
                         <div className="text-sm text-gray-500">Total Clients</div>
@@ -1604,6 +1476,139 @@ const VitalFinanceBilling = ({ user, organization }) => {
                         <div className="text-2xl font-bold">${tierProductPivotData.grand_totals?.avg_pepm?.toFixed(2)}</div>
                       </CardContent>
                     </Card>
+                  </div>
+
+                  {/* Detailed Pivot Tables Section */}
+                  <div className="border-t pt-8 mt-8">
+                    <h3 className="text-xl font-semibold mb-6">Detailed Pivot Tables</h3>
+                    
+                    {/* Count of Companies Pivot */}
+                    <div className="mb-8">
+                      <h4 className="text-lg font-semibold mb-3">Count of Companies</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
+                            {tierProductPivotData.products?.map(product => (
+                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
+                            ))}
+                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tierProductPivotData.count_pivot?.map((row, idx) => (
+                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
+                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
+                              {tierProductPivotData.products?.map(product => (
+                                <td key={product} className="border px-3 py-2 text-right">
+                                  {row[product] || '-'}
+                                </td>
+                              ))}
+                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">{row['Grand Total']}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Sum of Population Pivot */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Sum of Population</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
+                            {tierProductPivotData.products?.map(product => (
+                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
+                            ))}
+                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tierProductPivotData.population_pivot?.map((row, idx) => (
+                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
+                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
+                              {tierProductPivotData.products?.map(product => (
+                                <td key={product} className="border px-3 py-2 text-right">
+                                  {row[product]?.toLocaleString() || '-'}
+                                </td>
+                              ))}
+                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">{row['Grand Total']?.toLocaleString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Sum of Revenue Pivot */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Sum of Annual Revenue ({tierProductRevenueTiming === 'cash' ? 'Cash' : 'RevRec'})</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
+                            {tierProductPivotData.products?.map(product => (
+                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
+                            ))}
+                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tierProductPivotData.revenue_pivot?.map((row, idx) => (
+                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
+                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
+                              {tierProductPivotData.products?.map(product => (
+                                <td key={product} className="border px-3 py-2 text-right">
+                                  {row[product] ? `$${row[product].toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}` : '-'}
+                                </td>
+                              ))}
+                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">
+                                ${row['Grand Total']?.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Average PEPM Pivot */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Average {selectedYear} PEPM</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
+                            {tierProductPivotData.products?.map(product => (
+                              <th key={product} className="border px-3 py-2 text-right font-semibold">{product}</th>
+                            ))}
+                            <th className="border px-3 py-2 text-right font-semibold bg-gray-200">Grand Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tierProductPivotData.pepm_pivot?.map((row, idx) => (
+                            <tr key={idx} className={row.tier === 'Grand Total' ? 'bg-gray-200 font-semibold' : 'hover:bg-gray-50'}>
+                              <td className="border px-3 py-2 font-medium">{row.tier}</td>
+                              {tierProductPivotData.products?.map(product => (
+                                <td key={product} className="border px-3 py-2 text-right">
+                                  {row[product] ? `$${row[product].toFixed(2)}` : '-'}
+                                </td>
+                              ))}
+                              <td className="border px-3 py-2 text-right bg-gray-100 font-semibold">
+                                ${row['Grand Total']?.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    </div>
                   </div>
                 </div>
               )}
