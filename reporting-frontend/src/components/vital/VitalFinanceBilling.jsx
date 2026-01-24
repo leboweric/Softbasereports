@@ -629,10 +629,10 @@ const VitalFinanceBilling = ({ user, organization }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {formatCurrency(summary?.at_risk?.monthly_at_risk * 12)}
+              {formatCurrency(summary?.at_risk?.annual_at_risk || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {summary?.at_risk?.at_risk_count || 0} clients at risk
+              {summary?.at_risk?.at_risk_count || 0} clients renewing in 3 months
             </p>
           </CardContent>
         </Card>
@@ -644,7 +644,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{renewals.length}</div>
-            <p className="text-xs text-muted-foreground">Next 6 months</p>
+            <p className="text-xs text-muted-foreground">
+              {formatCurrency(renewals.reduce((sum, r) => sum + (r.annual_value || 0), 0))} in next 6 months
+            </p>
           </CardContent>
         </Card>
       </div>
