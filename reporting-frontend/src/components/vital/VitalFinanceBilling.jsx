@@ -431,7 +431,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
                         <TableCell className="text-right bg-gray-100 font-bold">{formatCurrency(row.annual_total)}</TableCell>
                       </TableRow>
                     ))}
-                    {/* Totals Row */}
+                    {/* Totals Row - Dynamically calculated from filtered data */}
                     <TableRow className="bg-gray-200 font-bold sticky bottom-0">
                       {revenueType === 'dual' && <TableCell className="sticky left-0 bg-gray-200 z-10">TOTAL</TableCell>}
                       <TableCell className={`sticky ${revenueType === 'dual' ? 'left-[80px]' : 'left-0'} bg-gray-200 z-10`}>
@@ -444,19 +444,19 @@ const VitalFinanceBilling = ({ user, organization }) => {
                       </TableCell>
                       <TableCell></TableCell>
                       <TableCell></TableCell>
-                      <TableCell className="text-right bg-blue-100">{formatCurrency(spreadsheetData?.monthly_totals?.jan)}</TableCell>
-                      <TableCell className="text-right bg-blue-100">{formatCurrency(spreadsheetData?.monthly_totals?.feb)}</TableCell>
-                      <TableCell className="text-right bg-blue-100">{formatCurrency(spreadsheetData?.monthly_totals?.mar)}</TableCell>
-                      <TableCell className="text-right bg-green-100">{formatCurrency(spreadsheetData?.monthly_totals?.apr)}</TableCell>
-                      <TableCell className="text-right bg-green-100">{formatCurrency(spreadsheetData?.monthly_totals?.may)}</TableCell>
-                      <TableCell className="text-right bg-green-100">{formatCurrency(spreadsheetData?.monthly_totals?.jun)}</TableCell>
-                      <TableCell className="text-right bg-yellow-100">{formatCurrency(spreadsheetData?.monthly_totals?.jul)}</TableCell>
-                      <TableCell className="text-right bg-yellow-100">{formatCurrency(spreadsheetData?.monthly_totals?.aug)}</TableCell>
-                      <TableCell className="text-right bg-yellow-100">{formatCurrency(spreadsheetData?.monthly_totals?.sep)}</TableCell>
-                      <TableCell className="text-right bg-orange-100">{formatCurrency(spreadsheetData?.monthly_totals?.oct)}</TableCell>
-                      <TableCell className="text-right bg-orange-100">{formatCurrency(spreadsheetData?.monthly_totals?.nov)}</TableCell>
-                      <TableCell className="text-right bg-orange-100">{formatCurrency(spreadsheetData?.monthly_totals?.dec)}</TableCell>
-                      <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(spreadsheetData?.total_annual)}</TableCell>
+                      <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
+                      <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
