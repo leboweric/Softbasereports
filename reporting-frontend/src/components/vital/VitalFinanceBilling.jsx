@@ -42,6 +42,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
   const [showAddClient, setShowAddClient] = useState(false)
   const [activeTab, setActiveTab] = useState('spreadsheet')
   const tableContainerRef = useRef(null)
+  const [wpoPivotData, setWpoPivotData] = useState(null)
+  const [wpoSessionProduct, setWpoSessionProduct] = useState('all')
+  const [wpoRevenueTiming, setWpoRevenueTiming] = useState('cash')
   const [newClient, setNewClient] = useState({
     billing_name: '',
     hubspot_company_name: '',
@@ -71,6 +74,31 @@ const VitalFinanceBilling = ({ user, organization }) => {
   useEffect(() => {
     fetchData()
   }, [selectedYear, revenueType])
+
+  useEffect(() => {
+    if (activeTab === 'wpo_pivot') {
+      fetchWpoPivot(wpoSessionProduct, wpoRevenueTiming)
+    }
+  }, [activeTab, selectedYear])
+
+  const fetchWpoPivot = async (sessionProduct = 'all', revenueTiming = 'cash') => {
+    try {
+      const token = localStorage.getItem('token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      const params = new URLSearchParams({
+        year: selectedYear,
+        session_product: sessionProduct,
+        revenue_timing: revenueTiming
+      })
+      const res = await fetch(apiUrl(`/api/vital/finance/pivot/wpo?${params}`), { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setWpoPivotData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching WPO pivot:', error)
+    }
+  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -308,6 +336,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
             Billing Table
           </TabsTrigger>
           <TabsTrigger value="clients">Clients</TabsTrigger>
+          <TabsTrigger value="wpo_pivot">WPO Pivot</TabsTrigger>
           <TabsTrigger value="renewals">Renewals</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
@@ -731,7 +760,119 @@ const VitalFinanceBilling = ({ user, organization }) => {
           </Card>
         </TabsContent>
 
-        {/* Renewals Tab */}
+        {/* WPO Pivot Tab */}
+        <TabsContent value="wpo_pivot" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>WPO Pivot - {selectedYear}</CardTitle>
+                  <CardDescription>
+                    WPO billing by client • {wpoPivotData?.client_count || 0} clients
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2 items-center">
+                  {/* Session Product Filter */}
+                  <Select value={wpoSessionProduct} onValueChange={(v) => {
+                    setWpoSessionProduct(v)
+                    fetchWpoPivot(v, wpoRevenueTiming)
+                  }}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Session Product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Products</SelectItem>
+                      {wpoPivotData?.available_session_products?.map(sp => (
+                        <SelectItem key={sp} value={sp}>{sp}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  {/* Revenue Timing Toggle */}
+                  <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                    <Button 
+                      size="sm" 
+                      variant={wpoRevenueTiming === 'cash' ? 'default' : 'ghost'}
+                      onClick={() => {
+                        setWpoRevenueTiming('cash')
+                        fetchWpoPivot(wpoSessionProduct, 'cash')
+                      }}
+                    >
+                      Cash
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant={wpoRevenueTiming === 'revrec' ? 'default' : 'ghost'}
+                      onClick={() => {
+                        setWpoRevenueTiming('revrec')
+                        fetchWpoPivot(wpoSessionProduct, 'revrec')
+                      }}
+                    >
+                      RevRec
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!wpoPivotData ? (
+                <div className="text-center py-12">
+                  <RefreshCw className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">Loading WPO data...</p>
+                </div>
+              ) : wpoPivotData.rows?.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  No WPO data available for the selected filters
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>WPO Name</TableHead>
+                        <TableHead>Account Number</TableHead>
+                        <TableHead>Session Product</TableHead>
+                        <TableHead className="text-right">WPO Billing</TableHead>
+                        <TableHead className="text-right">Total Revenue</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {wpoPivotData.rows.map((row, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium">{row.wpo_name}</TableCell>
+                          <TableCell className="text-gray-500">{row.wpo_account_number}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{row.session_product}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            ${row.wpo_billing?.toFixed(2) || '0.00'}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(row.total_revenue)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {/* Totals Row */}
+                      <TableRow className="bg-gray-50 font-bold">
+                        <TableCell>TOTAL</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell>{wpoPivotData.client_count} clients</TableCell>
+                        <TableCell className="text-right">
+                          ${wpoPivotData.total_wpo_billing?.toFixed(2) || '0.00'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(wpoPivotData.total_revenue)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Renewals Tab */
         <TabsContent value="renewals" className="space-y-4">
           <Card>
             <CardHeader>
