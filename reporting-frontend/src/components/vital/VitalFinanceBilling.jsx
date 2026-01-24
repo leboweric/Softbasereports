@@ -63,7 +63,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
   const [tierProductRevenueTiming, setTierProductRevenueTiming] = useState('revrec')
   const [valueRenewalsPivotData, setValueRenewalsPivotData] = useState(null)
   const [valueRenewalsRevenueTiming, setValueRenewalsRevenueTiming] = useState('revrec')
-  const [topClientsData, setTopClientsData] = useState(null)
+  const [topClientsPivotData, setTopClientsPivotData] = useState(null)
   const [industryStatsData, setIndustryStatsData] = useState(null)
   const [industryStatsRevenueTiming, setIndustryStatsRevenueTiming] = useState('revrec')
   const [topClientsRevenueTiming, setTopClientsRevenueTiming] = useState('revrec')
