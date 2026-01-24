@@ -31,9 +31,9 @@ def get_clients():
         db = get_db()
         current_user = get_jwt_identity()
         
-        # Get user's org_id
+        # Get user's org_id - JWT identity returns user ID
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         if not user_result:
@@ -87,7 +87,7 @@ def create_client():
         
         # Get user's org_id
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         org_id = user_result[0]['organization_id']
@@ -358,7 +358,7 @@ def get_billing_summary():
         
         # Get user's org_id
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         org_id = user_result[0]['organization_id']
@@ -466,7 +466,7 @@ def get_renewals():
         
         # Get user's org_id
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         org_id = user_result[0]['organization_id']
@@ -643,7 +643,7 @@ def calculate_billing():
         # Get user's org_id
         db = get_db()
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         org_id = user_result[0]['organization_id']
@@ -687,7 +687,7 @@ def get_billing_report():
         # Get user's org_id
         db = get_db()
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         org_id = user_result[0]['organization_id']
@@ -730,7 +730,7 @@ def get_billing_summary_v2():
         # Get user's org_id
         db = get_db()
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         org_id = user_result[0]['organization_id']
@@ -810,7 +810,7 @@ def get_billing_pivot():
         
         # Get user's org_id
         user_result = db.execute_query(
-            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
             (current_user,)
         )
         org_id = user_result[0]['organization_id']
