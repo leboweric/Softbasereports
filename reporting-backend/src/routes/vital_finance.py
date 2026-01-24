@@ -412,18 +412,21 @@ def get_billing_summary():
         
         by_solution = db.execute_query(solution_query, (org_id, year))
         
-        # Get at-risk summary
+        # Get at-risk summary (clients with renewals in next 3 months)
         at_risk_query = """
             SELECT 
-                SUM(ar.monthly_revenue_at_risk) as monthly_at_risk,
-                SUM(ar.annual_revenue_at_risk) as annual_at_risk,
-                COUNT(*) as at_risk_count
-            FROM finance_at_risk ar
-            JOIN finance_clients c ON ar.client_id = c.id
-            WHERE c.org_id = %s AND ar.status = 'active'
+                SUM(fmb.total_annual / 12) as monthly_at_risk,
+                SUM(fmb.total_annual) as annual_at_risk,
+                COUNT(DISTINCT fc.id) as at_risk_count
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id 
+                AND fmb.billing_year = %s
+            WHERE fc.org_id = %s 
+              AND fc.renewal_date IS NOT NULL
+              AND fc.renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 months'
         """
         
-        at_risk = db.execute_query(at_risk_query, (org_id,))
+        at_risk = db.execute_query(at_risk_query, (year, org_id,))
         
         # Calculate book of business value
         book_value_query = """
@@ -459,7 +462,7 @@ def get_billing_summary():
 @vital_finance_bp.route('/api/vital/finance/renewals', methods=['GET'])
 @jwt_required()
 def get_renewals():
-    """Get upcoming renewals"""
+    """Get upcoming renewals from finance_clients table"""
     try:
         db = get_db()
         current_user = get_jwt_identity()
@@ -473,30 +476,27 @@ def get_renewals():
         
         months_ahead = request.args.get('months', 6, type=int)
         
+        # Query finance_clients directly for renewal data
         query = """
             SELECT 
-                c.id, c.billing_name, c.tier, c.solution_type, c.status,
-                fc.renewal_date, fc.renewal_status,
-                (SELECT population_count FROM finance_population_history 
-                 WHERE client_id = c.id ORDER BY effective_date DESC LIMIT 1) as population,
-                (SELECT pepm_rate FROM finance_rate_schedules rs
-                 WHERE rs.contract_id = fc.id AND rs.effective_date <= CURRENT_DATE
-                 ORDER BY rs.effective_date DESC LIMIT 1) as current_rate
-            FROM finance_clients c
-            JOIN finance_contracts fc ON fc.client_id = c.id
-            WHERE c.org_id = %s 
-              AND fc.status = 'active'
+                fc.id, 
+                fc.billing_name, 
+                fc.tier, 
+                fc.session_product as solution_type, 
+                fc.status,
+                fc.renewal_date,
+                fc.population,
+                fmb.total_annual as annual_value
+            FROM finance_clients fc
+            LEFT JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id 
+                AND fmb.billing_year = EXTRACT(YEAR FROM CURRENT_DATE)
+            WHERE fc.org_id = %s 
+              AND fc.renewal_date IS NOT NULL
               AND fc.renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '%s months'
             ORDER BY fc.renewal_date
         """
         
         renewals = db.execute_query(query, (org_id, months_ahead))
-        
-        # Calculate annual value for each
-        for r in renewals:
-            pop = r.get('population') or 0
-            rate = float(r.get('current_rate') or 0)
-            r['annual_value'] = pop * rate * 12
         
         return jsonify({
             'success': True,
