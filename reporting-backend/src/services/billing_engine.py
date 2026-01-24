@@ -347,3 +347,96 @@ class BillingEngine:
     ) -> List[Dict]:
         """Calculate billing for all clients in an organization"""
         return self.get_spreadsheet_view(org_id, year, 'revrec')
+
+    def get_wpo_pivot(
+        self,
+        org_id: int,
+        year: int,
+        session_product: str = None,
+        revenue_timing: str = 'cash'
+    ) -> Dict:
+        """
+        Generate WPO Pivot table data.
+        
+        Replicates the Excel PIVOT WPO tab which shows:
+        - Clients grouped by WPO Name
+        - Sum of WPO Billing per client
+        - Filterable by Session Product and Revenue Timing
+        
+        Args:
+            org_id: Organization ID
+            year: Year to analyze
+            session_product: Filter by session product (e.g., 'PWR', 'EAP 3')
+            revenue_timing: 'cash' or 'revrec'
+        
+        Returns:
+            Dict with pivot data and totals
+        """
+        cursor = self.db.cursor()
+        
+        # Build query with optional session_product filter
+        query = """
+            SELECT 
+                fc.wpo_name,
+                fc.wpo_account_number,
+                fc.session_product,
+                fc.wpo_billing,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            AND fc.wpo_name IS NOT NULL
+        """
+        params = [revenue_timing, org_id, year]
+        
+        if session_product and session_product != 'all':
+            query += " AND fc.session_product = %s"
+            params.append(session_product)
+        
+        query += """
+            GROUP BY fc.wpo_name, fc.wpo_account_number, fc.session_product, fc.wpo_billing
+            ORDER BY fc.wpo_name
+        """
+        
+        cursor.execute(query, params)
+        
+        rows = []
+        total_wpo_billing = Decimal('0')
+        total_revenue = Decimal('0')
+        
+        for row in cursor.fetchall():
+            wpo_billing = Decimal(str(row[3])) if row[3] else Decimal('0')
+            revenue = Decimal(str(row[4])) if row[4] else Decimal('0')
+            
+            rows.append({
+                'wpo_name': row[0],
+                'wpo_account_number': row[1],
+                'session_product': row[2],
+                'wpo_billing': float(wpo_billing),
+                'total_revenue': float(revenue)
+            })
+            
+            total_wpo_billing += wpo_billing
+            total_revenue += revenue
+        
+        # Get distinct session products for filter dropdown
+        cursor.execute("""
+            SELECT DISTINCT session_product 
+            FROM finance_clients 
+            WHERE org_id = %s AND session_product IS NOT NULL
+            ORDER BY session_product
+        """, (org_id,))
+        
+        session_products = [row[0] for row in cursor.fetchall()]
+        
+        return {
+            'year': year,
+            'revenue_timing': revenue_timing,
+            'session_product_filter': session_product,
+            'rows': rows,
+            'total_wpo_billing': float(total_wpo_billing),
+            'total_revenue': float(total_revenue),
+            'client_count': len(rows),
+            'available_session_products': session_products
+        }

@@ -1368,3 +1368,71 @@ def get_billing_terms_summary():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# WPO PIVOT ENDPOINT
+# =============================================================================
+
+@vital_finance_bp.route('/api/vital/finance/pivot/wpo', methods=['GET'])
+@jwt_required()
+def get_wpo_pivot():
+    """
+    Get WPO Pivot table data.
+    Replicates the PIVOT WPO tab from the Excel spreadsheet.
+    
+    Query params:
+        - year: Year to analyze (default: current year)
+        - session_product: Filter by session product (e.g., 'PWR', 'EAP 3', 'all')
+        - revenue_timing: 'cash' or 'revrec' (default: 'cash')
+    
+    Returns:
+        - rows: List of clients with WPO billing
+        - total_wpo_billing: Sum of all WPO billing
+        - total_revenue: Sum of revenue for filtered clients
+        - available_session_products: List of session products for filter dropdown
+    """
+    try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        session_product = request.args.get('session_product', 'all')
+        revenue_timing = request.args.get('revenue_timing', 'cash')
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct psycopg2 connection for billing engine
+        conn = psycopg2.connect(
+            host=os.environ.get('POSTGRES_HOST', 'localhost'),
+            port=os.environ.get('POSTGRES_PORT', 5432),
+            database=os.environ.get('POSTGRES_DB', 'railway'),
+            user=os.environ.get('POSTGRES_USER', 'postgres'),
+            password=os.environ.get('POSTGRES_PASSWORD', '')
+        )
+        
+        engine = BillingEngine(conn)
+        result = engine.get_wpo_pivot(
+            org_id=org_id,
+            year=year,
+            session_product=session_product if session_product != 'all' else None,
+            revenue_timing=revenue_timing
+        )
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            **result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
