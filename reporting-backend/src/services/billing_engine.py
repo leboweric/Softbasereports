@@ -1175,3 +1175,142 @@ class BillingEngine:
                 'industry_count': len(industries)
             }
         }
+
+
+    def get_nexus_state_pivot(
+        self,
+        org_id: int,
+        year: int,
+        revenue_timing: str = 'revrec'
+    ) -> Dict:
+        """
+        Generate Nexus State Pivot table data.
+        
+        Replicates the Excel 'PIVOT Nexus State' tab which shows:
+        - Revenue grouped by nexus state (US states/regions)
+        - Helps understand geographic revenue distribution
+        
+        Args:
+            org_id: Organization ID
+            year: Base year for analysis
+            revenue_timing: 'cash' or 'revrec'
+        
+        Returns:
+            Dict with pivot data, charts, and insights
+        """
+        cursor = self.db.cursor()
+        
+        # Get revenue by nexus state
+        cursor.execute("""
+            SELECT 
+                COALESCE(fc.nexus_state, '(blank)') as nexus_state,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(fmb.population_count) / 12 as avg_population,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            GROUP BY COALESCE(fc.nexus_state, '(blank)')
+            ORDER BY total_revenue DESC
+        """, (revenue_timing, org_id, year))
+        
+        states = []
+        grand_total_revenue = 0
+        grand_total_clients = 0
+        grand_total_population = 0
+        
+        for row in cursor.fetchall():
+            nexus_state = row[0]
+            client_count = row[1] or 0
+            population = int(row[2]) if row[2] else 0
+            revenue = float(row[3]) if row[3] else 0
+            
+            states.append({
+                'nexus_state': nexus_state,
+                'client_count': client_count,
+                'population': population,
+                'revenue': revenue
+            })
+            
+            grand_total_revenue += revenue
+            grand_total_clients += client_count
+            grand_total_population += population
+        
+        # Calculate percentages
+        for state in states:
+            state['pct_of_revenue'] = (state['revenue'] / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+        
+        # Get breakdown by tier for each state
+        cursor.execute("""
+            SELECT 
+                COALESCE(fc.nexus_state, '(blank)') as nexus_state,
+                COALESCE(fc.tier, 'NA') as tier,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            GROUP BY COALESCE(fc.nexus_state, '(blank)'), COALESCE(fc.tier, 'NA')
+            ORDER BY nexus_state, tier
+        """, (revenue_timing, org_id, year))
+        
+        by_state_tier = {}
+        tiers = set()
+        for row in cursor.fetchall():
+            nexus_state = row[0]
+            tier = row[1]
+            client_count = row[2] or 0
+            revenue = float(row[3]) if row[3] else 0
+            
+            tiers.add(tier)
+            if nexus_state not in by_state_tier:
+                by_state_tier[nexus_state] = {}
+            by_state_tier[nexus_state][tier] = {
+                'client_count': client_count,
+                'revenue': revenue
+            }
+        
+        # Sort tiers
+        tier_order = ['A', 'B', 'C', 'D', 'NA', '(blank)']
+        sorted_tiers = sorted(tiers, key=lambda x: tier_order.index(x) if x in tier_order else 99)
+        
+        # Build stacked data for charts
+        stacked_by_tier = []
+        for state_data in states:
+            ns = state_data['nexus_state']
+            tier_row = {'nexus_state': ns}
+            for tier in sorted_tiers:
+                tier_row[tier] = by_state_tier.get(ns, {}).get(tier, {}).get('revenue', 0)
+            stacked_by_tier.append(tier_row)
+        
+        # Calculate insights
+        top_state = states[0] if states else None
+        
+        # Top 5 concentration
+        top_5_revenue = sum(s['revenue'] for s in states[:5])
+        top_5_pct = (top_5_revenue / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+        
+        # Count non-blank states
+        state_count = len([s for s in states if s['nexus_state'] != '(blank)'])
+        
+        return {
+            'year': year,
+            'revenue_timing': revenue_timing,
+            'states': states,
+            'stacked_by_tier': stacked_by_tier,
+            'tiers': sorted_tiers,
+            'grand_totals': {
+                'revenue': grand_total_revenue,
+                'client_count': grand_total_clients,
+                'population': grand_total_population
+            },
+            'insights': {
+                'top_state': top_state['nexus_state'] if top_state else None,
+                'top_state_revenue': top_state['revenue'] if top_state else 0,
+                'top_state_pct': top_state['pct_of_revenue'] if top_state else 0,
+                'top_5_pct': top_5_pct,
+                'state_count': state_count
+            }
+        }

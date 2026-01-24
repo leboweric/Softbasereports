@@ -68,6 +68,8 @@ const VitalFinanceBilling = ({ user, organization }) => {
   const [topClientsPivotData, setTopClientsPivotData] = useState(null)
   const [industryStatsData, setIndustryStatsData] = useState(null)
   const [industryStatsRevenueTiming, setIndustryStatsRevenueTiming] = useState('revrec')
+  const [nexusStateData, setNexusStateData] = useState(null)
+  const [nexusStateRevenueTiming, setNexusStateRevenueTiming] = useState('revrec')
   const [topClientsRevenueTiming, setTopClientsRevenueTiming] = useState('revrec')
   const [newClient, setNewClient] = useState({
     billing_name: '',
@@ -191,6 +193,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
     if (activeTab === 'industry_stats') {
       fetchIndustryStatsPivot(industryStatsRevenueTiming)
     }
+    if (activeTab === 'nexus_state') {
+      fetchNexusStatePivot(nexusStateRevenueTiming)
+    }
   }, [activeTab, selectedYear])
 
   const fetchWpoPivot = async (sessionProduct = 'all', revenueTiming = 'cash') => {
@@ -282,6 +287,24 @@ const VitalFinanceBilling = ({ user, organization }) => {
       }
     } catch (error) {
       console.error('Error fetching Industry Stats pivot:', error)
+    }
+  }
+
+  const fetchNexusStatePivot = async (revenueTiming = 'revrec') => {
+    try {
+      const token = localStorage.getItem('token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      const params = new URLSearchParams({
+        year: selectedYear,
+        revenue_timing: revenueTiming
+      })
+      const res = await fetch(apiUrl(`/api/vital/billing/nexus-state?${params}`), { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setNexusStateData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching Nexus State pivot:', error)
     }
   }
 
@@ -639,6 +662,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
           <TabsTrigger value="value_renewals">Value Renewals</TabsTrigger>
           <TabsTrigger value="top_clients">Top Clients</TabsTrigger>
           <TabsTrigger value="industry_stats">Industry Stats</TabsTrigger>
+          <TabsTrigger value="nexus_state">Nexus State</TabsTrigger>
           <TabsTrigger value="renewals">Renewals</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
@@ -2309,6 +2333,185 @@ const VitalFinanceBilling = ({ user, organization }) => {
                             <TableCell className="text-right">${industryStatsData.grand_totals?.revenue?.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</TableCell>
                             <TableCell className="text-right">100%</TableCell>
                             <TableCell className="text-right">-</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Nexus State Tab */}
+        <TabsContent value="nexus_state" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Nexus State Analysis</CardTitle>
+                  <CardDescription>Revenue distribution by geographic location (nexus state)</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={nexusStateRevenueTiming === 'cash' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setNexusStateRevenueTiming('cash')
+                      fetchNexusStatePivot('cash')
+                    }}
+                  >
+                    Cash
+                  </Button>
+                  <Button
+                    variant={nexusStateRevenueTiming === 'revrec' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setNexusStateRevenueTiming('revrec')
+                      fetchNexusStatePivot('revrec')
+                    }}
+                  >
+                    RevRec
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {nexusStateData ? (
+                <div className="space-y-6">
+                  {/* Insight Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <Card className="bg-blue-50 border-blue-200">
+                      <CardContent className="pt-4">
+                        <div className="text-blue-600 text-sm font-medium">Top State</div>
+                        <div className="text-2xl font-bold text-blue-900 truncate">
+                          {nexusStateData.insights?.top_state || '-'}
+                        </div>
+                        <div className="text-blue-700 text-sm">
+                          ${((nexusStateData.insights?.top_state_revenue || 0) / 1000000).toFixed(2)}M ({(nexusStateData.insights?.top_state_pct || 0).toFixed(1)}%)
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-amber-50 border-amber-200">
+                      <CardContent className="pt-4">
+                        <div className="text-amber-600 text-sm font-medium">Top 5 Concentration</div>
+                        <div className="text-2xl font-bold text-amber-900">
+                          {(nexusStateData.insights?.top_5_pct || 0).toFixed(1)}%
+                        </div>
+                        <div className="text-amber-700 text-sm">Revenue from top 5 states</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-purple-50 border-purple-200">
+                      <CardContent className="pt-4">
+                        <div className="text-purple-600 text-sm font-medium">State Count</div>
+                        <div className="text-2xl font-bold text-purple-900">
+                          {nexusStateData.insights?.state_count || 0}
+                        </div>
+                        <div className="text-purple-700 text-sm">Unique states served</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-green-50 border-green-200">
+                      <CardContent className="pt-4">
+                        <div className="text-green-600 text-sm font-medium">Total Revenue</div>
+                        <div className="text-2xl font-bold text-green-900">
+                          ${((nexusStateData.grand_totals?.revenue || 0) / 1000000).toFixed(2)}M
+                        </div>
+                        <div className="text-green-700 text-sm">{nexusStateData.grand_totals?.client_count || 0} clients</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Charts */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Revenue by State Bar Chart */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Revenue by State (Top 15)</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart
+                            data={nexusStateData.states?.slice(0, 15) || []}
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" tickFormatter={(v) => `$${(v/1000000).toFixed(1)}M`} />
+                            <YAxis type="category" dataKey="nexus_state" width={50} />
+                            <Tooltip formatter={(v) => `$${v.toLocaleString()}`} />
+                            <Bar dataKey="revenue" fill="#3b82f6" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Revenue Distribution Pie Chart */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Revenue Distribution (Top 8)</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <PieChart>
+                            <Pie
+                              data={nexusStateData.states?.slice(0, 8) || []}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ nexus_state, pct_of_revenue }) => `${nexus_state}: ${pct_of_revenue.toFixed(1)}%`}
+                              outerRadius={120}
+                              fill="#8884d8"
+                              dataKey="revenue"
+                            >
+                              {(nexusStateData.states?.slice(0, 8) || []).map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'][index % 8]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v) => `$${v.toLocaleString()}`} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* State Breakdown Table */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">State Breakdown</CardTitle>
+                      <CardDescription>Detailed metrics by nexus state</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>State</TableHead>
+                            <TableHead className="text-right">Clients</TableHead>
+                            <TableHead className="text-right">Population</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead className="text-right">% of Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {nexusStateData.states?.map((state, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">{state.nexus_state}</TableCell>
+                              <TableCell className="text-right">{state.client_count}</TableCell>
+                              <TableCell className="text-right">{state.population?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right">${state.revenue?.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</TableCell>
+                              <TableCell className="text-right">{state.pct_of_revenue?.toFixed(1)}%</TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="bg-gray-50 font-bold">
+                            <TableCell>Grand Total</TableCell>
+                            <TableCell className="text-right">{nexusStateData.grand_totals?.client_count}</TableCell>
+                            <TableCell className="text-right">{nexusStateData.grand_totals?.population?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${nexusStateData.grand_totals?.revenue?.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</TableCell>
+                            <TableCell className="text-right">100%</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>

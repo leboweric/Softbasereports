@@ -1658,3 +1658,46 @@ def get_industry_stats_pivot():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+
+@vital_finance_bp.route('/api/vital/billing/nexus-state', methods=['GET'])
+@jwt_required()
+def get_nexus_state_pivot():
+    """Get nexus state pivot data for geographic revenue analysis"""
+    import psycopg2
+    import os
+    from src.services.billing_engine import BillingEngine
+    
+    try:
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        revenue_timing = request.args.get('revenue_timing', 'revrec')
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct psycopg2 connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        
+        engine = BillingEngine(conn)
+        result = engine.get_nexus_state_pivot(
+            org_id=org_id,
+            year=year,
+            revenue_timing=revenue_timing
+        )
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            **result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
