@@ -61,6 +61,8 @@ const VitalFinanceBilling = ({ user, organization }) => {
   const [wpoRevenueTiming, setWpoRevenueTiming] = useState('cash')
   const [tierProductPivotData, setTierProductPivotData] = useState(null)
   const [tierProductRevenueTiming, setTierProductRevenueTiming] = useState('revrec')
+  const [valueRenewalsPivotData, setValueRenewalsPivotData] = useState(null)
+  const [valueRenewalsRevenueTiming, setValueRenewalsRevenueTiming] = useState('revrec')
   const [newClient, setNewClient] = useState({
     billing_name: '',
     hubspot_company_name: '',
@@ -174,6 +176,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
     if (activeTab === 'tier_product') {
       fetchTierProductPivot(tierProductRevenueTiming)
     }
+    if (activeTab === 'value_renewals') {
+      fetchValueRenewalsPivot(valueRenewalsRevenueTiming)
+    }
   }, [activeTab, selectedYear])
 
   const fetchWpoPivot = async (sessionProduct = 'all', revenueTiming = 'cash') => {
@@ -210,6 +215,24 @@ const VitalFinanceBilling = ({ user, organization }) => {
       }
     } catch (error) {
       console.error('Error fetching Tier & Product pivot:', error)
+    }
+  }
+
+  const fetchValueRenewalsPivot = async (revenueTiming = 'revrec') => {
+    try {
+      const token = localStorage.getItem('token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      const params = new URLSearchParams({
+        year: selectedYear,
+        revenue_timing: revenueTiming
+      })
+      const res = await fetch(apiUrl(`/api/vital/finance/pivot/current-value-renewals?${params}`), { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setValueRenewalsPivotData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching Value Renewals pivot:', error)
     }
   }
 
@@ -564,6 +587,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
           <TabsTrigger value="clients">Clients</TabsTrigger>
           <TabsTrigger value="wpo_pivot">WPO Pivot</TabsTrigger>
           <TabsTrigger value="tier_product">Tier & Product</TabsTrigger>
+          <TabsTrigger value="value_renewals">Value Renewals</TabsTrigger>
           <TabsTrigger value="renewals">Renewals</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
@@ -1610,6 +1634,220 @@ const VitalFinanceBilling = ({ user, organization }) => {
                     </div>
                     </div>
                   </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Value Renewals Tab */}
+        <TabsContent value="value_renewals" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Current Value by Renewal Year - {selectedYear}</CardTitle>
+                  <CardDescription>
+                    Revenue analysis by contract renewal timing
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex rounded-md overflow-hidden border">
+                    <Button
+                      variant={valueRenewalsRevenueTiming === 'cash' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => {
+                        setValueRenewalsRevenueTiming('cash')
+                        fetchValueRenewalsPivot('cash')
+                      }}
+                    >
+                      Cash
+                    </Button>
+                    <Button
+                      variant={valueRenewalsRevenueTiming === 'revrec' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => {
+                        setValueRenewalsRevenueTiming('revrec')
+                        fetchValueRenewalsPivot('revrec')
+                      }}
+                    >
+                      RevRec
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!valueRenewalsPivotData ? (
+                <div className="text-center py-8 text-gray-500">Loading pivot data...</div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Actionable Insights Cards */}
+                  <div className="grid grid-cols-4 gap-4">
+                    {/* Largest Renewal Year */}
+                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-blue-600">Largest Renewal Year</div>
+                        <div className="text-2xl font-bold text-blue-900">
+                          {valueRenewalsPivotData.insights?.largest_renewal_year || '-'}
+                        </div>
+                        <div className="text-sm text-blue-700">
+                          ${((valueRenewalsPivotData.insights?.largest_renewal_revenue || 0) / 1000000).toFixed(2)}M
+                          {' '}({((valueRenewalsPivotData.insights?.concentration_pct || 0)).toFixed(1)}% of total)
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Near-Term Revenue */}
+                    <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-amber-600">Near-Term Revenue</div>
+                        <div className="text-2xl font-bold text-amber-900">
+                          ${((valueRenewalsPivotData.insights?.near_term_revenue || 0) / 1000000).toFixed(2)}M
+                        </div>
+                        <div className="text-sm text-amber-700">
+                          Renewals in {selectedYear}-{selectedYear + 1}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Total Clients */}
+                    <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-green-600">Total Clients</div>
+                        <div className="text-2xl font-bold text-green-900">
+                          {valueRenewalsPivotData.grand_totals?.client_count || 0}
+                        </div>
+                        <div className="text-sm text-green-700">
+                          With renewal dates
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Total Revenue */}
+                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-purple-600">Total Revenue</div>
+                        <div className="text-2xl font-bold text-purple-900">
+                          ${((valueRenewalsPivotData.grand_totals?.revenue || 0) / 1000000).toFixed(2)}M
+                        </div>
+                        <div className="text-sm text-purple-700">
+                          {valueRenewalsPivotData.grand_totals?.population?.toLocaleString() || 0} lives
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Revenue by Renewal Year Bar Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Revenue by Renewal Year</CardTitle>
+                      <CardDescription>Annual revenue grouped by contract renewal timing</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={valueRenewalsPivotData.by_year || []}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="renewal_year" />
+                            <YAxis tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+                            <Tooltip 
+                              formatter={(value) => [`$${value.toLocaleString()}`, 'Revenue']}
+                              labelFormatter={(label) => `Renewal Year: ${label}`}
+                            />
+                            <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                              {(valueRenewalsPivotData.by_year || []).map((entry, index) => (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={entry.renewal_year === selectedYear ? '#1d4ed8' : 
+                                        entry.renewal_year === selectedYear + 1 ? '#3b82f6' : '#93c5fd'}
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Revenue by Renewal Year - Stacked by Tier */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Revenue by Renewal Year (by Tier)</CardTitle>
+                      <CardDescription>Breakdown of renewal year revenue by client tier</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={valueRenewalsPivotData.stacked_by_tier || []}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="renewal_year" />
+                            <YAxis tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+                            <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
+                            <Legend />
+                            {(valueRenewalsPivotData.tiers || []).map((tier, index) => {
+                              const colors = ['#1e40af', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe']
+                              return (
+                                <Bar 
+                                  key={tier} 
+                                  dataKey={tier} 
+                                  stackId="a" 
+                                  fill={colors[index % colors.length]}
+                                  name={`Tier ${tier}`}
+                                />
+                              )
+                            })}
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Data Table */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Revenue by Renewal Year</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Renewal Year</TableHead>
+                            <TableHead className="text-right">Clients</TableHead>
+                            <TableHead className="text-right">Population</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead className="text-right">% of Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(valueRenewalsPivotData.by_year || []).map((row) => (
+                            <TableRow key={row.renewal_year}>
+                              <TableCell className="font-medium">{row.renewal_year}</TableCell>
+                              <TableCell className="text-right">{row.client_count}</TableCell>
+                              <TableCell className="text-right">{row.population?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right">${row.revenue?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right">
+                                {((row.revenue / (valueRenewalsPivotData.grand_totals?.revenue || 1)) * 100).toFixed(1)}%
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="bg-gray-50 font-bold">
+                            <TableCell>Grand Total</TableCell>
+                            <TableCell className="text-right">{valueRenewalsPivotData.grand_totals?.client_count}</TableCell>
+                            <TableCell className="text-right">{valueRenewalsPivotData.grand_totals?.population?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${valueRenewalsPivotData.grand_totals?.revenue?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">100%</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </CardContent>

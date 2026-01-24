@@ -685,3 +685,186 @@ class BillingEngine:
                 'avg_pepm': grand_pepm_sum / grand_pepm_count if grand_pepm_count > 0 else 0
             }
         }
+
+    def get_current_value_renewals_pivot(
+        self,
+        org_id: int,
+        year: int,
+        revenue_timing: str = 'revrec'
+    ) -> Dict:
+        """
+        Generate Current Value Renewals Pivot table data.
+        
+        Replicates the Excel 'PIVOT Current Value Renewals' tab which shows:
+        - Revenue grouped by renewal year
+        - Helps understand revenue concentration by renewal timing
+        
+        Args:
+            org_id: Organization ID
+            year: Base year for analysis
+            revenue_timing: 'cash' or 'revrec'
+        
+        Returns:
+            Dict with pivot data, charts, and insights
+        """
+        cursor = self.db.cursor()
+        
+        # Get revenue by renewal year
+        cursor.execute("""
+            SELECT 
+                EXTRACT(YEAR FROM fc.renewal_date) as renewal_year,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(DISTINCT fmb.population_count) as total_population,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            AND fc.renewal_date IS NOT NULL
+            GROUP BY EXTRACT(YEAR FROM fc.renewal_date)
+            ORDER BY renewal_year
+        """, (revenue_timing, org_id, year))
+        
+        by_year = []
+        grand_total_revenue = 0
+        grand_total_clients = 0
+        grand_total_population = 0
+        
+        for row in cursor.fetchall():
+            renewal_year = int(row[0]) if row[0] else None
+            client_count = row[1] or 0
+            population = int(row[2]) if row[2] else 0
+            revenue = float(row[3]) if row[3] else 0
+            
+            by_year.append({
+                'renewal_year': renewal_year,
+                'client_count': client_count,
+                'population': population,
+                'revenue': revenue
+            })
+            
+            grand_total_revenue += revenue
+            grand_total_clients += client_count
+            grand_total_population += population
+        
+        # Get breakdown by tier for each renewal year
+        cursor.execute("""
+            SELECT 
+                EXTRACT(YEAR FROM fc.renewal_date) as renewal_year,
+                COALESCE(fc.tier, 'NA') as tier,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            AND fc.renewal_date IS NOT NULL
+            GROUP BY EXTRACT(YEAR FROM fc.renewal_date), COALESCE(fc.tier, 'NA')
+            ORDER BY renewal_year, tier
+        """, (revenue_timing, org_id, year))
+        
+        by_year_tier = {}
+        tiers = set()
+        for row in cursor.fetchall():
+            renewal_year = int(row[0]) if row[0] else None
+            tier = row[1]
+            client_count = row[2] or 0
+            revenue = float(row[3]) if row[3] else 0
+            
+            tiers.add(tier)
+            if renewal_year not in by_year_tier:
+                by_year_tier[renewal_year] = {}
+            by_year_tier[renewal_year][tier] = {
+                'client_count': client_count,
+                'revenue': revenue
+            }
+        
+        # Get breakdown by session product for each renewal year
+        cursor.execute("""
+            SELECT 
+                EXTRACT(YEAR FROM fc.renewal_date) as renewal_year,
+                COALESCE(fc.session_product, '(blank)') as session_product,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            AND fc.renewal_date IS NOT NULL
+            GROUP BY EXTRACT(YEAR FROM fc.renewal_date), COALESCE(fc.session_product, '(blank)')
+            ORDER BY renewal_year, session_product
+        """, (revenue_timing, org_id, year))
+        
+        by_year_product = {}
+        products = set()
+        for row in cursor.fetchall():
+            renewal_year = int(row[0]) if row[0] else None
+            product = row[1]
+            client_count = row[2] or 0
+            revenue = float(row[3]) if row[3] else 0
+            
+            products.add(product)
+            if renewal_year not in by_year_product:
+                by_year_product[renewal_year] = {}
+            by_year_product[renewal_year][product] = {
+                'client_count': client_count,
+                'revenue': revenue
+            }
+        
+        # Sort tiers and products
+        tier_order = ['A', 'B', 'C', 'D', 'NA', '(blank)']
+        sorted_tiers = sorted(tiers, key=lambda x: tier_order.index(x) if x in tier_order else 99)
+        
+        product_order = ['Concierge', 'EAP 3', 'EAP 4', 'EAP 5', 'EAP 6', 'EAP 8', 'Nurseline', 'PWR', '(blank)']
+        sorted_products = sorted(products, key=lambda x: product_order.index(x) if x in product_order else 99)
+        
+        # Build stacked data for charts
+        stacked_by_tier = []
+        stacked_by_product = []
+        
+        for year_data in by_year:
+            ry = year_data['renewal_year']
+            
+            # Tier breakdown
+            tier_row = {'renewal_year': ry}
+            for tier in sorted_tiers:
+                tier_row[tier] = by_year_tier.get(ry, {}).get(tier, {}).get('revenue', 0)
+            stacked_by_tier.append(tier_row)
+            
+            # Product breakdown
+            product_row = {'renewal_year': ry}
+            for product in sorted_products:
+                product_row[product] = by_year_product.get(ry, {}).get(product, {}).get('revenue', 0)
+            stacked_by_product.append(product_row)
+        
+        # Calculate insights
+        # Find year with highest revenue
+        max_year = max(by_year, key=lambda x: x['revenue']) if by_year else None
+        
+        # Revenue in next 2 years (current year and next)
+        current_year = year
+        near_term_revenue = sum(y['revenue'] for y in by_year if y['renewal_year'] and y['renewal_year'] <= current_year + 1)
+        
+        # Concentration - what % is in the largest year
+        concentration_pct = (max_year['revenue'] / grand_total_revenue * 100) if max_year and grand_total_revenue > 0 else 0
+        
+        return {
+            'year': year,
+            'revenue_timing': revenue_timing,
+            'by_year': by_year,
+            'stacked_by_tier': stacked_by_tier,
+            'stacked_by_product': stacked_by_product,
+            'tiers': sorted_tiers,
+            'products': sorted_products,
+            'grand_totals': {
+                'revenue': grand_total_revenue,
+                'client_count': grand_total_clients,
+                'population': grand_total_population
+            },
+            'insights': {
+                'largest_renewal_year': max_year['renewal_year'] if max_year else None,
+                'largest_renewal_revenue': max_year['revenue'] if max_year else 0,
+                'near_term_revenue': near_term_revenue,
+                'concentration_pct': concentration_pct
+            }
+        }
