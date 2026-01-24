@@ -616,3 +616,325 @@ def _log_audit(table_name, record_id, action, old_values, new_values, user_email
         )
     except Exception as e:
         print(f"Error logging audit: {e}")
+
+
+# =============================================================================
+# BILLING ENGINE ENDPOINTS
+# =============================================================================
+
+@vital_finance_bp.route('/api/vital/finance/billing/calculate', methods=['GET'])
+@jwt_required()
+def calculate_billing():
+    """
+    Calculate billing for all clients.
+    Query params:
+        - year: Year to calculate (default: current year)
+        - type: 'cash', 'revrec', or 'both' (default: 'both')
+    """
+    try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        revenue_type = request.args.get('type', 'both')
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        engine = BillingEngine(conn)
+        
+        results = engine.calculate_all_clients_billing(org_id, year)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'year': year,
+            'type': revenue_type,
+            'clients': results,
+            'count': len(results)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/billing/report', methods=['GET'])
+@jwt_required()
+def get_billing_report():
+    """
+    Generate comprehensive billing report similar to spreadsheet.
+    Query params:
+        - year: Year to report (default: current year)
+    """
+    try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        engine = BillingEngine(conn)
+        
+        report = engine.generate_billing_report(org_id, year)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'report': report
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/billing/summary', methods=['GET'])
+@jwt_required()
+def get_billing_summary():
+    """
+    Get billing summary grouped by dimension.
+    Query params:
+        - year: Year to summarize (default: current year)
+        - group_by: 'tier', 'industry', 'session_product', or 'month' (default: 'tier')
+    """
+    try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        group_by = request.args.get('group_by', 'tier')
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        engine = BillingEngine(conn)
+        
+        summary = engine.get_billing_summary(org_id, year, group_by)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'year': year,
+            'group_by': group_by,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/billing/client/<int:client_id>', methods=['GET'])
+@jwt_required()
+def get_client_billing(client_id):
+    """
+    Get detailed billing for a specific client.
+    Query params:
+        - year: Year to calculate (default: current year)
+    """
+    try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
+        year = request.args.get('year', datetime.now().year, type=int)
+        
+        # Create direct connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        engine = BillingEngine(conn)
+        
+        client_data = engine.get_client_billing_data(client_id)
+        if not client_data:
+            conn.close()
+            return jsonify({'error': 'Client not found'}), 404
+        
+        billing = engine.calculate_year_billing(client_data, year)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'client': client_data,
+            'billing': billing
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/billing/pivot', methods=['GET'])
+@jwt_required()
+def get_billing_pivot():
+    """
+    Get pivot-table style data for billing dashboard.
+    Replicates the spreadsheet pivot tables.
+    Query params:
+        - year: Year to analyze (default: current year)
+        - pivot: 'wpo', 'tier_product', 'renewals', 'top_clients', 'industry', 'nexus'
+    """
+    try:
+        db = get_db()
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        pivot_type = request.args.get('pivot', 'tier_product')
+        
+        # Get user's org_id
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE email = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        if pivot_type == 'tier_product':
+            # Revenue by Tier & Session Product
+            query = """
+                SELECT 
+                    fc.tier,
+                    fc.session_product,
+                    COUNT(fc.id) as client_count,
+                    SUM(fph.population_count) as total_population,
+                    SUM(fph.population_count * COALESCE(
+                        (SELECT pepm_rate FROM finance_rate_schedules frs
+                         JOIN finance_contracts fcon ON frs.contract_id = fcon.id
+                         WHERE fcon.client_id = fc.id
+                         ORDER BY effective_date DESC LIMIT 1), 0
+                    ) * 12) as annual_revenue
+                FROM finance_clients fc
+                LEFT JOIN finance_population_history fph ON fc.id = fph.client_id
+                WHERE fc.org_id = %s
+                GROUP BY fc.tier, fc.session_product
+                ORDER BY fc.tier, fc.session_product
+            """
+            result = db.execute_query(query, (org_id,))
+            
+        elif pivot_type == 'industry':
+            # Revenue by Industry
+            query = """
+                SELECT 
+                    fc.industry,
+                    COUNT(fc.id) as client_count,
+                    SUM(fph.population_count) as total_population,
+                    SUM(fph.population_count * COALESCE(
+                        (SELECT pepm_rate FROM finance_rate_schedules frs
+                         JOIN finance_contracts fcon ON frs.contract_id = fcon.id
+                         WHERE fcon.client_id = fc.id
+                         ORDER BY effective_date DESC LIMIT 1), 0
+                    ) * 12) as annual_revenue
+                FROM finance_clients fc
+                LEFT JOIN finance_population_history fph ON fc.id = fph.client_id
+                WHERE fc.org_id = %s
+                GROUP BY fc.industry
+                ORDER BY annual_revenue DESC
+            """
+            result = db.execute_query(query, (org_id,))
+            
+        elif pivot_type == 'top_clients':
+            # Top clients by revenue
+            query = """
+                SELECT 
+                    fc.billing_name,
+                    fc.tier,
+                    fc.industry,
+                    fph.population_count,
+                    COALESCE(
+                        (SELECT pepm_rate FROM finance_rate_schedules frs
+                         JOIN finance_contracts fcon ON frs.contract_id = fcon.id
+                         WHERE fcon.client_id = fc.id
+                         ORDER BY effective_date DESC LIMIT 1), 0
+                    ) as pepm_rate,
+                    fph.population_count * COALESCE(
+                        (SELECT pepm_rate FROM finance_rate_schedules frs
+                         JOIN finance_contracts fcon ON frs.contract_id = fcon.id
+                         WHERE fcon.client_id = fc.id
+                         ORDER BY effective_date DESC LIMIT 1), 0
+                    ) * 12 as annual_revenue
+                FROM finance_clients fc
+                LEFT JOIN finance_population_history fph ON fc.id = fph.client_id
+                WHERE fc.org_id = %s
+                ORDER BY annual_revenue DESC
+                LIMIT 50
+            """
+            result = db.execute_query(query, (org_id,))
+            
+        elif pivot_type == 'renewals':
+            # Renewals by year
+            query = """
+                SELECT 
+                    EXTRACT(YEAR FROM fcon.renewal_date) as renewal_year,
+                    COUNT(fc.id) as client_count,
+                    SUM(fph.population_count * COALESCE(
+                        (SELECT pepm_rate FROM finance_rate_schedules frs
+                         WHERE frs.contract_id = fcon.id
+                         ORDER BY effective_date DESC LIMIT 1), 0
+                    ) * 12) as renewal_value
+                FROM finance_clients fc
+                JOIN finance_contracts fcon ON fc.id = fcon.client_id
+                LEFT JOIN finance_population_history fph ON fc.id = fph.client_id
+                WHERE fc.org_id = %s AND fcon.renewal_date IS NOT NULL
+                GROUP BY EXTRACT(YEAR FROM fcon.renewal_date)
+                ORDER BY renewal_year
+            """
+            result = db.execute_query(query, (org_id,))
+            
+        elif pivot_type == 'nexus':
+            # Revenue by Nexus State (for tax purposes)
+            query = """
+                SELECT 
+                    fc.nexus_state,
+                    COUNT(fc.id) as client_count,
+                    SUM(fph.population_count * COALESCE(
+                        (SELECT pepm_rate FROM finance_rate_schedules frs
+                         JOIN finance_contracts fcon ON frs.contract_id = fcon.id
+                         WHERE fcon.client_id = fc.id
+                         ORDER BY effective_date DESC LIMIT 1), 0
+                    ) * 12) as annual_revenue
+                FROM finance_clients fc
+                LEFT JOIN finance_population_history fph ON fc.id = fph.client_id
+                WHERE fc.org_id = %s
+                GROUP BY fc.nexus_state
+                ORDER BY annual_revenue DESC
+            """
+            result = db.execute_query(query, (org_id,))
+            
+        else:
+            return jsonify({'error': f'Unknown pivot type: {pivot_type}'}), 400
+        
+        return jsonify({
+            'success': True,
+            'year': year,
+            'pivot_type': pivot_type,
+            'data': result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
