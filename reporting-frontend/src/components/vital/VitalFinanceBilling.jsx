@@ -654,16 +654,15 @@ const VitalFinanceBilling = ({ user, organization }) => {
         <TabsList>
           <TabsTrigger value="spreadsheet">
             <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Billing Table
+            Billing
           </TabsTrigger>
-          <TabsTrigger value="clients">Clients</TabsTrigger>
-          <TabsTrigger value="wpo_pivot">WPO Pivot</TabsTrigger>
+          <TabsTrigger value="wpo_pivot">WPO</TabsTrigger>
           <TabsTrigger value="tier_product">Tier & Product</TabsTrigger>
-          <TabsTrigger value="value_renewals">Value Renewals</TabsTrigger>
+          <TabsTrigger value="value_renewals">Renewals</TabsTrigger>
+          <TabsTrigger value="clients">Clients</TabsTrigger>
           <TabsTrigger value="top_clients">Top Clients</TabsTrigger>
           <TabsTrigger value="industry_stats">Industry Stats</TabsTrigger>
           <TabsTrigger value="nexus_state">Nexus State</TabsTrigger>
-          <TabsTrigger value="renewals">Renewals</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
 
@@ -2522,56 +2521,6 @@ const VitalFinanceBilling = ({ user, organization }) => {
                 <div className="flex items-center justify-center h-64">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Renewals Tab */}
-        <TabsContent value="renewals" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming Renewals</CardTitle>
-              <CardDescription>Clients renewing in the next 6 months</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {renewals.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  No upcoming renewals in the next 6 months
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Client</TableHead>
-                      <TableHead>Renewal Date</TableHead>
-                      <TableHead>Tier</TableHead>
-                      <TableHead className="text-right">Population</TableHead>
-                      <TableHead className="text-right">Annual Value</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {renewals.map((renewal) => (
-                      <TableRow key={renewal.id}>
-                        <TableCell className="font-medium">{renewal.billing_name}</TableCell>
-                        <TableCell>{formatDate(renewal.renewal_date)}</TableCell>
-                        <TableCell>{renewal.tier || '-'}</TableCell>
-                        <TableCell className="text-right">
-                          {renewal.population?.toLocaleString() || '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(renewal.annual_value)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={renewal.renewal_status === 'confirmed' ? 'success' : 'secondary'}>
-                            {renewal.renewal_status || 'pending'}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
               )}
             </CardContent>
           </Card>
