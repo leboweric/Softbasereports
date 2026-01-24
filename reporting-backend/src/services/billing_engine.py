@@ -90,8 +90,19 @@ class BillingEngine:
         """
         current_date = date(year, month, 1)
         
+        # Handle None or string renewal_date
+        if renewal_date is None:
+            return rates.get(str(year), 0)
+        
+        # Convert string to date if needed
+        if isinstance(renewal_date, str):
+            try:
+                renewal_date = datetime.strptime(renewal_date[:10], '%Y-%m-%d').date()
+            except:
+                return rates.get(str(year), 0)
+        
         # If renewal is in this year and we're before renewal, use last year's rate
-        if renewal_date and renewal_date.year == year:
+        if renewal_date.year == year:
             if current_date < renewal_date:
                 return rates.get(str(year - 1), rates.get(str(year), 0))
         
