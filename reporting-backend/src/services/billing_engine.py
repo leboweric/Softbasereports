@@ -868,3 +868,159 @@ class BillingEngine:
                 'concentration_pct': concentration_pct
             }
         }
+
+
+    def get_top_clients_pivot(
+        self,
+        org_id: int,
+        year: int,
+        revenue_timing: str = 'revrec',
+        limit: int = 20
+    ) -> Dict:
+        """
+        Generate Top Clients Pivot table data.
+        
+        Replicates the Excel 'PIVOT Top Client' tab which shows:
+        - Clients ranked by annual revenue
+        - Revenue concentration analysis
+        
+        Args:
+            org_id: Organization ID
+            year: Base year for analysis
+            revenue_timing: 'cash' or 'revrec'
+            limit: Number of top clients to return (default 20)
+        
+        Returns:
+            Dict with pivot data, charts, and insights
+        """
+        cursor = self.db.cursor()
+        
+        # Get all clients with their total revenue for the year
+        cursor.execute("""
+            SELECT 
+                fc.billing_name,
+                fc.tier,
+                fc.session_product,
+                fc.industry,
+                MAX(fmb.population_count) as population,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue,
+                AVG(fmb.pepm_rate) as avg_pepm
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            GROUP BY fc.billing_name, fc.tier, fc.session_product, fc.industry
+            ORDER BY total_revenue DESC
+        """, (revenue_timing, org_id, year))
+        
+        all_clients = []
+        grand_total_revenue = 0
+        grand_total_population = 0
+        
+        for row in cursor.fetchall():
+            billing_name = row[0]
+            tier = row[1] or 'NA'
+            session_product = row[2] or '(blank)'
+            industry = row[3] or '(blank)'
+            population = int(row[4]) if row[4] else 0
+            revenue = float(row[5]) if row[5] else 0
+            avg_pepm = float(row[6]) if row[6] else 0
+            
+            all_clients.append({
+                'billing_name': billing_name,
+                'tier': tier,
+                'session_product': session_product,
+                'industry': industry,
+                'population': population,
+                'revenue': revenue,
+                'avg_pepm': avg_pepm
+            })
+            
+            grand_total_revenue += revenue
+            grand_total_population += population
+        
+        # Calculate cumulative percentages and add rank
+        cumulative_revenue = 0
+        for i, client in enumerate(all_clients):
+            client['rank'] = i + 1
+            client['pct_of_total'] = (client['revenue'] / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+            cumulative_revenue += client['revenue']
+            client['cumulative_pct'] = (cumulative_revenue / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+        
+        # Get top N clients
+        top_clients = all_clients[:limit]
+        
+        # Calculate insights
+        top_10_revenue = sum(c['revenue'] for c in all_clients[:10])
+        top_10_pct = (top_10_revenue / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+        
+        top_20_revenue = sum(c['revenue'] for c in all_clients[:20])
+        top_20_pct = (top_20_revenue / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+        
+        # Revenue by tier for top clients
+        tier_breakdown = {}
+        for client in all_clients:
+            tier = client['tier']
+            if tier not in tier_breakdown:
+                tier_breakdown[tier] = {'count': 0, 'revenue': 0, 'population': 0}
+            tier_breakdown[tier]['count'] += 1
+            tier_breakdown[tier]['revenue'] += client['revenue']
+            tier_breakdown[tier]['population'] += client['population']
+        
+        tier_data = [
+            {
+                'tier': tier,
+                'count': data['count'],
+                'revenue': data['revenue'],
+                'population': data['population'],
+                'pct_of_total': (data['revenue'] / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+            }
+            for tier, data in sorted(tier_breakdown.items())
+        ]
+        
+        # Revenue by industry for top clients
+        industry_breakdown = {}
+        for client in all_clients:
+            industry = client['industry']
+            if industry not in industry_breakdown:
+                industry_breakdown[industry] = {'count': 0, 'revenue': 0}
+            industry_breakdown[industry]['count'] += 1
+            industry_breakdown[industry]['revenue'] += client['revenue']
+        
+        # Sort by revenue and take top 10 industries
+        industry_data = sorted(
+            [
+                {
+                    'industry': ind,
+                    'count': data['count'],
+                    'revenue': data['revenue'],
+                    'pct_of_total': (data['revenue'] / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+                }
+                for ind, data in industry_breakdown.items()
+            ],
+            key=lambda x: x['revenue'],
+            reverse=True
+        )[:10]
+        
+        return {
+            'year': year,
+            'revenue_timing': revenue_timing,
+            'top_clients': top_clients,
+            'all_clients_count': len(all_clients),
+            'tier_breakdown': tier_data,
+            'industry_breakdown': industry_data,
+            'grand_totals': {
+                'revenue': grand_total_revenue,
+                'client_count': len(all_clients),
+                'population': grand_total_population
+            },
+            'insights': {
+                'largest_client': all_clients[0]['billing_name'] if all_clients else None,
+                'largest_client_revenue': all_clients[0]['revenue'] if all_clients else 0,
+                'largest_client_pct': all_clients[0]['pct_of_total'] if all_clients else 0,
+                'top_10_revenue': top_10_revenue,
+                'top_10_pct': top_10_pct,
+                'top_20_revenue': top_20_revenue,
+                'top_20_pct': top_20_pct
+            }
+        }

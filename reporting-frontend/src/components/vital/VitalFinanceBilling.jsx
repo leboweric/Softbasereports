@@ -63,6 +63,8 @@ const VitalFinanceBilling = ({ user, organization }) => {
   const [tierProductRevenueTiming, setTierProductRevenueTiming] = useState('revrec')
   const [valueRenewalsPivotData, setValueRenewalsPivotData] = useState(null)
   const [valueRenewalsRevenueTiming, setValueRenewalsRevenueTiming] = useState('revrec')
+  const [topClientsPivotData, setTopClientsPivotData] = useState(null)
+  const [topClientsRevenueTiming, setTopClientsRevenueTiming] = useState('revrec')
   const [newClient, setNewClient] = useState({
     billing_name: '',
     hubspot_company_name: '',
@@ -179,6 +181,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
     if (activeTab === 'value_renewals') {
       fetchValueRenewalsPivot(valueRenewalsRevenueTiming)
     }
+    if (activeTab === 'top_clients') {
+      fetchTopClientsPivot(topClientsRevenueTiming)
+    }
   }, [activeTab, selectedYear])
 
   const fetchWpoPivot = async (sessionProduct = 'all', revenueTiming = 'cash') => {
@@ -233,6 +238,25 @@ const VitalFinanceBilling = ({ user, organization }) => {
       }
     } catch (error) {
       console.error('Error fetching Value Renewals pivot:', error)
+    }
+  }
+
+  const fetchTopClientsPivot = async (revenueTiming = 'revrec') => {
+    try {
+      const token = localStorage.getItem('token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      const params = new URLSearchParams({
+        year: selectedYear,
+        revenue_timing: revenueTiming,
+        limit: 20
+      })
+      const res = await fetch(apiUrl(`/api/vital/finance/pivot/top-clients?${params}`), { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setTopClientsPivotData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching Top Clients pivot:', error)
     }
   }
 
@@ -588,6 +612,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
           <TabsTrigger value="wpo_pivot">WPO Pivot</TabsTrigger>
           <TabsTrigger value="tier_product">Tier & Product</TabsTrigger>
           <TabsTrigger value="value_renewals">Value Renewals</TabsTrigger>
+          <TabsTrigger value="top_clients">Top Clients</TabsTrigger>
           <TabsTrigger value="renewals">Renewals</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
@@ -1844,6 +1869,241 @@ const VitalFinanceBilling = ({ user, organization }) => {
                             <TableCell className="text-right">${valueRenewalsPivotData.grand_totals?.revenue?.toLocaleString()}</TableCell>
                             <TableCell className="text-right">100%</TableCell>
                           </TableRow>
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Top Clients Tab */}
+        <TabsContent value="top_clients" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Top Clients by Revenue - {selectedYear}</CardTitle>
+                  <CardDescription>
+                    Revenue concentration and client ranking analysis
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex rounded-md overflow-hidden border">
+                    <Button
+                      variant={topClientsRevenueTiming === 'cash' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => {
+                        setTopClientsRevenueTiming('cash')
+                        fetchTopClientsPivot('cash')
+                      }}
+                    >
+                      Cash
+                    </Button>
+                    <Button
+                      variant={topClientsRevenueTiming === 'revrec' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => {
+                        setTopClientsRevenueTiming('revrec')
+                        fetchTopClientsPivot('revrec')
+                      }}
+                    >
+                      RevRec
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {!topClientsPivotData ? (
+                <div className="text-center py-8 text-gray-500">Loading pivot data...</div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Actionable Insights Cards */}
+                  <div className="grid grid-cols-4 gap-4">
+                    {/* Largest Client */}
+                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-blue-600">Largest Client</div>
+                        <div className="text-lg font-bold text-blue-900 truncate">
+                          {topClientsPivotData.insights?.largest_client || '-'}
+                        </div>
+                        <div className="text-sm text-blue-700">
+                          ${((topClientsPivotData.insights?.largest_client_revenue || 0) / 1000000).toFixed(2)}M
+                          {' '}({(topClientsPivotData.insights?.largest_client_pct || 0).toFixed(1)}% of total)
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Top 10 Concentration */}
+                    <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-amber-600">Top 10 Concentration</div>
+                        <div className="text-2xl font-bold text-amber-900">
+                          {(topClientsPivotData.insights?.top_10_pct || 0).toFixed(1)}%
+                        </div>
+                        <div className="text-sm text-amber-700">
+                          ${((topClientsPivotData.insights?.top_10_revenue || 0) / 1000000).toFixed(2)}M from top 10
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Top 20 Concentration */}
+                    <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-green-600">Top 20 Concentration</div>
+                        <div className="text-2xl font-bold text-green-900">
+                          {(topClientsPivotData.insights?.top_20_pct || 0).toFixed(1)}%
+                        </div>
+                        <div className="text-sm text-green-700">
+                          ${((topClientsPivotData.insights?.top_20_revenue || 0) / 1000000).toFixed(2)}M from top 20
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Total Clients */}
+                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                      <CardContent className="pt-4">
+                        <div className="text-sm font-medium text-purple-600">Total Revenue</div>
+                        <div className="text-2xl font-bold text-purple-900">
+                          ${((topClientsPivotData.grand_totals?.revenue || 0) / 1000000).toFixed(2)}M
+                        </div>
+                        <div className="text-sm text-purple-700">
+                          {topClientsPivotData.all_clients_count || 0} clients
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Top 20 Clients Bar Chart */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Top 20 Clients by Revenue</CardTitle>
+                      <CardDescription>Annual revenue for largest clients</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-96">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={topClientsPivotData.top_clients || []}
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 150, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+                            <YAxis 
+                              type="category" 
+                              dataKey="billing_name" 
+                              width={140}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <Tooltip 
+                              formatter={(value) => [`$${value.toLocaleString()}`, 'Revenue']}
+                              labelFormatter={(label) => label}
+                            />
+                            <Bar dataKey="revenue" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                              {(topClientsPivotData.top_clients || []).map((entry, index) => (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={index < 5 ? '#1d4ed8' : index < 10 ? '#3b82f6' : '#93c5fd'}
+                                />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Revenue by Tier Breakdown */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Revenue by Tier</CardTitle>
+                        <CardDescription>Distribution across client tiers</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={topClientsPivotData.tier_breakdown || []}
+                              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="tier" />
+                              <YAxis tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+                              <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
+                              <Bar dataKey="revenue" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-lg">Top Industries</CardTitle>
+                        <CardDescription>Revenue by client industry</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={topClientsPivotData.industry_breakdown || []}
+                              layout="vertical"
+                              margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis type="number" tickFormatter={(v) => `$${(v / 1000000).toFixed(1)}M`} />
+                              <YAxis 
+                                type="category" 
+                                dataKey="industry" 
+                                width={90}
+                                tick={{ fontSize: 10 }}
+                              />
+                              <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
+                              <Bar dataKey="revenue" fill="#10b981" radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Top Clients Data Table */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Top 20 Clients</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12">Rank</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Tier</TableHead>
+                            <TableHead>Product</TableHead>
+                            <TableHead className="text-right">Population</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead className="text-right">% of Total</TableHead>
+                            <TableHead className="text-right">Cumulative %</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(topClientsPivotData.top_clients || []).map((client) => (
+                            <TableRow key={client.rank}>
+                              <TableCell className="font-medium">{client.rank}</TableCell>
+                              <TableCell className="font-medium">{client.billing_name}</TableCell>
+                              <TableCell>{client.tier}</TableCell>
+                              <TableCell>{client.session_product}</TableCell>
+                              <TableCell className="text-right">{client.population?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right">${client.revenue?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right">{client.pct_of_total?.toFixed(1)}%</TableCell>
+                              <TableCell className="text-right">{client.cumulative_pct?.toFixed(1)}%</TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
                     </CardContent>

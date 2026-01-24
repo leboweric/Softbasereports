@@ -1543,3 +1543,62 @@ def get_current_value_renewals_pivot():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+
+@vital_finance_bp.route('/api/vital/finance/pivot/top-clients', methods=['GET'])
+@jwt_required()
+def get_top_clients_pivot():
+    """
+    Get Top Clients Pivot data.
+    
+    Replicates the Excel 'PIVOT Top Client' tab which shows:
+    - Clients ranked by annual revenue
+    - Revenue concentration analysis
+    
+    Query params:
+        year: Year to analyze (default: current year)
+        revenue_timing: 'cash' or 'revrec' (default: 'revrec')
+        limit: Number of top clients to return (default: 20)
+    
+    Returns:
+        JSON with pivot data, charts, and insights
+    """
+    try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        revenue_timing = request.args.get('revenue_timing', 'revrec')
+        limit = request.args.get('limit', 20, type=int)
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct psycopg2 connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        
+        engine = BillingEngine(conn)
+        result = engine.get_top_clients_pivot(
+            org_id=org_id,
+            year=year,
+            revenue_timing=revenue_timing,
+            limit=limit
+        )
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            **result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
