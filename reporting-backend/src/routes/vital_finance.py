@@ -1411,13 +1411,7 @@ def get_wpo_pivot():
         org_id = user_result[0]['organization_id']
         
         # Create direct psycopg2 connection for billing engine
-        conn = psycopg2.connect(
-            host=os.environ.get('POSTGRES_HOST', 'localhost'),
-            port=os.environ.get('POSTGRES_PORT', 5432),
-            database=os.environ.get('POSTGRES_DB', 'railway'),
-            user=os.environ.get('POSTGRES_USER', 'postgres'),
-            password=os.environ.get('POSTGRES_PASSWORD', '')
-        )
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
         
         engine = BillingEngine(conn)
         result = engine.get_wpo_pivot(
