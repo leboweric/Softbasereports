@@ -762,6 +762,109 @@ const VitalFinanceBilling = ({ user, organization }) => {
 
         {/* WPO Pivot Tab */}
         <TabsContent value="wpo_pivot" className="space-y-4">
+          {/* Revenue by Session Product Summary */}
+          {wpoPivotData?.revenue_by_product && wpoPivotData.revenue_by_product.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Summary Cards */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Revenue by Session Product</CardTitle>
+                  <CardDescription>Breakdown of {wpoRevenueTiming === 'cash' ? 'Cash' : 'RevRec'} revenue</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {wpoPivotData.revenue_by_product.map((item, idx) => {
+                      const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-orange-500', 'bg-teal-500', 'bg-red-500']
+                      const color = colors[idx % colors.length]
+                      return (
+                        <div key={item.session_product} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${color}`}></div>
+                            <div>
+                              <span className="font-medium">{item.session_product}</span>
+                              <span className="text-gray-500 text-sm ml-2">({item.client_count} clients)</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="font-semibold">{formatCurrency(item.revenue)}</span>
+                            <span className="text-gray-500 text-sm ml-2">({item.percentage}%)</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div className="border-t pt-3 mt-3 flex items-center justify-between font-bold">
+                      <span>Total</span>
+                      <span>{formatCurrency(wpoPivotData.grand_total_revenue)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              {/* Pie Chart */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">Revenue Distribution</CardTitle>
+                  <CardDescription>Visual breakdown by product type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-center">
+                    <div className="relative w-64 h-64">
+                      <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+                        {(() => {
+                          const colors = ['#3B82F6', '#22C55E', '#EAB308', '#A855F7', '#EC4899', '#6366F1', '#F97316', '#14B8A6', '#EF4444']
+                          let cumulativePercent = 0
+                          return wpoPivotData.revenue_by_product.map((item, idx) => {
+                            const percent = item.percentage
+                            const startAngle = cumulativePercent * 3.6 // 360 / 100
+                            cumulativePercent += percent
+                            const endAngle = cumulativePercent * 3.6
+                            
+                            // Calculate arc path
+                            const startX = 50 + 40 * Math.cos((startAngle - 90) * Math.PI / 180)
+                            const startY = 50 + 40 * Math.sin((startAngle - 90) * Math.PI / 180)
+                            const endX = 50 + 40 * Math.cos((endAngle - 90) * Math.PI / 180)
+                            const endY = 50 + 40 * Math.sin((endAngle - 90) * Math.PI / 180)
+                            const largeArc = percent > 50 ? 1 : 0
+                            
+                            return (
+                              <path
+                                key={item.session_product}
+                                d={`M 50 50 L ${startX} ${startY} A 40 40 0 ${largeArc} 1 ${endX} ${endY} Z`}
+                                fill={colors[idx % colors.length]}
+                                stroke="white"
+                                strokeWidth="0.5"
+                              />
+                            )
+                          })
+                        })()}
+                        {/* Center circle for donut effect */}
+                        <circle cx="50" cy="50" r="25" fill="white" />
+                      </svg>
+                      {/* Center text */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-2xl font-bold">{wpoPivotData.revenue_by_product.length}</span>
+                        <span className="text-sm text-gray-500">Products</span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Legend */}
+                  <div className="flex flex-wrap justify-center gap-3 mt-4">
+                    {wpoPivotData.revenue_by_product.slice(0, 6).map((item, idx) => {
+                      const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500', 'bg-indigo-500']
+                      return (
+                        <div key={item.session_product} className="flex items-center gap-1 text-sm">
+                          <div className={`w-2 h-2 rounded-full ${colors[idx % colors.length]}`}></div>
+                          <span>{item.session_product}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+          
+          {/* Detailed Table */}
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">

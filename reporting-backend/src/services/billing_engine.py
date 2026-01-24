@@ -430,6 +430,42 @@ class BillingEngine:
         
         session_products = [row[0] for row in cursor.fetchall()]
         
+        # Get revenue breakdown by session product (for summary cards and chart)
+        cursor.execute("""
+            SELECT 
+                fc.session_product,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(fc.wpo_billing) as total_wpo_billing,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            AND fc.session_product IS NOT NULL
+            GROUP BY fc.session_product
+            ORDER BY total_revenue DESC
+        """, (revenue_timing, org_id, year))
+        
+        revenue_by_product = []
+        grand_total_revenue = Decimal('0')
+        
+        for row in cursor.fetchall():
+            product_revenue = Decimal(str(row[3])) if row[3] else Decimal('0')
+            grand_total_revenue += product_revenue
+            revenue_by_product.append({
+                'session_product': row[0],
+                'client_count': row[1],
+                'wpo_billing': float(Decimal(str(row[2])) if row[2] else Decimal('0')),
+                'revenue': float(product_revenue)
+            })
+        
+        # Calculate percentages
+        for item in revenue_by_product:
+            if grand_total_revenue > 0:
+                item['percentage'] = round(float(Decimal(str(item['revenue'])) / grand_total_revenue * 100), 1)
+            else:
+                item['percentage'] = 0
+        
         return {
             'year': year,
             'revenue_timing': revenue_timing,
@@ -438,5 +474,7 @@ class BillingEngine:
             'total_wpo_billing': float(total_wpo_billing),
             'total_revenue': float(total_revenue),
             'client_count': len(rows),
-            'available_session_products': session_products
+            'available_session_products': session_products,
+            'revenue_by_product': revenue_by_product,
+            'grand_total_revenue': float(grand_total_revenue)
         }
