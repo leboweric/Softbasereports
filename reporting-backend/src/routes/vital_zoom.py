@@ -93,6 +93,74 @@ def get_zoom_dashboard():
         }), 500
 
 
+# ==================== CALL VOLUME TREND ====================
+
+@vital_zoom_bp.route('/api/vital/zoom/call-volume-trend', methods=['GET'])
+@jwt_required()
+def get_call_volume_trend():
+    """Get daily call volume trend with spike detection"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        days = request.args.get('days', 30, type=int)
+        service = get_zoom_service()
+        
+        # Get call logs
+        call_logs = service.get_call_logs(days=days, page_size=300)
+        calls = call_logs.get('call_logs', [])
+        
+        # Aggregate by date
+        from collections import defaultdict
+        from datetime import datetime
+        
+        daily_counts = defaultdict(lambda: {'total': 0, 'inbound': 0, 'outbound': 0})
+        
+        for call in calls:
+            date_str = call.get('date_time', '')[:10]  # Extract YYYY-MM-DD
+            if date_str:
+                daily_counts[date_str]['total'] += 1
+                direction = call.get('direction', '')
+                if direction == 'inbound':
+                    daily_counts[date_str]['inbound'] += 1
+                elif direction == 'outbound':
+                    daily_counts[date_str]['outbound'] += 1
+        
+        # Convert to sorted list
+        trend_data = []
+        for date, counts in sorted(daily_counts.items()):
+            trend_data.append({
+                'date': date,
+                'total': counts['total'],
+                'inbound': counts['inbound'],
+                'outbound': counts['outbound']
+            })
+        
+        # Calculate average and detect spikes (> 1.5x average)
+        if trend_data:
+            avg_calls = sum(d['total'] for d in trend_data) / len(trend_data)
+            spike_threshold = avg_calls * 1.5
+            
+            for day in trend_data:
+                day['is_spike'] = day['total'] > spike_threshold
+                day['avg'] = round(avg_calls, 1)
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "trend": trend_data,
+                "period": f"{call_logs.get('from_date')} to {call_logs.get('to_date')}",
+                "total_calls": call_logs.get('total', 0)
+            }
+        })
+    except Exception as e:
+        logger.error(f"Call volume trend error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 # ==================== USER ENDPOINTS ====================
 
 @vital_zoom_bp.route('/api/vital/zoom/users', methods=['GET'])

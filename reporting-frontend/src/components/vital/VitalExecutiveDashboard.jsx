@@ -13,7 +13,11 @@ import {
   ResponsiveContainer,
   Area,
   AreaChart,
-  Legend
+  Legend,
+  ReferenceLine,
+  Cell,
+  ComposedChart,
+  Line
 } from 'recharts'
 import {
   DollarSign,
@@ -28,7 +32,8 @@ import {
   PhoneOutgoing,
   Building2,
   AlertTriangle,
-  Calendar
+  Calendar,
+  TrendingUp
 } from 'lucide-react'
 
 // CEO Dashboard organized by department sections
@@ -43,6 +48,7 @@ const VitalExecutiveDashboard = ({ user }) => {
   const [renewals, setRenewals] = useState([])
   const [mobileAppData, setMobileAppData] = useState(null)
   const [callCenterData, setCallCenterData] = useState(null)
+  const [callVolumeTrend, setCallVolumeTrend] = useState(null)
 
   const fetchAllData = async () => {
     setLoading(true)
@@ -122,6 +128,19 @@ const VitalExecutiveDashboard = ({ user }) => {
       }
     } catch (err) {
       console.error('Call center fetch error:', err)
+    }
+
+    // Fetch Call Volume Trend
+    try {
+      const trendRes = await fetch(apiUrl('/api/vital/zoom/call-volume-trend?days=30'), { headers })
+      if (trendRes.ok) {
+        const result = await trendRes.json()
+        if (result.success) {
+          setCallVolumeTrend(result.data)
+        }
+      }
+    } catch (err) {
+      console.error('Call volume trend fetch error:', err)
     }
 
     setLastUpdated(new Date().toLocaleTimeString())
@@ -219,8 +238,6 @@ const VitalExecutiveDashboard = ({ user }) => {
     return {
       month,
       revenue: monthData?.total_revrec || 0,
-      // Budget would come from a budget table - using placeholder for now
-      // budget: monthData?.budget || 0
     }
   })
 
@@ -237,6 +254,11 @@ const VitalExecutiveDashboard = ({ user }) => {
   const inboundCalls = callStats.inbound || 0
   const outboundCalls = callStats.outbound || 0
   const avgDuration = callStats.avg_duration_seconds || 0
+
+  // Call Volume Trend Data
+  const callTrend = callVolumeTrend?.trend || []
+  const avgCallsPerDay = callTrend.length > 0 ? callTrend[0]?.avg || 0 : 0
+  const spikeCount = callTrend.filter(d => d.is_spike).length
 
   if (loading) {
     return (
@@ -418,7 +440,7 @@ const VitalExecutiveDashboard = ({ user }) => {
           color="bg-purple-500" 
           status={!!callCenterData}
         />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <MetricCard 
             label="Total Calls (30d)" 
             value={formatNumber(totalCalls)} 
@@ -443,6 +465,100 @@ const VitalExecutiveDashboard = ({ user }) => {
             sublabel="Per call"
             icon={Clock}
           />
+        </div>
+
+        {/* Call Volume Trend Chart with Spike Detection */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-gray-700">Daily Call Volume (Last 30 Days)</h3>
+            {spikeCount > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+                <span className="text-red-600 font-medium">{spikeCount} spike{spikeCount > 1 ? 's' : ''} detected</span>
+                <span className="text-gray-400">(above {formatNumber(avgCallsPerDay * 1.5)} calls)</span>
+              </div>
+            )}
+          </div>
+          {callTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={callTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value)
+                    return `${date.getMonth() + 1}/${date.getDate()}`
+                  }}
+                />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip 
+                  formatter={(value, name) => {
+                    if (name === 'avg') return [formatNumber(value), 'Daily Average']
+                    return [formatNumber(value), name === 'total' ? 'Total Calls' : name]
+                  }}
+                  labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload
+                      return (
+                        <div className="bg-white p-3 border rounded-lg shadow-lg">
+                          <p className="font-medium">{new Date(label).toLocaleDateString()}</p>
+                          <p className="text-sm">Total: <span className="font-bold">{data.total}</span></p>
+                          <p className="text-sm text-blue-600">Inbound: {data.inbound}</p>
+                          <p className="text-sm text-green-600">Outbound: {data.outbound}</p>
+                          {data.is_spike && (
+                            <p className="text-sm text-red-600 font-medium mt-1">⚠️ Volume Spike</p>
+                          )}
+                        </div>
+                      )
+                    }
+                    return null
+                  }}
+                />
+                <ReferenceLine 
+                  y={avgCallsPerDay} 
+                  stroke="#9ca3af" 
+                  strokeDasharray="5 5" 
+                  label={{ value: 'Avg', position: 'right', fontSize: 10, fill: '#9ca3af' }}
+                />
+                <ReferenceLine 
+                  y={avgCallsPerDay * 1.5} 
+                  stroke="#ef4444" 
+                  strokeDasharray="3 3" 
+                  label={{ value: 'Spike Threshold', position: 'right', fontSize: 10, fill: '#ef4444' }}
+                />
+                <Bar dataKey="total" name="total" radius={[4, 4, 0, 0]}>
+                  {callTrend.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.is_spike ? '#ef4444' : '#8b5cf6'} 
+                    />
+                  ))}
+                </Bar>
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-gray-400">
+              No call volume data available
+            </div>
+          )}
+          {callTrend.length > 0 && (
+            <div className="flex items-center gap-6 mt-3 text-xs text-gray-500">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-purple-500"></div>
+                <span>Normal Volume</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded bg-red-500"></div>
+                <span>Spike (>1.5x avg)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 border-t-2 border-dashed border-gray-400"></div>
+                <span>Daily Average ({formatNumber(avgCallsPerDay)})</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
