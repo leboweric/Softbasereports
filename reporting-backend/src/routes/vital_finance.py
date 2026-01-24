@@ -938,3 +938,292 @@ def get_billing_pivot():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+
+# =============================================================================
+# HUBSPOT SYNC ENDPOINTS
+# =============================================================================
+
+@vital_finance_bp.route('/api/vital/finance/hubspot/sync', methods=['POST'])
+@jwt_required()
+def sync_hubspot_population():
+    """
+    Sync population data from HubSpot companies to Finance clients.
+    Matches by company name and updates population from HubSpot's numberofemployees field.
+    """
+    try:
+        import os
+        import requests as http_requests
+        from fuzzywuzzy import fuzz
+        
+        db = get_db()
+        current_user = get_jwt_identity()
+        
+        # Get user's org_id
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Get HubSpot token for VITAL
+        hubspot_token = os.environ.get('VITAL_HUBSPOT_TOKEN')
+        if not hubspot_token:
+            return jsonify({'error': 'HubSpot token not configured'}), 500
+        
+        # Get all Finance clients
+        clients = db.execute_query("""
+            SELECT id, billing_name, hubspot_company_id, hubspot_company_name
+            FROM finance_clients
+            WHERE org_id = %s
+        """, (org_id,))
+        
+        # Get HubSpot companies with employee count
+        hubspot_url = "https://api.hubapi.com/crm/v3/objects/companies"
+        headers = {"Authorization": f"Bearer {hubspot_token}"}
+        params = {
+            "limit": 100,
+            "properties": "name,numberofemployees,domain"
+        }
+        
+        all_companies = []
+        after = None
+        
+        # Paginate through all companies
+        while True:
+            if after:
+                params['after'] = after
+            
+            resp = http_requests.get(hubspot_url, headers=headers, params=params, timeout=30)
+            if resp.status_code != 200:
+                return jsonify({'error': f'HubSpot API error: {resp.text}'}), 500
+            
+            data = resp.json()
+            all_companies.extend(data.get('results', []))
+            
+            paging = data.get('paging', {})
+            if paging.get('next'):
+                after = paging['next'].get('after')
+            else:
+                break
+            
+            # Safety limit
+            if len(all_companies) > 5000:
+                break
+        
+        # Match and sync
+        synced = []
+        not_matched = []
+        
+        for client in clients:
+            client_name = client['billing_name'].lower().strip()
+            best_match = None
+            best_score = 0
+            
+            # If already linked to HubSpot, use that
+            if client['hubspot_company_id']:
+                for company in all_companies:
+                    if str(company['id']) == str(client['hubspot_company_id']):
+                        best_match = company
+                        best_score = 100
+                        break
+            
+            # Otherwise, fuzzy match by name
+            if not best_match:
+                for company in all_companies:
+                    company_name = (company.get('properties', {}).get('name') or '').lower().strip()
+                    if not company_name:
+                        continue
+                    
+                    # Try exact match first
+                    if client_name == company_name:
+                        best_match = company
+                        best_score = 100
+                        break
+                    
+                    # Fuzzy match
+                    score = fuzz.ratio(client_name, company_name)
+                    if score > best_score and score >= 80:  # 80% threshold
+                        best_match = company
+                        best_score = score
+            
+            if best_match:
+                props = best_match.get('properties', {})
+                employees = props.get('numberofemployees')
+                
+                if employees and str(employees).isdigit():
+                    employee_count = int(employees)
+                    
+                    # Update client with HubSpot link
+                    db.execute_query("""
+                        UPDATE finance_clients 
+                        SET hubspot_company_id = %s, 
+                            hubspot_company_name = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """, (best_match['id'], props.get('name'), client['id']))
+                    
+                    # Add population history record
+                    db.execute_query("""
+                        INSERT INTO finance_population_history 
+                        (client_id, population_count, effective_date, source, created_at)
+                        VALUES (%s, %s, NOW(), 'hubspot_sync', NOW())
+                    """, (client['id'], employee_count))
+                    
+                    synced.append({
+                        'client_id': client['id'],
+                        'client_name': client['billing_name'],
+                        'hubspot_name': props.get('name'),
+                        'match_score': best_score,
+                        'population': employee_count
+                    })
+                else:
+                    not_matched.append({
+                        'client_name': client['billing_name'],
+                        'reason': 'HubSpot company found but no employee count'
+                    })
+            else:
+                not_matched.append({
+                    'client_name': client['billing_name'],
+                    'reason': 'No matching HubSpot company found'
+                })
+        
+        return jsonify({
+            'success': True,
+            'synced_count': len(synced),
+            'not_matched_count': len(not_matched),
+            'synced': synced,
+            'not_matched': not_matched[:20]  # Limit to first 20 for response size
+        })
+        
+    except ImportError:
+        return jsonify({'error': 'fuzzywuzzy package not installed. Run: pip install fuzzywuzzy python-Levenshtein'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/hubspot/link', methods=['POST'])
+@jwt_required()
+def link_hubspot_company():
+    """
+    Manually link a Finance client to a HubSpot company.
+    Body: { client_id, hubspot_company_id }
+    """
+    try:
+        import os
+        import requests as http_requests
+        
+        db = get_db()
+        data = request.get_json()
+        
+        client_id = data.get('client_id')
+        hubspot_company_id = data.get('hubspot_company_id')
+        
+        if not client_id or not hubspot_company_id:
+            return jsonify({'error': 'client_id and hubspot_company_id required'}), 400
+        
+        # Get HubSpot company details
+        hubspot_token = os.environ.get('VITAL_HUBSPOT_TOKEN')
+        hubspot_url = f"https://api.hubapi.com/crm/v3/objects/companies/{hubspot_company_id}"
+        headers = {"Authorization": f"Bearer {hubspot_token}"}
+        params = {"properties": "name,numberofemployees,domain"}
+        
+        resp = http_requests.get(hubspot_url, headers=headers, params=params, timeout=30)
+        if resp.status_code != 200:
+            return jsonify({'error': 'HubSpot company not found'}), 404
+        
+        company = resp.json()
+        props = company.get('properties', {})
+        
+        # Update client
+        db.execute_query("""
+            UPDATE finance_clients 
+            SET hubspot_company_id = %s, 
+                hubspot_company_name = %s,
+                updated_at = NOW()
+            WHERE id = %s
+        """, (hubspot_company_id, props.get('name'), client_id))
+        
+        # If employee count available, update population
+        employees = props.get('numberofemployees')
+        if employees and str(employees).isdigit():
+            db.execute_query("""
+                INSERT INTO finance_population_history 
+                (client_id, population_count, effective_date, source, created_at)
+                VALUES (%s, %s, NOW(), 'hubspot_link', NOW())
+            """, (client_id, int(employees)))
+        
+        return jsonify({
+            'success': True,
+            'client_id': client_id,
+            'hubspot_company_id': hubspot_company_id,
+            'hubspot_company_name': props.get('name'),
+            'population_synced': employees if employees else None
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/hubspot/search', methods=['GET'])
+@jwt_required()
+def search_hubspot_companies():
+    """
+    Search HubSpot companies for linking to Finance clients.
+    Query params: q (search term)
+    """
+    try:
+        import os
+        import requests as http_requests
+        
+        search_term = request.args.get('q', '')
+        if not search_term or len(search_term) < 2:
+            return jsonify({'error': 'Search term must be at least 2 characters'}), 400
+        
+        hubspot_token = os.environ.get('VITAL_HUBSPOT_TOKEN')
+        if not hubspot_token:
+            return jsonify({'error': 'HubSpot token not configured'}), 500
+        
+        # Search HubSpot companies
+        hubspot_url = "https://api.hubapi.com/crm/v3/objects/companies/search"
+        headers = {
+            "Authorization": f"Bearer {hubspot_token}",
+            "Content-Type": "application/json"
+        }
+        body = {
+            "filterGroups": [{
+                "filters": [{
+                    "propertyName": "name",
+                    "operator": "CONTAINS_TOKEN",
+                    "value": search_term
+                }]
+            }],
+            "properties": ["name", "numberofemployees", "domain", "industry"],
+            "limit": 20
+        }
+        
+        resp = http_requests.post(hubspot_url, headers=headers, json=body, timeout=30)
+        if resp.status_code != 200:
+            return jsonify({'error': f'HubSpot search error: {resp.text}'}), 500
+        
+        data = resp.json()
+        companies = []
+        
+        for company in data.get('results', []):
+            props = company.get('properties', {})
+            companies.append({
+                'id': company['id'],
+                'name': props.get('name'),
+                'employees': props.get('numberofemployees'),
+                'domain': props.get('domain'),
+                'industry': props.get('industry')
+            })
+        
+        return jsonify({
+            'success': True,
+            'results': companies
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
