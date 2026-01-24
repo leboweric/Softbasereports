@@ -63,20 +63,31 @@ class BillingEngine:
                 fc.wpo_name,
                 fc.wpo_product,
                 fc.wpo_billing,
+                fc.wpo_account_number,
                 fc.solution_type,
                 fc.applicable_law_state,
                 fc.nexus_state,
                 fc.status,
                 fc.at_risk_reason,
-                fcon.renewal_date,
-                fcon.contract_length_years
+                fc.at_risk_level,
+                fc.inception_date,
+                fc.renewal_date,
+                fc.contract_length,
+                fc.year_2026_months,
+                fc.year_2027_months,
+                fc.year_2028_months,
+                fc.year_2029_months,
+                fc.year_2030_months,
+                fc.year_2031_months,
+                fc.pepm_2025,
+                fc.pepm_2026,
+                fc.pepm_2027,
+                fc.pepm_2028,
+                fc.pepm_2029,
+                fc.pepm_2030,
+                fc.pepm_2031,
+                fc.contract_value_total
             FROM finance_clients fc
-            LEFT JOIN (
-                SELECT DISTINCT ON (client_id) *
-                FROM finance_contracts
-                WHERE status = 'active'
-                ORDER BY client_id, id DESC
-            ) fcon ON fc.id = fcon.client_id
             WHERE fc.org_id = %s
             ORDER BY fc.billing_name
         """, (org_id,))
@@ -114,6 +125,7 @@ class BillingEngine:
             
             billing_terms = client['billing_terms'] or 'monthly'
             renewal_date = client['renewal_date']
+            inception_date = client['inception_date']
             renewal_month = renewal_date.month if renewal_date else 1
             
             # Calculate monthly values and total
@@ -132,29 +144,25 @@ class BillingEngine:
                 monthly[month] = float(value)
                 total += Decimal(str(value))
             
-            # Build row matching spreadsheet columns
+            # Build row matching spreadsheet columns (44 columns like Excel)
             row = {
                 'id': client_id,
                 'revenue_type': revenue_type.upper(),
+                'wpo_name': client['wpo_name'],
+                'at_risk': client['at_risk_level'],
                 'billing_name': client['billing_name'],
-                'tier': client['tier'],
-                'industry': client['industry'],
+                'inception_date': inception_date.isoformat() if inception_date else None,
+                'renewal_date': renewal_date.isoformat() if renewal_date else None,
+                'contract_length': client['contract_length'],
+                # Year months active
+                'year_2026': float(client['year_2026_months']) if client['year_2026_months'] else None,
+                'year_2027': float(client['year_2027_months']) if client['year_2027_months'] else None,
+                'year_2028': float(client['year_2028_months']) if client['year_2028_months'] else None,
+                'year_2029': float(client['year_2029_months']) if client['year_2029_months'] else None,
+                'year_2030': float(client['year_2030_months']) if client['year_2030_months'] else None,
+                'year_2031': float(client['year_2031_months']) if client['year_2031_months'] else None,
                 'session_product': client['session_product'],
                 'billing_terms': billing_terms,
-                'wpo_name': client['wpo_name'],
-                'wpo_product': client['wpo_product'],
-                'wpo_billing': client['wpo_billing'],
-                'solution_type': client['solution_type'],
-                'applicable_law_state': client['applicable_law_state'],
-                'nexus_state': client['nexus_state'],
-                'status': client['status'],
-                'at_risk_reason': client['at_risk_reason'],
-                'population': population,
-                'renewal_date': renewal_date.isoformat() if renewal_date else None,
-                'renewal_month': renewal_month,
-                'contract_length_years': client['contract_length_years'],
-                # PEPM rate
-                'pepm_2026': pepm,
                 # Monthly values
                 'jan': monthly[1],
                 'feb': monthly[2],
@@ -169,7 +177,29 @@ class BillingEngine:
                 'nov': monthly[11],
                 'dec': monthly[12],
                 # Annual total
-                'annual_total': float(total)
+                'annual_total': float(total),
+                'population': population,
+                # PEPM rates by year
+                'pepm_2025': float(client['pepm_2025']) if client['pepm_2025'] else None,
+                'pepm_2026': float(client['pepm_2026']) if client['pepm_2026'] else pepm,
+                'pepm_2027': float(client['pepm_2027']) if client['pepm_2027'] else None,
+                'pepm_2028': float(client['pepm_2028']) if client['pepm_2028'] else None,
+                'pepm_2029': float(client['pepm_2029']) if client['pepm_2029'] else None,
+                'pepm_2030': float(client['pepm_2030']) if client['pepm_2030'] else None,
+                'pepm_2031': float(client['pepm_2031']) if client['pepm_2031'] else None,
+                'contract_value_total': float(client['contract_value_total']) if client['contract_value_total'] else None,
+                'wpo_product': client['wpo_product'],
+                'wpo_billing': float(client['wpo_billing']) if client['wpo_billing'] else None,
+                'wpo_account_number': client['wpo_account_number'],
+                'industry': client['industry'],
+                'tier': client['tier'],
+                'applicable_law_state': client['applicable_law_state'],
+                'nexus_state': client['nexus_state'],
+                # Legacy fields
+                'solution_type': client['solution_type'],
+                'status': client['status'],
+                'at_risk_reason': client['at_risk_reason'],
+                'renewal_month': renewal_month
             }
             
             rows.append(row)
