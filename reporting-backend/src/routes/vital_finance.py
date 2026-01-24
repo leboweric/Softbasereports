@@ -1064,11 +1064,15 @@ def sync_hubspot_population():
                         WHERE id = %s
                     """, (best_match['id'], props.get('name'), client['id']))
                     
-                    # Add population history record
+                    # Add population history record (upsert to handle duplicates)
                     db.execute_update("""
                         INSERT INTO finance_population_history 
                         (client_id, population_count, effective_date, source, created_at)
-                        VALUES (%s, %s, NOW(), 'hubspot_sync', NOW())
+                        VALUES (%s, %s, CURRENT_DATE, 'hubspot_sync', NOW())
+                        ON CONFLICT (client_id, effective_date) 
+                        DO UPDATE SET population_count = EXCLUDED.population_count,
+                                      source = EXCLUDED.source,
+                                      created_at = NOW()
                     """, (client['id'], employee_count))
                     
                     synced.append({
@@ -1145,13 +1149,17 @@ def link_hubspot_company():
             WHERE id = %s
         """, (hubspot_company_id, props.get('name'), client_id))
         
-        # If employee count available, update population
+        # If employee count available, update population (upsert to handle duplicates)
         employees = props.get('numberofemployees')
         if employees and str(employees).isdigit():
             db.execute_update("""
                 INSERT INTO finance_population_history 
                 (client_id, population_count, effective_date, source, created_at)
-                VALUES (%s, %s, NOW(), 'hubspot_link', NOW())
+                VALUES (%s, %s, CURRENT_DATE, 'hubspot_link', NOW())
+                ON CONFLICT (client_id, effective_date) 
+                DO UPDATE SET population_count = EXCLUDED.population_count,
+                              source = EXCLUDED.source,
+                              created_at = NOW()
             """, (client_id, int(employees)))
         
         return jsonify({
