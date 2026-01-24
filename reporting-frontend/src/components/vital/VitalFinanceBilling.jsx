@@ -872,7 +872,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
           </Card>
         </TabsContent>
 
-        {/* Renewals Tab */
+        {/* Renewals Tab */}
         <TabsContent value="renewals" className="space-y-4">
           <Card>
             <CardHeader>
