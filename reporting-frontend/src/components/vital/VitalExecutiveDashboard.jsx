@@ -12,7 +12,8 @@ import {
   Tooltip,
   ResponsiveContainer,
   Area,
-  AreaChart
+  AreaChart,
+  Legend
 } from 'recharts'
 import {
   DollarSign,
@@ -22,10 +23,12 @@ import {
   Target,
   RefreshCw,
   Activity,
-  TrendingUp,
   Clock,
   PhoneIncoming,
-  PhoneOutgoing
+  PhoneOutgoing,
+  Building2,
+  AlertTriangle,
+  Calendar
 } from 'lucide-react'
 
 // CEO Dashboard organized by department sections
@@ -35,6 +38,9 @@ const VitalExecutiveDashboard = ({ user }) => {
   
   // Data states
   const [financeData, setFinanceData] = useState(null)
+  const [financeSummary, setFinanceSummary] = useState(null)
+  const [clients, setClients] = useState([])
+  const [renewals, setRenewals] = useState([])
   const [mobileAppData, setMobileAppData] = useState(null)
   const [callCenterData, setCallCenterData] = useState(null)
 
@@ -46,15 +52,50 @@ const VitalExecutiveDashboard = ({ user }) => {
       'Content-Type': 'application/json'
     }
 
-    // Fetch Finance data
+    const currentYear = new Date().getFullYear()
+
+    // Fetch Finance summary (includes monthly data, at_risk)
     try {
-      const financeRes = await fetch(apiUrl('/api/vital/finance/billing/summary?year=2026'), { headers })
-      if (financeRes.ok) {
-        const data = await financeRes.json()
+      const summaryRes = await fetch(apiUrl(`/api/vital/finance/billing/summary?year=${currentYear}`), { headers })
+      if (summaryRes.ok) {
+        const data = await summaryRes.json()
+        setFinanceSummary(data)
+      }
+    } catch (err) {
+      console.error('Finance summary fetch error:', err)
+    }
+
+    // Fetch Finance clients
+    try {
+      const clientsRes = await fetch(apiUrl('/api/vital/finance/clients'), { headers })
+      if (clientsRes.ok) {
+        const data = await clientsRes.json()
+        setClients(data.clients || [])
+      }
+    } catch (err) {
+      console.error('Clients fetch error:', err)
+    }
+
+    // Fetch Renewals
+    try {
+      const renewalsRes = await fetch(apiUrl('/api/vital/finance/renewals?months=6'), { headers })
+      if (renewalsRes.ok) {
+        const data = await renewalsRes.json()
+        setRenewals(data.renewals || [])
+      }
+    } catch (err) {
+      console.error('Renewals fetch error:', err)
+    }
+
+    // Fetch spreadsheet data for total annual
+    try {
+      const spreadsheetRes = await fetch(apiUrl(`/api/vital/finance/billing/spreadsheet?year=${currentYear}&type=revrec`), { headers })
+      if (spreadsheetRes.ok) {
+        const data = await spreadsheetRes.json()
         setFinanceData(data)
       }
     } catch (err) {
-      console.error('Finance fetch error:', err)
+      console.error('Finance spreadsheet fetch error:', err)
     }
 
     // Fetch Mobile App data
@@ -93,6 +134,22 @@ const VitalExecutiveDashboard = ({ user }) => {
 
   // Format helpers
   const formatCurrency = (value) => {
+    if (!value) return '$0'
+    if (value >= 1000000) {
+      return `$${(value / 1000000).toFixed(1)}M`
+    }
+    if (value >= 1000) {
+      return `$${(value / 1000).toFixed(0)}K`
+    }
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value)
+  }
+
+  const formatCurrencyFull = (value) => {
     if (!value) return '$0'
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -135,26 +192,46 @@ const VitalExecutiveDashboard = ({ user }) => {
   )
 
   // Metric Card Component
-  const MetricCard = ({ label, value, sublabel, icon: Icon }) => (
+  const MetricCard = ({ label, value, sublabel, icon: Icon, valueColor }) => (
     <div className="bg-white rounded-lg p-4 border border-gray-100">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-gray-500">{label}</span>
         {Icon && <Icon className="h-4 w-4 text-gray-400" />}
       </div>
-      <div className="text-2xl font-bold text-gray-900">{value}</div>
+      <div className={`text-2xl font-bold ${valueColor || 'text-gray-900'}`}>{value}</div>
       {sublabel && <div className="text-xs text-gray-400 mt-1">{sublabel}</div>}
     </div>
   )
 
-  // Data
-  const annualRevenue = financeData?.total_annual || financeData?.annual_revenue || 0
+  // Finance Data
+  const activeClients = clients.filter(c => c.status === 'active').length
+  const totalClients = clients.length
+  const atRiskRevenue = financeSummary?.at_risk?.annual_at_risk || 0
+  const atRiskCount = financeSummary?.at_risk?.at_risk_count || 0
+  const renewalsValue = renewals.reduce((sum, r) => sum + (parseFloat(r.annual_value) || 0), 0)
+  const annualRevenue = financeData?.total_annual || 0
+
+  // Prepare monthly revenue chart data
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthlyData = monthNames.map((month, idx) => {
+    const monthNum = idx + 1
+    const monthData = financeSummary?.monthly?.find(m => m.billing_month === monthNum)
+    return {
+      month,
+      revenue: monthData?.total_revrec || 0,
+      // Budget would come from a budget table - using placeholder for now
+      // budget: monthData?.budget || 0
+    }
+  })
+
+  // Mobile App Data
   const mau = mobileAppData?.mau || 0
   const dau = mobileAppData?.dau || mobileAppData?.avg_dau || 0
   const stickiness = mobileAppData?.stickiness || 0
   const newUsers = mobileAppData?.new_users || 0
-  const totalSessions = mobileAppData?.total_sessions || 0
   const dailyTrend = mobileAppData?.daily_trend || []
   
+  // Call Center Data
   const callStats = callCenterData?.call_stats || {}
   const totalCalls = callStats.total_calls || 0
   const inboundCalls = callStats.inbound || 0
@@ -196,23 +273,61 @@ const VitalExecutiveDashboard = ({ user }) => {
           title="Finance" 
           icon={DollarSign} 
           color="bg-green-500" 
-          status={!!financeData}
+          status={!!financeSummary || !!financeData}
         />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-1">
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 h-full">
-              <div className="text-sm text-green-600 font-medium mb-2">Annual Revenue (2026)</div>
-              <div className="text-4xl font-bold text-green-700">{formatCurrency(annualRevenue)}</div>
-              <div className="text-sm text-green-600 mt-2">From billing data</div>
+        
+        {/* Finance Metric Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <MetricCard 
+            label="Active Clients" 
+            value={formatNumber(activeClients)} 
+            sublabel={`${totalClients} total`}
+            icon={Building2}
+          />
+          <MetricCard 
+            label="Upcoming Renewals" 
+            value={formatNumber(renewals.length)} 
+            sublabel={`${formatCurrency(renewalsValue)} in next 6 months`}
+            icon={Calendar}
+          />
+          <MetricCard 
+            label="At Risk Revenue" 
+            value={formatCurrency(atRiskRevenue)} 
+            sublabel={`${atRiskCount} clients renewing in 3 months`}
+            icon={AlertTriangle}
+            valueColor="text-yellow-600"
+          />
+          <MetricCard 
+            label="Annual Revenue" 
+            value={formatCurrency(annualRevenue)} 
+            sublabel="2026 RevRec"
+            icon={DollarSign}
+          />
+        </div>
+
+        {/* Monthly Revenue Chart */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-4">Monthly Revenue (2026)</h3>
+          {monthlyData.some(m => m.revenue > 0) ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis 
+                  tick={{ fontSize: 11 }} 
+                  tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                />
+                <Tooltip 
+                  formatter={(value) => [formatCurrencyFull(value), 'Revenue']}
+                />
+                <Bar dataKey="revenue" fill="#10b981" name="Revenue" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-gray-400">
+              No monthly revenue data available
             </div>
-          </div>
-          <div className="md:col-span-2 flex items-center justify-center text-gray-400 text-sm">
-            <div className="text-center">
-              <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p>Additional finance metrics coming soon</p>
-              <p className="text-xs">(Revenue by tier, renewals, etc.)</p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
