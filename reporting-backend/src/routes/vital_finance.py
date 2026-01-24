@@ -709,11 +709,11 @@ def get_billing_report():
         return jsonify({'error': str(e)}), 500
 
 
-@vital_finance_bp.route('/api/vital/finance/billing/summary', methods=['GET'])
+@vital_finance_bp.route('/api/vital/finance/billing/summary/v2', methods=['GET'])
 @jwt_required()
-def get_billing_summary():
+def get_billing_summary_v2():
     """
-    Get billing summary grouped by dimension.
+    Get billing summary grouped by dimension (using BillingEngine).
     Query params:
         - year: Year to summarize (default: current year)
         - group_by: 'tier', 'industry', 'session_product', or 'month' (default: 'tier')
