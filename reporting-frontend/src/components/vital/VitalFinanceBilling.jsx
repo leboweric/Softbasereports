@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { apiUrl } from '@/lib/api'
 import { 
   DollarSign, 
@@ -21,17 +22,26 @@ import {
   Building2,
   FileSpreadsheet,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Columns,
+  LayoutGrid
 } from 'lucide-react'
 
 const VitalFinanceBilling = ({ user, organization }) => {
   const [clients, setClients] = useState([])
   const [summary, setSummary] = useState(null)
   const [renewals, setRenewals] = useState([])
+  const [spreadsheetData, setSpreadsheetData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [revenueType, setRevenueType] = useState('revrec') // 'cash', 'revrec', or 'dual'
   const [showAddClient, setShowAddClient] = useState(false)
+  const [activeTab, setActiveTab] = useState('spreadsheet')
+  const tableContainerRef = useRef(null)
   const [newClient, setNewClient] = useState({
     billing_name: '',
     hubspot_company_name: '',
@@ -41,9 +51,26 @@ const VitalFinanceBilling = ({ user, organization }) => {
     status: 'active'
   })
 
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState({
+    revenue_type: true,
+    billing_name: true,
+    tier: true,
+    industry: false,
+    session_product: false,
+    billing_terms: true,
+    wpo_flag: false,
+    population: true,
+    renewal_date: true,
+    pepm_2026: true,
+    jan: true, feb: true, mar: true, apr: true, may: true, jun: true,
+    jul: true, aug: true, sep: true, oct: true, nov: true, dec: true,
+    annual_total: true
+  })
+
   useEffect(() => {
     fetchData()
-  }, [selectedYear])
+  }, [selectedYear, revenueType])
 
   const fetchData = async () => {
     setLoading(true)
@@ -70,6 +97,16 @@ const VitalFinanceBilling = ({ user, organization }) => {
       if (renewalsRes.ok) {
         const data = await renewalsRes.json()
         setRenewals(data.renewals || [])
+      }
+
+      // Fetch spreadsheet data
+      const spreadsheetRes = await fetch(
+        apiUrl(`/api/vital/finance/billing/spreadsheet?year=${selectedYear}&type=${revenueType}`), 
+        { headers }
+      )
+      if (spreadsheetRes.ok) {
+        const data = await spreadsheetRes.json()
+        setSpreadsheetData(data)
       }
     } catch (error) {
       console.error('Error fetching finance data:', error)
@@ -107,10 +144,37 @@ const VitalFinanceBilling = ({ user, organization }) => {
     }
   }
 
+  const exportToCSV = () => {
+    if (!spreadsheetData?.rows) return
+    
+    const headers = spreadsheetData.columns.filter(col => visibleColumns[col] !== false)
+    const rows = spreadsheetData.rows.map(row => 
+      headers.map(col => {
+        const val = row[col]
+        if (typeof val === 'number') return val
+        if (val === null || val === undefined) return ''
+        return `"${String(val).replace(/"/g, '""')}"`
+      }).join(',')
+    )
+    
+    const csv = [headers.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `billing_${revenueType}_${selectedYear}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const filteredClients = clients.filter(client =>
     client.billing_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.hubspot_company_name?.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const filteredSpreadsheetRows = spreadsheetData?.rows?.filter(row =>
+    row.billing_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || []
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
@@ -139,6 +203,17 @@ const VitalFinanceBilling = ({ user, organization }) => {
     return <Badge className={variants[status] || 'bg-gray-100 text-gray-800'}>{status}</Badge>
   }
 
+  const getBillingTermsBadge = (terms) => {
+    const colors = {
+      'annual': 'bg-blue-100 text-blue-800',
+      'qtly': 'bg-purple-100 text-purple-800',
+      'quarterly': 'bg-purple-100 text-purple-800',
+      'monthly': 'bg-green-100 text-green-800',
+      'semi': 'bg-orange-100 text-orange-800'
+    }
+    return <Badge className={colors[terms?.toLowerCase()] || 'bg-gray-100 text-gray-800'}>{terms}</Badge>
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -155,7 +230,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
           <h1 className="text-2xl font-bold text-gray-900">Finance</h1>
           <p className="text-gray-500">Billing management and revenue tracking</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -164,6 +239,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
               <SelectItem value="2024">2024</SelectItem>
               <SelectItem value="2025">2025</SelectItem>
               <SelectItem value="2026">2026</SelectItem>
+              <SelectItem value="2027">2027</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={fetchData} variant="outline">
@@ -177,12 +253,12 @@ const VitalFinanceBilling = ({ user, organization }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Book of Business</CardTitle>
+            <CardTitle className="text-sm font-medium">Annual Revenue (RevRec)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary?.book_value)}</div>
-            <p className="text-xs text-muted-foreground">Annual value</p>
+            <div className="text-2xl font-bold">{formatCurrency(spreadsheetData?.total_annual)}</div>
+            <p className="text-xs text-muted-foreground">{selectedYear} projection</p>
           </CardContent>
         </Card>
 
@@ -225,12 +301,201 @@ const VitalFinanceBilling = ({ user, organization }) => {
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="clients" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
+          <TabsTrigger value="spreadsheet">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Billing Table
+          </TabsTrigger>
           <TabsTrigger value="clients">Clients</TabsTrigger>
           <TabsTrigger value="renewals">Renewals</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
+
+        {/* Spreadsheet Tab - NEW */}
+        <TabsContent value="spreadsheet" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Billing Data Table {selectedYear}</CardTitle>
+                  <CardDescription>
+                    Full spreadsheet view with monthly breakdown • {filteredSpreadsheetRows.length} rows
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2 items-center">
+                  {/* Revenue Type Toggle */}
+                  <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                    <Button 
+                      size="sm" 
+                      variant={revenueType === 'cash' ? 'default' : 'ghost'}
+                      onClick={() => setRevenueType('cash')}
+                    >
+                      Cash
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant={revenueType === 'revrec' ? 'default' : 'ghost'}
+                      onClick={() => setRevenueType('revrec')}
+                    >
+                      RevRec
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant={revenueType === 'dual' ? 'default' : 'ghost'}
+                      onClick={() => setRevenueType('dual')}
+                    >
+                      Both
+                    </Button>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8 w-48"
+                    />
+                  </div>
+                  <Button variant="outline" onClick={exportToCSV}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div 
+                ref={tableContainerRef}
+                className="overflow-x-auto border rounded-lg"
+                style={{ maxHeight: '600px' }}
+              >
+                <Table>
+                  <TableHeader className="sticky top-0 bg-white z-10">
+                    <TableRow>
+                      {revenueType === 'dual' && <TableHead className="sticky left-0 bg-gray-50 z-20 min-w-[80px]">Type</TableHead>}
+                      <TableHead className={`sticky ${revenueType === 'dual' ? 'left-[80px]' : 'left-0'} bg-gray-50 z-20 min-w-[200px]`}>Client</TableHead>
+                      <TableHead className="min-w-[80px]">Tier</TableHead>
+                      <TableHead className="min-w-[80px]">Terms</TableHead>
+                      <TableHead className="text-right min-w-[80px]">Pop</TableHead>
+                      <TableHead className="min-w-[100px]">Renewal</TableHead>
+                      <TableHead className="text-right min-w-[80px]">PEPM</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-blue-50">Jan</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-blue-50">Feb</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-blue-50">Mar</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-green-50">Apr</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-green-50">May</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-green-50">Jun</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-yellow-50">Jul</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-yellow-50">Aug</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-yellow-50">Sep</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-orange-50">Oct</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-orange-50">Nov</TableHead>
+                      <TableHead className="text-right min-w-[90px] bg-orange-50">Dec</TableHead>
+                      <TableHead className="text-right min-w-[100px] bg-gray-100 font-bold">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSpreadsheetRows.map((row, idx) => (
+                      <TableRow 
+                        key={`${row.id}-${row.revenue_type}-${idx}`} 
+                        className={row.revenue_type === 'CASH' ? 'bg-blue-50/30' : ''}
+                      >
+                        {revenueType === 'dual' && (
+                          <TableCell className="sticky left-0 bg-white z-10 font-medium">
+                            <Badge variant={row.revenue_type === 'CASH' ? 'default' : 'secondary'}>
+                              {row.revenue_type}
+                            </Badge>
+                          </TableCell>
+                        )}
+                        <TableCell className={`sticky ${revenueType === 'dual' ? 'left-[80px]' : 'left-0'} bg-white z-10 font-medium`}>
+                          {row.billing_name}
+                        </TableCell>
+                        <TableCell>{row.tier || '-'}</TableCell>
+                        <TableCell>{getBillingTermsBadge(row.billing_terms)}</TableCell>
+                        <TableCell className="text-right">{row.population?.toLocaleString() || '-'}</TableCell>
+                        <TableCell>{row.renewal_date ? new Date(row.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}</TableCell>
+                        <TableCell className="text-right">${row[`pepm_${selectedYear}`]?.toFixed(2) || '0.00'}</TableCell>
+                        <TableCell className="text-right bg-blue-50/50">{formatCurrency(row.jan)}</TableCell>
+                        <TableCell className="text-right bg-blue-50/50">{formatCurrency(row.feb)}</TableCell>
+                        <TableCell className="text-right bg-blue-50/50">{formatCurrency(row.mar)}</TableCell>
+                        <TableCell className="text-right bg-green-50/50">{formatCurrency(row.apr)}</TableCell>
+                        <TableCell className="text-right bg-green-50/50">{formatCurrency(row.may)}</TableCell>
+                        <TableCell className="text-right bg-green-50/50">{formatCurrency(row.jun)}</TableCell>
+                        <TableCell className="text-right bg-yellow-50/50">{formatCurrency(row.jul)}</TableCell>
+                        <TableCell className="text-right bg-yellow-50/50">{formatCurrency(row.aug)}</TableCell>
+                        <TableCell className="text-right bg-yellow-50/50">{formatCurrency(row.sep)}</TableCell>
+                        <TableCell className="text-right bg-orange-50/50">{formatCurrency(row.oct)}</TableCell>
+                        <TableCell className="text-right bg-orange-50/50">{formatCurrency(row.nov)}</TableCell>
+                        <TableCell className="text-right bg-orange-50/50">{formatCurrency(row.dec)}</TableCell>
+                        <TableCell className="text-right bg-gray-100 font-bold">{formatCurrency(row.annual_total)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {/* Totals Row */}
+                    <TableRow className="bg-gray-200 font-bold sticky bottom-0">
+                      {revenueType === 'dual' && <TableCell className="sticky left-0 bg-gray-200 z-10">TOTAL</TableCell>}
+                      <TableCell className={`sticky ${revenueType === 'dual' ? 'left-[80px]' : 'left-0'} bg-gray-200 z-10`}>
+                        {revenueType !== 'dual' && 'TOTAL'}
+                      </TableCell>
+                      <TableCell></TableCell>
+                      <TableCell></TableCell>
+                      <TableCell className="text-right">
+                        {filteredSpreadsheetRows.reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell></TableCell>
+                      <TableCell></TableCell>
+                      <TableCell className="text-right bg-blue-100">{formatCurrency(spreadsheetData?.monthly_totals?.jan)}</TableCell>
+                      <TableCell className="text-right bg-blue-100">{formatCurrency(spreadsheetData?.monthly_totals?.feb)}</TableCell>
+                      <TableCell className="text-right bg-blue-100">{formatCurrency(spreadsheetData?.monthly_totals?.mar)}</TableCell>
+                      <TableCell className="text-right bg-green-100">{formatCurrency(spreadsheetData?.monthly_totals?.apr)}</TableCell>
+                      <TableCell className="text-right bg-green-100">{formatCurrency(spreadsheetData?.monthly_totals?.may)}</TableCell>
+                      <TableCell className="text-right bg-green-100">{formatCurrency(spreadsheetData?.monthly_totals?.jun)}</TableCell>
+                      <TableCell className="text-right bg-yellow-100">{formatCurrency(spreadsheetData?.monthly_totals?.jul)}</TableCell>
+                      <TableCell className="text-right bg-yellow-100">{formatCurrency(spreadsheetData?.monthly_totals?.aug)}</TableCell>
+                      <TableCell className="text-right bg-yellow-100">{formatCurrency(spreadsheetData?.monthly_totals?.sep)}</TableCell>
+                      <TableCell className="text-right bg-orange-100">{formatCurrency(spreadsheetData?.monthly_totals?.oct)}</TableCell>
+                      <TableCell className="text-right bg-orange-100">{formatCurrency(spreadsheetData?.monthly_totals?.nov)}</TableCell>
+                      <TableCell className="text-right bg-orange-100">{formatCurrency(spreadsheetData?.monthly_totals?.dec)}</TableCell>
+                      <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(spreadsheetData?.total_annual)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+              
+              {/* Legend */}
+              <div className="mt-4 flex gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-blue-50 border rounded"></div>
+                  <span>Q1 (Jan-Mar)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-50 border rounded"></div>
+                  <span>Q2 (Apr-Jun)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-yellow-50 border rounded"></div>
+                  <span>Q3 (Jul-Sep)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 bg-orange-50 border rounded"></div>
+                  <span>Q4 (Oct-Dec)</span>
+                </div>
+                {revenueType === 'dual' && (
+                  <>
+                    <div className="flex items-center gap-2 ml-4">
+                      <Badge>CASH</Badge>
+                      <span>When billed</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">REVREC</Badge>
+                      <span>Revenue recognition</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* Clients Tab */}
         <TabsContent value="clients" className="space-y-4">
@@ -366,6 +631,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
                       <TableHead>Client</TableHead>
                       <TableHead>Industry</TableHead>
                       <TableHead>Tier</TableHead>
+                      <TableHead>Terms</TableHead>
                       <TableHead className="text-right">Population</TableHead>
                       <TableHead className="text-right">PEPM</TableHead>
                       <TableHead className="text-right">Monthly Revenue</TableHead>
@@ -386,6 +652,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
                         </TableCell>
                         <TableCell>{client.industry || '-'}</TableCell>
                         <TableCell>{client.tier || '-'}</TableCell>
+                        <TableCell>{getBillingTermsBadge(client.billing_terms)}</TableCell>
                         <TableCell className="text-right">
                           {client.current_population?.toLocaleString() || '-'}
                         </TableCell>
