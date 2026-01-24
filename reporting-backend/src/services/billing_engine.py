@@ -508,3 +508,180 @@ class BillingEngine:
             'revenue_by_product': revenue_by_product,
             'grand_total_revenue': float(grand_total_revenue)
         }
+
+    def get_tier_product_pivot(
+        self,
+        org_id: int,
+        year: int,
+        revenue_timing: str = 'revrec'
+    ) -> Dict:
+        """
+        Generate Tier & Product Pivot table data.
+        
+        Replicates the Excel 'PIVOT By Tier & Prod' tab which shows 4 pivot tables:
+        1. Count of Company Name by Tier × Session Product
+        2. Sum of Current Pop by Tier × Session Product
+        3. Sum of Current Annual Revenue by Tier × Session Product
+        4. Average of 2026 PEPM by Tier × Session Product
+        
+        Args:
+            org_id: Organization ID
+            year: Year to analyze
+            revenue_timing: 'cash' or 'revrec'
+        
+        Returns:
+            Dict with all 4 pivot tables and totals
+        """
+        cursor = self.db.cursor()
+        
+        # Get all data grouped by tier and session product
+        cursor.execute("""
+            SELECT 
+                COALESCE(fc.tier, 'NA') as tier,
+                COALESCE(fc.session_product, '(blank)') as session_product,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(DISTINCT fmb.population_count) as total_population,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue,
+                AVG(fmb.pepm_rate) as avg_pepm
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            GROUP BY COALESCE(fc.tier, 'NA'), COALESCE(fc.session_product, '(blank)')
+            ORDER BY tier, session_product
+        """, (revenue_timing, org_id, year))
+        
+        # Initialize data structures
+        tiers = set()
+        products = set()
+        data = {}  # {tier: {product: {count, population, revenue, avg_pepm}}}
+        
+        for row in cursor.fetchall():
+            tier = row[0]
+            product = row[1]
+            
+            tiers.add(tier)
+            products.add(product)
+            
+            if tier not in data:
+                data[tier] = {}
+            
+            data[tier][product] = {
+                'count': row[2] or 0,
+                'population': int(row[3]) if row[3] else 0,
+                'revenue': float(row[4]) if row[4] else 0,
+                'avg_pepm': float(row[5]) if row[5] else 0
+            }
+        
+        # Sort tiers and products
+        tier_order = ['A', 'B', 'C', 'D', 'NA', '(blank)']
+        sorted_tiers = sorted(tiers, key=lambda x: tier_order.index(x) if x in tier_order else 99)
+        
+        product_order = ['Concierge', 'EAP 3', 'EAP 4', 'EAP 5', 'EAP 6', 'EAP 8', 'Nurseline', 'PWR', '(blank)']
+        sorted_products = sorted(products, key=lambda x: product_order.index(x) if x in product_order else 99)
+        
+        # Build pivot tables
+        count_pivot = []
+        population_pivot = []
+        revenue_pivot = []
+        pepm_pivot = []
+        
+        # Grand totals by product
+        product_totals = {p: {'count': 0, 'population': 0, 'revenue': 0, 'pepm_sum': 0, 'pepm_count': 0} for p in sorted_products}
+        
+        for tier in sorted_tiers:
+            count_row = {'tier': tier}
+            pop_row = {'tier': tier}
+            rev_row = {'tier': tier}
+            pepm_row = {'tier': tier}
+            
+            tier_total_count = 0
+            tier_total_pop = 0
+            tier_total_rev = 0
+            tier_pepm_sum = 0
+            tier_pepm_count = 0
+            
+            for product in sorted_products:
+                cell_data = data.get(tier, {}).get(product, {'count': 0, 'population': 0, 'revenue': 0, 'avg_pepm': 0})
+                
+                count_row[product] = cell_data['count']
+                pop_row[product] = cell_data['population']
+                rev_row[product] = cell_data['revenue']
+                pepm_row[product] = cell_data['avg_pepm']
+                
+                tier_total_count += cell_data['count']
+                tier_total_pop += cell_data['population']
+                tier_total_rev += cell_data['revenue']
+                if cell_data['avg_pepm'] > 0:
+                    tier_pepm_sum += cell_data['avg_pepm'] * cell_data['count']
+                    tier_pepm_count += cell_data['count']
+                
+                # Update product totals
+                product_totals[product]['count'] += cell_data['count']
+                product_totals[product]['population'] += cell_data['population']
+                product_totals[product]['revenue'] += cell_data['revenue']
+                if cell_data['avg_pepm'] > 0:
+                    product_totals[product]['pepm_sum'] += cell_data['avg_pepm'] * cell_data['count']
+                    product_totals[product]['pepm_count'] += cell_data['count']
+            
+            # Add tier totals
+            count_row['Grand Total'] = tier_total_count
+            pop_row['Grand Total'] = tier_total_pop
+            rev_row['Grand Total'] = tier_total_rev
+            pepm_row['Grand Total'] = tier_pepm_sum / tier_pepm_count if tier_pepm_count > 0 else 0
+            
+            count_pivot.append(count_row)
+            population_pivot.append(pop_row)
+            revenue_pivot.append(rev_row)
+            pepm_pivot.append(pepm_row)
+        
+        # Add Grand Total row
+        grand_count_row = {'tier': 'Grand Total'}
+        grand_pop_row = {'tier': 'Grand Total'}
+        grand_rev_row = {'tier': 'Grand Total'}
+        grand_pepm_row = {'tier': 'Grand Total'}
+        
+        grand_total_count = 0
+        grand_total_pop = 0
+        grand_total_rev = 0
+        grand_pepm_sum = 0
+        grand_pepm_count = 0
+        
+        for product in sorted_products:
+            grand_count_row[product] = product_totals[product]['count']
+            grand_pop_row[product] = product_totals[product]['population']
+            grand_rev_row[product] = product_totals[product]['revenue']
+            grand_pepm_row[product] = product_totals[product]['pepm_sum'] / product_totals[product]['pepm_count'] if product_totals[product]['pepm_count'] > 0 else 0
+            
+            grand_total_count += product_totals[product]['count']
+            grand_total_pop += product_totals[product]['population']
+            grand_total_rev += product_totals[product]['revenue']
+            grand_pepm_sum += product_totals[product]['pepm_sum']
+            grand_pepm_count += product_totals[product]['pepm_count']
+        
+        grand_count_row['Grand Total'] = grand_total_count
+        grand_pop_row['Grand Total'] = grand_total_pop
+        grand_rev_row['Grand Total'] = grand_total_rev
+        grand_pepm_row['Grand Total'] = grand_pepm_sum / grand_pepm_count if grand_pepm_count > 0 else 0
+        
+        count_pivot.append(grand_count_row)
+        population_pivot.append(grand_pop_row)
+        revenue_pivot.append(grand_rev_row)
+        pepm_pivot.append(grand_pepm_row)
+        
+        return {
+            'year': year,
+            'revenue_timing': revenue_timing,
+            'tiers': sorted_tiers,
+            'products': sorted_products,
+            'count_pivot': count_pivot,
+            'population_pivot': population_pivot,
+            'revenue_pivot': revenue_pivot,
+            'pepm_pivot': pepm_pivot,
+            'grand_totals': {
+                'count': grand_total_count,
+                'population': grand_total_pop,
+                'revenue': grand_total_rev,
+                'avg_pepm': grand_pepm_sum / grand_pepm_count if grand_pepm_count > 0 else 0
+            }
+        }

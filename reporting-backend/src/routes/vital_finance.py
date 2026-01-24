@@ -1430,3 +1430,56 @@ def get_wpo_pivot():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/pivot/tier-product', methods=['GET'])
+@jwt_required()
+def get_tier_product_pivot():
+    """
+    Get Tier & Product Pivot data.
+    
+    Replicates the Excel 'PIVOT By Tier & Prod' tab which shows 4 pivot tables:
+    1. Count of Company Name by Tier × Session Product
+    2. Sum of Current Pop by Tier × Session Product
+    3. Sum of Current Annual Revenue by Tier × Session Product
+    4. Average of 2026 PEPM by Tier × Session Product
+    
+    Query params:
+        year: Year to analyze (default: current year)
+        revenue_timing: 'cash' or 'revrec' (default: 'revrec')
+    
+    Returns:
+        JSON with all 4 pivot tables and totals
+    """
+    try:
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        revenue_timing = request.args.get('revenue_timing', 'revrec')
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct psycopg2 connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        
+        engine = BillingEngine(conn)
+        result = engine.get_tier_product_pivot(
+            org_id=org_id,
+            year=year,
+            revenue_timing=revenue_timing
+        )
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            **result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
