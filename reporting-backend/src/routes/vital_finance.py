@@ -415,12 +415,12 @@ def get_billing_summary():
         # Get at-risk summary (clients with renewals in next 3 months)
         at_risk_query = """
             SELECT 
-                SUM(fmb.total_annual / 12) as monthly_at_risk,
-                SUM(fmb.total_annual) as annual_at_risk,
+                COALESCE(SUM(fmb.revenue_revrec), 0) as monthly_at_risk,
+                COALESCE(SUM(fmb.revenue_revrec * 12), 0) as annual_at_risk,
                 COUNT(DISTINCT fc.id) as at_risk_count
             FROM finance_clients fc
             JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id 
-                AND fmb.billing_year = %s
+                AND fmb.billing_year = %s AND fmb.billing_month = 1
             WHERE fc.org_id = %s 
               AND fc.renewal_date IS NOT NULL
               AND fc.renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 months'
@@ -485,11 +485,12 @@ def get_renewals():
                 fc.session_product as solution_type, 
                 fc.status,
                 fc.renewal_date,
-                fc.population,
-                fmb.total_annual as annual_value
+                fmb.population_count as population,
+                (fmb.revenue_revrec * 12) as annual_value
             FROM finance_clients fc
             LEFT JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id 
                 AND fmb.billing_year = EXTRACT(YEAR FROM CURRENT_DATE)
+                AND fmb.billing_month = 1
             WHERE fc.org_id = %s 
               AND fc.renewal_date IS NOT NULL
               AND fc.renewal_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '%s months'
