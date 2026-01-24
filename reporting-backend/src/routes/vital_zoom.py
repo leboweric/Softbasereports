@@ -93,6 +93,45 @@ def get_zoom_dashboard():
         }), 500
 
 
+# ==================== DEBUG: RAW CALL LOGS ====================
+
+@vital_zoom_bp.route('/api/vital/zoom/debug-call-logs', methods=['GET'])
+@jwt_required()
+def debug_call_logs():
+    """Debug endpoint to see raw Zoom call log structure"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        service = get_zoom_service()
+        
+        # Get raw call logs from Zoom API
+        from datetime import datetime, timedelta
+        today = datetime.now()
+        from_date = (today - timedelta(days=7)).strftime("%Y-%m-%d")
+        to_date = today.strftime("%Y-%m-%d")
+        
+        data = service._make_request("/phone/call_history", {
+            "from": from_date,
+            "to": to_date,
+            "page_size": 5
+        })
+        
+        # Return first 5 raw call logs to see the structure
+        return jsonify({
+            "success": True,
+            "raw_response_keys": list(data.keys()),
+            "total_records": data.get('total_records'),
+            "sample_calls": data.get('call_logs', [])[:5]
+        })
+    except Exception as e:
+        logger.error(f"Debug call logs error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 # ==================== CALL VOLUME TREND ====================
 
 @vital_zoom_bp.route('/api/vital/zoom/call-volume-trend', methods=['GET'])
