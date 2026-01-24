@@ -1201,6 +1201,8 @@ class BillingEngine:
         cursor = self.db.cursor()
         
         # Get revenue by nexus state
+        # NOTE: Excel PIVOT Nexus State filters to only include clients with valid Tier (A, B, C, D)
+        # This excludes clients with blank Tier or 'NA' Tier to match Excel exactly
         cursor.execute("""
             SELECT 
                 COALESCE(fc.nexus_state, '(blank)') as nexus_state,
@@ -1211,6 +1213,7 @@ class BillingEngine:
             JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
             WHERE fc.org_id = %s 
             AND fmb.billing_year = %s
+            AND fc.tier IN ('A', 'B', 'C', 'D')
             GROUP BY COALESCE(fc.nexus_state, '(blank)')
             ORDER BY total_revenue DESC
         """, (revenue_timing, org_id, year))
@@ -1242,17 +1245,19 @@ class BillingEngine:
             state['pct_of_revenue'] = (state['revenue'] / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
         
         # Get breakdown by tier for each state
+        # Also filter by valid Tier to match Excel PIVOT
         cursor.execute("""
             SELECT 
                 COALESCE(fc.nexus_state, '(blank)') as nexus_state,
-                COALESCE(fc.tier, 'NA') as tier,
+                fc.tier as tier,
                 COUNT(DISTINCT fc.id) as client_count,
                 SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
             FROM finance_clients fc
             JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
             WHERE fc.org_id = %s 
             AND fmb.billing_year = %s
-            GROUP BY COALESCE(fc.nexus_state, '(blank)'), COALESCE(fc.tier, 'NA')
+            AND fc.tier IN ('A', 'B', 'C', 'D')
+            GROUP BY COALESCE(fc.nexus_state, '(blank)'), fc.tier
             ORDER BY nexus_state, tier
         """, (revenue_timing, org_id, year))
         

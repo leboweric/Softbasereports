@@ -292,7 +292,7 @@ NAVIGATION_CONFIG = {
     },
     # VITAL Worklife navigation
     'vital-case-data': {
-        'label': 'Case Data',
+        'label': 'CMS',
         'icon': 'ClipboardList',
         'path': 'vital-case-data',
         'required_resource': 'vital_case_data',
@@ -320,21 +320,22 @@ NAVIGATION_CONFIG = {
         'order': 23,
     },
     'vital-hubspot': {
-        'label': 'HubSpot CRM',
+        'label': 'Sales & Marketing',
         'icon': 'Target',
         'path': 'vital-hubspot',
         'required_resource': 'vital_hubspot',
         'order': 24,
     },
-    'vital-quickbooks': {
-        'label': 'QuickBooks',
-        'icon': 'Calculator',
-        'path': 'vital-quickbooks',
-        'required_resource': 'vital_quickbooks',
-        'order': 25,
-    },
+    # QuickBooks removed - reports moved to Finance
+    # 'vital-quickbooks': {
+    #     'label': 'QuickBooks',
+    #     'icon': 'Calculator',
+    #     'path': 'vital-quickbooks',
+    #     'required_resource': 'vital_quickbooks',
+    #     'order': 25,
+    # },
     'vital-azure-sql': {
-        'label': 'Case Data',
+        'label': 'CMS Data',
         'icon': 'Database',
         'path': 'vital-azure-sql',
         'required_resource': 'vital_azure_sql',
@@ -352,6 +353,6 @@ NAVIGATION_CONFIG = {
         'icon': 'Wallet',
         'path': 'vital-finance',
         'required_resource': 'vital_finance',
-        'order': 28,
+        'order': 2,  # Moved under Dashboard
     },
 }

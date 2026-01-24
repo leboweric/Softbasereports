@@ -15,7 +15,10 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
 
   // Build navigation items with HARDCODED ORDER to fix menu
   // Move user-management to the end of the list
-  const desiredOrder = ['dashboard', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-quickbooks', 'vital-azure-sql', 'vital-zoom', 'vital-finance', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'tenant-admin', 'vital-data-sources', 'user-management']
+  // Menu order: Dashboard, Finance, then other items
+  // Removed vital-quickbooks (reports moved to Finance)
+  // Renamed: vital-hubspot -> Sales & Marketing, vital-case-data -> CMS, vital-azure-sql -> CMS Data
+  const desiredOrder = ['dashboard', 'vital-finance', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'parts', 'service', 'rental', 'accounting', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'tenant-admin', 'vital-data-sources', 'user-management']
   
   const navItems = hasNavigation 
     ? desiredOrder
