@@ -188,7 +188,9 @@ def get_call_volume_trend():
         daily_counts = defaultdict(lambda: {'total': 0, 'inbound': 0, 'outbound': 0})
         
         for call in all_calls:
-            date_str = call.get('date_time', '')[:10]  # Extract YYYY-MM-DD
+            # Zoom API uses 'start_time' field in ISO format: 2026-01-24T22:32:32Z
+            start_time = call.get('start_time', '')
+            date_str = start_time[:10] if start_time else ''  # Extract YYYY-MM-DD
             if date_str:
                 daily_counts[date_str]['total'] += 1
                 direction = call.get('direction', '')
