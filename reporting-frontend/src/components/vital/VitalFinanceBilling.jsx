@@ -23,6 +23,9 @@ import {
   FileSpreadsheet,
   ArrowUpRight,
   ArrowDownRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Download,
   ChevronLeft,
   ChevronRight,
@@ -95,6 +98,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
     applicable_law_state: false,
     nexus_state: false
   })
+
+  // Sorting state
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' })
 
   // Column definitions for the table
   const allColumns = [
@@ -273,9 +279,61 @@ const VitalFinanceBilling = ({ user, organization }) => {
     client.hubspot_company_name?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const filteredSpreadsheetRows = spreadsheetData?.rows?.filter(row =>
-    row.billing_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || []
+  // Sort function
+  const handleSort = (columnKey) => {
+    let direction = 'asc'
+    if (sortConfig.key === columnKey && sortConfig.direction === 'asc') {
+      direction = 'desc'
+    }
+    setSortConfig({ key: columnKey, direction })
+  }
+
+  // Get sort icon for column header
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />
+    }
+    return sortConfig.direction === 'asc' 
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />
+  }
+
+  // Filter and sort spreadsheet rows
+  const filteredSpreadsheetRows = React.useMemo(() => {
+    let rows = spreadsheetData?.rows?.filter(row =>
+      row.billing_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    ) || []
+    
+    // Apply sorting if a sort column is selected
+    if (sortConfig.key) {
+      rows = [...rows].sort((a, b) => {
+        let aVal = a[sortConfig.key]
+        let bVal = b[sortConfig.key]
+        
+        // Handle null/undefined values
+        if (aVal == null) aVal = ''
+        if (bVal == null) bVal = ''
+        
+        // Numeric columns
+        const numericCols = ['population', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'annual_total', 'contract_value_total', 'wpo_billing', 'contract_length', 'year_2026', 'year_2027', 'year_2028', 'year_2029', 'year_2030', 'year_2031']
+        const pepmCols = ['pepm_2025', 'pepm_2026', 'pepm_2027', 'pepm_2028', 'pepm_2029', 'pepm_2030', 'pepm_2031']
+        
+        if (numericCols.includes(sortConfig.key) || pepmCols.includes(sortConfig.key)) {
+          aVal = parseFloat(aVal) || 0
+          bVal = parseFloat(bVal) || 0
+        } else if (typeof aVal === 'string') {
+          aVal = aVal.toLowerCase()
+          bVal = (bVal || '').toLowerCase()
+        }
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1
+        return 0
+      })
+    }
+    
+    return rows
+  }, [spreadsheetData?.rows, searchTerm, sortConfig])
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-US', {
@@ -595,9 +653,13 @@ const VitalFinanceBilling = ({ user, organization }) => {
                         return (
                           <TableHead 
                             key={col.key}
-                            className={`min-w-[90px] ${col.bg || ''} ${isNumeric ? 'text-right' : ''} ${isSticky ? 'sticky left-0 bg-gray-50 z-20' : ''} ${col.key === 'annual_total' ? 'bg-gray-100 font-bold' : ''}`}
+                            className={`min-w-[90px] ${col.bg || ''} ${isNumeric ? 'text-right' : ''} ${isSticky ? 'sticky left-0 bg-gray-50 z-20' : ''} ${col.key === 'annual_total' ? 'bg-gray-100 font-bold' : ''} cursor-pointer hover:bg-gray-100 select-none`}
+                            onClick={() => handleSort(col.key)}
                           >
-                            {col.label}
+                            <div className={`flex items-center ${isNumeric ? 'justify-end' : ''}`}>
+                              {col.label}
+                              {getSortIcon(col.key)}
+                            </div>
                           </TableHead>
                         )
                       })}
