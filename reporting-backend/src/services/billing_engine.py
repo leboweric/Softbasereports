@@ -1024,3 +1024,154 @@ class BillingEngine:
                 'top_20_pct': top_20_pct
             }
         }
+
+
+    def get_industry_stats_pivot(
+        self,
+        org_id: int,
+        year: int,
+        revenue_timing: str = 'revrec'
+    ) -> Dict:
+        """
+        Generate Industry Stats Pivot table data.
+        
+        Replicates the Excel 'PIVOT Industry Stats' tab which shows:
+        - Revenue and population breakdown by industry
+        - Industry concentration analysis
+        
+        Args:
+            org_id: Organization ID
+            year: Base year for analysis
+            revenue_timing: 'cash' or 'revrec'
+        
+        Returns:
+            Dict with pivot data, charts, and insights
+        """
+        cursor = self.db.cursor()
+        
+        # Get revenue and population by industry
+        cursor.execute("""
+            SELECT 
+                COALESCE(fc.industry, '(blank)') as industry,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(DISTINCT fmb.population_count) as total_population,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue,
+                AVG(fmb.pepm_rate) as avg_pepm
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            GROUP BY COALESCE(fc.industry, '(blank)')
+            ORDER BY total_revenue DESC
+        """, (revenue_timing, org_id, year))
+        
+        industries = []
+        grand_total_revenue = 0
+        grand_total_population = 0
+        grand_total_clients = 0
+        
+        for row in cursor.fetchall():
+            industry = row[0]
+            client_count = row[1] or 0
+            population = int(row[2]) if row[2] else 0
+            revenue = float(row[3]) if row[3] else 0
+            avg_pepm = float(row[4]) if row[4] else 0
+            
+            industries.append({
+                'industry': industry,
+                'client_count': client_count,
+                'population': population,
+                'revenue': revenue,
+                'avg_pepm': avg_pepm
+            })
+            
+            grand_total_revenue += revenue
+            grand_total_clients += client_count
+            grand_total_population += population
+        
+        # Calculate percentages
+        for ind in industries:
+            ind['pct_of_revenue'] = (ind['revenue'] / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+            ind['pct_of_population'] = (ind['population'] / grand_total_population * 100) if grand_total_population > 0 else 0
+        
+        # Get breakdown by tier for each industry
+        cursor.execute("""
+            SELECT 
+                COALESCE(fc.industry, '(blank)') as industry,
+                COALESCE(fc.tier, 'NA') as tier,
+                COUNT(DISTINCT fc.id) as client_count,
+                SUM(CASE WHEN %s = 'cash' THEN fmb.revenue_cash ELSE fmb.revenue_revrec END) as total_revenue
+            FROM finance_clients fc
+            JOIN finance_monthly_billing fmb ON fc.id = fmb.client_id
+            WHERE fc.org_id = %s 
+            AND fmb.billing_year = %s
+            GROUP BY COALESCE(fc.industry, '(blank)'), COALESCE(fc.tier, 'NA')
+            ORDER BY industry, tier
+        """, (revenue_timing, org_id, year))
+        
+        by_industry_tier = {}
+        tiers = set()
+        for row in cursor.fetchall():
+            industry = row[0]
+            tier = row[1]
+            client_count = row[2] or 0
+            revenue = float(row[3]) if row[3] else 0
+            
+            tiers.add(tier)
+            if industry not in by_industry_tier:
+                by_industry_tier[industry] = {}
+            by_industry_tier[industry][tier] = {
+                'client_count': client_count,
+                'revenue': revenue
+            }
+        
+        sorted_tiers = sorted(list(tiers))
+        
+        # Build stacked data for charts
+        stacked_by_tier = []
+        for ind in industries:
+            industry = ind['industry']
+            tier_row = {'industry': industry}
+            for tier in sorted_tiers:
+                tier_row[tier] = by_industry_tier.get(industry, {}).get(tier, {}).get('revenue', 0)
+            stacked_by_tier.append(tier_row)
+        
+        # Calculate insights
+        # Top industry
+        top_industry = industries[0] if industries else None
+        
+        # Healthcare concentration (Healthcare + Healthcare PWR)
+        healthcare_revenue = sum(
+            ind['revenue'] for ind in industries 
+            if 'healthcare' in ind['industry'].lower()
+        )
+        healthcare_pct = (healthcare_revenue / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+        
+        # Top 3 concentration
+        top_3_revenue = sum(ind['revenue'] for ind in industries[:3])
+        top_3_pct = (top_3_revenue / grand_total_revenue * 100) if grand_total_revenue > 0 else 0
+        
+        # Diversification index (Herfindahl-Hirschman Index)
+        hhi = sum((ind['pct_of_revenue'] / 100) ** 2 for ind in industries) * 10000
+        
+        return {
+            'year': year,
+            'revenue_timing': revenue_timing,
+            'industries': industries,
+            'stacked_by_tier': stacked_by_tier,
+            'tiers': sorted_tiers,
+            'grand_totals': {
+                'revenue': grand_total_revenue,
+                'client_count': grand_total_clients,
+                'population': grand_total_population
+            },
+            'insights': {
+                'top_industry': top_industry['industry'] if top_industry else None,
+                'top_industry_revenue': top_industry['revenue'] if top_industry else 0,
+                'top_industry_pct': top_industry['pct_of_revenue'] if top_industry else 0,
+                'healthcare_pct': healthcare_pct,
+                'top_3_pct': top_3_pct,
+                'hhi_index': hhi,
+                'industry_count': len(industries)
+            }
+        }

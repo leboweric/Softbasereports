@@ -63,7 +63,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
   const [tierProductRevenueTiming, setTierProductRevenueTiming] = useState('revrec')
   const [valueRenewalsPivotData, setValueRenewalsPivotData] = useState(null)
   const [valueRenewalsRevenueTiming, setValueRenewalsRevenueTiming] = useState('revrec')
-  const [topClientsPivotData, setTopClientsPivotData] = useState(null)
+  const [topClientsData, setTopClientsData] = useState(null)
+  const [industryStatsData, setIndustryStatsData] = useState(null)
+  const [industryStatsRevenueTiming, setIndustryStatsRevenueTiming] = useState('revrec')
   const [topClientsRevenueTiming, setTopClientsRevenueTiming] = useState('revrec')
   const [newClient, setNewClient] = useState({
     billing_name: '',
@@ -184,6 +186,9 @@ const VitalFinanceBilling = ({ user, organization }) => {
     if (activeTab === 'top_clients') {
       fetchTopClientsPivot(topClientsRevenueTiming)
     }
+    if (activeTab === 'industry_stats') {
+      fetchIndustryStatsPivot(industryStatsRevenueTiming)
+    }
   }, [activeTab, selectedYear])
 
   const fetchWpoPivot = async (sessionProduct = 'all', revenueTiming = 'cash') => {
@@ -257,6 +262,24 @@ const VitalFinanceBilling = ({ user, organization }) => {
       }
     } catch (error) {
       console.error('Error fetching Top Clients pivot:', error)
+    }
+  }
+
+  const fetchIndustryStatsPivot = async (revenueTiming = 'revrec') => {
+    try {
+      const token = localStorage.getItem('token')
+      const headers = { 'Authorization': `Bearer ${token}` }
+      const params = new URLSearchParams({
+        year: selectedYear,
+        revenue_timing: revenueTiming
+      })
+      const res = await fetch(apiUrl(`/api/vital/finance/pivot/industry-stats?${params}`), { headers })
+      if (res.ok) {
+        const data = await res.json()
+        setIndustryStatsData(data)
+      }
+    } catch (error) {
+      console.error('Error fetching Industry Stats pivot:', error)
     }
   }
 
@@ -613,6 +636,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
           <TabsTrigger value="tier_product">Tier & Product</TabsTrigger>
           <TabsTrigger value="value_renewals">Value Renewals</TabsTrigger>
           <TabsTrigger value="top_clients">Top Clients</TabsTrigger>
+          <TabsTrigger value="industry_stats">Industry Stats</TabsTrigger>
           <TabsTrigger value="renewals">Renewals</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
         </TabsList>
@@ -2108,6 +2132,190 @@ const VitalFinanceBilling = ({ user, organization }) => {
                       </Table>
                     </CardContent>
                   </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Industry Stats Tab */}
+        <TabsContent value="industry_stats" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Industry Stats - {selectedYear}</CardTitle>
+                  <CardDescription>Revenue concentration and industry breakdown analysis</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant={industryStatsRevenueTiming === 'cash' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setIndustryStatsRevenueTiming('cash')
+                      fetchIndustryStatsPivot('cash')
+                    }}
+                  >
+                    Cash
+                  </Button>
+                  <Button
+                    variant={industryStatsRevenueTiming === 'revrec' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setIndustryStatsRevenueTiming('revrec')
+                      fetchIndustryStatsPivot('revrec')
+                    }}
+                  >
+                    RevRec
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {industryStatsData ? (
+                <div className="space-y-6">
+                  {/* Insight Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                      <CardContent className="pt-4">
+                        <div className="text-blue-600 text-sm font-medium">Top Industry</div>
+                        <div className="text-2xl font-bold text-blue-900 truncate">
+                          {industryStatsData.insights?.top_industry || '-'}
+                        </div>
+                        <div className="text-blue-700 text-sm">
+                          ${((industryStatsData.insights?.top_industry_revenue || 0) / 1000000).toFixed(2)}M ({(industryStatsData.insights?.top_industry_pct || 0).toFixed(1)}%)
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200">
+                      <CardContent className="pt-4">
+                        <div className="text-amber-600 text-sm font-medium">Healthcare Concentration</div>
+                        <div className="text-2xl font-bold text-amber-900">
+                          {(industryStatsData.insights?.healthcare_pct || 0).toFixed(1)}%
+                        </div>
+                        <div className="text-amber-700 text-sm">Healthcare + Healthcare PWR</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                      <CardContent className="pt-4">
+                        <div className="text-purple-600 text-sm font-medium">Top 3 Concentration</div>
+                        <div className="text-2xl font-bold text-purple-900">
+                          {(industryStatsData.insights?.top_3_pct || 0).toFixed(1)}%
+                        </div>
+                        <div className="text-purple-700 text-sm">Revenue from top 3 industries</div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                      <CardContent className="pt-4">
+                        <div className="text-green-600 text-sm font-medium">Industry Count</div>
+                        <div className="text-2xl font-bold text-green-900">
+                          {industryStatsData.insights?.industry_count || 0}
+                        </div>
+                        <div className="text-green-700 text-sm">Unique industries served</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Charts Row */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Revenue by Industry Bar Chart */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Revenue by Industry</CardTitle>
+                        <CardDescription>Annual revenue breakdown</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <BarChart
+                            data={industryStatsData.industries?.slice(0, 10) || []}
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 120, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis type="number" tickFormatter={(v) => `$${(v/1000000).toFixed(1)}M`} />
+                            <YAxis type="category" dataKey="industry" width={110} tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={(v) => `$${v.toLocaleString()}`} />
+                            <Bar dataKey="revenue" fill="#3b82f6" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+
+                    {/* Industry Pie Chart */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Revenue Distribution</CardTitle>
+                        <CardDescription>Percentage of total revenue</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <PieChart>
+                            <Pie
+                              data={industryStatsData.industries?.slice(0, 8) || []}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ industry, pct_of_revenue }) => `${industry.substring(0, 15)}${industry.length > 15 ? '...' : ''}: ${pct_of_revenue.toFixed(1)}%`}
+                              outerRadius={120}
+                              fill="#8884d8"
+                              dataKey="revenue"
+                            >
+                              {(industryStatsData.industries?.slice(0, 8) || []).map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'][index % 8]} />
+                              ))}
+                            </Pie>
+                            <Tooltip formatter={(v) => `$${v.toLocaleString()}`} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Industry Data Table */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-lg">Industry Breakdown</CardTitle>
+                      <CardDescription>Detailed metrics by industry</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Industry</TableHead>
+                            <TableHead className="text-right">Clients</TableHead>
+                            <TableHead className="text-right">Population</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead className="text-right">% of Total</TableHead>
+                            <TableHead className="text-right">Avg PEPM</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {industryStatsData.industries?.map((ind, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">{ind.industry}</TableCell>
+                              <TableCell className="text-right">{ind.client_count}</TableCell>
+                              <TableCell className="text-right">{ind.population?.toLocaleString()}</TableCell>
+                              <TableCell className="text-right">${ind.revenue?.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</TableCell>
+                              <TableCell className="text-right">{ind.pct_of_revenue?.toFixed(1)}%</TableCell>
+                              <TableCell className="text-right">${ind.avg_pepm?.toFixed(2)}</TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="bg-gray-50 font-bold">
+                            <TableCell>Grand Total</TableCell>
+                            <TableCell className="text-right">{industryStatsData.grand_totals?.client_count}</TableCell>
+                            <TableCell className="text-right">{industryStatsData.grand_totals?.population?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">${industryStatsData.grand_totals?.revenue?.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</TableCell>
+                            <TableCell className="text-right">100%</TableCell>
+                            <TableCell className="text-right">-</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
               )}
             </CardContent>
