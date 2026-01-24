@@ -132,8 +132,11 @@ def test_data_source(source_type):
 
 
 def test_bigquery_connection(config):
-    """Test BigQuery connection"""
+    """Test BigQuery connection - actually connects and runs a test query"""
     try:
+        from google.cloud import bigquery
+        from google.oauth2 import service_account
+        
         project_id = config.get('project_id')
         dataset = config.get('dataset')
         credentials_type = config.get('credentials_type')
@@ -154,8 +157,8 @@ def test_bigquery_connection(config):
             
             # Try to parse the JSON
             try:
-                creds = json.loads(service_account_json)
-                if 'type' not in creds or creds['type'] != 'service_account':
+                creds_dict = json.loads(service_account_json)
+                if 'type' not in creds_dict or creds_dict['type'] != 'service_account':
                     return jsonify({
                         'success': False,
                         'message': 'Invalid service account JSON format'
@@ -166,12 +169,39 @@ def test_bigquery_connection(config):
                     'message': 'Invalid JSON format in service account credentials'
                 }), 400
             
-            # In production, we would actually test the connection here
-            # For now, return success if the JSON is valid
-            return jsonify({
-                'success': True,
-                'message': f'Successfully validated credentials for project {project_id}'
-            }), 200
+            # Actually test the connection to BigQuery
+            try:
+                credentials = service_account.Credentials.from_service_account_info(creds_dict)
+                client = bigquery.Client(project=project_id, credentials=credentials)
+                
+                # Try to list tables in the dataset to verify access
+                dataset_ref = client.dataset(dataset)
+                tables = list(client.list_tables(dataset_ref, max_results=5))
+                
+                table_names = [t.table_id for t in tables]
+                return jsonify({
+                    'success': True,
+                    'message': f'Successfully connected to {project_id}.{dataset}. Found {len(tables)} tables.',
+                    'tables': table_names[:5]  # Return first 5 table names
+                }), 200
+                
+            except Exception as bq_error:
+                error_msg = str(bq_error)
+                if 'Permission' in error_msg or 'Access Denied' in error_msg:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Permission denied. Please ensure the service account has BigQuery Data Viewer role on the dataset. Error: {error_msg}'
+                    }), 400
+                elif 'not found' in error_msg.lower():
+                    return jsonify({
+                        'success': False,
+                        'message': f'Dataset not found. Please check the project ID and dataset name. Error: {error_msg}'
+                    }), 400
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': f'BigQuery connection failed: {error_msg}'
+                    }), 400
         
         elif credentials_type == 'oauth':
             # OAuth flow would be handled separately
@@ -180,6 +210,11 @@ def test_bigquery_connection(config):
                 'message': 'OAuth authentication not yet implemented'
             }), 400
         
+    except ImportError:
+        return jsonify({
+            'success': False,
+            'message': 'BigQuery library not installed. Please install google-cloud-bigquery.'
+        }), 500
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
