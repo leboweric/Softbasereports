@@ -1452,6 +1452,10 @@ def get_tier_product_pivot():
         JSON with all 4 pivot tables and totals
     """
     try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
         current_user = get_jwt_identity()
         year = request.args.get('year', datetime.now().year, type=int)
         revenue_timing = request.args.get('revenue_timing', 'revrec')
