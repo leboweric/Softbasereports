@@ -34,6 +34,135 @@ def run_all_etl():
     return all(results.values())
 
 
+def run_hubspot_sync():
+    """Run HubSpot population sync for VITAL Finance clients"""
+    import requests
+    
+    logger.info("=" * 60)
+    logger.info(f"HubSpot Sync Started: {datetime.now().isoformat()}")
+    logger.info("=" * 60)
+    
+    try:
+        # Get VITAL org credentials from environment
+        hubspot_token = os.environ.get('VITAL_HUBSPOT_TOKEN')
+        if not hubspot_token:
+            logger.warning("VITAL_HUBSPOT_TOKEN not configured, skipping HubSpot sync")
+            return False
+        
+        # Import the sync function
+        from fuzzywuzzy import fuzz
+        from src.services.postgres_service import PostgreSQLService
+        
+        db = PostgreSQLService()
+        
+        # Get VITAL org_id (hardcoded for now, could be made configurable)
+        VITAL_ORG_ID = 6
+        
+        # Get all Finance clients
+        clients = db.execute_query("""
+            SELECT id, billing_name, hubspot_company_id, hubspot_company_name
+            FROM finance_clients
+            WHERE org_id = %s
+        """, (VITAL_ORG_ID,))
+        
+        # Get HubSpot companies
+        hubspot_url = "https://api.hubapi.com/crm/v3/objects/companies"
+        headers = {"Authorization": f"Bearer {hubspot_token}"}
+        params = {"limit": 100, "properties": "name,numberofemployees,domain"}
+        
+        all_companies = []
+        after = None
+        
+        while True:
+            if after:
+                params['after'] = after
+            
+            resp = requests.get(hubspot_url, headers=headers, params=params, timeout=30)
+            if resp.status_code != 200:
+                logger.error(f"HubSpot API error: {resp.text}")
+                return False
+            
+            data = resp.json()
+            all_companies.extend(data.get('results', []))
+            
+            paging = data.get('paging', {})
+            if paging.get('next'):
+                after = paging['next'].get('after')
+            else:
+                break
+            
+            if len(all_companies) > 5000:
+                break
+        
+        logger.info(f"Fetched {len(all_companies)} HubSpot companies")
+        
+        # Match and sync
+        synced_count = 0
+        
+        for client in clients:
+            client_name = client['billing_name'].lower().strip()
+            best_match = None
+            best_score = 0
+            
+            # If already linked, use that
+            if client['hubspot_company_id']:
+                for company in all_companies:
+                    if str(company['id']) == str(client['hubspot_company_id']):
+                        best_match = company
+                        best_score = 100
+                        break
+            
+            # Otherwise fuzzy match
+            if not best_match:
+                for company in all_companies:
+                    company_name = (company.get('properties', {}).get('name') or '').lower().strip()
+                    if not company_name:
+                        continue
+                    
+                    if client_name == company_name:
+                        best_match = company
+                        best_score = 100
+                        break
+                    
+                    score = fuzz.ratio(client_name, company_name)
+                    if score > best_score and score >= 80:
+                        best_match = company
+                        best_score = score
+            
+            if best_match:
+                props = best_match.get('properties', {})
+                employees = props.get('numberofemployees')
+                
+                if employees and str(employees).isdigit():
+                    employee_count = int(employees)
+                    
+                    # Update client
+                    db.execute_update("""
+                        UPDATE finance_clients 
+                        SET hubspot_company_id = %s, hubspot_company_name = %s, updated_at = NOW()
+                        WHERE id = %s
+                    """, (best_match['id'], props.get('name'), client['id']))
+                    
+                    # Upsert population
+                    db.execute_update("""
+                        INSERT INTO finance_population_history 
+                        (client_id, population_count, effective_date, source, created_at)
+                        VALUES (%s, %s, CURRENT_DATE, 'hubspot_sync_scheduled', NOW())
+                        ON CONFLICT (client_id, effective_date) 
+                        DO UPDATE SET population_count = EXCLUDED.population_count,
+                                      source = EXCLUDED.source, created_at = NOW()
+                    """, (client['id'], employee_count))
+                    
+                    synced_count += 1
+        
+        logger.info(f"HubSpot Sync Complete: {synced_count} clients synced")
+        return True
+        
+    except Exception as e:
+        logger.error(f"HubSpot sync failed: {str(e)}")
+        return False
+
+
 def setup_scheduler():
     """Set up APScheduler for automated ETL runs"""
     try:
@@ -51,7 +180,16 @@ def setup_scheduler():
             replace_existing=True
         )
         
-        logger.info("ETL Scheduler configured: Daily at 2:00 AM")
+        # Run HubSpot sync weekly on Monday at 3 AM
+        scheduler.add_job(
+            run_hubspot_sync,
+            CronTrigger(day_of_week='mon', hour=3, minute=0),
+            id='weekly_hubspot_sync',
+            name='Weekly HubSpot Population Sync',
+            replace_existing=True
+        )
+        
+        logger.info("ETL Scheduler configured: Daily ETL at 2:00 AM, HubSpot sync weekly Monday 3:00 AM")
         return scheduler
         
     except ImportError:
