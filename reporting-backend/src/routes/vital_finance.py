@@ -1235,3 +1235,136 @@ def search_hubspot_companies():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# =============================================================================
+# SPREADSHEET VIEW ENDPOINT
+# =============================================================================
+
+@vital_finance_bp.route('/api/vital/finance/billing/spreadsheet', methods=['GET'])
+@jwt_required()
+def get_billing_spreadsheet():
+    """
+    Get spreadsheet-like view with all 44 columns.
+    Replicates the Billing Data Table 2026 from the Excel.
+    
+    Query params:
+        - year: Year to display (default: current year)
+        - type: 'cash', 'revrec', or 'dual' (default: 'revrec')
+    
+    Returns:
+        - For 'cash' or 'revrec': One row per client
+        - For 'dual': Two rows per client (Cash and RevRec)
+    """
+    try:
+        from src.services.billing_engine import BillingEngine
+        import psycopg2
+        import os
+        
+        current_user = get_jwt_identity()
+        year = request.args.get('year', datetime.now().year, type=int)
+        revenue_type = request.args.get('type', 'revrec')
+        
+        # Get user's org_id
+        db = get_db()
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        # Create direct connection for billing engine
+        conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
+        engine = BillingEngine(conn)
+        
+        if revenue_type == 'dual':
+            rows = engine.get_dual_entry_spreadsheet(org_id, year)
+        else:
+            rows = engine.get_spreadsheet_view(org_id, year, revenue_type)
+        
+        conn.close()
+        
+        # Calculate totals
+        total_annual = sum(r['annual_total'] for r in rows)
+        monthly_totals = {
+            'jan': sum(r['jan'] for r in rows),
+            'feb': sum(r['feb'] for r in rows),
+            'mar': sum(r['mar'] for r in rows),
+            'apr': sum(r['apr'] for r in rows),
+            'may': sum(r['may'] for r in rows),
+            'jun': sum(r['jun'] for r in rows),
+            'jul': sum(r['jul'] for r in rows),
+            'aug': sum(r['aug'] for r in rows),
+            'sep': sum(r['sep'] for r in rows),
+            'oct': sum(r['oct'] for r in rows),
+            'nov': sum(r['nov'] for r in rows),
+            'dec': sum(r['dec'] for r in rows),
+        }
+        
+        return jsonify({
+            'success': True,
+            'year': year,
+            'type': revenue_type,
+            'rows': rows,
+            'count': len(rows),
+            'total_annual': total_annual,
+            'monthly_totals': monthly_totals,
+            'columns': [
+                'id', 'revenue_type', 'billing_name', 'tier', 'industry', 
+                'session_product', 'billing_terms', 'wpo_flag', 'wpo_type', 
+                'wpo_population', 'solution_type', 'applicable_law_state', 
+                'nexus_state', 'status', 'at_risk_reason', 'population',
+                'renewal_date', 'renewal_month', 'contract_length_years',
+                'months_2026', 'months_2027', 'months_2028',
+                'pepm_2025', 'pepm_2026', 'pepm_2027', 'pepm_2028', 
+                'pepm_2029', 'pepm_2030', 'pepm_2031',
+                'jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+                'annual_total'
+            ]
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@vital_finance_bp.route('/api/vital/finance/clients/billing-terms', methods=['GET'])
+@jwt_required()
+def get_billing_terms_summary():
+    """
+    Get summary of billing terms distribution.
+    """
+    try:
+        db = get_db()
+        current_user = get_jwt_identity()
+        
+        # Get user's org_id
+        user_result = db.execute_query(
+            "SELECT organization_id FROM \"user\" WHERE id = %s",
+            (current_user,)
+        )
+        org_id = user_result[0]['organization_id']
+        
+        query = """
+            SELECT 
+                billing_terms,
+                COUNT(*) as count,
+                SUM(COALESCE(
+                    (SELECT population_count FROM finance_population_history 
+                     WHERE client_id = fc.id ORDER BY effective_date DESC LIMIT 1), 0
+                )) as total_population
+            FROM finance_clients fc
+            WHERE org_id = %s
+            GROUP BY billing_terms
+            ORDER BY count DESC
+        """
+        
+        result = db.execute_query(query, (org_id,))
+        
+        return jsonify({
+            'success': True,
+            'summary': result
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
