@@ -1056,7 +1056,7 @@ def sync_hubspot_population():
                     employee_count = int(employees)
                     
                     # Update client with HubSpot link
-                    db.execute_query("""
+                    db.execute_update("""
                         UPDATE finance_clients 
                         SET hubspot_company_id = %s, 
                             hubspot_company_name = %s,
@@ -1065,7 +1065,7 @@ def sync_hubspot_population():
                     """, (best_match['id'], props.get('name'), client['id']))
                     
                     # Add population history record
-                    db.execute_query("""
+                    db.execute_update("""
                         INSERT INTO finance_population_history 
                         (client_id, population_count, effective_date, source, created_at)
                         VALUES (%s, %s, NOW(), 'hubspot_sync', NOW())
@@ -1137,7 +1137,7 @@ def link_hubspot_company():
         props = company.get('properties', {})
         
         # Update client
-        db.execute_query("""
+        db.execute_update("""
             UPDATE finance_clients 
             SET hubspot_company_id = %s, 
                 hubspot_company_name = %s,
@@ -1148,7 +1148,7 @@ def link_hubspot_company():
         # If employee count available, update population
         employees = props.get('numberofemployees')
         if employees and str(employees).isdigit():
-            db.execute_query("""
+            db.execute_update("""
                 INSERT INTO finance_population_history 
                 (client_id, population_count, effective_date, source, created_at)
                 VALUES (%s, %s, NOW(), 'hubspot_link', NOW())
