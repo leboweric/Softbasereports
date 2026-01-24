@@ -106,17 +106,49 @@ def get_call_volume_trend():
         days = request.args.get('days', 30, type=int)
         service = get_zoom_service()
         
-        # Get call logs
-        call_logs = service.get_call_logs(days=days, page_size=300)
-        calls = call_logs.get('call_logs', [])
+        # Get all call logs with pagination
+        from collections import defaultdict
+        from datetime import datetime, timedelta
+        
+        all_calls = []
+        page_token = None
+        max_pages = 20  # Safety limit
+        pages_fetched = 0
+        
+        today = datetime.now()
+        from_date = (today - timedelta(days=days)).strftime("%Y-%m-%d")
+        to_date = today.strftime("%Y-%m-%d")
+        
+        # Paginate through all call logs
+        while pages_fetched < max_pages:
+            try:
+                params = {
+                    "from": from_date,
+                    "to": to_date,
+                    "page_size": 100
+                }
+                if page_token:
+                    params["next_page_token"] = page_token
+                
+                data = service._make_request("/phone/call_history", params)
+                calls = data.get('call_logs', [])
+                all_calls.extend(calls)
+                
+                page_token = data.get('next_page_token')
+                pages_fetched += 1
+                
+                if not page_token or len(calls) == 0:
+                    break
+            except Exception as e:
+                logger.warning(f"Error fetching page {pages_fetched}: {str(e)}")
+                break
+        
+        logger.info(f"Fetched {len(all_calls)} calls across {pages_fetched} pages")
         
         # Aggregate by date
-        from collections import defaultdict
-        from datetime import datetime
-        
         daily_counts = defaultdict(lambda: {'total': 0, 'inbound': 0, 'outbound': 0})
         
-        for call in calls:
+        for call in all_calls:
             date_str = call.get('date_time', '')[:10]  # Extract YYYY-MM-DD
             if date_str:
                 daily_counts[date_str]['total'] += 1
@@ -149,8 +181,9 @@ def get_call_volume_trend():
             "success": True,
             "data": {
                 "trend": trend_data,
-                "period": f"{call_logs.get('from_date')} to {call_logs.get('to_date')}",
-                "total_calls": call_logs.get('total', 0)
+                "period": f"{from_date} to {to_date}",
+                "total_calls": len(all_calls),
+                "pages_fetched": pages_fetched
             }
         })
     except Exception as e:
