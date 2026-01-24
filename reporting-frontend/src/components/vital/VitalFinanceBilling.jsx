@@ -431,33 +431,91 @@ const VitalFinanceBilling = ({ user, organization }) => {
                         <TableCell className="text-right bg-gray-100 font-bold">{formatCurrency(row.annual_total)}</TableCell>
                       </TableRow>
                     ))}
-                    {/* Totals Row - Dynamically calculated from filtered data */}
-                    <TableRow className="bg-gray-200 font-bold sticky bottom-0">
-                      {revenueType === 'dual' && <TableCell className="sticky left-0 bg-gray-200 z-10">TOTAL</TableCell>}
-                      <TableCell className={`sticky ${revenueType === 'dual' ? 'left-[80px]' : 'left-0'} bg-gray-200 z-10`}>
-                        {revenueType !== 'dual' && 'TOTAL'}
-                      </TableCell>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
-                      <TableCell className="text-right">
-                        {filteredSpreadsheetRows.reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
-                      </TableCell>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
-                      <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
-                      <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
-                    </TableRow>
+                    {/* Totals Row(s) - Dynamically calculated from filtered data */}
+                    {revenueType === 'dual' ? (
+                      // In dual/Both mode, show separate CASH and REVREC total rows
+                      <>
+                        {/* CASH Total Row */}
+                        <TableRow className="bg-blue-100 font-bold">
+                          <TableCell className="sticky left-0 bg-blue-100 z-10">
+                            <Badge>CASH</Badge>
+                          </TableCell>
+                          <TableCell className="sticky left-[80px] bg-blue-100 z-10">TOTAL</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell className="text-right">
+                            {filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
+                          <TableCell className="text-right bg-blue-200 font-bold">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
+                        </TableRow>
+                        {/* REVREC Total Row */}
+                        <TableRow className="bg-gray-200 font-bold sticky bottom-0">
+                          <TableCell className="sticky left-0 bg-gray-200 z-10">
+                            <Badge variant="secondary">REVREC</Badge>
+                          </TableCell>
+                          <TableCell className="sticky left-[80px] bg-gray-200 z-10">TOTAL</TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell className="text-right">
+                            {filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
+                          </TableCell>
+                          <TableCell></TableCell>
+                          <TableCell></TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
+                          <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
+                        </TableRow>
+                      </>
+                    ) : (
+                      // In single mode (Cash or RevRec), show one total row
+                      <TableRow className="bg-gray-200 font-bold sticky bottom-0">
+                        <TableCell className="sticky left-0 bg-gray-200 z-10">TOTAL</TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell className="text-right">
+                          {filteredSpreadsheetRows.reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
+                        <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
