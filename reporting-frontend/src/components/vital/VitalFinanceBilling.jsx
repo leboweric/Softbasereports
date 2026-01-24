@@ -54,22 +54,95 @@ const VitalFinanceBilling = ({ user, organization }) => {
     status: 'active'
   })
 
-  // Column visibility state
+  // Column visibility state - all 44 Excel columns
   const [visibleColumns, setVisibleColumns] = useState({
+    // Core columns (always visible by default)
     revenue_type: true,
+    wpo_name: false,
+    at_risk: false,
     billing_name: true,
-    tier: true,
-    industry: false,
+    inception_date: false,
+    renewal_date: true,
+    contract_length: false,
+    // Year months active
+    year_2026: false,
+    year_2027: false,
+    year_2028: false,
+    year_2029: false,
+    year_2030: false,
+    year_2031: false,
     session_product: false,
     billing_terms: true,
-    wpo_flag: false,
-    population: true,
-    renewal_date: true,
-    pepm_2026: true,
+    // Monthly values
     jan: true, feb: true, mar: true, apr: true, may: true, jun: true,
     jul: true, aug: true, sep: true, oct: true, nov: true, dec: true,
-    annual_total: true
+    annual_total: true,
+    population: true,
+    // PEPM rates by year
+    pepm_2025: false,
+    pepm_2026: true,
+    pepm_2027: false,
+    pepm_2028: false,
+    pepm_2029: false,
+    pepm_2030: false,
+    pepm_2031: false,
+    contract_value_total: false,
+    wpo_product: false,
+    wpo_billing: false,
+    wpo_account_number: false,
+    industry: false,
+    tier: true,
+    applicable_law_state: false,
+    nexus_state: false
   })
+
+  // Column definitions for the table
+  const allColumns = [
+    { key: 'revenue_type', label: 'Type', group: 'core' },
+    { key: 'wpo_name', label: 'WPO Name', group: 'wpo' },
+    { key: 'at_risk', label: 'At Risk', group: 'core' },
+    { key: 'billing_name', label: 'Company Name', group: 'core' },
+    { key: 'inception_date', label: 'Inception Date', group: 'contract' },
+    { key: 'renewal_date', label: 'Renewal', group: 'contract' },
+    { key: 'contract_length', label: 'Contract Length', group: 'contract' },
+    { key: 'year_2026', label: '2026', group: 'years' },
+    { key: 'year_2027', label: '2027', group: 'years' },
+    { key: 'year_2028', label: '2028', group: 'years' },
+    { key: 'year_2029', label: '2029', group: 'years' },
+    { key: 'year_2030', label: '2030', group: 'years' },
+    { key: 'year_2031', label: '2031', group: 'years' },
+    { key: 'session_product', label: 'Session Product', group: 'product' },
+    { key: 'billing_terms', label: 'Billing Terms', group: 'billing' },
+    { key: 'jan', label: 'Jan', group: 'monthly', bg: 'bg-blue-50' },
+    { key: 'feb', label: 'Feb', group: 'monthly', bg: 'bg-blue-50' },
+    { key: 'mar', label: 'Mar', group: 'monthly', bg: 'bg-blue-50' },
+    { key: 'apr', label: 'Apr', group: 'monthly', bg: 'bg-green-50' },
+    { key: 'may', label: 'May', group: 'monthly', bg: 'bg-green-50' },
+    { key: 'jun', label: 'Jun', group: 'monthly', bg: 'bg-green-50' },
+    { key: 'jul', label: 'Jul', group: 'monthly', bg: 'bg-yellow-50' },
+    { key: 'aug', label: 'Aug', group: 'monthly', bg: 'bg-yellow-50' },
+    { key: 'sep', label: 'Sep', group: 'monthly', bg: 'bg-yellow-50' },
+    { key: 'oct', label: 'Oct', group: 'monthly', bg: 'bg-orange-50' },
+    { key: 'nov', label: 'Nov', group: 'monthly', bg: 'bg-orange-50' },
+    { key: 'dec', label: 'Dec', group: 'monthly', bg: 'bg-orange-50' },
+    { key: 'annual_total', label: 'Total', group: 'summary' },
+    { key: 'population', label: 'Current Pop', group: 'billing' },
+    { key: 'pepm_2025', label: '2025 PEPM', group: 'pepm' },
+    { key: 'pepm_2026', label: '2026 PEPM', group: 'pepm' },
+    { key: 'pepm_2027', label: '2027 PEPM', group: 'pepm' },
+    { key: 'pepm_2028', label: '2028 PEPM', group: 'pepm' },
+    { key: 'pepm_2029', label: '2029 PEPM', group: 'pepm' },
+    { key: 'pepm_2030', label: '2030 PEPM', group: 'pepm' },
+    { key: 'pepm_2031', label: '2031 PEPM', group: 'pepm' },
+    { key: 'contract_value_total', label: 'Contract Value', group: 'contract' },
+    { key: 'wpo_product', label: 'WPO Product', group: 'wpo' },
+    { key: 'wpo_billing', label: 'WPO Billing', group: 'wpo' },
+    { key: 'wpo_account_number', label: 'WPO Account', group: 'wpo' },
+    { key: 'industry', label: 'Industry', group: 'classification' },
+    { key: 'tier', label: 'Tier', group: 'classification' },
+    { key: 'applicable_law_state', label: 'App Law State', group: 'location' },
+    { key: 'nexus_state', label: 'Nexus State', group: 'location' }
+  ]
 
   useEffect(() => {
     fetchData()
@@ -220,6 +293,67 @@ const VitalFinanceBilling = ({ user, organization }) => {
       day: 'numeric',
       year: 'numeric'
     })
+  }
+
+  // Helper to render cell value based on column type
+  const renderCellValue = (row, colKey) => {
+    const value = row[colKey]
+    
+    // Special rendering for specific columns
+    switch(colKey) {
+      case 'revenue_type':
+        return <Badge variant={value === 'CASH' ? 'default' : 'secondary'}>{value}</Badge>
+      case 'billing_terms':
+        return getBillingTermsBadge(value)
+      case 'at_risk':
+        return value ? <Badge variant="destructive">{value}</Badge> : '-'
+      case 'population':
+        return value?.toLocaleString() || '-'
+      case 'renewal_date':
+      case 'inception_date':
+        return value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'
+      case 'contract_length':
+        return value ? `${value} yr` : '-'
+      case 'year_2026':
+      case 'year_2027':
+      case 'year_2028':
+      case 'year_2029':
+      case 'year_2030':
+      case 'year_2031':
+        return value || '-'
+      case 'pepm_2025':
+      case 'pepm_2026':
+      case 'pepm_2027':
+      case 'pepm_2028':
+      case 'pepm_2029':
+      case 'pepm_2030':
+      case 'pepm_2031':
+        return value ? `$${value.toFixed(2)}` : '-'
+      case 'jan':
+      case 'feb':
+      case 'mar':
+      case 'apr':
+      case 'may':
+      case 'jun':
+      case 'jul':
+      case 'aug':
+      case 'sep':
+      case 'oct':
+      case 'nov':
+      case 'dec':
+      case 'annual_total':
+      case 'contract_value_total':
+        return formatCurrency(value)
+      case 'wpo_billing':
+        return value ? `$${value.toFixed(2)}` : '-'
+      default:
+        return value || '-'
+    }
+  }
+
+  // Get visible columns for rendering
+  const getVisibleColumns = () => {
+    return allColumns.filter(col => visibleColumns[col.key])
   }
 
   const getStatusBadge = (status) => {
@@ -390,6 +524,59 @@ const VitalFinanceBilling = ({ user, organization }) => {
                     <Download className="h-4 w-4 mr-2" />
                     Export CSV
                   </Button>
+                  {/* Column Selector */}
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <Columns className="h-4 w-4 mr-2" />
+                        Columns
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Show/Hide Columns</DialogTitle>
+                        <DialogDescription>
+                          Select which columns to display in the billing table
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid grid-cols-3 gap-4 py-4">
+                        {/* Group columns by category */}
+                        {['core', 'contract', 'years', 'product', 'billing', 'monthly', 'summary', 'pepm', 'wpo', 'classification', 'location'].map(group => (
+                          <div key={group} className="space-y-2">
+                            <h4 className="font-semibold capitalize text-sm text-gray-500">{group}</h4>
+                            {allColumns.filter(col => col.group === group).map(col => (
+                              <div key={col.key} className="flex items-center space-x-2">
+                                <Switch
+                                  id={col.key}
+                                  checked={visibleColumns[col.key]}
+                                  onCheckedChange={(checked) => setVisibleColumns(prev => ({...prev, [col.key]: checked}))}
+                                />
+                                <Label htmlFor={col.key} className="text-sm">{col.label}</Label>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => {
+                          // Show all columns
+                          const all = {};
+                          allColumns.forEach(col => all[col.key] = true);
+                          setVisibleColumns(all);
+                        }}>Show All</Button>
+                        <Button variant="outline" onClick={() => {
+                          // Reset to default
+                          setVisibleColumns({
+                            revenue_type: true, billing_name: true, tier: true, billing_terms: true,
+                            population: true, renewal_date: true, pepm_2026: true,
+                            jan: true, feb: true, mar: true, apr: true, may: true, jun: true,
+                            jul: true, aug: true, sep: true, oct: true, nov: true, dec: true,
+                            annual_total: true
+                          });
+                        }}>Reset Default</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             </CardHeader>
@@ -402,26 +589,18 @@ const VitalFinanceBilling = ({ user, organization }) => {
                 <Table>
                   <TableHeader className="sticky top-0 bg-white z-10">
                     <TableRow>
-                      {revenueType === 'dual' && <TableHead className="sticky left-0 bg-gray-50 z-20 min-w-[80px]">Type</TableHead>}
-                      <TableHead className={`sticky ${revenueType === 'dual' ? 'left-[80px]' : 'left-0'} bg-gray-50 z-20 min-w-[200px]`}>Client</TableHead>
-                      <TableHead className="min-w-[80px]">Tier</TableHead>
-                      <TableHead className="min-w-[80px]">Terms</TableHead>
-                      <TableHead className="text-right min-w-[80px]">Pop</TableHead>
-                      <TableHead className="min-w-[100px]">Renewal</TableHead>
-                      <TableHead className="text-right min-w-[80px]">PEPM</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-blue-50">Jan</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-blue-50">Feb</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-blue-50">Mar</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-green-50">Apr</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-green-50">May</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-green-50">Jun</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-yellow-50">Jul</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-yellow-50">Aug</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-yellow-50">Sep</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-orange-50">Oct</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-orange-50">Nov</TableHead>
-                      <TableHead className="text-right min-w-[90px] bg-orange-50">Dec</TableHead>
-                      <TableHead className="text-right min-w-[100px] bg-gray-100 font-bold">Total</TableHead>
+                      {getVisibleColumns().map((col, idx) => {
+                        const isSticky = col.key === 'billing_name' || (col.key === 'revenue_type' && revenueType === 'dual')
+                        const isNumeric = ['population', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'annual_total', 'contract_value_total', 'wpo_billing'].includes(col.key) || col.key.startsWith('pepm_') || col.key.startsWith('year_')
+                        return (
+                          <TableHead 
+                            key={col.key}
+                            className={`min-w-[90px] ${col.bg || ''} ${isNumeric ? 'text-right' : ''} ${isSticky ? 'sticky left-0 bg-gray-50 z-20' : ''} ${col.key === 'annual_total' ? 'bg-gray-100 font-bold' : ''}`}
+                          >
+                            {col.label}
+                          </TableHead>
+                        )
+                      })}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -430,34 +609,18 @@ const VitalFinanceBilling = ({ user, organization }) => {
                         key={`${row.id}-${row.revenue_type}-${idx}`} 
                         className={row.revenue_type === 'CASH' ? 'bg-blue-50/30' : ''}
                       >
-                        {revenueType === 'dual' && (
-                          <TableCell className="sticky left-0 bg-white z-10 font-medium">
-                            <Badge variant={row.revenue_type === 'CASH' ? 'default' : 'secondary'}>
-                              {row.revenue_type}
-                            </Badge>
-                          </TableCell>
-                        )}
-                        <TableCell className={`sticky ${revenueType === 'dual' ? 'left-[80px]' : 'left-0'} bg-white z-10 font-medium`}>
-                          {row.billing_name}
-                        </TableCell>
-                        <TableCell>{row.tier || '-'}</TableCell>
-                        <TableCell>{getBillingTermsBadge(row.billing_terms)}</TableCell>
-                        <TableCell className="text-right">{row.population?.toLocaleString() || '-'}</TableCell>
-                        <TableCell>{row.renewal_date ? new Date(row.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}</TableCell>
-                        <TableCell className="text-right">${row[`pepm_${selectedYear}`]?.toFixed(2) || '0.00'}</TableCell>
-                        <TableCell className="text-right bg-blue-50/50">{formatCurrency(row.jan)}</TableCell>
-                        <TableCell className="text-right bg-blue-50/50">{formatCurrency(row.feb)}</TableCell>
-                        <TableCell className="text-right bg-blue-50/50">{formatCurrency(row.mar)}</TableCell>
-                        <TableCell className="text-right bg-green-50/50">{formatCurrency(row.apr)}</TableCell>
-                        <TableCell className="text-right bg-green-50/50">{formatCurrency(row.may)}</TableCell>
-                        <TableCell className="text-right bg-green-50/50">{formatCurrency(row.jun)}</TableCell>
-                        <TableCell className="text-right bg-yellow-50/50">{formatCurrency(row.jul)}</TableCell>
-                        <TableCell className="text-right bg-yellow-50/50">{formatCurrency(row.aug)}</TableCell>
-                        <TableCell className="text-right bg-yellow-50/50">{formatCurrency(row.sep)}</TableCell>
-                        <TableCell className="text-right bg-orange-50/50">{formatCurrency(row.oct)}</TableCell>
-                        <TableCell className="text-right bg-orange-50/50">{formatCurrency(row.nov)}</TableCell>
-                        <TableCell className="text-right bg-orange-50/50">{formatCurrency(row.dec)}</TableCell>
-                        <TableCell className="text-right bg-gray-100 font-bold">{formatCurrency(row.annual_total)}</TableCell>
+                        {getVisibleColumns().map((col) => {
+                          const isSticky = col.key === 'billing_name' || (col.key === 'revenue_type' && revenueType === 'dual')
+                          const isNumeric = ['population', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'annual_total', 'contract_value_total', 'wpo_billing'].includes(col.key) || col.key.startsWith('pepm_') || col.key.startsWith('year_')
+                          return (
+                            <TableCell 
+                              key={col.key}
+                              className={`${col.bg ? col.bg + '/50' : ''} ${isNumeric ? 'text-right' : ''} ${isSticky ? 'sticky left-0 bg-white z-10 font-medium' : ''} ${col.key === 'annual_total' ? 'bg-gray-100 font-bold' : ''}`}
+                            >
+                              {renderCellValue(row, col.key)}
+                            </TableCell>
+                          )
+                        })}
                       </TableRow>
                     ))}
                     {/* Totals Row(s) - Dynamically calculated from filtered data */}
@@ -466,83 +629,43 @@ const VitalFinanceBilling = ({ user, organization }) => {
                       <>
                         {/* CASH Total Row */}
                         <TableRow className="bg-blue-100 font-bold">
-                          <TableCell className="sticky left-0 bg-blue-100 z-10">
-                            <Badge>CASH</Badge>
-                          </TableCell>
-                          <TableCell className="sticky left-[80px] bg-blue-100 z-10">TOTAL</TableCell>
-                          <TableCell></TableCell>
-                          <TableCell></TableCell>
-                          <TableCell className="text-right">
-                            {filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell></TableCell>
-                          <TableCell></TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
-                          <TableCell className="text-right bg-blue-200 font-bold">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH').reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
+                          {getVisibleColumns().map((col) => {
+                            const cashRows = filteredSpreadsheetRows.filter(r => r.revenue_type === 'CASH')
+                            const isNumeric = ['population', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'annual_total', 'contract_value_total'].includes(col.key)
+                            if (col.key === 'revenue_type') return <TableCell key={col.key} className="sticky left-0 bg-blue-100 z-10"><Badge>CASH</Badge></TableCell>
+                            if (col.key === 'billing_name') return <TableCell key={col.key} className="sticky left-0 bg-blue-100 z-10">TOTAL</TableCell>
+                            if (col.key === 'population') return <TableCell key={col.key} className="text-right">{cashRows.reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}</TableCell>
+                            if (['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'annual_total'].includes(col.key)) {
+                              return <TableCell key={col.key} className={`text-right ${col.key === 'annual_total' ? 'bg-blue-200' : ''}`}>{formatCurrency(cashRows.reduce((sum, r) => sum + (r[col.key] || 0), 0))}</TableCell>
+                            }
+                            return <TableCell key={col.key}></TableCell>
+                          })}
                         </TableRow>
                         {/* REVREC Total Row */}
                         <TableRow className="bg-gray-200 font-bold sticky bottom-0">
-                          <TableCell className="sticky left-0 bg-gray-200 z-10">
-                            <Badge variant="secondary">REVREC</Badge>
-                          </TableCell>
-                          <TableCell className="sticky left-[80px] bg-gray-200 z-10">TOTAL</TableCell>
-                          <TableCell></TableCell>
-                          <TableCell></TableCell>
-                          <TableCell className="text-right">
-                            {filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
-                          </TableCell>
-                          <TableCell></TableCell>
-                          <TableCell></TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
-                          <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC').reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
+                          {getVisibleColumns().map((col) => {
+                            const revrecRows = filteredSpreadsheetRows.filter(r => r.revenue_type === 'REVREC')
+                            if (col.key === 'revenue_type') return <TableCell key={col.key} className="sticky left-0 bg-gray-200 z-10"><Badge variant="secondary">REVREC</Badge></TableCell>
+                            if (col.key === 'billing_name') return <TableCell key={col.key} className="sticky left-0 bg-gray-200 z-10">TOTAL</TableCell>
+                            if (col.key === 'population') return <TableCell key={col.key} className="text-right">{revrecRows.reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}</TableCell>
+                            if (['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'annual_total'].includes(col.key)) {
+                              return <TableCell key={col.key} className={`text-right ${col.key === 'annual_total' ? 'bg-gray-300' : ''}`}>{formatCurrency(revrecRows.reduce((sum, r) => sum + (r[col.key] || 0), 0))}</TableCell>
+                            }
+                            return <TableCell key={col.key}></TableCell>
+                          })}
                         </TableRow>
                       </>
                     ) : (
                       // In single mode (Cash or RevRec), show one total row
                       <TableRow className="bg-gray-200 font-bold sticky bottom-0">
-                        <TableCell className="sticky left-0 bg-gray-200 z-10">TOTAL</TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
-                        <TableCell className="text-right">
-                          {filteredSpreadsheetRows.reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell></TableCell>
-                        <TableCell></TableCell>
-                        <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jan || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.feb || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-blue-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.mar || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.apr || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.may || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-green-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jun || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.jul || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.aug || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-yellow-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.sep || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.oct || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.nov || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-orange-100">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.dec || 0), 0))}</TableCell>
-                        <TableCell className="text-right bg-gray-300 font-bold">{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r.annual_total || 0), 0))}</TableCell>
+                        {getVisibleColumns().map((col) => {
+                          if (col.key === 'billing_name') return <TableCell key={col.key} className="sticky left-0 bg-gray-200 z-10">TOTAL</TableCell>
+                          if (col.key === 'population') return <TableCell key={col.key} className="text-right">{filteredSpreadsheetRows.reduce((sum, r) => sum + (r.population || 0), 0).toLocaleString()}</TableCell>
+                          if (['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec', 'annual_total'].includes(col.key)) {
+                            return <TableCell key={col.key} className={`text-right ${col.key === 'annual_total' ? 'bg-gray-300' : ''}`}>{formatCurrency(filteredSpreadsheetRows.reduce((sum, r) => sum + (r[col.key] || 0), 0))}</TableCell>
+                          }
+                          return <TableCell key={col.key}></TableCell>
+                        })}
                       </TableRow>
                     )}
                   </TableBody>
