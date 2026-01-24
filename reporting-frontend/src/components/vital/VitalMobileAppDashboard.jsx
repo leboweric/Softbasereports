@@ -192,7 +192,7 @@ const VitalMobileAppDashboard = ({ user }) => {
           value={formatPercent(dashboardData?.stickiness || 0)}
           icon={Target}
           color={stickinessColor}
-          subtitle={stickiness >= 20 ? 'Excellent engagement' : stickiness >= 10 ? 'Good engagement' : 'Needs improvement'}
+          subtitle={`Goal: 20%+ | ${stickiness >= 20 ? '✓ Excellent' : stickiness >= 10 ? 'Good' : 'Needs work'}`}
         />
         <StatCard
           title="Total Sessions"
