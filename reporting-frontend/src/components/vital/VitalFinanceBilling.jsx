@@ -10,6 +10,17 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { apiUrl } from '@/lib/api'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  Cell
+} from 'recharts'
 import { 
   DollarSign, 
   Users, 
@@ -1352,6 +1363,219 @@ const VitalFinanceBilling = ({ user, organization }) => {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+
+                  {/* Actionable Insights Cards */}
+                  <div className="grid grid-cols-5 gap-4 mt-6">
+                    {(() => {
+                      // Calculate insights from pivot data
+                      const revenueData = tierProductPivotData.revenue_pivot?.filter(r => r.tier !== 'Grand Total') || []
+                      const pepmData = tierProductPivotData.pepm_pivot?.filter(r => r.tier !== 'Grand Total') || []
+                      const products = tierProductPivotData.products || []
+                      
+                      // Find top revenue segment
+                      let topRevenue = { tier: '', product: '', value: 0 }
+                      revenueData.forEach(row => {
+                        products.forEach(product => {
+                          if (row[product] && row[product] > topRevenue.value) {
+                            topRevenue = { tier: row.tier, product, value: row[product] }
+                          }
+                        })
+                      })
+                      
+                      // Find highest PEPM product (from grand total row)
+                      const grandTotalPepm = tierProductPivotData.pepm_pivot?.find(r => r.tier === 'Grand Total') || {}
+                      let highestPepm = { product: '', value: 0 }
+                      products.forEach(product => {
+                        if (grandTotalPepm[product] && grandTotalPepm[product] > highestPepm.value) {
+                          highestPepm = { product, value: grandTotalPepm[product] }
+                        }
+                      })
+                      
+                      // Find largest population segment
+                      const popData = tierProductPivotData.population_pivot?.filter(r => r.tier !== 'Grand Total') || []
+                      let topPop = { tier: '', product: '', value: 0 }
+                      popData.forEach(row => {
+                        products.forEach(product => {
+                          if (row[product] && row[product] > topPop.value) {
+                            topPop = { tier: row.tier, product, value: row[product] }
+                          }
+                        })
+                      })
+                      
+                      // Calculate concentration risk (top 3 segments as % of total)
+                      const allSegments = []
+                      revenueData.forEach(row => {
+                        products.forEach(product => {
+                          if (row[product] && row[product] > 0) {
+                            allSegments.push({ tier: row.tier, product, value: row[product] })
+                          }
+                        })
+                      })
+                      allSegments.sort((a, b) => b.value - a.value)
+                      const top3Revenue = allSegments.slice(0, 3).reduce((sum, s) => sum + s.value, 0)
+                      const totalRevenue = tierProductPivotData.grand_totals?.revenue || 1
+                      const concentrationPct = Math.round((top3Revenue / totalRevenue) * 100)
+                      
+                      // Find growth opportunity (tier with most clients but lowest revenue share)
+                      const countData = tierProductPivotData.count_pivot?.filter(r => r.tier !== 'Grand Total') || []
+                      const tierStats = countData.map(row => {
+                        const revenueRow = revenueData.find(r => r.tier === row.tier) || {}
+                        return {
+                          tier: row.tier,
+                          clients: row['Grand Total'] || 0,
+                          revenue: revenueRow['Grand Total'] || 0
+                        }
+                      }).filter(t => t.clients > 0 && t.tier !== 'NA')
+                      
+                      tierStats.sort((a, b) => (a.revenue / a.clients) - (b.revenue / b.clients))
+                      const growthOpp = tierStats[0] || { tier: '-', clients: 0, revenue: 0 }
+                      const growthPct = totalRevenue > 0 ? Math.round((growthOpp.revenue / totalRevenue) * 100) : 0
+                      
+                      return (
+                        <>
+                          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                            <CardContent className="pt-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <TrendingUp className="h-4 w-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-700">Top Revenue Segment</span>
+                              </div>
+                              <div className="text-lg font-bold text-green-900">{topRevenue.tier} / {topRevenue.product}</div>
+                              <div className="text-sm text-green-600">${(topRevenue.value / 1000000).toFixed(2)}M ({Math.round((topRevenue.value / totalRevenue) * 100)}% of total)</div>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                            <CardContent className="pt-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <DollarSign className="h-4 w-4 text-blue-600" />
+                                <span className="text-sm font-medium text-blue-700">Highest PEPM Product</span>
+                              </div>
+                              <div className="text-lg font-bold text-blue-900">{highestPepm.product}</div>
+                              <div className="text-sm text-blue-600">${highestPepm.value?.toFixed(2)} avg PEPM</div>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                            <CardContent className="pt-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Users className="h-4 w-4 text-purple-600" />
+                                <span className="text-sm font-medium text-purple-700">Largest Population</span>
+                              </div>
+                              <div className="text-lg font-bold text-purple-900">{topPop.tier} / {topPop.product}</div>
+                              <div className="text-sm text-purple-600">{topPop.value?.toLocaleString()} lives</div>
+                            </CardContent>
+                          </Card>
+                          <Card className={`bg-gradient-to-br ${concentrationPct > 50 ? 'from-amber-50 to-amber-100 border-amber-200' : 'from-gray-50 to-gray-100 border-gray-200'}`}>
+                            <CardContent className="pt-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <AlertTriangle className={`h-4 w-4 ${concentrationPct > 50 ? 'text-amber-600' : 'text-gray-600'}`} />
+                                <span className={`text-sm font-medium ${concentrationPct > 50 ? 'text-amber-700' : 'text-gray-700'}`}>Concentration Risk</span>
+                              </div>
+                              <div className={`text-lg font-bold ${concentrationPct > 50 ? 'text-amber-900' : 'text-gray-900'}`}>{concentrationPct}%</div>
+                              <div className={`text-sm ${concentrationPct > 50 ? 'text-amber-600' : 'text-gray-600'}`}>Top 3 segments</div>
+                            </CardContent>
+                          </Card>
+                          <Card className="bg-gradient-to-br from-cyan-50 to-cyan-100 border-cyan-200">
+                            <CardContent className="pt-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <ArrowUpRight className="h-4 w-4 text-cyan-600" />
+                                <span className="text-sm font-medium text-cyan-700">Growth Opportunity</span>
+                              </div>
+                              <div className="text-lg font-bold text-cyan-900">Tier {growthOpp.tier}</div>
+                              <div className="text-sm text-cyan-600">{growthOpp.clients} clients, {growthPct}% revenue</div>
+                            </CardContent>
+                          </Card>
+                        </>
+                      )
+                    })()}
+                  </div>
+
+                  {/* Stacked Bar Chart - Revenue by Tier */}
+                  <div className="mt-8">
+                    <h3 className="text-lg font-semibold mb-3">Revenue by Tier (Stacked by Product)</h3>
+                    <div className="h-80">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={(() => {
+                            const revenueData = tierProductPivotData.revenue_pivot?.filter(r => r.tier !== 'Grand Total' && r.tier !== 'NA') || []
+                            return revenueData.map(row => {
+                              const chartRow = { tier: row.tier }
+                              tierProductPivotData.products?.forEach(product => {
+                                chartRow[product] = row[product] || 0
+                              })
+                              return chartRow
+                            })
+                          })()}
+                          layout="vertical"
+                          margin={{ top: 20, right: 30, left: 60, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="number" tickFormatter={(value) => `$${(value / 1000000).toFixed(1)}M`} />
+                          <YAxis type="category" dataKey="tier" />
+                          <Tooltip 
+                            formatter={(value) => [`$${value?.toLocaleString()}`, '']} 
+                            labelFormatter={(label) => `Tier ${label}`}
+                          />
+                          <Legend />
+                          {tierProductPivotData.products?.map((product, idx) => {
+                            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+                            return <Bar key={product} dataKey={product} stackId="a" fill={colors[idx % colors.length]} />
+                          })}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* PEPM Heatmap */}
+                  <div className="mt-8">
+                    <h3 className="text-lg font-semibold mb-3">PEPM Heatmap (Pricing Analysis)</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            <th className="border px-3 py-2 text-left font-semibold">Tier</th>
+                            {tierProductPivotData.products?.map(product => (
+                              <th key={product} className="border px-3 py-2 text-center font-semibold">{product}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tierProductPivotData.pepm_pivot?.filter(row => row.tier !== 'Grand Total').map((row, idx) => {
+                            // Calculate min/max for color scaling
+                            const allValues = tierProductPivotData.pepm_pivot
+                              ?.filter(r => r.tier !== 'Grand Total')
+                              .flatMap(r => tierProductPivotData.products?.map(p => r[p]).filter(v => v && v > 0)) || []
+                            const minPepm = Math.min(...allValues)
+                            const maxPepm = Math.max(...allValues)
+                            
+                            return (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="border px-3 py-2 font-medium">{row.tier}</td>
+                                {tierProductPivotData.products?.map(product => {
+                                  const value = row[product]
+                                  if (!value || value === 0) {
+                                    return <td key={product} className="border px-3 py-2 text-center text-gray-400">-</td>
+                                  }
+                                  // Color scale from light green (low) to dark green (high)
+                                  const intensity = maxPepm > minPepm ? (value - minPepm) / (maxPepm - minPepm) : 0.5
+                                  const bgColor = `rgba(34, 197, 94, ${0.2 + intensity * 0.6})`
+                                  const textColor = intensity > 0.5 ? 'white' : 'rgb(22, 101, 52)'
+                                  return (
+                                    <td 
+                                      key={product} 
+                                      className="border px-3 py-2 text-center font-medium"
+                                      style={{ backgroundColor: bgColor, color: textColor }}
+                                    >
+                                      ${value.toFixed(2)}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Darker green = higher PEPM. Use this to identify pricing anomalies and opportunities.</p>
                   </div>
 
                   {/* Grand Totals Summary */}
