@@ -44,6 +44,7 @@ RESOURCES = {
     'vital_azure_sql': 'VITAL Worklife Azure SQL Case Data dashboard',
     'vital_zoom': 'VITAL Worklife Zoom call center analytics',
     'vital_finance': 'VITAL Worklife Finance billing management and revenue tracking',
+    'vital_mobile_app': 'VITAL Worklife Mobile App analytics from GA4 BigQuery',
 }
 
 # Action types
@@ -150,13 +151,13 @@ ROLE_PERMISSIONS = {
     # VITAL Worklife roles
     'VITAL Admin': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance', 'user_management'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance', 'vital_mobile_app', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance', 'vital_mobile_app'
         ],
         'actions': ['view', 'export'],
     },
@@ -354,5 +355,12 @@ NAVIGATION_CONFIG = {
         'path': 'vital-finance',
         'required_resource': 'vital_finance',
         'order': 2,  # Moved under Dashboard
+    },
+    'vital-mobile-app': {
+        'label': 'Mobile App',
+        'icon': 'Smartphone',
+        'path': 'vital-mobile-app',
+        'required_resource': 'vital_mobile_app',
+        'order': 3,  # After Finance
     },
 }
