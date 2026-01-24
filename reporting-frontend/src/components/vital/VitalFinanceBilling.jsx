@@ -645,7 +645,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
           <CardContent>
             <div className="text-2xl font-bold">{renewals.length}</div>
             <p className="text-xs text-muted-foreground">
-              {formatCurrency(renewals.reduce((sum, r) => sum + (r.annual_value || 0), 0))} in next 6 months
+              {formatCurrency(renewals.reduce((sum, r) => sum + (parseFloat(r.annual_value) || 0), 0))} in next 6 months
             </p>
           </CardContent>
         </Card>
