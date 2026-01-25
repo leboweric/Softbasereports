@@ -63,6 +63,10 @@ const VitalExecutiveDashboard = ({ user }) => {
   const [atRiskSortField, setAtRiskSortField] = useState('renewal_date')
   const [atRiskSortDir, setAtRiskSortDir] = useState('asc')
   const [cmsData, setCmsData] = useState(null)
+  const [showCasesModal, setShowCasesModal] = useState(false)
+  const [casesByType, setCasesByType] = useState([])
+  const [casesSortField, setCasesSortField] = useState('count')
+  const [casesSortDir, setCasesSortDir] = useState('desc')
 
   const timeframeOptions = [
     { value: 7, label: 'Last 7 days' },
@@ -187,6 +191,19 @@ const VitalExecutiveDashboard = ({ user }) => {
       }
     } catch (err) {
       console.error('CMS case metrics fetch error:', err)
+    }
+
+    // Fetch CMS Cases by Type for modal
+    try {
+      const casesTypeRes = await fetch(apiUrl(`/api/vital/azure-sql/cases-by-type?days=${timeframe}`), { headers })
+      if (casesTypeRes.ok) {
+        const result = await casesTypeRes.json()
+        if (result.success) {
+          setCasesByType(result.data.cases_by_type || [])
+        }
+      }
+    } catch (err) {
+      console.error('CMS cases by type fetch error:', err)
     }
 
     setLastUpdated(new Date().toLocaleTimeString())
@@ -695,6 +712,7 @@ const VitalExecutiveDashboard = ({ user }) => {
             value={formatNumber(newCases)} 
             sublabel="Cases opened"
             icon={ClipboardList}
+            onClick={() => setShowCasesModal(true)}
           />
           <MetricCard 
             label="Closed Cases" 
@@ -1056,6 +1074,108 @@ const VitalExecutiveDashboard = ({ user }) => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cases by Type Modal */}
+      {showCasesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowCasesModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">New Cases by Type</h2>
+                <p className="text-sm text-gray-500">Breakdown of {formatNumber(newCases)} new cases in the last {timeframe} days (click headers to sort)</p>
+              </div>
+              <button onClick={() => setShowCasesModal(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (casesSortField === 'case_type') {
+                          setCasesSortDir(casesSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setCasesSortField('case_type')
+                          setCasesSortDir('asc')
+                        }
+                      }}
+                    >
+                      Case Type {casesSortField === 'case_type' && (casesSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (casesSortField === 'count') {
+                          setCasesSortDir(casesSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setCasesSortField('count')
+                          setCasesSortDir('desc')
+                        }
+                      }}
+                    >
+                      Count {casesSortField === 'count' && (casesSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (casesSortField === 'percentage') {
+                          setCasesSortDir(casesSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setCasesSortField('percentage')
+                          setCasesSortDir('desc')
+                        }
+                      }}
+                    >
+                      % of Total {casesSortField === 'percentage' && (casesSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {[...casesByType].sort((a, b) => {
+                    let aVal, bVal
+                    if (casesSortField === 'count' || casesSortField === 'percentage') {
+                      aVal = a[casesSortField] || 0
+                      bVal = b[casesSortField] || 0
+                    } else {
+                      aVal = (a[casesSortField] || '').toString().toLowerCase()
+                      bVal = (b[casesSortField] || '').toString().toLowerCase()
+                    }
+                    if (aVal < bVal) return casesSortDir === 'asc' ? -1 : 1
+                    if (aVal > bVal) return casesSortDir === 'asc' ? 1 : -1
+                    return 0
+                  }).map((item, idx) => (
+                    <tr key={idx} className="hover:bg-teal-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.case_type}</td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-teal-600">{formatNumber(item.count)}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-20 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-teal-500 h-2 rounded-full" 
+                              style={{ width: `${Math.min(item.percentage, 100)}%` }}
+                            />
+                          </div>
+                          <span className="w-12 text-right">{item.percentage}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {casesByType.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No case data available for this period
+                </div>
+              )}
             </div>
           </div>
         </div>

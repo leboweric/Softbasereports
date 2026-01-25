@@ -256,3 +256,42 @@ def get_case_metrics():
     except Exception as e:
         logger.error(f"Case metrics error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@vital_azure_sql_bp.route('/api/vital/azure-sql/cases-by-type', methods=['GET'])
+@jwt_required()
+def get_cases_by_type():
+    """Get breakdown of new cases by Case Type for CEO Dashboard modal"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        # Get days parameter (default 30)
+        days = request.args.get('days', 30, type=int)
+        
+        # Validate days range
+        if days < 1 or days > 365:
+            return jsonify({"error": "days must be between 1 and 365"}), 400
+        
+        service = get_azure_sql_service()
+        result = service.get_cases_by_type(days=days)
+        
+        return jsonify({
+            "success": True,
+            "data": result
+        })
+    except ValueError as e:
+        # Handle configuration errors gracefully
+        logger.warning(f"Cases by type not available: {str(e)}")
+        return jsonify({
+            "success": True,
+            "data": {
+                "cases_by_type": [],
+                "total": 0,
+                "period_days": days,
+                "error": "Azure SQL not configured"
+            }
+        })
+    except Exception as e:
+        logger.error(f"Cases by type error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500

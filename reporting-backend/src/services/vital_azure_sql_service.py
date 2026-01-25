@@ -425,3 +425,61 @@ class VitalAzureSQLService:
         except Exception as e:
             logger.error(f"Error getting case metrics: {str(e)}")
             raise
+
+    def get_cases_by_type(self, days=30):
+        """
+        Get breakdown of new cases by Case Type for the CEO Dashboard modal
+        
+        Args:
+            days: Number of days to look back
+            
+        Returns:
+            Dictionary with cases_by_type list and total count
+        """
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(as_dict=True)
+            
+            # Use known column names
+            date_col = 'Case Create Date'
+            type_col = 'Case Type'
+            
+            # Calculate date range
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            
+            # Get cases grouped by type
+            cursor.execute(f"""
+                SELECT 
+                    COALESCE([{type_col}], 'Unknown') as case_type,
+                    COUNT(*) as count
+                FROM [{self.ALLOWED_TABLE}]
+                WHERE [{date_col}] >= %s AND [{date_col}] <= %s
+                GROUP BY [{type_col}]
+                ORDER BY COUNT(*) DESC
+            """, (start_date, end_date))
+            
+            results = cursor.fetchall()
+            
+            # Calculate total and percentages
+            total = sum(r['count'] for r in results)
+            cases_by_type = []
+            
+            for row in results:
+                cases_by_type.append({
+                    'case_type': row['case_type'] or 'Unknown',
+                    'count': row['count'],
+                    'percentage': round((row['count'] / total * 100), 1) if total > 0 else 0
+                })
+            
+            conn.close()
+            
+            return {
+                "cases_by_type": cases_by_type,
+                "total": total,
+                "period_days": days
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting cases by type: {str(e)}")
+            raise
