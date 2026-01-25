@@ -644,7 +644,6 @@ const VitalExecutiveDashboard = ({ user }) => {
           )}
         </div>
       </div>
-    </div>
 
       {/* Upcoming Renewals Modal */}
       {showRenewalsModal && (
