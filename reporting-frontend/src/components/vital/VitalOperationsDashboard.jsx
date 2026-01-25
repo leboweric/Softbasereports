@@ -8,7 +8,7 @@ import {
   ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { apiUrl } from '@/lib/api';
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -57,11 +57,11 @@ const VitalOperationsDashboard = ({ onBack }) => {
       const refreshParam = refresh ? '&refresh=true' : '';
       
       const [dashboardRes, capacityRes, slaRes, forecastRes, sentimentRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/vital/operations/dashboard?days=${timeframe}${refreshParam}`, { headers }),
-        fetch(`${API_BASE_URL}/api/vital/operations/capacity?days=${timeframe}${refreshParam}`, { headers }),
-        fetch(`${API_BASE_URL}/api/vital/operations/sla-compliance?days=${timeframe}${refreshParam}`, { headers }),
-        fetch(`${API_BASE_URL}/api/vital/forecasting/demand${refreshParam ? '?refresh=true' : ''}`, { headers }),
-        fetch(`${API_BASE_URL}/api/vital/sentiment/dashboard?days=${timeframe}${refreshParam}`, { headers })
+        fetch(apiUrl(`/api/vital/operations/dashboard?days=${timeframe}${refreshParam}`), { headers }),
+        fetch(apiUrl(`/api/vital/operations/capacity?days=${timeframe}${refreshParam}`), { headers }),
+        fetch(apiUrl(`/api/vital/operations/sla-compliance?days=${timeframe}${refreshParam}`), { headers }),
+        fetch(apiUrl(`/api/vital/forecasting/demand${refreshParam ? '?refresh=true' : ''}`), { headers }),
+        fetch(apiUrl(`/api/vital/sentiment/dashboard?days=${timeframe}${refreshParam}`), { headers })
       ]);
       
       if (dashboardRes.ok) {

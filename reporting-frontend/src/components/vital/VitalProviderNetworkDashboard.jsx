@@ -48,13 +48,13 @@ const VitalProviderNetworkDashboard = ({ user, onBack }) => {
       const params = '?days=' + timeframe + (refresh ? '&refresh=true' : '')
       
       const [overviewRes, providersRes, typeRes, satRes, modalityRes, trendRes, outcomesRes] = await Promise.all([
-        fetch(apiUrl + '/api/vital/provider-network/overview' + params, { headers }),
-        fetch(apiUrl + '/api/vital/provider-network/top-providers' + params, { headers }),
-        fetch(apiUrl + '/api/vital/provider-network/by-type' + params, { headers }),
-        fetch(apiUrl + '/api/vital/provider-network/satisfaction-distribution' + params, { headers }),
-        fetch(apiUrl + '/api/vital/provider-network/modality-breakdown' + params, { headers }),
-        fetch(apiUrl + '/api/vital/provider-network/monthly-trend' + params, { headers }),
-        fetch(apiUrl + '/api/vital/provider-network/outcomes' + params, { headers })
+        fetch(apiUrl('/api/vital/provider-network/overview' + params), { headers }),
+        fetch(apiUrl('/api/vital/provider-network/top-providers' + params), { headers }),
+        fetch(apiUrl('/api/vital/provider-network/by-type' + params), { headers }),
+        fetch(apiUrl('/api/vital/provider-network/satisfaction-distribution' + params), { headers }),
+        fetch(apiUrl('/api/vital/provider-network/modality-breakdown' + params), { headers }),
+        fetch(apiUrl('/api/vital/provider-network/monthly-trend' + params), { headers }),
+        fetch(apiUrl('/api/vital/provider-network/outcomes' + params), { headers })
       ])
       
       if (overviewRes.ok) { const d = await overviewRes.json(); setOverview(d.overview) }
