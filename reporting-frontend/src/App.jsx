@@ -173,7 +173,7 @@ function App() {
     
     // Check if user has access to current page
     // Note: 'billing' and 'settings' are special pages not in navigation, so always allow them
-    const specialPages = ['billing', 'settings']
+    const specialPages = ['billing', 'settings', 'vital-customer-360']
     if (!navigation[currentPage] && !specialPages.includes(currentPage)) {
       // Redirect to first available page using same order as Layout.jsx
       // Menu order: Dashboard, Finance first, then other items (removed vital-quickbooks)
