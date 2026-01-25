@@ -38,7 +38,8 @@ import {
   ClipboardList,
   CheckCircle,
   FolderOpen,
-  Heart
+  Heart,
+  Settings
 } from 'lucide-react'
 
 // CEO Dashboard organized by department sections
@@ -413,6 +414,13 @@ const VitalExecutiveDashboard = ({ user }) => {
           >
             <Heart className="h-4 w-4" />
             Provider Network
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: { page: 'vital-operations' } }))}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+            >
+              <Settings className="h-4 w-4" />
+              Operations
+            </button>
           </Button>
           {/* Timeframe Selector */}
           <div className="relative">
