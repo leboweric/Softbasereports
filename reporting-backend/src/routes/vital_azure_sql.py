@@ -212,3 +212,47 @@ def get_row_count():
     except Exception as e:
         logger.error(f"Count error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ==================== CEO DASHBOARD ENDPOINTS ====================
+
+@vital_azure_sql_bp.route('/api/vital/azure-sql/case-metrics', methods=['GET'])
+@jwt_required()
+def get_case_metrics():
+    """Get case metrics for CEO Dashboard with timeframe filtering"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        # Get days parameter (default 30)
+        days = request.args.get('days', 30, type=int)
+        
+        # Validate days range
+        if days < 1 or days > 365:
+            return jsonify({"error": "days must be between 1 and 365"}), 400
+        
+        service = get_azure_sql_service()
+        metrics = service.get_case_metrics(days=days)
+        
+        return jsonify({
+            "success": True,
+            "data": metrics
+        })
+    except ValueError as e:
+        # Handle configuration errors gracefully
+        logger.warning(f"Case metrics not available: {str(e)}")
+        return jsonify({
+            "success": True,
+            "data": {
+                "new_cases": 0,
+                "closed_cases": 0,
+                "open_cases": 0,
+                "total_cases": 0,
+                "daily_trend": [],
+                "period_days": days,
+                "error": "Azure SQL not configured"
+            }
+        })
+    except Exception as e:
+        logger.error(f"Case metrics error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500

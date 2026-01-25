@@ -312,3 +312,135 @@ class VitalAzureSQLService:
         except Exception as e:
             logger.error(f"Error getting dashboard data: {str(e)}")
             raise
+
+    def get_case_metrics(self, days=30):
+        """
+        Get case metrics for the CEO Dashboard
+        
+        Args:
+            days: Number of days to look back for metrics
+            
+        Returns:
+            Dictionary with new_cases, closed_cases, open_cases, and daily_trend
+        """
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(as_dict=True)
+            
+            # First, let's understand what date columns are available
+            cursor.execute(f"""
+                SELECT COLUMN_NAME, DATA_TYPE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = '{self.ALLOWED_TABLE}'
+                AND (DATA_TYPE LIKE '%date%' OR DATA_TYPE LIKE '%time%')
+            """)
+            date_columns = cursor.fetchall()
+            logger.info(f"Date columns found: {date_columns}")
+            
+            # Get column names to find status and date fields
+            cursor.execute(f"SELECT TOP 1 * FROM [{self.ALLOWED_TABLE}]")
+            sample = cursor.fetchone()
+            columns = list(sample.keys()) if sample else []
+            logger.info(f"All columns: {columns}")
+            
+            # Look for common date column patterns
+            date_col = None
+            close_date_col = None
+            status_col = None
+            
+            for col in columns:
+                col_lower = col.lower()
+                if 'open' in col_lower and 'date' in col_lower:
+                    date_col = col
+                elif 'created' in col_lower or 'create_date' in col_lower:
+                    date_col = date_col or col
+                elif 'close' in col_lower and 'date' in col_lower:
+                    close_date_col = col
+                elif 'status' in col_lower:
+                    status_col = col
+            
+            # If no specific date column found, try to use the first date column
+            if not date_col and date_columns:
+                date_col = date_columns[0]['COLUMN_NAME']
+            
+            logger.info(f"Using date_col={date_col}, close_date_col={close_date_col}, status_col={status_col}")
+            
+            # Calculate date range
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days)
+            
+            # Get total open cases (current backlog)
+            open_cases = 0
+            if status_col:
+                cursor.execute(f"""
+                    SELECT COUNT(*) as count 
+                    FROM [{self.ALLOWED_TABLE}]
+                    WHERE [{status_col}] IN ('Open', 'Active', 'In Progress', 'Pending')
+                """)
+                result = cursor.fetchone()
+                open_cases = result['count'] if result else 0
+            
+            # Get new cases in the period
+            new_cases = 0
+            daily_trend = []
+            
+            if date_col:
+                # Count new cases in the period
+                cursor.execute(f"""
+                    SELECT COUNT(*) as count 
+                    FROM [{self.ALLOWED_TABLE}]
+                    WHERE [{date_col}] >= %s AND [{date_col}] <= %s
+                """, (start_date, end_date))
+                result = cursor.fetchone()
+                new_cases = result['count'] if result else 0
+                
+                # Get daily trend
+                cursor.execute(f"""
+                    SELECT 
+                        CAST([{date_col}] AS DATE) as date,
+                        COUNT(*) as new_cases
+                    FROM [{self.ALLOWED_TABLE}]
+                    WHERE [{date_col}] >= %s AND [{date_col}] <= %s
+                    GROUP BY CAST([{date_col}] AS DATE)
+                    ORDER BY date
+                """, (start_date, end_date))
+                
+                trend_data = cursor.fetchall()
+                for row in trend_data:
+                    daily_trend.append({
+                        'date': row['date'].isoformat() if hasattr(row['date'], 'isoformat') else str(row['date']),
+                        'new_cases': row['new_cases']
+                    })
+            
+            # Get closed cases in the period
+            closed_cases = 0
+            if close_date_col:
+                cursor.execute(f"""
+                    SELECT COUNT(*) as count 
+                    FROM [{self.ALLOWED_TABLE}]
+                    WHERE [{close_date_col}] >= %s AND [{close_date_col}] <= %s
+                """, (start_date, end_date))
+                result = cursor.fetchone()
+                closed_cases = result['count'] if result else 0
+            
+            # Get total cases for context
+            cursor.execute(f"SELECT COUNT(*) as total FROM [{self.ALLOWED_TABLE}]")
+            total_cases = cursor.fetchone()['total']
+            
+            conn.close()
+            
+            return {
+                "new_cases": new_cases,
+                "closed_cases": closed_cases,
+                "open_cases": open_cases,
+                "total_cases": total_cases,
+                "daily_trend": daily_trend,
+                "period_days": days,
+                "date_column_used": date_col,
+                "close_date_column_used": close_date_col,
+                "status_column_used": status_col
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting case metrics: {str(e)}")
+            raise

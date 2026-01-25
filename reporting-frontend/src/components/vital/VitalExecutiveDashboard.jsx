@@ -34,7 +34,10 @@ import {
   AlertTriangle,
   Calendar,
   TrendingUp,
-  ChevronDown
+  ChevronDown,
+  ClipboardList,
+  CheckCircle,
+  FolderOpen
 } from 'lucide-react'
 
 // CEO Dashboard organized by department sections
@@ -59,6 +62,7 @@ const VitalExecutiveDashboard = ({ user }) => {
   const [renewalsSortDir, setRenewalsSortDir] = useState('asc')
   const [atRiskSortField, setAtRiskSortField] = useState('renewal_date')
   const [atRiskSortDir, setAtRiskSortDir] = useState('asc')
+  const [cmsData, setCmsData] = useState(null)
 
   const timeframeOptions = [
     { value: 7, label: 'Last 7 days' },
@@ -170,6 +174,19 @@ const VitalExecutiveDashboard = ({ user }) => {
       }
     } catch (err) {
       console.error('Call volume trend fetch error:', err)
+    }
+
+    // Fetch CMS Case Metrics with timeframe
+    try {
+      const cmsRes = await fetch(apiUrl(`/api/vital/azure-sql/case-metrics?days=${timeframe}`), { headers })
+      if (cmsRes.ok) {
+        const result = await cmsRes.json()
+        if (result.success) {
+          setCmsData(result.data)
+        }
+      }
+    } catch (err) {
+      console.error('CMS case metrics fetch error:', err)
     }
 
     setLastUpdated(new Date().toLocaleTimeString())
@@ -305,6 +322,21 @@ const VitalExecutiveDashboard = ({ user }) => {
     const start = Math.max(0, idx - 6)
     const window = arr.slice(start, idx + 1)
     const ma7 = window.reduce((sum, d) => sum + (d.total || 0), 0) / window.length
+    return { ...day, ma7: Math.round(ma7 * 10) / 10 }
+  })
+
+  // CMS Case Data
+  const newCases = cmsData?.new_cases || 0
+  const closedCases = cmsData?.closed_cases || 0
+  const openCases = cmsData?.open_cases || 0
+  const totalCasesAll = cmsData?.total_cases || 0
+  const rawCaseTrend = cmsData?.daily_trend || []
+  
+  // Calculate 7-day moving average for CMS Cases
+  const caseTrendWithMA = rawCaseTrend.map((day, idx, arr) => {
+    const start = Math.max(0, idx - 6)
+    const window = arr.slice(start, idx + 1)
+    const ma7 = window.reduce((sum, d) => sum + (d.new_cases || 0), 0) / window.length
     return { ...day, ma7: Math.round(ma7 * 10) / 10 }
   })
 
@@ -644,6 +676,107 @@ const VitalExecutiveDashboard = ({ user }) => {
           ) : (
             <div className="flex items-center justify-center h-[220px] text-gray-400">
               No call volume data available
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CMS / CASE MANAGEMENT SECTION */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <SectionHeader 
+          title="CMS / Case Management" 
+          icon={ClipboardList} 
+          color="bg-teal-500" 
+          status={!!cmsData}
+        />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <MetricCard 
+            label={`New Cases (${timeframe}d)`}
+            value={formatNumber(newCases)} 
+            sublabel="Cases opened"
+            icon={ClipboardList}
+          />
+          <MetricCard 
+            label="Closed Cases" 
+            value={formatNumber(closedCases)} 
+            sublabel={`Last ${timeframe} days`}
+            icon={CheckCircle}
+          />
+          <MetricCard 
+            label="Open Cases" 
+            value={formatNumber(openCases)} 
+            sublabel="Current backlog"
+            icon={FolderOpen}
+          />
+          <MetricCard 
+            label="Total Cases" 
+            value={formatNumber(totalCasesAll)} 
+            sublabel="All time"
+            icon={Activity}
+          />
+        </div>
+        
+        {/* Case Volume Chart */}
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-4">Daily New Cases (Last {timeframe} Days)</h3>
+          {caseTrendWithMA.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={220}>
+                <ComposedChart data={caseTrendWithMA}>
+                  <defs>
+                    <linearGradient id="colorCases" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value) => {
+                      const date = new Date(value)
+                      return `${date.getMonth() + 1}/${date.getDate()}`
+                    }}
+                  />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip 
+                    formatter={(value, name) => [formatNumber(value), name === 'ma7' ? '7-Day Avg' : 'New Cases']}
+                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="new_cases" 
+                    stroke="#5eead4" 
+                    strokeWidth={1}
+                    fillOpacity={1} 
+                    fill="url(#colorCases)" 
+                    name="New Cases"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="ma7" 
+                    stroke="#0d9488" 
+                    strokeWidth={3}
+                    dot={false}
+                    name="7-Day Avg"
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+              {/* Legend */}
+              <div className="flex items-center justify-center gap-6 mt-3 text-xs text-gray-500">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded bg-teal-200" />
+                  <span>Daily New Cases</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-0.5 bg-teal-600" />
+                  <span>7-Day Moving Avg</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-[220px] text-gray-400">
+              No case data available
             </div>
           )}
         </div>
