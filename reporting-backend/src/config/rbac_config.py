@@ -336,8 +336,8 @@ NAVIGATION_CONFIG = {
     #     'order': 25,
     # },
     'vital-azure-sql': {
-        'label': 'CMS Data',
-        'icon': 'Database',
+        'label': 'Customer 360',
+        'icon': 'Building2',
         'path': 'vital-azure-sql',
         'required_resource': 'vital_azure_sql',
         'order': 26,

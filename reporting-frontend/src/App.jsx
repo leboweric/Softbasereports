@@ -253,7 +253,7 @@ function App() {
       case 'vital-quickbooks':
         return <VitalQuickBooksDashboard user={user} organization={organization} />
       case 'vital-azure-sql':
-        return <VitalAzureSQLDashboard user={user} organization={organization} />
+        return <VitalCustomer360 user={user} onBack={null} />
       case 'vital-zoom':
         return <VitalZoomDashboard user={user} organization={organization} />
       case 'vital-finance':
