@@ -252,7 +252,15 @@ const VitalExecutiveDashboard = ({ user }) => {
   const dau = mobileAppData?.dau || mobileAppData?.avg_dau || 0
   const stickiness = mobileAppData?.stickiness || 0
   const newUsers = mobileAppData?.new_users || 0
-  const dailyTrend = mobileAppData?.daily_trend || []
+  const rawDailyTrend = mobileAppData?.daily_trend || []
+  
+  // Calculate 7-day moving average for Mobile App
+  const dailyTrend = rawDailyTrend.map((day, idx, arr) => {
+    const start = Math.max(0, idx - 6)
+    const window = arr.slice(start, idx + 1)
+    const ma7 = window.reduce((sum, d) => sum + (d.dau || 0), 0) / window.length
+    return { ...day, ma7: Math.round(ma7 * 10) / 10 }
+  })
   
   // Call Center Data - Use callVolumeTrend for accurate inbound/outbound
   const callTrend = callVolumeTrend?.trend || []
@@ -265,10 +273,18 @@ const VitalExecutiveDashboard = ({ user }) => {
   // Get avg duration from dashboard data (this is still accurate)
   const avgDuration = callCenterData?.call_stats?.avg_duration_seconds || 0
 
-  // Call Volume Trend Data
+  // Call Volume Trend Data with 7-day moving average
   const avgCallsPerDay = callTrend.length > 0 ? callTrend[0]?.avg || 0 : 0
   const spikeCount = callTrend.filter(d => d.is_spike).length
   const spikeThreshold = Math.round(avgCallsPerDay * 1.5)
+  
+  // Calculate 7-day moving average for Call Center
+  const callTrendWithMA = callTrend.map((day, idx, arr) => {
+    const start = Math.max(0, idx - 6)
+    const window = arr.slice(start, idx + 1)
+    const ma7 = window.reduce((sum, d) => sum + (d.total || 0), 0) / window.length
+    return { ...day, ma7: Math.round(ma7 * 10) / 10 }
+  })
 
   if (loading) {
     return (
@@ -433,8 +449,8 @@ const VitalExecutiveDashboard = ({ user }) => {
         <div className="bg-gray-50 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-700 mb-4">Daily Active Users Trend</h3>
           {dailyTrend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={dailyTrend}>
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={dailyTrend}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -452,25 +468,37 @@ const VitalExecutiveDashboard = ({ user }) => {
                 />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip 
-                  formatter={(value) => [formatNumber(value), 'Users']}
+                  formatter={(value, name) => [formatNumber(value), name === 'ma7' ? '7-Day Avg' : 'Daily Users']}
                   labelFormatter={(label) => new Date(label).toLocaleDateString()}
                 />
                 <Area 
                   type="monotone" 
                   dataKey="dau" 
-                  stroke="#3b82f6" 
-                  strokeWidth={2}
+                  stroke="#93c5fd" 
+                  strokeWidth={1}
                   fillOpacity={1} 
                   fill="url(#colorUsers)" 
-                  name="Users"
+                  name="Daily Users"
                 />
-              </AreaChart>
+                <Line 
+                  type="monotone" 
+                  dataKey="ma7" 
+                  stroke="#1d4ed8" 
+                  strokeWidth={3}
+                  dot={false}
+                  name="7-Day Avg"
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-[200px] text-gray-400">
+            <div className="flex items-center justify-center h-[220px] text-gray-400">
               No trend data available
             </div>
           )}
+          <div className="flex justify-center gap-6 mt-2 text-xs text-gray-500">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-blue-200 rounded"></span> Daily Users</span>
+            <span className="flex items-center gap-1"><span className="w-8 h-0.5 bg-blue-700"></span> 7-Day Moving Avg</span>
+          </div>
         </div>
       </div>
 
@@ -521,10 +549,10 @@ const VitalExecutiveDashboard = ({ user }) => {
               </span>
             )}
           </div>
-          {callTrend.length > 0 ? (
+          {callTrendWithMA.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={callTrend}>
+                <ComposedChart data={callTrendWithMA}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
                     dataKey="date" 
@@ -545,6 +573,7 @@ const VitalExecutiveDashboard = ({ user }) => {
                             <p className="text-sm text-gray-600">Total: {data.total} calls</p>
                             <p className="text-sm text-gray-600">Inbound: {data.inbound}</p>
                             <p className="text-sm text-gray-600">Outbound: {data.outbound}</p>
+                            <p className="text-sm text-purple-600">7-Day Avg: {data.ma7}</p>
                             {data.is_spike && (
                               <p className="text-sm text-red-500 font-medium mt-1">⚠️ Volume Spike</p>
                             )}
@@ -554,41 +583,37 @@ const VitalExecutiveDashboard = ({ user }) => {
                       return null
                     }}
                   />
-                  <ReferenceLine 
-                    y={avgCallsPerDay} 
-                    stroke="#9ca3af" 
-                    strokeDasharray="5 5" 
-                    label={{ value: '', position: 'right' }}
-                  />
-                  <ReferenceLine 
-                    y={spikeThreshold} 
-                    stroke="#ef4444" 
-                    strokeDasharray="3 3" 
-                    label={{ value: '', position: 'right' }}
-                  />
                   <Bar dataKey="total" name="Calls" radius={[2, 2, 0, 0]}>
-                    {callTrend.map((entry, index) => (
+                    {callTrendWithMA.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
-                        fill={entry.is_spike ? '#ef4444' : '#8b5cf6'} 
+                        fill={entry.is_spike ? '#ef4444' : '#c4b5fd'} 
                       />
                     ))}
                   </Bar>
-                </BarChart>
+                  <Line 
+                    type="monotone" 
+                    dataKey="ma7" 
+                    stroke="#7c3aed" 
+                    strokeWidth={3}
+                    dot={false}
+                    name="7-Day Avg"
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
               {/* Legend */}
               <div className="flex items-center justify-center gap-6 mt-3 text-xs text-gray-500">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded bg-purple-500" />
-                  <span>Normal Volume</span>
+                  <div className="w-3 h-3 rounded bg-purple-300" />
+                  <span>Daily Volume</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded bg-red-500" />
                   <span>Spike (&gt;1.5x avg)</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 border-t-2 border-dashed border-gray-400" />
-                  <span>Daily Average ({Math.round(avgCallsPerDay)})</span>
+                  <div className="w-8 h-0.5 bg-purple-600" />
+                  <span>7-Day Moving Avg</span>
                 </div>
               </div>
             </>
