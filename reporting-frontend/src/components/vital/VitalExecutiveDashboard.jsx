@@ -55,6 +55,10 @@ const VitalExecutiveDashboard = ({ user }) => {
   const [atRiskRenewals, setAtRiskRenewals] = useState([])
   const [showRenewalsModal, setShowRenewalsModal] = useState(false)
   const [showAtRiskModal, setShowAtRiskModal] = useState(false)
+  const [renewalsSortField, setRenewalsSortField] = useState('renewal_date')
+  const [renewalsSortDir, setRenewalsSortDir] = useState('asc')
+  const [atRiskSortField, setAtRiskSortField] = useState('renewal_date')
+  const [atRiskSortDir, setAtRiskSortDir] = useState('asc')
 
   const timeframeOptions = [
     { value: 7, label: 'Last 7 days' },
@@ -652,7 +656,7 @@ const VitalExecutiveDashboard = ({ user }) => {
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Upcoming Renewals</h2>
-                <p className="text-sm text-gray-500">Clients renewing in the next 6 months</p>
+                <p className="text-sm text-gray-500">Clients renewing in the next 6 months (click headers to sort)</p>
               </div>
               <button onClick={() => setShowRenewalsModal(false)} className="text-gray-400 hover:text-gray-600">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -667,15 +671,90 @@ const VitalExecutiveDashboard = ({ user }) => {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Renewal Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solution</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Annual Value</th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (renewalsSortField === 'billing_name') {
+                          setRenewalsSortDir(renewalsSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setRenewalsSortField('billing_name')
+                          setRenewalsSortDir('asc')
+                        }
+                      }}
+                    >
+                      Client {renewalsSortField === 'billing_name' && (renewalsSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (renewalsSortField === 'renewal_date') {
+                          setRenewalsSortDir(renewalsSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setRenewalsSortField('renewal_date')
+                          setRenewalsSortDir('asc')
+                        }
+                      }}
+                    >
+                      Renewal Date {renewalsSortField === 'renewal_date' && (renewalsSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (renewalsSortField === 'solution_type') {
+                          setRenewalsSortDir(renewalsSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setRenewalsSortField('solution_type')
+                          setRenewalsSortDir('asc')
+                        }
+                      }}
+                    >
+                      Solution {renewalsSortField === 'solution_type' && (renewalsSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (renewalsSortField === 'tier') {
+                          setRenewalsSortDir(renewalsSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setRenewalsSortField('tier')
+                          setRenewalsSortDir('asc')
+                        }
+                      }}
+                    >
+                      Tier {renewalsSortField === 'tier' && (renewalsSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (renewalsSortField === 'annual_value') {
+                          setRenewalsSortDir(renewalsSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setRenewalsSortField('annual_value')
+                          setRenewalsSortDir('desc')
+                        }
+                      }}
+                    >
+                      Annual Value {renewalsSortField === 'annual_value' && (renewalsSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {renewals.sort((a, b) => new Date(a.renewal_date) - new Date(b.renewal_date)).map((renewal, idx) => (
+                  {[...renewals].sort((a, b) => {
+                    let aVal, bVal
+                    if (renewalsSortField === 'renewal_date') {
+                      aVal = new Date(a.renewal_date)
+                      bVal = new Date(b.renewal_date)
+                    } else if (renewalsSortField === 'annual_value') {
+                      aVal = parseFloat(a.annual_value) || 0
+                      bVal = parseFloat(b.annual_value) || 0
+                    } else {
+                      aVal = (a[renewalsSortField] || '').toString().toLowerCase()
+                      bVal = (b[renewalsSortField] || '').toString().toLowerCase()
+                    }
+                    if (aVal < bVal) return renewalsSortDir === 'asc' ? -1 : 1
+                    if (aVal > bVal) return renewalsSortDir === 'asc' ? 1 : -1
+                    return 0
+                  }).map((renewal, idx) => (
                     <tr key={idx} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{renewal.billing_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
@@ -714,7 +793,7 @@ const VitalExecutiveDashboard = ({ user }) => {
                   <AlertTriangle className="h-5 w-5" />
                   At Risk Revenue
                 </h2>
-                <p className="text-sm text-amber-600">Clients renewing in the next 3 months requiring attention</p>
+                <p className="text-sm text-amber-600">Clients renewing in the next 3 months (click headers to sort)</p>
               </div>
               <button onClick={() => setShowAtRiskModal(false)} className="text-amber-400 hover:text-amber-600">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -735,15 +814,90 @@ const VitalExecutiveDashboard = ({ user }) => {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Renewal Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solution</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Annual Value</th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (atRiskSortField === 'billing_name') {
+                          setAtRiskSortDir(atRiskSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setAtRiskSortField('billing_name')
+                          setAtRiskSortDir('asc')
+                        }
+                      }}
+                    >
+                      Client {atRiskSortField === 'billing_name' && (atRiskSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (atRiskSortField === 'renewal_date') {
+                          setAtRiskSortDir(atRiskSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setAtRiskSortField('renewal_date')
+                          setAtRiskSortDir('asc')
+                        }
+                      }}
+                    >
+                      Renewal Date {atRiskSortField === 'renewal_date' && (atRiskSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (atRiskSortField === 'solution_type') {
+                          setAtRiskSortDir(atRiskSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setAtRiskSortField('solution_type')
+                          setAtRiskSortDir('asc')
+                        }
+                      }}
+                    >
+                      Solution {atRiskSortField === 'solution_type' && (atRiskSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (atRiskSortField === 'tier') {
+                          setAtRiskSortDir(atRiskSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setAtRiskSortField('tier')
+                          setAtRiskSortDir('asc')
+                        }
+                      }}
+                    >
+                      Tier {atRiskSortField === 'tier' && (atRiskSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none"
+                      onClick={() => {
+                        if (atRiskSortField === 'annual_value') {
+                          setAtRiskSortDir(atRiskSortDir === 'asc' ? 'desc' : 'asc')
+                        } else {
+                          setAtRiskSortField('annual_value')
+                          setAtRiskSortDir('desc')
+                        }
+                      }}
+                    >
+                      Annual Value {atRiskSortField === 'annual_value' && (atRiskSortDir === 'asc' ? '↑' : '↓')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {atRiskRenewals.sort((a, b) => new Date(a.renewal_date) - new Date(b.renewal_date)).map((renewal, idx) => (
+                  {[...atRiskRenewals].sort((a, b) => {
+                    let aVal, bVal
+                    if (atRiskSortField === 'renewal_date') {
+                      aVal = new Date(a.renewal_date)
+                      bVal = new Date(b.renewal_date)
+                    } else if (atRiskSortField === 'annual_value') {
+                      aVal = parseFloat(a.annual_value) || 0
+                      bVal = parseFloat(b.annual_value) || 0
+                    } else {
+                      aVal = (a[atRiskSortField] || '').toString().toLowerCase()
+                      bVal = (b[atRiskSortField] || '').toString().toLowerCase()
+                    }
+                    if (aVal < bVal) return atRiskSortDir === 'asc' ? -1 : 1
+                    if (aVal > bVal) return atRiskSortDir === 'asc' ? 1 : -1
+                    return 0
+                  }).map((renewal, idx) => (
                     <tr key={idx} className="hover:bg-amber-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{renewal.billing_name}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
