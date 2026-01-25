@@ -97,6 +97,44 @@ class VitalAzureSQLService:
             logger.error(f"Error getting table schema: {str(e)}")
             raise
     
+    def execute_query(self, query):
+        """
+        Execute a raw SQL query and return results as a list of dictionaries.
+        
+        Args:
+            query: SQL query string to execute
+            
+        Returns:
+            List of dictionaries with query results
+        """
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(as_dict=True)
+            cursor.execute(query)
+            results = cursor.fetchall()
+            
+            # Clean up results - convert bytes and dates
+            clean_results = []
+            for row in results:
+                clean_row = {}
+                for key, value in row.items():
+                    if isinstance(value, bytes):
+                        try:
+                            clean_row[key] = value.decode('utf-8')
+                        except:
+                            clean_row[key] = str(value)
+                    elif isinstance(value, datetime):
+                        clean_row[key] = value.isoformat()
+                    else:
+                        clean_row[key] = value
+                clean_results.append(clean_row)
+            
+            conn.close()
+            return clean_results
+        except Exception as e:
+            logger.error(f"Error executing query: {str(e)}")
+            raise
+    
     def get_row_count(self):
         """Get total row count"""
         try:
