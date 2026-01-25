@@ -52,6 +52,9 @@ const VitalExecutiveDashboard = ({ user }) => {
   const [mobileAppData, setMobileAppData] = useState(null)
   const [callCenterData, setCallCenterData] = useState(null)
   const [callVolumeTrend, setCallVolumeTrend] = useState(null)
+  const [atRiskRenewals, setAtRiskRenewals] = useState([])
+  const [showRenewalsModal, setShowRenewalsModal] = useState(false)
+  const [showAtRiskModal, setShowAtRiskModal] = useState(false)
 
   const timeframeOptions = [
     { value: 7, label: 'Last 7 days' },
@@ -93,7 +96,7 @@ const VitalExecutiveDashboard = ({ user }) => {
       console.error('Clients fetch error:', err)
     }
 
-    // Fetch Renewals
+    // Fetch Renewals (6 months for upcoming)
     try {
       const renewalsRes = await fetch(apiUrl('/api/vital/finance/renewals?months=6'), { headers })
       if (renewalsRes.ok) {
@@ -102,6 +105,17 @@ const VitalExecutiveDashboard = ({ user }) => {
       }
     } catch (err) {
       console.error('Renewals fetch error:', err)
+    }
+
+    // Fetch At-Risk Renewals (3 months)
+    try {
+      const atRiskRes = await fetch(apiUrl('/api/vital/finance/renewals?months=3'), { headers })
+      if (atRiskRes.ok) {
+        const data = await atRiskRes.json()
+        setAtRiskRenewals(data.renewals || [])
+      }
+    } catch (err) {
+      console.error('At-risk renewals fetch error:', err)
     }
 
     // Fetch spreadsheet data for total annual
@@ -217,14 +231,18 @@ const VitalExecutiveDashboard = ({ user }) => {
   )
 
   // Metric Card Component
-  const MetricCard = ({ label, value, sublabel, icon: Icon, valueColor }) => (
-    <div className="bg-white rounded-lg p-4 border border-gray-100">
+  const MetricCard = ({ label, value, sublabel, icon: Icon, valueColor, onClick }) => (
+    <div 
+      className={`bg-white rounded-lg p-4 border border-gray-100 ${onClick ? 'cursor-pointer hover:bg-gray-50 hover:border-gray-200 transition-colors' : ''}`}
+      onClick={onClick}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm text-gray-500">{label}</span>
         {Icon && <Icon className="h-4 w-4 text-gray-400" />}
       </div>
       <div className={`text-2xl font-bold ${valueColor || 'text-gray-900'}`}>{value}</div>
       {sublabel && <div className="text-xs text-gray-400 mt-1">{sublabel}</div>}
+      {onClick && <div className="text-xs text-blue-500 mt-2">Click to view details →</div>}
     </div>
   )
 
@@ -368,6 +386,7 @@ const VitalExecutiveDashboard = ({ user }) => {
             value={formatNumber(renewals.length)} 
             sublabel={`${formatCurrency(renewalsValue)} in next 6 months`}
             icon={Calendar}
+            onClick={() => setShowRenewalsModal(true)}
           />
           <MetricCard 
             label="At Risk Revenue" 
@@ -375,6 +394,7 @@ const VitalExecutiveDashboard = ({ user }) => {
             sublabel={`${atRiskCount} clients renewing in 3 months`}
             icon={AlertTriangle}
             valueColor="text-amber-500"
+            onClick={() => setShowAtRiskModal(true)}
           />
           <MetricCard 
             label="Annual Revenue" 
@@ -624,6 +644,136 @@ const VitalExecutiveDashboard = ({ user }) => {
           )}
         </div>
       </div>
+    </div>
+
+      {/* Upcoming Renewals Modal */}
+      {showRenewalsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowRenewalsModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Upcoming Renewals</h2>
+                <p className="text-sm text-gray-500">Clients renewing in the next 6 months</p>
+              </div>
+              <button onClick={() => setShowRenewalsModal(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-sm text-gray-600">{renewals.length} renewals totaling {formatCurrency(renewalsValue)}</span>
+              </div>
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Renewal Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solution</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Annual Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {renewals.sort((a, b) => new Date(a.renewal_date) - new Date(b.renewal_date)).map((renewal, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{renewal.billing_name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        {new Date(renewal.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{renewal.solution_type}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          renewal.tier === 'A' ? 'bg-green-100 text-green-800' :
+                          renewal.tier === 'B' ? 'bg-blue-100 text-blue-800' :
+                          renewal.tier === 'C' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {renewal.tier}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                        {formatCurrencyFull(parseFloat(renewal.annual_value))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* At Risk Revenue Modal */}
+      {showAtRiskModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowAtRiskModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-amber-50">
+              <div>
+                <h2 className="text-xl font-bold text-amber-800 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  At Risk Revenue
+                </h2>
+                <p className="text-sm text-amber-600">Clients renewing in the next 3 months requiring attention</p>
+              </div>
+              <button onClick={() => setShowAtRiskModal(false)} className="text-amber-400 hover:text-amber-600">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <div className="mb-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-amber-800 font-medium">{atRiskRenewals.length} clients at risk</span>
+                  <span className="text-2xl font-bold text-amber-600">
+                    {formatCurrency(atRiskRenewals.reduce((sum, r) => sum + (parseFloat(r.annual_value) || 0), 0))}
+                  </span>
+                </div>
+                <p className="text-sm text-amber-600 mt-1">Total revenue at risk in the next 3 months</p>
+              </div>
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Renewal Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Solution</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Annual Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {atRiskRenewals.sort((a, b) => new Date(a.renewal_date) - new Date(b.renewal_date)).map((renewal, idx) => (
+                    <tr key={idx} className="hover:bg-amber-50">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{renewal.billing_name}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">
+                        <span className="text-amber-600 font-medium">
+                          {new Date(renewal.renewal_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{renewal.solution_type}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          renewal.tier === 'A' ? 'bg-green-100 text-green-800' :
+                          renewal.tier === 'B' ? 'bg-blue-100 text-blue-800' :
+                          renewal.tier === 'C' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {renewal.tier}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-amber-600">
+                        {formatCurrencyFull(parseFloat(renewal.annual_value))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
