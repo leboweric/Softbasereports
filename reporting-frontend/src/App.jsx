@@ -36,6 +36,8 @@ import VitalZoomDashboard from './components/vital/VitalZoomDashboard'
 import VitalFinanceBilling from './components/vital/VitalFinanceBilling'
 import VitalMobileAppDashboard from './components/vital/VitalMobileAppDashboard'
 import VitalCustomer360 from './components/vital/VitalCustomer360'
+import VitalSalesDashboard from './components/vital/VitalSalesDashboard'
+import VitalMemberExperienceDashboard from './components/vital/VitalMemberExperienceDashboard'
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -173,7 +175,7 @@ function App() {
     
     // Check if user has access to current page
     // Note: 'billing' and 'settings' are special pages not in navigation, so always allow them
-    const specialPages = ['billing', 'settings', 'vital-customer-360']
+    const specialPages = ['billing', 'settings', 'vital-customer-360', 'vital-sales-dashboard', 'vital-member-experience']
     if (!navigation[currentPage] && !specialPages.includes(currentPage)) {
       // Redirect to first available page using same order as Layout.jsx
       // Menu order: Dashboard, Finance first, then other items (removed vital-quickbooks)
@@ -262,6 +264,10 @@ function App() {
         return <VitalMobileAppDashboard user={user} organization={organization} />
       case 'vital-customer-360':
         return <VitalCustomer360 user={user} onBack={() => setCurrentPage('vital-case-data')} />
+      case 'vital-sales-dashboard':
+        return <VitalSalesDashboard user={user} onBack={() => setCurrentPage('dashboard')} />
+      case 'vital-member-experience':
+        return <VitalMemberExperienceDashboard user={user} onBack={() => setCurrentPage('dashboard')} />
       default:
         return <Dashboard user={user} organization={organization} />
     }

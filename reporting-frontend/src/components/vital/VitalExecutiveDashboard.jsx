@@ -376,6 +376,25 @@ const VitalExecutiveDashboard = ({ user }) => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Dashboard Navigation */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'vital-sales-dashboard' }))}
+            className="flex items-center gap-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+          >
+            <Target className="h-4 w-4" />
+            Sales Dashboard
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'vital-member-experience' }))}
+            className="flex items-center gap-2 bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100"
+          >
+            <Users className="h-4 w-4" />
+            Member Experience
+          </Button>
           {/* Timeframe Selector */}
           <div className="relative">
             <button
