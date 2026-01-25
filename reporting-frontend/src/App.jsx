@@ -35,6 +35,7 @@ import VitalAzureSQLDashboard from './components/vital/VitalAzureSQLDashboard'
 import VitalZoomDashboard from './components/vital/VitalZoomDashboard'
 import VitalFinanceBilling from './components/vital/VitalFinanceBilling'
 import VitalMobileAppDashboard from './components/vital/VitalMobileAppDashboard'
+import VitalCustomer360 from './components/vital/VitalCustomer360'
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -63,6 +64,15 @@ function App() {
     if (urlParams.get('billing') || urlParams.get('page') === 'billing') {
       setCurrentPage('billing')
     }
+
+    // Listen for custom navigation events
+    const handleNavigate = (event) => {
+      if (event.detail) {
+        setCurrentPage(event.detail)
+      }
+    }
+    window.addEventListener('navigate', handleNavigate)
+    return () => window.removeEventListener('navigate', handleNavigate)
   }, [])
 
   const validateToken = async (token) => {
@@ -250,6 +260,8 @@ function App() {
         return <VitalFinanceBilling user={user} organization={organization} />
       case 'vital-mobile-app':
         return <VitalMobileAppDashboard user={user} organization={organization} />
+      case 'vital-customer-360':
+        return <VitalCustomer360 user={user} onBack={() => setCurrentPage('vital-case-data')} />
       default:
         return <Dashboard user={user} organization={organization} />
     }

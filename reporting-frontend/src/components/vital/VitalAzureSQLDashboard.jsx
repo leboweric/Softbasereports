@@ -19,7 +19,9 @@ import {
   FileText,
   Columns,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Building2,
+  Users
 } from 'lucide-react'
 
 const VitalAzureSQLDashboard = ({ user }) => {
@@ -150,6 +152,19 @@ const VitalAzureSQLDashboard = ({ user }) => {
           {lastUpdated && (
             <span className="text-sm text-gray-500">Last updated: {lastUpdated}</span>
           )}
+          <Button 
+            onClick={() => {
+              // Navigate to Customer 360
+              const event = new CustomEvent('navigate', { detail: 'vital-customer-360' })
+              window.dispatchEvent(event)
+            }} 
+            variant="default" 
+            size="sm"
+            className="bg-teal-600 hover:bg-teal-700"
+          >
+            <Building2 className="h-4 w-4 mr-2" />
+            Customer 360
+          </Button>
           <Button onClick={fetchDashboardData} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh

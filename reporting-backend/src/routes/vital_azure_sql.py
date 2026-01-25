@@ -295,3 +295,171 @@ def get_cases_by_type():
     except Exception as e:
         logger.error(f"Cases by type error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ==================== CUSTOMER 360 DASHBOARD ENDPOINTS ====================
+
+@vital_azure_sql_bp.route('/api/vital/azure-sql/organizations', methods=['GET'])
+@jwt_required()
+def get_organizations():
+    """Get list of all organizations for customer selector"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        service = get_azure_sql_service()
+        organizations = service.get_organizations()
+        
+        return jsonify({
+            "success": True,
+            "data": organizations
+        })
+    except ValueError as e:
+        logger.warning(f"Organizations not available: {str(e)}")
+        return jsonify({
+            "success": True,
+            "data": []
+        })
+    except Exception as e:
+        logger.error(f"Organizations error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@vital_azure_sql_bp.route('/api/vital/azure-sql/customer/overview', methods=['GET'])
+@jwt_required()
+def get_customer_overview():
+    """Get overview metrics for a specific customer"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        organization = request.args.get('organization')
+        if not organization:
+            return jsonify({"error": "organization parameter is required"}), 400
+        
+        days = request.args.get('days', 365, type=int)
+        if days < 1 or days > 1825:  # Up to 5 years
+            return jsonify({"error": "days must be between 1 and 1825"}), 400
+        
+        service = get_azure_sql_service()
+        overview = service.get_customer_overview(organization, days=days)
+        
+        return jsonify({
+            "success": True,
+            "data": overview
+        })
+    except ValueError as e:
+        logger.warning(f"Customer overview not available: {str(e)}")
+        return jsonify({
+            "success": True,
+            "data": None,
+            "error": "Azure SQL not configured"
+        })
+    except Exception as e:
+        logger.error(f"Customer overview error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@vital_azure_sql_bp.route('/api/vital/azure-sql/customer/services', methods=['GET'])
+@jwt_required()
+def get_customer_services():
+    """Get service breakdown for a specific customer"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        organization = request.args.get('organization')
+        if not organization:
+            return jsonify({"error": "organization parameter is required"}), 400
+        
+        days = request.args.get('days', 365, type=int)
+        if days < 1 or days > 1825:
+            return jsonify({"error": "days must be between 1 and 1825"}), 400
+        
+        service = get_azure_sql_service()
+        breakdown = service.get_customer_service_breakdown(organization, days=days)
+        
+        return jsonify({
+            "success": True,
+            "data": breakdown
+        })
+    except ValueError as e:
+        logger.warning(f"Customer services not available: {str(e)}")
+        return jsonify({
+            "success": True,
+            "data": None,
+            "error": "Azure SQL not configured"
+        })
+    except Exception as e:
+        logger.error(f"Customer services error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@vital_azure_sql_bp.route('/api/vital/azure-sql/customer/trends', methods=['GET'])
+@jwt_required()
+def get_customer_trends():
+    """Get trend data for a specific customer"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        organization = request.args.get('organization')
+        if not organization:
+            return jsonify({"error": "organization parameter is required"}), 400
+        
+        days = request.args.get('days', 365, type=int)
+        if days < 1 or days > 1825:
+            return jsonify({"error": "days must be between 1 and 1825"}), 400
+        
+        service = get_azure_sql_service()
+        trends = service.get_customer_trends(organization, days=days)
+        
+        return jsonify({
+            "success": True,
+            "data": trends
+        })
+    except ValueError as e:
+        logger.warning(f"Customer trends not available: {str(e)}")
+        return jsonify({
+            "success": True,
+            "data": None,
+            "error": "Azure SQL not configured"
+        })
+    except Exception as e:
+        logger.error(f"Customer trends error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@vital_azure_sql_bp.route('/api/vital/azure-sql/customer/outcomes', methods=['GET'])
+@jwt_required()
+def get_customer_outcomes():
+    """Get outcomes data for a specific customer"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        organization = request.args.get('organization')
+        if not organization:
+            return jsonify({"error": "organization parameter is required"}), 400
+        
+        days = request.args.get('days', 365, type=int)
+        if days < 1 or days > 1825:
+            return jsonify({"error": "days must be between 1 and 1825"}), 400
+        
+        service = get_azure_sql_service()
+        outcomes = service.get_customer_outcomes(organization, days=days)
+        
+        return jsonify({
+            "success": True,
+            "data": outcomes
+        })
+    except ValueError as e:
+        logger.warning(f"Customer outcomes not available: {str(e)}")
+        return jsonify({
+            "success": True,
+            "data": None,
+            "error": "Azure SQL not configured"
+        })
+    except Exception as e:
+        logger.error(f"Customer outcomes error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
