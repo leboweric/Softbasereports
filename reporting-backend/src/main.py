@@ -110,6 +110,7 @@ from src.routes.vital_azure_sql import vital_azure_sql_bp
 from src.routes.vital_zoom import vital_zoom_bp
 from src.routes.vital_finance import vital_finance_bp
 from src.routes.vital_mobile_app import vital_mobile_app_bp
+from src.routes.vital_ceo_dashboard import vital_ceo_bp
 from src.etl.scheduler import register_etl_routes, init_etl_scheduler
 from src.services.postgres_service import get_postgres_db
 from src.services.forecast_scheduler import init_forecast_scheduler
@@ -245,6 +246,7 @@ app.register_blueprint(vital_azure_sql_bp)
 app.register_blueprint(vital_zoom_bp)
 app.register_blueprint(vital_finance_bp)
 app.register_blueprint(vital_mobile_app_bp)
+app.register_blueprint(vital_ceo_bp)
 
 # Register ETL management routes
 register_etl_routes(app)

@@ -7,8 +7,12 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import logging
 import os
+from src.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
+
+# Cache TTL for Azure SQL data (5 minutes)
+CACHE_TTL = 300
 
 vital_azure_sql_bp = Blueprint('vital_azure_sql', __name__)
 
@@ -219,24 +223,42 @@ def get_row_count():
 @vital_azure_sql_bp.route('/api/vital/azure-sql/case-metrics', methods=['GET'])
 @jwt_required()
 def get_case_metrics():
-    """Get case metrics for CEO Dashboard with timeframe filtering"""
+    """Get case metrics for CEO Dashboard with timeframe filtering (with caching)"""
     try:
         if not is_vital_user():
             return jsonify({"error": "Access denied. VITAL users only."}), 403
         
         # Get days parameter (default 30)
         days = request.args.get('days', 30, type=int)
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
         # Validate days range
         if days < 1 or days > 365:
             return jsonify({"error": "days must be between 1 and 365"}), 400
         
+        # Check cache first
+        cache_key = f"vital_azure_sql_case_metrics:{days}"
+        if not force_refresh:
+            cached = cache_service.get(cache_key)
+            if cached:
+                logger.info(f"Cache HIT for case metrics (days={days})")
+                return jsonify({
+                    "success": True,
+                    "data": cached,
+                    "from_cache": True
+                })
+        
+        logger.info(f"Cache MISS for case metrics (days={days}), fetching from Azure SQL")
         service = get_azure_sql_service()
         metrics = service.get_case_metrics(days=days)
         
+        # Cache the result
+        cache_service.set(cache_key, metrics, CACHE_TTL)
+        
         return jsonify({
             "success": True,
-            "data": metrics
+            "data": metrics,
+            "from_cache": False
         })
     except ValueError as e:
         # Handle configuration errors gracefully
@@ -261,24 +283,42 @@ def get_case_metrics():
 @vital_azure_sql_bp.route('/api/vital/azure-sql/cases-by-type', methods=['GET'])
 @jwt_required()
 def get_cases_by_type():
-    """Get breakdown of new cases by Case Type for CEO Dashboard modal"""
+    """Get breakdown of new cases by Case Type for CEO Dashboard modal (with caching)"""
     try:
         if not is_vital_user():
             return jsonify({"error": "Access denied. VITAL users only."}), 403
         
         # Get days parameter (default 30)
         days = request.args.get('days', 30, type=int)
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
         # Validate days range
         if days < 1 or days > 365:
             return jsonify({"error": "days must be between 1 and 365"}), 400
         
+        # Check cache first
+        cache_key = f"vital_azure_sql_cases_by_type:{days}"
+        if not force_refresh:
+            cached = cache_service.get(cache_key)
+            if cached:
+                logger.info(f"Cache HIT for cases by type (days={days})")
+                return jsonify({
+                    "success": True,
+                    "data": cached,
+                    "from_cache": True
+                })
+        
+        logger.info(f"Cache MISS for cases by type (days={days}), fetching from Azure SQL")
         service = get_azure_sql_service()
         result = service.get_cases_by_type(days=days)
         
+        # Cache the result
+        cache_service.set(cache_key, result, CACHE_TTL)
+        
         return jsonify({
             "success": True,
-            "data": result
+            "data": result,
+            "from_cache": False
         })
     except ValueError as e:
         # Handle configuration errors gracefully

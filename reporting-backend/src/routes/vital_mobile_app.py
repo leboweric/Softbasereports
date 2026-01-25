@@ -7,8 +7,12 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import logging
 import os
+from src.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
+
+# Cache TTL for mobile app data (5 minutes)
+CACHE_TTL = 300
 
 vital_mobile_app_bp = Blueprint('vital_mobile_app', __name__)
 
@@ -41,7 +45,7 @@ def is_vital_user():
 @vital_mobile_app_bp.route('/api/vital/mobile-app/dashboard', methods=['GET'])
 @jwt_required()
 def get_mobile_app_dashboard():
-    """Get complete mobile app analytics dashboard data"""
+    """Get complete mobile app analytics dashboard data (with caching)"""
     try:
         # Verify user is from VITAL organization
         if not is_vital_user():
@@ -50,13 +54,32 @@ def get_mobile_app_dashboard():
         # Get days parameter (default 30)
         days = request.args.get('days', 30, type=int)
         days = min(max(days, 7), 90)  # Limit between 7 and 90 days
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
+        # Check cache first
+        cache_key = f"vital_mobile_app_dashboard:{days}"
+        if not force_refresh:
+            cached = cache_service.get(cache_key)
+            if cached:
+                logger.info(f"Cache HIT for mobile app dashboard (days={days})")
+                return jsonify({
+                    "success": True,
+                    "data": cached,
+                    "from_cache": True
+                })
+        
+        # Fetch from BigQuery
+        logger.info(f"Cache MISS for mobile app dashboard (days={days}), fetching from BigQuery")
         bq = get_bigquery_service()
         dashboard_data = bq.get_dashboard_summary(days)
         
+        # Cache the result
+        cache_service.set(cache_key, dashboard_data, CACHE_TTL)
+        
         return jsonify({
             "success": True,
-            "data": dashboard_data
+            "data": dashboard_data,
+            "from_cache": False
         })
     except Exception as e:
         logger.error(f"Mobile app dashboard error: {str(e)}")

@@ -6,8 +6,12 @@ Provides API endpoints for Zoom Phone call center data and meeting analytics
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import logging
+from src.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
+
+# Cache TTL for Zoom data (5 minutes)
+CACHE_TTL = 300
 
 vital_zoom_bp = Blueprint('vital_zoom', __name__)
 
@@ -73,17 +77,36 @@ def zoom_health_check():
 @vital_zoom_bp.route('/api/vital/zoom/dashboard', methods=['GET'])
 @jwt_required()
 def get_zoom_dashboard():
-    """Get comprehensive call center dashboard data"""
+    """Get comprehensive call center dashboard data (with caching)"""
     try:
         if not is_vital_user():
             return jsonify({"error": "Access denied. VITAL users only."}), 403
         
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        cache_key = "vital_zoom_dashboard"
+        
+        # Check cache first
+        if not force_refresh:
+            cached = cache_service.get(cache_key)
+            if cached:
+                logger.info("Cache HIT for Zoom dashboard")
+                return jsonify({
+                    "success": True,
+                    "data": cached,
+                    "from_cache": True
+                })
+        
+        logger.info("Cache MISS for Zoom dashboard, fetching from Zoom API")
         service = get_zoom_service()
         dashboard_data = service.get_call_center_dashboard()
         
+        # Cache the result
+        cache_service.set(cache_key, dashboard_data, CACHE_TTL)
+        
         return jsonify({
             "success": True,
-            "data": dashboard_data
+            "data": dashboard_data,
+            "from_cache": False
         })
     except Exception as e:
         logger.error(f"Zoom dashboard error: {str(e)}")
@@ -137,12 +160,27 @@ def debug_call_logs():
 @vital_zoom_bp.route('/api/vital/zoom/call-volume-trend', methods=['GET'])
 @jwt_required()
 def get_call_volume_trend():
-    """Get daily call volume trend with spike detection"""
+    """Get daily call volume trend with spike detection (with caching)"""
     try:
         if not is_vital_user():
             return jsonify({"error": "Access denied. VITAL users only."}), 403
         
         days = request.args.get('days', 30, type=int)
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        
+        # Check cache first
+        cache_key = f"vital_zoom_call_volume_trend:{days}"
+        if not force_refresh:
+            cached = cache_service.get(cache_key)
+            if cached:
+                logger.info(f"Cache HIT for Zoom call volume trend (days={days})")
+                return jsonify({
+                    "success": True,
+                    "data": cached,
+                    "from_cache": True
+                })
+        
+        logger.info(f"Cache MISS for Zoom call volume trend (days={days}), fetching from Zoom API")
         service = get_zoom_service()
         
         # Get all call logs with pagination
@@ -218,14 +256,21 @@ def get_call_volume_trend():
                 day['is_spike'] = day['total'] > spike_threshold
                 day['avg'] = round(avg_calls, 1)
         
+        # Build response data
+        response_data = {
+            "trend": trend_data,
+            "period": f"{from_date} to {to_date}",
+            "total_calls": len(all_calls),
+            "pages_fetched": pages_fetched
+        }
+        
+        # Cache the result
+        cache_service.set(cache_key, response_data, CACHE_TTL)
+        
         return jsonify({
             "success": True,
-            "data": {
-                "trend": trend_data,
-                "period": f"{from_date} to {to_date}",
-                "total_calls": len(all_calls),
-                "pages_fetched": pages_fetched
-            }
+            "data": response_data,
+            "from_cache": False
         })
     except Exception as e:
         logger.error(f"Call volume trend error: {str(e)}")
