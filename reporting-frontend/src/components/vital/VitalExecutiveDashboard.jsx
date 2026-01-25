@@ -709,9 +709,9 @@ const VitalExecutiveDashboard = ({ user }) => {
             icon={FolderOpen}
           />
           <MetricCard 
-            label="Total Cases" 
-            value={formatNumber(totalCasesAll)} 
-            sublabel="All time"
+            label={`Total Cases (${timeframe}d)`}
+            value={formatNumber(newCases + closedCases)} 
+            sublabel={`Last ${timeframe} days`}
             icon={Activity}
           />
         </div>
