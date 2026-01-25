@@ -327,41 +327,16 @@ class VitalAzureSQLService:
             conn = self._get_connection()
             cursor = conn.cursor(as_dict=True)
             
-            # First, let's understand what date columns are available
-            cursor.execute(f"""
-                SELECT COLUMN_NAME, DATA_TYPE
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = '{self.ALLOWED_TABLE}'
-                AND (DATA_TYPE LIKE '%date%' OR DATA_TYPE LIKE '%time%')
-            """)
-            date_columns = cursor.fetchall()
-            logger.info(f"Date columns found: {date_columns}")
+            # Known column names from Case_Data_Summary_NOPHI table
+            # Based on actual schema inspection:
+            # - "Case Create Date" (date) - when case was created
+            # - "Date Opened" (date) - when case was opened  
+            # - "Date Closed" (date) - when case was closed
+            # - "Workflow Status" (varchar) - case status
             
-            # Get column names to find status and date fields
-            cursor.execute(f"SELECT TOP 1 * FROM [{self.ALLOWED_TABLE}]")
-            sample = cursor.fetchone()
-            columns = list(sample.keys()) if sample else []
-            logger.info(f"All columns: {columns}")
-            
-            # Look for common date column patterns
-            date_col = None
-            close_date_col = None
-            status_col = None
-            
-            for col in columns:
-                col_lower = col.lower()
-                if 'open' in col_lower and 'date' in col_lower:
-                    date_col = col
-                elif 'created' in col_lower or 'create_date' in col_lower:
-                    date_col = date_col or col
-                elif 'close' in col_lower and 'date' in col_lower:
-                    close_date_col = col
-                elif 'status' in col_lower:
-                    status_col = col
-            
-            # If no specific date column found, try to use the first date column
-            if not date_col and date_columns:
-                date_col = date_columns[0]['COLUMN_NAME']
+            date_col = 'Case Create Date'  # Use case creation date for new cases
+            close_date_col = 'Date Closed'
+            status_col = 'Workflow Status'
             
             logger.info(f"Using date_col={date_col}, close_date_col={close_date_col}, status_col={status_col}")
             
@@ -369,22 +344,24 @@ class VitalAzureSQLService:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
             
-            # Get total open cases (current backlog)
+            # Get total open cases (current backlog) - cases without a close date
             open_cases = 0
-            if status_col:
+            try:
                 cursor.execute(f"""
                     SELECT COUNT(*) as count 
                     FROM [{self.ALLOWED_TABLE}]
-                    WHERE [{status_col}] IN ('Open', 'Active', 'In Progress', 'Pending')
+                    WHERE [{close_date_col}] IS NULL
                 """)
                 result = cursor.fetchone()
                 open_cases = result['count'] if result else 0
+            except Exception as e:
+                logger.warning(f"Could not get open cases: {str(e)}")
             
             # Get new cases in the period
             new_cases = 0
             daily_trend = []
             
-            if date_col:
+            try:
                 # Count new cases in the period
                 cursor.execute(f"""
                     SELECT COUNT(*) as count 
@@ -411,10 +388,12 @@ class VitalAzureSQLService:
                         'date': row['date'].isoformat() if hasattr(row['date'], 'isoformat') else str(row['date']),
                         'new_cases': row['new_cases']
                     })
+            except Exception as e:
+                logger.warning(f"Could not get new cases: {str(e)}")
             
             # Get closed cases in the period
             closed_cases = 0
-            if close_date_col:
+            try:
                 cursor.execute(f"""
                     SELECT COUNT(*) as count 
                     FROM [{self.ALLOWED_TABLE}]
@@ -422,6 +401,8 @@ class VitalAzureSQLService:
                 """, (start_date, end_date))
                 result = cursor.fetchone()
                 closed_cases = result['count'] if result else 0
+            except Exception as e:
+                logger.warning(f"Could not get closed cases: {str(e)}")
             
             # Get total cases for context
             cursor.execute(f"SELECT COUNT(*) as total FROM [{self.ALLOWED_TABLE}]")
