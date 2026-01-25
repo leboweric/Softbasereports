@@ -37,7 +37,8 @@ import {
   ChevronDown,
   ClipboardList,
   CheckCircle,
-  FolderOpen
+  FolderOpen,
+  Heart
 } from 'lucide-react'
 
 // CEO Dashboard organized by department sections
@@ -394,6 +395,24 @@ const VitalExecutiveDashboard = ({ user }) => {
           >
             <Users className="h-4 w-4" />
             Member Experience
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'vital-financial-dashboard' }))}
+            className="flex items-center gap-2 bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+          >
+            <DollarSign className="h-4 w-4" />
+            Financial
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'vital-provider-network' }))}
+            className="flex items-center gap-2 bg-cyan-50 border-cyan-200 text-cyan-700 hover:bg-cyan-100"
+          >
+            <Heart className="h-4 w-4" />
+            Provider Network
           </Button>
           {/* Timeframe Selector */}
           <div className="relative">

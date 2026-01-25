@@ -38,6 +38,8 @@ import VitalMobileAppDashboard from './components/vital/VitalMobileAppDashboard'
 import VitalCustomer360 from './components/vital/VitalCustomer360'
 import VitalSalesDashboard from './components/vital/VitalSalesDashboard'
 import VitalMemberExperienceDashboard from './components/vital/VitalMemberExperienceDashboard'
+import VitalFinancialDashboard from './components/vital/VitalFinancialDashboard'
+import VitalProviderNetworkDashboard from './components/vital/VitalProviderNetworkDashboard'
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -175,7 +177,7 @@ function App() {
     
     // Check if user has access to current page
     // Note: 'billing' and 'settings' are special pages not in navigation, so always allow them
-    const specialPages = ['billing', 'settings', 'vital-customer-360', 'vital-sales-dashboard', 'vital-member-experience']
+    const specialPages = ['billing', 'settings', 'vital-customer-360', 'vital-sales-dashboard', 'vital-member-experience', 'vital-financial-dashboard', 'vital-provider-network']
     if (!navigation[currentPage] && !specialPages.includes(currentPage)) {
       // Redirect to first available page using same order as Layout.jsx
       // Menu order: Dashboard, Finance first, then other items (removed vital-quickbooks)
@@ -268,6 +270,10 @@ function App() {
         return <VitalSalesDashboard user={user} onBack={() => setCurrentPage('dashboard')} />
       case 'vital-member-experience':
         return <VitalMemberExperienceDashboard user={user} onBack={() => setCurrentPage('dashboard')} />
+      case 'vital-financial-dashboard':
+        return <VitalFinancialDashboard user={user} onBack={() => setCurrentPage('dashboard')} />
+      case 'vital-provider-network':
+        return <VitalProviderNetworkDashboard user={user} onBack={() => setCurrentPage('dashboard')} />
       default:
         return <Dashboard user={user} organization={organization} />
     }
