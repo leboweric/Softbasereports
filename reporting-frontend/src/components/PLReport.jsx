@@ -218,6 +218,47 @@ const PLReport = ({ user, organization }) => {
             </svg>
             Export to Excel
           </button>
+
+          {/* Detailed Export Button - Matches Accounting Firm Format */}
+          <button
+            onClick={async () => {
+              try {
+                // Extract month and year from startDate
+                const date = new Date(startDate);
+                const month = date.getMonth() + 1;
+                const year = date.getFullYear();
+
+                const token = localStorage.getItem('token');
+                const response = await axios.get(
+                  `${import.meta.env.VITE_API_URL}/api/reports/pl/detailed/export`,
+                  {
+                    params: { month, year },
+                    headers: { Authorization: `Bearer ${token}` },
+                    responseType: 'blob'
+                  }
+                );
+
+                // Create download link
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                link.setAttribute('download', `ProfitLoss_Detailed_${monthNames[month-1]}${year}.xlsx`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error('Error downloading detailed Excel file:', error);
+                alert('Failed to download detailed Excel file');
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium"
+            title="Export with department tabs and GL account detail (matches accounting firm format)"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Detailed Export
+          </button>
         </div>
       </div>
 

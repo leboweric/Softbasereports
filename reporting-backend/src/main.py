@@ -89,6 +89,7 @@ from src.routes.service_assistant import service_assistant_bp
 from src.routes.service_assistant_analytics import analytics_bp
 from src.routes.currie_report import currie_bp
 from src.routes.pl_report import pl_report_bp
+from src.routes.pl_report_detailed import pl_detailed_bp
 from src.routes.diagnostic_602600 import diagnostic_bp
 from src.routes.cashflow_widget import cashflow_widget_bp
 from src.routes.pl_widget import pl_widget_bp
@@ -232,6 +233,7 @@ app.register_blueprint(service_assistant_bp)
 app.register_blueprint(analytics_bp)
 app.register_blueprint(currie_bp)
 app.register_blueprint(pl_report_bp)
+app.register_blueprint(pl_detailed_bp)
 app.register_blueprint(diagnostic_bp)
 app.register_blueprint(cashflow_widget_bp)
 app.register_blueprint(pl_widget_bp)
