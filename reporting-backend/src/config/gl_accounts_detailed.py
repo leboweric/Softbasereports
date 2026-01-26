@@ -1,34 +1,34 @@
 # GL Account Configuration for Detailed P&L Export
 # This file contains the GL account mappings for each department
-# These MUST match the GL_ACCOUNTS in pl_report.py exactly
+# These MUST match the GL_ACCOUNTS in pl_report.py EXACTLY
 
-# Department Configuration - matches GL_ACCOUNTS in pl_report.py
+# Department Configuration - EXACT copy from pl_report.py GL_ACCOUNTS
 DEPARTMENT_CONFIG = {
     'new_equipment': {
         'dept_code': 10,
         'dept_name': 'New Equipment',
         'tab_name': 'P&L New Equip',
         'sales_accounts': [
+            ('410001', 'SALES - New Equipment'),
             ('412001', 'SALES - ALLIED - New Equip'),
             ('413001', 'SALES - LINDE - New Equip'),
             ('414001', 'SALES - BATTERY/CHARGERS - New Equip'),
-            ('414002', 'SALES - BATTERY/CHARGERS 2 - New Equip'),
-            ('415001', 'SALES - ATTACHMENTS - New Equip'),
-            ('417001', 'SALES - OTHER - New Equip'),
-            ('417003', 'SALES - OTHER 3 - New Equip'),
+            ('421001', 'SALES - FREIGHT - New Equip'),
+            ('426001', 'SALES - KOMATSU - New Equip'),
+            ('431001', 'SALES - SKID LOADERS - New Equip'),
             ('434001', 'SALES - TRUCKING/DELIVERY - New Equip'),
         ],
         'cos_accounts': [
-            ('512001', 'COS - ALLIED - New Equip'),
+            ('510001', 'COS - New Equip'),
             ('513001', 'COS - LINDE - New Equip'),
-            ('514001', 'COS - BATTERY/CHARGERS - New Equip'),
-            ('514002', 'COS - BATTERY/CHARGERS 2 - New Equip'),
-            ('515001', 'COS - ATTACHMENTS - New Equip'),
-            ('517001', 'COS - OTHER - New Equip'),
-            ('517003', 'COS - OTHER 3 - New Equip'),
+            ('514001', 'COS - BATTERIES/CHARGERS - New Equip'),
+            ('521001', 'COS - FREIGHT - New Equip'),
+            ('525001', 'COS - INTERNAL NEW EQUIP'),
+            ('526001', 'COS - KOMATSU - New Equip'),
+            ('531001', 'COS - SKID LOADERS - New Equip'),
             ('534001', 'COS - TRUCKING/DELIVERY - New Equip'),
-            ('540001', 'COS - ADMINISTRATIVE - New Equip'),
-            ('541001', 'COS - RENTAL INTERNAL - New Equip'),
+            ('534013', 'COS - TRUCKING/DELIVERY - New Equipment Demo'),
+            ('538000', 'COS - EQ. ADJUSTMENT'),
         ]
     },
     'used_equipment': {
@@ -36,27 +36,27 @@ DEPARTMENT_CONFIG = {
         'dept_name': 'Used Equipment',
         'tab_name': 'P&L Used Equip',
         'sales_accounts': [
+            ('410002', 'SALES - Used Equipment'),
             ('412002', 'SALES - ALLIED - Used Equip'),
             ('413002', 'SALES - LINDE - Used Equip'),
-            ('414003', 'SALES - BATTERY/CHARGERS - Used Equip'),
-            ('415002', 'SALES - ATTACHMENTS - Used Equip'),
-            ('417002', 'SALES - OTHER - Used Equip'),
-            ('417004', 'SALES - OTHER 4 - Used Equip'),
-            ('418000', 'SALES - WHOLESALE'),
+            ('414002', 'SALES - BATTERY/CHARGERS - Used Equip'),
+            ('421002', 'SALES - FREIGHT - Used Equip'),
+            ('426002', 'SALES - KOMATSU - Used Equip'),
+            ('431002', 'SALES - SKID LOADERS - Used Equip'),
             ('434002', 'SALES - TRUCKING/DELIVERY - Used Equip'),
-            ('436000', 'SALES - MISC'),
+            ('436001', 'SALES - MISC - Used Equip'),
         ],
         'cos_accounts': [
+            ('510002', 'COS - Used Equip'),
             ('512002', 'COS - ALLIED - Used Equip'),
             ('513002', 'COS - LINDE - Used Equip'),
-            ('514003', 'COS - BATTERY/CHARGERS - Used Equip'),
-            ('515002', 'COS - ATTACHMENTS - Used Equip'),
-            ('517002', 'COS - OTHER - Used Equip'),
-            ('517004', 'COS - OTHER 4 - Used Equip'),
-            ('518000', 'COS - WHOLESALE'),
+            ('514002', 'COS - BATTERY/CHARGERS - Used Equip'),
+            ('521002', 'COS - FREIGHT - Used Equip'),
+            ('525002', 'COS - INTERNAL - Used Equip'),
+            ('526002', 'COS - KOMATSU - Used Equip'),
+            ('531002', 'COS - SKID LOADERS - Used Equip'),
             ('534002', 'COS - TRUCKING/DELIVERY - Used Equip'),
-            ('540002', 'COS - ADMINISTRATIVE - Used Equip'),
-            ('541002', 'COS - RENTAL INTERNAL - Used Equip'),
+            ('536001', 'COS - MISC - Used Equip'),
         ]
     },
     'parts': {
@@ -65,35 +65,35 @@ DEPARTMENT_CONFIG = {
         'tab_name': 'P&L Parts',
         'sales_accounts': [
             ('410003', 'SALES - Parts'),
-            ('410006', 'SALES - Parts 6'),
-            ('410008', 'SALES - Parts 8'),
-            ('410009', 'SALES - Parts 9'),
-            ('410010', 'SALES - Parts 10'),
             ('410012', 'SALES - Parts 12'),
-            ('410013', 'SALES - Parts 13'),
             ('410014', 'SALES - Parts 14'),
             ('410015', 'SALES - Parts 15'),
             ('421003', 'SALES - FREIGHT - Parts'),
+            ('424000', 'SALES - SHOP SUPPLIES'),
+            ('429001', 'SALES - PM CONTRACT - Parts'),
+            ('430000', 'SALES - FULL MAINT CONTRACT'),
+            ('433000', 'SALES - SERVICE OTHER'),
             ('434003', 'SALES - TRUCKING/DELIVERY - Parts'),
-            ('436003', 'SALES - MISC - Parts'),
+            ('436002', 'SALES - MISC - Parts'),
+            ('439000', 'SALES - OTHER'),
         ],
         'cos_accounts': [
             ('510003', 'COS - Parts'),
-            ('510006', 'COS - Parts 6'),
-            ('510008', 'COS - Parts 8'),
-            ('510009', 'COS - Parts 9'),
-            ('510010', 'COS - Parts 10'),
             ('510012', 'COS - Parts 12'),
             ('510013', 'COS - Parts 13'),
             ('510014', 'COS - Parts 14'),
             ('510015', 'COS - Parts 15'),
             ('521003', 'COS - FREIGHT - Parts'),
-            ('525003', 'COS - INTERNAL - Parts'),
+            ('522001', 'COS - LABOR - Parts'),
+            ('524000', 'COS - SHOP SUPPLIES'),
+            ('529002', 'COS - PM CONTRACT'),
+            ('530000', 'COS - FULL MAINT CONTRACT'),
+            ('533000', 'COS - SERVICE OTHER'),
             ('534003', 'COS - TRUCKING/DELIVERY - Parts'),
-            ('536003', 'COS - MISC - Parts'),
-            ('540003', 'COS - ADMINISTRATIVE - Parts'),
-            ('541003', 'COS - RENTAL INTERNAL - Parts'),
-            ('542003', 'COS - OTHER - Parts'),
+            ('536002', 'COS - MISC - Parts'),
+            ('542000', 'COS - OTHER'),
+            ('543000', 'COS - DEPRECIATION'),
+            ('544000', 'COS - OTHER 2'),
         ]
     },
     'service': {
@@ -124,21 +124,21 @@ DEPARTMENT_CONFIG = {
             ('510004', 'COS - Service'),
             ('510005', 'COS - Service 5'),
             ('510007', 'COS - Service 7'),
-            ('510016', 'COS - Service 16'),
+            ('512001', 'COS - ALLIED'),
             ('521004', 'COS - FREIGHT - Service'),
             ('521005', 'COS - FREIGHT - Service 5'),
             ('521006', 'COS - FREIGHT - Service 6'),
             ('521007', 'COS - FREIGHT - Service 7'),
-            ('523000', 'COS - LABOR'),
-            ('525004', 'COS - INTERNAL - Service'),
+            ('522000', 'COS - LABOR'),
+            ('523000', 'COS - LABOR 2'),
             ('528000', 'COS - SHOP SUPPLIES'),
-            ('529002', 'COS - PM CONTRACT'),
-            ('534004', 'COS - TRUCKING/DELIVERY - Service'),
-            ('535000', 'COS - SERVICE OTHER'),
+            ('529001', 'COS - PM CONTRACT'),
+            ('534015', 'COS - TRUCKING/DELIVERY - Service'),
             ('535001', 'COS - SERVICE OTHER 1'),
             ('535002', 'COS - SERVICE OTHER 2'),
             ('535003', 'COS - SERVICE OTHER 3'),
             ('535004', 'COS - SERVICE OTHER 4'),
+            ('535005', 'COS - SERVICE OTHER 5'),
         ]
     },
     'rental': {
@@ -146,24 +146,23 @@ DEPARTMENT_CONFIG = {
         'dept_name': 'Rental',
         'tab_name': 'P&L Rental',
         'sales_accounts': [
-            ('410006R', 'SALES - Rental'),
-            ('419000', 'SALES - RENTAL REVENUE'),
-            ('419001', 'SALES - RENTAL REVENUE 1'),
-            ('419002', 'SALES - RENTAL REVENUE 2'),
-            ('421006R', 'SALES - FREIGHT - Rental'),
-            ('434006', 'SALES - TRUCKING/DELIVERY - Rental'),
+            ('410008', 'SALES - Rental'),
+            ('411001', 'SALES - RENTAL REVENUE'),
+            ('419000', 'SALES - RENTAL REVENUE 2'),
+            ('420000', 'SALES - RENTAL REVENUE 3'),
+            ('421000', 'SALES - FREIGHT - Rental'),
+            ('434012', 'SALES - TRUCKING/DELIVERY - Rental'),
         ],
         'cos_accounts': [
-            ('510006R', 'COS - Rental'),
-            ('519000', 'COS - RENTAL'),
-            ('519001', 'COS - RENTAL 1'),
-            ('519002', 'COS - RENTAL 2'),
-            ('521006R', 'COS - FREIGHT - Rental'),
-            ('534006', 'COS - TRUCKING/DELIVERY - Rental'),
-            ('540006', 'COS - ADMINISTRATIVE - Rental'),
-            ('541006', 'COS - RENTAL INTERNAL - Rental'),
-            ('542006', 'COS - OTHER - Rental'),
-            ('543006', 'COS - DEPRECIATION - Rental'),
+            ('510008', 'COS - Rental'),
+            ('511001', 'COS - RENTAL'),
+            ('519000', 'COS - RENTAL 2'),
+            ('520000', 'COS - RENTAL 3'),
+            ('521008', 'COS - FREIGHT - Rental'),
+            ('534014', 'COS - TRUCKING/DELIVERY - Rental'),
+            ('537001', 'COS - RENTAL MAINTENANCE'),
+            ('539000', 'COS - RENTAL OTHER'),
+            ('545000', 'COS - RENTAL DEPRECIATION'),
         ]
     },
     'transportation': {
@@ -171,23 +170,22 @@ DEPARTMENT_CONFIG = {
         'dept_name': 'Transportation',
         'tab_name': 'P&L Transportation',
         'sales_accounts': [
-            ('410008T', 'SALES - Transportation'),
-            ('421008', 'SALES - FREIGHT - Transportation'),
-            ('434008', 'SALES - TRUCKING/DELIVERY - Transportation'),
-            ('436008', 'SALES - MISC - Transportation'),
+            ('410010', 'SALES - Transportation'),
+            ('421010', 'SALES - FREIGHT - Transportation'),
+            ('434010', 'SALES - TRUCKING/DELIVERY - Transportation'),
+            ('434013', 'SALES - TRUCKING/DELIVERY - Transportation 2'),
         ],
         'cos_accounts': [
-            ('510008T', 'COS - Transportation'),
-            ('521008', 'COS - FREIGHT - Transportation'),
-            ('534008', 'COS - TRUCKING/DELIVERY - Transportation'),
-            ('540008', 'COS - ADMINISTRATIVE - Transportation'),
+            ('510010', 'COS - Transportation'),
+            ('521010', 'COS - FREIGHT - Transportation'),
+            ('534010', 'COS - TRUCKING/DELIVERY - Transportation'),
+            ('534012', 'COS - TRUCKING/DELIVERY - Transportation 2'),
         ]
     },
     'in_house': {
         'dept_code': 90,
         'dept_name': 'In House / Administrative',
         'tab_name': 'P&L In House',
-        # Dashboard: ['410011', '421011', '422100', '427000', '434011']
         'sales_accounts': [
             ('410011', 'Sales - Administrative'),
             ('421011', 'SALES - FREIGHT - Administrative'),
@@ -195,7 +193,6 @@ DEPARTMENT_CONFIG = {
             ('427000', 'SALES - OPERATOR AWARENESS TRAINING'),
             ('434011', 'SALES - TRUCKING/DELIVERY - Administrative'),
         ],
-        # Dashboard: ['510011', '521011', '522100', '525000', '527000', '532000', '534011', '540000', '541000']
         'cos_accounts': [
             ('510011', 'COS - Administrative'),
             ('521011', 'COS - FREIGHT - Administrative'),
@@ -211,7 +208,7 @@ DEPARTMENT_CONFIG = {
 }
 
 # Overhead Expense Accounts (for Administrative/In House tab)
-# These match the EXPENSE_ACCOUNTS in pl_report.py
+# These match the EXPENSE_ACCOUNTS in pl_report.py EXACTLY
 OVERHEAD_EXPENSE_ACCOUNTS = {
     'depreciation': [
         ('600900', 'DEPRECIATION'),
@@ -298,8 +295,7 @@ OVERHEAD_EXPENSE_ACCOUNTS = {
     ]
 }
 
-# Other Income & Expense Accounts
-# These match the OTHER_INCOME_ACCOUNTS in pl_report.py
+# Other Income Accounts - matches OTHER_INCOME_ACCOUNTS in pl_report.py
 OTHER_INCOME_EXPENSE_ACCOUNTS = {
     'other_income': [
         ('701000', 'GAIN/LOSS ON SALE OF ASSET'),
@@ -308,13 +304,10 @@ OTHER_INCOME_EXPENSE_ACCOUNTS = {
         ('704000', 'A/P DISCOUNTS TAKEN'),
         ('705000', 'PARTS DISCOUNTS'),
     ],
-    'other_expense': [
-        # Note: Most expense accounts are in OVERHEAD_EXPENSE_ACCOUNTS
-        # This section is for true "other" items not in normal operations
-    ],
+    'other_expense': [],
 }
 
-# Helper function to get all accounts for a department
+# Helper functions
 def get_all_sales_accounts():
     """Get all sales account numbers across all departments"""
     accounts = []
@@ -342,4 +335,3 @@ def get_all_other_accounts():
     for category in OTHER_INCOME_EXPENSE_ACCOUNTS.values():
         accounts.extend([acct[0] for acct in category])
     return accounts
-# Deployment trigger: Mon Jan 26 14:44:41 EST 2026
