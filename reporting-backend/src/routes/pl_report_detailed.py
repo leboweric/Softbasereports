@@ -458,18 +458,20 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
     ws[f'A{current_row}'].font = header_font
     current_row += 2
     
-    # Expense categories
+    # Expense categories - MUST match keys in OVERHEAD_EXPENSE_ACCOUNTS
     category_names = {
-        'advertising': 'Advertising & Sales Promotion',
-        'bad_debts': 'Bad Debts',
         'depreciation': 'Depreciation',
-        'operations': 'Operations',
-        'miscellaneous': 'Miscellaneous',
-        'facilities': 'Facilities',
-        'general_admin': 'General & Administrative',
-        'payroll': 'Payroll & Benefits',
-        'professional': 'Professional Services',
-        'vehicle': 'Vehicle Expense',
+        'salaries_wages': 'Salaries & Wages',
+        'payroll_benefits': 'Payroll Benefits',
+        'rent_facilities': 'Rent & Facilities',
+        'utilities': 'Utilities',
+        'insurance': 'Insurance',
+        'marketing': 'Marketing & Advertising',
+        'professional_fees': 'Professional Fees',
+        'office_admin': 'Office & Administrative',
+        'vehicle_equipment': 'Vehicle & Equipment',
+        'interest_finance': 'Interest & Finance',
+        'other_expenses': 'Other Expenses',
     }
     
     for category, display_name in category_names.items():
