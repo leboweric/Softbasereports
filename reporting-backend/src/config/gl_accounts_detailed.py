@@ -257,10 +257,6 @@ OVERHEAD_EXPENSE_ACCOUNTS = {
     'vehicle_equipment': [
         ('604100', 'VEHICLE EXPENSE'),
     ],
-    'interest_finance': [
-        ('601800', 'INTEREST'),
-        ('602500', 'OTHER TAXES'),
-    ],
     'other_expenses': [
         ('600100', 'BAD DEBTS'),
         ('600400', 'COMMISSIONS'),
@@ -271,7 +267,6 @@ OVERHEAD_EXPENSE_ACCOUNTS = {
         ('600902', 'DEPRECIATION - Other'),
         ('601000', 'DUES AND MEMBERSHIPS'),
         ('601200', 'ENTERTAINMENT & MEALS'),
-        ('601400', 'FEDERAL INCOME TAX'),
         ('601500', 'FRINGES'),
         ('601600', 'GPS'),
         ('601900', 'INTERNAL RENTAL'),
@@ -283,15 +278,12 @@ OVERHEAD_EXPENSE_ACCOUNTS = {
         ('603102', 'REWORK - PM'),
         ('603103', 'REWORK - Full Maint'),
         ('603200', 'SAFETY'),
-        ('603400', 'STATE INCOME TAXES'),
         ('603501', 'SERVICE TOOLS'),
         ('603700', 'TRAINING'),
         ('603800', 'TRAVEL'),
         ('603900', 'UNIFORMS'),
-        ('604200', 'WARRANTY'),
         ('650000', 'OTHER EXPENSE'),
         ('706000', 'ADMINISTRATIVE FUND EXPENSE'),
-        ('999999', 'ERROR ACCOUNT'),
     ]
 }
 
@@ -304,7 +296,14 @@ OTHER_INCOME_EXPENSE_ACCOUNTS = {
         ('704000', 'A/P DISCOUNTS TAKEN'),
         ('705000', 'PARTS DISCOUNTS'),
     ],
-    'other_expense': [],
+    'other_expense': [
+        ('601400', 'FEDERAL INCOME TAX'),
+        ('601800', 'INTEREST'),
+        ('602500', 'OTHER TAXES'),
+        ('603400', 'STATE INCOME TAXES'),
+        ('604200', 'WARRANTY'),
+        ('999999', 'ERROR ACCOUNT'),
+    ],
 }
 
 # Helper functions

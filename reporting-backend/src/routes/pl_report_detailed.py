@@ -545,7 +545,6 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
         'professional_fees': 'Professional Fees',
         'office_admin': 'Office & Administrative',
         'vehicle_equipment': 'Vehicle & Equipment',
-        'interest_finance': 'Interest & Finance',
         'other_expenses': 'Other Expenses',
     }
     
