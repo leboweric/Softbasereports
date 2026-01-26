@@ -7,6 +7,7 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
@@ -217,18 +218,46 @@ class BigQueryService:
         return self._run_query(query)
     
     def get_dashboard_summary(self, days=30):
-        """Get complete dashboard summary"""
+        """Get complete dashboard summary with parallel query execution for performance"""
         try:
-            # Get all metrics
-            dau_mau = self.get_dau_mau_metrics(days)
-            new_returning = self.get_new_vs_returning(days)
-            session_metrics = self.get_session_metrics(days)
-            daily_trend = self.get_daily_trend(days)
-            platforms = self.get_platform_breakdown(days)
-            top_screens = self.get_top_screens(days)
-            hourly = self.get_hourly_activity(days)
-            key_actions = self.get_key_actions(days)
-            weekly = self.get_weekly_trend()
+            # Define all queries to run in parallel
+            queries = {
+                'dau_mau': lambda: self.get_dau_mau_metrics(days),
+                'new_returning': lambda: self.get_new_vs_returning(days),
+                'session_metrics': lambda: self.get_session_metrics(days),
+                'daily_trend': lambda: self.get_daily_trend(days),
+                'platforms': lambda: self.get_platform_breakdown(days),
+                'top_screens': lambda: self.get_top_screens(days),
+                'hourly': lambda: self.get_hourly_activity(days),
+                'key_actions': lambda: self.get_key_actions(days),
+                'weekly': lambda: self.get_weekly_trend(),
+            }
+            
+            results = {}
+            
+            # Execute all queries in parallel using ThreadPoolExecutor
+            # This reduces total time from ~22s (9 sequential queries) to ~4-5s (parallel)
+            with ThreadPoolExecutor(max_workers=9) as executor:
+                future_to_key = {executor.submit(func): key for key, func in queries.items()}
+                
+                for future in as_completed(future_to_key):
+                    key = future_to_key[future]
+                    try:
+                        results[key] = future.result()
+                    except Exception as e:
+                        logger.error(f"Error in parallel query {key}: {str(e)}")
+                        results[key] = {} if key in ['dau_mau', 'new_returning', 'session_metrics'] else []
+            
+            # Extract results
+            dau_mau = results.get('dau_mau', {})
+            new_returning = results.get('new_returning', {})
+            session_metrics = results.get('session_metrics', {})
+            daily_trend = results.get('daily_trend', [])
+            platforms = results.get('platforms', [])
+            top_screens = results.get('top_screens', [])
+            hourly = results.get('hourly', [])
+            key_actions = results.get('key_actions', [])
+            weekly = results.get('weekly', [])
             
             # Calculate additional metrics
             total_events = sum(d.get('events', 0) for d in daily_trend)
