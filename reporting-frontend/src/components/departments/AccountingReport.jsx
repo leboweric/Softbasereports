@@ -30,10 +30,14 @@ import InventoryReport from '@/components/InventoryReport'
 
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
+  const [rawMonthlyExpenses, setRawMonthlyExpenses] = useState([])
+  const [includeCurrentMonthGNA, setIncludeCurrentMonthGNA] = useState(false)
   const [monthlyGrossMargin, setMonthlyGrossMargin] = useState([])
   const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
   const [rawGrossMarginData, setRawGrossMarginData] = useState([])
   const [professionalServicesExpenses, setProfessionalServicesExpenses] = useState([])
+  const [rawProfessionalServicesExpenses, setRawProfessionalServicesExpenses] = useState([])
+  const [includeCurrentMonthProfServices, setIncludeCurrentMonthProfServices] = useState(false)
   const [arData, setArData] = useState(null)
   const [apTotal, setApTotal] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -72,6 +76,36 @@ const AccountingReport = ({ user }) => {
     }
   }, [includeCurrentMonth, rawGrossMarginData])
 
+  // Re-filter G&A expenses when toggle changes
+  useEffect(() => {
+    if (rawMonthlyExpenses.length > 0) {
+      const now = new Date()
+      const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short' })
+      const currentMonthStrWithYear = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+      const filteredExpenses = rawMonthlyExpenses.filter(item => {
+        if (!includeCurrentMonthGNA) {
+          if (item.month === currentMonthStr && item.year === now.getFullYear()) return false
+          if (item.month === currentMonthStrWithYear) return false
+        }
+        return true
+      })
+      setMonthlyExpenses(filteredExpenses)
+    }
+  }, [includeCurrentMonthGNA, rawMonthlyExpenses])
+
+  // Re-filter Professional Services expenses when toggle changes
+  useEffect(() => {
+    if (rawProfessionalServicesExpenses.length > 0) {
+      const now = new Date()
+      const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+      const filteredExpenses = rawProfessionalServicesExpenses.filter(item => {
+        if (!includeCurrentMonthProfServices && item.month === currentMonthStr) return false
+        return true
+      })
+      setProfessionalServicesExpenses(filteredExpenses)
+    }
+  }, [includeCurrentMonthProfServices, rawProfessionalServicesExpenses])
+
   const fetchAccountingData = async () => {
     try {
       const token = localStorage.getItem('token')
@@ -83,25 +117,29 @@ const AccountingReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
-        // Filter out current month and Nov '24 through Feb '25
-        const filteredExpenses = (data.monthly_expenses || []).filter(item => {
-          // Exclude months before March 2025
+        // Filter out Nov '24 through Feb '25 (always excluded)
+        const baseFilteredExpenses = (data.monthly_expenses || []).filter(item => {
           const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25", "Nov", "Dec", "Jan", "Feb"]
-          // Check both formats - some might have year, some might not
           if (excludedMonths.includes(item.month)) {
-            // If it's just month name without year, check if year is 2024/2025 early months
             if (item.year === 2024 && ['Nov', 'Dec'].includes(item.month)) return false
             if (item.year === 2025 && ['Jan', 'Feb'].includes(item.month)) return false
             if (item.month.includes("'24") || item.month.includes("'25")) {
               if (["Nov '24", "Dec '24", "Jan '25", "Feb '25"].includes(item.month)) return false
             }
           }
-          // Exclude current month (always incomplete)
-          const now = new Date()
-          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short' })
-          if (item.month === currentMonthStr && item.year === now.getFullYear()) return false
-          const currentMonthStrWithYear = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
-          if (item.month === currentMonthStrWithYear) return false
+          return true
+        })
+        setRawMonthlyExpenses(baseFilteredExpenses)
+        
+        // Apply current month filter based on toggle state
+        const now = new Date()
+        const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short' })
+        const currentMonthStrWithYear = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+        const filteredExpenses = baseFilteredExpenses.filter(item => {
+          if (!includeCurrentMonthGNA) {
+            if (item.month === currentMonthStr && item.year === now.getFullYear()) return false
+            if (item.month === currentMonthStrWithYear) return false
+          }
           return true
         })
         setMonthlyExpenses(filteredExpenses)
@@ -205,15 +243,18 @@ const AccountingReport = ({ user }) => {
 
       if (response.ok) {
         const data = await response.json()
-        // Filter out current month and Nov '24 through Feb '25
-        const filteredExpenses = (data.monthly_expenses || []).filter(item => {
-          // Exclude months before March 2025
+        // Filter out Nov '24 through Feb '25 (always excluded)
+        const baseFilteredExpenses = (data.monthly_expenses || []).filter(item => {
           const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
-          if (excludedMonths.includes(item.month)) return false
-          // Exclude current month (always incomplete)
-          const now = new Date()
-          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
-          if (item.month === currentMonthStr) return false
+          return !excludedMonths.includes(item.month)
+        })
+        setRawProfessionalServicesExpenses(baseFilteredExpenses)
+        
+        // Apply current month filter based on toggle state
+        const now = new Date()
+        const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+        const filteredExpenses = baseFilteredExpenses.filter(item => {
+          if (!includeCurrentMonthProfServices && item.month === currentMonthStr) return false
           return true
         })
         setProfessionalServicesExpenses(filteredExpenses)
@@ -522,6 +563,16 @@ const AccountingReport = ({ user }) => {
               <div>
                 <CardTitle>G&A Expenses Over Time</CardTitle>
                 <CardDescription>General & Administrative expenses - March 2025 onwards • Click a bar for details</CardDescription>
+                <div className="flex items-center gap-2 mt-2">
+                  <Switch
+                    id="include-current-month-gna"
+                    checked={includeCurrentMonthGNA}
+                    onCheckedChange={setIncludeCurrentMonthGNA}
+                  />
+                  <Label htmlFor="include-current-month-gna" className="text-sm text-muted-foreground cursor-pointer">
+                    Include current month
+                  </Label>
+                </div>
               </div>
               {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
                 const monthsWithData = monthlyExpenses.filter(item => item.expenses > 0)
@@ -711,6 +762,16 @@ const AccountingReport = ({ user }) => {
                 <div>
                   <CardTitle>Professional Services Expenses Over Time</CardTitle>
                   <CardDescription>Account 603000 - March 2025 onwards • Click a bar for invoice details</CardDescription>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Switch
+                      id="include-current-month-prof-services"
+                      checked={includeCurrentMonthProfServices}
+                      onCheckedChange={setIncludeCurrentMonthProfServices}
+                    />
+                    <Label htmlFor="include-current-month-prof-services" className="text-sm text-muted-foreground cursor-pointer">
+                      Include current month
+                    </Label>
+                  </div>
                 </div>
                 {professionalServicesExpenses && professionalServicesExpenses.length > 0 && (() => {
                   const monthsWithData = professionalServicesExpenses.filter(item => item.expenses > 0)
