@@ -407,8 +407,18 @@ def create_department_worksheet(wb, dept_data, year, month):
     return ws
 
 
-def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, month):
-    """Create the In House / Administrative worksheet with expenses"""
+def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, month, inhouse_dept_data=None):
+    """Create the In House / Administrative worksheet with expenses
+    
+    Args:
+        wb: Workbook object
+        dept_data: Dictionary with total_gross_profit_mtd and total_gross_profit_ytd
+        expense_data: Overhead expense data
+        other_data: Other income/expense data
+        year: Report year
+        month: Report month
+        inhouse_dept_data: Optional In House department Sales/COGS data
+    """
     ws = wb.create_sheet(title='P&L In House')
     
     # Define styles
@@ -439,22 +449,87 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
     ws['E4'] = 'YTD'
     ws['E4'].font = header_font
     
-    current_row = 6
+    current_row = 5
     
-    # Gross Profit from all departments (summary line)
-    ws[f'A{current_row}'] = 'Gross Profit (All Departments)'
+    # === SALES SECTION (to match accounting firm format) ===
+    ws[f'A{current_row}'] = 'Sales'
     ws[f'A{current_row}'].font = header_font
-    ws[f'C{current_row}'] = dept_data.get('total_gross_profit_mtd', 0)
-    ws[f'C{current_row}'].number_format = money_format
-    ws[f'C{current_row}'].font = header_font
-    ws[f'E{current_row}'] = dept_data.get('total_gross_profit_ytd', 0)
-    ws[f'E{current_row}'].number_format = money_format
-    ws[f'E{current_row}'].font = header_font
-    
     current_row += 2
     
-    # Overhead Expenses header
-    ws[f'A{current_row}'] = 'Overhead Expenses'
+    # Sales line items (if available)
+    inhouse_sales_mtd = 0
+    inhouse_sales_ytd = 0
+    if inhouse_dept_data and 'sales_detail' in inhouse_dept_data:
+        for item in inhouse_dept_data['sales_detail']:
+            if item['mtd'] != 0 or item['ytd'] != 0:
+                ws[f'A{current_row}'] = item['account_no']
+                ws[f'B{current_row}'] = item['description']
+                ws[f'C{current_row}'] = item['mtd']
+                ws[f'C{current_row}'].number_format = money_format
+                ws[f'E{current_row}'] = item['ytd']
+                ws[f'E{current_row}'].number_format = money_format
+                current_row += 1
+        inhouse_sales_mtd = inhouse_dept_data.get('total_sales_mtd', 0)
+        inhouse_sales_ytd = inhouse_dept_data.get('total_sales_ytd', 0)
+    
+    current_row += 1
+    ws[f'A{current_row}'] = 'Total Sales'
+    ws[f'A{current_row}'].font = header_font
+    ws[f'C{current_row}'] = inhouse_sales_mtd
+    ws[f'C{current_row}'].number_format = money_format
+    ws[f'C{current_row}'].font = header_font
+    ws[f'E{current_row}'] = inhouse_sales_ytd
+    ws[f'E{current_row}'].number_format = money_format
+    ws[f'E{current_row}'].font = header_font
+    current_row += 2
+    
+    # === COST OF SALES SECTION ===
+    ws[f'A{current_row}'] = 'Cost of Sales'
+    ws[f'A{current_row}'].font = header_font
+    current_row += 2
+    
+    # COS line items (if available)
+    inhouse_cos_mtd = 0
+    inhouse_cos_ytd = 0
+    if inhouse_dept_data and 'cos_detail' in inhouse_dept_data:
+        for item in inhouse_dept_data['cos_detail']:
+            if item['mtd'] != 0 or item['ytd'] != 0:
+                ws[f'A{current_row}'] = item['account_no']
+                ws[f'B{current_row}'] = item['description']
+                ws[f'C{current_row}'] = item['mtd']
+                ws[f'C{current_row}'].number_format = money_format
+                ws[f'E{current_row}'] = item['ytd']
+                ws[f'E{current_row}'].number_format = money_format
+                current_row += 1
+        inhouse_cos_mtd = inhouse_dept_data.get('total_cos_mtd', 0)
+        inhouse_cos_ytd = inhouse_dept_data.get('total_cos_ytd', 0)
+    
+    current_row += 1
+    ws[f'A{current_row}'] = 'Total Cost of Goods Sold'
+    ws[f'A{current_row}'].font = header_font
+    ws[f'C{current_row}'] = inhouse_cos_mtd
+    ws[f'C{current_row}'].number_format = money_format
+    ws[f'C{current_row}'].font = header_font
+    ws[f'E{current_row}'] = inhouse_cos_ytd
+    ws[f'E{current_row}'].number_format = money_format
+    ws[f'E{current_row}'].font = header_font
+    current_row += 2
+    
+    # === GROSS PROFIT (In House department only) ===
+    inhouse_gp_mtd = inhouse_sales_mtd - inhouse_cos_mtd
+    inhouse_gp_ytd = inhouse_sales_ytd - inhouse_cos_ytd
+    ws[f'A{current_row}'] = 'Gross Profit'
+    ws[f'A{current_row}'].font = header_font
+    ws[f'C{current_row}'] = inhouse_gp_mtd
+    ws[f'C{current_row}'].number_format = money_format
+    ws[f'C{current_row}'].font = header_font
+    ws[f'E{current_row}'] = inhouse_gp_ytd
+    ws[f'E{current_row}'].number_format = money_format
+    ws[f'E{current_row}'].font = header_font
+    current_row += 2
+    
+    # === OVERHEAD / SG&A SECTION ===
+    ws[f'A{current_row}'] = 'Overhead / Sales, General & Administrative'
     ws[f'A{current_row}'].font = header_font
     current_row += 2
     
@@ -512,9 +587,9 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
     ws[f'E{current_row}'].font = header_font
     current_row += 2
     
-    # Operating Profit
-    operating_profit_mtd = dept_data.get('total_gross_profit_mtd', 0) - expense_data.get('total_overhead_mtd', 0)
-    operating_profit_ytd = dept_data.get('total_gross_profit_ytd', 0) - expense_data.get('total_overhead_ytd', 0)
+    # Operating Profit (In House Gross Profit minus Overhead Expenses)
+    operating_profit_mtd = inhouse_gp_mtd - expense_data.get('total_overhead_mtd', 0)
+    operating_profit_ytd = inhouse_gp_ytd - expense_data.get('total_overhead_ytd', 0)
     
     ws[f'A{current_row}'] = 'Operating Profit'
     ws[f'A{current_row}'].font = header_font
@@ -784,7 +859,9 @@ def export_detailed_pl():
             'total_gross_profit_mtd': total_gross_profit_mtd,
             'total_gross_profit_ytd': total_gross_profit_ytd
         }
-        create_inhouse_worksheet(wb, inhouse_summary, expense_data, other_data, year, month)
+        # Get the in_house department data for Sales/COGS section
+        inhouse_dept_data = all_dept_data.get('in_house', None)
+        create_inhouse_worksheet(wb, inhouse_summary, expense_data, other_data, year, month, inhouse_dept_data)
         
         # Create consolidated summary worksheet
         create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, year, month)
