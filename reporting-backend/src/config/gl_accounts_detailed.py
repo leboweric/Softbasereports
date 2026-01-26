@@ -140,6 +140,10 @@ DEPARTMENT_CONFIG = {
             ('535003', 'COS - SERVICE OTHER 3'),
             ('535004', 'COS - SERVICE OTHER 4'),
             ('535005', 'COS - SERVICE OTHER 5'),
+            ('522100', 'COS INT. LABOR GM'),
+            ('527000', 'COS OPER AWARENESS TRNG'),
+            ('532000', 'COS SUBLET LABOR'),
+            ('534011', 'COS TRUCKING/DELIVERY G&A'),
         ]
     },
     'rental': {
@@ -164,6 +168,7 @@ DEPARTMENT_CONFIG = {
             ('537001', 'COS - RENTAL MAINTENANCE'),
             ('539000', 'COS - RENTAL OTHER'),
             ('545000', 'COS - RENTAL DEPRECIATION'),
+            ('541000', 'COS RENTAL INTERNAL MAINTENANCE'),
         ]
     },
     'transportation': {
@@ -196,13 +201,8 @@ DEPARTMENT_CONFIG = {
         'cos_accounts': [
             ('510011', 'COS - Administrative'),
             ('521011', 'COS - FREIGHT - Administrative'),
-            ('522100', 'COS INT. LABOR GM'),
             ('525000', 'COS - INTERNAL'),
-            ('527000', 'COS OPER AWARENESS TRNG'),
-            ('532000', 'COS SUBLET LABOR'),
-            ('534011', 'COS TRUCKING/DELIVERY G&A'),
             ('540000', 'COS - ADMINISTRATIVE'),
-            ('541000', 'COS RENTAL INTERNAL MAINTENANCE'),
         ]
     }
 }
