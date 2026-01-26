@@ -865,33 +865,43 @@ def create_balance_sheet_worksheet(wb, year, month):
     ws.cell(row=current_row, column=2, value='Current Assets').font = header_font
     current_row += 1
     
-    # Accounts Receivable
+    # Accounts Receivable - exclude PARTS RETURN (goes to WIP)
     ws.cell(row=current_row, column=2, value='Accounts Receivable').font = header_font
     current_row += 1
     
     ar_accounts = assets['current_assets']['accounts_receivable']
     ar_total = 0
+    wip_from_ar = []  # Accounts that should go to WIP instead
     for acc in sorted(ar_accounts, key=lambda x: x['account']):
-        ws.cell(row=current_row, column=2, value=acc['description'])
-        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-        ar_total += acc['balance']
-        current_row += 1
+        desc = acc['description'].upper()
+        if 'RETURN' in desc and 'PROCESS' in desc:
+            wip_from_ar.append(acc)  # Move to WIP section
+        else:
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            ar_total += acc['balance']
+            current_row += 1
     
     ws.cell(row=current_row, column=2, value='Accounts Receivable Total').font = header_font
     ws.cell(row=current_row, column=3, value=ar_total).number_format = money_format
     current_row += 2
     
-    # Inventory
+    # Inventory - exclude WORK-IN-PROCESS (goes to WIP section)
     ws.cell(row=current_row, column=2, value='Inventory').font = header_font
     current_row += 1
     
     inventory_accounts = assets['current_assets']['inventory']
     inventory_total = 0
+    wip_from_inventory = []  # Accounts that should go to WIP instead
     for acc in sorted(inventory_accounts, key=lambda x: x['account']):
-        ws.cell(row=current_row, column=2, value=acc['description'])
-        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-        inventory_total += acc['balance']
-        current_row += 1
+        desc = acc['description'].upper()
+        if 'WORK' in desc and 'PROCESS' in desc:
+            wip_from_inventory.append(acc)  # Move to WIP section
+        else:
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            inventory_total += acc['balance']
+            current_row += 1
     
     ws.cell(row=current_row, column=2, value='Inventory Total').font = header_font
     ws.cell(row=current_row, column=3, value=inventory_total).number_format = money_format
@@ -933,12 +943,13 @@ def create_balance_sheet_worksheet(wb, year, month):
         other_current_total += prepaid_total
         current_row += 2
     
-    # Work In Process
-    if wip_accounts:
+    # Work In Process - include accounts moved from AR and Inventory
+    all_wip_accounts = wip_accounts + wip_from_ar + wip_from_inventory
+    if all_wip_accounts:
         ws.cell(row=current_row, column=2, value='Work In Process').font = header_font
         current_row += 1
         wip_total = 0
-        for acc in sorted(wip_accounts, key=lambda x: x['account']):
+        for acc in sorted(all_wip_accounts, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
             ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
             wip_total += acc['balance']
@@ -966,8 +977,8 @@ def create_balance_sheet_worksheet(wb, year, month):
         other_current_total += acc['balance']
         current_row += 1
     
-    # Total Current Assets
-    total_current_assets = cash_total + ar_total + inventory_total + other_current_total
+    # Total Current Assets (excludes Cash & Equivalents per accounting firm format)
+    total_current_assets = ar_total + inventory_total + other_current_total
     ws.cell(row=current_row, column=2, value='Total Current Assets').font = header_font
     ws.cell(row=current_row, column=3, value=total_current_assets).number_format = money_format
     ws.cell(row=current_row, column=3).font = header_font
@@ -989,13 +1000,16 @@ def create_balance_sheet_worksheet(wb, year, month):
     vehicle_accounts = []
     other_fixed_accounts = []
     
+    rou_lease_accounts = []  # RIGHT OF USE accounts go to Other Assets
     for acc in fixed_assets:
         desc = acc['description'].upper()
-        if 'FURNITURE' in desc or 'FIXTURE' in desc:
+        if 'RIGHT OF USE' in desc or 'ROU' in desc:
+            rou_lease_accounts.append(acc)  # Move to Other Assets
+        elif 'FURNITURE' in desc or 'FIXTURE' in desc:
             furniture_accounts.append(acc)
         elif 'LEASEHOLD' in desc:
             leasehold_accounts.append(acc)
-        elif 'MACHINERY' in desc or 'EQUIPMENT' in desc and 'RENTAL' not in desc:
+        elif 'MACHINERY' in desc or ('EQUIPMENT' in desc and 'RENTAL' not in desc):
             machinery_accounts.append(acc)
         elif 'RENTAL' in desc:
             rental_accounts.append(acc)
@@ -1044,25 +1058,31 @@ def create_balance_sheet_worksheet(wb, year, month):
     ws.cell(row=current_row, column=3).font = header_font
     current_row += 2
     
-    # Other Assets
+    # Other Assets - include ROU lease accounts moved from Fixed Assets
     other_assets = assets['other_assets']
-    if other_assets:
+    all_other_assets = list(other_assets) + rou_lease_accounts
+    if all_other_assets:
+        ws.cell(row=current_row, column=2, value='Other Assets').font = header_font
+        current_row += 1
         ws.cell(row=current_row, column=2, value='Other Assets').font = header_font
         current_row += 1
         other_assets_total = 0
-        for acc in sorted(other_assets, key=lambda x: x['account']):
+        for acc in sorted(all_other_assets, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
             ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
             other_assets_total += acc['balance']
             current_row += 1
+        ws.cell(row=current_row, column=2, value='Other Assets Total').font = header_font
+        ws.cell(row=current_row, column=3, value=other_assets_total).number_format = money_format
+        current_row += 2
         ws.cell(row=current_row, column=2, value='Total Other Assets').font = header_font
         ws.cell(row=current_row, column=3, value=other_assets_total).number_format = money_format
         current_row += 2
     else:
         other_assets_total = 0
     
-    # Total Assets
-    total_assets = total_current_assets + total_fixed + other_assets_total
+    # Total Assets (Cash + Current Assets + Fixed Assets + Other Assets)
+    total_assets = cash_total + total_current_assets + total_fixed + other_assets_total
     ws.cell(row=current_row, column=2, value='Total Assets').font = section_font
     ws.cell(row=current_row, column=3, value=total_assets).number_format = money_format
     ws.cell(row=current_row, column=3).font = section_font
@@ -1106,67 +1126,67 @@ def create_balance_sheet_worksheet(wb, year, month):
     
     current_liab_total = 0
     
-    # Accounts Payable
+    # Accounts Payable (negate balance - liabilities stored as negative credits)
     if ap_accounts:
         ws.cell(row=current_row, column=2, value='Accounts Payable').font = header_font
         current_row += 1
         for acc in sorted(ap_accounts, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
-            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-            current_liab_total += acc['balance']
+            ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+            current_liab_total += -acc['balance']
             current_row += 1
         current_row += 1
     
-    # Accrued Expenses
+    # Accrued Expenses (negate balance)
     if accrued_accounts or other_current_liab:
         ws.cell(row=current_row, column=2, value='Accrued Expenses').font = header_font
         current_row += 1
         for acc in sorted(accrued_accounts + other_current_liab, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
-            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-            current_liab_total += acc['balance']
+            ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+            current_liab_total += -acc['balance']
             current_row += 1
         current_row += 1
     
-    # Accrued Payroll
+    # Accrued Payroll (negate balance)
     if payroll_accounts:
         ws.cell(row=current_row, column=2, value='Accrued Payroll').font = header_font
         current_row += 1
         payroll_total = 0
         for acc in sorted(payroll_accounts, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
-            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-            payroll_total += acc['balance']
+            ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+            payroll_total += -acc['balance']
             current_row += 1
         ws.cell(row=current_row, column=2, value='Accrued Payroll Total').font = header_font
         ws.cell(row=current_row, column=3, value=payroll_total).number_format = money_format
         current_liab_total += payroll_total
         current_row += 2
     
-    # Sales Tax Payable
+    # Sales Tax Payable (negate balance)
     if sales_tax_accounts:
         ws.cell(row=current_row, column=2, value='Sales Tax Payable').font = header_font
         current_row += 1
         sales_tax_total = 0
         for acc in sorted(sales_tax_accounts, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
-            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-            sales_tax_total += acc['balance']
+            ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+            sales_tax_total += -acc['balance']
             current_row += 1
         ws.cell(row=current_row, column=2, value='Sales Tax Payable Total').font = header_font
         ws.cell(row=current_row, column=3, value=sales_tax_total).number_format = money_format
         current_liab_total += sales_tax_total
         current_row += 2
     
-    # Credit Cards
+    # Credit Cards (negate balance)
     if credit_card_accounts:
         ws.cell(row=current_row, column=2, value='Credit Cards').font = header_font
         current_row += 1
         cc_total = 0
         for acc in sorted(credit_card_accounts, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
-            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-            cc_total += acc['balance']
+            ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+            cc_total += -acc['balance']
             current_row += 1
         ws.cell(row=current_row, column=2, value='Credit Cards Total').font = header_font
         ws.cell(row=current_row, column=3, value=cc_total).number_format = money_format
@@ -1206,13 +1226,13 @@ def create_balance_sheet_worksheet(wb, year, month):
     
     lt_total = 0
     
-    # Main long-term debt
+    # Main long-term debt (negate balance)
     main_lt_accounts = floor_plan_accounts + lease_accounts + notes_accounts + other_lt_accounts
     main_lt_total = 0
     for acc in sorted(main_lt_accounts, key=lambda x: x['account']):
         ws.cell(row=current_row, column=2, value=acc['description'])
-        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-        main_lt_total += acc['balance']
+        ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+        main_lt_total += -acc['balance']
         current_row += 1
     
     if main_lt_accounts:
@@ -1221,15 +1241,15 @@ def create_balance_sheet_worksheet(wb, year, month):
         lt_total += main_lt_total
         current_row += 2
     
-    # Executive Leases
+    # Executive Leases (negate balance)
     if exec_lease_accounts:
         ws.cell(row=current_row, column=2, value='Executive Leases').font = header_font
         current_row += 1
         exec_total = 0
         for acc in sorted(exec_lease_accounts, key=lambda x: x['account']):
             ws.cell(row=current_row, column=2, value=acc['description'])
-            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-            exec_total += acc['balance']
+            ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+            exec_total += -acc['balance']
             current_row += 1
         ws.cell(row=current_row, column=2, value='Executive Leases Total').font = header_font
         ws.cell(row=current_row, column=3, value=exec_total).number_format = money_format
@@ -1241,7 +1261,7 @@ def create_balance_sheet_worksheet(wb, year, month):
     ws.cell(row=current_row, column=3).font = header_font
     current_row += 2
     
-    # Stockholders Equity
+    # Stockholders Equity (negate balance - equity stored as negative credits)
     ws.cell(row=current_row, column=2, value='Stockholders Equity').font = header_font
     current_row += 2
     
@@ -1251,22 +1271,22 @@ def create_balance_sheet_worksheet(wb, year, month):
     # Capital Stock
     for acc in sorted(equity['capital_stock'], key=lambda x: x['account']):
         ws.cell(row=current_row, column=2, value=acc['description'])
-        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-        equity_total += acc['balance']
+        ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+        equity_total += -acc['balance']
         current_row += 1
     
-    # Distributions
+    # Distributions (keep as is - distributions reduce equity so sign is correct)
     for acc in sorted(equity['distributions'], key=lambda x: x['account']):
         ws.cell(row=current_row, column=2, value=acc['description'])
-        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-        equity_total += acc['balance']
+        ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+        equity_total += -acc['balance']
         current_row += 1
     
     # Retained Earnings
     for acc in sorted(equity['retained_earnings'], key=lambda x: x['account']):
         ws.cell(row=current_row, column=2, value=acc['description'])
-        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
-        equity_total += acc['balance']
+        ws.cell(row=current_row, column=3, value=-acc['balance']).number_format = money_format
+        equity_total += -acc['balance']
         current_row += 1
     
     current_row += 1
@@ -1275,8 +1295,8 @@ def create_balance_sheet_worksheet(wb, year, month):
     ws.cell(row=current_row, column=3).font = header_font
     current_row += 2
     
-    # Net Income YTD (calculated from P&L)
-    # This is the difference between Total Assets and (Total Liabilities + Equity)
+    # Net Income YTD (calculated to balance the sheet)
+    # Total Assets = Total Liabilities + Total Equity + Net Income YTD
     total_liabilities = current_liab_total + lt_total
     net_income_ytd = total_assets - total_liabilities - equity_total
     
