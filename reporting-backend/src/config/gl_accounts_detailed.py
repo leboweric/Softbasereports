@@ -119,6 +119,7 @@ DEPARTMENT_CONFIG = {
             ('435002', 'SALES - SERVICE OTHER 2'),
             ('435003', 'SALES - SERVICE OTHER 3'),
             ('435004', 'SALES - SERVICE OTHER 4'),
+            ('422100', 'SALES INT. LABOR GM'),
         ],
         'cos_accounts': [
             ('510004', 'COS - Service'),
@@ -189,7 +190,6 @@ DEPARTMENT_CONFIG = {
         'sales_accounts': [
             ('410011', 'Sales - Administrative'),
             ('421011', 'SALES - FREIGHT - Administrative'),
-            ('422100', 'SALES INT. LABOR GM'),
             ('427000', 'SALES - OPERATOR AWARENESS TRAINING'),
             ('434011', 'SALES - TRUCKING/DELIVERY - Administrative'),
         ],
