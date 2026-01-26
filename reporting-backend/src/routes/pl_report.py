@@ -138,6 +138,7 @@ def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False)
     This matches Softbase exactly for monthly reports
     """
     try:
+        schema = get_tenant_schema()
         dept_config = GL_ACCOUNTS[dept_key]
         revenue_accounts = dept_config['revenue']
         cogs_accounts = dept_config['cogs']
@@ -241,6 +242,7 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
     Used for custom date ranges that aren't full calendar months
     """
     try:
+        schema = get_tenant_schema()
         dept_config = GL_ACCOUNTS[dept_key]
         revenue_accounts = dept_config['revenue']
         cogs_accounts = dept_config['cogs']
@@ -365,6 +367,7 @@ def get_other_income(start_date, end_date):
         Total other income (negative value reduces revenue, positive increases)
     """
     try:
+        schema = get_tenant_schema()
         account_list = "', '".join(OTHER_INCOME_ACCOUNTS)
 
         # Use -SUM(Amount) to flip the sign for proper revenue calculation
@@ -461,6 +464,7 @@ def get_expense_data_from_gl_mtd(year, month):
     This matches Softbase P&L exactly for monthly reports
     """
     try:
+        schema = get_tenant_schema()
         # Flatten all expense accounts
         all_expense_accounts = []  
         for category_accounts in EXPENSE_ACCOUNTS.values():
@@ -516,6 +520,7 @@ def get_expense_data_from_gldetail(start_date, end_date):
     Used for custom date ranges that aren't full calendar months
     """
     try:
+        schema = get_tenant_schema()
         # Flatten all expense accounts
         all_expense_accounts = []
         for category_accounts in EXPENSE_ACCOUNTS.values():
@@ -1120,6 +1125,7 @@ def export_pl_excel():
 
 def get_all_departments_data(start_date, end_date):
     """Get revenue and COGS for all departments"""
+    schema = get_tenant_schema()
     dept_data = {}
     
     for dept_key, dept_config in GL_ACCOUNTS.items():
@@ -1163,6 +1169,7 @@ def get_all_departments_data(start_date, end_date):
 
 def get_overhead_expenses(start_date, end_date):
     """Get total overhead expenses (6xxxx accounts)"""
+    schema = get_tenant_schema()
     all_expense_accounts = []
     for category, accounts in EXPENSE_ACCOUNTS.items():
         all_expense_accounts.extend(accounts)
