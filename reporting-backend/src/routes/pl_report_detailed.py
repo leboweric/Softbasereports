@@ -1100,18 +1100,27 @@ def create_balance_sheet_worksheet(wb, year, month):
     current_row += 1
     
     current_liab = liabilities['current_liabilities']
+    long_term_liab = list(liabilities['long_term_liabilities'])  # Start with existing long-term
     
-    # Group current liabilities
+    # Group current liabilities - move certain accounts to long-term
     ap_accounts = []
     accrued_accounts = []
     payroll_accounts = []
     sales_tax_accounts = []
     credit_card_accounts = []
     other_current_liab = []
+    moved_to_lt = []  # Accounts that should be long-term
     
     for acc in current_liab:
         desc = acc['description'].upper()
-        if 'ACCOUNTS PAYABLE' in desc or 'A/P' in desc:
+        # These accounts should be in Long-term Liabilities per accounting firm
+        if 'FLOOR PLAN' in desc:
+            moved_to_lt.append(acc)
+        elif 'OPERATING LEASE' in desc and 'LT' in desc:
+            moved_to_lt.append(acc)
+        elif 'NP - EXEC' in desc or 'NP - SCALE' in desc:
+            moved_to_lt.append(acc)
+        elif 'ACCOUNTS PAYABLE' in desc or 'A/P' in desc:
             ap_accounts.append(acc)
         elif 'ACCRUED' in desc or 'PAYROLL' in desc or 'SALARY' in desc or 'WAGES' in desc or 'DEFERRED COMP' in desc or 'GARNISH' in desc:
             payroll_accounts.append(acc)
@@ -1119,10 +1128,13 @@ def create_balance_sheet_worksheet(wb, year, month):
             sales_tax_accounts.append(acc)
         elif 'CREDIT CARD' in desc:
             credit_card_accounts.append(acc)
-        elif 'ACCRUED' in desc or 'TRUCKS PURCHASED' in desc:
+        elif 'TRUCKS PURCHASED' in desc:
             accrued_accounts.append(acc)
         else:
             other_current_liab.append(acc)
+    
+    # Add moved accounts to long-term liabilities
+    long_term_liab.extend(moved_to_lt)
     
     current_liab_total = 0
     
@@ -1198,13 +1210,11 @@ def create_balance_sheet_worksheet(wb, year, month):
     ws.cell(row=current_row, column=3).font = header_font
     current_row += 2
     
-    # Long Term Liabilities
+    # Long Term Liabilities (using long_term_liab which includes accounts moved from current)
     ws.cell(row=current_row, column=2, value='Long Term Liabilities').font = header_font
     current_row += 2
     
-    long_term_liab = liabilities['long_term_liabilities']
-    
-    # Group long-term liabilities
+    # Group long-term liabilities (long_term_liab already includes moved accounts)
     floor_plan_accounts = []
     lease_accounts = []
     notes_accounts = []
