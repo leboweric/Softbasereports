@@ -342,3 +342,4 @@ def get_all_other_accounts():
     for category in OTHER_INCOME_EXPENSE_ACCOUNTS.values():
         accounts.extend([acct[0] for acct in category])
     return accounts
+# Deployment trigger: Mon Jan 26 14:44:41 EST 2026
