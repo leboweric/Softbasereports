@@ -639,7 +639,7 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
                   'Overhead Expenses', 'Operating Profit', 'Operating Margin',
                   'Other Income & Expense', 'Net Profit', 'Net Margin']
     
-    dept_keys = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation', 'administrative']
+    dept_keys = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation', 'in_house']
     
     current_row = 6
     
@@ -758,7 +758,7 @@ def export_detailed_pl():
         
         # Get data for all departments
         all_dept_data = {}
-        dept_order = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation']
+        dept_order = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation', 'in_house']
         
         total_gross_profit_mtd = 0
         total_gross_profit_ytd = 0
@@ -767,7 +767,9 @@ def export_detailed_pl():
             dept_data = get_department_detail(schema, dept_key, year, month)
             if dept_data:
                 all_dept_data[dept_key] = dept_data
-                create_department_worksheet(wb, dept_data, year, month)
+                # Don't create a separate worksheet for in_house - it's handled in the In House expenses tab
+                if dept_key != 'in_house':
+                    create_department_worksheet(wb, dept_data, year, month)
                 total_gross_profit_mtd += dept_data['gross_profit_mtd']
                 total_gross_profit_ytd += dept_data['gross_profit_ytd']
         
