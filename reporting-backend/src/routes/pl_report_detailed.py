@@ -18,6 +18,7 @@ from src.config.gl_accounts_detailed import (
     OVERHEAD_EXPENSE_ACCOUNTS, 
     OTHER_INCOME_EXPENSE_ACCOUNTS
 )
+from src.routes.currie_report import get_balance_sheet_data
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.models.user import User
 
@@ -805,6 +806,498 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     return ws
 
 
+def create_balance_sheet_worksheet(wb, year, month):
+    """Create the Balance Sheet worksheet matching accounting firm's format"""
+    ws = wb.create_sheet(title='Balance Sheet')
+    
+    # Define styles
+    header_font = Font(bold=True)
+    title_font = Font(bold=True, size=14)
+    section_font = Font(bold=True, size=11)
+    money_format = '#,##0.00'
+    
+    # Get balance sheet data
+    as_of_date = f"{year}-{month:02d}-{calendar.monthrange(year, month)[1]:02d}"
+    bs_data = get_balance_sheet_data(as_of_date)
+    
+    # Helper function to sum account balances
+    def sum_accounts(account_list):
+        return sum(acc.get('balance', 0) for acc in account_list)
+    
+    # Row 1: Title
+    month_name = calendar.month_name[month]
+    ws['A1'] = f"Balance Sheet\n As of {month_name} {year}"
+    ws['A1'].font = title_font
+    ws['A1'].alignment = Alignment(wrap_text=True)
+    ws.row_dimensions[1].height = 35
+    
+    current_row = 4
+    
+    # ============= ASSETS =============
+    ws.cell(row=current_row, column=1, value='Assets').font = section_font
+    ws.cell(row=current_row, column=3, value='Total').font = header_font
+    current_row += 2
+    
+    assets = bs_data['assets']
+    
+    # Cash & Equivalents
+    ws.cell(row=current_row, column=2, value='Cash & Equivalents').font = header_font
+    current_row += 2
+    
+    cash_accounts = assets['current_assets']['cash']
+    cash_total = 0
+    for acc in sorted(cash_accounts, key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        cash_total += acc['balance']
+        current_row += 1
+    
+    ws.cell(row=current_row, column=2, value=' Total')
+    ws.cell(row=current_row, column=3, value=cash_total).number_format = money_format
+    current_row += 2
+    
+    ws.cell(row=current_row, column=2, value='Total Cash & Equivalents').font = header_font
+    ws.cell(row=current_row, column=3, value=cash_total).number_format = money_format
+    ws.cell(row=current_row, column=3).font = header_font
+    current_row += 2
+    
+    # Current Assets
+    ws.cell(row=current_row, column=2, value='Current Assets').font = header_font
+    current_row += 1
+    
+    # Accounts Receivable
+    ws.cell(row=current_row, column=2, value='Accounts Receivable').font = header_font
+    current_row += 1
+    
+    ar_accounts = assets['current_assets']['accounts_receivable']
+    ar_total = 0
+    for acc in sorted(ar_accounts, key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        ar_total += acc['balance']
+        current_row += 1
+    
+    ws.cell(row=current_row, column=2, value='Accounts Receivable Total').font = header_font
+    ws.cell(row=current_row, column=3, value=ar_total).number_format = money_format
+    current_row += 2
+    
+    # Inventory
+    ws.cell(row=current_row, column=2, value='Inventory').font = header_font
+    current_row += 1
+    
+    inventory_accounts = assets['current_assets']['inventory']
+    inventory_total = 0
+    for acc in sorted(inventory_accounts, key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        inventory_total += acc['balance']
+        current_row += 1
+    
+    ws.cell(row=current_row, column=2, value='Inventory Total').font = header_font
+    ws.cell(row=current_row, column=3, value=inventory_total).number_format = money_format
+    current_row += 2
+    
+    # Other Current Assets (Prepaid, WIP, Deposits)
+    other_current = assets['current_assets']['other_current']
+    other_current_total = 0
+    
+    # Group by type
+    prepaid_accounts = []
+    wip_accounts = []
+    deposit_accounts = []
+    other_accounts = []
+    
+    for acc in other_current:
+        desc = acc['description'].upper()
+        if 'PREPAID' in desc:
+            prepaid_accounts.append(acc)
+        elif 'WORK' in desc or 'WIP' in desc or 'PROCESS' in desc or 'RETURN' in desc:
+            wip_accounts.append(acc)
+        elif 'DEPOSIT' in desc:
+            deposit_accounts.append(acc)
+        else:
+            other_accounts.append(acc)
+    
+    # Prepaid Expense
+    if prepaid_accounts:
+        ws.cell(row=current_row, column=2, value='Prepaid Expense').font = header_font
+        current_row += 1
+        prepaid_total = 0
+        for acc in sorted(prepaid_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            prepaid_total += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value='Prepaid Expense Total').font = header_font
+        ws.cell(row=current_row, column=3, value=prepaid_total).number_format = money_format
+        other_current_total += prepaid_total
+        current_row += 2
+    
+    # Work In Process
+    if wip_accounts:
+        ws.cell(row=current_row, column=2, value='Work In Process').font = header_font
+        current_row += 1
+        wip_total = 0
+        for acc in sorted(wip_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            wip_total += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value='Work In Process Total').font = header_font
+        ws.cell(row=current_row, column=3, value=wip_total).number_format = money_format
+        other_current_total += wip_total
+        current_row += 2
+    
+    # Deposits
+    if deposit_accounts:
+        ws.cell(row=current_row, column=2, value='Deposits').font = header_font
+        current_row += 1
+        for acc in sorted(deposit_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            other_current_total += acc['balance']
+            current_row += 1
+        current_row += 1
+    
+    # Other current assets
+    for acc in sorted(other_accounts, key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        other_current_total += acc['balance']
+        current_row += 1
+    
+    # Total Current Assets
+    total_current_assets = cash_total + ar_total + inventory_total + other_current_total
+    ws.cell(row=current_row, column=2, value='Total Current Assets').font = header_font
+    ws.cell(row=current_row, column=3, value=total_current_assets).number_format = money_format
+    ws.cell(row=current_row, column=3).font = header_font
+    current_row += 2
+    
+    # Property and Equipment
+    ws.cell(row=current_row, column=2, value='Property and Equipment').font = header_font
+    current_row += 1
+    
+    fixed_assets = assets['fixed_assets']
+    fixed_total_gross = 0
+    fixed_total_deprec = 0
+    
+    # Group fixed assets by category
+    furniture_accounts = []
+    leasehold_accounts = []
+    machinery_accounts = []
+    rental_accounts = []
+    vehicle_accounts = []
+    other_fixed_accounts = []
+    
+    for acc in fixed_assets:
+        desc = acc['description'].upper()
+        if 'FURNITURE' in desc or 'FIXTURE' in desc:
+            furniture_accounts.append(acc)
+        elif 'LEASEHOLD' in desc:
+            leasehold_accounts.append(acc)
+        elif 'MACHINERY' in desc or 'EQUIPMENT' in desc and 'RENTAL' not in desc:
+            machinery_accounts.append(acc)
+        elif 'RENTAL' in desc:
+            rental_accounts.append(acc)
+        elif 'VEHICLE' in desc:
+            vehicle_accounts.append(acc)
+        else:
+            other_fixed_accounts.append(acc)
+    
+    def write_fixed_asset_group(accounts, group_name):
+        nonlocal current_row, fixed_total_gross, fixed_total_deprec
+        if not accounts:
+            return
+        ws.cell(row=current_row, column=2, value=group_name).font = header_font
+        current_row += 1
+        group_total = 0
+        for acc in sorted(accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            group_total += acc['balance']
+            if 'DEPREC' in acc['description'].upper() or 'ACCUM' in acc['description'].upper():
+                fixed_total_deprec += acc['balance']
+            else:
+                fixed_total_gross += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value=f'{group_name} Total').font = header_font
+        ws.cell(row=current_row, column=3, value=group_total).number_format = money_format
+        current_row += 1
+    
+    write_fixed_asset_group(furniture_accounts, 'Furniture & Fixtures')
+    write_fixed_asset_group(leasehold_accounts, 'Leasehold Improvements')
+    write_fixed_asset_group(machinery_accounts, 'Machinery & Equipment')
+    write_fixed_asset_group(rental_accounts, 'Rental Equipment')
+    write_fixed_asset_group(vehicle_accounts, 'Vehicles')
+    write_fixed_asset_group(other_fixed_accounts, 'Other Fixed Assets')
+    
+    current_row += 1
+    total_fixed = fixed_total_gross + fixed_total_deprec
+    ws.cell(row=current_row, column=2, value='Total Property and Equipment').font = header_font
+    ws.cell(row=current_row, column=3, value=fixed_total_gross).number_format = money_format
+    current_row += 1
+    ws.cell(row=current_row, column=2, value='Less Depreciation')
+    ws.cell(row=current_row, column=3, value=fixed_total_deprec).number_format = money_format
+    current_row += 1
+    ws.cell(row=current_row, column=2, value='Property and Equipment, net').font = header_font
+    ws.cell(row=current_row, column=3, value=total_fixed).number_format = money_format
+    ws.cell(row=current_row, column=3).font = header_font
+    current_row += 2
+    
+    # Other Assets
+    other_assets = assets['other_assets']
+    if other_assets:
+        ws.cell(row=current_row, column=2, value='Other Assets').font = header_font
+        current_row += 1
+        other_assets_total = 0
+        for acc in sorted(other_assets, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            other_assets_total += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value='Total Other Assets').font = header_font
+        ws.cell(row=current_row, column=3, value=other_assets_total).number_format = money_format
+        current_row += 2
+    else:
+        other_assets_total = 0
+    
+    # Total Assets
+    total_assets = total_current_assets + total_fixed + other_assets_total
+    ws.cell(row=current_row, column=2, value='Total Assets').font = section_font
+    ws.cell(row=current_row, column=3, value=total_assets).number_format = money_format
+    ws.cell(row=current_row, column=3).font = section_font
+    current_row += 2
+    
+    # ============= LIABILITIES AND STOCKHOLDERS' EQUITY =============
+    ws.cell(row=current_row, column=1, value="Liabilities and Stockholders' Equity").font = section_font
+    ws.cell(row=current_row, column=3, value='Total').font = header_font
+    current_row += 2
+    
+    liabilities = bs_data['liabilities']
+    
+    # Current Liabilities
+    ws.cell(row=current_row, column=2, value='Current Liabilities').font = header_font
+    current_row += 1
+    
+    current_liab = liabilities['current_liabilities']
+    
+    # Group current liabilities
+    ap_accounts = []
+    accrued_accounts = []
+    payroll_accounts = []
+    sales_tax_accounts = []
+    credit_card_accounts = []
+    other_current_liab = []
+    
+    for acc in current_liab:
+        desc = acc['description'].upper()
+        if 'ACCOUNTS PAYABLE' in desc or 'A/P' in desc:
+            ap_accounts.append(acc)
+        elif 'ACCRUED' in desc or 'PAYROLL' in desc or 'SALARY' in desc or 'WAGES' in desc or 'DEFERRED COMP' in desc or 'GARNISH' in desc:
+            payroll_accounts.append(acc)
+        elif 'SALES TAX' in desc or 'PAR INCOME TAX' in desc:
+            sales_tax_accounts.append(acc)
+        elif 'CREDIT CARD' in desc:
+            credit_card_accounts.append(acc)
+        elif 'ACCRUED' in desc or 'TRUCKS PURCHASED' in desc:
+            accrued_accounts.append(acc)
+        else:
+            other_current_liab.append(acc)
+    
+    current_liab_total = 0
+    
+    # Accounts Payable
+    if ap_accounts:
+        ws.cell(row=current_row, column=2, value='Accounts Payable').font = header_font
+        current_row += 1
+        for acc in sorted(ap_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            current_liab_total += acc['balance']
+            current_row += 1
+        current_row += 1
+    
+    # Accrued Expenses
+    if accrued_accounts or other_current_liab:
+        ws.cell(row=current_row, column=2, value='Accrued Expenses').font = header_font
+        current_row += 1
+        for acc in sorted(accrued_accounts + other_current_liab, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            current_liab_total += acc['balance']
+            current_row += 1
+        current_row += 1
+    
+    # Accrued Payroll
+    if payroll_accounts:
+        ws.cell(row=current_row, column=2, value='Accrued Payroll').font = header_font
+        current_row += 1
+        payroll_total = 0
+        for acc in sorted(payroll_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            payroll_total += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value='Accrued Payroll Total').font = header_font
+        ws.cell(row=current_row, column=3, value=payroll_total).number_format = money_format
+        current_liab_total += payroll_total
+        current_row += 2
+    
+    # Sales Tax Payable
+    if sales_tax_accounts:
+        ws.cell(row=current_row, column=2, value='Sales Tax Payable').font = header_font
+        current_row += 1
+        sales_tax_total = 0
+        for acc in sorted(sales_tax_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            sales_tax_total += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value='Sales Tax Payable Total').font = header_font
+        ws.cell(row=current_row, column=3, value=sales_tax_total).number_format = money_format
+        current_liab_total += sales_tax_total
+        current_row += 2
+    
+    # Credit Cards
+    if credit_card_accounts:
+        ws.cell(row=current_row, column=2, value='Credit Cards').font = header_font
+        current_row += 1
+        cc_total = 0
+        for acc in sorted(credit_card_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            cc_total += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value='Credit Cards Total').font = header_font
+        ws.cell(row=current_row, column=3, value=cc_total).number_format = money_format
+        current_liab_total += cc_total
+        current_row += 2
+    
+    ws.cell(row=current_row, column=2, value='Total Current Liabilities').font = header_font
+    ws.cell(row=current_row, column=3, value=current_liab_total).number_format = money_format
+    ws.cell(row=current_row, column=3).font = header_font
+    current_row += 2
+    
+    # Long Term Liabilities
+    ws.cell(row=current_row, column=2, value='Long Term Liabilities').font = header_font
+    current_row += 2
+    
+    long_term_liab = liabilities['long_term_liabilities']
+    
+    # Group long-term liabilities
+    floor_plan_accounts = []
+    lease_accounts = []
+    notes_accounts = []
+    exec_lease_accounts = []
+    other_lt_accounts = []
+    
+    for acc in long_term_liab:
+        desc = acc['description'].upper()
+        if 'FLOOR PLAN' in desc:
+            floor_plan_accounts.append(acc)
+        elif 'OPERATING LEASE' in desc or 'RIGHT OF USE' in desc:
+            lease_accounts.append(acc)
+        elif 'EXEC' in desc and 'LEASE' in desc:
+            exec_lease_accounts.append(acc)
+        elif 'NOTES PAYABLE' in desc or 'CONTRACTS PAYABLE' in desc:
+            notes_accounts.append(acc)
+        else:
+            other_lt_accounts.append(acc)
+    
+    lt_total = 0
+    
+    # Main long-term debt
+    main_lt_accounts = floor_plan_accounts + lease_accounts + notes_accounts + other_lt_accounts
+    main_lt_total = 0
+    for acc in sorted(main_lt_accounts, key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        main_lt_total += acc['balance']
+        current_row += 1
+    
+    if main_lt_accounts:
+        ws.cell(row=current_row, column=2, value=' Total')
+        ws.cell(row=current_row, column=3, value=main_lt_total).number_format = money_format
+        lt_total += main_lt_total
+        current_row += 2
+    
+    # Executive Leases
+    if exec_lease_accounts:
+        ws.cell(row=current_row, column=2, value='Executive Leases').font = header_font
+        current_row += 1
+        exec_total = 0
+        for acc in sorted(exec_lease_accounts, key=lambda x: x['account']):
+            ws.cell(row=current_row, column=2, value=acc['description'])
+            ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+            exec_total += acc['balance']
+            current_row += 1
+        ws.cell(row=current_row, column=2, value='Executive Leases Total').font = header_font
+        ws.cell(row=current_row, column=3, value=exec_total).number_format = money_format
+        lt_total += exec_total
+        current_row += 2
+    
+    ws.cell(row=current_row, column=2, value='Total Long Term Liabilities').font = header_font
+    ws.cell(row=current_row, column=3, value=lt_total).number_format = money_format
+    ws.cell(row=current_row, column=3).font = header_font
+    current_row += 2
+    
+    # Stockholders Equity
+    ws.cell(row=current_row, column=2, value='Stockholders Equity').font = header_font
+    current_row += 2
+    
+    equity = bs_data['equity']
+    equity_total = 0
+    
+    # Capital Stock
+    for acc in sorted(equity['capital_stock'], key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        equity_total += acc['balance']
+        current_row += 1
+    
+    # Distributions
+    for acc in sorted(equity['distributions'], key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        equity_total += acc['balance']
+        current_row += 1
+    
+    # Retained Earnings
+    for acc in sorted(equity['retained_earnings'], key=lambda x: x['account']):
+        ws.cell(row=current_row, column=2, value=acc['description'])
+        ws.cell(row=current_row, column=3, value=acc['balance']).number_format = money_format
+        equity_total += acc['balance']
+        current_row += 1
+    
+    current_row += 1
+    ws.cell(row=current_row, column=2, value='Total Stockholders Equity').font = header_font
+    ws.cell(row=current_row, column=3, value=equity_total).number_format = money_format
+    ws.cell(row=current_row, column=3).font = header_font
+    current_row += 2
+    
+    # Net Income YTD (calculated from P&L)
+    # This is the difference between Total Assets and (Total Liabilities + Equity)
+    total_liabilities = current_liab_total + lt_total
+    net_income_ytd = total_assets - total_liabilities - equity_total
+    
+    ws.cell(row=current_row, column=2, value='Net Income YTD')
+    ws.cell(row=current_row, column=3, value=net_income_ytd).number_format = money_format
+    current_row += 1
+    
+    # Total Liabilities and Stockholders' Equity
+    total_liab_equity = total_liabilities + equity_total + net_income_ytd
+    ws.cell(row=current_row, column=2, value="Total Liabilities and Stockholders' Equity").font = section_font
+    ws.cell(row=current_row, column=3, value=total_liab_equity).number_format = money_format
+    ws.cell(row=current_row, column=3).font = section_font
+    
+    # Set column widths
+    ws.column_dimensions['A'].width = 5
+    ws.column_dimensions['B'].width = 45
+    ws.column_dimensions['C'].width = 18
+    
+    return ws
+
+
 @pl_detailed_bp.route('/api/reports/pl/detailed/export', methods=['GET'])
 @jwt_required()
 def export_detailed_pl():
@@ -864,6 +1357,9 @@ def export_detailed_pl():
         
         # Create consolidated summary worksheet
         create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, year, month)
+        
+        # Create Balance Sheet worksheet
+        create_balance_sheet_worksheet(wb, year, month)
         
         # Save to BytesIO
         output = BytesIO()
