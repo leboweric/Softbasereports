@@ -78,7 +78,7 @@ def get_provider_overview():
             'last_updated': datetime.now().isoformat()
         }
         
-        cache.set(cache_key, response, ttl=300)
+        cache.set(cache_key, response, ttl_seconds=300)
         return jsonify(response)
         
     except Exception as e:
@@ -144,7 +144,7 @@ def get_top_providers():
             'period_days': days
         }
         
-        cache.set(cache_key, response, ttl=300)
+        cache.set(cache_key, response, ttl_seconds=300)
         return jsonify(response)
         
     except Exception as e:
@@ -203,7 +203,7 @@ def get_providers_by_type():
             'period_days': days
         }
         
-        cache.set(cache_key, response, ttl=300)
+        cache.set(cache_key, response, ttl_seconds=300)
         return jsonify(response)
         
     except Exception as e:
@@ -272,7 +272,7 @@ def get_satisfaction_distribution():
             'period_days': days
         }
         
-        cache.set(cache_key, response, ttl=300)
+        cache.set(cache_key, response, ttl_seconds=300)
         return jsonify(response)
         
     except Exception as e:
@@ -326,7 +326,7 @@ def get_modality_breakdown():
             'period_days': days
         }
         
-        cache.set(cache_key, response, ttl=300)
+        cache.set(cache_key, response, ttl_seconds=300)
         return jsonify(response)
         
     except Exception as e:
@@ -385,7 +385,7 @@ def get_monthly_trend():
             'period_days': days
         }
         
-        cache.set(cache_key, response, ttl=300)
+        cache.set(cache_key, response, ttl_seconds=300)
         return jsonify(response)
         
     except Exception as e:
@@ -447,7 +447,7 @@ def get_clinical_outcomes():
             'period_days': days
         }
         
-        cache.set(cache_key, response, ttl=300)
+        cache.set(cache_key, response, ttl_seconds=300)
         return jsonify(response)
         
     except Exception as e:
