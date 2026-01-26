@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -29,6 +31,8 @@ import InventoryReport from '@/components/InventoryReport'
 const AccountingReport = ({ user }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [monthlyGrossMargin, setMonthlyGrossMargin] = useState([])
+  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
+  const [rawGrossMarginData, setRawGrossMarginData] = useState([])
   const [professionalServicesExpenses, setProfessionalServicesExpenses] = useState([])
   const [arData, setArData] = useState(null)
   const [apTotal, setApTotal] = useState(null)
@@ -54,6 +58,19 @@ const AccountingReport = ({ user }) => {
     fetchGrossMarginData()
     fetchProfessionalServicesData()
   }, [])
+
+  // Re-filter gross margin data when toggle changes
+  useEffect(() => {
+    if (rawGrossMarginData.length > 0) {
+      const now = new Date()
+      const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+      const filteredData = rawGrossMarginData.filter(item => {
+        if (!includeCurrentMonth && item.month === currentMonthStr) return false
+        return true
+      })
+      setMonthlyGrossMargin(filteredData)
+    }
+  }, [includeCurrentMonth, rawGrossMarginData])
 
   const fetchAccountingData = async () => {
     try {
@@ -154,15 +171,18 @@ const AccountingReport = ({ user }) => {
 
       if (response.ok) {
         const data = await response.json()
-        // Filter out current month and Nov '24 through Feb '25
-        const filteredData = (data.monthly_sales || []).filter(item => {
-          // Exclude months before March 2025
+        // Filter out Nov '24 through Feb '25 (always excluded)
+        const baseFilteredData = (data.monthly_sales || []).filter(item => {
           const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
-          if (excludedMonths.includes(item.month)) return false
-          // Exclude current month (always incomplete)
-          const now = new Date()
-          const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
-          if (item.month === currentMonthStr) return false
+          return !excludedMonths.includes(item.month)
+        })
+        setRawGrossMarginData(baseFilteredData)
+        
+        // Apply current month filter based on toggle state
+        const now = new Date()
+        const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+        const filteredData = baseFilteredData.filter(item => {
+          if (!includeCurrentMonth && item.month === currentMonthStr) return false
           return true
         })
         setMonthlyGrossMargin(filteredData)
@@ -359,6 +379,16 @@ const AccountingReport = ({ user }) => {
                 <div>
                   <CardTitle>Monthly Gross Margin Dollars</CardTitle>
                   <CardDescription>Revenue minus Cost of Goods Sold - March 2025 onwards</CardDescription>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Switch
+                      id="include-current-month"
+                      checked={includeCurrentMonth}
+                      onCheckedChange={setIncludeCurrentMonth}
+                    />
+                    <Label htmlFor="include-current-month" className="text-sm text-muted-foreground cursor-pointer">
+                      Include current month
+                    </Label>
+                  </div>
                 </div>
                 {monthlyGrossMargin && monthlyGrossMargin.length > 0 && (() => {
                   const avgGrossMargin = monthlyGrossMargin.reduce((sum, item) => sum + (item.gross_margin_dollars || 0), 0) / monthlyGrossMargin.length
