@@ -223,10 +223,9 @@ const PLReport = ({ user, organization }) => {
           <button
             onClick={async () => {
               try {
-                // Extract month and year from startDate
-                const date = new Date(startDate);
-                const month = date.getMonth() + 1;
-                const year = date.getFullYear();
+                // Extract month and year from startDate (YYYY-MM-DD format)
+                // Parse directly to avoid timezone issues
+                const [year, month] = startDate.split('-').map(Number);
 
                 const token = localStorage.getItem('token');
                 const response = await axios.get(
