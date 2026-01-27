@@ -348,3 +348,139 @@ def get_control_serial_summary():
     except Exception as e:
         logger.error(f"Error in control-serial summary: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@reports_bp.route('/departments/accounting/absorption-rate', methods=['GET'])
+@jwt_required()
+def get_monthly_absorption_rate():
+    """
+    Get monthly absorption rate data.
+    Absorption Rate = (Service GP + Parts GP + Rental GP) / Overhead Expenses × 100%
+    
+    Returns trailing 13 months of data.
+    """
+    try:
+        logger.info("Starting absorption rate calculation")
+        db = AzureSQLService()
+        schema = get_tenant_schema()
+        
+        # Import GL accounts config
+        from src.config.gl_accounts_detailed import (
+            DEPARTMENT_CONFIG, 
+            OVERHEAD_EXPENSE_ACCOUNTS,
+            get_all_expense_accounts
+        )
+        
+        # Get service, parts, rental accounts
+        service_sales = [acct[0] for acct in DEPARTMENT_CONFIG['service']['sales_accounts']]
+        service_cos = [acct[0] for acct in DEPARTMENT_CONFIG['service']['cos_accounts']]
+        parts_sales = [acct[0] for acct in DEPARTMENT_CONFIG['parts']['sales_accounts']]
+        parts_cos = [acct[0] for acct in DEPARTMENT_CONFIG['parts']['cos_accounts']]
+        rental_sales = [acct[0] for acct in DEPARTMENT_CONFIG['rental']['sales_accounts']]
+        rental_cos = [acct[0] for acct in DEPARTMENT_CONFIG['rental']['cos_accounts']]
+        
+        # Get overhead expense accounts
+        overhead_accounts = get_all_expense_accounts()
+        
+        # Format for SQL IN clause
+        service_sales_list = "', '".join(service_sales)
+        service_cos_list = "', '".join(service_cos)
+        parts_sales_list = "', '".join(parts_sales)
+        parts_cos_list = "', '".join(parts_cos)
+        rental_sales_list = "', '".join(rental_sales)
+        rental_cos_list = "', '".join(rental_cos)
+        overhead_list = "', '".join(overhead_accounts)
+        
+        # Combine all accounts for the query
+        all_accounts = (service_sales + service_cos + parts_sales + parts_cos + 
+                       rental_sales + rental_cos + overhead_accounts)
+        all_accounts_list = "', '".join(all_accounts)
+        
+        query = f"""
+        SELECT 
+            YEAR(EffectiveDate) as year,
+            MONTH(EffectiveDate) as month,
+            -- Service Revenue and Cost (negate revenue since credits are negative)
+            -SUM(CASE WHEN AccountNo IN ('{service_sales_list}') THEN Amount ELSE 0 END) as service_revenue,
+            SUM(CASE WHEN AccountNo IN ('{service_cos_list}') THEN Amount ELSE 0 END) as service_cost,
+            -- Parts Revenue and Cost
+            -SUM(CASE WHEN AccountNo IN ('{parts_sales_list}') THEN Amount ELSE 0 END) as parts_revenue,
+            SUM(CASE WHEN AccountNo IN ('{parts_cos_list}') THEN Amount ELSE 0 END) as parts_cost,
+            -- Rental Revenue and Cost
+            -SUM(CASE WHEN AccountNo IN ('{rental_sales_list}') THEN Amount ELSE 0 END) as rental_revenue,
+            SUM(CASE WHEN AccountNo IN ('{rental_cos_list}') THEN Amount ELSE 0 END) as rental_cost,
+            -- Overhead Expenses
+            SUM(CASE WHEN AccountNo IN ('{overhead_list}') THEN Amount ELSE 0 END) as overhead_expenses
+        FROM {schema}.GLDetail
+        WHERE AccountNo IN ('{all_accounts_list}')
+            AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+            AND Posted = 1
+        GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+        ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+        """
+        
+        results = db.execute_query(query)
+        
+        # Process results
+        monthly_data = []
+        for row in results:
+            year = row['year']
+            month = row['month']
+            month_date = datetime(year, month, 1)
+            month_str = month_date.strftime("%b '%y")
+            
+            # Calculate gross profits
+            service_revenue = float(row['service_revenue'] or 0)
+            service_cost = float(row['service_cost'] or 0)
+            service_gp = service_revenue - service_cost
+            
+            parts_revenue = float(row['parts_revenue'] or 0)
+            parts_cost = float(row['parts_cost'] or 0)
+            parts_gp = parts_revenue - parts_cost
+            
+            rental_revenue = float(row['rental_revenue'] or 0)
+            rental_cost = float(row['rental_cost'] or 0)
+            rental_gp = rental_revenue - rental_cost
+            
+            # Total aftermarket GP
+            total_aftermarket_gp = service_gp + parts_gp + rental_gp
+            
+            # Overhead expenses
+            overhead = float(row['overhead_expenses'] or 0)
+            
+            # Calculate absorption rate
+            absorption_rate = (total_aftermarket_gp / overhead * 100) if overhead > 0 else 0
+            
+            monthly_data.append({
+                'month': month_str,
+                'year': year,
+                'month_num': month,
+                'service_gp': round(service_gp, 2),
+                'parts_gp': round(parts_gp, 2),
+                'rental_gp': round(rental_gp, 2),
+                'total_aftermarket_gp': round(total_aftermarket_gp, 2),
+                'overhead_expenses': round(overhead, 2),
+                'absorption_rate': round(absorption_rate, 1)
+            })
+        
+        # Calculate averages
+        if monthly_data:
+            avg_absorption = sum(d['absorption_rate'] for d in monthly_data) / len(monthly_data)
+            avg_aftermarket_gp = sum(d['total_aftermarket_gp'] for d in monthly_data) / len(monthly_data)
+            avg_overhead = sum(d['overhead_expenses'] for d in monthly_data) / len(monthly_data)
+        else:
+            avg_absorption = 0
+            avg_aftermarket_gp = 0
+            avg_overhead = 0
+        
+        return jsonify({
+            'monthly_data': monthly_data,
+            'summary': {
+                'average_absorption_rate': round(avg_absorption, 1),
+                'average_aftermarket_gp': round(avg_aftermarket_gp, 2),
+                'average_overhead': round(avg_overhead, 2)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error calculating absorption rate: {str(e)}")
+        return jsonify({'error': str(e)}), 500

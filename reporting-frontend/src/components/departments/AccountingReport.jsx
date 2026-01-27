@@ -38,6 +38,10 @@ const AccountingReport = ({ user }) => {
   const [professionalServicesExpenses, setProfessionalServicesExpenses] = useState([])
   const [rawProfessionalServicesExpenses, setRawProfessionalServicesExpenses] = useState([])
   const [includeCurrentMonthProfServices, setIncludeCurrentMonthProfServices] = useState(false)
+  const [absorptionRateData, setAbsorptionRateData] = useState([])
+  const [rawAbsorptionRateData, setRawAbsorptionRateData] = useState([])
+  const [includeCurrentMonthAbsorption, setIncludeCurrentMonthAbsorption] = useState(false)
+  const [absorptionSummary, setAbsorptionSummary] = useState(null)
   const [arData, setArData] = useState(null)
   const [apTotal, setApTotal] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -61,6 +65,7 @@ const AccountingReport = ({ user }) => {
     fetchAPTotal()
     fetchGrossMarginData()
     fetchProfessionalServicesData()
+    fetchAbsorptionRateData()
   }, [])
 
   // Re-filter gross margin data when toggle changes
@@ -105,6 +110,19 @@ const AccountingReport = ({ user }) => {
       setProfessionalServicesExpenses(filteredExpenses)
     }
   }, [includeCurrentMonthProfServices, rawProfessionalServicesExpenses])
+
+  // Re-filter absorption rate data when toggle changes
+  useEffect(() => {
+    if (rawAbsorptionRateData.length > 0) {
+      const now = new Date()
+      const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+      const filteredData = rawAbsorptionRateData.filter(item => {
+        if (!includeCurrentMonthAbsorption && item.month === currentMonthStr) return false
+        return true
+      })
+      setAbsorptionRateData(filteredData)
+    }
+  }, [includeCurrentMonthAbsorption, rawAbsorptionRateData])
 
   const fetchAccountingData = async () => {
     try {
@@ -292,6 +310,41 @@ const AccountingReport = ({ user }) => {
     }
   }
 
+  const fetchAbsorptionRateData = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(apiUrl('/api/reports/departments/accounting/absorption-rate'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        // Filter out Nov '24 through Feb '25 (always excluded)
+        const baseFilteredData = (data.monthly_data || []).filter(item => {
+          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
+          return !excludedMonths.includes(item.month)
+        })
+        setRawAbsorptionRateData(baseFilteredData)
+        setAbsorptionSummary(data.summary)
+        
+        // Apply current month filter based on toggle state
+        const now = new Date()
+        const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+        const filteredData = baseFilteredData.filter(item => {
+          if (!includeCurrentMonthAbsorption && item.month === currentMonthStr) return false
+          return true
+        })
+        setAbsorptionRateData(filteredData)
+      } else {
+        console.error('Absorption rate data error:', response.status, response.statusText)
+      }
+    } catch (error) {
+      console.error('Error fetching absorption rate data:', error)
+    }
+  }
+
   const fetchGnaExpensesDetails = async (year, month, monthLabel) => {
     setGnaDetailLoading(true)
     setGnaDetailOpen(true)
@@ -412,6 +465,98 @@ const AccountingReport = ({ user }) => {
               </Card>
             )}
           </div>
+
+          {/* Monthly Absorption Rate */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Monthly Absorption Rate</CardTitle>
+                  <CardDescription>(Service GP + Parts GP + Rental GP) / Overhead Expenses - March 2025 onwards</CardDescription>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Switch
+                      id="include-current-month-absorption"
+                      checked={includeCurrentMonthAbsorption}
+                      onCheckedChange={setIncludeCurrentMonthAbsorption}
+                    />
+                    <Label htmlFor="include-current-month-absorption" className="text-sm text-muted-foreground cursor-pointer">
+                      Include current month
+                    </Label>
+                  </div>
+                </div>
+                {absorptionRateData && absorptionRateData.length > 0 && (() => {
+                  const avgAbsorption = absorptionRateData.reduce((sum, item) => sum + (item.absorption_rate || 0), 0) / absorptionRateData.length
+                  const latestAbsorption = absorptionRateData[absorptionRateData.length - 1]?.absorption_rate || 0
+                  return (
+                    <div className="flex gap-6 text-right">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Average</p>
+                        <p className={`text-lg font-semibold ${avgAbsorption >= 100 ? 'text-green-600' : avgAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {avgAbsorption.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Latest</p>
+                        <p className={`text-lg font-semibold ${latestAbsorption >= 100 ? 'text-green-600' : latestAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {latestAbsorption.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={absorptionRateData} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis yAxisId="left" tickFormatter={(value) => `${value}%`} domain={[0, 'auto']} />
+                  <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                  <Tooltip content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0]?.payload
+                      return (
+                        <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                          <p className="font-semibold mb-1">{label}</p>
+                          <p className={`font-semibold ${data?.absorption_rate >= 100 ? 'text-green-600' : data?.absorption_rate >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                            Absorption Rate: {data?.absorption_rate?.toFixed(1)}%
+                          </p>
+                          <hr className="my-2" />
+                          <p className="text-sm text-gray-600">Service GP: {formatCurrency(data?.service_gp)}</p>
+                          <p className="text-sm text-gray-600">Parts GP: {formatCurrency(data?.parts_gp)}</p>
+                          <p className="text-sm text-gray-600">Rental GP: {formatCurrency(data?.rental_gp)}</p>
+                          <p className="text-sm font-medium text-blue-600">Total Aftermarket GP: {formatCurrency(data?.total_aftermarket_gp)}</p>
+                          <hr className="my-2" />
+                          <p className="text-sm text-gray-600">Overhead Expenses: {formatCurrency(data?.overhead_expenses)}</p>
+                        </div>
+                      )
+                    }
+                    return null
+                  }} />
+                  <Legend />
+                  <ReferenceLine yAxisId="left" y={100} stroke="#22c55e" strokeDasharray="5 5" label={{ value: '100% Target', position: 'insideTopRight', fill: '#22c55e', fontSize: 12 }} />
+                  <ReferenceLine yAxisId="left" y={80} stroke="#eab308" strokeDasharray="3 3" label={{ value: '80% Threshold', position: 'insideBottomRight', fill: '#eab308', fontSize: 10 }} />
+                  <Bar 
+                    yAxisId="right" 
+                    dataKey="total_aftermarket_gp" 
+                    name="Aftermarket GP $" 
+                    fill="#3b82f6" 
+                    opacity={0.7}
+                  />
+                  <Line 
+                    yAxisId="left" 
+                    type="monotone" 
+                    dataKey="absorption_rate" 
+                    name="Absorption Rate %" 
+                    stroke="#22c55e" 
+                    strokeWidth={3}
+                    dot={{ fill: '#22c55e', strokeWidth: 2, r: 5 }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
           {/* Monthly Gross Margin Dollars */}
           <Card>
