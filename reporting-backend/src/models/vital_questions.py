@@ -4,7 +4,7 @@ Stores anonymous employee questions for HR review and trend analysis
 """
 
 from datetime import datetime
-from src.extensions import db
+from src.models.user import db
 
 
 class AnonymousQuestion(db.Model):

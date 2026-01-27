@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 import logging
 from datetime import datetime
-from src.extensions import db
+from src.models.user import db
 from src.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
