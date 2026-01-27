@@ -44,8 +44,9 @@ const VitalHighFivesDashboard = ({ user }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [dashboardData, setDashboardData] = useState(null)
+  const [monthlyReport, setMonthlyReport] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
-  const [activeTab, setActiveTab] = useState('overview') // 'overview', 'leaderboard', 'recent'
+  const [activeTab, setActiveTab] = useState('overview') // 'overview', 'leaderboard', 'teams', 'monthly', 'recent'
 
   const fetchDashboardData = async () => {
     setLoading(true)
@@ -70,6 +71,20 @@ const VitalHighFivesDashboard = ({ user }) => {
         setLastUpdated(new Date().toLocaleTimeString())
       } else {
         throw new Error(result.error || 'Unknown error')
+      }
+      
+      // Also fetch monthly report with team/employee breakdown
+      const monthlyResponse = await fetch('/api/vital/high-fives/monthly-report', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      if (monthlyResponse.ok) {
+        const monthlyResult = await monthlyResponse.json()
+        if (monthlyResult.success) {
+          setMonthlyReport(monthlyResult.data)
+        }
       }
     } catch (err) {
       setError(err.message)
@@ -232,6 +247,26 @@ const VitalHighFivesDashboard = ({ user }) => {
           Leaderboard
         </button>
         <button
+          onClick={() => setActiveTab('teams')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'teams' 
+              ? 'text-green-600 border-b-2 border-green-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          By Team
+        </button>
+        <button
+          onClick={() => setActiveTab('monthly')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'monthly' 
+              ? 'text-green-600 border-b-2 border-green-600' 
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Monthly Report
+        </button>
+        <button
           onClick={() => setActiveTab('recent')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'recent' 
@@ -316,6 +351,168 @@ const VitalHighFivesDashboard = ({ user }) => {
             color="blue"
             type="received"
           />
+        </div>
+      )}
+
+      {/* Teams Breakdown Tab */}
+      {activeTab === 'teams' && monthlyReport && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Team Recognition Given */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-green-600" />
+                  Recognition Given by Team
+                </CardTitle>
+                <CardDescription>{getMonthName(monthlyReport.month)} {monthlyReport.year}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {monthlyReport.by_team?.given?.length > 0 ? (
+                  <div className="space-y-3">
+                    {monthlyReport.by_team.given.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <span className="font-medium text-gray-800">{item.team || 'Unknown'}</span>
+                        <Badge variant="secondary" className="bg-green-100 text-green-700">
+                          {item.count} given
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No team data available</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Team Recognition Received */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-blue-600" />
+                  Recognition Received by Team
+                </CardTitle>
+                <CardDescription>{getMonthName(monthlyReport.month)} {monthlyReport.year}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {monthlyReport.by_team?.received?.length > 0 ? (
+                  <div className="space-y-3">
+                    {monthlyReport.by_team.received.map((item, index) => (
+                      <div key={index} className="flex items-center justify-between">
+                        <span className="font-medium text-gray-800">{item.team || 'Unknown'}</span>
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                          {item.count} received
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No team data available</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Monthly Report Tab */}
+      {activeTab === 'monthly' && monthlyReport && (
+        <div className="space-y-6">
+          {/* Monthly Summary */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-green-600" />
+                {getMonthName(monthlyReport.month)} {monthlyReport.year} Report
+              </CardTitle>
+              <CardDescription>
+                {monthlyReport.total_recognitions} total recognitions from {monthlyReport.unique_givers} givers to {monthlyReport.unique_receivers} receivers
+              </CardDescription>
+            </CardHeader>
+          </Card>
+
+          {/* Employee Breakdown Tables */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Employees Who Gave Recognition */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-5 w-5 text-green-600" />
+                  All Givers This Month
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {monthlyReport.by_employee?.givers?.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead className="text-right">Given</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monthlyReport.by_employee.givers.map((emp, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">
+                            {index < 3 && ['🥇', '🥈', '🥉'][index]} {emp.name}
+                          </TableCell>
+                          <TableCell className="text-gray-600">{emp.department || 'Unknown'}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="secondary" className="bg-green-100 text-green-700">
+                              {emp.count}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No data available</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Employees Who Received Recognition */}
+            <Card className="shadow-lg">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="h-5 w-5 text-blue-600" />
+                  All Receivers This Month
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {monthlyReport.by_employee?.receivers?.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead className="text-right">Received</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {monthlyReport.by_employee.receivers.map((emp, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">
+                            {index < 3 && ['🥇', '🥈', '🥉'][index]} {emp.name}
+                          </TableCell>
+                          <TableCell className="text-gray-600">{emp.department || 'Unknown'}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                              {emp.count}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No data available</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 

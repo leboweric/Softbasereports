@@ -262,6 +262,38 @@ class VitalTeamsService:
             logger.error(f"Error getting High Fives recognitions: {str(e)}")
             raise
     
+    # ==================== USER/DEPARTMENT LOOKUP ====================
+    
+    def get_user_by_name(self, display_name):
+        """Look up a user by display name to get their department"""
+        try:
+            # Search for user by display name
+            data = self._make_request("/users", {
+                "$filter": f"displayName eq '{display_name}'",
+                "$select": "id,displayName,department,jobTitle,mail"
+            })
+            users = data.get('value', [])
+            if users:
+                return users[0]
+            return None
+        except Exception as e:
+            logger.warning(f"Could not look up user {display_name}: {str(e)}")
+            return None
+    
+    def get_all_users_with_departments(self):
+        """Get all users with their department information"""
+        try:
+            data = self._make_request("/users", {
+                "$select": "id,displayName,department,jobTitle,mail",
+                "$top": 999
+            })
+            users = data.get('value', [])
+            # Create a lookup dict by display name
+            return {user.get('displayName', ''): user for user in users if user.get('displayName')}
+        except Exception as e:
+            logger.error(f"Error getting users: {str(e)}")
+            return {}
+    
     # ==================== RECOGNITION ANALYTICS ====================
     
     def get_recognition_summary(self, days=30):
@@ -298,7 +330,7 @@ class VitalTeamsService:
             raise
     
     def get_monthly_recognition_report(self, year=None, month=None):
-        """Get recognition report for a specific month"""
+        """Get recognition report for a specific month with team and employee breakdowns"""
         try:
             if not year:
                 year = datetime.now().year
@@ -308,6 +340,9 @@ class VitalTeamsService:
             # Get all recognitions for the past 90 days to ensure we have the month
             data = self.get_high_fives_recognitions(days=90)
             recognitions = data.get('recognitions', [])
+            
+            # Get user department lookup
+            user_lookup = self.get_all_users_with_departments()
             
             # Filter to specific month
             month_recognitions = []
@@ -325,15 +360,61 @@ class VitalTeamsService:
             giver_counts = {}
             receiver_counts = {}
             
+            # Team/Department breakdown
+            team_given = {}  # Department -> count of recognitions given
+            team_received = {}  # Department -> count of recognitions received
+            
+            # Employee breakdown with department info
+            employee_given = {}  # {name: {count, department}}
+            employee_received = {}  # {name: {count, department}}
+            
             for rec in month_recognitions:
                 giver = rec['giver_name']
                 giver_counts[giver] = giver_counts.get(giver, 0) + 1
                 
+                # Get giver's department
+                giver_info = user_lookup.get(giver, {})
+                giver_dept = giver_info.get('department', 'Unknown')
+                
+                # Track employee given
+                if giver not in employee_given:
+                    employee_given[giver] = {'count': 0, 'department': giver_dept}
+                employee_given[giver]['count'] += 1
+                
+                # Track team given
+                team_given[giver_dept] = team_given.get(giver_dept, 0) + 1
+                
                 for receiver in rec['receivers']:
                     receiver_counts[receiver] = receiver_counts.get(receiver, 0) + 1
+                    
+                    # Get receiver's department
+                    receiver_info = user_lookup.get(receiver, {})
+                    receiver_dept = receiver_info.get('department', 'Unknown')
+                    
+                    # Track employee received
+                    if receiver not in employee_received:
+                        employee_received[receiver] = {'count': 0, 'department': receiver_dept}
+                    employee_received[receiver]['count'] += 1
+                    
+                    # Track team received
+                    team_received[receiver_dept] = team_received.get(receiver_dept, 0) + 1
             
             top_givers = sorted(giver_counts.items(), key=lambda x: x[1], reverse=True)[:5]
             top_receivers = sorted(receiver_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            
+            # Sort team breakdowns
+            team_given_sorted = sorted(team_given.items(), key=lambda x: x[1], reverse=True)
+            team_received_sorted = sorted(team_received.items(), key=lambda x: x[1], reverse=True)
+            
+            # Sort employee breakdowns
+            employee_given_sorted = sorted(
+                [(name, data['count'], data['department']) for name, data in employee_given.items()],
+                key=lambda x: x[1], reverse=True
+            )
+            employee_received_sorted = sorted(
+                [(name, data['count'], data['department']) for name, data in employee_received.items()],
+                key=lambda x: x[1], reverse=True
+            )
             
             return {
                 "year": year,
@@ -343,6 +424,19 @@ class VitalTeamsService:
                 "unique_receivers": len(receiver_counts),
                 "top_givers": [{"name": name, "count": count} for name, count in top_givers],
                 "top_receivers": [{"name": name, "count": count} for name, count in top_receivers],
+                
+                # Team/Department breakdown
+                "by_team": {
+                    "given": [{"team": team, "count": count} for team, count in team_given_sorted],
+                    "received": [{"team": team, "count": count} for team, count in team_received_sorted]
+                },
+                
+                # Employee breakdown with department
+                "by_employee": {
+                    "givers": [{"name": name, "count": count, "department": dept} for name, count, dept in employee_given_sorted],
+                    "receivers": [{"name": name, "count": count, "department": dept} for name, count, dept in employee_received_sorted]
+                },
+                
                 "recognitions": month_recognitions
             }
         except Exception as e:
