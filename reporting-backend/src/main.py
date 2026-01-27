@@ -110,6 +110,7 @@ from src.routes.vital_quickbooks import vital_quickbooks_bp
 from src.routes.vital_azure_sql import vital_azure_sql_bp
 from src.routes.vital_zoom import vital_zoom_bp
 from src.routes.vital_high_fives import vital_high_fives_bp
+from src.routes.vital_anonymous_questions import vital_questions_bp
 from src.routes.vital_finance import vital_finance_bp
 from src.routes.vital_mobile_app import vital_mobile_app_bp
 from src.routes.vital_ceo_dashboard import vital_ceo_bp
@@ -255,6 +256,7 @@ app.register_blueprint(vital_quickbooks_bp)
 app.register_blueprint(vital_azure_sql_bp)
 app.register_blueprint(vital_zoom_bp)
 app.register_blueprint(vital_high_fives_bp)
+app.register_blueprint(vital_questions_bp)
 app.register_blueprint(vital_finance_bp)
 app.register_blueprint(vital_mobile_app_bp)
 app.register_blueprint(vital_ceo_bp)
