@@ -163,6 +163,43 @@ def run_hubspot_sync():
         return False
 
 
+def run_high_fives_sync():
+    """Sync High Fives recognition data from Microsoft Teams"""
+    logger.info("=" * 60)
+    logger.info(f"High Fives Sync Started: {datetime.now().isoformat()}")
+    logger.info("=" * 60)
+    
+    try:
+        # Check if Teams credentials are configured
+        tenant_id = os.environ.get('VITAL_TEAMS_TENANT_ID')
+        client_id = os.environ.get('VITAL_TEAMS_CLIENT_ID')
+        client_secret = os.environ.get('VITAL_TEAMS_CLIENT_SECRET')
+        
+        if not all([tenant_id, client_id, client_secret]):
+            logger.warning("VITAL Teams credentials not configured, skipping High Fives sync")
+            return False
+        
+        from src.services.vital_teams_service import VitalTeamsService
+        
+        teams_service = VitalTeamsService()
+        
+        # Get High Fives channel
+        channel_info = teams_service.find_high_fives_channel()
+        if not channel_info.get('found'):
+            logger.warning("High Fives channel not found")
+            return False
+        
+        # Get recognition summary (this triggers message parsing)
+        summary = teams_service.get_recognition_summary(days=30)
+        
+        logger.info(f"High Fives Sync Complete: {summary.get('total_recognitions', 0)} recognitions found")
+        return True
+        
+    except Exception as e:
+        logger.error(f"High Fives sync failed: {str(e)}")
+        return False
+
+
 def setup_scheduler():
     """Set up APScheduler for automated ETL runs"""
     try:
@@ -189,7 +226,16 @@ def setup_scheduler():
             replace_existing=True
         )
         
-        logger.info("ETL Scheduler configured: Daily ETL at 2:00 AM, HubSpot sync weekly Monday 3:00 AM")
+        # Run High Fives sync daily at 6 AM
+        scheduler.add_job(
+            run_high_fives_sync,
+            CronTrigger(hour=6, minute=0),
+            id='daily_high_fives_sync',
+            name='Daily High Fives Recognition Sync',
+            replace_existing=True
+        )
+        
+        logger.info("ETL Scheduler configured: Daily ETL at 2:00 AM, HubSpot sync weekly Monday 3:00 AM, High Fives daily 6:00 AM")
         return scheduler
         
     except ImportError:

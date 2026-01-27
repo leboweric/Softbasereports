@@ -43,6 +43,7 @@ RESOURCES = {
     'vital_quickbooks': 'VITAL Worklife QuickBooks financial dashboard',
     'vital_azure_sql': 'VITAL Worklife Azure SQL Case Data dashboard',
     'vital_zoom': 'VITAL Worklife Zoom call center analytics',
+    'vital_high_fives': 'VITAL Worklife High Fives employee recognition tracking',
     'vital_finance': 'VITAL Worklife Finance billing management and revenue tracking',
     'vital_mobile_app': 'VITAL Worklife Mobile App analytics from GA4 BigQuery',
 }
@@ -151,13 +152,13 @@ ROLE_PERMISSIONS = {
     # VITAL Worklife roles
     'VITAL Admin': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance', 'vital_mobile_app', 'user_management'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_high_fives', 'vital_finance', 'vital_mobile_app', 'user_management'
         ],
         'actions': ACTIONS,  # All actions
     },
     'VITAL User': {
         'resources': [
-            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_finance', 'vital_mobile_app'
+            'dashboard', 'vital_hubspot', 'vital_quickbooks', 'vital_azure_sql', 'vital_zoom', 'vital_high_fives', 'vital_finance', 'vital_mobile_app'
         ],
         'actions': ['view', 'export'],
     },
@@ -348,6 +349,13 @@ NAVIGATION_CONFIG = {
         'path': 'vital-zoom',
         'required_resource': 'vital_zoom',
         'order': 27,
+    },
+    'vital-high-fives': {
+        'label': 'High Fives',
+        'icon': 'Heart',
+        'path': 'vital-high-fives',
+        'required_resource': 'vital_high_fives',
+        'order': 28,
     },
     'vital-finance': {
         'label': 'Finance',

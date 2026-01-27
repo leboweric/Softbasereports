@@ -33,6 +33,7 @@ import VitalHubSpotDashboard from './components/vital/VitalHubSpotDashboard'
 import VitalQuickBooksDashboard from './components/vital/VitalQuickBooksDashboard'
 import VitalAzureSQLDashboard from './components/vital/VitalAzureSQLDashboard'
 import VitalZoomDashboard from './components/vital/VitalZoomDashboard'
+import VitalHighFivesDashboard from './components/vital/VitalHighFivesDashboard'
 import VitalFinanceBilling from './components/vital/VitalFinanceBilling'
 import VitalMobileAppDashboard from './components/vital/VitalMobileAppDashboard'
 import VitalCustomer360 from './components/vital/VitalCustomer360'
@@ -261,6 +262,8 @@ function App() {
         return <VitalCustomer360 user={user} onBack={null} />
       case 'vital-zoom':
         return <VitalZoomDashboard user={user} organization={organization} />
+      case 'vital-high-fives':
+        return <VitalHighFivesDashboard user={user} organization={organization} />
       case 'vital-finance':
         return <VitalFinanceBilling user={user} organization={organization} />
       case 'vital-mobile-app':
