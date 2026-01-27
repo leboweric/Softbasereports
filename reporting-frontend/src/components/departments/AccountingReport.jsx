@@ -551,7 +551,20 @@ const AccountingReport = ({ user }) => {
                     name="Absorption Rate %" 
                     stroke="#22c55e" 
                     strokeWidth={3}
-                    dot={{ fill: '#22c55e', strokeWidth: 2, r: 5 }}
+                    dot={(props) => {
+                      const { cx, cy, payload } = props
+                      const isBelow100 = payload.absorption_rate < 100
+                      return (
+                        <circle 
+                          cx={cx} 
+                          cy={cy} 
+                          r={5} 
+                          fill={isBelow100 ? '#ef4444' : '#22c55e'} 
+                          stroke={isBelow100 ? '#ef4444' : '#22c55e'}
+                          strokeWidth={2}
+                        />
+                      )
+                    }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
