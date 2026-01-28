@@ -2901,11 +2901,12 @@ def register_department_routes(reports_bp):
                     w.SerialNo as SerialNumber,
                     w.Make,
                     w.Model,
-                    w.OpenDate,
-                    w.CompletedDate,
-                    w.ClosedDate,
-                    w.InvoiceDate,
-                    CAST(NULL as varchar(50)) as InvoiceNo,
+                w.OpenDate,
+                w.CompletedDate,
+                w.ClosedDate,
+                w.InvoiceDate,
+                w.Technician,
+                CAST(NULL as varchar(50)) as InvoiceNo,
                     CASE 
                         WHEN w.ClosedDate IS NOT NULL THEN 'Closed'
                         WHEN w.InvoiceDate IS NOT NULL THEN 'Invoiced'
@@ -3037,6 +3038,7 @@ def register_department_routes(reports_bp):
                     'serialNumber': wo.get('SerialNumber') or '',
                     'make': wo.get('Make') or '',
                     'model': wo.get('Model') or '',
+                    'technician': wo.get('Technician') or '',  # Technician name
                     'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
                     'completedDate': wo.get('CompletedDate').strftime('%Y-%m-%d') if wo.get('CompletedDate') else None,
                     'status': wo.get('Status'),

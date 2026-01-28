@@ -110,7 +110,7 @@ const RentalServiceReport = () => {
 
   const exportToCSV = () => {
     // Create CSV headers
-    const headers = ['WO#', 'Ship To Customer', 'Unit Number', 'Make', 'Model', 'Status', 'Date Opened', 'Total Cost']
+    const headers = ['WO#', 'Ship To Customer', 'Unit Number', 'Make', 'Model', 'Technician', 'Status', 'Date Opened', 'Total Cost']
     
     // Create CSV rows
     const rows = workOrders.map(wo => [
@@ -119,6 +119,7 @@ const RentalServiceReport = () => {
       wo.unitNumber || '',
       wo.make || '',
       wo.model || '',
+      wo.technician || '',
       wo.status || '',
       wo.openDate || '',
       wo.totalCost || 0
@@ -286,6 +287,7 @@ const RentalServiceReport = () => {
                   <TableHead>Ship To Customer</TableHead>
                   <TableHead>Unit Number</TableHead>
                   <TableHead>Make/Model</TableHead>
+                  <TableHead>Technician</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date Opened</TableHead>
                   <TableHead className="text-center">Days Waiting</TableHead>
@@ -302,6 +304,7 @@ const RentalServiceReport = () => {
                     <TableCell>{wo.shipToCustomer || 'N/A'}</TableCell>
                     <TableCell>{wo.unitNumber || 'N/A'}</TableCell>
                     <TableCell>{wo.make && wo.model ? `${wo.make} ${wo.model}` : 'N/A'}</TableCell>
+                    <TableCell>{wo.technician || 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(wo.status)}</TableCell>
                     <TableCell>{wo.openDate || 'N/A'}</TableCell>
                     <TableCell className="text-center">
@@ -321,7 +324,7 @@ const RentalServiceReport = () => {
                 ))}
               </TableBody>
               <TableRow className="bg-gray-50 font-bold">
-                <TableCell colSpan={7}>Total</TableCell>
+                <TableCell colSpan={8}>Total</TableCell>
                 <TableCell className={`text-right ${(summary?.totalCost || 0) > 0 ? 'text-red-600' : ''}`}>
                   {formatCurrency(summary?.totalCost || 0)}
                 </TableCell>
