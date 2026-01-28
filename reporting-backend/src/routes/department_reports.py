@@ -2953,6 +2953,18 @@ def register_department_routes(reports_bp):
                 WHERE WONo IN (SELECT WONo FROM RentalWOs)
                 GROUP BY WONo
             ),
+            -- Get primary technician (mechanic with most hours on the WO)
+            TechnicianInfo AS (
+                SELECT 
+                    WONo,
+                    MechanicName,
+                    ROW_NUMBER() OVER (PARTITION BY WONo ORDER BY SUM(Hours) DESC) as rn
+                FROM {schema}.WOLabor
+                WHERE WONo IN (SELECT WONo FROM RentalWOs)
+                  AND MechanicName IS NOT NULL
+                  AND MechanicName != ''
+                GROUP BY WONo, MechanicName
+            ),
             -- Include labor quotes (flat rate labor)
             LaborQuotes AS (
                 SELECT 
@@ -2985,6 +2997,8 @@ def register_department_routes(reports_bp):
                 r.*,
                 -- Get actual rental customer name using same approach as Availability Report
                 r.ShipToCustomer as ActualShipToCustomer,
+                -- Get primary technician name from WOLabor
+                t.MechanicName as TechnicianName,
                 COALESCE(l.LaborCost, 0) as LaborCost,
                 COALESCE(p.PartsCost, 0) as PartsCost,
                 COALESCE(m.MiscCost, 0) as MiscCost,
@@ -2998,6 +3012,7 @@ def register_department_routes(reports_bp):
                 COALESCE(l.LaborSell, 0) + COALESCE(lq.QuoteAmount, 0) + COALESCE(p.PartsSell, 0) + COALESCE(m.MiscSell, 0) as InvoiceTotal
             FROM RentalWOs r
             LEFT JOIN LaborCosts l ON r.WONo = l.WONo
+            LEFT JOIN TechnicianInfo t ON r.WONo = t.WONo AND t.rn = 1
             LEFT JOIN LaborQuotes lq ON r.WONo = lq.WONo
             LEFT JOIN PartsCosts p ON r.WONo = p.WONo
             LEFT JOIN MiscCosts m ON r.WONo = m.WONo
@@ -3038,7 +3053,7 @@ def register_department_routes(reports_bp):
                     'serialNumber': wo.get('SerialNumber') or '',
                     'make': wo.get('Make') or '',
                     'model': wo.get('Model') or '',
-                    'technician': wo.get('Technician') or '',  # Technician name
+                    'technician': wo.get('TechnicianName') or '',  # Technician name from WOLabor
                     'openDate': wo.get('OpenDate').strftime('%Y-%m-%d') if wo.get('OpenDate') else None,
                     'completedDate': wo.get('CompletedDate').strftime('%Y-%m-%d') if wo.get('CompletedDate') else None,
                     'status': wo.get('Status'),
