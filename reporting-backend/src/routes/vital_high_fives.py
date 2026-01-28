@@ -273,7 +273,7 @@ def get_monthly_report():
 @vital_high_fives_bp.route('/api/vital/high-fives/dashboard', methods=['GET'])
 @jwt_required()
 def get_high_fives_dashboard():
-    """Get comprehensive High Fives dashboard data"""
+    """Get comprehensive High Fives dashboard data - OPTIMIZED to fetch data once"""
     try:
         if not is_vital_user():
             return jsonify({"error": "Access denied. VITAL users only."}), 403
@@ -299,17 +299,46 @@ def get_high_fives_dashboard():
             "last_updated": datetime.now().isoformat()
         }
         
-        # Get channel info
+        # OPTIMIZATION: Fetch all data ONCE and reuse it
+        # Step 1: Get channel info (uses internal caching)
         try:
             channel_info = service.find_high_fives_channel()
             dashboard_data["channel"] = channel_info
         except Exception as e:
             logger.warning(f"Could not find High Fives channel: {str(e)}")
             dashboard_data["channel"] = {"found": False, "error": str(e)}
+            # Return early if no channel found
+            return jsonify({
+                "success": True,
+                "data": dashboard_data,
+                "from_cache": False
+            })
         
-        # Get current month summary
+        # Step 2: Get ALL recognitions ONCE (90 days covers everything we need)
         try:
-            current_month = service.get_monthly_recognition_report()
+            all_recognitions_data = service.get_high_fives_recognitions(days=90)
+            all_recognitions = all_recognitions_data.get('recognitions', [])
+            logger.info(f"Fetched {len(all_recognitions)} recognitions")
+        except Exception as e:
+            logger.warning(f"Could not get recognitions: {str(e)}")
+            all_recognitions = []
+        
+        # Step 3: Get user lookup ONCE (uses internal caching)
+        try:
+            user_lookup = service.get_all_users_with_departments()
+        except Exception as e:
+            logger.warning(f"Could not get user departments: {str(e)}")
+            user_lookup = {}
+        
+        # Step 4: Build current month data from the fetched recognitions
+        try:
+            now = datetime.now()
+            current_month = service.get_monthly_recognition_report(
+                year=now.year, 
+                month=now.month, 
+                recognitions=all_recognitions,
+                user_lookup=user_lookup
+            )
             dashboard_data["current_month"] = {
                 "year": current_month.get('year'),
                 "month": current_month.get('month'),
@@ -323,13 +352,18 @@ def get_high_fives_dashboard():
             logger.warning(f"Could not get current month data: {str(e)}")
             dashboard_data["current_month"] = {"error": str(e)}
         
-        # Get previous month for comparison
+        # Step 5: Build previous month data from the fetched recognitions
         try:
             now = datetime.now()
             prev_month = now.month - 1 if now.month > 1 else 12
             prev_year = now.year if now.month > 1 else now.year - 1
             
-            prev_month_data = service.get_monthly_recognition_report(year=prev_year, month=prev_month)
+            prev_month_data = service.get_monthly_recognition_report(
+                year=prev_year, 
+                month=prev_month,
+                recognitions=all_recognitions,
+                user_lookup=user_lookup
+            )
             dashboard_data["previous_month"] = {
                 "year": prev_month_data.get('year'),
                 "month": prev_month_data.get('month'),
@@ -348,18 +382,29 @@ def get_high_fives_dashboard():
             logger.warning(f"Could not get previous month data: {str(e)}")
             dashboard_data["previous_month"] = {"error": str(e)}
         
-        # Get 90-day summary
+        # Step 6: Build 90-day summary from the fetched recognitions
         try:
-            summary_90d = service.get_recognition_summary(days=90)
+            summary_90d = service.get_recognition_summary(days=90, recognitions=all_recognitions)
             dashboard_data["summary_90_days"] = summary_90d
         except Exception as e:
             logger.warning(f"Could not get 90-day summary: {str(e)}")
             dashboard_data["summary_90_days"] = {"error": str(e)}
         
-        # Get recent recognitions
+        # Step 7: Get recent recognitions (last 7 days) from the fetched data
         try:
-            recent = service.get_high_fives_recognitions(days=7)
-            dashboard_data["recent_recognitions"] = recent.get('recognitions', [])[:10]
+            from datetime import timedelta
+            cutoff = datetime.now() - timedelta(days=7)
+            recent = []
+            for rec in all_recognitions:
+                created_at_str = rec.get('created_at', '')
+                if created_at_str:
+                    try:
+                        created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                        if created_at.replace(tzinfo=None) >= cutoff:
+                            recent.append(rec)
+                    except:
+                        pass
+            dashboard_data["recent_recognitions"] = recent[:10]
         except Exception as e:
             logger.warning(f"Could not get recent recognitions: {str(e)}")
             dashboard_data["recent_recognitions"] = []
@@ -398,10 +443,39 @@ def get_leaderboard():
             "data": {
                 "period_days": days,
                 "top_givers": summary.get('top_givers', [])[:limit],
-                "top_receivers": summary.get('top_receivers', [])[:limit],
-                "total_recognitions": summary.get('total_recognitions', 0)
+                "top_receivers": summary.get('top_receivers', [])[:limit]
             }
         })
     except Exception as e:
         logger.error(f"Leaderboard error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ==================== BY TEAM ====================
+
+@vital_high_fives_bp.route('/api/vital/high-fives/by-team', methods=['GET'])
+@jwt_required()
+def get_by_team():
+    """Get recognition data broken down by team/department"""
+    try:
+        if not is_vital_user():
+            return jsonify({"error": "Access denied. VITAL users only."}), 403
+        
+        year = request.args.get('year', datetime.now().year, type=int)
+        month = request.args.get('month', datetime.now().month, type=int)
+        
+        service = get_teams_service()
+        report = service.get_monthly_recognition_report(year=year, month=month)
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "year": year,
+                "month": month,
+                "by_team_given": report.get('by_team_given', []),
+                "by_team_received": report.get('by_team_received', [])
+            }
+        })
+    except Exception as e:
+        logger.error(f"By team error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500

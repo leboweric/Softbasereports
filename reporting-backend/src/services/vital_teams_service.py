@@ -22,6 +22,16 @@ class VitalTeamsService:
     GRAPH_BETA_URL = "https://graph.microsoft.com/beta"
     TOKEN_URL = "https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
     
+    # Class-level cache for channel info (shared across instances)
+    _channel_cache = None
+    _channel_cache_time = 0
+    CHANNEL_CACHE_TTL = 3600  # 1 hour
+    
+    # Class-level cache for user departments
+    _user_cache = None
+    _user_cache_time = 0
+    USER_CACHE_TTL = 3600  # 1 hour
+    
     def __init__(self, tenant_id=None, client_id=None, client_secret=None):
         """Initialize with Microsoft Azure AD credentials"""
         self.tenant_id = tenant_id or os.environ.get('VITAL_TEAMS_TENANT_ID')
@@ -67,7 +77,7 @@ class VitalTeamsService:
         base_url = self.GRAPH_BETA_URL if use_beta else self.GRAPH_BASE_URL
         url = f"{base_url}{endpoint}"
         
-        response = requests.get(url, headers=headers, params=params, timeout=30)
+        response = requests.get(url, headers=headers, params=params, timeout=60)
         
         if response.status_code == 200:
             return response.json()
@@ -128,9 +138,16 @@ class VitalTeamsService:
             logger.error(f"Error getting channel messages: {str(e)}")
             raise
     
-    def find_high_fives_channel(self):
-        """Find the High Fives channel across all teams"""
+    def find_high_fives_channel(self, force_refresh=False):
+        """Find the High Fives channel across all teams (with caching)"""
+        # Check class-level cache first
+        if not force_refresh and VitalTeamsService._channel_cache:
+            if time.time() - VitalTeamsService._channel_cache_time < self.CHANNEL_CACHE_TTL:
+                logger.info("Using cached High Fives channel info")
+                return VitalTeamsService._channel_cache
+        
         try:
+            logger.info("Searching for High Fives channel...")
             teams = self.get_teams()
             
             for team in teams.get('teams', []):
@@ -143,13 +160,18 @@ class VitalTeamsService:
                     channel_name = channel.get('displayName', '')
                     # Look for High Fives channel (may have emoji)
                     if 'high five' in channel_name.lower() or '🙏' in channel_name:
-                        return {
+                        result = {
                             "found": True,
                             "team_id": team_id,
                             "team_name": team_name,
                             "channel_id": channel.get('id'),
                             "channel_name": channel_name
                         }
+                        # Cache the result
+                        VitalTeamsService._channel_cache = result
+                        VitalTeamsService._channel_cache_time = time.time()
+                        logger.info(f"Found High Fives channel: {channel_name} in team {team_name}")
+                        return result
             
             return {"found": False, "message": "High Fives channel not found"}
         except Exception as e:
@@ -220,11 +242,11 @@ class VitalTeamsService:
     def get_high_fives_recognitions(self, team_id=None, channel_id=None, days=90):
         """Get all recognition data from the High Fives channel"""
         try:
-            # Find channel if not provided
+            # Find channel if not provided (uses cache)
             if not team_id or not channel_id:
                 channel_info = self.find_high_fives_channel()
                 if not channel_info.get('found'):
-                    return {"error": "High Fives channel not found"}
+                    return {"error": "High Fives channel not found", "recognitions": [], "total": 0}
                 team_id = channel_info['team_id']
                 channel_id = channel_info['channel_id']
             
@@ -280,27 +302,58 @@ class VitalTeamsService:
             logger.warning(f"Could not look up user {display_name}: {str(e)}")
             return None
     
-    def get_all_users_with_departments(self):
-        """Get all users with their department information"""
+    def get_all_users_with_departments(self, force_refresh=False):
+        """Get all users with their department information (with caching)"""
+        # Check class-level cache first
+        if not force_refresh and VitalTeamsService._user_cache:
+            if time.time() - VitalTeamsService._user_cache_time < self.USER_CACHE_TTL:
+                logger.info("Using cached user department info")
+                return VitalTeamsService._user_cache
+        
         try:
+            logger.info("Fetching user department info from Graph API...")
             data = self._make_request("/users", {
                 "$select": "id,displayName,department,jobTitle,mail",
                 "$top": 999
             })
             users = data.get('value', [])
             # Create a lookup dict by display name
-            return {user.get('displayName', ''): user for user in users if user.get('displayName')}
+            result = {user.get('displayName', ''): user for user in users if user.get('displayName')}
+            
+            # Cache the result
+            VitalTeamsService._user_cache = result
+            VitalTeamsService._user_cache_time = time.time()
+            
+            return result
         except Exception as e:
             logger.error(f"Error getting users: {str(e)}")
             return {}
     
     # ==================== RECOGNITION ANALYTICS ====================
     
-    def get_recognition_summary(self, days=30):
+    def get_recognition_summary(self, days=30, recognitions=None):
         """Get summary statistics for recognitions"""
         try:
-            data = self.get_high_fives_recognitions(days=days)
-            recognitions = data.get('recognitions', [])
+            # Use provided recognitions or fetch them
+            if recognitions is None:
+                data = self.get_high_fives_recognitions(days=days)
+                recognitions = data.get('recognitions', [])
+            else:
+                # Filter by days if recognitions provided
+                cutoff_date = datetime.now() - timedelta(days=days)
+                filtered = []
+                for rec in recognitions:
+                    created_at_str = rec.get('created_at', '')
+                    if created_at_str:
+                        try:
+                            created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+                            if created_at.replace(tzinfo=None) >= cutoff_date:
+                                filtered.append(rec)
+                        except:
+                            filtered.append(rec)
+                    else:
+                        filtered.append(rec)
+                recognitions = filtered
             
             # Count by giver
             giver_counts = {}
@@ -329,7 +382,7 @@ class VitalTeamsService:
             logger.error(f"Error getting recognition summary: {str(e)}")
             raise
     
-    def get_monthly_recognition_report(self, year=None, month=None):
+    def get_monthly_recognition_report(self, year=None, month=None, recognitions=None, user_lookup=None):
         """Get recognition report for a specific month with team and employee breakdowns"""
         try:
             if not year:
@@ -337,12 +390,14 @@ class VitalTeamsService:
             if not month:
                 month = datetime.now().month
             
-            # Get all recognitions for the past 90 days to ensure we have the month
-            data = self.get_high_fives_recognitions(days=90)
-            recognitions = data.get('recognitions', [])
+            # Use provided recognitions or fetch them
+            if recognitions is None:
+                data = self.get_high_fives_recognitions(days=90)
+                recognitions = data.get('recognitions', [])
             
-            # Get user department lookup
-            user_lookup = self.get_all_users_with_departments()
+            # Use provided user lookup or fetch it
+            if user_lookup is None:
+                user_lookup = self.get_all_users_with_departments()
             
             # Filter to specific month
             month_recognitions = []
@@ -356,17 +411,11 @@ class VitalTeamsService:
                     except:
                         pass
             
-            # Calculate stats
+            # Count by giver and receiver
             giver_counts = {}
             receiver_counts = {}
-            
-            # Team/Department breakdown
-            team_given = {}  # Department -> count of recognitions given
-            team_received = {}  # Department -> count of recognitions received
-            
-            # Employee breakdown with department info
-            employee_given = {}  # {name: {count, department}}
-            employee_received = {}  # {name: {count, department}}
+            team_given = {}
+            team_received = {}
             
             for rec in month_recognitions:
                 giver = rec['giver_name']
@@ -375,13 +424,6 @@ class VitalTeamsService:
                 # Get giver's department
                 giver_info = user_lookup.get(giver, {})
                 giver_dept = giver_info.get('department', 'Unknown')
-                
-                # Track employee given
-                if giver not in employee_given:
-                    employee_given[giver] = {'count': 0, 'department': giver_dept}
-                employee_given[giver]['count'] += 1
-                
-                # Track team given
                 team_given[giver_dept] = team_given.get(giver_dept, 0) + 1
                 
                 for receiver in rec['receivers']:
@@ -390,31 +432,33 @@ class VitalTeamsService:
                     # Get receiver's department
                     receiver_info = user_lookup.get(receiver, {})
                     receiver_dept = receiver_info.get('department', 'Unknown')
-                    
-                    # Track employee received
-                    if receiver not in employee_received:
-                        employee_received[receiver] = {'count': 0, 'department': receiver_dept}
-                    employee_received[receiver]['count'] += 1
-                    
-                    # Track team received
                     team_received[receiver_dept] = team_received.get(receiver_dept, 0) + 1
             
-            top_givers = sorted(giver_counts.items(), key=lambda x: x[1], reverse=True)[:5]
-            top_receivers = sorted(receiver_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            # Sort by count
+            top_givers = sorted(giver_counts.items(), key=lambda x: x[1], reverse=True)
+            top_receivers = sorted(receiver_counts.items(), key=lambda x: x[1], reverse=True)
+            top_teams_given = sorted(team_given.items(), key=lambda x: x[1], reverse=True)
+            top_teams_received = sorted(team_received.items(), key=lambda x: x[1], reverse=True)
             
-            # Sort team breakdowns
-            team_given_sorted = sorted(team_given.items(), key=lambda x: x[1], reverse=True)
-            team_received_sorted = sorted(team_received.items(), key=lambda x: x[1], reverse=True)
+            # Build giver details with departments
+            giver_details = []
+            for name, count in top_givers:
+                user_info = user_lookup.get(name, {})
+                giver_details.append({
+                    "name": name,
+                    "count": count,
+                    "department": user_info.get('department', 'Unknown')
+                })
             
-            # Sort employee breakdowns
-            employee_given_sorted = sorted(
-                [(name, data['count'], data['department']) for name, data in employee_given.items()],
-                key=lambda x: x[1], reverse=True
-            )
-            employee_received_sorted = sorted(
-                [(name, data['count'], data['department']) for name, data in employee_received.items()],
-                key=lambda x: x[1], reverse=True
-            )
+            # Build receiver details with departments
+            receiver_details = []
+            for name, count in top_receivers:
+                user_info = user_lookup.get(name, {})
+                receiver_details.append({
+                    "name": name,
+                    "count": count,
+                    "department": user_info.get('department', 'Unknown')
+                })
             
             return {
                 "year": year,
@@ -422,23 +466,13 @@ class VitalTeamsService:
                 "total_recognitions": len(month_recognitions),
                 "unique_givers": len(giver_counts),
                 "unique_receivers": len(receiver_counts),
-                "top_givers": [{"name": name, "count": count} for name, count in top_givers],
-                "top_receivers": [{"name": name, "count": count} for name, count in top_receivers],
-                
-                # Team/Department breakdown
-                "by_team": {
-                    "given": [{"team": team, "count": count} for team, count in team_given_sorted],
-                    "received": [{"team": team, "count": count} for team, count in team_received_sorted]
-                },
-                
-                # Employee breakdown with department
-                "by_employee": {
-                    "givers": [{"name": name, "count": count, "department": dept} for name, count, dept in employee_given_sorted],
-                    "receivers": [{"name": name, "count": count, "department": dept} for name, count, dept in employee_received_sorted]
-                },
-                
-                "recognitions": month_recognitions
+                "top_givers": giver_details[:10],
+                "top_receivers": receiver_details[:10],
+                "all_givers": giver_details,
+                "all_receivers": receiver_details,
+                "by_team_given": [{"team": team, "count": count} for team, count in top_teams_given],
+                "by_team_received": [{"team": team, "count": count} for team, count in top_teams_received]
             }
         except Exception as e:
-            logger.error(f"Error getting monthly report: {str(e)}")
+            logger.error(f"Error getting monthly recognition report: {str(e)}")
             raise
