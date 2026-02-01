@@ -332,6 +332,35 @@ def get_at_risk_customers():
         return jsonify({'error': str(e)}), 500
 
 
+@customer_churn_bp.route('/api/customer-churn/run-etl-now', methods=['POST'])
+def run_etl_now():
+    """
+    TEMPORARY: Unauthenticated endpoint to trigger initial ETL load
+    TODO: Remove this endpoint after initial data load
+    """
+    try:
+        from src.etl.etl_customer_activity import run_customer_activity_etl
+        
+        logger.info("TEMP: Unauthenticated ETL trigger called")
+        success = run_customer_activity_etl()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Customer activity ETL completed successfully',
+                'refreshed_at': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'ETL job completed with errors'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"ETL trigger failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @customer_churn_bp.route('/api/customer-churn/refresh', methods=['POST'])
 @jwt_required()
 def refresh_churn_data():
