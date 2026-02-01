@@ -104,13 +104,13 @@ def get_churn_analysis():
                 # Get work order breakdown by type
                 wo_query = f"""
                 SELECT 
-                    WOType,
+                    Type,
                     COUNT(*) as wo_count,
                     SUM(ISNULL(TotalInvoiced, 0)) as wo_revenue
                 FROM {schema}.WO
                 WHERE (BillTo LIKE '%{customer_name.replace("'", "''")}%' 
                        OR ShipTo LIKE '%{customer_name.replace("'", "''")}%')
-                GROUP BY WOType
+                GROUP BY Type
                 """
                 wo_breakdown = db.execute_query(wo_query)
                 
@@ -149,7 +149,7 @@ def get_churn_analysis():
                     'days_since_last_invoice': int(customer['days_since_last_invoice'] or 0),
                     'work_order_breakdown': [
                         {
-                            'type': wo['WOType'],
+                            'type': wo['Type'],
                             'count': int(wo['wo_count']),
                             'revenue': float(wo['wo_revenue'] or 0)
                         } for wo in (wo_breakdown or [])
