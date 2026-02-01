@@ -46,8 +46,94 @@ def get_db():
     return AzureSQLService()
 
 
+# TEMPORARY: Unauthenticated endpoint for initial ETL run - REMOVE AFTER USE
+def register_temp_etl_endpoint(reports_bp):
+    @reports_bp.route('/departments/run-etl-now', methods=['POST'])
+    def run_department_etl_now():
+        """Temporary endpoint to trigger Department Metrics ETL - REMOVE AFTER INITIAL LOAD"""
+        try:
+            from src.etl.etl_department_metrics import run_department_metrics_etl
+            success = run_department_metrics_etl()
+            return jsonify({'success': success, 'message': 'Department Metrics ETL completed'})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+
+def _get_department_from_mart(department: str, max_age_hours: float = 4.0):
+    """
+    Get department metrics from mart_department_metrics table.
+    Returns None if data is unavailable or stale.
+    """
+    try:
+        from src.services.postgres_service import PostgreSQLService
+        
+        pg = PostgreSQLService()
+        
+        query = """
+        SELECT *
+        FROM mart_department_metrics
+        WHERE org_id = 4 AND department = %s
+        ORDER BY snapshot_timestamp DESC
+        LIMIT 1
+        """
+        
+        result = pg.execute_query(query, (department,))
+        
+        if not result:
+            logger.info(f"No mart data found for {department}")
+            return None
+        
+        metrics = result[0]
+        
+        # Check data freshness
+        snapshot_time = metrics['snapshot_timestamp']
+        age_hours = (datetime.now() - snapshot_time).total_seconds() / 3600
+        
+        if age_hours > max_age_hours:
+            logger.info(f"Mart data for {department} is {age_hours:.1f} hours old, using live queries")
+            return None
+        
+        logger.info(f"Using mart data for {department} (age: {age_hours:.1f} hours)")
+        return metrics
+        
+    except Exception as e:
+        logger.warning(f"Failed to get mart data for {department}: {e}")
+        return None
+
+
+def _format_monthly_data_from_mart(data: list, fiscal_months: list) -> list:
+    """
+    Format monthly data from mart table with proper month labels.
+    """
+    if not data:
+        return []
+    
+    formatted = []
+    data_by_key = {(d['year'], d['month']): d for d in data}
+    
+    for year, month in fiscal_months:
+        month_date = datetime(year, month, 1)
+        if fiscal_months[0][0] != fiscal_months[-1][0]:
+            month_str = month_date.strftime("%b '%y")
+        else:
+            month_str = month_date.strftime("%b")
+        
+        key = (year, month)
+        if key in data_by_key:
+            entry = data_by_key[key].copy()
+            entry['month'] = month_str
+            formatted.append(entry)
+        else:
+            formatted.append({'month': month_str, 'year': year, 'amount': 0, 'margin': None, 'prior_year_amount': 0})
+    
+    return formatted
+
+
 def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
+    
+    # TEMPORARY: Register ETL endpoint - REMOVE AFTER INITIAL LOAD
+    register_temp_etl_endpoint(reports_bp)
     
     @reports_bp.route('/departments/service/pace', methods=['GET'])
     @require_permission('view_service')
@@ -641,6 +727,24 @@ def register_department_routes(reports_bp):
     def get_service_department_report():
         """Get Service Department report data"""
         try:
+            # Try mart table first for fast response
+            if not request.args.get('refresh'):
+                mart_data = _get_department_from_mart('service')
+                if mart_data:
+                    fiscal_year_months = get_fiscal_year_months()
+                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
+                    field_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
+                    shop_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
+                    
+                    return jsonify({
+                        'monthlyLaborRevenue': _format_monthly_data_from_mart(monthly_revenue, fiscal_year_months),
+                        'monthlyFieldRevenue': _format_monthly_data_from_mart(field_revenue, fiscal_year_months),
+                        'monthlyShopRevenue': _format_monthly_data_from_mart(shop_revenue, fiscal_year_months),
+                        '_source': 'mart',
+                        '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
+                    })
+            
+            # Fall back to live queries
             db = get_db()
             schema = get_tenant_schema()
             
@@ -918,6 +1022,24 @@ def register_department_routes(reports_bp):
     def get_parts_department_report():
         """Get Parts Department report data"""
         try:
+            # Try mart table first for fast response
+            if not request.args.get('refresh'):
+                mart_data = _get_department_from_mart('parts')
+                if mart_data:
+                    fiscal_year_months = get_fiscal_year_months()
+                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
+                    counter_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
+                    repair_order_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
+                    
+                    return jsonify({
+                        'monthlyPartsRevenue': _format_monthly_data_from_mart(monthly_revenue, fiscal_year_months),
+                        'monthlyCounterRevenue': _format_monthly_data_from_mart(counter_revenue, fiscal_year_months),
+                        'monthlyRepairOrderRevenue': _format_monthly_data_from_mart(repair_order_revenue, fiscal_year_months),
+                        '_source': 'mart',
+                        '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
+                    })
+            
+            # Fall back to live queries
             db = get_db()
             schema = get_tenant_schema()
             
@@ -2582,6 +2704,36 @@ def register_department_routes(reports_bp):
     def get_rental_department_report():
         """Get Rental Department report data"""
         try:
+            # Try mart table first for fast response
+            if not request.args.get('refresh'):
+                mart_data = _get_department_from_mart('rental')
+                if mart_data:
+                    additional = json.loads(mart_data['additional_data']) if mart_data['additional_data'] else {}
+                    fleet_by_category = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
+                    monthly_trend = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
+                    
+                    # Format monthly trend with month labels
+                    formatted_trend = []
+                    for item in monthly_trend:
+                        month_date = datetime(item['year'], item['month'], 1)
+                        formatted_trend.append({
+                            'month': month_date.strftime('%b'),
+                            'revenue': item.get('revenue', 0),
+                            'utilization': 0
+                        })
+                    
+                    return jsonify({
+                        'summary': additional.get('summary', {}),
+                        'fleetByCategory': fleet_by_category,
+                        'activeRentals': [],  # Not stored in mart
+                        'monthlyTrend': formatted_trend,
+                        'rentalsByDuration': [],
+                        'topCustomers': additional.get('topCustomers', []),
+                        '_source': 'mart',
+                        '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
+                    })
+            
+            # Fall back to live queries
             db = get_db()
             schema = get_tenant_schema()
             
@@ -3500,6 +3652,70 @@ def register_department_routes(reports_bp):
     def get_accounting_report():
         """Get accounting department report data with expenses over time"""
         try:
+            # Try mart table first for fast response
+            if not request.args.get('refresh'):
+                mart_data = _get_department_from_mart('accounting')
+                if mart_data:
+                    monthly_expenses_raw = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
+                    expense_categories = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
+                    
+                    # Format monthly expenses with proper month labels
+                    current_date = datetime.now()
+                    all_months = []
+                    for i in range(12, -1, -1):
+                        year = current_date.year
+                        month = current_date.month - i
+                        while month <= 0:
+                            month += 12
+                            year -= 1
+                        month_date = datetime(year, month, 1)
+                        all_months.append({
+                            'month': month_date.strftime("%b '%y"),
+                            'year': year,
+                            'month_num': month
+                        })
+                    
+                    existing_data = {(item['year'], item['month']): item['expenses'] for item in monthly_expenses_raw}
+                    
+                    monthly_expenses = []
+                    for m in all_months:
+                        expenses = existing_data.get((m['year'], m['month_num']), 0)
+                        monthly_expenses.append({
+                            'month': m['month'],
+                            'year': m['year'],
+                            'expenses': expenses
+                        })
+                    
+                    total_expenses = float(mart_data['metric_1'] or 0)
+                    avg_expenses = float(mart_data['metric_2'] or 0)
+                    
+                    return jsonify({
+                        'monthly_expenses': monthly_expenses,
+                        'debug_info': {'data_source': 'mart_department_metrics'},
+                        'summary': {
+                            'total_expenses': round(total_expenses, 2),
+                            'average_monthly': round(avg_expenses, 2),
+                            'expense_categories': expense_categories,
+                            'totalRevenue': 0,
+                            'totalExpenses': total_expenses,
+                            'netProfit': 0,
+                            'profitMargin': 0,
+                            'accountsReceivable': 0,
+                            'accountsPayable': 0,
+                            'cashFlow': 0,
+                            'overdueInvoices': 0
+                        },
+                        'revenueByDepartment': [],
+                        'expenseCategories': expense_categories,
+                        'monthlyFinancials': [],
+                        'cashFlowTrend': [],
+                        'outstandingInvoices': [],
+                        'pendingPayables': [],
+                        '_source': 'mart',
+                        '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
+                    })
+            
+            # Fall back to live queries
             db = get_db()
             schema = get_tenant_schema()
             

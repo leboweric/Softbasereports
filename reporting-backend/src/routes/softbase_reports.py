@@ -633,6 +633,56 @@ def financial_summary_report():
         return jsonify({'error': str(e)}), 400
     
     try:
+        # Try mart table first for fast response
+        if not request.args.get('refresh'):
+            try:
+                from src.services.postgres_service import PostgreSQLService
+                import json as json_lib
+                
+                pg = PostgreSQLService()
+                query = """
+                SELECT *
+                FROM mart_department_metrics
+                WHERE org_id = 4 AND department = 'financial'
+                ORDER BY snapshot_timestamp DESC
+                LIMIT 1
+                """
+                
+                result = pg.execute_query(query, ())
+                
+                if result:
+                    metrics = result[0]
+                    snapshot_time = metrics['snapshot_timestamp']
+                    age_hours = (datetime.now() - snapshot_time).total_seconds() / 3600
+                    
+                    if age_hours <= 4.0:
+                        logger.info(f"Using mart data for financial (age: {age_hours:.1f} hours)")
+                        additional = json_lib.loads(metrics['additional_data']) if metrics['additional_data'] else {}
+                        top_ar = json_lib.loads(metrics['sub_category_1']) if metrics['sub_category_1'] else []
+                        revenue_by_dept = json_lib.loads(metrics['sub_category_2']) if metrics['sub_category_2'] else []
+                        
+                        period = request.args.get('period', 'month')
+                        start_date, end_date = get_date_range(period)
+                        
+                        return jsonify({
+                            'report': 'Financial Summary Report',
+                            'period': period,
+                            'date_range': {'start': start_date, 'end': end_date},
+                            'data': {
+                                'ar_summary': additional.get('ar_summary', {}),
+                                'ar_detail': top_ar,
+                                'revenue_by_department': revenue_by_dept,
+                                'daily_collections': [],
+                                'inventory_value': []
+                            },
+                            'generated_at': snapshot_time.isoformat(),
+                            '_source': 'mart',
+                            '_snapshot_time': snapshot_time.isoformat()
+                        }), 200
+            except Exception as e:
+                logger.warning(f"Failed to get mart data for financial: {e}")
+        
+        # Fall back to live queries
         period = request.args.get('period', 'month')
         start_date, end_date = get_date_range(period)
         

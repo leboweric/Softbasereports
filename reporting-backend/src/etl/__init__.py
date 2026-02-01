@@ -7,6 +7,7 @@ from .base_etl import BaseETL
 from .etl_bennett_sales import BennettSalesETL, BennettCashFlowETL, run_bennett_etl
 from .etl_customer_activity import CustomerActivityETL, run_customer_activity_etl
 from .etl_ceo_dashboard import CEODashboardETL, run_ceo_dashboard_etl
+from .etl_department_metrics import DepartmentMetricsETL, run_department_metrics_etl
 from .etl_vital import (
     VitalHubSpotContactsETL, 
     VitalHubSpotDealsETL,
@@ -27,6 +28,8 @@ __all__ = [
     'run_customer_activity_etl',
     'CEODashboardETL',
     'run_ceo_dashboard_etl',
+    'DepartmentMetricsETL',
+    'run_department_metrics_etl',
     'VitalHubSpotContactsETL',
     'VitalHubSpotDealsETL',
     'VitalZoomETL',
