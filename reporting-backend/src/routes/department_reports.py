@@ -706,13 +706,36 @@ def register_department_routes(reports_bp):
             logger.error(f"Error fetching service awaiting invoice details: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
+    @reports_bp.route('/run-dept-etl-now', methods=['POST'])
+    def run_dept_etl_now():
+        """Temporary endpoint to trigger department metrics ETL - REMOVE AFTER TESTING"""
+        try:
+            from src.etl.etl_department_metrics import run_department_metrics_etl
+            result = run_department_metrics_etl()
+            return jsonify({'status': 'success', 'result': str(result)})
+        except Exception as e:
+            import traceback
+            return jsonify({'status': 'error', 'error': str(e), 'traceback': traceback.format_exc()}), 500
+
     @reports_bp.route('/departments/service', methods=['GET'])
     @jwt_required()
     def get_service_department_report():
         """Get Service Department report data"""
         try:
-            # TODO: Re-enable mart after fixing ETL to only store months with actual data
-            # Mart disabled due to future months with zero values breaking charts
+            # Try mart table first for fast response
+            if not request.args.get('refresh'):
+                mart_data = _get_department_from_mart('service')
+                if mart_data:
+                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
+                    field_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
+                    shop_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
+                    
+                    # Data already has 'month' label from ETL
+                    return jsonify({
+                        'monthlyLaborRevenue': monthly_revenue,
+                        'monthlyFieldRevenue': field_revenue,
+                        'monthlyShopRevenue': shop_revenue
+                    })
             
             # Fall back to live queries
             db = get_db()
@@ -992,8 +1015,20 @@ def register_department_routes(reports_bp):
     def get_parts_department_report():
         """Get Parts Department report data"""
         try:
-            # TODO: Re-enable mart after fixing ETL to only store months with actual data
-            # Mart disabled due to future months with zero values breaking charts
+            # Try mart table first for fast response
+            if not request.args.get('refresh'):
+                mart_data = _get_department_from_mart('parts')
+                if mart_data:
+                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
+                    counter_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
+                    repair_order_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
+                    
+                    # Data already has 'month' label from ETL
+                    return jsonify({
+                        'monthlyPartsRevenue': monthly_revenue,
+                        'monthlyCounterRevenue': counter_revenue,
+                        'monthlyRepairOrderRevenue': repair_order_revenue
+                    })
             
             # Fall back to live queries
             db = get_db()
@@ -3608,31 +3643,16 @@ def register_department_routes(reports_bp):
     def get_accounting_report():
         """Get accounting department report data with expenses over time"""
         try:
-            # Mart disabled for Accounting - data format issues
-            # TODO: Fix mart data format to match frontend expectations
-            if False and not request.args.get('refresh'):
+            # Try mart table first for fast response
+            if not request.args.get('refresh'):
                 mart_data = _get_department_from_mart('accounting')
                 if mart_data:
                     monthly_expenses_raw = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
                     expense_categories = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
                     
-                    # Format monthly expenses directly from mart data with proper month labels
-                    # Mart data has: {"year": 2025, "month": 3, "expenses": 422927.89}
-                    monthly_expenses = []
-                    for item in monthly_expenses_raw:
-                        year = item['year']
-                        month_num = item['month']
-                        expenses = item['expenses']
-                        month_date = datetime(year, month_num, 1)
-                        month_label = month_date.strftime("%b '%y")
-                        monthly_expenses.append({
-                            'month': month_label,
-                            'year': year,
-                            'expenses': expenses
-                        })
-                    
-                    # Sort by year and month
-                    monthly_expenses.sort(key=lambda x: (x['year'], datetime.strptime(x['month'].split(' ')[0], '%b').month))
+                    # ETL now stores data with 'month' label already formatted
+                    # Mart data has: {"month": "Mar '25", "year": 2025, "month_num": 3, "expenses": 422927.89}
+                    monthly_expenses = monthly_expenses_raw  # Already has proper format from ETL
                     
                     total_expenses = float(mart_data['metric_1'] or 0)
                     avg_expenses = float(mart_data['metric_2'] or 0)

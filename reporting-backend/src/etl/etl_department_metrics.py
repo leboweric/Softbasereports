@@ -15,6 +15,12 @@ from .base_etl import BaseETL
 logger = logging.getLogger(__name__)
 
 
+def format_month_label(year: int, month: int) -> str:
+    """Format year/month as 'Nov '25' style label"""
+    month_date = datetime(year, month, 1)
+    return month_date.strftime("%b '%y")
+
+
 class DepartmentMetricsETL(BaseETL):
     """ETL job for Department page metrics from Softbase"""
     
@@ -39,10 +45,13 @@ class DepartmentMetricsETL(BaseETL):
         else:
             self.fiscal_year_start = datetime(self.current_date.year - 1, 11, 1)
         
-        # Generate fiscal year months
+        # Generate fiscal year months - ONLY up to current month (no future months)
         self.fiscal_months = []
         for i in range(12):
             month_date = self.fiscal_year_start + relativedelta(months=i)
+            # Stop if we've gone past the current month
+            if month_date > self.current_date:
+                break
             self.fiscal_months.append((month_date.year, month_date.month))
     
     @property
@@ -133,7 +142,7 @@ class DepartmentMetricsETL(BaseETL):
             key = (row['year'], row['month'])
             data_by_month[key] = row
         
-        # Build monthly arrays for fiscal year
+        # Build monthly arrays for fiscal year (only months with data or up to current)
         monthly_revenue = []
         field_revenue = []
         shop_revenue = []
@@ -141,6 +150,7 @@ class DepartmentMetricsETL(BaseETL):
         for year, month in self.fiscal_months:
             key = (year, month)
             prior_key = (year - 1, month)
+            month_label = format_month_label(year, month)
             
             row = data_by_month.get(key, {})
             prior_row = data_by_month.get(prior_key, {})
@@ -161,15 +171,15 @@ class DepartmentMetricsETL(BaseETL):
             prior_shop = float(prior_row.get('shop_revenue', 0) or 0)
             
             monthly_revenue.append({
-                'year': year, 'month': month,
+                'month': month_label, 'year': year, 'month_num': month,
                 'amount': labor_rev, 'margin': margin, 'prior_year_amount': prior_labor
             })
             field_revenue.append({
-                'year': year, 'month': month,
+                'month': month_label, 'year': year, 'month_num': month,
                 'amount': field_rev, 'margin': field_margin, 'prior_year_amount': prior_field
             })
             shop_revenue.append({
-                'year': year, 'month': month,
+                'month': month_label, 'year': year, 'month_num': month,
                 'amount': shop_rev, 'margin': shop_margin, 'prior_year_amount': prior_shop
             })
         
@@ -230,6 +240,7 @@ class DepartmentMetricsETL(BaseETL):
         for year, month in self.fiscal_months:
             key = (year, month)
             prior_key = (year - 1, month)
+            month_label = format_month_label(year, month)
             
             row = data_by_month.get(key, {})
             prior_row = data_by_month.get(prior_key, {})
@@ -250,15 +261,15 @@ class DepartmentMetricsETL(BaseETL):
             prior_ro = float(prior_row.get('repair_order_revenue', 0) or 0)
             
             monthly_revenue.append({
-                'year': year, 'month': month,
+                'month': month_label, 'year': year, 'month_num': month,
                 'amount': parts_rev, 'margin': margin, 'prior_year_amount': prior_parts
             })
             counter_revenue.append({
-                'year': year, 'month': month,
+                'month': month_label, 'year': year, 'month_num': month,
                 'amount': counter_rev, 'margin': counter_margin, 'prior_year_amount': prior_counter
             })
             repair_order_revenue.append({
-                'year': year, 'month': month,
+                'month': month_label, 'year': year, 'month_num': month,
                 'amount': ro_rev, 'margin': ro_margin, 'prior_year_amount': prior_ro
             })
         
@@ -350,9 +361,11 @@ class DepartmentMetricsETL(BaseETL):
         trend_result = self.azure_sql.execute_query(trend_query)
         monthly_trend = []
         for row in trend_result:
+            month_label = format_month_label(row['year'], row['month'])
             monthly_trend.append({
+                'month': month_label,
                 'year': row['year'],
-                'month': row['month'],
+                'month_num': row['month'],
                 'revenue': float(row['revenue'] or 0),
                 'rentals': int(row['rentals'] or 0)
             })
@@ -422,9 +435,11 @@ class DepartmentMetricsETL(BaseETL):
         
         monthly_expenses = []
         for row in expenses_result:
+            month_label = format_month_label(row['year'], row['month'])
             monthly_expenses.append({
+                'month': month_label,
                 'year': row['year'],
-                'month': row['month'],
+                'month_num': row['month'],
                 'expenses': float(row['total_expenses'] or 0)
             })
         
@@ -498,7 +513,7 @@ class DepartmentMetricsETL(BaseETL):
         # AR Summary
         ar_query = f"""
         SELECT 
-            COUNT(DISTINCT CustomerNo) as CustomersWithBalance,
+            COUNT(DISTINCT Number) as CustomersWithBalance,
             SUM(Balance) as TotalAR,
             SUM(CASE WHEN DaysPastDue > 0 THEN Balance ELSE 0 END) as PastDueAmount,
             SUM(CASE WHEN DaysPastDue > 30 THEN Balance ELSE 0 END) as Over30Days,
@@ -519,7 +534,7 @@ class DepartmentMetricsETL(BaseETL):
         # Top AR balances
         ar_detail_query = f"""
         SELECT TOP 20
-            CustomerNo,
+            Number as CustomerNo,
             Name,
             Balance,
             CreditLimit,
