@@ -3608,8 +3608,9 @@ def register_department_routes(reports_bp):
     def get_accounting_report():
         """Get accounting department report data with expenses over time"""
         try:
-            # Try mart table first for fast response
-            if not request.args.get('refresh'):
+            # Mart disabled for Accounting - data format issues
+            # TODO: Fix mart data format to match frontend expectations
+            if False and not request.args.get('refresh'):
                 mart_data = _get_department_from_mart('accounting')
                 if mart_data:
                     monthly_expenses_raw = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
