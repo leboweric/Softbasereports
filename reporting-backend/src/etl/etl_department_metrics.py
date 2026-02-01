@@ -94,7 +94,9 @@ class DepartmentMetricsETL(BaseETL):
             all_metrics.append(('financial', financial_data))
             logger.info("✓ Financial metrics extracted")
         except Exception as e:
+            import traceback
             logger.error(f"Financial extraction failed: {e}")
+            logger.error(f"Financial traceback: {traceback.format_exc()}")
         
         return all_metrics
     

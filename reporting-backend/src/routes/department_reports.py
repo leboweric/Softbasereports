@@ -46,19 +46,6 @@ def get_db():
     return AzureSQLService()
 
 
-# TEMPORARY: Unauthenticated endpoint for initial ETL run - REMOVE AFTER USE
-def register_temp_etl_endpoint(reports_bp):
-    @reports_bp.route('/departments/run-etl-now', methods=['POST'])
-    def run_department_etl_now():
-        """Temporary endpoint to trigger Department Metrics ETL - REMOVE AFTER INITIAL LOAD"""
-        try:
-            from src.etl.etl_department_metrics import run_department_metrics_etl
-            success = run_department_metrics_etl()
-            return jsonify({'success': success, 'message': 'Department Metrics ETL completed'})
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)}), 500
-
-
 def _get_department_from_mart(department: str, max_age_hours: float = 4.0):
     """
     Get department metrics from mart_department_metrics table.
@@ -131,9 +118,6 @@ def _format_monthly_data_from_mart(data: list, fiscal_months: list) -> list:
 
 def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
-    
-    # TEMPORARY: Register ETL endpoint - REMOVE AFTER INITIAL LOAD
-    register_temp_etl_endpoint(reports_bp)
     
     @reports_bp.route('/departments/service/pace', methods=['GET'])
     @require_permission('view_service')
