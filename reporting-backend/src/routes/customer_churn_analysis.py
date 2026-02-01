@@ -105,8 +105,7 @@ def get_churn_analysis():
                 wo_query = f"""
                 SELECT 
                     Type,
-                    COUNT(*) as wo_count,
-                    SUM(ISNULL(TotalInvoiced, 0)) as wo_revenue
+                    COUNT(*) as wo_count
                 FROM {schema}.WO
                 WHERE (BillTo LIKE '%{customer_name.replace("'", "''")}%' 
                        OR ShipTo LIKE '%{customer_name.replace("'", "''")}%')
@@ -150,8 +149,7 @@ def get_churn_analysis():
                     'work_order_breakdown': [
                         {
                             'type': wo['Type'],
-                            'count': int(wo['wo_count']),
-                            'revenue': float(wo['wo_revenue'] or 0)
+                            'count': int(wo['wo_count'])
                         } for wo in (wo_breakdown or [])
                     ],
                     'revenue_trend': [
