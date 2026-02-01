@@ -2051,6 +2051,195 @@ def get_dashboard_summary_optimized():
             'message': str(e)
         }), 500
 
+@dashboard_optimized_bp.route('/api/reports/dashboard/summary-fast', methods=['GET'])
+@jwt_required()
+def get_dashboard_summary_fast():
+    """
+    Ultra-fast dashboard endpoint using pre-computed mart_ceo_metrics table.
+    Data is refreshed every 2 hours during business hours.
+    Falls back to optimized endpoint if mart data is stale or unavailable.
+    """
+    start_time = time.time()
+    
+    # Get tenant schema from current user's organization
+    from src.utils.tenant_utils import get_tenant_schema
+    try:
+        tenant_schema = get_tenant_schema()
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    
+    # Only Bennett (ben002) has mart data for now
+    if tenant_schema != 'ben002':
+        logger.info(f"Fast dashboard not available for {tenant_schema}, falling back to optimized")
+        return get_dashboard_summary_optimized()
+    
+    try:
+        from src.services.postgres_service import PostgreSQLService
+        import json
+        
+        pg = PostgreSQLService()
+        
+        # Get latest metrics from mart table
+        query = """
+        SELECT *
+        FROM mart_ceo_metrics
+        WHERE org_id = 4
+        ORDER BY snapshot_timestamp DESC
+        LIMIT 1
+        """
+        
+        result = pg.execute_query(query)
+        
+        if not result:
+            logger.warning("No mart data found, falling back to optimized endpoint")
+            return get_dashboard_summary_optimized()
+        
+        metrics = result[0]
+        
+        # Check data freshness (max 4 hours old)
+        snapshot_time = metrics['snapshot_timestamp']
+        age_hours = (datetime.now() - snapshot_time).total_seconds() / 3600
+        
+        if age_hours > 4:
+            logger.warning(f"Mart data is {age_hours:.1f} hours old, falling back to optimized endpoint")
+            return get_dashboard_summary_optimized()
+        
+        # Parse JSON fields
+        def parse_json(field):
+            if field is None:
+                return []
+            if isinstance(field, str):
+                return json.loads(field)
+            return field
+        
+        monthly_sales = parse_json(metrics['monthly_sales'])
+        monthly_sales_no_equipment = parse_json(metrics['monthly_sales_excluding_equipment'])
+        monthly_sales_by_stream = parse_json(metrics['monthly_sales_by_stream'])
+        monthly_equipment_sales = parse_json(metrics['monthly_equipment_sales'])
+        monthly_work_orders = parse_json(metrics['monthly_work_orders'])
+        monthly_quotes = parse_json(metrics['monthly_quotes'])
+        work_order_types = parse_json(metrics['work_order_types'])
+        top_customers = parse_json(metrics['top_customers'])
+        monthly_invoice_delays = parse_json(metrics['monthly_invoice_delays'])
+        
+        # Format monthly data with month labels
+        from src.utils.fiscal_year import get_fiscal_year_months
+        fiscal_months = get_fiscal_year_months()
+        
+        def format_monthly_data(data, fiscal_months):
+            """Add month labels to monthly data"""
+            formatted = []
+            data_by_key = {(d['year'], d['month']): d for d in data}
+            
+            for year, month in fiscal_months:
+                month_date = datetime(year, month, 1)
+                if fiscal_months[0][0] != fiscal_months[-1][0]:
+                    month_str = month_date.strftime("%b '%y")
+                else:
+                    month_str = month_date.strftime("%b")
+                
+                key = (year, month)
+                if key in data_by_key:
+                    entry = data_by_key[key].copy()
+                    entry['month'] = month_str
+                    formatted.append(entry)
+                else:
+                    formatted.append({'month': month_str, 'year': year, 'amount': 0})
+            
+            return formatted
+        
+        # Calculate open WO change
+        open_wo_value = float(metrics['open_work_orders_value'] or 0)
+        open_wo_previous = float(metrics['open_work_orders_previous_value'] or 0)
+        open_wo_change = open_wo_value - open_wo_previous
+        open_wo_change_pct = ((open_wo_change / open_wo_previous) * 100) if open_wo_previous > 0 else 0
+        
+        # Calculate active customers change
+        active_current = int(metrics['active_customers'] or 0)
+        active_previous = int(metrics['active_customers_previous'] or 0)
+        active_change = active_current - active_previous
+        active_change_pct = ((active_change / active_previous) * 100) if active_previous > 0 else 0
+        
+        response_data = {
+            'total_sales': float(metrics['current_month_sales'] or 0),
+            'ytd_sales': float(metrics['ytd_sales'] or 0),
+            'inventory_count': int(metrics['inventory_count'] or 0),
+            'active_customers': active_current,
+            'active_customers_change': active_change,
+            'active_customers_change_percent': round(active_change_pct, 1),
+            'active_customers_previous': active_previous,
+            'total_customers': int(metrics['total_customers'] or 0),
+            'uninvoiced_work_orders': int(metrics['uninvoiced_wo_value'] or 0),
+            'uninvoiced_count': int(metrics['uninvoiced_wo_count'] or 0),
+            'open_work_orders_value': int(open_wo_value),
+            'open_work_orders_count': int(metrics['open_work_orders_count'] or 0),
+            'open_work_orders_change': int(open_wo_change),
+            'open_work_orders_change_percent': round(open_wo_change_pct, 1),
+            'open_work_orders_previous': int(open_wo_previous),
+            'work_order_types': work_order_types,
+            'monthly_sales': format_monthly_data(monthly_sales, fiscal_months),
+            'monthly_sales_no_equipment': format_monthly_data(monthly_sales_no_equipment, fiscal_months),
+            'monthly_equipment_sales': format_monthly_data(monthly_equipment_sales, fiscal_months),
+            'monthly_sales_by_stream': format_monthly_data(monthly_sales_by_stream, fiscal_months),
+            'monthly_quotes': monthly_quotes,
+            'top_customers': top_customers,
+            'monthly_work_orders_by_type': monthly_work_orders,
+            'department_margins': [],  # TODO: Add to ETL if needed
+            'monthly_active_customers': [],  # TODO: Add to ETL if needed
+            'monthly_open_work_orders': [],  # TODO: Add to ETL if needed
+            'awaiting_invoice_count': int(metrics['awaiting_invoice_count'] or 0),
+            'awaiting_invoice_value': int(metrics['awaiting_invoice_value'] or 0),
+            'awaiting_invoice_avg_days': float(metrics['awaiting_invoice_avg_days'] or 0),
+            'awaiting_invoice_over_three': 0,  # Not tracked in mart yet
+            'awaiting_invoice_over_five': 0,
+            'awaiting_invoice_over_seven': 0,
+            'monthly_invoice_delays': monthly_invoice_delays,
+            'period': datetime.now().strftime('%B %Y'),
+            'last_updated': metrics['snapshot_timestamp'].isoformat(),
+            'data_age_minutes': round(age_hours * 60, 1),
+            'query_time': round(time.time() - start_time, 3),
+            'from_mart': True,
+            'etl_duration_seconds': float(metrics['etl_duration_seconds'] or 0)
+        }
+        
+        logger.info(f"✅ Fast dashboard loaded in {response_data['query_time']} seconds (data age: {response_data['data_age_minutes']} min)")
+        return jsonify(response_data)
+        
+    except Exception as e:
+        logger.error(f"Fast dashboard failed: {str(e)}, falling back to optimized")
+        return get_dashboard_summary_optimized()
+
+
+@dashboard_optimized_bp.route('/api/ceo-dashboard/refresh', methods=['POST'])
+@jwt_required()
+def refresh_ceo_dashboard():
+    """
+    Manually trigger a refresh of the CEO Dashboard ETL.
+    Admin endpoint for on-demand data refresh.
+    """
+    try:
+        from src.etl.etl_ceo_dashboard import run_ceo_dashboard_etl
+        
+        logger.info("Manual CEO Dashboard ETL triggered")
+        success = run_ceo_dashboard_etl()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'CEO Dashboard data refreshed successfully',
+                'refreshed_at': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'ETL job completed with errors'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Manual CEO Dashboard ETL refresh failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @dashboard_optimized_bp.route('/api/dashboard/active-customers-export', methods=['GET'])
 @jwt_required()
 def export_active_customers():

@@ -11,10 +11,25 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+def run_ceo_dashboard_refresh():
+    """Run CEO Dashboard ETL (bi-hourly during business hours)"""
+    from .etl_ceo_dashboard import run_ceo_dashboard_etl
+    
+    logger.info("=" * 60)
+    logger.info(f"CEO Dashboard ETL Started: {datetime.now().isoformat()}")
+    logger.info("=" * 60)
+    
+    success = run_ceo_dashboard_etl()
+    
+    logger.info(f"CEO Dashboard ETL: {'SUCCESS' if success else 'FAILED'}")
+    return success
+
+
 def run_all_etl():
     """Run all ETL jobs for all organizations"""
     from .etl_bennett_sales import run_bennett_etl
     from .etl_customer_activity import run_customer_activity_etl
+    from .etl_ceo_dashboard import run_ceo_dashboard_etl
     from .etl_vital import run_vital_etl
     
     logger.info("=" * 60)
@@ -24,6 +39,7 @@ def run_all_etl():
     results = {
         'bennett': run_bennett_etl(),
         'customer_activity': run_customer_activity_etl(),
+        'ceo_dashboard': run_ceo_dashboard_etl(),
         'vital': run_vital_etl()
     }
     
@@ -31,6 +47,7 @@ def run_all_etl():
     logger.info("AIOP ETL Run Complete")
     logger.info(f"  Bennett: {'SUCCESS' if results['bennett'] else 'FAILED'}")
     logger.info(f"  Customer Activity: {'SUCCESS' if results['customer_activity'] else 'FAILED'}")
+    logger.info(f"  CEO Dashboard: {'SUCCESS' if results['ceo_dashboard'] else 'FAILED'}")
     logger.info(f"  VITAL: {'SUCCESS' if results['vital'] else 'FAILED'}")
     logger.info("=" * 60)
     
@@ -238,7 +255,16 @@ def setup_scheduler():
             replace_existing=True
         )
         
-        logger.info("ETL Scheduler configured: Daily ETL at 2:00 AM, HubSpot sync weekly Monday 3:00 AM, High Fives daily 6:00 AM")
+        # Run CEO Dashboard ETL every 2 hours during business hours (6 AM - 8 PM)
+        scheduler.add_job(
+            run_ceo_dashboard_refresh,
+            CronTrigger(hour='6,8,10,12,14,16,18,20', minute=0),
+            id='ceo_dashboard_refresh',
+            name='CEO Dashboard ETL (bi-hourly)',
+            replace_existing=True
+        )
+        
+        logger.info("ETL Scheduler configured: Daily ETL at 2:00 AM, CEO Dashboard bi-hourly 6AM-8PM, HubSpot sync weekly Monday 3:00 AM, High Fives daily 6:00 AM")
         return scheduler
         
     except ImportError:
