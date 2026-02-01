@@ -279,12 +279,17 @@ const Dashboard = ({ user }) => {
           console.log(`Dashboard loaded in ${data.query_time} seconds (${cacheStatus})`)
         }
 
-        // Fetch supplementary data in parallel for better performance
-        await Promise.allSettled([
+        // Show dashboard immediately, then fetch supplementary data in background
+        // This prevents the loading spinner from blocking while pace/forecast/risk load
+        setLoading(false)
+        
+        // Fetch supplementary data in parallel (non-blocking)
+        Promise.allSettled([
           fetchPaceData(),
           fetchForecastData(),
           fetchCustomerRiskData()
         ])
+        return // Exit early since we already set loading to false
       } else {
         console.error('Dashboard API failed:', response.status, response.statusText)
         // Optionally set an error state here for user feedback
