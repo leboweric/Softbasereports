@@ -3615,32 +3615,23 @@ def register_department_routes(reports_bp):
                     monthly_expenses_raw = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
                     expense_categories = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
                     
-                    # Format monthly expenses with proper month labels
-                    current_date = datetime.now()
-                    all_months = []
-                    for i in range(12, -1, -1):
-                        year = current_date.year
-                        month = current_date.month - i
-                        while month <= 0:
-                            month += 12
-                            year -= 1
-                        month_date = datetime(year, month, 1)
-                        all_months.append({
-                            'month': month_date.strftime("%b '%y"),
-                            'year': year,
-                            'month_num': month
-                        })
-                    
-                    existing_data = {(item['year'], item['month']): item['expenses'] for item in monthly_expenses_raw}
-                    
+                    # Format monthly expenses directly from mart data with proper month labels
+                    # Mart data has: {"year": 2025, "month": 3, "expenses": 422927.89}
                     monthly_expenses = []
-                    for m in all_months:
-                        expenses = existing_data.get((m['year'], m['month_num']), 0)
+                    for item in monthly_expenses_raw:
+                        year = item['year']
+                        month_num = item['month']
+                        expenses = item['expenses']
+                        month_date = datetime(year, month_num, 1)
+                        month_label = month_date.strftime("%b '%y")
                         monthly_expenses.append({
-                            'month': m['month'],
-                            'year': m['year'],
+                            'month': month_label,
+                            'year': year,
                             'expenses': expenses
                         })
+                    
+                    # Sort by year and month
+                    monthly_expenses.sort(key=lambda x: (x['year'], datetime.strptime(x['month'].split(' ')[0], '%b').month))
                     
                     total_expenses = float(mart_data['metric_1'] or 0)
                     avg_expenses = float(mart_data['metric_2'] or 0)
