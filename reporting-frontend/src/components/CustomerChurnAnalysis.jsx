@@ -11,7 +11,8 @@ import {
   Sparkles,
   Phone,
   Mail,
-  ExternalLink
+  ExternalLink,
+  Info
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -191,10 +192,13 @@ const CustomerChurnAnalysis = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500 relative group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Churned Customers</p>
+              <p className="text-sm text-gray-500 flex items-center">
+                Churned Customers
+                <Info className="w-4 h-4 ml-1 text-gray-400 cursor-help" />
+              </p>
               <p className="text-2xl font-bold text-red-600">{summary.total_churned_customers || 0}</p>
             </div>
             <Users className="w-10 h-10 text-red-200" />
@@ -202,6 +206,18 @@ const CustomerChurnAnalysis = () => {
           <p className="text-xs text-gray-400 mt-2">
             {summary.churn_rate_percent?.toFixed(1)}% churn rate
           </p>
+          {/* Tooltip */}
+          <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg p-3 w-72 -top-2 left-1/2 transform -translate-x-1/2 -translate-y-full shadow-lg">
+            <p className="font-semibold mb-2">Churned Customer Criteria:</p>
+            <p className="mb-1">A customer is considered "churned" if they meet both conditions:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Had at least one invoice in the previous 90 days (days 91-180 ago)</li>
+              <li>Have had zero invoices in the last 90 days</li>
+            </ul>
+            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+              <div className="border-8 border-transparent border-t-gray-900"></div>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
@@ -217,10 +233,13 @@ const CustomerChurnAnalysis = () => {
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500 relative group">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">At-Risk Customers</p>
+              <p className="text-sm text-gray-500 flex items-center">
+                At-Risk Customers
+                <Info className="w-4 h-4 ml-1 text-gray-400 cursor-help" />
+              </p>
               <p className="text-2xl font-bold text-yellow-600">{atRiskData?.total_at_risk || 0}</p>
             </div>
             <AlertTriangle className="w-10 h-10 text-yellow-200" />
@@ -228,6 +247,18 @@ const CustomerChurnAnalysis = () => {
           <p className="text-xs text-gray-400 mt-2">
             Activity dropped 50%+ recently
           </p>
+          {/* Tooltip */}
+          <div className="absolute z-10 invisible group-hover:visible bg-gray-900 text-white text-xs rounded-lg p-3 w-72 -top-2 left-1/2 transform -translate-x-1/2 -translate-y-full shadow-lg">
+            <p className="font-semibold mb-2">At-Risk Customer Criteria:</p>
+            <p className="mb-1">A customer is "at-risk" if:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>They had activity in both periods</li>
+              <li>Their recent period revenue dropped by 50% or more compared to the previous period</li>
+            </ul>
+            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full">
+              <div className="border-8 border-transparent border-t-gray-900"></div>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
