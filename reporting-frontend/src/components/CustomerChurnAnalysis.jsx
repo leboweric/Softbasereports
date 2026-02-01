@@ -233,13 +233,13 @@ const CustomerChurnAnalysis = () => {
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Current Active</p>
+              <p className="text-sm text-gray-500">Current Active (90 days)</p>
               <p className="text-2xl font-bold text-green-600">{summary.current_active_customers || 0}</p>
             </div>
             <Users className="w-10 h-10 text-green-200" />
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            Customers with recent invoices
+            Customers with invoices in last 90 days
           </p>
         </div>
       </div>
