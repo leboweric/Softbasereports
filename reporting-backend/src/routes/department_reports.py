@@ -711,31 +711,8 @@ def register_department_routes(reports_bp):
     def get_service_department_report():
         """Get Service Department report data"""
         try:
-            # Try mart table first for fast response
-            if not request.args.get('refresh'):
-                mart_data = _get_department_from_mart('service')
-                if mart_data:
-                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
-                    field_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
-                    shop_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
-                    
-                    # Add month labels to the data
-                    def add_month_labels(data):
-                        result = []
-                        for item in data:
-                            month_date = datetime(item['year'], item['month'], 1)
-                            item_copy = item.copy()
-                            item_copy['month'] = month_date.strftime("%b '%y")
-                            result.append(item_copy)
-                        return result
-                    
-                    return jsonify({
-                        'monthlyLaborRevenue': add_month_labels(monthly_revenue),
-                        'monthlyFieldRevenue': add_month_labels(field_revenue),
-                        'monthlyShopRevenue': add_month_labels(shop_revenue),
-                        '_source': 'mart',
-                        '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
-                    })
+            # TODO: Re-enable mart after fixing ETL to only store months with actual data
+            # Mart disabled due to future months with zero values breaking charts
             
             # Fall back to live queries
             db = get_db()
@@ -1015,31 +992,8 @@ def register_department_routes(reports_bp):
     def get_parts_department_report():
         """Get Parts Department report data"""
         try:
-            # Try mart table first for fast response
-            if not request.args.get('refresh'):
-                mart_data = _get_department_from_mart('parts')
-                if mart_data:
-                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
-                    counter_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
-                    repair_order_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
-                    
-                    # Add month labels to the data
-                    def add_month_labels(data):
-                        result = []
-                        for item in data:
-                            month_date = datetime(item['year'], item['month'], 1)
-                            item_copy = item.copy()
-                            item_copy['month'] = month_date.strftime("%b '%y")
-                            result.append(item_copy)
-                        return result
-                    
-                    return jsonify({
-                        'monthlyPartsRevenue': add_month_labels(monthly_revenue),
-                        'monthlyCounterRevenue': add_month_labels(counter_revenue),
-                        'monthlyRepairOrderRevenue': add_month_labels(repair_order_revenue),
-                        '_source': 'mart',
-                        '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
-                    })
+            # TODO: Re-enable mart after fixing ETL to only store months with actual data
+            # Mart disabled due to future months with zero values breaking charts
             
             # Fall back to live queries
             db = get_db()
