@@ -47,6 +47,7 @@ RESOURCES = {
     'vital_anonymous_questions': 'VITAL Worklife Anonymous Questions for HR with AI trend analysis',
     'vital_finance': 'VITAL Worklife Finance billing management and revenue tracking',
     'vital_mobile_app': 'VITAL Worklife Mobile App analytics from GA4 BigQuery',
+    'customer_churn': 'Customer churn analysis with AI-powered insights',
 }
 
 # Action types
@@ -61,7 +62,7 @@ ROLE_PERMISSIONS = {
     'Sales Manager': {
         'resources': [
             'dashboard', 'accounting_commissions', 'my_commissions',
-            'manage_rep_comp', 'minitrac', 'qbr'
+            'manage_rep_comp', 'minitrac', 'qbr', 'customer_churn'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
@@ -72,6 +73,7 @@ ROLE_PERMISSIONS = {
             'service_overview',
             'rental_overview',
             'accounting_overview',
+            'customer_churn',
             'financial',
             'currie',
             'minitrac',
@@ -229,6 +231,13 @@ NAVIGATION_CONFIG = {
             'control': {'label': 'Control Numbers', 'resource': 'accounting_control'},
             'inventory': {'label': 'Inventory', 'resource': 'accounting_inventory'},
         }
+    },
+    'customer-churn': {
+        'label': 'Customer Churn',
+        'icon': 'TrendingDown',
+        'path': 'customer-churn',
+        'required_resource': 'customer_churn',
+        'order': 5.5,
     },
     'knowledge-base': {
         'label': 'Knowledge Base',
