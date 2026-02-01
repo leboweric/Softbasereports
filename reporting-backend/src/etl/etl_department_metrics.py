@@ -545,12 +545,12 @@ class DepartmentMetricsETL(BaseETL):
         # Revenue by department (current month)
         revenue_query = f"""
         SELECT 
-            DepartmentNo,
+            SaleDept as DepartmentNo,
             COUNT(*) as TransactionCount,
-            SUM(TotalAmount) as Revenue
+            SUM(GrandTotal) as Revenue
         FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= DATEADD(month, -1, GETDATE())
-        GROUP BY DepartmentNo
+        GROUP BY SaleDept
         ORDER BY Revenue DESC
         """
         

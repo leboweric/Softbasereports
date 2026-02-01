@@ -621,6 +621,90 @@ def parts_usage_report():
         logger.error(f"Parts usage report failed: {str(e)}")
         return jsonify({'error': 'Report generation failed', 'message': str(e)}), 500
 
+@softbase_reports_bp.route('/api/reports/financial-etl-now', methods=['POST'])
+def run_financial_etl_now():
+    """Temporary endpoint to trigger financial ETL"""
+    try:
+        from src.etl.etl_department_metrics import DepartmentMetricsETL
+        import traceback
+        
+        etl = DepartmentMetricsETL()
+        
+        # Try just the financial extraction
+        try:
+            financial_data = etl._extract_financial()
+            
+            # Load just the financial data
+            from src.services.postgres_service import PostgreSQLService
+            import json
+            from datetime import datetime
+            
+            pg = PostgreSQLService()
+            snapshot_time = datetime.now()
+            
+            record = {
+                'org_id': 4,
+                'department': 'financial',
+                'monthly_revenue': json.dumps(financial_data.get('monthly_revenue')) if financial_data.get('monthly_revenue') else None,
+                'sub_category_1': json.dumps(financial_data.get('sub_category_1')) if financial_data.get('sub_category_1') else None,
+                'sub_category_2': json.dumps(financial_data.get('sub_category_2')) if financial_data.get('sub_category_2') else None,
+                'metric_1': financial_data.get('metric_1'),
+                'metric_2': financial_data.get('metric_2'),
+                'metric_3': financial_data.get('metric_3'),
+                'count_1': financial_data.get('count_1'),
+                'additional_data': json.dumps(financial_data.get('additional_data')) if financial_data.get('additional_data') else None,
+                'snapshot_timestamp': snapshot_time,
+                'etl_duration_seconds': 0
+            }
+            
+            # Upsert the record
+            upsert_query = """
+            INSERT INTO mart_department_metrics 
+            (org_id, department, monthly_revenue, sub_category_1, sub_category_2, 
+             metric_1, metric_2, metric_3, count_1, additional_data, snapshot_timestamp, etl_duration_seconds)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (org_id, department) DO UPDATE SET
+                monthly_revenue = EXCLUDED.monthly_revenue,
+                sub_category_1 = EXCLUDED.sub_category_1,
+                sub_category_2 = EXCLUDED.sub_category_2,
+                metric_1 = EXCLUDED.metric_1,
+                metric_2 = EXCLUDED.metric_2,
+                metric_3 = EXCLUDED.metric_3,
+                count_1 = EXCLUDED.count_1,
+                additional_data = EXCLUDED.additional_data,
+                snapshot_timestamp = EXCLUDED.snapshot_timestamp,
+                etl_duration_seconds = EXCLUDED.etl_duration_seconds
+            """
+            
+            pg.execute_query(upsert_query, (
+                record['org_id'], record['department'], record['monthly_revenue'],
+                record['sub_category_1'], record['sub_category_2'],
+                record['metric_1'], record['metric_2'], record['metric_3'],
+                record['count_1'], record['additional_data'],
+                record['snapshot_timestamp'], record['etl_duration_seconds']
+            ))
+            
+            return jsonify({
+                'status': 'success',
+                'message': 'Financial ETL completed',
+                'data': financial_data
+            }), 200
+            
+        except Exception as e:
+            return jsonify({
+                'status': 'error',
+                'error': str(e),
+                'traceback': traceback.format_exc()
+            }), 500
+            
+    except Exception as e:
+        import traceback
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
 @softbase_reports_bp.route('/api/reports/financial-summary', methods=['GET'])
 @jwt_required()
 def financial_summary_report():
