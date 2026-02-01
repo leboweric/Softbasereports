@@ -715,15 +715,24 @@ def register_department_routes(reports_bp):
             if not request.args.get('refresh'):
                 mart_data = _get_department_from_mart('service')
                 if mart_data:
-                    fiscal_year_months = get_fiscal_year_months()
                     monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
                     field_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
                     shop_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
                     
+                    # Add month labels to the data
+                    def add_month_labels(data):
+                        result = []
+                        for item in data:
+                            month_date = datetime(item['year'], item['month'], 1)
+                            item_copy = item.copy()
+                            item_copy['month'] = month_date.strftime("%b '%y")
+                            result.append(item_copy)
+                        return result
+                    
                     return jsonify({
-                        'monthlyLaborRevenue': _format_monthly_data_from_mart(monthly_revenue, fiscal_year_months),
-                        'monthlyFieldRevenue': _format_monthly_data_from_mart(field_revenue, fiscal_year_months),
-                        'monthlyShopRevenue': _format_monthly_data_from_mart(shop_revenue, fiscal_year_months),
+                        'monthlyLaborRevenue': add_month_labels(monthly_revenue),
+                        'monthlyFieldRevenue': add_month_labels(field_revenue),
+                        'monthlyShopRevenue': add_month_labels(shop_revenue),
                         '_source': 'mart',
                         '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
                     })
@@ -1010,15 +1019,24 @@ def register_department_routes(reports_bp):
             if not request.args.get('refresh'):
                 mart_data = _get_department_from_mart('parts')
                 if mart_data:
-                    fiscal_year_months = get_fiscal_year_months()
                     monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
                     counter_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
                     repair_order_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
                     
+                    # Add month labels to the data
+                    def add_month_labels(data):
+                        result = []
+                        for item in data:
+                            month_date = datetime(item['year'], item['month'], 1)
+                            item_copy = item.copy()
+                            item_copy['month'] = month_date.strftime("%b '%y")
+                            result.append(item_copy)
+                        return result
+                    
                     return jsonify({
-                        'monthlyPartsRevenue': _format_monthly_data_from_mart(monthly_revenue, fiscal_year_months),
-                        'monthlyCounterRevenue': _format_monthly_data_from_mart(counter_revenue, fiscal_year_months),
-                        'monthlyRepairOrderRevenue': _format_monthly_data_from_mart(repair_order_revenue, fiscal_year_months),
+                        'monthlyPartsRevenue': add_month_labels(monthly_revenue),
+                        'monthlyCounterRevenue': add_month_labels(counter_revenue),
+                        'monthlyRepairOrderRevenue': add_month_labels(repair_order_revenue),
                         '_source': 'mart',
                         '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
                     })
