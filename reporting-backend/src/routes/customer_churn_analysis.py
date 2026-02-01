@@ -55,7 +55,7 @@ def get_churn_analysis():
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END as CustomerName,
-                TotalSale
+                GrandTotal
             FROM {schema}.InvoiceReg
             WHERE BillToName IS NOT NULL
             AND BillToName != ''
@@ -83,7 +83,7 @@ def get_churn_analysis():
         SELECT 
             ch.CustomerName,
             COUNT(DISTINCT cn.InvoiceNo) as total_invoices,
-            SUM(cn.TotalSale) as total_revenue,
+            SUM(cn.GrandTotal) as total_revenue,
             MIN(cn.InvoiceDate) as first_invoice,
             MAX(cn.InvoiceDate) as last_invoice,
             DATEDIFF(day, MAX(cn.InvoiceDate), GETDATE()) as days_since_last_invoice
@@ -124,13 +124,13 @@ def get_churn_analysis():
                             WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                             ELSE BillToName
                         END as CustomerName,
-                        TotalSale
+                        GrandTotal
                     FROM {schema}.InvoiceReg
                 )
                 SELECT 
                     YEAR(InvoiceDate) as year,
                     MONTH(InvoiceDate) as month,
-                    SUM(TotalSale) as monthly_revenue,
+                    SUM(GrandTotal) as monthly_revenue,
                     COUNT(*) as invoice_count
                 FROM CustomerNormalized
                 WHERE CustomerName = '{customer_name.replace("'", "''")}'
@@ -325,7 +325,7 @@ def get_at_risk_customers():
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
                     ELSE BillToName
                 END as CustomerName,
-                TotalSale
+                GrandTotal
             FROM {schema}.InvoiceReg
             WHERE BillToName IS NOT NULL
             AND BillToName != ''
@@ -336,7 +336,7 @@ def get_at_risk_customers():
         RecentActivity AS (
             SELECT 
                 CustomerName,
-                SUM(TotalSale) as recent_revenue,
+                SUM(GrandTotal) as recent_revenue,
                 COUNT(*) as recent_invoices,
                 MAX(InvoiceDate) as last_invoice
             FROM CustomerNormalized
@@ -346,7 +346,7 @@ def get_at_risk_customers():
         PreviousActivity AS (
             SELECT 
                 CustomerName,
-                SUM(TotalSale) as previous_revenue,
+                SUM(GrandTotal) as previous_revenue,
                 COUNT(*) as previous_invoices
             FROM CustomerNormalized
             WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
