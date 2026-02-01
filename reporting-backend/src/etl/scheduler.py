@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 def run_all_etl():
     """Run all ETL jobs for all organizations"""
     from .etl_bennett_sales import run_bennett_etl
+    from .etl_customer_activity import run_customer_activity_etl
     from .etl_vital import run_vital_etl
     
     logger.info("=" * 60)
@@ -22,12 +23,14 @@ def run_all_etl():
     
     results = {
         'bennett': run_bennett_etl(),
+        'customer_activity': run_customer_activity_etl(),
         'vital': run_vital_etl()
     }
     
     logger.info("\n" + "=" * 60)
     logger.info("AIOP ETL Run Complete")
     logger.info(f"  Bennett: {'SUCCESS' if results['bennett'] else 'FAILED'}")
+    logger.info(f"  Customer Activity: {'SUCCESS' if results['customer_activity'] else 'FAILED'}")
     logger.info(f"  VITAL: {'SUCCESS' if results['vital'] else 'FAILED'}")
     logger.info("=" * 60)
     

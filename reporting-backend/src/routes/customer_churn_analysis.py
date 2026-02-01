@@ -2,15 +2,18 @@
 Customer Churn Analysis API
 Analyzes customer activity patterns to identify churned customers and provide AI-powered insights
 For Bennett organization
+
+Now uses pre-computed mart_customer_activity table for fast queries (ETL runs nightly)
 """
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import logging
 import os
 from openai import OpenAI
+from src.services.postgres_service import PostgreSQLService
 from src.services.azure_sql_service import AzureSQLService
 from src.utils.tenant_utils import get_tenant_schema
 
@@ -18,175 +21,126 @@ logger = logging.getLogger(__name__)
 
 customer_churn_bp = Blueprint('customer_churn', __name__)
 
+# Bennett org_id
+BENNETT_ORG_ID = 4
+
+
+def get_work_order_breakdown(db, schema, customer_name):
+    """Get work order breakdown by type for a customer from Azure SQL"""
+    try:
+        wo_query = f"""
+        SELECT 
+            Type,
+            COUNT(*) as wo_count
+        FROM {schema}.WO
+        WHERE (BillTo LIKE '%{customer_name.replace("'", "''")}%' 
+               OR ShipTo LIKE '%{customer_name.replace("'", "''")}%')
+        GROUP BY Type
+        """
+        return db.execute_query(wo_query) or []
+    except Exception as e:
+        logger.warning(f"Could not get WO breakdown for {customer_name}: {e}")
+        return []
+
 
 @customer_churn_bp.route('/api/customer-churn/analysis', methods=['GET'])
 @jwt_required()
 def get_churn_analysis():
     """
     Get comprehensive customer churn analysis
-    Returns churned customers, their history, and patterns
+    Returns churned customers from pre-computed mart table
+    
+    Churn criteria: No invoices in last 90 days but had invoices in days 91-180
     """
     try:
-        # Get tenant schema (should be ben002 for Bennett)
-        try:
-            schema = get_tenant_schema()
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
+        pg = PostgreSQLService()
         
-        db = AzureSQLService()
-        
-        # Get the analysis period (default: compare last 3 months vs previous 3 months)
-        months_back = int(request.args.get('months', 3))
-        
-        # Calculate date ranges
-        today = datetime.now()
-        current_period_start = today - relativedelta(months=months_back)
-        previous_period_start = current_period_start - relativedelta(months=months_back)
-        previous_period_end = current_period_start - timedelta(days=1)
-        
-        # Query to find customers who were active in previous period but not in current period
-        churn_query = f"""
-        WITH CustomerNormalized AS (
-            SELECT 
-                InvoiceNo,
-                InvoiceDate,
-                CASE 
-                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
-                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-                    ELSE BillToName
-                END as CustomerName,
-                GrandTotal
-            FROM {schema}.InvoiceReg
-            WHERE BillToName IS NOT NULL
-            AND BillToName != ''
-            AND BillToName NOT LIKE '%Wells Fargo%'
-            AND BillToName NOT LIKE '%Maintenance contract%'
-            AND BillToName NOT LIKE '%Rental Fleet%'
-        ),
-        PreviousPeriodCustomers AS (
-            SELECT DISTINCT CustomerName
-            FROM CustomerNormalized
-            WHERE InvoiceDate >= '{previous_period_start.strftime('%Y-%m-%d')}'
-            AND InvoiceDate < '{current_period_start.strftime('%Y-%m-%d')}'
-        ),
-        CurrentPeriodCustomers AS (
-            SELECT DISTINCT CustomerName
-            FROM CustomerNormalized
-            WHERE InvoiceDate >= '{current_period_start.strftime('%Y-%m-%d')}'
-        ),
-        ChurnedCustomers AS (
-            SELECT p.CustomerName
-            FROM PreviousPeriodCustomers p
-            LEFT JOIN CurrentPeriodCustomers c ON p.CustomerName = c.CustomerName
-            WHERE c.CustomerName IS NULL
-        )
+        # Get churned customers from mart table
+        churned_query = """
         SELECT 
-            ch.CustomerName,
-            COUNT(DISTINCT cn.InvoiceNo) as total_invoices,
-            SUM(cn.GrandTotal) as total_revenue,
-            MIN(cn.InvoiceDate) as first_invoice,
-            MAX(cn.InvoiceDate) as last_invoice,
-            DATEDIFF(day, MAX(cn.InvoiceDate), GETDATE()) as days_since_last_invoice
-        FROM ChurnedCustomers ch
-        JOIN CustomerNormalized cn ON ch.CustomerName = cn.CustomerName
-        GROUP BY ch.CustomerName
-        ORDER BY total_revenue DESC
+            customer_name,
+            bill_to,
+            recent_invoice_count,
+            recent_revenue,
+            recent_service_revenue,
+            recent_parts_revenue,
+            recent_rental_revenue,
+            previous_invoice_count,
+            previous_revenue,
+            previous_service_revenue,
+            previous_parts_revenue,
+            previous_rental_revenue,
+            lifetime_invoice_count,
+            lifetime_revenue,
+            first_invoice_date,
+            last_invoice_date,
+            days_since_last_invoice,
+            revenue_change_percent,
+            monthly_revenue_trend,
+            work_order_breakdown,
+            snapshot_date
+        FROM mart_customer_activity
+        WHERE org_id = %s
+        AND activity_status = 'churned'
+        AND snapshot_date = (SELECT MAX(snapshot_date) FROM mart_customer_activity WHERE org_id = %s)
+        ORDER BY previous_revenue DESC
+        LIMIT 100
         """
         
-        churned_customers = db.execute_query(churn_query)
+        churned_customers = pg.execute_query(churned_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
         
-        # Get detailed history for churned customers
+        # Format churned customers
         churned_list = []
         if churned_customers:
-            for customer in churned_customers[:50]:  # Limit to top 50 for performance
-                customer_name = customer['CustomerName']
-                
-                # Get work order breakdown by type
-                wo_query = f"""
-                SELECT 
-                    Type,
-                    COUNT(*) as wo_count
-                FROM {schema}.WO
-                WHERE (BillTo LIKE '%{customer_name.replace("'", "''")}%' 
-                       OR ShipTo LIKE '%{customer_name.replace("'", "''")}%')
-                GROUP BY Type
-                """
-                wo_breakdown = db.execute_query(wo_query)
-                
-                # Get monthly revenue trend for this customer (last 12 months before churn)
-                trend_query = f"""
-                WITH CustomerNormalized AS (
-                    SELECT 
-                        InvoiceDate,
-                        CASE 
-                            WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
-                            WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-                            ELSE BillToName
-                        END as CustomerName,
-                        GrandTotal
-                    FROM {schema}.InvoiceReg
-                )
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    SUM(GrandTotal) as monthly_revenue,
-                    COUNT(*) as invoice_count
-                FROM CustomerNormalized
-                WHERE CustomerName = '{customer_name.replace("'", "''")}'
-                AND InvoiceDate >= DATEADD(month, -12, '{customer['last_invoice'].strftime('%Y-%m-%d')}')
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-                ORDER BY year, month
-                """
-                revenue_trend = db.execute_query(trend_query)
-                
+            for customer in churned_customers:
                 churned_list.append({
-                    'customer_name': customer_name,
-                    'total_invoices': int(customer['total_invoices']),
-                    'total_revenue': float(customer['total_revenue'] or 0),
-                    'first_invoice': customer['first_invoice'].strftime('%Y-%m-%d') if customer['first_invoice'] else None,
-                    'last_invoice': customer['last_invoice'].strftime('%Y-%m-%d') if customer['last_invoice'] else None,
+                    'customer_name': customer['customer_name'],
+                    'bill_to': customer['bill_to'],
+                    'total_invoices': int(customer['lifetime_invoice_count'] or 0),
+                    'total_revenue': float(customer['lifetime_revenue'] or 0),
+                    'first_invoice': customer['first_invoice_date'].strftime('%Y-%m-%d') if customer['first_invoice_date'] else None,
+                    'last_invoice': customer['last_invoice_date'].strftime('%Y-%m-%d') if customer['last_invoice_date'] else None,
                     'days_since_last_invoice': int(customer['days_since_last_invoice'] or 0),
-                    'work_order_breakdown': [
-                        {
-                            'type': wo['Type'],
-                            'count': int(wo['wo_count'])
-                        } for wo in (wo_breakdown or [])
-                    ],
-                    'revenue_trend': [
-                        {
-                            'month': f"{row['year']}-{row['month']:02d}",
-                            'revenue': float(row['monthly_revenue'] or 0),
-                            'invoices': int(row['invoice_count'])
-                        } for row in (revenue_trend or [])
-                    ]
+                    'previous_period_revenue': float(customer['previous_revenue'] or 0),
+                    'previous_period_invoices': int(customer['previous_invoice_count'] or 0),
+                    'work_order_breakdown': customer['work_order_breakdown'] if customer['work_order_breakdown'] else [],
+                    'revenue_trend': customer['monthly_revenue_trend'] if customer['monthly_revenue_trend'] else []
                 })
         
         # Get summary statistics
         total_churned = len(churned_list)
-        total_lost_revenue = sum(c['total_revenue'] for c in churned_list)
+        total_lost_revenue = sum(c['previous_period_revenue'] for c in churned_list)
         avg_customer_value = total_lost_revenue / total_churned if total_churned > 0 else 0
         
-        # Get current active customer count for comparison
-        active_query = f"""
-        SELECT COUNT(DISTINCT CASE 
-            WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
-            WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-            ELSE BillToName
-        END) as active_count
-        FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= '{current_period_start.strftime('%Y-%m-%d')}'
-        AND BillToName IS NOT NULL
-        AND BillToName != ''
-        AND BillToName NOT LIKE '%Wells Fargo%'
-        AND BillToName NOT LIKE '%Maintenance contract%'
-        AND BillToName NOT LIKE '%Rental Fleet%'
+        # Get current active customer count
+        active_query = """
+        SELECT COUNT(*) as active_count
+        FROM mart_customer_activity
+        WHERE org_id = %s
+        AND activity_status = 'active'
+        AND snapshot_date = (SELECT MAX(snapshot_date) FROM mart_customer_activity WHERE org_id = %s)
         """
-        active_result = db.execute_query(active_query)
+        active_result = pg.execute_query(active_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
         current_active = active_result[0]['active_count'] if active_result else 0
         
         # Calculate churn rate
         previous_active = current_active + total_churned
         churn_rate = (total_churned / previous_active * 100) if previous_active > 0 else 0
+        
+        # Get snapshot date for analysis period info
+        snapshot_query = """
+        SELECT MAX(snapshot_date) as snapshot_date
+        FROM mart_customer_activity
+        WHERE org_id = %s
+        """
+        snapshot_result = pg.execute_query(snapshot_query, (BENNETT_ORG_ID,))
+        snapshot_date = snapshot_result[0]['snapshot_date'] if snapshot_result else datetime.now().date()
+        
+        # Calculate period dates (90-day periods)
+        current_end = snapshot_date
+        current_start = current_end - timedelta(days=90)
+        previous_end = current_start - timedelta(days=1)
+        previous_start = previous_end - timedelta(days=89)
         
         response = {
             'summary': {
@@ -196,13 +150,14 @@ def get_churn_analysis():
                 'current_active_customers': current_active,
                 'churn_rate_percent': round(churn_rate, 2),
                 'analysis_period': {
-                    'current_start': current_period_start.strftime('%Y-%m-%d'),
-                    'current_end': today.strftime('%Y-%m-%d'),
-                    'previous_start': previous_period_start.strftime('%Y-%m-%d'),
-                    'previous_end': previous_period_end.strftime('%Y-%m-%d')
+                    'current_start': current_start.strftime('%Y-%m-%d'),
+                    'current_end': current_end.strftime('%Y-%m-%d'),
+                    'previous_start': previous_start.strftime('%Y-%m-%d'),
+                    'previous_end': previous_end.strftime('%Y-%m-%d')
                 }
             },
             'churned_customers': churned_list,
+            'data_freshness': snapshot_date.strftime('%Y-%m-%d') if snapshot_date else None,
             'generated_at': datetime.now().isoformat()
         }
         
@@ -233,15 +188,20 @@ def get_ai_insights():
         # Build customer profiles for analysis
         customer_profiles = []
         for c in churned_customers[:20]:  # Limit to top 20 for API efficiency
-            wo_types = ', '.join([f"{wo['type']} (${wo['revenue']:,.0f})" for wo in c.get('work_order_breakdown', [])])
-            profile = f"- {c['customer_name']}: ${c['total_revenue']:,.0f} lifetime revenue, {c['total_invoices']} invoices, last active {c['last_invoice']}, work types: {wo_types or 'N/A'}"
+            wo_breakdown = c.get('work_order_breakdown', [])
+            if isinstance(wo_breakdown, list):
+                wo_types = ', '.join([f"{wo.get('type', 'N/A')}" for wo in wo_breakdown])
+            else:
+                wo_types = 'N/A'
+            
+            profile = f"- {c['customer_name']}: ${c['total_revenue']:,.0f} lifetime revenue, {c['total_invoices']} invoices, last active {c['last_invoice']}, ${c.get('previous_period_revenue', 0):,.0f} in previous 90 days"
             customer_profiles.append(profile)
         
         prompt = f"""Analyze this customer churn data for Bennett Equipment, a forklift and material handling equipment dealership, and provide actionable insights.
 
 ## Summary Statistics
 - Total Churned Customers: {summary.get('total_churned_customers', 0)}
-- Total Lost Revenue: ${summary.get('total_lost_revenue', 0):,.2f}
+- Total Lost Revenue (Previous 90-day Period): ${summary.get('total_lost_revenue', 0):,.2f}
 - Average Customer Value: ${summary.get('average_customer_value', 0):,.2f}
 - Current Active Customers: {summary.get('current_active_customers', 0)}
 - Churn Rate: {summary.get('churn_rate_percent', 0):.1f}%
@@ -250,12 +210,8 @@ def get_ai_insights():
 ## Churned Customer Profiles (Top by Revenue)
 {chr(10).join(customer_profiles)}
 
-Work Order Types Key:
-- S = Service/Repair
-- PM = Preventive Maintenance
-- R = Rental
-- P = Parts
-- I = Internal
+## Churn Definition
+A customer is considered "churned" if they had invoices in the previous 90-day period (days 91-180 ago) but NO invoices in the recent 90-day period (last 90 days).
 
 Please provide:
 1. **Key Trends**: What patterns do you see in the churned customers? (e.g., customer size, service types, timing)
@@ -303,98 +259,163 @@ Format your response in clear sections with actionable recommendations."""
 def get_at_risk_customers():
     """
     Identify customers who are at risk of churning based on declining activity
+    
+    At-risk criteria: 50%+ revenue drop between 90-day periods
     """
     try:
-        # Get tenant schema
-        try:
-            schema = get_tenant_schema()
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
+        pg = PostgreSQLService()
         
-        db = AzureSQLService()
-        
-        # Find customers with declining activity (active in past but reduced recent activity)
-        at_risk_query = f"""
-        WITH CustomerNormalized AS (
-            SELECT 
-                InvoiceDate,
-                CASE 
-                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
-                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-                    ELSE BillToName
-                END as CustomerName,
-                GrandTotal
-            FROM {schema}.InvoiceReg
-            WHERE BillToName IS NOT NULL
-            AND BillToName != ''
-            AND BillToName NOT LIKE '%Wells Fargo%'
-            AND BillToName NOT LIKE '%Maintenance contract%'
-            AND BillToName NOT LIKE '%Rental Fleet%'
-        ),
-        RecentActivity AS (
-            SELECT 
-                CustomerName,
-                SUM(GrandTotal) as recent_revenue,
-                COUNT(*) as recent_invoices,
-                MAX(InvoiceDate) as last_invoice
-            FROM CustomerNormalized
-            WHERE InvoiceDate >= DATEADD(month, -3, GETDATE())
-            GROUP BY CustomerName
-        ),
-        PreviousActivity AS (
-            SELECT 
-                CustomerName,
-                SUM(GrandTotal) as previous_revenue,
-                COUNT(*) as previous_invoices
-            FROM CustomerNormalized
-            WHERE InvoiceDate >= DATEADD(month, -6, GETDATE())
-            AND InvoiceDate < DATEADD(month, -3, GETDATE())
-            GROUP BY CustomerName
-        )
+        # Get at-risk customers from mart table
+        at_risk_query = """
         SELECT 
-            COALESCE(r.CustomerName, p.CustomerName) as CustomerName,
-            ISNULL(r.recent_revenue, 0) as recent_revenue,
-            ISNULL(r.recent_invoices, 0) as recent_invoices,
-            ISNULL(p.previous_revenue, 0) as previous_revenue,
-            ISNULL(p.previous_invoices, 0) as previous_invoices,
-            r.last_invoice,
-            CASE 
-                WHEN p.previous_revenue > 0 AND r.recent_revenue IS NULL THEN -100
-                WHEN p.previous_revenue > 0 THEN ((ISNULL(r.recent_revenue, 0) - p.previous_revenue) / p.previous_revenue * 100)
-                ELSE 0
-            END as revenue_change_percent,
-            DATEDIFF(day, ISNULL(r.last_invoice, DATEADD(month, -3, GETDATE())), GETDATE()) as days_since_activity
-        FROM PreviousActivity p
-        LEFT JOIN RecentActivity r ON p.CustomerName = r.CustomerName
-        WHERE p.previous_revenue > 1000  -- Only consider customers with meaningful previous activity
-        AND (r.recent_revenue IS NULL OR r.recent_revenue < p.previous_revenue * 0.5)  -- Revenue dropped by 50% or more
-        ORDER BY p.previous_revenue DESC
+            customer_name,
+            bill_to,
+            recent_invoice_count,
+            recent_revenue,
+            recent_service_revenue,
+            recent_parts_revenue,
+            recent_rental_revenue,
+            recent_last_invoice as last_invoice,
+            previous_invoice_count,
+            previous_revenue,
+            previous_service_revenue,
+            previous_parts_revenue,
+            previous_rental_revenue,
+            days_since_last_invoice,
+            revenue_change_percent
+        FROM mart_customer_activity
+        WHERE org_id = %s
+        AND activity_status = 'at_risk'
+        AND snapshot_date = (SELECT MAX(snapshot_date) FROM mart_customer_activity WHERE org_id = %s)
+        ORDER BY previous_revenue DESC
+        LIMIT 100
         """
         
-        at_risk_customers = db.execute_query(at_risk_query)
+        at_risk_customers = pg.execute_query(at_risk_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
         
         at_risk_list = []
         if at_risk_customers:
             for customer in at_risk_customers:
+                revenue_change = float(customer['revenue_change_percent'] or 0)
                 at_risk_list.append({
-                    'customer_name': customer['CustomerName'],
+                    'customer_name': customer['customer_name'],
+                    'bill_to': customer['bill_to'],
                     'recent_revenue': float(customer['recent_revenue'] or 0),
-                    'recent_invoices': int(customer['recent_invoices'] or 0),
+                    'recent_invoices': int(customer['recent_invoice_count'] or 0),
                     'previous_revenue': float(customer['previous_revenue'] or 0),
-                    'previous_invoices': int(customer['previous_invoices'] or 0),
-                    'revenue_change_percent': round(float(customer['revenue_change_percent'] or 0), 1),
+                    'previous_invoices': int(customer['previous_invoice_count'] or 0),
+                    'revenue_change_percent': round(revenue_change, 1),
                     'last_invoice': customer['last_invoice'].strftime('%Y-%m-%d') if customer['last_invoice'] else None,
-                    'days_since_activity': int(customer['days_since_activity'] or 0),
-                    'risk_level': 'High' if customer['revenue_change_percent'] <= -75 else 'Medium'
+                    'days_since_activity': int(customer['days_since_last_invoice'] or 0),
+                    'risk_level': 'High' if revenue_change <= -75 else 'Medium'
                 })
+        
+        # Get snapshot date
+        snapshot_query = """
+        SELECT MAX(snapshot_date) as snapshot_date
+        FROM mart_customer_activity
+        WHERE org_id = %s
+        """
+        snapshot_result = pg.execute_query(snapshot_query, (BENNETT_ORG_ID,))
+        snapshot_date = snapshot_result[0]['snapshot_date'] if snapshot_result else datetime.now().date()
         
         return jsonify({
             'at_risk_customers': at_risk_list,
             'total_at_risk': len(at_risk_list),
             'total_at_risk_previous_revenue': sum(c['previous_revenue'] for c in at_risk_list),
+            'data_freshness': snapshot_date.strftime('%Y-%m-%d') if snapshot_date else None,
             'generated_at': datetime.now().isoformat()
         })
         
     except Exception as e:
         logger.error(f"At-risk analysis failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@customer_churn_bp.route('/api/customer-churn/refresh', methods=['POST'])
+@jwt_required()
+def refresh_churn_data():
+    """
+    Manually trigger a refresh of the customer activity ETL
+    Admin endpoint for on-demand data refresh
+    """
+    try:
+        from src.etl.etl_customer_activity import run_customer_activity_etl
+        
+        logger.info("Manual customer activity ETL triggered")
+        success = run_customer_activity_etl()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Customer activity data refreshed successfully',
+                'refreshed_at': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'ETL job completed with errors'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Manual ETL refresh failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@customer_churn_bp.route('/api/customer-churn/summary', methods=['GET'])
+@jwt_required()
+def get_churn_summary():
+    """
+    Get a quick summary of churn metrics without full customer details
+    Useful for dashboard widgets
+    """
+    try:
+        pg = PostgreSQLService()
+        
+        summary_query = """
+        SELECT 
+            activity_status,
+            COUNT(*) as customer_count,
+            SUM(previous_revenue) as total_previous_revenue,
+            SUM(recent_revenue) as total_recent_revenue,
+            AVG(revenue_change_percent) as avg_revenue_change
+        FROM mart_customer_activity
+        WHERE org_id = %s
+        AND snapshot_date = (SELECT MAX(snapshot_date) FROM mart_customer_activity WHERE org_id = %s)
+        GROUP BY activity_status
+        """
+        
+        results = pg.execute_query(summary_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
+        
+        summary = {
+            'active': {'count': 0, 'revenue': 0},
+            'at_risk': {'count': 0, 'revenue': 0},
+            'churned': {'count': 0, 'revenue': 0},
+            'new': {'count': 0, 'revenue': 0}
+        }
+        
+        if results:
+            for row in results:
+                status = row['activity_status']
+                if status in summary:
+                    summary[status] = {
+                        'count': int(row['customer_count'] or 0),
+                        'previous_revenue': float(row['total_previous_revenue'] or 0),
+                        'recent_revenue': float(row['total_recent_revenue'] or 0),
+                        'avg_revenue_change': round(float(row['avg_revenue_change'] or 0), 1)
+                    }
+        
+        # Calculate totals
+        total_customers = sum(s['count'] for s in summary.values())
+        churn_rate = (summary['churned']['count'] / (total_customers - summary['new']['count']) * 100) if (total_customers - summary['new']['count']) > 0 else 0
+        
+        return jsonify({
+            'by_status': summary,
+            'total_customers': total_customers,
+            'churn_rate_percent': round(churn_rate, 2),
+            'generated_at': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Churn summary failed: {str(e)}")
         return jsonify({'error': str(e)}), 500
