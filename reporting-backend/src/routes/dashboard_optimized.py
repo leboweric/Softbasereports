@@ -2210,6 +2210,35 @@ def get_dashboard_summary_fast():
         return get_dashboard_summary_optimized()
 
 
+@dashboard_optimized_bp.route('/api/ceo-dashboard/run-etl-now', methods=['POST'])
+def run_ceo_etl_now():
+    """
+    TEMPORARY: Unauthenticated endpoint to trigger initial CEO Dashboard ETL load.
+    TODO: Remove this endpoint after initial data load.
+    """
+    try:
+        from src.etl.etl_ceo_dashboard import run_ceo_dashboard_etl
+        
+        logger.info("TEMP: Unauthenticated CEO Dashboard ETL trigger called")
+        success = run_ceo_dashboard_etl()
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'CEO Dashboard ETL completed successfully',
+                'refreshed_at': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'ETL job completed with errors'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"CEO Dashboard ETL trigger failed: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @dashboard_optimized_bp.route('/api/ceo-dashboard/refresh', methods=['POST'])
 @jwt_required()
 def refresh_ceo_dashboard():
