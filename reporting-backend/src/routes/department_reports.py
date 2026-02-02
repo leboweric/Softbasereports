@@ -722,20 +722,8 @@ def register_department_routes(reports_bp):
     def get_service_department_report():
         """Get Service Department report data"""
         try:
-            # Try mart table first for fast response
-            if not request.args.get('refresh'):
-                mart_data = _get_department_from_mart('service')
-                if mart_data:
-                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
-                    field_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
-                    shop_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
-                    
-                    # Data already has 'month' label from ETL
-                    return jsonify({
-                        'monthlyLaborRevenue': monthly_revenue,
-                        'monthlyFieldRevenue': field_revenue,
-                        'monthlyShopRevenue': shop_revenue
-                    })
+            # Mart disabled - data format issues causing empty charts
+            # TODO: Fix ETL data format to match frontend expectations
             
             # Fall back to live queries
             db = get_db()
@@ -1015,20 +1003,8 @@ def register_department_routes(reports_bp):
     def get_parts_department_report():
         """Get Parts Department report data"""
         try:
-            # Try mart table first for fast response
-            if not request.args.get('refresh'):
-                mart_data = _get_department_from_mart('parts')
-                if mart_data:
-                    monthly_revenue = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
-                    counter_revenue = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
-                    repair_order_revenue = json.loads(mart_data['sub_category_2']) if mart_data['sub_category_2'] else []
-                    
-                    # Data already has 'month' label from ETL
-                    return jsonify({
-                        'monthlyPartsRevenue': monthly_revenue,
-                        'monthlyCounterRevenue': counter_revenue,
-                        'monthlyRepairOrderRevenue': repair_order_revenue
-                    })
+            # Mart disabled - data format issues causing empty charts
+            # TODO: Fix ETL data format to match frontend expectations
             
             # Fall back to live queries
             db = get_db()
@@ -3643,45 +3619,8 @@ def register_department_routes(reports_bp):
     def get_accounting_report():
         """Get accounting department report data with expenses over time"""
         try:
-            # Try mart table first for fast response
-            if not request.args.get('refresh'):
-                mart_data = _get_department_from_mart('accounting')
-                if mart_data:
-                    monthly_expenses_raw = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
-                    expense_categories = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
-                    
-                    # ETL now stores data with 'month' label already formatted
-                    # Mart data has: {"month": "Mar '25", "year": 2025, "month_num": 3, "expenses": 422927.89}
-                    monthly_expenses = monthly_expenses_raw  # Already has proper format from ETL
-                    
-                    total_expenses = float(mart_data['metric_1'] or 0)
-                    avg_expenses = float(mart_data['metric_2'] or 0)
-                    
-                    return jsonify({
-                        'monthly_expenses': monthly_expenses,
-                        'debug_info': {'data_source': 'mart_department_metrics'},
-                        'summary': {
-                            'total_expenses': round(total_expenses, 2),
-                            'average_monthly': round(avg_expenses, 2),
-                            'expense_categories': expense_categories,
-                            'totalRevenue': 0,
-                            'totalExpenses': total_expenses,
-                            'netProfit': 0,
-                            'profitMargin': 0,
-                            'accountsReceivable': 0,
-                            'accountsPayable': 0,
-                            'cashFlow': 0,
-                            'overdueInvoices': 0
-                        },
-                        'revenueByDepartment': [],
-                        'expenseCategories': expense_categories,
-                        'monthlyFinancials': [],
-                        'cashFlowTrend': [],
-                        'outstandingInvoices': [],
-                        'pendingPayables': [],
-                        '_source': 'mart',
-                        '_snapshot_time': mart_data['snapshot_timestamp'].isoformat()
-                    })
+            # Mart disabled - data format issues causing empty charts
+            # TODO: Fix ETL data format to match frontend expectations
             
             # Fall back to live queries
             db = get_db()
