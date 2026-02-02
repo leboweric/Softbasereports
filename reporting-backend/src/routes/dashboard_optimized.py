@@ -1941,8 +1941,22 @@ def _get_dashboard_from_mart(start_time):
     monthly_work_orders = parse_json(metrics['monthly_work_orders'])
     monthly_quotes = parse_json(metrics['monthly_quotes'])
     work_order_types = parse_json(metrics['work_order_types'])
-    top_customers = parse_json(metrics['top_customers'])
+    top_customers_raw = parse_json(metrics['top_customers'])
     monthly_invoice_delays = parse_json(metrics['monthly_invoice_delays'])
+    
+    # Transform top_customers to match expected format
+    total_sales = sum(c.get('total_sales', 0) for c in top_customers_raw)
+    top_customers = []
+    for i, c in enumerate(top_customers_raw):
+        sales = c.get('total_sales', 0)
+        percentage = (sales / total_sales * 100) if total_sales > 0 else 0
+        top_customers.append({
+            'rank': i + 1,
+            'name': c.get('customer_name', ''),
+            'sales': sales,
+            'invoice_count': c.get('invoice_count', 0),
+            'percentage': round(percentage, 1)
+        })
     
     # Format monthly data with month labels
     fiscal_months = get_fiscal_year_months()
@@ -2265,8 +2279,22 @@ def get_dashboard_summary_fast():
         monthly_work_orders = parse_json(metrics['monthly_work_orders'])
         monthly_quotes = parse_json(metrics['monthly_quotes'])
         work_order_types = parse_json(metrics['work_order_types'])
-        top_customers = parse_json(metrics['top_customers'])
+        top_customers_raw = parse_json(metrics['top_customers'])
         monthly_invoice_delays = parse_json(metrics['monthly_invoice_delays'])
+        
+        # Transform top_customers to match expected format
+        total_sales_sum = sum(c.get('total_sales', 0) for c in top_customers_raw)
+        top_customers = []
+        for i, c in enumerate(top_customers_raw):
+            sales = c.get('total_sales', 0)
+            percentage = (sales / total_sales_sum * 100) if total_sales_sum > 0 else 0
+            top_customers.append({
+                'rank': i + 1,
+                'name': c.get('customer_name', ''),
+                'sales': sales,
+                'invoice_count': c.get('invoice_count', 0),
+                'percentage': round(percentage, 1)
+            })
         
         # Format monthly data with month labels
         from src.utils.fiscal_year import get_fiscal_year_months
