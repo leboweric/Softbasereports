@@ -1382,7 +1382,7 @@ const Dashboard = ({ user }) => {
           <div className="mb-2 text-xs text-gray-500">
             As of {dashboardData?.last_updated ? new Date(dashboardData.last_updated).toLocaleString() : 'Loading...'}
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
@@ -1424,66 +1424,6 @@ const Dashboard = ({ user }) => {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   All customers in database
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium">At-Risk Customers</CardTitle>
-                  <UITooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="font-semibold mb-1">Customers with concerning behavior:</p>
-                      <ul className="text-xs space-y-0.5">
-                        <li>• Inactive for 60+ days</li>
-                        <li>• Missing expected monthly orders</li>
-                        <li>• Sales dropped 50%+ below normal</li>
-                      </ul>
-                      <p className="text-xs mt-1 opacity-80">Based on Top 10 customers only</p>
-                    </TooltipContent>
-                  </UITooltip>
-                </div>
-                <AlertTriangle className="h-4 w-4 text-orange-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-orange-600">
-                  {customerRiskData?.customers?.filter(c => c.risk_level !== 'none')?.length || 0}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {customerRiskData?.customers?.filter(c => c.risk_level === 'high')?.length || 0} high risk, {customerRiskData?.customers?.filter(c => c.risk_level === 'medium')?.length || 0} medium risk
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-sm font-medium">Customer Health</CardTitle>
-                  <UITooltip>
-                    <TooltipTrigger asChild>
-                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="font-semibold mb-1">Percentage of Top 10 customers with healthy activity</p>
-                      <p className="text-xs mt-1">
-                        Healthy = No risk factors detected (active purchasing, normal sales volume, regular orders)
-                      </p>
-                      <p className="text-xs mt-1 opacity-80">Based on Top 10 customers only</p>
-                    </TooltipContent>
-                  </UITooltip>
-                </div>
-                <TrendingUp className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {customerRiskData?.customers ? Math.round((customerRiskData.customers.filter(c => c.risk_level === 'none').length / customerRiskData.customers.length) * 100) : 0}%
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Customers with healthy activity
                 </p>
               </CardContent>
             </Card>
