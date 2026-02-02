@@ -1899,7 +1899,7 @@ def _get_monthly_active_customers_live():
     try:
         from src.services.azure_sql_service import AzureSQLService
         db = AzureSQLService()
-        schema = 'Bennett'
+        schema = 'ben002'  # Use ben002 schema, not Bennett
         current_date = datetime.now()
         
         query = f"""
