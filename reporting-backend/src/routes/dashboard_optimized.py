@@ -1953,6 +1953,27 @@ def _get_monthly_active_customers_live():
         return []
 
 
+def _get_total_customers_live():
+    """
+    Fetch total customers count from Customer table using live Azure SQL query.
+    Used as fallback when mart data has incorrect count.
+    """
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        schema = 'ben002'
+        
+        query = f"""
+        SELECT COUNT(*) as total_customers
+        FROM {schema}.Customer
+        """
+        result = db.execute_query(query)
+        return int(result[0]['total_customers']) if result else 0
+    except Exception as e:
+        logger.error(f"Failed to fetch total customers: {str(e)}")
+        return 0
+
+
 def _get_dashboard_from_mart(start_time):
     """
     Helper function to get dashboard data from mart_ceo_metrics table.
@@ -2065,7 +2086,7 @@ def _get_dashboard_from_mart(start_time):
         'active_customers_change': active_change,
         'active_customers_change_percent': round(active_change_pct, 1),
         'active_customers_previous': active_previous,
-        'total_customers': int(metrics['total_customers'] or 0),
+        'total_customers': _get_total_customers_live(),  # Live query for accurate count
         'uninvoiced_work_orders': int(metrics['uninvoiced_wo_value'] or 0),
         'uninvoiced_count': int(metrics['uninvoiced_wo_count'] or 0),
         'open_work_orders_value': int(open_wo_value),
@@ -2404,7 +2425,7 @@ def get_dashboard_summary_fast():
             'active_customers_change': active_change,
             'active_customers_change_percent': round(active_change_pct, 1),
             'active_customers_previous': active_previous,
-            'total_customers': int(metrics['total_customers'] or 0),
+            'total_customers': _get_total_customers_live(),  # Live query for accurate count
             'uninvoiced_work_orders': int(metrics['uninvoiced_wo_value'] or 0),
             'uninvoiced_count': int(metrics['uninvoiced_wo_count'] or 0),
             'open_work_orders_value': int(open_wo_value),
