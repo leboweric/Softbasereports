@@ -1891,6 +1891,68 @@ class DashboardQueries:
             return jsonify({'error': str(e)}), 500
 
 
+def _get_monthly_active_customers_live():
+    """
+    Fetch monthly active customers using live Azure SQL query.
+    Used as fallback when mart data doesn't include this field.
+    """
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        db = AzureSQLService()
+        schema = 'Bennett'
+        current_date = datetime.now()
+        
+        query = f"""
+        SELECT 
+            YEAR(InvoiceDate) as year,
+            MONTH(InvoiceDate) as month,
+            COUNT(DISTINCT CASE 
+                WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
+                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
+                ELSE BillToName
+            END) as active_customers
+        FROM {schema}.InvoiceReg
+        WHERE InvoiceDate >= '2025-03-01'
+        AND BillToName IS NOT NULL
+        AND BillToName != ''
+        AND BillToName NOT LIKE '%Wells Fargo%'
+        AND BillToName NOT LIKE '%Maintenance contract%'
+        AND BillToName NOT LIKE '%Rental Fleet%'
+        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        """
+        
+        results = db.execute_query(query)
+        monthly_customers = []
+        
+        if results:
+            for row in results:
+                month_date = datetime(row['year'], row['month'], 1)
+                monthly_customers.append({
+                    'month': month_date.strftime("%b"),
+                    'customers': int(row['active_customers'])
+                })
+        
+        # Pad missing months from March onwards
+        start_date = datetime(2025, 3, 1)
+        all_months = []
+        date = start_date
+        while date <= current_date:
+            all_months.append(date.strftime("%b"))
+            if date.month == 12:
+                date = date.replace(year=date.year + 1, month=1)
+            else:
+                date = date.replace(month=date.month + 1)
+        
+        existing_data = {item['month']: item['customers'] for item in monthly_customers}
+        monthly_customers = [{'month': month, 'customers': existing_data.get(month, 0)} for month in all_months]
+        
+        return monthly_customers
+    except Exception as e:
+        logger.error(f"Failed to fetch monthly active customers: {str(e)}")
+        return []
+
+
 def _get_dashboard_from_mart(start_time):
     """
     Helper function to get dashboard data from mart_ceo_metrics table.
@@ -2020,7 +2082,7 @@ def _get_dashboard_from_mart(start_time):
         'top_customers': top_customers,
         'monthly_work_orders_by_type': monthly_work_orders,
         'department_margins': [],  # Not in mart yet
-        'monthly_active_customers': [],  # Not in mart yet
+        'monthly_active_customers': _get_monthly_active_customers_live(),  # Live query fallback
         'monthly_open_work_orders': [],  # Not in mart yet
         'awaiting_invoice_count': int(metrics['awaiting_invoice_count'] or 0),
         'awaiting_invoice_value': int(metrics['awaiting_invoice_value'] or 0),
@@ -2359,7 +2421,7 @@ def get_dashboard_summary_fast():
             'top_customers': top_customers,
             'monthly_work_orders_by_type': monthly_work_orders,
             'department_margins': [],  # TODO: Add to ETL if needed
-            'monthly_active_customers': [],  # TODO: Add to ETL if needed
+            'monthly_active_customers': _get_monthly_active_customers_live(),  # Live query fallback
             'monthly_open_work_orders': [],  # TODO: Add to ETL if needed
             'awaiting_invoice_count': int(metrics['awaiting_invoice_count'] or 0),
             'awaiting_invoice_value': int(metrics['awaiting_invoice_value'] or 0),
