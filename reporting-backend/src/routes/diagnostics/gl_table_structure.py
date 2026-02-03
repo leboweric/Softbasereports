@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -9,7 +10,7 @@ gl_table_structure_bp = Blueprint('gl_table_structure', __name__)
 def get_gl_structure():
     """Get the structure of GL tables to understand how to query them"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get columns for GL tables
         query = """

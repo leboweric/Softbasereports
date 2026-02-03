@@ -36,8 +36,7 @@ def get_softbase_service():
 def debug_dashboard():
     """Debug dashboard queries - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         current_date = datetime.now()
         month_start = current_date.replace(day=1).strftime('%Y-%m-%d')
@@ -131,8 +130,7 @@ def debug_dashboard():
 def check_service_claims():
     """Check ServiceClaim table structure - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -217,8 +215,7 @@ def check_service_claims():
 def find_work_orders():
     """Find tables that might contain work order data - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -288,8 +285,7 @@ def find_work_orders():
 def check_work_order_data():
     """Check for work order data in various tables - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -362,8 +358,7 @@ def check_work_order_data():
 def analyze_wo_table():
     """Analyze WO table structure for uninvoiced work orders - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -444,8 +439,7 @@ def analyze_wo_table():
 def test_uninvoiced_wo():
     """Test uninvoiced work orders calculation - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -555,8 +549,7 @@ def test_uninvoiced_wo():
 def calculate_uninvoiced_value():
     """Calculate actual uninvoiced work order values - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -634,8 +627,7 @@ def calculate_uninvoiced_value():
 def check_wo_columns():
     """Check WOLabor and WOParts column structure - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -699,8 +691,7 @@ def check_wo_columns():
 def check_invoice_cost_columns():
     """Check InvoiceReg for cost columns - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -770,8 +761,7 @@ def check_invoice_cost_columns():
 def find_quotes_data():
     """Find tables and columns related to quotes - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -868,8 +858,7 @@ def find_quotes_data():
 def analyze_woquote_data():
     """Analyze WOQuote table for monthly quote values - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -946,8 +935,7 @@ def analyze_woquote_data():
 def analyze_department_margins():
     """Analyze department sales and margins - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -1042,8 +1030,7 @@ def analyze_department_margins():
 def find_duplicate_customers():
     """Find potential duplicate customer names - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -1104,8 +1091,7 @@ def find_duplicate_customers():
 def analyze_total_work_orders():
     """Analyze all work orders value - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -1192,8 +1178,7 @@ def analyze_total_work_orders():
 def analyze_wo_types():
     """Analyze work order types breakdown - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -1299,8 +1284,7 @@ def analyze_wo_types():
 def debug_wo_types():
     """Debug work order types and categorization - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -1398,8 +1382,7 @@ def debug_wo_types():
 def check_tables():
     """Check table columns - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         results = {}
         
@@ -1481,8 +1464,7 @@ def check_tables():
 def validate_sales():
     """Validate actual sales from Nov 1, 2024 through today - NO AUTH REQUIRED for testing"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Test multiple date ranges to find the $11,998,467.41
         results = {}
@@ -1585,8 +1567,7 @@ def get_current_month_sales():
         return jsonify({'success': False, 'error': str(e), 'month_sales': 0}), 400
     
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get current month's sales
         current_date = datetime.now()
@@ -1630,8 +1611,7 @@ def get_dashboard_summary():
         return jsonify({'error': str(e)}), 400
     
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get current month's sales
         current_date = datetime.now()
@@ -2275,8 +2255,7 @@ def get_inventory_details():
         return jsonify({'success': False, 'error': str(e), 'equipment': [], 'total': 0}), 400
     
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get all equipment that is Ready To Rent with details
         query = f"""

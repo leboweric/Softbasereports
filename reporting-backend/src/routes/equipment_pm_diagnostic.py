@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 import logging
 
 from flask_jwt_extended import get_jwt_identity
@@ -32,7 +32,7 @@ def get_equipment_pm_fields():
     Looks for equipment from the Softbase PM report screenshot to find PM-related columns.
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Serial numbers from the Softbase report screenshot
         test_serial_numbers = ['35955', '35951', '38762', '61300', '900006']
@@ -162,7 +162,7 @@ def get_equipment_pm_sample():
     Looks for equipment with customers (not in stock).
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         schema = get_tenant_schema()
 

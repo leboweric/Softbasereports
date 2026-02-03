@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -9,7 +10,7 @@ invoice_columns_diagnostic_bp = Blueprint('invoice_columns_diagnostic', __name__
 def get_invoice_columns():
     """Get all columns from InvoiceReg table to find department/account field"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get all columns from InvoiceReg
         columns_query = """

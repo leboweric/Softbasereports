@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from ..services.azure_sql_service import AzureSQLService
 from ..services.softbase_mock_service import SoftbaseMockService
 from ..models.user import User
@@ -12,7 +13,7 @@ softbase_bp = Blueprint('softbase', __name__)
 def get_db_service():
     """Get database service - Azure SQL or mock fallback"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         if db.test_connection():
             return db, 'live'
     except Exception as e:

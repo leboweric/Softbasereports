@@ -4,10 +4,10 @@ Investigate specific rental units to debug status detection issues
 
 from flask import Blueprint, jsonify, request
 import logging
-from src.services.azure_sql_service import AzureSQLService
 from datetime import datetime
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -33,7 +33,7 @@ def investigate_units():
     """Investigate specific units to understand rental status issues"""
     
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get unit numbers from query params or use defaults
         units = request.args.get('units', '21515,21728,21729').split(',')

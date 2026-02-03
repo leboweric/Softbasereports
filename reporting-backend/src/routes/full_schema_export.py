@@ -1,9 +1,8 @@
 from flask import Blueprint, jsonify, Response
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 import logging
 from datetime import datetime
-from src.services.azure_sql_service import AzureSQLService
-
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -29,7 +28,7 @@ full_schema_export_bp = Blueprint('full_schema_export', __name__)
 def export_full_schema():
     """Export complete database schema for all tables"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get all tables in ben002 schema
         tables_query = f"""
@@ -196,7 +195,7 @@ def export_full_schema():
 def export_schema_markdown():
     """Export schema as formatted markdown for CLAUDE.md"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get all tables
         tables_query = f"""

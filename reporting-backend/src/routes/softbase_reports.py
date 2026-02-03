@@ -43,7 +43,7 @@ def customer_activity_report():
         period = request.args.get('period', 'month')
         start_date, end_date = get_date_range(period)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         report_data = {}
         
@@ -195,7 +195,7 @@ def equipment_inventory_report():
         status = request.args.get('status', 'all')
         make = request.args.get('make')
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Build query based on filters
         where_clauses = []
@@ -307,7 +307,7 @@ def sales_analysis_report():
         
         start_date, end_date = get_date_range(period)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Build where clause
         where_clauses = [f"InvoiceDate BETWEEN '{start_date}' AND '{end_date}'"]
@@ -424,7 +424,7 @@ def service_history_report():
         
         start_date, end_date = get_date_range(period)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Build where clause
         where_clauses = [f"DateOpened BETWEEN '{start_date}' AND '{end_date}'"]
@@ -539,7 +539,7 @@ def parts_usage_report():
         
         start_date, end_date = get_date_range(period)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # 1. Parts usage from invoices
         usage_query = f"""
@@ -770,7 +770,7 @@ def financial_summary_report():
         period = request.args.get('period', 'month')
         start_date, end_date = get_date_range(period)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # 1. Accounts Receivable summary
         ar_summary_query = f"""

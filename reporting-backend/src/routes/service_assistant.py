@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.services.postgres_service import get_postgres_db
 import openai
 import os
@@ -319,7 +319,7 @@ def search_kb_articles(query):
 def search_work_orders(query):
     """Search work orders for relevant context"""
     try:
-        azure_sql = AzureSQLService()
+        azure_sql = get_tenant_db()
         schema = get_tenant_schema()
         keywords = extract_keywords(query)
         

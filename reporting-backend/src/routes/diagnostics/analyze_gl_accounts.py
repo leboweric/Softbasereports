@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -9,7 +10,7 @@ analyze_gl_accounts_bp = Blueprint('analyze_gl_accounts', __name__)
 def analyze_gl_accounts():
     """Analyze GL accounts starting with 6 to understand what expense data we have"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         results = {}
         
         # 1. Get all unique expense accounts (6xxxxx) with descriptions from ChartOfAccounts

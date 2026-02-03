@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
-
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -21,7 +20,7 @@ def get_tenant_schema():
 
 def get_db():
     """Get database connection"""
-    return AzureSQLService()
+    return get_tenant_db()
 
 invoice_field_diagnostic_bp = Blueprint('invoice_field_diagnostic', __name__)
 

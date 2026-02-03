@@ -5,10 +5,10 @@ Version: 1.0.0
 """
 
 from flask import Blueprint, jsonify, request
-from src.services.azure_sql_service import AzureSQLService
 import logging
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -28,7 +28,10 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 
 migration_investigation_bp = Blueprint('migration_investigation', __name__)
-sql_service = AzureSQLService()
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 def investigate_month(year, month, month_name):
     """
     Investigate a single month for migration issues
@@ -72,7 +75,7 @@ def investigate_month(year, month, month_name):
     WHERE EffectiveDate >= '{start_date}' AND EffectiveDate < '{end_date}'
       AND Posted = 1
     """
-    results['transaction_summary'] = sql_service.execute_query(query1)[0] if sql_service.execute_query(query1) else {}
+    results['transaction_summary'] = get_sql_service().execute_query(query1)[0] if get_sql_service().execute_query(query1) else {}
     
     # ============================================================================
     # ANALYSIS 2: Large Transactions (> $50K)
@@ -89,7 +92,7 @@ def investigate_month(year, month, month_name):
       AND Posted = 1
     ORDER BY ABS(Amount) DESC
     """
-    results['large_transactions'] = sql_service.execute_query(query2)
+    results['large_transactions'] = get_sql_service().execute_query(query2)
     
     # ============================================================================
     # ANALYSIS 3: Offsetting Transaction Pairs
@@ -114,7 +117,7 @@ def investigate_month(year, month, month_name):
       AND ABS(t1.Amount) > 50000
     ORDER BY ABS(t1.Amount) DESC
     """
-    results['offsetting_pairs'] = sql_service.execute_query(query3)
+    results['offsetting_pairs'] = get_sql_service().execute_query(query3)
     
     # ============================================================================
     # ANALYSIS 4: P&L Breakdown
@@ -162,9 +165,9 @@ def investigate_month(year, month, month_name):
     ORDER BY SUM(Amount) DESC
     """
     
-    revenue_data = sql_service.execute_query(query4a)
-    cogs_data = sql_service.execute_query(query4b)
-    expense_data = sql_service.execute_query(query4c)
+    revenue_data = get_sql_service().execute_query(query4a)
+    cogs_data = get_sql_service().execute_query(query4b)
+    expense_data = get_sql_service().execute_query(query4c)
     
     total_revenue = sum(row['Amount'] for row in revenue_data)
     total_cogs = sum(row['Amount'] for row in cogs_data)
@@ -202,7 +205,7 @@ def investigate_month(year, month, month_name):
     HAVING SUM(ABS(Amount)) > 100000
     ORDER BY SUM(ABS(Amount)) DESC
     """
-    results['high_volume_expenses'] = sql_service.execute_query(query5)
+    results['high_volume_expenses'] = get_sql_service().execute_query(query5)
     
     # ============================================================================
     # ANALYSIS 6: Last Day of Month Batch Entries
@@ -214,7 +217,7 @@ def investigate_month(year, month, month_name):
     WHERE EffectiveDate >= '{start_date}' AND EffectiveDate < '{end_date}'
       AND Posted = 1
     """
-    last_day_result = sql_service.execute_query(last_day_query)
+    last_day_result = get_sql_service().execute_query(last_day_query)
     last_day = last_day_result[0]['LastDay'] if last_day_result else 31
     
     last_day_date = f"{year}-{month:02d}-{last_day:02d}"
@@ -233,7 +236,7 @@ def investigate_month(year, month, month_name):
     HAVING SUM(ABS(Amount)) > 10000
     ORDER BY SUM(ABS(Amount)) DESC
     """
-    results['last_day_expenses'] = sql_service.execute_query(query6)
+    results['last_day_expenses'] = get_sql_service().execute_query(query6)
     
     return results
 

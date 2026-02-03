@@ -6,6 +6,7 @@ Stores data in PostgreSQL (Railway)
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 import logging
 from src.services.postgres_service import get_postgres_db
 from src.services.permission_service import PermissionService
@@ -356,9 +357,7 @@ def get_categories():
 def get_equipment_makes():
     """Get all unique equipment makes from Softbase Equipment table"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        
-        azure_db = AzureSQLService()
+        azure_db = get_tenant_db()
         schema = get_tenant_schema()
 
         query = f"""
@@ -381,10 +380,8 @@ def get_equipment_makes():
 def get_equipment_models():
     """Get all unique equipment models from Softbase Equipment table, optionally filtered by make"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        
         make = request.args.get('make', '')
-        azure_db = AzureSQLService()
+        azure_db = get_tenant_db()
         
         if make:
             # Filter models by make
@@ -572,8 +569,7 @@ def delete_attachment(attachment_id):
 def search_work_orders():
     """Search work orders by keywords in descriptions and notes"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        azure_sql = AzureSQLService()
+        azure_sql = get_tenant_db()
         
         # Get search parameters
         search = request.args.get('search', '')
@@ -670,8 +666,7 @@ def search_work_orders():
 def count_work_orders():
     """Get total count of work orders in the system"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        azure_sql = AzureSQLService()
+        azure_sql = get_tenant_db()
         
         # Count all work orders
         query_all = "SELECT COUNT(*) as total FROM [{schema}].WO"
@@ -702,8 +697,7 @@ def count_work_orders():
 def get_work_order_date_range():
     """Get the oldest and newest work order dates"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        azure_sql = AzureSQLService()
+        azure_sql = get_tenant_db()
         
         # Get oldest and newest work orders by ClosedDate and WONo
         schema = get_tenant_schema()

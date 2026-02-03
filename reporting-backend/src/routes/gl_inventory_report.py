@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 from ..services.azure_sql_service import AzureSQLService
 from decimal import Decimal, ROUND_HALF_UP
 import logging
@@ -43,7 +44,7 @@ def get_gl_inventory_report():
     Returns equipment inventory broken down by GL account balances
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Fiscal year parameters (Nov 2024 - Oct 2025)
         fiscal_start = '2024-11-01'
@@ -209,7 +210,7 @@ def export_gl_inventory_report():
         export_format = data.get('format', 'csv').lower()
         
         # Get the report data first
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Re-run the report query for export
         # (In production, you might cache this or pass it as parameter)

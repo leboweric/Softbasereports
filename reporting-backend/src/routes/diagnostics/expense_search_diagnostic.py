@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -9,7 +10,7 @@ expense_search_diagnostic_bp = Blueprint('expense_search_diagnostic', __name__)
 def search_for_expenses():
     """Search for G&A expenses across various tables"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         results = {
             'invoice_expenses': {},
             'wo_expenses': {},

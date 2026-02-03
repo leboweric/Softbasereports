@@ -5,10 +5,10 @@ Version: 1.0.1 - Fixed Reference column issue
 """
 
 from flask import Blueprint, jsonify
-from src.services.azure_sql_service import AzureSQLService
 import logging
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -28,7 +28,10 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 
 january_investigation_bp = Blueprint('january_investigation', __name__)
-sql_service = AzureSQLService()
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 @january_investigation_bp.route('/api/investigation/january2025', methods=['GET'])
 def investigate_january_2025():
     """
@@ -56,7 +59,7 @@ def investigate_january_2025():
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY Year, Month
         """
-        results['transaction_volume'] = sql_service.execute_query(query1)
+        results['transaction_volume'] = get_sql_service().execute_query(query1)
         
         # Calculate statistics
         if results['transaction_volume']:
@@ -85,7 +88,7 @@ def investigate_january_2025():
           AND Posted = 1
         ORDER BY ABS(Amount) DESC
         """
-        results['large_transactions'] = sql_service.execute_query(query2)
+        results['large_transactions'] = get_sql_service().execute_query(query2)
         
         # ============================================================================
         # ANALYSIS 3: Account-Level Summary for January 2025
@@ -104,7 +107,7 @@ def investigate_january_2025():
         GROUP BY AccountNo
         ORDER BY SUM(ABS(Amount)) DESC
         """
-        results['account_summary'] = sql_service.execute_query(query3)
+        results['account_summary'] = get_sql_service().execute_query(query3)
         
         # ============================================================================
         # ANALYSIS 4: Duplicate Transaction Detection
@@ -122,7 +125,7 @@ def investigate_january_2025():
         HAVING COUNT(*) > 1
         ORDER BY COUNT(*) DESC, ABS(Amount) DESC
         """
-        results['potential_duplicates'] = sql_service.execute_query(query4)
+        results['potential_duplicates'] = get_sql_service().execute_query(query4)
         
         # ============================================================================
         # ANALYSIS 5: P&L Breakdown for January 2025
@@ -170,9 +173,9 @@ def investigate_january_2025():
         ORDER BY SUM(Amount) DESC
         """
         
-        revenue_data = sql_service.execute_query(query5a)
-        cogs_data = sql_service.execute_query(query5b)
-        expense_data = sql_service.execute_query(query5c)
+        revenue_data = get_sql_service().execute_query(query5a)
+        cogs_data = get_sql_service().execute_query(query5b)
+        expense_data = get_sql_service().execute_query(query5c)
         
         total_revenue = sum(row['Amount'] for row in revenue_data)
         total_cogs = sum(row['Amount'] for row in cogs_data)
@@ -207,7 +210,7 @@ def investigate_january_2025():
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY Year, Month
         """
-        comparison_data = sql_service.execute_query(query6)
+        comparison_data = get_sql_service().execute_query(query6)
         
         # Add calculated fields
         for row in comparison_data:
@@ -229,7 +232,7 @@ def investigate_january_2025():
           AND Posted = 1
         ORDER BY ABS(Amount) DESC
         """
-        results['migration_keywords'] = sql_service.execute_query(query7)
+        results['migration_keywords'] = get_sql_service().execute_query(query7)
         
         # ============================================================================
         # ANALYSIS 8: Unusual Account Activity (accounts with Jan activity but not Dec/Feb)
@@ -262,7 +265,7 @@ def investigate_january_2025():
         GROUP BY j.AccountNo
         ORDER BY ABS(SUM(g.Amount)) DESC
         """
-        results['unusual_accounts'] = sql_service.execute_query(query8)
+        results['unusual_accounts'] = get_sql_service().execute_query(query8)
         
         return jsonify({
             'success': True,

@@ -1,7 +1,7 @@
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 from datetime import datetime
-from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
@@ -30,7 +30,7 @@ def get_control_serial_mapping():
     """Get report mapping Control Numbers to Serial Numbers with equipment details"""
     try:
         logger.info("Starting control number to serial number mapping report")
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get all equipment with control numbers or serial numbers
         mapping_query = f"""
@@ -179,7 +179,7 @@ def get_control_number_summary():
     """Get summary statistics for control number usage across the system"""
     try:
         logger.info("Starting control number summary report")
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get usage statistics
         summary_query = f"""

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 import re
 from datetime import datetime
 
@@ -488,7 +489,7 @@ def quick_report_test():
         import pymssql
         from ..services.azure_sql_service import AzureSQLService
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Test basic queries with correct column names
         queries = {
@@ -552,7 +553,7 @@ def inspect_columns():
     try:
         from ..services.azure_sql_service import AzureSQLService
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Views to inspect
         views = ["Customer", "Equipment", "InvoiceReg"]
@@ -612,7 +613,7 @@ def find_sales_columns():
     try:
         from ..services.azure_sql_service import AzureSQLService
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get column info
         schema = get_tenant_schema()
@@ -677,7 +678,7 @@ def customer_structure():
     try:
         from ..services.azure_sql_service import AzureSQLService
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get all columns with data types
         column_query = f"""

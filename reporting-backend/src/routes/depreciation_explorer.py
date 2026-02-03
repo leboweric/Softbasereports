@@ -3,8 +3,7 @@ Depreciation data exploration endpoint
 """
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
-
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -29,7 +28,7 @@ depreciation_explorer_bp = Blueprint('depreciation_explorer', __name__)
 def explore_depreciation_fields():
     """Explore database for depreciation-related fields and data"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results = {}
         

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 import logging
 
 from flask_jwt_extended import get_jwt_identity
@@ -41,7 +41,7 @@ def execute_query():
         if not query.upper().startswith('SELECT'):
             return jsonify({'error': 'Only SELECT queries are allowed'}), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results = db.execute_query(query)
         
@@ -125,7 +125,7 @@ def test_gl_query():
         gl_accounts = data.get('gl_accounts', ['410003', '410004', '410005', '410012'])
         months_back = data.get('months_back', 1)  # Default to 1 month
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Build query
         account_list = "', '".join(gl_accounts)

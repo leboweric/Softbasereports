@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 from ..services.azure_sql_service import AzureSQLService
 from ..services.report_generator import ReportGenerator
 from decimal import Decimal, ROUND_HALF_UP
@@ -49,7 +50,7 @@ def get_final_gl_inventory_report():
     - Equipment linked to GL accounts
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Fiscal year parameters (Nov 2024 - Oct 2025)
         fiscal_start = '2024-11-01'
@@ -241,7 +242,7 @@ def export_final_gl_inventory_report():
         export_format = data.get('format', 'csv').lower()
         
         # Get the report data first
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         report_generator = ReportGenerator()
         

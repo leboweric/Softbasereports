@@ -9,7 +9,7 @@ Removed: Redundant Free CF and CapEx (always $0)
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.services.cache_service import cache_service
 from datetime import datetime, timedelta
 import logging
@@ -35,8 +35,10 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 
 cashflow_widget_bp = Blueprint('cashflow_widget', __name__)
-sql_service = AzureSQLService()
-
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 @cashflow_widget_bp.route('/api/cashflow/widget', methods=['GET'])
 @jwt_required()
 def get_cashflow_widget():
@@ -127,7 +129,7 @@ def get_current_cash_balance(year, month):
           AND AccountNo IN ('110000', '113000', '114000')
         """
         
-        result = sql_service.execute_query(query, [year, month])
+        result = get_sql_service().execute_query(query, [year, month])
         
         if result and result[0]:
             return float(result[0].get('cash_balance') or 0)
@@ -155,7 +157,7 @@ def get_total_cash_movement(year, month):
           AND AccountNo IN ('110000', '113000', '114000')
         """
         
-        result = sql_service.execute_query(query, [year, month])
+        result = get_sql_service().execute_query(query, [year, month])
         
         if result and result[0]:
             return float(result[0].get('cash_movement') or 0)
@@ -249,7 +251,7 @@ def get_non_operating_breakdown(year, month):
         ORDER BY ABS(SUM(MTD)) DESC
         """
         
-        result = sql_service.execute_query(query, [year, month])
+        result = get_sql_service().execute_query(query, [year, month])
         
         if not result:
             return {
@@ -362,7 +364,7 @@ def get_monthly_net_income(year, month):
           AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
         """
         
-        result = sql_service.execute_query(query, [year, month])
+        result = get_sql_service().execute_query(query, [year, month])
         
         if result and result[0]:
             revenue = float(result[0].get('revenue') or 0)
@@ -392,7 +394,7 @@ def get_monthly_depreciation(year, month):
           AND AccountNo = '600900'
         """
         
-        result = sql_service.execute_query(query, [year, month])
+        result = get_sql_service().execute_query(query, [year, month])
         
         if result and result[0]:
             return float(result[0].get('depreciation') or 0)

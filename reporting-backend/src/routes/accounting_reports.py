@@ -1,7 +1,7 @@
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 from datetime import datetime, timedelta
-from src.services.azure_sql_service import AzureSQLService
 from src.routes.reports import reports_bp
 import logging
 
@@ -30,7 +30,7 @@ def get_control_serial_link_report():
     """Get report linking rental contract control numbers with equipment serial numbers"""
     try:
         logger.info("Starting control number to serial number link report")
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get all rental contracts with their associated equipment
         schema = get_tenant_schema()
@@ -164,7 +164,7 @@ def get_control_serial_link_report():
 def get_control_serial_summary():
     """Get summary statistics for control number to serial number relationships"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get summary by customer
         customer_summary_query = f"""
@@ -249,7 +249,7 @@ def get_monthly_absorption_rate():
     """
     try:
         logger.info("Starting absorption rate calculation")
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         
         # Import GL accounts config

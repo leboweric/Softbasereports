@@ -13,7 +13,7 @@ def get_tenant_schema():
     Get the database schema for the current authenticated user's organization.
     
     Returns:
-        str: The database schema name (e.g., 'ben002', 'vital001')
+        str: The database schema name (e.g., 'ben002', 'ind004')
         
     Raises:
         ValueError: If user, organization, or schema is not found/configured
@@ -53,3 +53,69 @@ def get_tenant_schema_safe(default='ben002'):
     except ValueError as e:
         logger.warning(f"Using default schema '{default}': {str(e)}")
         return default
+
+
+def get_tenant_db():
+    """
+    Get a database service configured with the current tenant's credentials.
+    
+    This is the primary method for getting a database connection in multi-tenant routes.
+    It uses the current authenticated user's organization to determine which database
+    credentials to use.
+    
+    Returns:
+        AzureSQLService: Database service configured with tenant-specific credentials
+        
+    Raises:
+        ValueError: If user or organization is not found/configured
+    """
+    from src.services.azure_sql_service import AzureSQLService
+    from src.services.credential_manager import get_credential_manager
+    
+    user_id = get_jwt_identity()
+    if not user_id:
+        raise ValueError("No authenticated user found")
+    
+    user = User.query.get(user_id)
+    if not user:
+        raise ValueError("User not found")
+    
+    if not user.organization:
+        raise ValueError("User not associated with an organization")
+    
+    org = user.organization
+    
+    # Create AzureSQLService instance
+    service = AzureSQLService()
+    
+    # If organization has custom database credentials, use them
+    if org.db_server and org.db_username and org.db_password_encrypted:
+        try:
+            credential_manager = get_credential_manager()
+            decrypted_password = credential_manager.decrypt_password(org.db_password_encrypted)
+            
+            # Override the default credentials with tenant-specific ones
+            service.server = org.db_server
+            service.database = org.db_name or 'evo'  # Default to 'evo' if not specified
+            service.username = org.db_username
+            service.password = decrypted_password
+            
+            logger.info(f"Using tenant-specific database credentials for {org.name} (user: {org.db_username})")
+        except Exception as e:
+            logger.error(f"Failed to decrypt credentials for {org.name}: {str(e)}")
+            # Fall back to default credentials
+            logger.warning(f"Falling back to default credentials for {org.name}")
+    else:
+        logger.debug(f"Using default database credentials for {org.name} (no custom credentials configured)")
+    
+    return service
+
+
+def get_db():
+    """
+    Alias for get_tenant_db() for backward compatibility.
+    
+    Returns:
+        AzureSQLService: Database service configured with tenant-specific credentials
+    """
+    return get_tenant_db()

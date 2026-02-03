@@ -3,8 +3,7 @@ Database diagnostics endpoints for exploring schema and data
 """
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
-
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -29,7 +28,7 @@ diagnostics_bp = Blueprint('diagnostics', __name__)
 def get_depreciation_view_details():
     """Explore the Depreciation view structure and sample data"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
         
         # Get columns from Depreciation view
         columns_query = f"""
@@ -82,7 +81,7 @@ def get_depreciation_view_details():
 def get_equipment_depreciation_join():
     """Test joining Equipment and Depreciation data"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
         
         # Test join between Equipment and Depreciation
         join_query = f"""
@@ -127,7 +126,7 @@ def get_equipment_depreciation_join():
 def get_gl_table_columns():
     """Get actual column names from GL-related tables"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
         
         # Get column information for GL-related tables
         schema = get_tenant_schema()
@@ -204,7 +203,7 @@ def get_invoice_raw():
         if not invoice_no:
             return jsonify({'error': 'invoice_no parameter required'}), 400
 
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         # Get ALL fields from the invoice
         query = "SELECT * FROM {schema}.InvoiceReg WHERE InvoiceNo = %s"

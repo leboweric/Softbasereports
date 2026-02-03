@@ -5,10 +5,10 @@ Version: 1.0.0
 """
 
 from flask import Blueprint, jsonify
-from src.services.azure_sql_service import AzureSQLService
 import logging
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -28,7 +28,10 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 
 softbase_months_bp = Blueprint('softbase_months', __name__)
-sql_service = AzureSQLService()
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 def analyze_month(year, month, month_name):
     """Analyze a single Softbase-native month"""
     
@@ -56,7 +59,7 @@ def analyze_month(year, month, month_name):
     WHERE EffectiveDate >= '{start_date}' AND EffectiveDate < '{end_date}'
       AND Posted = 1
     """
-    results['transaction_summary'] = sql_service.execute_query(query1)[0] if sql_service.execute_query(query1) else {}
+    results['transaction_summary'] = get_sql_service().execute_query(query1)[0] if get_sql_service().execute_query(query1) else {}
     
     # P&L Summary
     query2 = f"""
@@ -68,7 +71,7 @@ def analyze_month(year, month, month_name):
     WHERE EffectiveDate >= '{start_date}' AND EffectiveDate < '{end_date}'
       AND Posted = 1
     """
-    pl_data = sql_service.execute_query(query2)
+    pl_data = get_sql_service().execute_query(query2)
     if pl_data:
         revenue = float(pl_data[0]['Revenue'] or 0)
         cogs = float(pl_data[0]['COGS'] or 0)
@@ -100,7 +103,7 @@ def analyze_month(year, month, month_name):
     GROUP BY t1.AccountNo
     ORDER BY COUNT(*) DESC
     """
-    results['offsetting_pairs'] = sql_service.execute_query(query3)
+    results['offsetting_pairs'] = get_sql_service().execute_query(query3)
     
     # Account 602600 Analysis
     query4 = f"""
@@ -115,7 +118,7 @@ def analyze_month(year, month, month_name):
       AND Posted = 1
       AND AccountNo = '602600'
     """
-    results['account_602600'] = sql_service.execute_query(query4)[0] if sql_service.execute_query(query4) else {}
+    results['account_602600'] = get_sql_service().execute_query(query4)[0] if get_sql_service().execute_query(query4) else {}
     
     # Top Expense Accounts
     query5 = f"""
@@ -130,7 +133,7 @@ def analyze_month(year, month, month_name):
     GROUP BY AccountNo
     ORDER BY SUM(Amount) DESC
     """
-    results['top_expenses'] = sql_service.execute_query(query5)
+    results['top_expenses'] = get_sql_service().execute_query(query5)
     
     # Negative Expense Accounts
     query6 = f"""
@@ -146,7 +149,7 @@ def analyze_month(year, month, month_name):
     HAVING SUM(Amount) < 0
     ORDER BY SUM(Amount)
     """
-    results['negative_expenses'] = sql_service.execute_query(query6)
+    results['negative_expenses'] = get_sql_service().execute_query(query6)
     
     return results
 

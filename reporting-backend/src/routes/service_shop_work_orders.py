@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 import logging
 
 from flask_jwt_extended import get_jwt_identity
@@ -32,7 +32,7 @@ def get_shop_work_orders():
     Compares actual labor hours vs quoted hours to prevent budget overruns.
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         
         # DEBUG QUERY 1: Investigate work order types
@@ -324,7 +324,7 @@ def debug_womisc_descriptions():
     Debug endpoint: See actual WOMisc descriptions for open shop work orders
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get actual WOMisc records for open shop WOs
         schema = get_tenant_schema()
@@ -380,7 +380,7 @@ def debug_wo_fields():
     Debug: Check WO table for quote-related fields
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get WO record for known quoted work order
         schema = get_tenant_schema()
@@ -425,7 +425,7 @@ def debug_find_quote():
     Debug: Get ALL WOMisc records for WO 140000582 (known to have $3938 quote)
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Simple query - just get everything from WOMisc for this WO
         schema = get_tenant_schema()
@@ -475,7 +475,7 @@ def debug_tables():
     Debug: List ALL tables in database (no schema filter)
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Just get ALL tables, no schema filter
         schema = get_tenant_schema()
@@ -522,7 +522,7 @@ def debug_woquote():
     Debug: Get actual WOQuote column names from SQL Server metadata
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
 
         # Query 1: Get all column names from SQL Server system tables
         columns_query = f"""
@@ -573,7 +573,7 @@ def debug_labor_rates():
     Based on Softbase support recommendation
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
 
         results = {}
 

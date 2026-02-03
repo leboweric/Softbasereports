@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 import logging
 from datetime import datetime, timedelta
 
@@ -42,7 +42,7 @@ def get_pm_technician_performance():
         else:
             period_label = f"{start} to {end}"
         
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
         
         # Query to get PM completions by technician
         # Only counts INVOICED PMs (wo.InvoiceDate IS NOT NULL)
@@ -163,7 +163,7 @@ def get_pm_technician_details():
             start = "2025-11-01"
             end = datetime.now().date()
         
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
         
         # Query pattern copied from department_reports.py
         # Only shows INVOICED PMs (wo.InvoiceDate IS NOT NULL)

@@ -3,9 +3,8 @@ Diagnostic endpoint to investigate account 602600 payroll discrepancy
 Hypothesis: Softbase uses GL.MTD (monthly summary) instead of GLDetail transactions
 """
 from flask import Blueprint, jsonify, request
-from src.services.azure_sql_service import AzureSQLService
-
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -23,7 +22,10 @@ def get_tenant_schema():
 
 
 diagnostic_bp = Blueprint('diagnostic', __name__)
-sql_service = AzureSQLService()
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 @diagnostic_bp.route('/diagnostic/account-602600', methods=['GET'])
 def diagnose_account_602600():
     """
@@ -47,7 +49,7 @@ def diagnose_account_602600():
           AND Posted = 1
         """
         
-        gldetail_result = sql_service.execute_query(query_gldetail, [start_date, end_date])
+        gldetail_result = get_sql_service().execute_query(query_gldetail, [start_date, end_date])
         results['gldetail_total'] = float(gldetail_result[0]['total'] or 0) if gldetail_result else 0
         results['gldetail_count'] = int(gldetail_result[0]['count'] or 0) if gldetail_result else 0
         
@@ -67,7 +69,7 @@ def diagnose_account_602600():
           AND Month = 10
         """
         
-        gl_mtd_result = sql_service.execute_query(query_gl_mtd, [])
+        gl_mtd_result = get_sql_service().execute_query(query_gl_mtd, [])
         if gl_mtd_result and len(gl_mtd_result) > 0:
             results['gl_mtd_total'] = float(gl_mtd_result[0]['MTD'] or 0)
             results['gl_mtd_record'] = gl_mtd_result[0]

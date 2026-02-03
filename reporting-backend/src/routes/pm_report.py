@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.services.cache_service import cache_service
 import logging
 from datetime import datetime, timedelta
@@ -55,7 +55,7 @@ def get_pms_due():
 
 def _fetch_pms_due_data():
     """Internal function to fetch PM schedule data"""
-    db = AzureSQLService()
+    db = get_tenant_db()
     
     # Query PM table for active PM schedules
     schema = get_tenant_schema()

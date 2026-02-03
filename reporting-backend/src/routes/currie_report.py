@@ -5,7 +5,7 @@ Automates quarterly Currie reporting by extracting data from Softbase
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.services.cache_service import cache_service
 from datetime import datetime, timedelta
 import logging
@@ -31,8 +31,10 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 
 currie_bp = Blueprint('currie', __name__)
-sql_service = AzureSQLService()
-
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 @currie_bp.route('/api/currie/sales-cogs-gp', methods=['GET'])
 @jwt_required()
 def get_sales_cogs_gp():
@@ -234,7 +236,7 @@ def get_new_equipment_sales(start_date, end_date):
         GROUP BY AccountNo
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         # Initialize categories
         categories = {
@@ -318,7 +320,7 @@ def get_rental_revenue(start_date, end_date):
         GROUP BY AccountNo
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         rental_data = {
             'sales': 0,
@@ -395,7 +397,7 @@ def get_service_revenue(start_date, end_date):
           )
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         service_data = {
             'customer_labor': {'sales': 0, 'cogs': 0},
@@ -457,7 +459,7 @@ def get_parts_revenue(start_date, end_date):
         GROUP BY AccountNo
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         parts_data = {
             'counter_primary': {'sales': 0, 'cogs': 0},
@@ -560,7 +562,7 @@ def get_trucking_revenue(start_date, end_date):
           )
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         trucking_data = {
             'sales': 0,
@@ -771,7 +773,7 @@ def get_ar_aging():
         WHERE (HistoryFlag IS NULL OR HistoryFlag = 0)
             AND DeletionTime IS NULL
         """
-        total_ar_result = sql_service.execute_query(total_ar_query, [])
+        total_ar_result = get_sql_service().execute_query(total_ar_query, [])
         total_ar = float(total_ar_result[0]['total_ar']) if total_ar_result and total_ar_result[0]['total_ar'] else 0
         
         # Get AR aging buckets
@@ -809,7 +811,7 @@ def get_ar_aging():
             END
         """
         
-        ar_results = sql_service.execute_query(ar_query, [])
+        ar_results = get_sql_service().execute_query(ar_query, [])
         
         # Format results for Currie (Current, 31-60, 61-90, 91+)
         ar_aging = {
@@ -853,7 +855,7 @@ def get_service_calls_per_day(start_date, end_date, num_days):
           AND SaleDept IN ('40', '45', '47')  -- Field Service (40), Shop Service (45), PM (47)
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         total_calls = int(results[0]['total_service_calls']) if results and results[0]['total_service_calls'] else 0
         calls_per_day = total_calls / num_days if num_days > 0 else 0
@@ -883,7 +885,7 @@ def get_technician_count(start_date, end_date):
           AND Technician != ''
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         count = int(results[0]['technician_count']) if results and results[0]['technician_count'] else 0
         
@@ -931,7 +933,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         FROM PartsOrders
         """
         
-        fill_rate_result = sql_service.execute_query(fill_rate_query, [start_date, end_date])
+        fill_rate_result = get_sql_service().execute_query(fill_rate_query, [start_date, end_date])
         
         total_orders = int(fill_rate_result[0]['TotalOrders'] or 0) if fill_rate_result else 0
         filled_orders = int(fill_rate_result[0]['FilledOrders'] or 0) if fill_rate_result else 0
@@ -944,7 +946,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         WHERE OnHand > 0 AND Cost > 0
         """
         
-        inventory_result = sql_service.execute_query(inventory_query, [])
+        inventory_result = get_sql_service().execute_query(inventory_query, [])
         inventory_value = float(inventory_result[0]['TotalInventoryValue'] or 0) if inventory_result else 0
         
         # 3. Inventory Turnover - annualized based on period movement
@@ -957,7 +959,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         WHERE w.OpenDate >= %s AND w.OpenDate <= %s
         """
         
-        turnover_result = sql_service.execute_query(turnover_query, [start_date, end_date])
+        turnover_result = get_sql_service().execute_query(turnover_query, [start_date, end_date])
         cogs = float(turnover_result[0]['TotalCOGS'] or 0) if turnover_result else 0
         
         # Annualize the turnover (COGS for period / avg inventory) * (365 / days in period)
@@ -986,7 +988,7 @@ def get_parts_inventory_metrics(start_date, end_date):
         FROM PartMovement
         """
         
-        aging_result = sql_service.execute_query(aging_query, [])
+        aging_result = get_sql_service().execute_query(aging_query, [])
         
         if aging_result and len(aging_result) > 0:
             aging = aging_result[0]
@@ -1035,7 +1037,7 @@ def get_labor_metrics(start_date, end_date):
           AND w.OpenDate <= %s
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         if results and len(results) > 0:
             row = results[0]
@@ -1497,7 +1499,7 @@ def discover_gl_accounts():
         ORDER BY AccountNo
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         # Format for easy reading
         accounts = []
@@ -1640,9 +1642,9 @@ def get_gl_expenses_from_gl_mtd(year, month):
           )
         """
         
-        personnel_result = sql_service.execute_query(personnel_query, [year, month])
-        occupancy_result = sql_service.execute_query(occupancy_query, [year, month])
-        operating_result = sql_service.execute_query(operating_query, [year, month])
+        personnel_result = get_sql_service().execute_query(personnel_query, [year, month])
+        occupancy_result = get_sql_service().execute_query(occupancy_query, [year, month])
+        operating_result = get_sql_service().execute_query(operating_query, [year, month])
         
         personnel = personnel_result[0] if personnel_result else {}
         occupancy = occupancy_result[0] if occupancy_result else {}
@@ -1757,9 +1759,9 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
           )
         """
         
-        personnel_result = sql_service.execute_query(personnel_query, [start_date, end_date])
-        occupancy_result = sql_service.execute_query(occupancy_query, [start_date, end_date])
-        operating_result = sql_service.execute_query(operating_query, [start_date, end_date])
+        personnel_result = get_sql_service().execute_query(personnel_query, [start_date, end_date])
+        occupancy_result = get_sql_service().execute_query(occupancy_query, [start_date, end_date])
+        operating_result = get_sql_service().execute_query(operating_query, [start_date, end_date])
         
         personnel = personnel_result[0] if personnel_result else {}
         occupancy = occupancy_result[0] if occupancy_result else {}
@@ -1861,7 +1863,7 @@ def get_other_income_and_interest(start_date, end_date):
           )
         """
         
-        result = sql_service.execute_query(query, [start_date, end_date])
+        result = get_sql_service().execute_query(query, [start_date, end_date])
         
         if result and len(result) > 0:
             row = result[0]
@@ -1927,7 +1929,7 @@ def get_balance_sheet_data(as_of_date):
         ORDER BY gl.AccountNo
         """
         
-        result = sql_service.execute_query(query, [year, month])
+        result = get_sql_service().execute_query(query, [year, month])
         
         logger.info(f"Balance Sheet query for year={year}, month={month}")
         logger.info(f"Query returned {len(result) if result else 0} rows")

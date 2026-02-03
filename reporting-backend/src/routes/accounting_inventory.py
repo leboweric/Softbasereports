@@ -3,7 +3,7 @@ Accounting inventory report endpoint - GL Based
 """
 from flask import Blueprint, jsonify, send_file
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from decimal import Decimal, ROUND_HALF_UP
 import traceback
 import logging
@@ -50,7 +50,7 @@ def get_accounting_inventory():
     Uses GL account balances for accurate financial reporting
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         
         # Step 1: First, find the correct date column name in GLDetail
@@ -476,7 +476,7 @@ def export_inventory_excel():
     """
     try:
         # Get the same inventory data as the main report
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         
         # Reuse the same queries from the main endpoint to ensure consistency

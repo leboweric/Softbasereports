@@ -3,7 +3,7 @@ Diagnostic endpoint to understand Equipment table structure and identify sold un
 """
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 import logging
 
 from flask_jwt_extended import get_jwt_identity
@@ -28,7 +28,7 @@ rental_diag_bp = Blueprint('rental_diagnostic', __name__, url_prefix='/api/renta
 
 def get_db():
     """Get database connection"""
-    return AzureSQLService()
+    return get_tenant_db()
 
 @rental_diag_bp.route('/equipment-schema', methods=['GET'])
 @jwt_required()

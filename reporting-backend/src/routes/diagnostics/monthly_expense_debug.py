@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -9,7 +10,7 @@ monthly_expense_debug_bp = Blueprint('monthly_expense_debug', __name__)
 def debug_monthly_expenses():
     """Debug monthly expense data to see why some months are missing"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         results = {}
         
         # 1. Check raw monthly data from GLDetail

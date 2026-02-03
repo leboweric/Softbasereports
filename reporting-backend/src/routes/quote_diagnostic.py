@@ -3,10 +3,10 @@ Diagnostic to understand quotes vs work orders
 """
 
 from flask import Blueprint, jsonify
-from src.services.azure_sql_service import AzureSQLService
 import logging
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -32,7 +32,7 @@ def check_quotes():
     """Check how quotes are distinguished from work orders"""
     
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results = {}
         

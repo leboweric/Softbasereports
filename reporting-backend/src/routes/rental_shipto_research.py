@@ -1,6 +1,6 @@
 from flask import jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.routes.reports import reports_bp
 import logging
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 def research_rental_shipto():
     """Research how to find Ship To customer for rental equipment"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         research_results = {}
         

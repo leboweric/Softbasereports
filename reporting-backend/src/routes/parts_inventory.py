@@ -14,7 +14,6 @@ try:
 except ImportError:
     HAS_SCIPY = False
 import logging
-from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
 
 logger = logging.getLogger(__name__)
@@ -74,7 +73,7 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
         
         # Initialize database connection
         try:
-            db = AzureSQLService()
+            db = get_tenant_db()
             logger.info("Database connection established")
         except Exception as e:
             logger.error(f"Database connection failed: {str(e)}")
@@ -500,7 +499,7 @@ def get_inventory_summary():
     Get high-level inventory summary statistics
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         summary_query = f"""
         SELECT 
@@ -563,7 +562,7 @@ def get_part_detail():
                 'error': 'Part number is required'
             }), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get part master data
         part_query = f"""
@@ -649,7 +648,7 @@ def test_tables():
     Test endpoint to verify table and column names exist
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         logger.info("Testing database table and column access...")
         
         results = {}
@@ -785,7 +784,7 @@ def get_schema_tables():
     Discover all tables in tenant schema to find correct table names
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         logger.info("Discovering tables in tenant schema...")
         
         # Get all tables in tenant schema
@@ -891,7 +890,7 @@ def get_table_sample(table_name):
     Get detailed sample data from a specific table
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         logger.info(f"Getting sample data from table: {table_name}")
         
         # Validate table name exists
@@ -967,7 +966,7 @@ def simple_test():
     Simple test to verify basic table access and identify the exact error
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         logger.info("Starting simple test...")
         
         # Test 1: Simple Parts table query
@@ -1088,7 +1087,7 @@ def simple_test():
 def test_columns():
     """Test endpoint to discover column names in critical tables"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         logger.info("Starting column discovery test...")
         
         results = {}

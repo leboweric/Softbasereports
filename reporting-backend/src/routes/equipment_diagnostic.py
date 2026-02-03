@@ -1,8 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 import logging
-from src.services.azure_sql_service import AzureSQLService
-
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -28,7 +27,7 @@ equipment_diagnostic_bp = Blueprint('equipment_diagnostic', __name__)
 def check_equipment_columns():
     """Check the actual columns in the Equipment table"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get column information
         columns_query = f"""

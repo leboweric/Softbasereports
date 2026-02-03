@@ -1,8 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 import logging
-from src.services.azure_sql_service import AzureSQLService
-
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -44,7 +43,7 @@ ESSENTIAL_TABLES = [
 def get_simple_schema():
     """Get schema for essential tables only"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         schema_info = {}
         

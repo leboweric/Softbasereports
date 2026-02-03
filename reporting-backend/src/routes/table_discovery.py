@@ -1,9 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 import logging
 from datetime import datetime
-from src.services.azure_sql_service import AzureSQLService
-
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -29,7 +28,7 @@ table_discovery_bp = Blueprint('table_discovery', __name__)
 def list_all_tables():
     """List all tables in the ben002 schema"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get all tables with basic info
         tables_query = f"""
@@ -93,7 +92,7 @@ def get_table_details():
                 'error': 'No tables specified'
             }), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         table_details = {}
         
@@ -202,7 +201,7 @@ def export_selected_schema():
                 'error': 'No tables specified'
             }), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         markdown_lines = [
             "# Softbase Database Schema Documentation",
@@ -307,7 +306,7 @@ def get_column_values():
                 'error': 'Table and column names are required'
             }), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Build the WHERE clause
         where_clause = ""
@@ -389,7 +388,7 @@ def get_column_values():
 def investigate_gl_structure():
     """Investigate GL table structure and find target accounts"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Step 1: Find GL-related tables
         gl_tables_query = f"""
@@ -501,7 +500,7 @@ def analyze_gl_detail():
         data = request.get_json()
         fiscal_year_filter = data.get('fiscal_year', True)  # Default to current fiscal year
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Step 1: Check if GLDetail table exists and get its structure
         gldetail_check_query = f"""
@@ -653,7 +652,7 @@ def analyze_gl_detail():
 def check_gl_columns():
     """Check actual column names in GL-related tables"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get column names from GL-related tables
         column_check_query = f"""

@@ -14,7 +14,6 @@ import logging
 import os
 from openai import OpenAI
 from src.services.postgres_service import PostgreSQLService
-from src.services.azure_sql_service import AzureSQLService
 from src.utils.tenant_utils import get_tenant_schema
 
 logger = logging.getLogger(__name__)

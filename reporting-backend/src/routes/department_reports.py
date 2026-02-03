@@ -2,11 +2,11 @@
 # Version 1.0.1 - Added Guaranteed Maintenance profitability endpoint
 from flask import jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from flask import request
-from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
 from src.utils.auth_decorators import require_permission, require_department
 from src.utils.fiscal_year import get_fiscal_year_months, get_fiscal_year_start_month
@@ -43,7 +43,7 @@ def normalize_salesman_name(name):
 
 def get_db():
     """Get database connection"""
-    return AzureSQLService()
+    return get_tenant_db()
 
 
 def _get_department_from_mart(department: str, max_age_hours: float = 4.0):

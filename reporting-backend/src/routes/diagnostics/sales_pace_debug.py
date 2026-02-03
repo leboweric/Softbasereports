@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 from datetime import datetime
@@ -10,7 +11,7 @@ sales_pace_debug_bp = Blueprint('sales_pace_debug', __name__)
 def debug_sales_pace():
     """Debug sales pace calculations"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get detailed sales for first few days of July and August
         july_detail_query = """

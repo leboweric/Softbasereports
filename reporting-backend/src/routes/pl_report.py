@@ -7,11 +7,11 @@ from flask import Blueprint, jsonify, request
 from datetime import datetime
 import logging
 import calendar
-from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
 from src.utils.fiscal_year import get_fiscal_ytd_start
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -30,7 +30,10 @@ def get_tenant_schema():
 
 logger = logging.getLogger(__name__)
 pl_report_bp = Blueprint('pl_report', __name__)
-sql_service = AzureSQLService()
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 # GL Account Mappings by Department (Source: Softbase P&L)
 GL_ACCOUNTS = {
     'new_equipment': {
@@ -159,7 +162,7 @@ def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False)
               AND AccountNo IN ('{account_list}')
             """
             
-            results = sql_service.execute_query(query, [year, month])
+            results = get_sql_service().execute_query(query, [year, month])
             
             revenue = 0
             cogs = 0
@@ -205,7 +208,7 @@ def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False)
               AND AccountNo IN ('{account_list}')
             """
             
-            results = sql_service.execute_query(query, [year, month])
+            results = get_sql_service().execute_query(query, [year, month])
             
             if results and len(results) > 0:
                 row = results[0]
@@ -265,7 +268,7 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
             GROUP BY AccountNo
             """
             
-            results = sql_service.execute_query(query, [start_date, end_date])
+            results = get_sql_service().execute_query(query, [start_date, end_date])
             
             revenue = 0
             cogs = 0
@@ -312,7 +315,7 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
               AND AccountNo IN ('{account_list}')
             """
             
-            results = sql_service.execute_query(query, [start_date, end_date])
+            results = get_sql_service().execute_query(query, [start_date, end_date])
             
             if results and len(results) > 0:
                 row = results[0]
@@ -382,7 +385,7 @@ def get_other_income(start_date, end_date):
           AND AccountNo IN ('{account_list}')
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         if results and len(results) > 0:
             return float(results[0]['total'] or 0)
@@ -482,7 +485,7 @@ def get_expense_data_from_gl_mtd(year, month):
           AND AccountNo IN ('{expense_list}')
         """
         
-        results = sql_service.execute_query(query, [year, month])
+        results = get_sql_service().execute_query(query, [year, month])
         
         # Debug logging
         print("="*80)
@@ -541,7 +544,7 @@ def get_expense_data_from_gldetail(start_date, end_date):
         GROUP BY AccountNo
         """
         
-        results = sql_service.execute_query(query, [start_date, end_date])
+        results = get_sql_service().execute_query(query, [start_date, end_date])
         
         # Debug: Print all accounts returned from query (using print to ensure it appears in logs)
         print("="*80)
@@ -1142,7 +1145,7 @@ def get_all_departments_data(start_date, end_date):
           AND Posted = 1
         """
         
-        revenue_result = sql_service.execute_query(revenue_query, [start_date, end_date])
+        revenue_result = get_sql_service().execute_query(revenue_query, [start_date, end_date])
         revenue = float(revenue_result[0]['total'] or 0) if revenue_result else 0
         
         # Get COGS (positive because debits)
@@ -1155,7 +1158,7 @@ def get_all_departments_data(start_date, end_date):
           AND Posted = 1
         """
         
-        cogs_result = sql_service.execute_query(cogs_query, [start_date, end_date])
+        cogs_result = get_sql_service().execute_query(cogs_query, [start_date, end_date])
         cogs = float(cogs_result[0]['total'] or 0) if cogs_result else 0
         
         dept_data[dept_key] = {
@@ -1183,7 +1186,7 @@ def get_overhead_expenses(start_date, end_date):
       AND Posted = 1
     """
     
-    result = sql_service.execute_query(query, [start_date, end_date])
+    result = get_sql_service().execute_query(query, [start_date, end_date])
     return float(result[0]['total'] or 0) if result else 0
 
 

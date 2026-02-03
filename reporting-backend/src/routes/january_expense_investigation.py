@@ -4,10 +4,10 @@ Focused analysis on the $563k expense anomaly vs ~$300k normal months
 """
 
 from flask import Blueprint, jsonify
-from src.services.azure_sql_service import AzureSQLService
 import logging
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -27,7 +27,10 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 
 january_expense_bp = Blueprint('january_expense_investigation', __name__)
-sql_service = AzureSQLService()
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 @january_expense_bp.route('/api/investigation/january2025/expenses', methods=['GET'])
 def investigate_january_expenses():
     """
@@ -51,7 +54,7 @@ def investigate_january_expenses():
         HAVING ABS(SUM(CASE WHEN MONTH(EffectiveDate) = 1 AND YEAR(EffectiveDate) = 2025 THEN Amount ELSE 0 END)) > 1000
         ORDER BY SUM(CASE WHEN MONTH(EffectiveDate) = 1 AND YEAR(EffectiveDate) = 2025 THEN Amount ELSE 0 END) DESC
         """
-        results['expense_comparison'] = sql_service.execute_query(query1)
+        results['expense_comparison'] = get_sql_service().execute_query(query1)
 
         # Find accounts with unusual January activity (>2x normal)
         query2 = """
@@ -78,7 +81,7 @@ def investigate_january_expenses():
           AND Jan2025 > 5000  -- Minimum threshold
         ORDER BY Jan2025 - ((Dec2024 + Feb2025) / 2) DESC
         """
-        results['anomalous_accounts'] = sql_service.execute_query(query2)
+        results['anomalous_accounts'] = get_sql_service().execute_query(query2)
 
         # Get account names for context
         query3 = """
@@ -91,7 +94,7 @@ def investigate_january_expenses():
           AND gl.Posted = 1
           AND (gl.AccountNo LIKE '6%' OR gl.AccountNo LIKE '7%' OR gl.AccountNo LIKE '8%')
         """
-        account_names_raw = sql_service.execute_query(query3)
+        account_names_raw = get_sql_service().execute_query(query3)
         results['account_names'] = {row['AccountNo']: row['AccountName'] for row in account_names_raw if row['AccountName']}
 
         # Look at January entries for accounts 602xxx (seems to have big numbers)
@@ -110,7 +113,7 @@ def investigate_january_expenses():
           AND ABS(gl.Amount) > 10000
         ORDER BY ABS(gl.Amount) DESC
         """
-        results['large_602_entries'] = sql_service.execute_query(query4)
+        results['large_602_entries'] = get_sql_service().execute_query(query4)
 
         # Total expenses by month for summary
         query5 = """
@@ -125,7 +128,7 @@ def investigate_january_expenses():
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY Year, Month
         """
-        results['monthly_expense_totals'] = sql_service.execute_query(query5)
+        results['monthly_expense_totals'] = get_sql_service().execute_query(query5)
 
         return jsonify({
             'success': True,

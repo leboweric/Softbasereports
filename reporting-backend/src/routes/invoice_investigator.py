@@ -3,7 +3,7 @@ Invoice Investigator - Show ALL fields for invoice 110000014
 """
 from flask import Blueprint, Response, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 import json
 
 from flask_jwt_extended import get_jwt_identity
@@ -29,7 +29,7 @@ invoice_investigator_bp = Blueprint('invoice_investigator', __name__)
 def investigate_invoice():
     """Show ALL fields from a specific invoice - No auth required for debugging"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         invoice_no = request.args.get('invoice_no', '110000014')
 

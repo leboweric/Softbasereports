@@ -12,7 +12,6 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
-from src.services.azure_sql_service import AzureSQLService
 from src.config.gl_accounts_detailed import (
     DEPARTMENT_CONFIG, 
     OVERHEAD_EXPENSE_ACCOUNTS, 
@@ -20,13 +19,15 @@ from src.config.gl_accounts_detailed import (
 )
 from src.routes.currie_report import get_balance_sheet_data
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 logger = logging.getLogger(__name__)
 pl_detailed_bp = Blueprint('pl_detailed', __name__)
-sql_service = AzureSQLService()
-
-
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 def get_tenant_schema():
     """Get the database schema for the current user's organization"""
     try:
@@ -71,7 +72,7 @@ def get_gl_account_data(schema, account_numbers, year, month):
     """
     
     try:
-        results = sql_service.execute_query(query, [year, month])
+        results = get_sql_service().execute_query(query, [year, month])
         
         data = {}
         for row in results:

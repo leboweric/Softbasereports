@@ -1,6 +1,6 @@
 from flask import jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.routes.reports import reports_bp
 import logging
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 def rental_customer_solution():
     """Properly link rental equipment to actual customers using the discovered WO.RentalContractNo field"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         results = {}
         
         # 1. Test the discovered linkage: RentalContract -> WO -> Customer

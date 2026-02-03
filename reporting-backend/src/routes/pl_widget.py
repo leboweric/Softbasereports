@@ -5,7 +5,7 @@ Provides monthly profit/loss metrics for dashboard display
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.services.cache_service import cache_service
 from src.utils.fiscal_year import SOFTBASE_CUTOVER_DATE, get_fiscal_ytd_start
 from src.models.user import User
@@ -16,8 +16,10 @@ import calendar
 logger = logging.getLogger(__name__)
 
 pl_widget_bp = Blueprint('pl_widget', __name__)
-sql_service = AzureSQLService()
-
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 # Import GL account mappings from pl_report
 from src.routes.pl_report import GL_ACCOUNTS, EXPENSE_ACCOUNTS, OTHER_INCOME_ACCOUNTS
 
@@ -165,7 +167,7 @@ def get_monthly_pl(year, month, schema):
                OR AccountNo IN ('{expense_list}'))
         """
         
-        result = sql_service.execute_query(query, [year, month])
+        result = get_sql_service().execute_query(query, [year, month])
         
         if result and result[0]:
             revenue = float(result[0].get('revenue') or 0)

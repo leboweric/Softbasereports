@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
 from datetime import datetime
 
 dashboard_pace_bp = Blueprint('dashboard_pace', __name__)
@@ -17,7 +16,7 @@ def get_sales_pace():
         return jsonify({'error': str(e)}), 400
     
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get current date info
         now = datetime.now()

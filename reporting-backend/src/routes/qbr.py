@@ -5,7 +5,7 @@ Provides endpoints for Quarterly Business Review dashboard and PowerPoint export
 
 from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.services.postgres_service import get_postgres_db
 from src.services.qbr_service import QBRService
 from src.services.cache_service import cache_service
@@ -21,7 +21,7 @@ qbr_bp = Blueprint('qbr', __name__)
 
 def get_qbr_service():
     """Get QBR service instance with both Azure SQL (Softbase) and PostgreSQL (sessions)"""
-    sql_service = AzureSQLService()  # For Softbase data (customers, WOs, invoices)
+    sql_service = get_tenant_db()  # For Softbase data (customers, WOs, invoices)
     postgres_service = get_postgres_db()  # For QBR session storage
     return QBRService(sql_service, postgres_service)
 

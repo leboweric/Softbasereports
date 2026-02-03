@@ -3,8 +3,7 @@ Equipment inventory diagnostic endpoint to understand data structure
 """
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
-
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -29,7 +28,7 @@ inventory_diagnostic_bp = Blueprint('inventory_diagnostic', __name__)
 def get_equipment_schema():
     """Get Equipment table schema to understand available fields"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get Equipment table schema
         schema_query = f"""
@@ -55,7 +54,7 @@ def get_equipment_schema():
 def get_equipment_sample():
     """Get sample equipment data to understand categorization"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get sample equipment records with all fields
         sample_query = f"""
@@ -80,7 +79,7 @@ def get_equipment_sample():
 def analyze_equipment_categories():
     """Analyze how equipment might be categorized"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Check for status/type fields
         status_analysis = """
@@ -175,7 +174,7 @@ def analyze_equipment_categories():
 def analyze_financial_fields():
     """Analyze financial data fields in Equipment table"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Check financial fields
         financial_query = f"""

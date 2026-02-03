@@ -1,6 +1,6 @@
 from flask import jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.routes.reports import reports_bp
 import logging
 
@@ -29,7 +29,7 @@ def find_control_fields():
     """Find all control-related fields in the database"""
     try:
         logger.info("Starting control fields search")
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Check Equipment table for control-related columns
         equipment_cols_query = f"""

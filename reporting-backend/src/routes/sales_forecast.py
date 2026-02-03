@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
 from src.services.postgres_service import get_postgres_db
 from src.services.cache_service import cache_service
 from datetime import datetime, timedelta
@@ -47,7 +46,7 @@ def get_sales_forecast():
 
 def _fetch_sales_forecast_data(current_year, current_month, current_day, schema):
     """Internal function to fetch sales forecast data"""
-    db = AzureSQLService()
+    db = get_tenant_db()
     
     # Get historical daily sales patterns (last 12 months for better patterns)
     daily_pattern_query = f"""
@@ -408,7 +407,7 @@ def backfill_forecast_actuals():
     
     try:
         postgres_db = get_postgres_db()
-        azure_db = AzureSQLService()
+        azure_db = get_tenant_db()
         
         if not postgres_db:
             return jsonify({'error': 'PostgreSQL not available'}), 500
@@ -674,7 +673,7 @@ def generate_test_data():
     
     try:
         postgres_db = get_postgres_db()
-        azure_db = AzureSQLService()
+        azure_db = get_tenant_db()
         
         if not postgres_db:
             return jsonify({'error': 'PostgreSQL not available'}), 500

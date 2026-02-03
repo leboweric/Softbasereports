@@ -4,9 +4,8 @@ Diagnostic endpoint to understand Rental Department inventory structure
 
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 import logging
-from src.services.azure_sql_service import AzureSQLService
-
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -34,7 +33,7 @@ def rental_department_diagnostic():
     """Analyze how Rental Department units are identified in the Equipment table."""
     
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Query 1: Count units by InventoryDept
         dept_query = f"""

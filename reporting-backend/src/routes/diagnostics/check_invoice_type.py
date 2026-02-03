@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -9,7 +10,7 @@ check_invoice_type_bp = Blueprint('check_invoice_type', __name__)
 def check_invoice_type():
     """Check if InvoiceType column exists and what columns are available"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get all columns from InvoiceReg
         columns_query = """

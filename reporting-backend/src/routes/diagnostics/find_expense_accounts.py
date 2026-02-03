@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import jwt_required
 from src.services.azure_sql_service import AzureSQLService
 
@@ -9,7 +10,7 @@ find_expense_accounts_bp = Blueprint('find_expense_accounts', __name__)
 def find_expense_accounts():
     """Search ALL tables for any column containing values starting with 6"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         results = {
             'tables_with_6_accounts': [],
             'gl_table_check': {},

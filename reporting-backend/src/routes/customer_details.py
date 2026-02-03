@@ -2,8 +2,6 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
 import logging
-from src.services.azure_sql_service import AzureSQLService
-
 logger = logging.getLogger(__name__)
 
 customer_details_bp = Blueprint('customer_details', __name__)
@@ -20,7 +18,7 @@ def get_customer_details(customer_id):
         return jsonify({'error': str(e)}), 400
     
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Current fiscal year dates
         current_date = datetime.now()

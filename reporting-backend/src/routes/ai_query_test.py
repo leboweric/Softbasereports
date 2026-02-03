@@ -1,12 +1,12 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from src.utils.tenant_utils import get_tenant_db
 import logging
 import traceback
 import time
 from datetime import datetime
 from src.routes.ai_query import natural_language_query, generate_sql_from_analysis
 from src.services.openai_service import OpenAIQueryService
-from src.services.azure_sql_service import AzureSQLService
 from src.models.user import User
 import os
 
@@ -87,7 +87,7 @@ def test_single_query(query_info, user_context):
         result["sql_query"] = sql_query
         
         # Execute SQL
-        db = AzureSQLService()
+        db = get_tenant_db()
         query_results = db.execute_query(sql_query)
         
         if query_results:

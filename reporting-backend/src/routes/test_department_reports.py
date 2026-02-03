@@ -1,8 +1,8 @@
 # Simplified department report endpoints for testing
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 from datetime import datetime, timedelta
-from src.services.azure_sql_service import AzureSQLService
 import logging
 
 from flask_jwt_extended import get_jwt_identity
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def get_db():
     """Get database connection"""
-    return AzureSQLService()
+    return get_tenant_db()
 
 
 def register_department_routes(reports_bp):

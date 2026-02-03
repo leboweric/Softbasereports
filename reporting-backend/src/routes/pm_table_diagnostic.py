@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 import logging
 
 from flask_jwt_extended import get_jwt_identity
@@ -32,7 +32,7 @@ def get_pm_table_structure():
     This is the dedicated PM schedule table in Softbase Evolution.
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results_data = {
             'pm_columns': [],
@@ -151,7 +151,7 @@ def get_pm_by_serial():
     Look up PM records for specific equipment serial numbers from the screenshot.
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Serial numbers from screenshot
         serial_numbers = ['35955', '35951', '38762', '61300', '900006']

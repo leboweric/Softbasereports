@@ -4,8 +4,7 @@ Allows querying table structures, relationships, and data samples
 """
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
-
+from src.utils.tenant_utils import get_tenant_db
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -30,7 +29,7 @@ schema_explorer_bp = Blueprint('schema_explorer', __name__)
 def get_all_tables():
     """Get list of all tables in ben002 schema"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         schema = get_tenant_schema()
 
@@ -65,7 +64,7 @@ def get_all_tables():
 def get_table_structure(table_name):
     """Get complete structure of a specific table"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         # Get columns
         columns_query = f"""
@@ -139,7 +138,7 @@ def get_table_structure(table_name):
 def get_table_sample(table_name):
     """Get sample data from a table"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         limit = request.args.get('limit', 10, type=int)
 
@@ -166,7 +165,7 @@ def get_table_sample(table_name):
 def execute_custom_query():
     """Execute a custom SQL query for schema exploration"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         data = request.get_json()
         query = data.get('query')
@@ -212,7 +211,7 @@ def execute_custom_query():
 def find_column():
     """Find which tables contain a column with a specific name pattern"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         column_pattern = request.args.get('pattern', '')
 
@@ -259,7 +258,7 @@ def find_column():
 def get_table_relationships(table_name):
     """Get all foreign key relationships for a table (both incoming and outgoing)"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         # Outgoing FKs (this table references other tables)
         outgoing_query = f"""
@@ -313,7 +312,7 @@ def get_table_relationships(table_name):
 def get_single_record(table_name, record_id):
     """Get a single record by its primary key or any unique identifier"""
     try:
-        sql_service = AzureSQLService()
+        sql_service = get_tenant_db()
 
         # Allow specifying which column to use for lookup
         id_column = request.args.get('id_column', 'Number')

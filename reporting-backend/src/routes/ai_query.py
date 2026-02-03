@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from src.utils.tenant_utils import get_tenant_db
 import os
 import logging
 import traceback
@@ -1341,8 +1342,7 @@ def get_version():
 def check_sale_codes():
     """Check what SaleCodes and Departments exist in the database"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get all unique SaleCodes with counts
         sale_codes_query = f"""
@@ -1395,8 +1395,7 @@ def check_sale_codes():
 def test_date_ranges():
     """Test different date ranges to find the correct total"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results = {}
         
@@ -1482,8 +1481,7 @@ def test_date_ranges():
 def test_sql():
     """Test SQL execution directly"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Test 1: Check if Customer table has data
         test1 = "SELECT TOP 5 ID, Name FROM {schema}.Customer ORDER BY ID"
@@ -1535,8 +1533,7 @@ def test_sql():
 def check_rental_history():
     """Check rental data using RentalHistory table"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get current rentals from RentalHistory
         current_year = datetime.now().year
@@ -1598,8 +1595,7 @@ def check_rental_history():
 def check_rental_data():
     """Check rental data to debug active rentals query"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Check rental status values
         status_query = f"""
@@ -1689,8 +1685,7 @@ def check_rental_data():
 def check_customer_columns():
     """Check actual Customer table columns"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Get column info
         columns_query = f"""
@@ -1733,8 +1728,7 @@ def check_customer_columns():
 def inspect_invoice_columns():
     """Inspect InvoiceReg table columns to find the correct customer ID column"""
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Test 1: Get all columns from InvoiceReg table with their data types
         test1 = """
@@ -1924,8 +1918,7 @@ def natural_language_query():
             logger.info(f"Generated SQL: {sql_query}")
             
             # Execute the SQL query
-            from src.services.azure_sql_service import AzureSQLService
-            db = AzureSQLService()
+            db = get_tenant_db()
             schema = get_tenant_schema()
             logger.info("Executing SQL query...")
             results = db.execute_query(sql_query)

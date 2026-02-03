@@ -1,6 +1,6 @@
 from flask import jsonify
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.routes.reports import reports_bp
 import logging
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 def rental_deep_search():
     """Deep search to find where rental customer data is actually stored"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         results = {}
         
         # Test with a serial number that's on rent

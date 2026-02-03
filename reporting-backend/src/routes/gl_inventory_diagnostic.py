@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 from ..services.azure_sql_service import AzureSQLService
 import logging
 
@@ -32,7 +33,7 @@ def diagnose_gl_inventory():
     Investigates accounts: 131000, 131200, 131300, 183000, 193000
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results = {}
         
@@ -230,7 +231,7 @@ def explore_equipment_gl_links():
     Deep dive to find how Equipment.SerialNo connects to GL transactions
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results = {}
         

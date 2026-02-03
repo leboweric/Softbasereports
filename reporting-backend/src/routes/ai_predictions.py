@@ -1,9 +1,9 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from datetime import datetime, timedelta
 import logging
 import json
-from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
 from src.services.openai_service import OpenAIQueryService
 from src.config.openai_config import OpenAIConfig
@@ -421,7 +421,7 @@ def predict_work_orders():
         if cached_result and not request.args.get('refresh'):
             return jsonify(cached_result)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         ai_service = AIPredictionService(db)
         
         # Get historical data
@@ -461,7 +461,7 @@ def predict_customer_churn():
         if cached_result and not request.args.get('refresh'):
             return jsonify(cached_result)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         ai_service = AIPredictionService(db)
         
         # Get customer data
@@ -501,7 +501,7 @@ def predict_parts_demand():
         if cached_result and not request.args.get('refresh'):
             return jsonify(cached_result)
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         ai_service = AIPredictionService(db)
         
         # Get parts data

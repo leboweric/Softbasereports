@@ -1,6 +1,6 @@
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required
-from src.services.azure_sql_service import AzureSQLService
+from src.utils.tenant_utils import get_tenant_db
 from src.routes.reports import reports_bp
 import logging
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 def diagnose_rental_equipment():
     """Diagnose why specific equipment shows RENTAL FLEET instead of actual customer"""
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Test with specific serial numbers that are showing RENTAL FLEET
         test_serials = ['99W15913', '103274', '95U8371', '30001912', 'H2X335R05931']

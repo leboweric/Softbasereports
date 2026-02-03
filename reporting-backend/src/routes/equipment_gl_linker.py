@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 from ..services.azure_sql_service import AzureSQLService
 import logging
 
@@ -32,7 +33,7 @@ def analyze_equipment_gl_linking():
     Uses multiple strategies to find the linking mechanism
     """
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         results = {}
         
@@ -211,7 +212,7 @@ def test_linking_strategy():
         data = request.get_json()
         strategy = data.get('strategy', 'department_mapping')
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         if strategy == 'department_mapping':
             # Test department-based mapping

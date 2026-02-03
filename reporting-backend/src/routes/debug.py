@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
+from src.utils.tenant_utils import get_tenant_db
 import os
 import sys
 import importlib.util
@@ -45,7 +46,7 @@ def check_environment():
     if modules_status['pyodbc']['available']:
         try:
             from ..services.azure_sql_service import AzureSQLService
-            db = AzureSQLService()
+            db = get_tenant_db()
             if db.test_connection():
                 # Try to get version info
                 version_info = db.execute_query("SELECT @@VERSION AS version")
@@ -82,7 +83,7 @@ def test_query():
     try:
         from ..services.azure_sql_service import AzureSQLService
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Test basic connection
         if not db.test_connection():

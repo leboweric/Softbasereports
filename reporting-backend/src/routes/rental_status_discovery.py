@@ -4,9 +4,8 @@ Endpoint to discover all RentalStatus values in the Equipment table
 
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
+from src.utils.tenant_utils import get_tenant_db
 import logging
-from src.services.azure_sql_service import AzureSQLService
-
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
@@ -34,7 +33,7 @@ def discover_rental_status():
     """Discover all RentalStatus values and their usage patterns."""
     
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         schema = get_tenant_schema()
         # Query 1: Get all unique RentalStatus values for Dept 60
         dept60_status_query = f"""

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from ..services.azure_sql_service import AzureSQLService
 from ..services.simple_sql_service import SimpleSQLService
 from ..services.softbase_mock_service import SoftbaseMockService
@@ -23,7 +24,7 @@ def explore_database():
         
         # Try Azure SQL first, fall back to mock if blocked
         try:
-            db = AzureSQLService()
+            db = get_tenant_db()
             tables = db.get_tables()
         except Exception as e:
             logger.warning(f"Azure SQL blocked, using mock service: {str(e)}")
@@ -106,7 +107,7 @@ def get_full_schema():
             return jsonify({'error': 'Admin access required'}), 403
         
         # Use Azure SQL Service
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get all tables
         tables = db.get_tables()
@@ -218,7 +219,7 @@ def get_schema_summary():
         
         # Try Azure SQL connection
         try:
-            db = AzureSQLService()
+            db = get_tenant_db()
             tables = db.get_tables()
             
             # Create a simple summary

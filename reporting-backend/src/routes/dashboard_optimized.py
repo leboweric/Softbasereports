@@ -4,7 +4,6 @@ from datetime import datetime, timedelta
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
-from src.services.azure_sql_service import AzureSQLService
 from src.services.cache_service import cache_service
 from src.services.postgres_service import get_postgres_db
 from src.models.user import User
@@ -1833,7 +1832,7 @@ class DashboardQueries:
     def diagnose_invoice_detail():
         """Diagnostic endpoint to explore InvoiceDetail table structure"""
         try:
-            db = AzureSQLService() # Changed from get_db() to AzureSQLService() to match surrounding code's pattern
+            db = get_tenant_db() # Changed from get_db() to AzureSQLService() to match surrounding code's pattern
             
             # 1. Check if InvoiceDetail table exists and get its columns
             columns_query = f"""
@@ -1897,9 +1896,8 @@ def _get_monthly_active_customers_live():
     Used as fallback when mart data doesn't include this field.
     """
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
-        schema = 'ben002'  # Use ben002 schema, not Bennett
+        db = get_tenant_db()
+        schema = get_tenant_schema()  # Use ben002 schema, not Bennett
         current_date = datetime.now()
         
         query = f"""
@@ -1959,9 +1957,8 @@ def _get_total_customers_live():
     Used as fallback when mart data has incorrect count.
     """
     try:
-        from src.services.azure_sql_service import AzureSQLService
-        db = AzureSQLService()
-        schema = 'ben002'
+        db = get_tenant_db()
+        schema = get_tenant_schema()
         
         query = f"""
         SELECT COUNT(*) as total_customers
@@ -2154,7 +2151,7 @@ def get_dashboard_summary_optimized():
             logger.warning(f"Mart lookup failed, falling back to queries: {str(e)}")
     
     try:
-        db = AzureSQLService()
+        db = get_tenant_db()
         pg_db = get_postgres_db()  # PostgreSQL for Mart table queries
         queries = DashboardQueries(db, schema=tenant_schema, pg_db=pg_db)
         
@@ -2511,7 +2508,7 @@ def export_active_customers():
         if not schema:
             return jsonify({'error': 'Organization database schema not configured'}), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get current month period or custom period if specified
         period = request.args.get('period', 'current')  # 'current', 'last30', or 'YYYY-MM'
@@ -2617,7 +2614,7 @@ def analyze_customer_risk():
         if not schema:
             return jsonify({'error': 'Organization database schema not configured'}), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Current fiscal year dates
         current_date = datetime.now()
@@ -2763,7 +2760,7 @@ def analyze_invoice_delays():
         if not schema:
             return jsonify({'error': 'Organization database schema not configured'}), 400
         
-        db = AzureSQLService()
+        db = get_tenant_db()
         
         # Get breakdown by work order type
         query = f"""

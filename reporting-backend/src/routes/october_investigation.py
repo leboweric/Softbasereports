@@ -5,10 +5,10 @@ Version: 1.0.0
 """
 
 from flask import Blueprint, jsonify
-from src.services.azure_sql_service import AzureSQLService
 import logging
 
 from flask_jwt_extended import get_jwt_identity
+from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 
 def get_tenant_schema():
@@ -28,7 +28,10 @@ def get_tenant_schema():
 logger = logging.getLogger(__name__)
 
 october_investigation_bp = Blueprint('october_investigation', __name__)
-sql_service = AzureSQLService()
+# sql_service is now obtained via get_tenant_db() for multi-tenant support
+_sql_service = None
+def get_sql_service():
+    return get_tenant_db()
 @october_investigation_bp.route('/api/investigation/october2025', methods=['GET'])
 def investigate_october_2025():
     """Detailed investigation of October 2025 P&L"""
@@ -51,7 +54,7 @@ def investigate_october_2025():
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
         """
-        results['pl_summary'] = sql_service.execute_query(query1)[0] if sql_service.execute_query(query1) else {}
+        results['pl_summary'] = get_sql_service().execute_query(query1)[0] if get_sql_service().execute_query(query1) else {}
         
         # 2. Top 20 COGS Accounts
         query2 = """
@@ -68,7 +71,7 @@ def investigate_october_2025():
         GROUP BY AccountNo
         ORDER BY SUM(Amount) DESC
         """
-        results['top_cogs_accounts'] = sql_service.execute_query(query2)
+        results['top_cogs_accounts'] = get_sql_service().execute_query(query2)
         
         # 3. Top 20 Expense Accounts
         query3 = """
@@ -85,7 +88,7 @@ def investigate_october_2025():
         GROUP BY AccountNo
         ORDER BY SUM(Amount) DESC
         """
-        results['top_expense_accounts'] = sql_service.execute_query(query3)
+        results['top_expense_accounts'] = get_sql_service().execute_query(query3)
         
         # 4. Large Transactions (>$50K)
         query4 = """
@@ -101,7 +104,7 @@ def investigate_october_2025():
           AND ABS(Amount) > 50000
         ORDER BY ABS(Amount) DESC
         """
-        results['large_transactions'] = sql_service.execute_query(query4)
+        results['large_transactions'] = get_sql_service().execute_query(query4)
         
         # 5. Offsetting Pairs
         query5 = """
@@ -124,7 +127,7 @@ def investigate_october_2025():
           AND ABS(t1.Amount) > 50000
         ORDER BY ABS(t1.Amount) DESC
         """
-        results['offsetting_pairs'] = sql_service.execute_query(query5)
+        results['offsetting_pairs'] = get_sql_service().execute_query(query5)
         
         # 6. Transaction Summary
         query6 = """
@@ -139,7 +142,7 @@ def investigate_october_2025():
           AND EffectiveDate < '2025-11-01'
           AND Posted = 1
         """
-        results['transaction_summary'] = sql_service.execute_query(query6)[0] if sql_service.execute_query(query6) else {}
+        results['transaction_summary'] = get_sql_service().execute_query(query6)[0] if get_sql_service().execute_query(query6) else {}
         
         # 7. Daily Transaction Pattern
         query7 = """
@@ -154,7 +157,7 @@ def investigate_october_2025():
         GROUP BY DAY(EffectiveDate)
         ORDER BY DAY(EffectiveDate)
         """
-        results['daily_pattern'] = sql_service.execute_query(query7)
+        results['daily_pattern'] = get_sql_service().execute_query(query7)
         
         # 8. Compare to September 2025
         query8 = """
@@ -173,7 +176,7 @@ def investigate_october_2025():
         GROUP BY MONTH(EffectiveDate)
         ORDER BY MONTH(EffectiveDate)
         """
-        results['sep_oct_comparison'] = sql_service.execute_query(query8)
+        results['sep_oct_comparison'] = get_sql_service().execute_query(query8)
         
         # 9. Account 602600 (Salaries) Check
         query9 = """
@@ -189,7 +192,7 @@ def investigate_october_2025():
           AND Posted = 1
           AND AccountNo = '602600'
         """
-        results['account_602600'] = sql_service.execute_query(query9)[0] if sql_service.execute_query(query9) else {}
+        results['account_602600'] = get_sql_service().execute_query(query9)[0] if get_sql_service().execute_query(query9) else {}
         
         # 10. Negative Expense Accounts
         query10 = """
@@ -206,7 +209,7 @@ def investigate_october_2025():
         HAVING SUM(Amount) < 0
         ORDER BY SUM(Amount)
         """
-        results['negative_expenses'] = sql_service.execute_query(query10)
+        results['negative_expenses'] = get_sql_service().execute_query(query10)
         
         return jsonify({
             'success': True,
