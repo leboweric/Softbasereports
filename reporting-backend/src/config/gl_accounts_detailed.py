@@ -154,7 +154,7 @@ DEPARTMENT_CONFIG = {
             ('410008', 'SALES - Rental'),
             ('411001', 'SALES - RENTAL REVENUE'),
             ('419000', 'SALES - RENTAL REVENUE 2'),
-            ('420000', 'SALES - RENTAL REVENUE 3'),
+            # Removed: ('420000', 'SALES - EXPENSE RECAPTURE') - no longer used
             ('421000', 'SALES - FREIGHT - Rental'),
             ('434012', 'SALES - TRUCKING/DELIVERY - Rental'),
         ],
@@ -162,11 +162,11 @@ DEPARTMENT_CONFIG = {
             ('510008', 'COS - Rental'),
             ('511001', 'COS - RENTAL'),
             ('519000', 'COS - RENTAL 2'),
-            ('520000', 'COS - RENTAL 3'),
+            # Removed: ('520000', 'COS - EXPENSE RECAPTURE') - no longer used
             ('521008', 'COS - FREIGHT - Rental'),
             ('534014', 'COS - TRUCKING/DELIVERY - Rental'),
             ('537001', 'COS - RENTAL MAINTENANCE'),
-            ('539000', 'COS - RENTAL OTHER'),
+            # Removed: ('539000', 'COS - RENTAL INTEREST') - no longer used
             ('545000', 'COS - RENTAL DEPRECIATION'),
             ('541000', 'COS RENTAL INTERNAL MAINTENANCE'),
         ]
