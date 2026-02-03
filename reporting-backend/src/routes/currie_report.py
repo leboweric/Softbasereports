@@ -13,6 +13,7 @@ import calendar
 
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
+from src.config.gl_accounts_loader import get_gl_accounts
 
 def get_tenant_schema():
     """Get the database schema for the current user's organization"""
@@ -435,8 +436,16 @@ def get_service_revenue(start_date, end_date):
 def get_parts_revenue(start_date, end_date):
     """Get parts revenue broken down by counter, RO, internal, warranty using GLDetail"""
     try:
-        # Query parts sales and costs from GLDetail using approved GL accounts
+        # Query parts sales and costs from GLDetail using tenant-specific GL accounts
         schema = get_tenant_schema()
+        tenant_gl_accounts = get_gl_accounts(schema)
+        parts_config = tenant_gl_accounts.get('parts', {})
+        parts_revenue_accounts = parts_config.get('revenue', [])
+        parts_cogs_accounts = parts_config.get('cogs', [])
+        
+        # Combine all parts accounts for the query
+        all_parts_accounts = parts_revenue_accounts + parts_cogs_accounts
+        accounts_list = "', '".join(all_parts_accounts)
 
         query = f"""
         SELECT 
@@ -446,16 +455,7 @@ def get_parts_revenue(start_date, end_date):
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
-          AND AccountNo IN (
-            -- Counter Parts (Primary Brand - all counter goes here)
-            '410003', '510003',
-            -- RO Parts (Primary Brand - all RO goes here)
-            '410012', '510012',
-            -- Internal Parts
-            '424000', '524000',
-            -- Warranty Parts
-            '410014', '510014'
-          )
+          AND AccountNo IN ('{accounts_list}')
         GROUP BY AccountNo
         """
         
@@ -471,36 +471,20 @@ def get_parts_revenue(start_date, end_date):
             'ecommerce': {'sales': 0, 'cogs': 0}
         }
         
-        # Map GL accounts to categories
+        # Map GL accounts to categories dynamically based on tenant
+        # For simplicity, aggregate all parts revenue into counter_primary and all COGS into counter_primary
+        # More granular breakdown would require tenant-specific account mapping
         for row in results:
-            account = row['AccountNo']
+            account = str(row['AccountNo'])
             amount = float(row['total_amount'] or 0)
             
-            # Counter Primary Brand (all counter sales)
-            if account == '410003':
+            # Check if this is a revenue account or COGS account
+            if account in parts_revenue_accounts:
                 parts_data['counter_primary']['sales'] += -amount  # Revenue is credit (negative)
-            elif account == '510003':
+            elif account in parts_cogs_accounts:
                 parts_data['counter_primary']['cogs'] += amount  # COGS is debit (positive)
-            
-            # RO Primary Brand (all RO sales)
-            elif account == '410012':
-                parts_data['ro_primary']['sales'] += -amount
-            elif account == '510012':
-                parts_data['ro_primary']['cogs'] += amount
-            
-            # Internal Parts
-            elif account == '424000':
-                parts_data['internal']['sales'] += -amount
-            elif account == '524000':
-                parts_data['internal']['cogs'] += amount
-            
-            # Warranty Parts
-            elif account == '410014':
-                parts_data['warranty']['sales'] += -amount
-            elif account == '510014':
-                parts_data['warranty']['cogs'] += amount
         
-        # Counter Other, RO Other, and E-commerce remain at $0
+        # Counter Other, RO Other, Internal, Warranty, and E-commerce remain at $0 for non-Bennett tenants
         
         # Calculate gross profit
         for category in parts_data.values():

@@ -20,8 +20,8 @@ pl_widget_bp = Blueprint('pl_widget', __name__)
 _sql_service = None
 def get_sql_service():
     return get_tenant_db()
-# Import GL account mappings from pl_report
-from src.routes.pl_report import GL_ACCOUNTS, EXPENSE_ACCOUNTS, OTHER_INCOME_ACCOUNTS
+# Import GL account loader for tenant-specific GL accounts
+from src.config.gl_accounts_loader import get_gl_accounts, get_expense_accounts, get_other_income_accounts
 
 def get_tenant_schema():
     """Get the database schema for the current user's organization"""
@@ -130,23 +130,28 @@ def get_monthly_pl(year, month, schema):
     Operating Profit = Revenue - COGS - Expenses
     """
     try:
+        # Get tenant-specific GL accounts
+        tenant_gl_accounts = get_gl_accounts(schema)
+        tenant_other_income = get_other_income_accounts(schema)
+        tenant_expense_accounts = get_expense_accounts(schema)
+        
         # Collect all revenue accounts from all departments
         all_revenue_accounts = []
-        for dept_config in GL_ACCOUNTS.values():
+        for dept_config in tenant_gl_accounts.values():
             all_revenue_accounts.extend(dept_config['revenue'])
 
         # Add Other Income/Contra-Revenue accounts (7xxxxx series)
         # These accounts (like A/R Discounts) reduce total revenue
-        all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+        all_revenue_accounts.extend(tenant_other_income)
 
         # Collect all COGS accounts from all departments
         all_cogs_accounts = []
-        for dept_config in GL_ACCOUNTS.values():
+        for dept_config in tenant_gl_accounts.values():
             all_cogs_accounts.extend(dept_config['cogs'])
         
         # Collect all expense accounts
         all_expense_accounts = []
-        for category_accounts in EXPENSE_ACCOUNTS.values():
+        for category_accounts in tenant_expense_accounts.values():
             all_expense_accounts.extend(category_accounts)
         
         # Build account lists for query

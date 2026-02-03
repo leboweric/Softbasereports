@@ -13,6 +13,7 @@ from src.utils.fiscal_year import get_fiscal_ytd_start
 from flask_jwt_extended import get_jwt_identity
 from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
+from src.config.gl_accounts_loader import get_gl_accounts, get_other_income_accounts, get_expense_accounts
 
 def get_tenant_schema():
     """Get the database schema for the current user's organization"""
@@ -142,7 +143,8 @@ def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False)
     """
     try:
         schema = get_tenant_schema()
-        dept_config = GL_ACCOUNTS[dept_key]
+        tenant_gl_accounts = get_gl_accounts(schema)
+        dept_config = tenant_gl_accounts[dept_key]
         revenue_accounts = dept_config['revenue']
         cogs_accounts = dept_config['cogs']
         
@@ -246,7 +248,8 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
     """
     try:
         schema = get_tenant_schema()
-        dept_config = GL_ACCOUNTS[dept_key]
+        tenant_gl_accounts = get_gl_accounts(schema)
+        dept_config = tenant_gl_accounts[dept_key]
         revenue_accounts = dept_config['revenue']
         cogs_accounts = dept_config['cogs']
         
@@ -371,7 +374,8 @@ def get_other_income(start_date, end_date):
     """
     try:
         schema = get_tenant_schema()
-        account_list = "', '".join(OTHER_INCOME_ACCOUNTS)
+        tenant_other_income = get_other_income_accounts(schema)
+        account_list = "', '".join(tenant_other_income)
 
         # Use -SUM(Amount) to flip the sign for proper revenue calculation
         # GL stores 7xxxxx accounts as debits (positive), but they should reduce revenue
@@ -468,9 +472,10 @@ def get_expense_data_from_gl_mtd(year, month):
     """
     try:
         schema = get_tenant_schema()
+        tenant_expense_accounts = get_expense_accounts(schema)
         # Flatten all expense accounts
         all_expense_accounts = []  
-        for category_accounts in EXPENSE_ACCOUNTS.values():
+        for category_accounts in tenant_expense_accounts.values():
             all_expense_accounts.extend(category_accounts)
         
         expense_list = "', '".join(all_expense_accounts)
@@ -496,7 +501,7 @@ def get_expense_data_from_gl_mtd(year, month):
         expense_data = {}
         total_expenses = 0
         
-        for category, accounts in EXPENSE_ACCOUNTS.items():
+        for category, accounts in tenant_expense_accounts.items():
             category_total = 0
             for row in results:
                 account_no = str(row['AccountNo']).strip()
@@ -524,9 +529,10 @@ def get_expense_data_from_gldetail(start_date, end_date):
     """
     try:
         schema = get_tenant_schema()
+        tenant_expense_accounts = get_expense_accounts(schema)
         # Flatten all expense accounts
         all_expense_accounts = []
-        for category_accounts in EXPENSE_ACCOUNTS.values():
+        for category_accounts in tenant_expense_accounts.values():
             all_expense_accounts.extend(category_accounts)
         
         expense_list = "', '".join(all_expense_accounts)
@@ -569,7 +575,7 @@ def get_expense_data_from_gldetail(start_date, end_date):
         total_expenses = 0
         matched_accounts = set()
         
-        for category, accounts in EXPENSE_ACCOUNTS.items():
+        for category, accounts in tenant_expense_accounts.items():
             category_total = 0
             for row in results:
                 # Convert AccountNo to string for consistent comparison
@@ -667,13 +673,15 @@ def get_pl_report():
 def _fetch_pl_report_data(start_date, end_date, view, include_detail):
     """Internal function to fetch P&L report data"""
     try:
+        schema = get_tenant_schema()
+        tenant_gl_accounts = get_gl_accounts(schema)
         
         # Get data for all departments
         departments = {}
         total_revenue = 0
         total_cogs = 0
         
-        for dept_key in GL_ACCOUNTS.keys():
+        for dept_key in tenant_gl_accounts.keys():
             dept_data = get_department_data(start_date, end_date, dept_key, include_detail)
             if dept_data:
                 # Include all departments in totals
@@ -843,9 +851,21 @@ def export_pl_excel():
         logger.info(f"MTD: {first_day} to {last_day}")
         logger.info(f"YTD: {ytd_start} to {ytd_end}")
         
+        # Get tenant-specific GL accounts
+        schema = get_tenant_schema()
+        tenant_gl_accounts = get_gl_accounts(schema)
+        
         # Get MTD and YTD data for all departments
         mtd_data = get_all_departments_data(first_day, last_day)
         ytd_data = get_all_departments_data(ytd_start, ytd_end)
+        
+        # Get company name from user's organization
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(user_id)
+            company_name = user.organization.name if user and user.organization else "Company"
+        except:
+            company_name = "Company"
         
         # Create workbook
         wb = openpyxl.Workbook()
@@ -865,23 +885,22 @@ def export_pl_excel():
         ws['B1'].font = Font(bold=True, size=14)
         
         # Row 2: Company Name
-        ws['B2'] = "Bennett Material Handling"
+        ws['B2'] = company_name
         ws['B2'].font = Font(bold=True, size=12)
         
         # Row 3: Department Headers
-        ws['B3'] = "Bennett Material Handling"
+        ws['B3'] = company_name
         ws['B3'].font = header_font
         
-        dept_headers = [
-            ("C3", "New Equipment", 10),
-            ("D3", "Used Equipment", 20),
-            ("E3", "Parts", 30),
-            ("F3", "Field Service", 40),
-            ("G3", "Rental", 60),
-            ("H3", "Transportation / Trucking", 80),
-            ("I3", "In House / Administrative", 90),
-            ("J3", "Total", None)
-        ]
+        # Build department headers dynamically from tenant GL accounts
+        dept_headers = []
+        col_idx = 3  # Start at column C
+        for dept_key, dept_config in tenant_gl_accounts.items():
+            col_letter = get_column_letter(col_idx)
+            dept_headers.append((f"{col_letter}3", dept_config['dept_name'], dept_config['dept_code']))
+            col_idx += 1
+        # Add Total column
+        dept_headers.append((f"{get_column_letter(col_idx)}3", "Total", None))
         
         for cell, header, dept_code in dept_headers:
             ws[cell] = header
@@ -901,7 +920,7 @@ def export_pl_excel():
         # Row 6: Income
         ws['B6'] = "Income"
         row_num = 6
-        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+        for idx, (dept_key, dept_config) in enumerate(tenant_gl_accounts.items(), start=3):
             col = get_column_letter(idx)
             revenue = mtd_data[dept_key]['revenue']
             ws[f'{col}{row_num}'] = revenue
@@ -914,7 +933,7 @@ def export_pl_excel():
         # Row 7: Cost of Goods Sold
         ws['B7'] = "Cost of Goods Sold"
         row_num = 7
-        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+        for idx, (dept_key, dept_config) in enumerate(tenant_gl_accounts.items(), start=3):
             col = get_column_letter(idx)
             cogs = mtd_data[dept_key]['cogs']
             ws[f'{col}{row_num}'] = cogs
@@ -1008,7 +1027,7 @@ def export_pl_excel():
         # Row 20: Income (YTD)
         ws['B20'] = "Income"
         row_num = 20
-        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+        for idx, (dept_key, dept_config) in enumerate(tenant_gl_accounts.items(), start=3):
             col = get_column_letter(idx)
             revenue = ytd_data[dept_key]['revenue']
             ws[f'{col}{row_num}'] = revenue
@@ -1020,7 +1039,7 @@ def export_pl_excel():
         # Row 21: COGS (YTD)
         ws['B21'] = "Cost of Goods Sold"
         row_num = 21
-        for idx, (dept_key, dept_config) in enumerate(GL_ACCOUNTS.items(), start=3):
+        for idx, (dept_key, dept_config) in enumerate(tenant_gl_accounts.items(), start=3):
             col = get_column_letter(idx)
             cogs = ytd_data[dept_key]['cogs']
             ws[f'{col}{row_num}'] = cogs
@@ -1129,9 +1148,10 @@ def export_pl_excel():
 def get_all_departments_data(start_date, end_date):
     """Get revenue and COGS for all departments"""
     schema = get_tenant_schema()
+    tenant_gl_accounts = get_gl_accounts(schema)
     dept_data = {}
     
-    for dept_key, dept_config in GL_ACCOUNTS.items():
+    for dept_key, dept_config in tenant_gl_accounts.items():
         revenue_accounts = dept_config['revenue']
         cogs_accounts = dept_config['cogs']
         
@@ -1173,8 +1193,9 @@ def get_all_departments_data(start_date, end_date):
 def get_overhead_expenses(start_date, end_date):
     """Get total overhead expenses (6xxxx accounts)"""
     schema = get_tenant_schema()
+    tenant_expense_accounts = get_expense_accounts(schema)
     all_expense_accounts = []
-    for category, accounts in EXPENSE_ACCOUNTS.items():
+    for category, accounts in tenant_expense_accounts.items():
         all_expense_accounts.extend(accounts)
     
     query = f"""

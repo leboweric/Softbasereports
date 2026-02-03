@@ -51,15 +51,54 @@ GL_ACCOUNTS_BENNETT = {
 
 OTHER_INCOME_ACCOUNTS_BENNETT = ['701000', '702000', '703000', '704000', '705000']
 
+# Expense Account Mappings (Bennett - all in Administrative department)
+EXPENSE_ACCOUNTS_BENNETT = {
+    'depreciation': ['600900'],
+    'salaries_wages': ['602000', '602001', '602300', '602301', '602302', '602600', '602610'],
+    'payroll_benefits': ['601100', '602700', '602701'],
+    'rent_facilities': ['600200', '600201', '600300', '602100'],
+    'utilities': ['604000'],
+    'insurance': ['601700'],
+    'marketing': ['600000', '603300'],
+    'professional_fees': ['603000'],
+    'office_admin': ['600500', '601300', '602400', '602900', '603500', '603600'],
+    'vehicle_equipment': ['604100'],
+    'interest_finance': ['601800', '602500'],
+    'other_expenses': [
+        '600100', '600400', '600600', '600700', '600800', '600901', '600902', '601000', '601200', 
+        '601400', '601500', '601600', '601900', '602200', '602601', '602800', 
+        '603100', '603101', '603102', '603103', '603200', '603400', '603501', 
+        '603700', '603800', '603900', '604200', '650000', '706000', '999999'
+    ]
+}
+
+# IPS Expense Accounts (placeholder - needs to be discovered from IPS database)
+EXPENSE_ACCOUNTS_IPS = {
+    'depreciation': [],
+    'salaries_wages': [],
+    'payroll_benefits': [],
+    'rent_facilities': [],
+    'utilities': [],
+    'insurance': [],
+    'marketing': [],
+    'professional_fees': [],
+    'office_admin': [],
+    'vehicle_equipment': [],
+    'interest_finance': [],
+    'other_expenses': []
+}
+
 # Mapping of schema to GL configuration
 TENANT_GL_CONFIGS = {
     'ben002': {
         'gl_accounts': GL_ACCOUNTS_BENNETT,
         'other_income': OTHER_INCOME_ACCOUNTS_BENNETT,
+        'expense_accounts': EXPENSE_ACCOUNTS_BENNETT,
     },
     'ind004': {
         'gl_accounts': GL_ACCOUNTS_IPS,
         'other_income': OTHER_INCOME_ACCOUNTS_IPS,
+        'expense_accounts': EXPENSE_ACCOUNTS_IPS,
     },
 }
 
@@ -125,3 +164,17 @@ def get_all_cogs_accounts(schema: str) -> list:
     for dept in gl_accounts.values():
         accounts.extend(dept['cogs'])
     return accounts
+
+
+def get_expense_accounts(schema: str) -> dict:
+    """
+    Get the Expense account mappings for a specific tenant schema.
+    
+    Args:
+        schema: The tenant's database schema
+    
+    Returns:
+        Dictionary of expense account mappings by category
+    """
+    config = TENANT_GL_CONFIGS.get(schema, TENANT_GL_CONFIGS['ben002'])
+    return config['expense_accounts']

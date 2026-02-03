@@ -10,6 +10,7 @@ from flask import request
 from src.services.cache_service import cache_service
 from src.utils.auth_decorators import require_permission, require_department
 from src.utils.fiscal_year import get_fiscal_year_months, get_fiscal_year_start_month
+from src.config.gl_accounts_loader import get_gl_accounts
 import json
 import logging
 
@@ -1010,25 +1011,35 @@ def register_department_routes(reports_bp):
             db = get_db()
             schema = get_tenant_schema()
             
+            # Get tenant-specific GL accounts for parts department
+            tenant_gl_accounts = get_gl_accounts(schema)
+            parts_config = tenant_gl_accounts.get('parts', {})
+            parts_revenue_accounts = parts_config.get('revenue', [])
+            parts_cogs_accounts = parts_config.get('cogs', [])
+            
+            # Build account lists for query
+            revenue_list = "', '".join(parts_revenue_accounts)
+            cogs_list = "', '".join(parts_cogs_accounts)
+            all_accounts = parts_revenue_accounts + parts_cogs_accounts
+            all_accounts_list = "', '".join(all_accounts)
+            
             # Monthly Parts Revenue and Margins - Last 12 months
             # Using GLDetail for 100% accurate P&L matching
-            # Revenue: GL 410003 (Counter) + GL 410012 (Customer Repair Order)
-            # Cost: GL 510003 (Counter Cost) + GL 510012 (Customer Repair Order Cost)
             parts_revenue_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
-                -- Combined revenue
-                ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
-                -- Counter (410003 / 510003)
-                ABS(SUM(CASE WHEN AccountNo = '410003' THEN Amount ELSE 0 END)) as counter_revenue,
-                ABS(SUM(CASE WHEN AccountNo = '510003' THEN Amount ELSE 0 END)) as counter_cost,
-                -- Repair Order (410012 / 510012)
-                ABS(SUM(CASE WHEN AccountNo = '410012' THEN Amount ELSE 0 END)) as repair_order_revenue,
-                ABS(SUM(CASE WHEN AccountNo = '510012' THEN Amount ELSE 0 END)) as repair_order_cost
+                -- Combined revenue (all parts revenue accounts)
+                ABS(SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END)) as parts_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END)) as parts_cost,
+                -- Counter revenue (first revenue account as proxy)
+                ABS(SUM(CASE WHEN AccountNo = '{parts_revenue_accounts[0] if parts_revenue_accounts else "0"}' THEN Amount ELSE 0 END)) as counter_revenue,
+                ABS(SUM(CASE WHEN AccountNo = '{parts_cogs_accounts[0] if parts_cogs_accounts else "0"}' THEN Amount ELSE 0 END)) as counter_cost,
+                -- Repair Order revenue (second revenue account if exists)
+                ABS(SUM(CASE WHEN AccountNo = '{parts_revenue_accounts[1] if len(parts_revenue_accounts) > 1 else "0"}' THEN Amount ELSE 0 END)) as repair_order_revenue,
+                ABS(SUM(CASE WHEN AccountNo = '{parts_cogs_accounts[1] if len(parts_cogs_accounts) > 1 else "0"}' THEN Amount ELSE 0 END)) as repair_order_cost
             FROM {schema}.GLDetail
-            WHERE AccountNo IN ('410003', '410012', '510003', '510012')
+            WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
