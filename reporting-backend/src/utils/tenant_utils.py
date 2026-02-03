@@ -89,6 +89,8 @@ def get_tenant_db():
     service = AzureSQLService()
     
     # If organization has custom database credentials, use them
+    print(f"[TENANT_DB] Org: {org.name}, db_server: {org.db_server}, db_username: {org.db_username}, has_password: {bool(org.db_password_encrypted)}")
+    
     if org.db_server and org.db_username and org.db_password_encrypted:
         try:
             credential_manager = get_credential_manager()
@@ -100,16 +102,13 @@ def get_tenant_db():
             service.username = org.db_username
             service.password = decrypted_password
             
-            logger.info(f"Using tenant-specific database credentials for {org.name}")
-            logger.info(f"  Server: {service.server}")
-            logger.info(f"  Database: {service.database}")
-            logger.info(f"  Username: {service.username}")
+            print(f"[TENANT_DB] Using tenant credentials - Server: {service.server}, DB: {service.database}, User: {service.username}")
         except Exception as e:
-            logger.error(f"Failed to decrypt credentials for {org.name}: {str(e)}")
+            print(f"[TENANT_DB] ERROR decrypting credentials for {org.name}: {str(e)}")
             # Fall back to default credentials
-            logger.warning(f"Falling back to default credentials for {org.name}")
+            print(f"[TENANT_DB] Falling back to default credentials")
     else:
-        logger.debug(f"Using default database credentials for {org.name} (no custom credentials configured)")
+        print(f"[TENANT_DB] Using default credentials for {org.name} (missing: server={not org.db_server}, user={not org.db_username}, pass={not org.db_password_encrypted})")
     
     return service
 
