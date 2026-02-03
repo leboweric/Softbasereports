@@ -152,22 +152,22 @@ DEPARTMENT_CONFIG = {
         'tab_name': 'P&L Rental',
         'sales_accounts': [
             ('410008', 'SALES - Rental'),
-            ('411001', 'SALES - RENTAL REVENUE'),
-            ('419000', 'SALES - RENTAL REVENUE 2'),
+            ('411001', 'SALES - ABUSE - Rental'),
+            ('419000', 'SALES - EQ. DISPOSAL RENTAL'),
             # Removed: ('420000', 'SALES - EXPENSE RECAPTURE') - no longer used
             ('421000', 'SALES - FREIGHT - Rental'),
             ('434012', 'SALES - TRUCKING/DELIVERY - Rental'),
         ],
         'cos_accounts': [
             ('510008', 'COS - Rental'),
-            ('511001', 'COS - RENTAL'),
-            ('519000', 'COS - RENTAL 2'),
+            ('511001', 'COS - ABUSE - Rental'),
+            ('519000', 'COS - EQ. DISPOSAL RENTAL'),
             # Removed: ('520000', 'COS - EXPENSE RECAPTURE') - no longer used
             ('521008', 'COS - FREIGHT - Rental'),
             ('534014', 'COS - TRUCKING/DELIVERY - Rental'),
-            ('537001', 'COS - RENTAL MAINTENANCE'),
+            ('537001', 'COS - DEPRECIATION - Rental'),
             # Removed: ('539000', 'COS - RENTAL INTEREST') - no longer used
-            ('545000', 'COS - RENTAL DEPRECIATION'),
+            ('545000', 'COS - OUTSIDE(RTR) Rental'),
             ('541000', 'COS RENTAL INTERNAL MAINTENANCE'),
         ]
     },
