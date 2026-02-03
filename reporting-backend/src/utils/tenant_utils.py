@@ -100,7 +100,10 @@ def get_tenant_db():
             service.username = org.db_username
             service.password = decrypted_password
             
-            logger.info(f"Using tenant-specific database credentials for {org.name} (user: {org.db_username})")
+            logger.info(f"Using tenant-specific database credentials for {org.name}")
+            logger.info(f"  Server: {service.server}")
+            logger.info(f"  Database: {service.database}")
+            logger.info(f"  Username: {service.username}")
         except Exception as e:
             logger.error(f"Failed to decrypt credentials for {org.name}: {str(e)}")
             # Fall back to default credentials

@@ -36,11 +36,25 @@ def warm_dashboard_cache():
         from src.services.azure_sql_service import AzureSQLService
         from src.services.cache_service import cache_service
         from src.routes.dashboard_optimized import DashboardQueries
+        from src.models.user import Organization
         
         logger.info("🔥 Starting dashboard cache warm-up...")
         
+        # Get all active organizations with database credentials
+        orgs = Organization.query.filter(
+            Organization.is_active == True,
+            Organization.database_schema.isnot(None)
+        ).all()
+        
+        if not orgs:
+            logger.warning("No active organizations found for cache warming")
+            return
+        
+        # For now, just use the default credentials (Bennett) for cache warming
+        # Multi-tenant cache warming would require separate cache keys per tenant
         db = AzureSQLService()
-        queries = DashboardQueries(db)
+        # Use Bennett's schema as default for cache warming
+        queries = DashboardQueries(db, schema='ben002')
         
         # Cache TTL settings (in seconds) - all set to 1 hour
         cache_ttl = 3600
