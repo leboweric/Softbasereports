@@ -762,6 +762,8 @@ def _fetch_currie_metrics_data(start_date, end_date):
 def get_ar_aging():
     """Get AR aging buckets (reusing logic from department_reports)"""
     try:
+        schema = get_tenant_schema()
+        
         # Get total AR
         total_ar_query = f"""
         SELECT SUM(Amount) as total_ar
@@ -897,6 +899,8 @@ def get_technician_count(start_date, end_date):
 def get_parts_inventory_metrics(start_date, end_date):
     """Get parts inventory metrics: fill rate, turnover, aging"""
     try:
+        schema = get_tenant_schema()
+        
         # Calculate days in period
         from datetime import datetime
         start = datetime.strptime(start_date, '%Y-%m-%d')
@@ -1696,6 +1700,8 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
     Used for custom date ranges that aren't full calendar months
     """
     try:
+        schema = get_tenant_schema()
+        
         # Personnel Costs
         personnel_query = f"""
         SELECT 
