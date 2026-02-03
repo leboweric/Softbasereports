@@ -271,7 +271,7 @@ def register_department_routes(reports_bp):
             from src.routes.dashboard_optimized import DashboardQueries
             db = get_db()
             schema = get_tenant_schema()
-            queries = DashboardQueries(db)
+            queries = DashboardQueries(db, schema=schema)
             
             result = queries.get_open_parts_work_orders()
             return jsonify(result)

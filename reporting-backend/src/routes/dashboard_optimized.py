@@ -73,7 +73,9 @@ class DashboardQueries:
         'vital': 6     # VITAL WorkLife
     }
     
-    def __init__(self, db, schema='ben002', pg_db=None):
+    def __init__(self, db, schema=None, pg_db=None):
+        if schema is None:
+            raise ValueError("schema parameter is required - use get_tenant_schema() to get the current user's schema")
         self.db = db
         self.pg_db = pg_db  # PostgreSQL connection for Mart queries
         self.schema = schema  # Tenant-specific database schema
