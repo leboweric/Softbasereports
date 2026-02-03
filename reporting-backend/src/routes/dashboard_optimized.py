@@ -9,6 +9,7 @@ from src.services.postgres_service import get_postgres_db
 from src.models.user import User
 from src.utils.fiscal_year import get_fiscal_year_months
 from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+from src.config.gl_accounts_loader import get_gl_accounts, get_other_income_accounts, get_all_revenue_accounts, get_all_cogs_accounts
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,10 @@ class DashboardQueries:
         self.pg_db = pg_db  # PostgreSQL connection for Mart queries
         self.schema = schema  # Tenant-specific database schema
         self.org_id = self.ORG_ID_MAP.get(schema, 4)  # Default to Bennett
+        
+        # Load tenant-specific GL account mappings
+        self.gl_accounts = get_gl_accounts(schema)
+        self.other_income_accounts = get_other_income_accounts(schema)
         self.current_date = datetime.now()
         self.month_start = self.current_date.replace(day=1).strftime('%Y-%m-%d')
         self.thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
@@ -94,13 +99,13 @@ class DashboardQueries:
     def get_current_month_sales(self):
         """Get current month's total sales using GLDetail (matches Monthly Sales chart)"""
         try:
-            # Collect all revenue accounts from all departments
+            # Collect all revenue accounts from all departments (tenant-specific)
             all_revenue_accounts = []
-            for dept in GL_ACCOUNTS.values():
+            for dept in self.gl_accounts.values():
                 all_revenue_accounts.extend(dept['revenue'])
             
-            # Add Other Income accounts
-            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            # Add Other Income accounts (tenant-specific)
+            all_revenue_accounts.extend(self.other_income_accounts)
             
             # Format for SQL IN clause
             revenue_list = "', '".join(all_revenue_accounts)
@@ -124,13 +129,13 @@ class DashboardQueries:
     def get_ytd_sales(self):
         """Get fiscal year-to-date sales using GLDetail (matches Monthly Sales chart)"""
         try:
-            # Collect all revenue accounts from all departments
+            # Collect all revenue accounts from all departments (tenant-specific)
             all_revenue_accounts = []
-            for dept in GL_ACCOUNTS.values():
+            for dept in self.gl_accounts.values():
                 all_revenue_accounts.extend(dept['revenue'])
             
-            # Add Other Income accounts
-            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            # Add Other Income accounts (tenant-specific)
+            all_revenue_accounts.extend(self.other_income_accounts)
             
             # Format for SQL IN clause
             revenue_list = "', '".join(all_revenue_accounts)
@@ -253,12 +258,12 @@ class DashboardQueries:
             all_revenue_accounts = []
             all_cost_accounts = []
             
-            for dept in GL_ACCOUNTS.values():
+            for dept in self.gl_accounts.values():
                 all_revenue_accounts.extend(dept['revenue'])
                 all_cost_accounts.extend(dept['cogs'])
             
-            # Add Other Income accounts to revenue
-            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            # Add Other Income accounts to revenue (tenant-specific)
+            all_revenue_accounts.extend(self.other_income_accounts)
             
             # Format for SQL IN clause
             revenue_list = "', '".join(all_revenue_accounts)
@@ -361,13 +366,13 @@ class DashboardQueries:
             include_depts = ['service', 'parts', 'rental', 'transportation', 'administrative']
             
             for dept_key in include_depts:
-                if dept_key in GL_ACCOUNTS:
-                    dept = GL_ACCOUNTS[dept_key]
+                if dept_key in self.gl_accounts:
+                    dept = self.gl_accounts[dept_key]
                     all_revenue_accounts.extend(dept['revenue'])
                     all_cost_accounts.extend(dept['cogs'])
             
-            # Add Other Income accounts to revenue
-            all_revenue_accounts.extend(OTHER_INCOME_ACCOUNTS)
+            # Add Other Income accounts to revenue (tenant-specific)
+            all_revenue_accounts.extend(self.other_income_accounts)
             
             # Format for SQL IN clause
             revenue_list = "', '".join(all_revenue_accounts)
@@ -455,15 +460,15 @@ class DashboardQueries:
     def get_monthly_sales_by_stream(self):
         """Get monthly sales by revenue stream with trailing 13 months using GLDetail"""
         try:
-            # Get account lists from GL_ACCOUNTS
-            service_rev = GL_ACCOUNTS['service']['revenue']
-            service_cost = GL_ACCOUNTS['service']['cogs']
+            # Get account lists from tenant-specific GL accounts
+            service_rev = self.gl_accounts.get('service', {}).get('revenue', [])
+            service_cost = self.gl_accounts.get('service', {}).get('cogs', [])
             
-            parts_rev = GL_ACCOUNTS['parts']['revenue']
-            parts_cost = GL_ACCOUNTS['parts']['cogs']
+            parts_rev = self.gl_accounts.get('parts', {}).get('revenue', [])
+            parts_cost = self.gl_accounts.get('parts', {}).get('cogs', [])
             
-            rental_rev = GL_ACCOUNTS['rental']['revenue']
-            rental_cost = GL_ACCOUNTS['rental']['cogs']
+            rental_rev = self.gl_accounts.get('rental', {}).get('revenue', [])
+            rental_cost = self.gl_accounts.get('rental', {}).get('cogs', [])
             
             # Format for SQL IN clause
             service_rev_list = "', '".join(service_rev)
