@@ -10,7 +10,7 @@ import calendar
 from src.services.cache_service import cache_service
 from src.utils.fiscal_year import get_fiscal_ytd_start
 
-from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import get_jwt_identity, jwt_required
 from src.utils.tenant_utils import get_tenant_db
 from src.models.user import User
 from src.config.gl_accounts_loader import get_gl_accounts, get_other_income_accounts, get_expense_accounts
@@ -107,7 +107,8 @@ EXPENSE_ACCOUNTS = {
         '603700', '603800', '603900', '604200', '650000', '706000', '999999'
     ]
 }
-def get_department_data(start_date, end_date, dept_key, include_detail=False):
+
+def get_department_data(start_date, end_date, dept_key, schema, include_detail=False):
     """
     Get P&L data for a specific department
     Uses GL.MTD for full calendar months (exact Softbase match)
@@ -117,6 +118,7 @@ def get_department_data(start_date, end_date, dept_key, include_detail=False):
         start_date: Start date for the report
         end_date: End date for the report
         dept_key: Department key from GL_ACCOUNTS
+        schema: Database schema for the tenant
         include_detail: If True, include account-level detail
     
     Returns:
@@ -128,21 +130,20 @@ def get_department_data(start_date, end_date, dept_key, include_detail=False):
         
         if is_full_month:
             # Use GL.MTD for exact Softbase match
-            return get_department_data_from_gl_mtd(year, month, dept_key, include_detail)
+            return get_department_data_from_gl_mtd(year, month, dept_key, schema, include_detail)
         else:
             # Use GLDetail for custom date ranges
-            return get_department_data_from_gldetail(start_date, end_date, dept_key, include_detail)
+            return get_department_data_from_gldetail(start_date, end_date, dept_key, schema, include_detail)
     except Exception as e:
         logger.error(f"Error in get_department_data for {dept_key}: {e}")
         raise
 
-def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False):
+def get_department_data_from_gl_mtd(year, month, dept_key, schema, include_detail=False):
     """
     Get department P&L data from GL.MTD (monthly summary table)
     This matches Softbase exactly for monthly reports
     """
     try:
-        schema = get_tenant_schema()
         tenant_gl_accounts = get_gl_accounts(schema)
         dept_config = tenant_gl_accounts[dept_key]
         revenue_accounts = dept_config['revenue']
@@ -241,13 +242,12 @@ def get_department_data_from_gl_mtd(year, month, dept_key, include_detail=False)
         logger.error(f"Error fetching P&L from GL.MTD for {dept_key}: {str(e)}")
         raise
 
-def get_department_data_from_gldetail(start_date, end_date, dept_key, include_detail=False):
+def get_department_data_from_gldetail(start_date, end_date, dept_key, schema, include_detail=False):
     """
     Get department P&L data from GLDetail (transaction-level detail)
     Used for custom date ranges that aren't full calendar months
     """
     try:
-        schema = get_tenant_schema()
         tenant_gl_accounts = get_gl_accounts(schema)
         dept_config = tenant_gl_accounts[dept_key]
         revenue_accounts = dept_config['revenue']
@@ -350,7 +350,7 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, include_de
         return None
 
 
-def get_other_income(start_date, end_date):
+def get_other_income(start_date, end_date, schema):
     """
     Get other income/contra-revenue from 7xxxxx accounts
 
@@ -368,12 +368,12 @@ def get_other_income(start_date, end_date):
     Args:
         start_date: Start date for the report
         end_date: End date for the report
+        schema: Database schema for the tenant
 
     Returns:
         Total other income (negative value reduces revenue, positive increases)
     """
     try:
-        schema = get_tenant_schema()
         tenant_other_income = get_other_income_accounts(schema)
         account_list = "', '".join(tenant_other_income)
 
@@ -438,7 +438,7 @@ def is_full_calendar_month(start_date, end_date):
     except:
         return False, None, None
 
-def get_expense_data(start_date, end_date):
+def get_expense_data(start_date, end_date, schema):
     """
     Get expense data organized by category
     Uses GL.MTD for full calendar months (exact Softbase match)
@@ -447,6 +447,7 @@ def get_expense_data(start_date, end_date):
     Args:
         start_date: Start date for the report
         end_date: End date for the report
+        schema: Database schema for the tenant
     
     Returns:
         Dictionary with expense categories and totals
@@ -457,21 +458,20 @@ def get_expense_data(start_date, end_date):
         
         if is_full_month:
             # Use GL.MTD for exact Softbase match
-            return get_expense_data_from_gl_mtd(year, month)
+            return get_expense_data_from_gl_mtd(year, month, schema)
         else:
             # Use GLDetail for custom date ranges
-            return get_expense_data_from_gldetail(start_date, end_date)
+            return get_expense_data_from_gldetail(start_date, end_date, schema)
     except Exception as e:
         logger.error(f"Error in get_expense_data: {e}")
         raise
 
-def get_expense_data_from_gl_mtd(year, month):
+def get_expense_data_from_gl_mtd(year, month, schema):
     """
     Get expense data from GL.MTD (monthly summary table)
     This matches Softbase P&L exactly for monthly reports
     """
     try:
-        schema = get_tenant_schema()
         tenant_expense_accounts = get_expense_accounts(schema)
         # Flatten all expense accounts
         all_expense_accounts = []  
@@ -522,13 +522,12 @@ def get_expense_data_from_gl_mtd(year, month):
         logger.error(f"Error getting expense data from GL.MTD: {e}")
         raise
 
-def get_expense_data_from_gldetail(start_date, end_date):
+def get_expense_data_from_gldetail(start_date, end_date, schema):
     """
     Get expense data from GLDetail (transaction-level detail)
     Used for custom date ranges that aren't full calendar months
     """
     try:
-        schema = get_tenant_schema()
         tenant_expense_accounts = get_expense_accounts(schema)
         # Flatten all expense accounts
         all_expense_accounts = []
@@ -616,6 +615,7 @@ def get_expense_data_from_gldetail(start_date, end_date):
 
 
 @pl_report_bp.route('/api/reports/pl', methods=['GET'])
+@jwt_required()
 def get_pl_report():
     """
     Get P&L report with departmental and consolidated views
@@ -629,6 +629,9 @@ def get_pl_report():
         JSON with P&L data
     """
     try:
+        # Get schema at route level where JWT is available
+        schema = get_tenant_schema()
+        
         # Get query parameters
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
@@ -654,11 +657,11 @@ def get_pl_report():
         # Check if detail is requested
         include_detail = request.args.get('detail', 'false').lower() == 'true'
         
-        # Use cache with 1-hour TTL
-        cache_key = f'pl_report:{start_date}:{end_date}:{view}:{include_detail}'
+        # Use cache with 1-hour TTL - include schema in cache key for multi-tenant
+        cache_key = f'pl_report:{schema}:{start_date}:{end_date}:{view}:{include_detail}'
         
         def fetch_pl_data():
-            return _fetch_pl_report_data(start_date, end_date, view, include_detail)
+            return _fetch_pl_report_data(start_date, end_date, view, include_detail, schema)
         
         result = cache_service.cache_query(cache_key, fetch_pl_data, ttl_seconds=3600, force_refresh=force_refresh)
         return jsonify(result)
@@ -670,10 +673,9 @@ def get_pl_report():
             'error': str(e)
         }), 500
 
-def _fetch_pl_report_data(start_date, end_date, view, include_detail):
+def _fetch_pl_report_data(start_date, end_date, view, include_detail, schema):
     """Internal function to fetch P&L report data"""
     try:
-        schema = get_tenant_schema()
         tenant_gl_accounts = get_gl_accounts(schema)
         
         # Get data for all departments
@@ -682,7 +684,7 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail):
         total_cogs = 0
         
         for dept_key in tenant_gl_accounts.keys():
-            dept_data = get_department_data(start_date, end_date, dept_key, include_detail)
+            dept_data = get_department_data(start_date, end_date, dept_key, schema, include_detail)
             if dept_data:
                 # Include all departments in totals
                 total_revenue += dept_data['revenue']
@@ -693,11 +695,11 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail):
                     departments[dept_key] = dept_data
         
         # Add other income (7xxxxx accounts - contra-revenue/other income)
-        other_income = get_other_income(start_date, end_date)
+        other_income = get_other_income(start_date, end_date, schema)
         total_revenue += other_income
         
         # Get expense data
-        expenses = get_expense_data(start_date, end_date)
+        expenses = get_expense_data(start_date, end_date, schema)
         
         # Calculate consolidated metrics
         total_gross_profit = total_revenue - total_cogs
@@ -731,6 +733,7 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail):
 
 
 @pl_report_bp.route('/api/reports/pl/mtd', methods=['GET'])
+@jwt_required()
 def get_pl_mtd():
     """
     Get Month-to-Date P&L report
@@ -743,6 +746,9 @@ def get_pl_mtd():
         JSON with MTD P&L data
     """
     try:
+        # Get schema at route level where JWT is available
+        schema = get_tenant_schema()
+        
         # Get current date
         now = datetime.now()
         year = request.args.get('year', now.year, type=int)
@@ -761,9 +767,18 @@ def get_pl_mtd():
         last_day = next_month - timedelta(days=1)
         end_date = last_day.strftime('%Y-%m-%d')
         
-        # Forward to main P&L endpoint
-        request.args = {'start_date': start_date, 'end_date': end_date}
-        return get_pl_report()
+        # Get the data directly instead of forwarding to avoid JWT context issues
+        include_detail = request.args.get('detail', 'false').lower() == 'true'
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        view = request.args.get('view', 'consolidated')
+        
+        cache_key = f'pl_report:{schema}:{start_date}:{end_date}:{view}:{include_detail}'
+        
+        def fetch_pl_data():
+            return _fetch_pl_report_data(start_date, end_date, view, include_detail, schema)
+        
+        result = cache_service.cache_query(cache_key, fetch_pl_data, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result)
         
     except Exception as e:
         logger.error(f"Error generating MTD P&L: {str(e)}")
@@ -774,6 +789,7 @@ def get_pl_mtd():
 
 
 @pl_report_bp.route('/api/reports/pl/ytd', methods=['GET'])
+@jwt_required()
 def get_pl_ytd():
     """
     Get Fiscal Year-to-Date P&L report
@@ -785,6 +801,9 @@ def get_pl_ytd():
         JSON with fiscal YTD P&L data
     """
     try:
+        # Get schema at route level where JWT is available
+        schema = get_tenant_schema()
+        
         # Get current date
         now = datetime.now()
         
@@ -793,9 +812,18 @@ def get_pl_ytd():
         start_date = fiscal_ytd_start.strftime('%Y-%m-%d')
         end_date = now.strftime('%Y-%m-%d')
         
-        # Forward to main P&L endpoint
-        request.args = {'start_date': start_date, 'end_date': end_date}
-        return get_pl_report()
+        # Get the data directly instead of forwarding to avoid JWT context issues
+        include_detail = request.args.get('detail', 'false').lower() == 'true'
+        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
+        view = request.args.get('view', 'consolidated')
+        
+        cache_key = f'pl_report:{schema}:{start_date}:{end_date}:{view}:{include_detail}'
+        
+        def fetch_pl_data():
+            return _fetch_pl_report_data(start_date, end_date, view, include_detail, schema)
+        
+        result = cache_service.cache_query(cache_key, fetch_pl_data, ttl_seconds=3600, force_refresh=force_refresh)
+        return jsonify(result)
         
     except Exception as e:
         logger.error(f"Error generating YTD P&L: {str(e)}")
@@ -806,6 +834,7 @@ def get_pl_ytd():
 
 
 @pl_report_bp.route('/api/reports/pl/export-excel', methods=['GET'])
+@jwt_required()
 def export_pl_excel():
     """
     Export P&L report to Excel with template format
@@ -826,6 +855,9 @@ def export_pl_excel():
         import io
         from datetime import datetime
         import calendar
+        
+        # Get schema at route level where JWT is available
+        schema = get_tenant_schema()
         
         # Get month and year from query parameters
         now = datetime.now()
@@ -852,12 +884,11 @@ def export_pl_excel():
         logger.info(f"YTD: {ytd_start} to {ytd_end}")
         
         # Get tenant-specific GL accounts
-        schema = get_tenant_schema()
         tenant_gl_accounts = get_gl_accounts(schema)
         
         # Get MTD and YTD data for all departments
-        mtd_data = get_all_departments_data(first_day, last_day)
-        ytd_data = get_all_departments_data(ytd_start, ytd_end)
+        mtd_data = get_all_departments_data(first_day, last_day, schema)
+        ytd_data = get_all_departments_data(ytd_start, ytd_end, schema)
         
         # Get company name from user's organization
         try:
@@ -963,7 +994,7 @@ def export_pl_excel():
         # Row 10: Overhead Expenses
         ws['B10'] = "Overhead Expenses"
         row_num = 10
-        overhead = get_overhead_expenses(first_day, last_day)
+        overhead = get_overhead_expenses(first_day, last_day, schema)
         # Distribute overhead across departments (simplified - all in Admin column I)
         ws['I10'] = overhead
         ws['I10'].number_format = currency_format
@@ -988,7 +1019,7 @@ def export_pl_excel():
         # Row 13: Other Income & Expense
         ws['B13'] = "Other Income & Expense"
         row_num = 13
-        other_income = get_other_income(first_day, last_day)
+        other_income = get_other_income(first_day, last_day, schema)
         ws['I13'] = other_income
         ws['I13'].number_format = currency_format
         ws['J13'] = f'=SUM(C13:I13)'
@@ -1016,7 +1047,7 @@ def export_pl_excel():
         ws['B18'].font = Font(bold=True, size=11)
         
         # Row 19: Department Headers (repeat)
-        ws['B19'] = "Bennett Material Handling"
+        ws['B19'] = company_name
         ws['B19'].font = header_font
         for cell, header, dept_code in dept_headers:
             row = int(cell[1:])
@@ -1069,7 +1100,7 @@ def export_pl_excel():
         # Row 24: Overhead (YTD)
         ws['B24'] = "Overhead Expenses"
         row_num = 24
-        overhead_ytd = get_overhead_expenses(ytd_start, ytd_end)
+        overhead_ytd = get_overhead_expenses(ytd_start, ytd_end, schema)
         ws['I24'] = overhead_ytd
         ws['I24'].number_format = currency_format
         ws['J24'] = f'=SUM(C24:I24)'
@@ -1093,7 +1124,7 @@ def export_pl_excel():
         # Row 27: Other Income (YTD)
         ws['B27'] = "Other Income & Expense"
         row_num = 27
-        other_income_ytd = get_other_income(ytd_start, ytd_end)
+        other_income_ytd = get_other_income(ytd_start, ytd_end, schema)
         ws['I27'] = other_income_ytd
         ws['I27'].number_format = currency_format
         ws['J27'] = f'=SUM(C27:I27)'
@@ -1145,9 +1176,8 @@ def export_pl_excel():
         return jsonify({'error': 'Failed to export P&L to Excel', 'message': str(e)}), 500
 
 
-def get_all_departments_data(start_date, end_date):
+def get_all_departments_data(start_date, end_date, schema):
     """Get revenue and COGS for all departments"""
-    schema = get_tenant_schema()
     tenant_gl_accounts = get_gl_accounts(schema)
     dept_data = {}
     
@@ -1190,9 +1220,8 @@ def get_all_departments_data(start_date, end_date):
     return dept_data
 
 
-def get_overhead_expenses(start_date, end_date):
+def get_overhead_expenses(start_date, end_date, schema):
     """Get total overhead expenses (6xxxx accounts)"""
-    schema = get_tenant_schema()
     tenant_expense_accounts = get_expense_accounts(schema)
     all_expense_accounts = []
     for category, accounts in tenant_expense_accounts.items():
