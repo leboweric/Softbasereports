@@ -178,7 +178,7 @@ const PLReport = ({ user, organization }) => {
             Refresh
           </button>
 
-          {/* Strande Export Button - Matches Accounting Firm Format */
+          {/* Strande Export Button - Matches Accounting Firm Format */}
           <button
             onClick={async () => {
               try {
