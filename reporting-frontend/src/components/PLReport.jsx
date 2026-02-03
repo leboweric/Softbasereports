@@ -178,7 +178,7 @@ const PLReport = ({ user, organization }) => {
             Refresh
           </button>
 
-          {/* Detailed Export Button - Matches Accounting Firm Format */}
+          {/* Strande Export Button - Matches Accounting Firm Format */
           <button
             onClick={async () => {
               try {
@@ -215,7 +215,7 @@ const PLReport = ({ user, organization }) => {
             title="Export with department tabs and GL account detail (matches accounting firm format)"
           >
             <FileSpreadsheet className="h-4 w-4" />
-            Detailed Export
+            Strande
           </button>
         </div>
       </div>
