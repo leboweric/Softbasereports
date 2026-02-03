@@ -8,6 +8,7 @@ from src.services.cache_service import cache_service
 from src.services.postgres_service import get_postgres_db
 from src.models.user import User
 from src.utils.fiscal_year import get_fiscal_year_months
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 
 logger = logging.getLogger(__name__)
 

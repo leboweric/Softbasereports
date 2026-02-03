@@ -26,7 +26,7 @@ def calculate_inventory_turns():
     Calculate min/max inventory levels for parts to achieve target turns
     """
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:

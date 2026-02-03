@@ -9,7 +9,7 @@ dashboard_pace_bp = Blueprint('dashboard_pace', __name__)
 def get_sales_pace():
     """Get sales and quotes pace data comparing current month to previous month through same day"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
