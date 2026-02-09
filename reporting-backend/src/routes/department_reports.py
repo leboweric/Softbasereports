@@ -739,25 +739,46 @@ def register_department_routes(reports_bp):
             db = get_db()
             schema = get_tenant_schema()
             
+            # Get tenant-specific GL accounts for service department
+            tenant_gl_accounts = get_gl_accounts(schema)
+            service_config = tenant_gl_accounts.get('service', {})
+            service_revenue_accounts = service_config.get('revenue', [])
+            service_cogs_accounts = service_config.get('cogs', [])
+            
+            # Get field/shop sub-categories if available
+            # Falls back to first/second account for backward compatibility (Bennett)
+            field_rev_accounts = service_config.get('field_revenue', [service_revenue_accounts[0]] if service_revenue_accounts else [])
+            field_cogs_accounts = service_config.get('field_cogs', [service_cogs_accounts[0]] if service_cogs_accounts else [])
+            shop_rev_accounts = service_config.get('shop_revenue', [service_revenue_accounts[1]] if len(service_revenue_accounts) > 1 else [])
+            shop_cogs_accts = service_config.get('shop_cogs', [service_cogs_accounts[1]] if len(service_cogs_accounts) > 1 else [])
+            
+            # Build account lists for query
+            all_rev_list = "', '".join(service_revenue_accounts)
+            all_cogs_list = "', '".join(service_cogs_accounts)
+            field_rev_list = "', '".join(field_rev_accounts)
+            field_cogs_list = "', '".join(field_cogs_accounts)
+            shop_rev_list = "', '".join(shop_rev_accounts)
+            shop_cogs_list = "', '".join(shop_cogs_accts)
+            all_accounts = service_revenue_accounts + service_cogs_accounts
+            all_accounts_list = "', '".join(all_accounts)
+            
             # Monthly Labor Revenue and Margins - Last 12 months
             # Using GLDetail for 100% accurate P&L matching
-            # Revenue: GL 410004 (Field) + GL 410005 (Shop)
-            # Cost: GL 510004 (Field Cost) + GL 510005 (Shop Cost)
             labor_revenue_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
                 -- Combined revenue
-                ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as labor_revenue,
-                ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as labor_cost,
-                -- Field (410004 / 510004)
-                ABS(SUM(CASE WHEN AccountNo = '410004' THEN Amount ELSE 0 END)) as field_revenue,
-                ABS(SUM(CASE WHEN AccountNo = '510004' THEN Amount ELSE 0 END)) as field_cost,
-                -- Shop (410005 / 510005)
-                ABS(SUM(CASE WHEN AccountNo = '410005' THEN Amount ELSE 0 END)) as shop_revenue,
-                ABS(SUM(CASE WHEN AccountNo = '510005' THEN Amount ELSE 0 END)) as shop_cost
+                ABS(SUM(CASE WHEN AccountNo IN ('{all_rev_list}') THEN Amount ELSE 0 END)) as labor_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{all_cogs_list}') THEN Amount ELSE 0 END)) as labor_cost,
+                -- Field service
+                ABS(SUM(CASE WHEN AccountNo IN ('{field_rev_list}') THEN Amount ELSE 0 END)) as field_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{field_cogs_list}') THEN Amount ELSE 0 END)) as field_cost,
+                -- Shop service
+                ABS(SUM(CASE WHEN AccountNo IN ('{shop_rev_list}') THEN Amount ELSE 0 END)) as shop_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{shop_cogs_list}') THEN Amount ELSE 0 END)) as shop_cost
             FROM {schema}.GLDetail
-            WHERE AccountNo IN ('410004', '410005', '510004', '510005')
+            WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -1026,9 +1047,20 @@ def register_department_routes(reports_bp):
             parts_revenue_accounts = parts_config.get('revenue', [])
             parts_cogs_accounts = parts_config.get('cogs', [])
             
+            # Get explicit counter/repair order account lists if available
+            # Falls back to first/second account for backward compatibility (Bennett)
+            counter_rev_accounts = parts_config.get('counter_revenue', [parts_revenue_accounts[0]] if parts_revenue_accounts else [])
+            counter_cogs_accounts = parts_config.get('counter_cogs', [parts_cogs_accounts[0]] if parts_cogs_accounts else [])
+            repair_rev_accounts = parts_config.get('repair_order_revenue', [parts_revenue_accounts[1]] if len(parts_revenue_accounts) > 1 else [])
+            repair_cogs_accounts = parts_config.get('repair_order_cogs', [parts_cogs_accounts[1]] if len(parts_cogs_accounts) > 1 else [])
+            
             # Build account lists for query
             revenue_list = "', '".join(parts_revenue_accounts)
             cogs_list = "', '".join(parts_cogs_accounts)
+            counter_rev_list = "', '".join(counter_rev_accounts)
+            counter_cogs_list = "', '".join(counter_cogs_accounts)
+            repair_rev_list = "', '".join(repair_rev_accounts)
+            repair_cogs_list = "', '".join(repair_cogs_accounts)
             all_accounts = parts_revenue_accounts + parts_cogs_accounts
             all_accounts_list = "', '".join(all_accounts)
             
@@ -1041,12 +1073,12 @@ def register_department_routes(reports_bp):
                 -- Combined revenue (all parts revenue accounts)
                 ABS(SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END)) as parts_revenue,
                 ABS(SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END)) as parts_cost,
-                -- Counter revenue (first revenue account as proxy)
-                ABS(SUM(CASE WHEN AccountNo = '{parts_revenue_accounts[0] if parts_revenue_accounts else "0"}' THEN Amount ELSE 0 END)) as counter_revenue,
-                ABS(SUM(CASE WHEN AccountNo = '{parts_cogs_accounts[0] if parts_cogs_accounts else "0"}' THEN Amount ELSE 0 END)) as counter_cost,
-                -- Repair Order revenue (second revenue account if exists)
-                ABS(SUM(CASE WHEN AccountNo = '{parts_revenue_accounts[1] if len(parts_revenue_accounts) > 1 else "0"}' THEN Amount ELSE 0 END)) as repair_order_revenue,
-                ABS(SUM(CASE WHEN AccountNo = '{parts_cogs_accounts[1] if len(parts_cogs_accounts) > 1 else "0"}' THEN Amount ELSE 0 END)) as repair_order_cost
+                -- Counter revenue (explicit counter sales accounts)
+                ABS(SUM(CASE WHEN AccountNo IN ('{counter_rev_list}') THEN Amount ELSE 0 END)) as counter_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{counter_cogs_list}') THEN Amount ELSE 0 END)) as counter_cost,
+                -- Repair Order revenue (explicit repair order accounts)
+                ABS(SUM(CASE WHEN AccountNo IN ('{repair_rev_list}') THEN Amount ELSE 0 END)) as repair_order_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{repair_cogs_list}') THEN Amount ELSE 0 END)) as repair_order_cost
             FROM {schema}.GLDetail
             WHERE AccountNo IN ('{all_accounts_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
@@ -5512,25 +5544,29 @@ def register_department_routes(reports_bp):
             current_month = datetime.now().month
             current_year = datetime.now().year
             
-            # Get monthly rental revenue and cost data from GLDetail
-            # Using same GL accounts as Currie report for consistency
-            # Revenue: 411001, 419000, 420000, 421000, 434012, 410008
-            # Cost: 510008, 511001, 519000, 520000, 521008, 537001, 539000, 534014, 545000
-            schema = get_tenant_schema()
+            # Get tenant-specific GL accounts for rental department
+            tenant_gl_accounts = get_gl_accounts(schema)
+            rental_config = tenant_gl_accounts.get('rental', {})
+            rental_revenue_accounts = rental_config.get('revenue', [])
+            rental_cogs_accounts = rental_config.get('cogs', [])
+            
+            rental_rev_list = "', '".join(rental_revenue_accounts)
+            rental_cogs_list = "', '".join(rental_cogs_accounts)
+            all_rental_accounts = rental_revenue_accounts + rental_cogs_accounts
+            all_rental_list = "', '".join(all_rental_accounts)
 
             query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
                 -- Rental revenue (credit accounts, stored as negative)
-                ABS(SUM(CASE WHEN AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008') 
+                ABS(SUM(CASE WHEN AccountNo IN ('{rental_rev_list}') 
                              THEN Amount ELSE 0 END)) as rental_revenue,
                 -- Rental cost (debit accounts, stored as positive)
-                ABS(SUM(CASE WHEN AccountNo IN ('510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000') 
+                ABS(SUM(CASE WHEN AccountNo IN ('{rental_cogs_list}') 
                              THEN Amount ELSE 0 END)) as rental_cost
             FROM {schema}.GLDetail
-            WHERE AccountNo IN ('411001', '419000', '420000', '421000', '434012', '410008',
-                                '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000')
+            WHERE AccountNo IN ('{all_rental_list}')
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)

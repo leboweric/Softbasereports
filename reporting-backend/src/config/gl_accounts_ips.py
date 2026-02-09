@@ -69,6 +69,38 @@ GL_ACCOUNTS_IPS = {
             '4306701', '4306702',  # Parts Sales to Service
             '4306901', '4306902',  # Parts Sales to Rental
         ],
+        # Counter Sales = external customer parts sales (walk-in / over-the-counter)
+        'counter_revenue': [
+            '4036503',  # Parts Sales to CH Steel
+            '4125601', '4125602',  # Linde Parts Sale
+            '4126601', '4126602',  # Combi Parts Sale
+            '4127601', '4127602',  # Tire Sale
+            '4129601', '4129602',  # Parts Sale Other
+            '4146601',  # TVH Parts Sale
+        ],
+        'counter_cogs': [
+            '5125601', '5125602',  # Parts-Linde
+            '5126601', '5126602',  # Parts-Combi
+            '5127601', '5127602',  # Tires
+            '5129601', '5129602',  # Parts-Other
+            '5146601',  # Parts-TVH
+        ],
+        # Repair Order Parts = parts sold through service repair orders and internal
+        'repair_order_revenue': [
+            '4128601', '4128602',  # Freight - Parts
+            '4300601', '4300602',  # Internal Parts Sales-Service
+            '4306201',  # Parts Sales to Alside Lease
+            '4306401', '4306402',  # Parts Sales to Used
+            '4306501', '4306502', '4306503', '4306504',  # Parts Sales to New
+            '4306601', '4306602',  # Parts Sales to Parts
+            '4306701', '4306702',  # Parts Sales to Service
+            '4306901', '4306902',  # Parts Sales to Rental
+        ],
+        'repair_order_cogs': [
+            '5300601', '5300602',  # Internal Parts
+            '5306601', '5306602',  # Parts Obsolescence
+            '5960601', '5960602',  # Internal Labor to Parts
+        ],
         'cogs': [
             '5125601', '5125602',  # Parts-Linde
             '5126601', '5126602',  # Parts-Combi
@@ -123,6 +155,55 @@ GL_ACCOUNTS_IPS = {
             '4155701',  # Shop Labor
             # PM Parts (Dept 47)
             '4136601', '4138601', '4157701',  # PM Parts/Labor
+        ],
+        # Field Service = field labor + road parts + PM + delivery
+        'field_revenue': [
+            '4151701', '4151702',  # Field Labor
+            '4152701', '4152702',  # Internal Pickup/Delivery
+            '4153701', '4153702',  # Field Labor Variance
+            '4133601', '4133602',  # Road Parts-Linde
+            '4134601', '4134602',  # Road Parts-Combi
+            '4135601', '4135602',  # Road Parts-Other
+            '4144601',  # Road Parts-TVH
+            '4136602', '4137601', '4137602', '4138602', '4147601',  # PM accounts
+            '4156701', '4156702',  # Service Training
+            '4157702',  # Customer PM
+            '4160701', '4160702',  # Lease Maintenance
+            '4171701', '4171702',  # Customer Pickup/Delivery
+            '4173701', '4173702',  # Freight Recovery
+            '4136601', '4138601', '4157701',  # PM Parts/Labor
+        ],
+        'field_cogs': [
+            '5151701', '5151702',  # CGS Customer Road Labor
+            '5152701', '5152702',  # Lease Maintenance
+            '5133601', '5133602',  # Road Parts-Linde
+            '5134601', '5134602',  # Road Parts-Combi
+            '5135601', '5135602',  # Road Parts-Other
+            '5144601',  # Road Parts-TVH
+            '5136602', '5137601', '5137602', '5138602', '5147601',  # PM accounts
+            '5156701', '5156702',  # CGS Service Training Labor
+            '5157702',  # CGS Customer PM Labor
+            '5175701', '5175702',  # Van Maintenance
+            '5136601', '5138601', '5157701',  # PM Parts/Labor
+        ],
+        # Shop Service = shop labor + shop parts + shop supplies
+        'shop_revenue': [
+            '4154701', '4154702',  # Shop Labor Variance
+            '4155702',  # Shop Labor
+            '4158701', '4158702',  # Shop Supplies
+            '4130601', '4130602',  # Shop Parts-Linde
+            '4131601', '4131602',  # Shop Parts-Combi
+            '4132601', '4132602',  # Shop Parts-Other
+            '4141601',  # Shop Parts-TVH
+            '4155701',  # Shop Labor
+        ],
+        'shop_cogs': [
+            '5155702',  # CGS Customer Shop Labor
+            '5130601', '5130602',  # Shop Parts-Linde
+            '5131601', '5131602',  # Shop Parts-Combi
+            '5132601', '5132602',  # Shop Parts-Other
+            '5141601',  # Shop Parts-TVH
+            '5155701',  # CGS Customer Shop Labor
         ],
         'cogs': [
             # Road Parts
