@@ -419,54 +419,80 @@ class DepartmentMetricsETL(BaseETL):
         }
     
     def _extract_financial(self) -> dict:
-        """Extract Financial summary metrics"""
+        """Extract Financial summary metrics using ARDetail table"""
         schema = self.schema
         
-        # AR Summary
+        # AR Summary using ARDetail (Customer table does NOT have Balance/DaysPastDue columns)
         ar_query = f"""
+        WITH CustomerBalances AS (
+            SELECT 
+                ar.CustomerNo,
+                SUM(ar.Amount) as Balance,
+                MIN(ar.Due) as EarliestDue
+            FROM {schema}.ARDetail ar
+            WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                AND ar.DeletionTime IS NULL
+                AND ar.InvoiceNo IS NOT NULL
+            GROUP BY ar.CustomerNo
+            HAVING SUM(ar.Amount) > 0.01
+        )
         SELECT 
-            COUNT(DISTINCT Number) as CustomersWithBalance,
+            COUNT(DISTINCT CustomerNo) as CustomersWithBalance,
             SUM(Balance) as TotalAR,
-            SUM(CASE WHEN DaysPastDue > 0 THEN Balance ELSE 0 END) as PastDueAmount,
-            SUM(CASE WHEN DaysPastDue > 30 THEN Balance ELSE 0 END) as Over30Days,
-            SUM(CASE WHEN DaysPastDue > 60 THEN Balance ELSE 0 END) as Over60Days,
-            SUM(CASE WHEN DaysPastDue > 90 THEN Balance ELSE 0 END) as Over90Days
-        FROM {schema}.Customer
-        WHERE Balance > 0
+            SUM(CASE WHEN DATEDIFF(day, EarliestDue, GETDATE()) > 0 THEN Balance ELSE 0 END) as PastDueAmount,
+            SUM(CASE WHEN DATEDIFF(day, EarliestDue, GETDATE()) > 30 THEN Balance ELSE 0 END) as Over30Days,
+            SUM(CASE WHEN DATEDIFF(day, EarliestDue, GETDATE()) > 60 THEN Balance ELSE 0 END) as Over60Days,
+            SUM(CASE WHEN DATEDIFF(day, EarliestDue, GETDATE()) > 90 THEN Balance ELSE 0 END) as Over90Days
+        FROM CustomerBalances
         """
         
-        ar_result = self.azure_sql.execute_query(ar_query)
-        ar_data = ar_result[0] if ar_result else {}
+        try:
+            ar_result = self.azure_sql.execute_query(ar_query)
+            ar_data = ar_result[0] if ar_result else {}
+        except Exception as e:
+            logger.error(f"  [{schema}] AR query failed: {e}")
+            ar_data = {}
         
         total_ar = float(ar_data.get('TotalAR', 0) or 0)
         past_due = float(ar_data.get('PastDueAmount', 0) or 0)
         over_90 = float(ar_data.get('Over90Days', 0) or 0)
         customers_with_balance = int(ar_data.get('CustomersWithBalance', 0) or 0)
         
-        # Top AR balances
+        # Top AR balances using ARDetail
         ar_detail_query = f"""
+        WITH CustomerBalances AS (
+            SELECT 
+                ar.CustomerNo,
+                SUM(ar.Amount) as Balance
+            FROM {schema}.ARDetail ar
+            WHERE (ar.HistoryFlag IS NULL OR ar.HistoryFlag = 0)
+                AND ar.DeletionTime IS NULL
+                AND ar.InvoiceNo IS NOT NULL
+            GROUP BY ar.CustomerNo
+            HAVING SUM(ar.Amount) > 0.01
+        )
         SELECT TOP 20
-            Number as CustomerNo,
-            Name,
-            Balance,
-            CreditLimit,
-            DaysPastDue,
-            LastPaymentDate,
-            LastPaymentAmount
-        FROM {schema}.Customer
-        WHERE Balance > 0
-        ORDER BY Balance DESC
+            cb.CustomerNo,
+            c.Name,
+            cb.Balance
+        FROM CustomerBalances cb
+        LEFT JOIN {schema}.Customer c ON cb.CustomerNo = c.Number
+        ORDER BY cb.Balance DESC
         """
         
-        ar_detail = self.azure_sql.execute_query(ar_detail_query)
+        try:
+            ar_detail = self.azure_sql.execute_query(ar_detail_query)
+        except Exception as e:
+            logger.error(f"  [{schema}] AR detail query failed: {e}")
+            ar_detail = []
         top_ar = []
         for row in (ar_detail or []):
             top_ar.append({
-                'customer_no': row['CustomerNo'],
-                'name': row['Name'],
-                'balance': float(row['Balance'] or 0),
-                'credit_limit': float(row['CreditLimit'] or 0),
-                'days_past_due': int(row['DaysPastDue'] or 0)
+                'customer_no': row.get('CustomerNo', ''),
+                'name': row.get('Name', 'Unknown'),
+                'balance': float(row.get('Balance', 0) or 0),
+                'credit_limit': 0,
+                'days_past_due': 0
             })
         
         # Revenue by department (current month)

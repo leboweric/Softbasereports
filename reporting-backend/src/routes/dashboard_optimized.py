@@ -1925,18 +1925,11 @@ def _get_monthly_active_customers_live():
         SELECT 
             YEAR(InvoiceDate) as year,
             MONTH(InvoiceDate) as month,
-            COUNT(DISTINCT CASE 
-                WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
-                WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-                ELSE BillToName
-            END) as active_customers
+            COUNT(DISTINCT BillToName) as active_customers
         FROM {schema}.InvoiceReg
         WHERE InvoiceDate >= '2025-03-01'
         AND BillToName IS NOT NULL
         AND BillToName != ''
-        AND BillToName NOT LIKE '%Wells Fargo%'
-        AND BillToName NOT LIKE '%Maintenance contract%'
-        AND BillToName NOT LIKE '%Rental Fleet%'
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         """
