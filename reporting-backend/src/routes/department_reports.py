@@ -51,21 +51,30 @@ def _get_department_from_mart(department: str, max_age_hours: float = 4.0):
     """
     Get department metrics from mart_department_metrics table.
     Returns None if data is unavailable or stale.
+    Uses the current user's organization ID for tenant isolation.
     """
     try:
         from src.services.postgres_service import PostgreSQLService
+        
+        # Get the current user's org_id for tenant isolation
+        try:
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            org_id = user.organization_id if user else 4
+        except Exception:
+            org_id = 4  # Fallback for backward compatibility
         
         pg = PostgreSQLService()
         
         query = """
         SELECT *
         FROM mart_department_metrics
-        WHERE org_id = 4 AND department = %s
+        WHERE org_id = %s AND department = %s
         ORDER BY snapshot_timestamp DESC
         LIMIT 1
         """
         
-        result = pg.execute_query(query, (department,))
+        result = pg.execute_query(query, (org_id, department))
         
         if not result:
             logger.info(f"No mart data found for {department}")
@@ -2686,9 +2695,13 @@ def register_department_routes(reports_bp):
             if not request.args.get('refresh'):
                 mart_data = _get_department_from_mart('rental')
                 if mart_data:
-                    additional = json.loads(mart_data['additional_data']) if mart_data['additional_data'] else {}
-                    fleet_by_category = json.loads(mart_data['sub_category_1']) if mart_data['sub_category_1'] else []
-                    monthly_trend = json.loads(mart_data['monthly_revenue']) if mart_data['monthly_revenue'] else []
+                    # JSONB columns are auto-parsed by psycopg2 RealDictCursor
+                    raw_additional = mart_data['additional_data']
+                    additional = json.loads(raw_additional) if isinstance(raw_additional, str) else (raw_additional or {})
+                    raw_fleet = mart_data['sub_category_1']
+                    fleet_by_category = json.loads(raw_fleet) if isinstance(raw_fleet, str) else (raw_fleet or [])
+                    raw_trend = mart_data['monthly_revenue']
+                    monthly_trend = json.loads(raw_trend) if isinstance(raw_trend, str) else (raw_trend or [])
                     
                     # Format monthly trend with month labels
                     formatted_trend = []

@@ -15,6 +15,7 @@ except ImportError:
     HAS_SCIPY = False
 import logging
 from src.services.cache_service import cache_service
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 
 logger = logging.getLogger(__name__)
 parts_inventory_bp = Blueprint('parts_inventory', __name__)

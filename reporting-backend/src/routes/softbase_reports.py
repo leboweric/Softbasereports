@@ -724,15 +724,24 @@ def financial_summary_report():
                 import json as json_lib
                 
                 pg = PostgreSQLService()
+                
+                # Get current user's org_id for tenant isolation
+                try:
+                    uid = get_jwt_identity()
+                    u = User.query.get(int(uid))
+                    current_org_id = u.organization_id if u else 4
+                except Exception:
+                    current_org_id = 4
+                
                 query = """
                 SELECT *
                 FROM mart_department_metrics
-                WHERE org_id = 4 AND department = 'financial'
+                WHERE org_id = %s AND department = 'financial'
                 ORDER BY snapshot_timestamp DESC
                 LIMIT 1
                 """
                 
-                result = pg.execute_query(query, ())
+                result = pg.execute_query(query, (current_org_id,))
                 
                 if result:
                     metrics = result[0]
@@ -741,9 +750,13 @@ def financial_summary_report():
                     
                     if age_hours <= 4.0:
                         logger.info(f"Using mart data for financial (age: {age_hours:.1f} hours)")
-                        additional = json_lib.loads(metrics['additional_data']) if metrics['additional_data'] else {}
-                        top_ar = json_lib.loads(metrics['sub_category_1']) if metrics['sub_category_1'] else []
-                        revenue_by_dept = json_lib.loads(metrics['sub_category_2']) if metrics['sub_category_2'] else []
+                        # JSONB columns are auto-parsed by psycopg2 RealDictCursor
+                        raw = metrics['additional_data']
+                        additional = json_lib.loads(raw) if isinstance(raw, str) else (raw or {})
+                        raw = metrics['sub_category_1']
+                        top_ar = json_lib.loads(raw) if isinstance(raw, str) else (raw or [])
+                        raw = metrics['sub_category_2']
+                        revenue_by_dept = json_lib.loads(raw) if isinstance(raw, str) else (raw or [])
                         
                         period = request.args.get('period', 'month')
                         start_date, end_date = get_date_range(period)
