@@ -431,7 +431,7 @@ const CustomerChurnAnalysis = () => {
                           </button>
                           <button className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200">
                             <ExternalLink className="w-4 h-4 mr-1" />
-                            View in Softbase
+                            View in ERP
                           </button>
                         </div>
                       </div>

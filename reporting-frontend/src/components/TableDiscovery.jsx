@@ -128,7 +128,7 @@ const TableDiscovery = () => {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `softbase_schema_${new Date().toISOString().split('T')[0]}.md`
+        a.download = `erp_schema_${new Date().toISOString().split('T')[0]}.md`
         a.click()
         window.URL.revokeObjectURL(url)
       } else {

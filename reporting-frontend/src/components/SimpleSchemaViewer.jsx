@@ -44,7 +44,7 @@ const SimpleSchemaViewer = () => {
   const copyAllSchema = () => {
     if (!schemaData) return
 
-    let markdown = '# Softbase Database Schema\n\n'
+    let markdown = '# ERP Database Schema\n\n'
     markdown += 'Schema: ben002\n\n'
 
     Object.entries(schemaData).forEach(([tableName, tableInfo]) => {

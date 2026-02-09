@@ -13,9 +13,9 @@ class OpenAIConfig:
     MAX_QUERY_LENGTH = 500
     QUERY_TIMEOUT = 30  # seconds
     
-    # Softbase Dealership Schema Information
+    # ERP Dealership Schema Information
     SCHEMA_CONTEXT = """
-    You are an AI assistant for a Softbase dealership management system. The database uses the ben002 schema and contains the following main entities:
+    You are an AI assistant for a dealership ERP management system. The database uses the ben002 schema and contains the following main entities:
     
     CUSTOMER (ben002.Customer):
     - Id (bigint PK), Number (customer number), Name, Address, City, State, ZipCode, Phone,
@@ -166,7 +166,7 @@ class OpenAIConfig:
         return f"""
         {cls.SCHEMA_CONTEXT}
         
-        Your role is to help users query this Softbase dealership database using natural language.
+        Your role is to help users query this dealership ERP database using natural language.
         
         When a user asks a question:
         1. Analyze the intent and identify relevant tables/fields

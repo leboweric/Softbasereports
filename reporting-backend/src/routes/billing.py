@@ -17,7 +17,7 @@ STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
 STRIPE_PRICE_ID = os.environ.get('STRIPE_PRICE_ID')  # Your $700/month price ID from Stripe Dashboard
 
 # Frontend URLs for redirects
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://softbasereports.netlify.app')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://aiop.one')
 
 
 @billing_bp.route('/billing/status', methods=['GET'])

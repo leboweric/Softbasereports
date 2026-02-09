@@ -1,6 +1,6 @@
 """
-Softbase Reports Backend API
-Version: 1.0.4 - Fixed User Management roles loading error
+AI First Operations (AIOP) Backend API
+Version: 2.0.0 - Multi-tenant platform with GL mapping and dynamic P&L
 """
 import os
 import sys
@@ -366,7 +366,7 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'message': 'Softbase Reports API is running',
+        'message': 'AI First Operations API is running',
         'timestamp': datetime.utcnow().isoformat()
     }), 200
 

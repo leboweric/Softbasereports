@@ -14,7 +14,7 @@ import {
   Clock
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://softbasereports-production.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const VitalQuickBooksDashboard = () => {
   const [loading, setLoading] = useState(true);
