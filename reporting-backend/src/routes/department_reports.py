@@ -2735,14 +2735,17 @@ def register_department_routes(reports_bp):
             
             summary_result = db.execute_query(summary_query)
             
-            total_fleet = summary_result[0][0] or 1  # Avoid division by zero
-            units_on_rent = summary_result[0][1] or 0
+            row = summary_result[0] if summary_result else {}
+            total_fleet = (row.get('totalFleetSize') or 0) if isinstance(row, dict) else (row[0] or 0)
+            units_on_rent = (row.get('unitsOnRent') or 0) if isinstance(row, dict) else (row[1] or 0)
+            monthly_rev = (row.get('monthlyRevenue') or 0) if isinstance(row, dict) else (row[2] or 0)
+            total_fleet = total_fleet or 1  # Avoid division by zero
             
             summary = {
                 'totalFleetSize': total_fleet,
                 'unitsOnRent': units_on_rent,
                 'utilizationRate': round((units_on_rent / total_fleet) * 100, 1) if total_fleet > 0 else 0,
-                'monthlyRevenue': float(summary_result[0][2] or 0),
+                'monthlyRevenue': float(monthly_rev),
                 'overdueReturns': 0,  # Would need return date tracking
                 'maintenanceDue': 0   # Would need maintenance schedule
             }
@@ -2775,10 +2778,16 @@ def register_department_routes(reports_bp):
             
             fleetByCategory = []
             for row in fleet_result:
-                total = row[1]
-                on_rent = row[2]
+                if isinstance(row, dict):
+                    total = row.get('total', 0) or 0
+                    on_rent = row.get('onRent', 0) or 0
+                    category = row.get('category', 'Other')
+                else:
+                    total = row[1] or 0
+                    on_rent = row[2] or 0
+                    category = row[0]
                 fleetByCategory.append({
-                    'category': row[0],
+                    'category': category,
                     'total': total,
                     'onRent': on_rent,
                     'available': total - on_rent
@@ -2805,14 +2814,30 @@ def register_department_routes(reports_bp):
             
             activeRentals = []
             for row in rentals_result:
+                if isinstance(row, dict):
+                    wo_no = row.get('WONo', '')
+                    customer = row.get('Customer', 'Unknown') or 'Unknown'
+                    equipment = row.get('equipment', 'N/A') or 'N/A'
+                    start_date = row.get('startDate')
+                    end_date = row.get('endDate')
+                    daily_rate = row.get('dailyRate', 0)
+                    status = row.get('status', 'Active')
+                else:
+                    wo_no = row[0]
+                    customer = row[1] or 'Unknown'
+                    equipment = row[2] or 'N/A'
+                    start_date = row[3]
+                    end_date = row[4]
+                    daily_rate = row[5]
+                    status = row[6]
                 activeRentals.append({
-                    'contractNumber': f'RC-{row[0]}',
-                    'customer': row[1] or 'Unknown',
-                    'equipment': row[2] or 'N/A',
-                    'startDate': row[3].strftime('%Y-%m-%d') if row[3] else '',
-                    'endDate': row[4].strftime('%Y-%m-%d') if row[4] else '',
-                    'dailyRate': row[5],
-                    'status': row[6]
+                    'contractNumber': f'RC-{wo_no}',
+                    'customer': customer,
+                    'equipment': equipment,
+                    'startDate': start_date.strftime('%Y-%m-%d') if start_date else '',
+                    'endDate': end_date.strftime('%Y-%m-%d') if end_date else '',
+                    'dailyRate': daily_rate,
+                    'status': status
                 })
             
             # 4. Monthly Trend
@@ -2831,9 +2856,15 @@ def register_department_routes(reports_bp):
             
             monthlyTrend = []
             for row in trend_result:
+                if isinstance(row, dict):
+                    month_name = row.get('month', '')[:3] if row.get('month') else ''
+                    revenue = float(row.get('revenue') or 0)
+                else:
+                    month_name = row[0][:3] if row[0] else ''
+                    revenue = float(row[1] or 0)
                 monthlyTrend.append({
-                    'month': row[0][:3],
-                    'revenue': float(row[1] or 0),
+                    'month': month_name,
+                    'revenue': revenue,
                     'utilization': 0
                 })
             

@@ -2508,8 +2508,8 @@ def export_active_customers():
     """Export detailed active customers list for CSV download"""
     try:
         # Get tenant schema from current user
-        current_user = get_jwt_identity()
-        user = User.query.filter_by(username=current_user).first()
+        current_user_id = get_jwt_identity()
+        user = User.query.get(int(current_user_id))
         if not user or not user.organization:
             return jsonify({'error': 'User organization not found'}), 400
         schema = user.organization.database_schema
@@ -2614,8 +2614,8 @@ def analyze_customer_risk():
     """Analyze top customers for behavioral changes and risk factors"""
     try:
         # Get tenant schema from current user
-        current_user = get_jwt_identity()
-        user = User.query.filter_by(username=current_user).first()
+        current_user_id = get_jwt_identity()
+        user = User.query.get(int(current_user_id))
         if not user or not user.organization:
             return jsonify({'error': 'User organization not found'}), 400
         schema = user.organization.database_schema
@@ -2760,8 +2760,8 @@ def analyze_invoice_delays():
     """Analyze invoice delays by department type"""
     try:
         # Get tenant schema from current user
-        current_user = get_jwt_identity()
-        user = User.query.filter_by(username=current_user).first()
+        current_user_id = get_jwt_identity()
+        user = User.query.get(int(current_user_id))
         if not user or not user.organization:
             return jsonify({'error': 'User organization not found'}), 400
         schema = user.organization.database_schema

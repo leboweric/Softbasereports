@@ -77,10 +77,10 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
             logger.info("Database connection established")
         except Exception as e:
             logger.error(f"Database connection failed: {str(e)}")
-            return jsonify({
+            return {
                 'success': False,
                 'error': f'Database connection failed: {str(e)}'
-            }), 500
+            }
         
         # Calculate date range for analysis
         try:
@@ -89,10 +89,10 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
             logger.info(f"Analyzing parts usage from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
         except Exception as e:
             logger.error(f"Date calculation error: {str(e)}")
-            return jsonify({
+            return {
                 'success': False,
                 'error': f'Date calculation error: {str(e)}'
-            }), 500
+            }
         
         # Get parts usage data - aggregate properly by PartNo to avoid duplicates
         usage_query = f"""
@@ -196,14 +196,14 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
         except Exception as e:
             logger.error(f"Query execution failed: {str(e)}")
             logger.error(f"Query that failed: {usage_query}")
-            return jsonify({
+            return {
                 'success': False,
                 'error': f'Database query failed: {str(e)}',
                 'query_error': True
-            }), 500
+            }
         
         if not usage_results:
-            return jsonify({
+            return {
                 'success': True,
                 'parts': [],
                 'summary': {
@@ -212,7 +212,7 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
                     'target_turns': target_turns,
                     'potential_savings': 0
                 }
-            })
+            }
         
         # Convert to DataFrame for calculations
         try:
@@ -220,11 +220,11 @@ def _fetch_inventory_turns_data(months, lead_time_days, service_level, target_tu
             logger.info(f"Created DataFrame with {len(df)} rows and columns: {list(df.columns)}")
         except Exception as e:
             logger.error(f"Failed to create DataFrame: {str(e)}")
-            return jsonify({
+            return {
                 'success': False,
                 'error': f'Failed to process data: {str(e)}',
                 'data_processing_error': True
-            }), 500
+            }
         
         # Calculate inventory turn metrics for each part
         parts_data = []
