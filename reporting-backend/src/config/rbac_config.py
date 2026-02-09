@@ -48,6 +48,7 @@ RESOURCES = {
     'vital_finance': 'VITAL Worklife Finance billing management and revenue tracking',
     'vital_mobile_app': 'VITAL Worklife Mobile App analytics from GA4 BigQuery',
     'customer_churn': 'Customer churn analysis with AI-powered insights',
+    'gl_mapping': 'GL Account Mapping - manage chart of accounts for tenant',
 }
 
 # Action types
@@ -280,6 +281,13 @@ NAVIGATION_CONFIG = {
         'path': 'user-management',
         'required_resource': 'user_management',
         'order': 99,
+    },
+    'gl-mapping': {
+        'label': 'GL Account Mapping',
+        'icon': 'Settings2',
+        'path': 'gl-mapping',
+        'required_resource': 'gl_mapping',
+        'order': 100,
     },
     'qbr': {
         'label': 'QBR',

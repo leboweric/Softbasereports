@@ -44,6 +44,7 @@ import VitalFinancialDashboard from './components/vital/VitalFinancialDashboard'
 import VitalProviderNetworkDashboard from './components/vital/VitalProviderNetworkDashboard'
 import VitalOperationsDashboard from './components/vital/VitalOperationsDashboard';
 import CustomerChurnAnalysis from './components/CustomerChurnAnalysis';
+import GLAccountMapping from './components/admin/GLAccountMapping';
 import { apiUrl } from '@/lib/api'
 import { PermissionsContext, getAccessibleNavigation } from './contexts/PermissionsContext'
 import './App.css'
@@ -111,7 +112,7 @@ function App() {
         if (!navigation[currentPage]) {
           // Redirect to first available page using same order as Layout.jsx
           // Menu order: Dashboard, Finance first, then other items (removed vital-quickbooks)
-          const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'tenant-admin']
+          const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'gl-mapping', 'tenant-admin']
           const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
           setCurrentPage(firstAvailablePage)
         }
@@ -142,7 +143,7 @@ function App() {
 
     // Use same order as Layout.jsx to ensure Dashboard is first choice
     // Menu order: Dashboard, Finance first, then other items (removed vital-quickbooks)
-    const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'tenant-admin']
+    const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'gl-mapping', 'tenant-admin']
     const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
     // Setting default page
     setCurrentPage(firstAvailablePage)
@@ -185,7 +186,7 @@ function App() {
     if (!navigation[currentPage] && !specialPages.includes(currentPage)) {
       // Redirect to first available page using same order as Layout.jsx
       // Menu order: Dashboard, Finance first, then other items (removed vital-quickbooks)
-      const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'tenant-admin']
+      const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'vital-data-sources', 'user-management', 'rep-comp-admin', 'gl-mapping', 'tenant-admin']
       const firstAvailablePage = desiredOrder.find(id => navigation[id]) || Object.keys(navigation)[0] || 'dashboard'
       if (firstAvailablePage && firstAvailablePage !== currentPage) {
         setCurrentPage(firstAvailablePage)
@@ -286,6 +287,8 @@ function App() {
         return <VitalOperationsDashboard onBack={() => setCurrentPage('vital-executive-dashboard')} />
       case 'customer-churn':
         return <CustomerChurnAnalysis user={user} organization={organization} />
+      case 'gl-mapping':
+        return <GLAccountMapping user={user} organization={organization} />
       default:
         return <Dashboard user={user} organization={organization} />
     }
