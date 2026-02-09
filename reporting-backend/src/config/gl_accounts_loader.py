@@ -204,16 +204,9 @@ EXPENSE_ACCOUNTS_IPS = {
         '6450801',  # Management Fees - Admin
         '6480501', '6480503',  # Miscellaneous - New Equipment
         '6480701',  # Miscellaneous - Service
-        # Departmental overhead allocations
-        '6980201',  # Overhead - Allied/IF
-        '6980401',  # Overhead - Used Equipment
-        '6980501', '6980503',  # Overhead - New Equipment
-        '6980601',  # Overhead - Parts
-        '6980701',  # Overhead - Service
-        '6980801',  # Overhead - Admin (contra/offset)
-        '6980901',  # Overhead - Rental
-        # Internal allocation accounts
-        '6930001', '6930002',  # Allocation/Transfer
+        # NOTE: Overhead allocation accounts (698xxxx) and internal allocation accounts (693xxxx)
+        # are EXCLUDED from operating expenses because they are internal transfers that net to zero.
+        # The real expenses are already captured in the other categories above.
     ]
 }
 
