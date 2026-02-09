@@ -376,10 +376,16 @@ def trigger_discovery():
         from src.etl.etl_gl_discovery import run_gl_discovery_etl
         
         org_id = request.user_org_id
-        schema = request.user_schema
         
-        if not schema:
-            return jsonify({'error': 'No schema found for this organization'}), 400
+        # Look up schema from Organization table (not in JWT)
+        from src.services.postgres_service import PostgreSQLService
+        pg = PostgreSQLService()
+        org_result = pg.execute_query(
+            "SELECT database_schema FROM organizations WHERE id = %s", (org_id,)
+        )
+        if not org_result or not org_result[0].get('database_schema'):
+            return jsonify({'error': 'No database schema found for this organization'}), 400
+        schema = org_result[0]['database_schema']
         
         logger.info(f"[GL Mapping] Triggering discovery for org_id={org_id}, schema={schema}")
         run_gl_discovery_etl(org_id=org_id, schema=schema)
