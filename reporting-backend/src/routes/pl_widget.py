@@ -126,50 +126,20 @@ def _fetch_pl_widget_data(current_date, schema):
 def get_monthly_pl(year, month, schema):
     """
     Get monthly profit/loss from GL.MTD
-    Uses the same GL account mappings as the P&L Report
-    Operating Profit = Revenue - COGS - Expenses
+    Uses dynamic LIKE queries to capture ALL accounts by prefix pattern.
+    This ensures consistency with the P&L Report's consolidated totals.
+    Operating Profit = Revenue (4%) - COGS (5%) - Expenses (6%)
     """
     try:
-        # Get tenant-specific GL accounts
-        tenant_gl_accounts = get_gl_accounts(schema)
-        tenant_other_income = get_other_income_accounts(schema)
-        tenant_expense_accounts = get_expense_accounts(schema)
-        
-        # Collect all revenue accounts from all departments
-        all_revenue_accounts = []
-        for dept_config in tenant_gl_accounts.values():
-            all_revenue_accounts.extend(dept_config['revenue'])
-
-        # Add Other Income/Contra-Revenue accounts (7xxxxx series)
-        # These accounts (like A/R Discounts) reduce total revenue
-        all_revenue_accounts.extend(tenant_other_income)
-
-        # Collect all COGS accounts from all departments
-        all_cogs_accounts = []
-        for dept_config in tenant_gl_accounts.values():
-            all_cogs_accounts.extend(dept_config['cogs'])
-        
-        # Collect all expense accounts
-        all_expense_accounts = []
-        for category_accounts in tenant_expense_accounts.values():
-            all_expense_accounts.extend(category_accounts)
-        
-        # Build account lists for query
-        revenue_list = "', '".join(all_revenue_accounts)
-        cogs_list = "', '".join(all_cogs_accounts)
-        expense_list = "', '".join(all_expense_accounts)
-        
-        # Query all three categories in a single query (matching P&L Report approach)
+        # Dynamic query using LIKE patterns - captures ALL accounts
         query = f"""
         SELECT 
-            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN MTD ELSE 0 END) as revenue,
-            SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN MTD ELSE 0 END) as cogs,
-            SUM(CASE WHEN AccountNo IN ('{expense_list}') THEN MTD ELSE 0 END) as expenses
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
+            SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
+            SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END) as expenses
         FROM {schema}.GL
         WHERE Year = %s AND Month = %s
-          AND (AccountNo IN ('{revenue_list}') 
-               OR AccountNo IN ('{cogs_list}')
-               OR AccountNo IN ('{expense_list}'))
+          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
         """
         
         result = get_sql_service().execute_query(query, [year, month])
@@ -183,9 +153,9 @@ def get_monthly_pl(year, month, schema):
             cogs = 0.0
             expenses = 0.0
         
-        # Calculate Operating Profit (matching P&L Report)
-        # Revenue is now positive (negated in query)
-        # COGS and Expenses are positive (debits)
+        # Calculate Operating Profit
+        # Revenue is positive (negated in query from credit convention)
+        # COGS and Expenses are positive (debit convention)
         gross_profit = revenue - cogs
         operating_profit = gross_profit - expenses
         

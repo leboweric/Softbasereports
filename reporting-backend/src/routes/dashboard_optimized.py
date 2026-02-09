@@ -252,45 +252,57 @@ class DashboardQueries:
                 return 0
     
     def get_monthly_sales(self):
-        """Get monthly sales with trailing 13 months using GLDetail (All Departments)"""
+        """Get monthly sales with trailing 13 months using dynamic LIKE queries.
+        Uses GL.MTD for closed months (authoritative) and GLDetail for current month.
+        Revenue = 4%, COGS = 5% - captures ALL accounts by prefix pattern."""
         try:
-            # Collect all revenue and cost accounts from all departments
-            all_revenue_accounts = []
-            all_cost_accounts = []
+            now = datetime.now()
+            current_year = now.year
+            current_month = now.month
             
-            for dept in self.gl_accounts.values():
-                all_revenue_accounts.extend(dept['revenue'])
-                all_cost_accounts.extend(dept['cogs'])
+            # Query 1: GL.MTD for closed months (authoritative monthly summaries)
+            gl_mtd_query = f"""
+            SELECT 
+                Year as year,
+                Month as month,
+                -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as total_revenue,
+                SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as total_cost
+            FROM {self.schema}.GL
+            WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
+                AND (
+                    (Year * 100 + Month) >= (YEAR(DATEADD(month, -25, GETDATE())) * 100 + MONTH(DATEADD(month, -25, GETDATE())))
+                )
+                AND NOT (Year = %s AND Month = %s)
+            GROUP BY Year, Month
+            ORDER BY Year, Month
+            """
             
-            # Add Other Income accounts to revenue (tenant-specific)
-            all_revenue_accounts.extend(self.other_income_accounts)
+            gl_mtd_results = self.db.execute_query(gl_mtd_query, [current_year, current_month])
             
-            # Format for SQL IN clause
-            revenue_list = "', '".join(all_revenue_accounts)
-            cost_list = "', '".join(all_cost_accounts)
-            all_accounts_list = "', '".join(all_revenue_accounts + all_cost_accounts)
-            
-            query = f"""
+            # Query 2: GLDetail for current month (in-progress transactions)
+            gldetail_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
-                -- Revenue (Credit accounts, so negate sum)
-                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_revenue,
-                -- Cost (Debit accounts, so positive sum)
-                SUM(CASE WHEN AccountNo IN ('{cost_list}') THEN Amount ELSE 0 END) as total_cost
+                -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as total_revenue,
+                SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as total_cost
             FROM {self.schema}.GLDetail
-            WHERE AccountNo IN ('{all_accounts_list}')
-                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+            WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
+                AND YEAR(EffectiveDate) = %s
+                AND MONTH(EffectiveDate) = %s
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
-            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
             """
             
-            results = self.db.execute_query(query)
+            gldetail_results = self.db.execute_query(gldetail_query, [current_year, current_month])
             
-            # Create a dictionary to store data by year-month key
+            # Merge results into a single dictionary
             revenue_by_month = {}
-            for row in results:
+            for row in (gl_mtd_results or []):
+                year_month_key = (row['year'], row['month'])
+                revenue_by_month[year_month_key] = row
+            
+            for row in (gldetail_results or []):
                 year_month_key = (row['year'], row['month'])
                 revenue_by_month[year_month_key] = row
             

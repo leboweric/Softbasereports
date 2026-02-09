@@ -158,7 +158,7 @@ def get_department_data_from_gl_mtd(year, month, dept_key, schema, include_detai
             query = f"""
             SELECT 
                 AccountNo,
-                -MTD as total
+                MTD as raw_mtd
             FROM {schema}.GL
             WHERE Year = %s
               AND Month = %s
@@ -174,14 +174,18 @@ def get_department_data_from_gl_mtd(year, month, dept_key, schema, include_detai
             
             for row in results:
                 account_no = row['AccountNo']
-                total = float(row['total'] or 0)
+                raw_mtd = float(row['raw_mtd'] or 0)
                 
                 if account_no in revenue_accounts:
-                    revenue += total
-                    revenue_detail.append({'account': account_no, 'amount': total})
+                    # Revenue is stored as negative (credits), negate to make positive
+                    amount = -raw_mtd
+                    revenue += amount
+                    revenue_detail.append({'account': account_no, 'amount': amount})
                 elif account_no in cogs_accounts:
-                    cogs += total
-                    cogs_detail.append({'account': account_no, 'amount': total})
+                    # COGS is stored as positive (debits), use as-is
+                    amount = raw_mtd
+                    cogs += amount
+                    cogs_detail.append({'account': account_no, 'amount': amount})
             
             gross_profit = revenue - cogs
             gross_margin = (gross_profit / revenue * 100) if revenue > 0 else 0
@@ -258,11 +262,11 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, schema, in
         account_list = "', '".join(all_accounts)
         
         if include_detail:
-            # Get account-level detail
+            # Get account-level detail from GLDetail
             query = f"""
             SELECT 
                 AccountNo,
-                -SUM(Amount) as total
+                SUM(Amount) as raw_amount
             FROM {schema}.GLDetail
             WHERE EffectiveDate >= %s 
               AND EffectiveDate <= %s
@@ -279,15 +283,19 @@ def get_department_data_from_gldetail(start_date, end_date, dept_key, schema, in
             cogs_detail = []
             
             for row in results:
-                account_no = row['AccountNo']
-                total = float(row['total'] or 0)
+                account_no = str(row['AccountNo']).strip()
+                raw_amount = float(row['raw_amount'] or 0)
                 
                 if account_no in revenue_accounts:
-                    revenue += total
-                    revenue_detail.append({'account': account_no, 'amount': total})
+                    # Revenue is stored as negative (credits), negate to make positive
+                    amount = -raw_amount
+                    revenue += amount
+                    revenue_detail.append({'account': account_no, 'amount': amount})
                 elif account_no in cogs_accounts:
-                    cogs += total
-                    cogs_detail.append({'account': account_no, 'amount': total})
+                    # COGS is stored as positive (debits), use as-is
+                    amount = raw_amount
+                    cogs += amount
+                    cogs_detail.append({'account': account_no, 'amount': amount})
             
             gross_profit = revenue - cogs
             gross_margin = (gross_profit / revenue * 100) if revenue > 0 else 0
@@ -438,9 +446,116 @@ def is_full_calendar_month(start_date, end_date):
     except:
         return False, None, None
 
+def get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema):
+    """
+    Get consolidated P&L using dynamic LIKE queries on GL.MTD.
+    This captures ALL accounts by prefix pattern, ensuring nothing is missed.
+    Revenue = 4xxxxxx, COGS = 5xxxxxx, Expenses = 6xxxxxx
+    
+    Returns:
+        Dictionary with revenue, cogs, expenses totals
+    """
+    try:
+        query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
+            SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
+            SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END) as expenses
+        FROM {schema}.GL
+        WHERE Year = %s AND Month = %s
+          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
+        """
+        
+        results = get_sql_service().execute_query(query, [year, month])
+        
+        if results and results[0]:
+            revenue = float(results[0].get('revenue') or 0)
+            cogs = float(results[0].get('cogs') or 0)
+            expenses = float(results[0].get('expenses') or 0)
+        else:
+            revenue = 0.0
+            cogs = 0.0
+            expenses = 0.0
+        
+        logger.info(f"Dynamic GL.MTD P&L for {schema} {year}-{month:02d}: Rev=${revenue:,.2f}, COGS=${cogs:,.2f}, Exp=${expenses:,.2f}")
+        
+        return {
+            'revenue': revenue,
+            'cogs': cogs,
+            'expenses': expenses
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in dynamic consolidated P&L from GL.MTD: {e}")
+        raise
+
+
+def get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema):
+    """
+    Get consolidated P&L using dynamic LIKE queries on GLDetail.
+    Used for custom date ranges or current (unclosed) months.
+    Revenue = 4xxxxxx, COGS = 5xxxxxx, Expenses = 6xxxxxx
+    
+    Returns:
+        Dictionary with revenue, cogs, expenses totals
+    """
+    try:
+        query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as revenue,
+            SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as cogs,
+            SUM(CASE WHEN AccountNo LIKE '6%' THEN Amount ELSE 0 END) as expenses
+        FROM {schema}.GLDetail
+        WHERE EffectiveDate >= %s 
+          AND EffectiveDate <= %s
+          AND Posted = 1
+          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
+        """
+        
+        results = get_sql_service().execute_query(query, [start_date, end_date])
+        
+        if results and results[0]:
+            revenue = float(results[0].get('revenue') or 0)
+            cogs = float(results[0].get('cogs') or 0)
+            expenses = float(results[0].get('expenses') or 0)
+        else:
+            revenue = 0.0
+            cogs = 0.0
+            expenses = 0.0
+        
+        logger.info(f"Dynamic GLDetail P&L for {schema} {start_date} to {end_date}: Rev=${revenue:,.2f}, COGS=${cogs:,.2f}, Exp=${expenses:,.2f}")
+        
+        return {
+            'revenue': revenue,
+            'cogs': cogs,
+            'expenses': expenses
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in dynamic consolidated P&L from GLDetail: {e}")
+        raise
+
+
+def get_dynamic_consolidated_pl(start_date, end_date, schema):
+    """
+    Get consolidated P&L using dynamic LIKE queries.
+    Automatically selects GL.MTD for closed months or GLDetail for current/custom ranges.
+    
+    Returns:
+        Dictionary with revenue, cogs, expenses totals
+    """
+    is_full_month, year, month = is_full_calendar_month(start_date, end_date)
+    
+    if is_full_month:
+        return get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema)
+    else:
+        return get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema)
+
+
 def get_expense_data(start_date, end_date, schema):
     """
-    Get expense data organized by category
+    Get expense data organized by category.
+    Uses dynamic LIKE '6%' query for total, with optional category breakdown from mapped accounts.
     Uses GL.MTD for full calendar months (exact Softbase match)
     Uses GLDetail for custom date ranges (flexibility)
     
@@ -678,34 +793,34 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail, schema):
     try:
         tenant_gl_accounts = get_gl_accounts(schema)
         
-        # Get data for all departments
+        # Get department-level breakdown (for departmental view)
         departments = {}
-        total_revenue = 0
-        total_cogs = 0
-        
         for dept_key in tenant_gl_accounts.keys():
             dept_data = get_department_data(start_date, end_date, dept_key, schema, include_detail)
             if dept_data:
-                # Include all departments in totals
-                total_revenue += dept_data['revenue']
-                total_cogs += dept_data['cogs']
-                
-                # But exclude administrative from the department breakdown display
+                # Exclude administrative from the department breakdown display
                 if dept_key != 'administrative':
                     departments[dept_key] = dept_data
         
-        # Add other income (7xxxxx accounts - contra-revenue/other income)
-        other_income = get_other_income(start_date, end_date, schema)
-        total_revenue += other_income
+        # Use DYNAMIC consolidated totals (LIKE '4%', '5%', '6%') for accuracy
+        # This captures ALL accounts by prefix, ensuring nothing is missed
+        dynamic_totals = get_dynamic_consolidated_pl(start_date, end_date, schema)
+        total_revenue = dynamic_totals['revenue']
+        total_cogs = dynamic_totals['cogs']
+        total_expenses = dynamic_totals['expenses']
         
-        # Get expense data
+        # Also get category breakdown from mapped accounts (for display)
         expenses = get_expense_data(start_date, end_date, schema)
+        # Override total_expenses with the dynamic total (which is authoritative)
+        expenses['total_expenses'] = total_expenses
         
         # Calculate consolidated metrics
         total_gross_profit = total_revenue - total_cogs
         gross_margin = (total_gross_profit / total_revenue * 100) if total_revenue > 0 else 0
-        operating_profit = total_gross_profit - expenses['total_expenses']
+        operating_profit = total_gross_profit - total_expenses
         operating_margin = (operating_profit / total_revenue * 100) if total_revenue > 0 else 0
+        
+        logger.info(f"P&L Report ({schema}): Rev=${total_revenue:,.2f}, COGS=${total_cogs:,.2f}, GP=${total_gross_profit:,.2f}, Exp=${total_expenses:,.2f}, OP=${operating_profit:,.2f} ({operating_margin:.1f}%)")
         
         # Build response
         response = {
@@ -717,7 +832,7 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail, schema):
                 'cogs': total_cogs,
                 'gross_profit': total_gross_profit,
                 'gross_margin': gross_margin,
-                'operating_expenses': expenses['total_expenses'],
+                'operating_expenses': total_expenses,
                 'operating_profit': operating_profit,
                 'operating_margin': operating_margin
             },
@@ -1221,16 +1336,11 @@ def get_all_departments_data(start_date, end_date, schema):
 
 
 def get_overhead_expenses(start_date, end_date, schema):
-    """Get total overhead expenses (6xxxx accounts)"""
-    tenant_expense_accounts = get_expense_accounts(schema)
-    all_expense_accounts = []
-    for category, accounts in tenant_expense_accounts.items():
-        all_expense_accounts.extend(accounts)
-    
+    """Get total overhead expenses using dynamic LIKE '6%' query"""
     query = f"""
     SELECT SUM(Amount) as total
     FROM {schema}.GLDetail
-    WHERE AccountNo IN ('{"', '".join(all_expense_accounts)}')
+    WHERE AccountNo LIKE '6%'
       AND EffectiveDate >= %s
       AND EffectiveDate <= %s
       AND Posted = 1

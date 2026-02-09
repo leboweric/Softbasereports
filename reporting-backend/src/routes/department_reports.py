@@ -3663,54 +3663,73 @@ def register_department_routes(reports_bp):
             # Common tables might include: APInvoice, GLTransaction, ExpenseReport, etc.
             # For now, returning mock data to demonstrate the structure
             
-            # Get G&A expenses from GLDetail table (which has the actual expense transactions)
-            # Use trailing 13 months to match other dashboard charts
+            # Get G&A expenses using GL.MTD for closed months (authoritative)
+            # and GLDetail for current month (in-progress)
+            # This matches the P&L Report and P&L Widget approach
             expenses_query = f"""
             WITH MonthlyExpenses AS (
+                -- Closed months: use GL.MTD (authoritative monthly summary)
+                SELECT
+                    gl.Year as year,
+                    gl.Month as month,
+                    SUM(gl.MTD) as total_expenses
+                FROM {schema}.GL gl
+                WHERE gl.AccountNo LIKE '6%'
+                    AND (
+                        (gl.Year * 100 + gl.Month) >= (YEAR(DATEADD(month, -13, GETDATE())) * 100 + MONTH(DATEADD(month, -13, GETDATE())))
+                    )
+                    AND NOT (gl.Year = YEAR(GETDATE()) AND gl.Month = MONTH(GETDATE()))
+                GROUP BY gl.Year, gl.Month
+                
+                UNION ALL
+                
+                -- Current month: use GLDetail (in-progress transactions)
                 SELECT
                     YEAR(gld.EffectiveDate) as year,
                     MONTH(gld.EffectiveDate) as month,
                     SUM(gld.Amount) as total_expenses
                 FROM {schema}.GLDetail gld
-                WHERE gld.AccountNo LIKE '6%'  -- Expense accounts start with 6
-                    AND gld.EffectiveDate >= DATEADD(month, -13, GETDATE())
-                    AND gld.EffectiveDate < DATEADD(DAY, 1, GETDATE())
+                WHERE gld.AccountNo LIKE '6%'
+                    AND YEAR(gld.EffectiveDate) = YEAR(GETDATE())
+                    AND MONTH(gld.EffectiveDate) = MONTH(GETDATE())
+                    AND gld.Posted = 1
                 GROUP BY YEAR(gld.EffectiveDate), MONTH(gld.EffectiveDate)
             ),
             ExpenseCategories AS (
                 SELECT 
                     CASE 
-                        WHEN gld.AccountNo LIKE '600%' THEN 'Advertising & Marketing'
-                        WHEN gld.AccountNo LIKE '601%' THEN 'Payroll & Benefits'
-                        WHEN gld.AccountNo LIKE '602%' THEN 'Facilities & Rent'
-                        WHEN gld.AccountNo LIKE '603%' THEN 'Insurance'
-                        WHEN gld.AccountNo LIKE '604%' THEN 'Professional Services'
-                        WHEN gld.AccountNo LIKE '605%' THEN 'IT & Computer'
-                        WHEN gld.AccountNo LIKE '606%' THEN 'Depreciation'
-                        WHEN gld.AccountNo LIKE '607%' THEN 'Interest & Finance'
-                        WHEN gld.AccountNo LIKE '608%' THEN 'Travel & Entertainment'
-                        WHEN gld.AccountNo LIKE '609%' THEN 'Office & Admin'
+                        WHEN gl.AccountNo LIKE '600%' THEN 'Advertising & Marketing'
+                        WHEN gl.AccountNo LIKE '601%' THEN 'Payroll & Benefits'
+                        WHEN gl.AccountNo LIKE '602%' THEN 'Facilities & Rent'
+                        WHEN gl.AccountNo LIKE '603%' THEN 'Insurance'
+                        WHEN gl.AccountNo LIKE '604%' THEN 'Professional Services'
+                        WHEN gl.AccountNo LIKE '605%' THEN 'IT & Computer'
+                        WHEN gl.AccountNo LIKE '606%' THEN 'Depreciation'
+                        WHEN gl.AccountNo LIKE '607%' THEN 'Interest & Finance'
+                        WHEN gl.AccountNo LIKE '608%' THEN 'Travel & Entertainment'
+                        WHEN gl.AccountNo LIKE '609%' THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END as category,
-                    SUM(gld.Amount) as amount
-                FROM {schema}.GLDetail gld
-                WHERE gld.AccountNo LIKE '6%'
-                    AND gld.EffectiveDate >= DATEADD(MONTH, -6, GETDATE())
+                    SUM(gl.MTD) as amount
+                FROM {schema}.GL gl
+                WHERE gl.AccountNo LIKE '6%'
+                    AND gl.Year = YEAR(GETDATE())
+                    AND gl.Month = MONTH(GETDATE()) - 1
                 GROUP BY 
                     CASE 
-                        WHEN gld.AccountNo LIKE '600%' THEN 'Advertising & Marketing'
-                        WHEN gld.AccountNo LIKE '601%' THEN 'Payroll & Benefits'
-                        WHEN gld.AccountNo LIKE '602%' THEN 'Facilities & Rent'
-                        WHEN gld.AccountNo LIKE '603%' THEN 'Insurance'
-                        WHEN gld.AccountNo LIKE '604%' THEN 'Professional Services'
-                        WHEN gld.AccountNo LIKE '605%' THEN 'IT & Computer'
-                        WHEN gld.AccountNo LIKE '606%' THEN 'Depreciation'
-                        WHEN gld.AccountNo LIKE '607%' THEN 'Interest & Finance'
-                        WHEN gld.AccountNo LIKE '608%' THEN 'Travel & Entertainment'
-                        WHEN gld.AccountNo LIKE '609%' THEN 'Office & Admin'
+                        WHEN gl.AccountNo LIKE '600%' THEN 'Advertising & Marketing'
+                        WHEN gl.AccountNo LIKE '601%' THEN 'Payroll & Benefits'
+                        WHEN gl.AccountNo LIKE '602%' THEN 'Facilities & Rent'
+                        WHEN gl.AccountNo LIKE '603%' THEN 'Insurance'
+                        WHEN gl.AccountNo LIKE '604%' THEN 'Professional Services'
+                        WHEN gl.AccountNo LIKE '605%' THEN 'IT & Computer'
+                        WHEN gl.AccountNo LIKE '606%' THEN 'Depreciation'
+                        WHEN gl.AccountNo LIKE '607%' THEN 'Interest & Finance'
+                        WHEN gl.AccountNo LIKE '608%' THEN 'Travel & Entertainment'
+                        WHEN gl.AccountNo LIKE '609%' THEN 'Office & Admin'
                         ELSE 'Other Expenses'
                     END
-                HAVING SUM(gld.Amount) != 0
+                HAVING SUM(gl.MTD) != 0
             )
             SELECT 
                 (SELECT year, month, total_expenses 
@@ -3791,7 +3810,7 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'monthly_expenses': monthly_expenses,
                 'debug_info': {
-                    'data_source': 'GLDetail table',
+                    'data_source': 'GL.MTD (closed months) + GLDetail (current month)',
                     'account_filter': 'AccountNo LIKE 6%'
                 },
                 'summary': {
