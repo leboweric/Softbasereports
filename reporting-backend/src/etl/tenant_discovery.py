@@ -127,6 +127,40 @@ def discover_softbase_tenants() -> List[TenantInfo]:
         ]
 
 
+def create_tenant_azure_sql(org_id: int):
+    """
+    Create an AzureSQLService for a specific organization by looking up its credentials.
+    
+    Args:
+        org_id: The organization ID to create a connection for
+    
+    Returns:
+        AzureSQLService configured for the tenant, or None if not found
+    """
+    try:
+        from src.models.user import Organization
+        
+        org = Organization.query.get(org_id)
+        if not org or not org.database_schema:
+            logger.error(f"Organization {org_id} not found or has no schema")
+            return None
+        
+        tenant = TenantInfo(
+            org_id=org.id,
+            name=org.name,
+            schema=org.database_schema,
+            db_server=org.db_server,
+            db_name=org.db_name,
+            db_username=org.db_username,
+            db_password_encrypted=org.db_password_encrypted,
+            platform_type=org.platform_type
+        )
+        return tenant.get_azure_sql_service()
+    except Exception as e:
+        logger.error(f"Failed to create Azure SQL service for org {org_id}: {e}")
+        return None
+
+
 def run_etl_for_all_tenants(etl_class, etl_name: str, **extra_kwargs) -> Dict[str, bool]:
     """
     Run an ETL job for all discovered Softbase tenants.
