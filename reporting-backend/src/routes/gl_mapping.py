@@ -39,11 +39,40 @@ def require_auth(f):
 
 
 def require_admin(f):
-    """Decorator to require admin role."""
+    """Decorator to require admin role. Checks JWT first, falls back to DB lookup."""
     @wraps(f)
     @require_auth
     def decorated(*args, **kwargs):
-        if request.user_role not in ('super_admin', 'admin', 'Super Admin'):
+        role = request.user_role
+        admin_roles = ('super_admin', 'admin', 'Super Admin', 'Admin')
+        
+        # If JWT role is missing or None, look up from database
+        if not role or role == 'None':
+            try:
+                from src.services.postgres_service import PostgreSQLService
+                pg = PostgreSQLService()
+                user_id = getattr(request, 'user_id', None)
+                if not user_id:
+                    # Try to get user_id from JWT payload
+                    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+                    secret = os.environ.get('JWT_SECRET_KEY', os.environ.get('SECRET_KEY', 'dev-secret'))
+                    payload = jwt.decode(token, secret, algorithms=['HS256'])
+                    user_id = payload.get('user_id')
+                
+                if user_id:
+                    result = pg.execute_query("""
+                        SELECT r.name as role_name 
+                        FROM user_roles ur 
+                        JOIN role r ON ur.role_id = r.id 
+                        WHERE ur.user_id = %s
+                    """, (user_id,))
+                    if result:
+                        role = result[0].get('role_name', '')
+                        request.user_role = role
+            except Exception as e:
+                logger.warning(f"Failed to look up role from DB: {e}")
+        
+        if role not in admin_roles:
             return jsonify({'error': 'Admin access required'}), 403
         return f(*args, **kwargs)
     return decorated
@@ -381,7 +410,7 @@ def trigger_discovery():
         from src.services.postgres_service import PostgreSQLService
         pg = PostgreSQLService()
         org_result = pg.execute_query(
-            "SELECT database_schema FROM organizations WHERE id = %s", (org_id,)
+            "SELECT database_schema FROM organization WHERE id = %s", (org_id,)
         )
         if not org_result or not org_result[0].get('database_schema'):
             return jsonify({'error': 'No database schema found for this organization'}), 400
