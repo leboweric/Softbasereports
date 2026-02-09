@@ -1,7 +1,12 @@
 """
-Department Metrics ETL
+Department Metrics ETL (Multi-Tenant)
 Extracts and pre-aggregates metrics for Service, Parts, Rental, Accounting, and Financial pages
-Runs every 2 hours during business hours for instant page loading
+Runs every 2 hours during business hours for instant page loading.
+
+Supports all Softbase tenants - discovers them automatically via tenant_discovery.
+Uses dynamic LIKE queries where possible for consolidated totals.
+Department-level breakdowns use InvoiceReg fields (LaborTaxable, PartsTaxable, etc.)
+which are generic across all Softbase tenants.
 """
 
 import os
@@ -24,18 +29,23 @@ def format_month_label(year: int, month: int) -> str:
 class DepartmentMetricsETL(BaseETL):
     """ETL job for Department page metrics from Softbase"""
     
-    BENNETT_ORG_ID = 4
-    BENNETT_SCHEMA = 'ben002'
-    
-    def __init__(self):
-        """Initialize Department Metrics ETL"""
+    def __init__(self, org_id=4, schema='ben002', azure_sql=None):
+        """
+        Initialize Department Metrics ETL for a specific tenant.
+        
+        Args:
+            org_id: Organization ID from the organization table
+            schema: Database schema for the tenant (e.g., 'ben002', 'ind004')
+            azure_sql: Pre-configured AzureSQLService instance for the tenant
+        """
         super().__init__(
             job_name='etl_department_metrics',
-            org_id=self.BENNETT_ORG_ID,
+            org_id=org_id,
             source_system='softbase',
             target_table='mart_department_metrics'
         )
-        self._azure_sql = None
+        self.schema = schema
+        self._azure_sql = azure_sql
         self.start_time = None
         self.current_date = datetime.now()
         
@@ -49,14 +59,13 @@ class DepartmentMetricsETL(BaseETL):
         self.fiscal_months = []
         for i in range(12):
             month_date = self.fiscal_year_start + relativedelta(months=i)
-            # Stop if we've gone past the current month
             if month_date > self.current_date:
                 break
             self.fiscal_months.append((month_date.year, month_date.month))
     
     @property
     def azure_sql(self):
-        """Lazy load Azure SQL service"""
+        """Lazy load Azure SQL service if not provided"""
         if self._azure_sql is None:
             from src.services.azure_sql_service import AzureSQLService
             self._azure_sql = AzureSQLService()
@@ -65,7 +74,7 @@ class DepartmentMetricsETL(BaseETL):
     def extract(self) -> list:
         """Extract all department metrics from Softbase"""
         self.start_time = time.time()
-        logger.info("Starting Department Metrics extraction...")
+        logger.info(f"Starting Department Metrics extraction for {self.schema} (org_id={self.org_id})...")
         
         all_metrics = []
         
@@ -73,155 +82,59 @@ class DepartmentMetricsETL(BaseETL):
         try:
             service_data = self._extract_service()
             all_metrics.append(('service', service_data))
-            logger.info("✓ Service metrics extracted")
+            logger.info(f"  [{self.schema}] ✓ Service metrics extracted")
         except Exception as e:
-            logger.error(f"Service extraction failed: {e}")
+            logger.error(f"  [{self.schema}] Service extraction failed: {e}")
         
         try:
             parts_data = self._extract_parts()
             all_metrics.append(('parts', parts_data))
-            logger.info("✓ Parts metrics extracted")
+            logger.info(f"  [{self.schema}] ✓ Parts metrics extracted")
         except Exception as e:
-            logger.error(f"Parts extraction failed: {e}")
+            logger.error(f"  [{self.schema}] Parts extraction failed: {e}")
         
         try:
             rental_data = self._extract_rental()
             all_metrics.append(('rental', rental_data))
-            logger.info("✓ Rental metrics extracted")
+            logger.info(f"  [{self.schema}] ✓ Rental metrics extracted")
         except Exception as e:
-            logger.error(f"Rental extraction failed: {e}")
+            logger.error(f"  [{self.schema}] Rental extraction failed: {e}")
         
         try:
             accounting_data = self._extract_accounting()
             all_metrics.append(('accounting', accounting_data))
-            logger.info("✓ Accounting metrics extracted")
+            logger.info(f"  [{self.schema}] ✓ Accounting metrics extracted")
         except Exception as e:
-            logger.error(f"Accounting extraction failed: {e}")
+            logger.error(f"  [{self.schema}] Accounting extraction failed: {e}")
         
         try:
             financial_data = self._extract_financial()
             all_metrics.append(('financial', financial_data))
-            logger.info("✓ Financial metrics extracted")
+            logger.info(f"  [{self.schema}] ✓ Financial metrics extracted")
         except Exception as e:
             import traceback
-            logger.error(f"Financial extraction failed: {e}")
-            logger.error(f"Financial traceback: {traceback.format_exc()}")
+            logger.error(f"  [{self.schema}] Financial extraction failed: {e}")
+            logger.error(f"  [{self.schema}] Financial traceback: {traceback.format_exc()}")
         
         return all_metrics
     
     def _extract_service(self) -> dict:
-        """Extract Service department metrics"""
-        schema = self.BENNETT_SCHEMA
-        
-        # Monthly Labor Revenue and Margins from GLDetail
-        # Revenue: GL 410004 (Field) + GL 410005 (Shop)
-        # Cost: GL 510004 (Field Cost) + GL 510005 (Shop Cost)
-        query = f"""
-        SELECT 
-            YEAR(EffectiveDate) as year,
-            MONTH(EffectiveDate) as month,
-            ABS(SUM(CASE WHEN AccountNo IN ('410004', '410005') THEN Amount ELSE 0 END)) as labor_revenue,
-            ABS(SUM(CASE WHEN AccountNo IN ('510004', '510005') THEN Amount ELSE 0 END)) as labor_cost,
-            ABS(SUM(CASE WHEN AccountNo = '410004' THEN Amount ELSE 0 END)) as field_revenue,
-            ABS(SUM(CASE WHEN AccountNo = '510004' THEN Amount ELSE 0 END)) as field_cost,
-            ABS(SUM(CASE WHEN AccountNo = '410005' THEN Amount ELSE 0 END)) as shop_revenue,
-            ABS(SUM(CASE WHEN AccountNo = '510005' THEN Amount ELSE 0 END)) as shop_cost
-        FROM {schema}.GLDetail
-        WHERE AccountNo IN ('410004', '410005', '510004', '510005')
-            AND EffectiveDate >= DATEADD(month, -25, GETDATE())
-            AND Posted = 1
-        GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
-        ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         """
+        Extract Service department metrics using InvoiceReg for generic tenant support.
+        Uses LaborTaxable/LaborNonTax fields which are available across all Softbase schemas.
+        """
+        schema = self.schema
         
-        results = self.azure_sql.execute_query(query)
-        
-        # Build lookup by year-month
-        data_by_month = {}
-        for row in results:
-            key = (row['year'], row['month'])
-            data_by_month[key] = row
-        
-        # Build monthly arrays for fiscal year (only months with data or up to current)
-        monthly_revenue = []
-        field_revenue = []
-        shop_revenue = []
-        
-        for year, month in self.fiscal_months:
-            key = (year, month)
-            prior_key = (year - 1, month)
-            month_label = format_month_label(year, month)
-            
-            row = data_by_month.get(key, {})
-            prior_row = data_by_month.get(prior_key, {})
-            
-            labor_rev = float(row.get('labor_revenue', 0) or 0)
-            labor_cost = float(row.get('labor_cost', 0) or 0)
-            margin = round(((labor_rev - labor_cost) / labor_rev) * 100, 1) if labor_rev > 0 else None
-            prior_labor = float(prior_row.get('labor_revenue', 0) or 0)
-            
-            field_rev = float(row.get('field_revenue', 0) or 0)
-            field_cost = float(row.get('field_cost', 0) or 0)
-            field_margin = round(((field_rev - field_cost) / field_rev) * 100, 1) if field_rev > 0 else None
-            prior_field = float(prior_row.get('field_revenue', 0) or 0)
-            
-            shop_rev = float(row.get('shop_revenue', 0) or 0)
-            shop_cost = float(row.get('shop_cost', 0) or 0)
-            shop_margin = round(((shop_rev - shop_cost) / shop_rev) * 100, 1) if shop_rev > 0 else None
-            prior_shop = float(prior_row.get('shop_revenue', 0) or 0)
-            
-            monthly_revenue.append({
-                'month': month_label, 'year': year, 'month_num': month,
-                'amount': labor_rev, 'margin': margin, 'prior_year_amount': prior_labor
-            })
-            field_revenue.append({
-                'month': month_label, 'year': year, 'month_num': month,
-                'amount': field_rev, 'margin': field_margin, 'prior_year_amount': prior_field
-            })
-            shop_revenue.append({
-                'month': month_label, 'year': year, 'month_num': month,
-                'amount': shop_rev, 'margin': shop_margin, 'prior_year_amount': prior_shop
-            })
-        
-        # Calculate summary metrics
-        current_month = monthly_revenue[-1]['amount'] if monthly_revenue else 0
-        ytd_total = sum(m['amount'] for m in monthly_revenue)
-        margins = [m['margin'] for m in monthly_revenue if m['margin'] is not None]
-        avg_margin = sum(margins) / len(margins) if margins else 0
-        
-        return {
-            'monthly_revenue': monthly_revenue,
-            'sub_category_1': field_revenue,
-            'sub_category_2': shop_revenue,
-            'metric_1': current_month,
-            'metric_2': ytd_total,
-            'metric_3': avg_margin,
-            'additional_data': {}
-        }
-    
-    def _extract_parts(self) -> dict:
-        """Extract Parts department metrics"""
-        schema = self.BENNETT_SCHEMA
-        
-        # Monthly Parts Revenue and Margins from GLDetail
-        # Revenue: GL 410003 (Counter) + GL 410012 (Customer Repair Order)
-        # Cost: GL 510003 (Counter Cost) + GL 510012 (Customer Repair Order Cost)
+        # Monthly Labor Revenue from InvoiceReg
         query = f"""
         SELECT 
-            YEAR(EffectiveDate) as year,
-            MONTH(EffectiveDate) as month,
-            ABS(SUM(CASE WHEN AccountNo IN ('410003', '410012') THEN Amount ELSE 0 END)) as parts_revenue,
-            ABS(SUM(CASE WHEN AccountNo IN ('510003', '510012') THEN Amount ELSE 0 END)) as parts_cost,
-            ABS(SUM(CASE WHEN AccountNo = '410003' THEN Amount ELSE 0 END)) as counter_revenue,
-            ABS(SUM(CASE WHEN AccountNo = '510003' THEN Amount ELSE 0 END)) as counter_cost,
-            ABS(SUM(CASE WHEN AccountNo = '410012' THEN Amount ELSE 0 END)) as repair_order_revenue,
-            ABS(SUM(CASE WHEN AccountNo = '510012' THEN Amount ELSE 0 END)) as repair_order_cost
-        FROM {schema}.GLDetail
-        WHERE AccountNo IN ('410003', '410012', '510003', '510012')
-            AND EffectiveDate >= DATEADD(month, -25, GETDATE())
-            AND Posted = 1
-        GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
-        ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            YEAR(InvoiceDate) as year,
+            MONTH(InvoiceDate) as month,
+            SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as labor_revenue
+        FROM {schema}.InvoiceReg
+        WHERE InvoiceDate >= DATEADD(month, -25, GETDATE())
+        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         """
         
         results = self.azure_sql.execute_query(query)
@@ -234,8 +147,66 @@ class DepartmentMetricsETL(BaseETL):
         
         # Build monthly arrays for fiscal year
         monthly_revenue = []
-        counter_revenue = []
-        repair_order_revenue = []
+        
+        for year, month in self.fiscal_months:
+            key = (year, month)
+            prior_key = (year - 1, month)
+            month_label = format_month_label(year, month)
+            
+            row = data_by_month.get(key, {})
+            prior_row = data_by_month.get(prior_key, {})
+            
+            labor_rev = float(row.get('labor_revenue', 0) or 0)
+            prior_labor = float(prior_row.get('labor_revenue', 0) or 0)
+            
+            monthly_revenue.append({
+                'month': month_label, 'year': year, 'month_num': month,
+                'amount': labor_rev, 'margin': None, 'prior_year_amount': prior_labor
+            })
+        
+        # Calculate summary metrics
+        current_month = monthly_revenue[-1]['amount'] if monthly_revenue else 0
+        ytd_total = sum(m['amount'] for m in monthly_revenue)
+        
+        return {
+            'monthly_revenue': monthly_revenue,
+            'sub_category_1': [],  # Field/Shop breakdown not available generically
+            'sub_category_2': [],
+            'metric_1': current_month,
+            'metric_2': ytd_total,
+            'metric_3': 0,  # Margin not available without GL COGS mapping
+            'additional_data': {}
+        }
+    
+    def _extract_parts(self) -> dict:
+        """
+        Extract Parts department metrics using InvoiceReg for generic tenant support.
+        Uses PartsTaxable/PartsNonTax fields which are available across all Softbase schemas.
+        """
+        schema = self.schema
+        
+        # Monthly Parts Revenue from InvoiceReg
+        query = f"""
+        SELECT 
+            YEAR(InvoiceDate) as year,
+            MONTH(InvoiceDate) as month,
+            SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue
+        FROM {schema}.InvoiceReg
+        WHERE InvoiceDate >= DATEADD(month, -25, GETDATE())
+        GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
+        """
+        
+        results = self.azure_sql.execute_query(query)
+        
+        # Build lookup by year-month
+        data_by_month = {}
+        for row in results:
+            key = (row['year'], row['month'])
+            data_by_month[key] = row
+        
+        # Build monthly arrays for fiscal year
+        monthly_revenue = []
         
         for year, month in self.fiscal_months:
             key = (year, month)
@@ -246,52 +217,30 @@ class DepartmentMetricsETL(BaseETL):
             prior_row = data_by_month.get(prior_key, {})
             
             parts_rev = float(row.get('parts_revenue', 0) or 0)
-            parts_cost = float(row.get('parts_cost', 0) or 0)
-            margin = round(((parts_rev - parts_cost) / parts_rev) * 100, 1) if parts_rev > 0 else None
             prior_parts = float(prior_row.get('parts_revenue', 0) or 0)
-            
-            counter_rev = float(row.get('counter_revenue', 0) or 0)
-            counter_cost = float(row.get('counter_cost', 0) or 0)
-            counter_margin = round(((counter_rev - counter_cost) / counter_rev) * 100, 1) if counter_rev > 0 else None
-            prior_counter = float(prior_row.get('counter_revenue', 0) or 0)
-            
-            ro_rev = float(row.get('repair_order_revenue', 0) or 0)
-            ro_cost = float(row.get('repair_order_cost', 0) or 0)
-            ro_margin = round(((ro_rev - ro_cost) / ro_rev) * 100, 1) if ro_rev > 0 else None
-            prior_ro = float(prior_row.get('repair_order_revenue', 0) or 0)
             
             monthly_revenue.append({
                 'month': month_label, 'year': year, 'month_num': month,
-                'amount': parts_rev, 'margin': margin, 'prior_year_amount': prior_parts
-            })
-            counter_revenue.append({
-                'month': month_label, 'year': year, 'month_num': month,
-                'amount': counter_rev, 'margin': counter_margin, 'prior_year_amount': prior_counter
-            })
-            repair_order_revenue.append({
-                'month': month_label, 'year': year, 'month_num': month,
-                'amount': ro_rev, 'margin': ro_margin, 'prior_year_amount': prior_ro
+                'amount': parts_rev, 'margin': None, 'prior_year_amount': prior_parts
             })
         
         # Calculate summary metrics
         current_month = monthly_revenue[-1]['amount'] if monthly_revenue else 0
         ytd_total = sum(m['amount'] for m in monthly_revenue)
-        margins = [m['margin'] for m in monthly_revenue if m['margin'] is not None]
-        avg_margin = sum(margins) / len(margins) if margins else 0
         
         return {
             'monthly_revenue': monthly_revenue,
-            'sub_category_1': counter_revenue,
-            'sub_category_2': repair_order_revenue,
+            'sub_category_1': [],  # Counter/Repair breakdown not available generically
+            'sub_category_2': [],
             'metric_1': current_month,
             'metric_2': ytd_total,
-            'metric_3': avg_margin,
+            'metric_3': 0,  # Margin not available without GL COGS mapping
             'additional_data': {}
         }
     
     def _extract_rental(self) -> dict:
         """Extract Rental department metrics"""
-        schema = self.BENNETT_SCHEMA
+        schema = self.schema
         
         # Summary metrics
         summary_query = f"""
@@ -304,38 +253,26 @@ class DepartmentMetricsETL(BaseETL):
         
         summary_result = self.azure_sql.execute_query(summary_query)
         
-        total_fleet = int(summary_result[0]['totalFleetSize'] or 1)
-        units_on_rent = int(summary_result[0]['unitsOnRent'] or 0)
-        monthly_revenue = float(summary_result[0]['monthlyRevenue'] or 0)
+        total_fleet = int(summary_result[0]['totalFleetSize'] or 1) if summary_result else 1
+        units_on_rent = int(summary_result[0]['unitsOnRent'] or 0) if summary_result else 0
+        monthly_revenue_val = float(summary_result[0]['monthlyRevenue'] or 0) if summary_result else 0
         utilization = round((units_on_rent / total_fleet) * 100, 1) if total_fleet > 0 else 0
         
-        # Fleet by category
+        # Fleet by category - generic approach using Make/Model
         fleet_query = f"""
         SELECT 
-            CASE 
-                WHEN Model LIKE '%EXCAVATOR%' THEN 'Excavators'
-                WHEN Model LIKE '%LOADER%' THEN 'Loaders'
-                WHEN Model LIKE '%DOZER%' THEN 'Dozers'
-                WHEN Model LIKE '%COMPACTOR%' THEN 'Compactors'
-                ELSE 'Other'
-            END as category,
+            COALESCE(Make, 'Other') as category,
             COUNT(*) as total,
             SUM(CASE WHEN RentalStatus = 'Rented' THEN 1 ELSE 0 END) as onRent
         FROM {schema}.Equipment
         WHERE WebRentalFlag = 1
-        GROUP BY 
-            CASE 
-                WHEN Model LIKE '%EXCAVATOR%' THEN 'Excavators'
-                WHEN Model LIKE '%LOADER%' THEN 'Loaders'
-                WHEN Model LIKE '%DOZER%' THEN 'Dozers'
-                WHEN Model LIKE '%COMPACTOR%' THEN 'Compactors'
-                ELSE 'Other'
-            END
+        GROUP BY Make
+        ORDER BY COUNT(*) DESC
         """
         
         fleet_result = self.azure_sql.execute_query(fleet_query)
         fleet_by_category = []
-        for row in fleet_result:
+        for row in (fleet_result or []):
             total = int(row['total'] or 0)
             on_rent = int(row['onRent'] or 0)
             fleet_by_category.append({
@@ -360,7 +297,7 @@ class DepartmentMetricsETL(BaseETL):
         
         trend_result = self.azure_sql.execute_query(trend_query)
         monthly_trend = []
-        for row in trend_result:
+        for row in (trend_result or []):
             month_label = format_month_label(row['year'], row['month'])
             monthly_trend.append({
                 'month': month_label,
@@ -385,7 +322,7 @@ class DepartmentMetricsETL(BaseETL):
         
         top_result = self.azure_sql.execute_query(top_customers_query)
         top_customers = []
-        for row in top_result:
+        for row in (top_result or []):
             top_customers.append({
                 'customer': row['customer'],
                 'rental_count': int(row['rental_count'] or 0),
@@ -399,7 +336,7 @@ class DepartmentMetricsETL(BaseETL):
             'metric_1': total_fleet,
             'metric_2': units_on_rent,
             'metric_3': utilization,
-            'metric_4': monthly_revenue,
+            'metric_4': monthly_revenue_val,
             'count_1': total_fleet,
             'count_2': units_on_rent,
             'additional_data': {
@@ -407,15 +344,15 @@ class DepartmentMetricsETL(BaseETL):
                     'totalFleetSize': total_fleet,
                     'unitsOnRent': units_on_rent,
                     'utilizationRate': utilization,
-                    'monthlyRevenue': monthly_revenue
+                    'monthlyRevenue': monthly_revenue_val
                 },
                 'topCustomers': top_customers
             }
         }
     
     def _extract_accounting(self) -> dict:
-        """Extract Accounting department metrics"""
-        schema = self.BENNETT_SCHEMA
+        """Extract Accounting department metrics using dynamic LIKE '6%' query"""
+        schema = self.schema
         
         # G&A expenses from GLDetail
         expenses_query = f"""
@@ -434,7 +371,7 @@ class DepartmentMetricsETL(BaseETL):
         expenses_result = self.azure_sql.execute_query(expenses_query)
         
         monthly_expenses = []
-        for row in expenses_result:
+        for row in (expenses_result or []):
             month_label = format_month_label(row['year'], row['month'])
             monthly_expenses.append({
                 'month': month_label,
@@ -443,49 +380,24 @@ class DepartmentMetricsETL(BaseETL):
                 'expenses': float(row['total_expenses'] or 0)
             })
         
-        # Expense categories
+        # Expense categories - generic grouping by first 3 digits
         categories_query = f"""
         SELECT 
-            CASE 
-                WHEN AccountNo LIKE '600%' THEN 'Advertising & Marketing'
-                WHEN AccountNo LIKE '601%' THEN 'Payroll & Benefits'
-                WHEN AccountNo LIKE '602%' THEN 'Facilities & Rent'
-                WHEN AccountNo LIKE '603%' THEN 'Insurance'
-                WHEN AccountNo LIKE '604%' THEN 'Professional Services'
-                WHEN AccountNo LIKE '605%' THEN 'IT & Computer'
-                WHEN AccountNo LIKE '606%' THEN 'Depreciation'
-                WHEN AccountNo LIKE '607%' THEN 'Interest & Finance'
-                WHEN AccountNo LIKE '608%' THEN 'Travel & Entertainment'
-                WHEN AccountNo LIKE '609%' THEN 'Office & Admin'
-                ELSE 'Other Expenses'
-            END as category,
+            LEFT(AccountNo, 3) as account_prefix,
             SUM(Amount) as amount
         FROM {schema}.GLDetail
         WHERE AccountNo LIKE '6%'
             AND EffectiveDate >= DATEADD(MONTH, -6, GETDATE())
-        GROUP BY 
-            CASE 
-                WHEN AccountNo LIKE '600%' THEN 'Advertising & Marketing'
-                WHEN AccountNo LIKE '601%' THEN 'Payroll & Benefits'
-                WHEN AccountNo LIKE '602%' THEN 'Facilities & Rent'
-                WHEN AccountNo LIKE '603%' THEN 'Insurance'
-                WHEN AccountNo LIKE '604%' THEN 'Professional Services'
-                WHEN AccountNo LIKE '605%' THEN 'IT & Computer'
-                WHEN AccountNo LIKE '606%' THEN 'Depreciation'
-                WHEN AccountNo LIKE '607%' THEN 'Interest & Finance'
-                WHEN AccountNo LIKE '608%' THEN 'Travel & Entertainment'
-                WHEN AccountNo LIKE '609%' THEN 'Office & Admin'
-                ELSE 'Other Expenses'
-            END
+        GROUP BY LEFT(AccountNo, 3)
         HAVING SUM(Amount) > 0
         ORDER BY SUM(Amount) DESC
         """
         
         categories_result = self.azure_sql.execute_query(categories_query)
         expense_categories = []
-        for row in categories_result:
+        for row in (categories_result or []):
             expense_categories.append({
-                'category': row['category'],
+                'category': f"Account {row['account_prefix']}xxx",
                 'amount': float(row['amount'] or 0)
             })
         
@@ -495,7 +407,7 @@ class DepartmentMetricsETL(BaseETL):
         avg_expenses = sum(m['expenses'] for m in complete_months) / len(complete_months) if complete_months else 0
         
         return {
-            'monthly_revenue': monthly_expenses,  # Using revenue field for expenses
+            'monthly_revenue': monthly_expenses,
             'sub_category_1': expense_categories,
             'sub_category_2': None,
             'metric_1': total_expenses,
@@ -508,7 +420,7 @@ class DepartmentMetricsETL(BaseETL):
     
     def _extract_financial(self) -> dict:
         """Extract Financial summary metrics"""
-        schema = self.BENNETT_SCHEMA
+        schema = self.schema
         
         # AR Summary
         ar_query = f"""
@@ -548,7 +460,7 @@ class DepartmentMetricsETL(BaseETL):
         
         ar_detail = self.azure_sql.execute_query(ar_detail_query)
         top_ar = []
-        for row in ar_detail:
+        for row in (ar_detail or []):
             top_ar.append({
                 'customer_no': row['CustomerNo'],
                 'name': row['Name'],
@@ -571,7 +483,7 @@ class DepartmentMetricsETL(BaseETL):
         
         revenue_result = self.azure_sql.execute_query(revenue_query)
         revenue_by_dept = []
-        for row in revenue_result:
+        for row in (revenue_result or []):
             revenue_by_dept.append({
                 'department': row['DepartmentNo'],
                 'transaction_count': int(row['TransactionCount'] or 0),
@@ -601,7 +513,6 @@ class DepartmentMetricsETL(BaseETL):
     
     def transform(self, raw_data: list) -> list:
         """Transform extracted data for loading"""
-        # Data is already in the right format from extract
         return raw_data
     
     def load(self, transformed_data: list) -> int:
@@ -617,7 +528,7 @@ class DepartmentMetricsETL(BaseETL):
         for department, data in transformed_data:
             try:
                 record = {
-                    'org_id': self.BENNETT_ORG_ID,
+                    'org_id': self.org_id,
                     'department': department,
                     'snapshot_timestamp': snapshot_time,
                     'monthly_revenue': json.dumps(data.get('monthly_revenue')) if data.get('monthly_revenue') else None,
@@ -633,7 +544,6 @@ class DepartmentMetricsETL(BaseETL):
                     'etl_duration_seconds': etl_duration
                 }
                 
-                # Insert new record
                 insert_query = """
                 INSERT INTO mart_department_metrics 
                 (org_id, department, snapshot_timestamp, monthly_revenue, sub_category_1, sub_category_2,
@@ -649,15 +559,51 @@ class DepartmentMetricsETL(BaseETL):
                 ))
                 
                 loaded_count += 1
-                logger.info(f"Loaded {department} metrics")
+                logger.info(f"  [{self.schema}] Loaded {department} metrics")
                 
             except Exception as e:
-                logger.error(f"Failed to load {department} metrics: {e}")
+                logger.error(f"  [{self.schema}] Failed to load {department} metrics: {e}")
         
         return loaded_count
 
 
-def run_department_metrics_etl():
-    """Run the Department Metrics ETL job"""
-    etl = DepartmentMetricsETL()
-    return etl.run()
+def run_department_metrics_etl(org_id=None):
+    """
+    Run the Department Metrics ETL job.
+    
+    If org_id is provided, runs for that specific org only.
+    Otherwise, runs for ALL discovered Softbase tenants.
+    """
+    if org_id is not None:
+        try:
+            from src.models.user import Organization
+            org = Organization.query.get(org_id)
+            if org and org.database_schema:
+                from .tenant_discovery import TenantInfo
+                tenant = TenantInfo(
+                    org_id=org.id,
+                    name=org.name,
+                    schema=org.database_schema,
+                    db_server=org.db_server,
+                    db_name=org.db_name,
+                    db_username=org.db_username,
+                    db_password_encrypted=org.db_password_encrypted,
+                    platform_type=org.platform_type
+                )
+                azure_sql = tenant.get_azure_sql_service()
+                etl = DepartmentMetricsETL(
+                    org_id=org_id,
+                    schema=org.database_schema,
+                    azure_sql=azure_sql
+                )
+                return etl.run()
+            else:
+                logger.error(f"Organization {org_id} not found or has no schema")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to run department metrics ETL for org_id={org_id}: {e}")
+            return False
+    else:
+        from .tenant_discovery import run_etl_for_all_tenants
+        results = run_etl_for_all_tenants(DepartmentMetricsETL, 'Department Metrics')
+        return all(results.values()) if results else False

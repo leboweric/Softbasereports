@@ -71,7 +71,8 @@ class DashboardQueries:
     # Organization ID mapping for Mart queries
     ORG_ID_MAP = {
         'ben002': 4,   # Bennett
-        'vital': 6     # VITAL WorkLife
+        'vital': 6,    # VITAL WorkLife
+        'ind004': 7    # Industrial Parts and Service (IPS)
     }
     
     def __init__(self, db, schema=None, pg_db=None):
@@ -1991,7 +1992,7 @@ def _get_total_customers_live():
         return 0
 
 
-def _get_dashboard_from_mart(start_time):
+def _get_dashboard_from_mart(start_time, org_id=4):
     """
     Helper function to get dashboard data from mart_ceo_metrics table.
     Returns None if data is unavailable or stale, allowing fallback to queries.
@@ -2005,15 +2006,15 @@ def _get_dashboard_from_mart(start_time):
     query = """
     SELECT *
     FROM mart_ceo_metrics
-    WHERE org_id = 4
+    WHERE org_id = %s
     ORDER BY snapshot_timestamp DESC
     LIMIT 1
     """
     
-    result = pg.execute_query(query)
+    result = pg.execute_query(query, (org_id,))
     
     if not result:
-        logger.info("No mart data found")
+        logger.info(f"No mart data found for org_id={org_id}")
         return None
     
     metrics = result[0]
@@ -2161,14 +2162,15 @@ def get_dashboard_summary_optimized():
     # Log cache status
     logger.info(f"Dashboard request - tenant: {tenant_schema}, force_refresh: {force_refresh}, cache_enabled: {cache_service.enabled}")
     
-    # Try fast mart-based response for Bennett (unless force refresh requested)
-    if tenant_schema == 'ben002' and not force_refresh:
+    # Try fast mart-based response (unless force refresh requested)
+    org_id = DashboardQueries.ORG_ID_MAP.get(tenant_schema)
+    if org_id is not None and not force_refresh:
         try:
-            fast_response = _get_dashboard_from_mart(start_time)
+            fast_response = _get_dashboard_from_mart(start_time, org_id=org_id)
             if fast_response:
                 return fast_response
         except Exception as e:
-            logger.warning(f"Mart lookup failed, falling back to queries: {str(e)}")
+            logger.warning(f"Mart lookup failed for org_id={org_id}, falling back to queries: {str(e)}")
     
     try:
         db = get_tenant_db()
@@ -2328,9 +2330,10 @@ def get_dashboard_summary_fast():
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     
-    # Only Bennett (ben002) has mart data for now
-    if tenant_schema != 'ben002':
-        logger.info(f"Fast dashboard not available for {tenant_schema}, falling back to optimized")
+    # Get org_id from schema mapping
+    org_id = DashboardQueries.ORG_ID_MAP.get(tenant_schema)
+    if org_id is None:
+        logger.info(f"Fast dashboard: no org_id mapping for {tenant_schema}, falling back to optimized")
         return get_dashboard_summary_optimized()
     
     try:
@@ -2339,19 +2342,19 @@ def get_dashboard_summary_fast():
         
         pg = PostgreSQLService()
         
-        # Get latest metrics from mart table
+        # Get latest metrics from mart table for this tenant
         query = """
         SELECT *
         FROM mart_ceo_metrics
-        WHERE org_id = 4
+        WHERE org_id = %s
         ORDER BY snapshot_timestamp DESC
         LIMIT 1
         """
         
-        result = pg.execute_query(query)
+        result = pg.execute_query(query, (org_id,))
         
         if not result:
-            logger.warning("No mart data found, falling back to optimized endpoint")
+            logger.warning(f"No mart data found for org_id={org_id}, falling back to optimized endpoint")
             return get_dashboard_summary_optimized()
         
         metrics = result[0]

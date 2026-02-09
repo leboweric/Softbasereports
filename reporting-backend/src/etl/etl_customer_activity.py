@@ -1,7 +1,9 @@
 """
-Customer Activity ETL
+Customer Activity ETL (Multi-Tenant)
 Extracts customer activity data from Softbase and loads into mart_customer_activity
-for fast churn analysis queries
+for fast churn analysis queries.
+
+Supports all Softbase tenants - discovers them automatically via tenant_discovery.
 """
 
 import os
@@ -16,27 +18,31 @@ logger = logging.getLogger(__name__)
 class CustomerActivityETL(BaseETL):
     """ETL job for customer activity from Softbase - used for churn analysis"""
     
-    # Bennett org_id (from organization table)
-    BENNETT_ORG_ID = 4
-    BENNETT_SCHEMA = 'ben002'
-    
     # Churn analysis periods (in days)
     RECENT_PERIOD_DAYS = 90   # Last 90 days = "recent period"
     PREVIOUS_PERIOD_DAYS = 90  # Days 91-180 = "previous period"
     
-    def __init__(self):
-        """Initialize Customer Activity ETL"""
+    def __init__(self, org_id=4, schema='ben002', azure_sql=None):
+        """
+        Initialize Customer Activity ETL for a specific tenant.
+        
+        Args:
+            org_id: Organization ID from the organization table
+            schema: Database schema for the tenant (e.g., 'ben002', 'ind004')
+            azure_sql: Pre-configured AzureSQLService instance for the tenant
+        """
         super().__init__(
             job_name='etl_customer_activity',
-            org_id=self.BENNETT_ORG_ID,
+            org_id=org_id,
             source_system='softbase',
             target_table='mart_customer_activity'
         )
-        self._azure_sql = None
+        self.schema = schema
+        self._azure_sql = azure_sql
     
     @property
     def azure_sql(self):
-        """Lazy load Azure SQL service"""
+        """Lazy load Azure SQL service if not provided"""
         if self._azure_sql is None:
             from src.services.azure_sql_service import AzureSQLService
             self._azure_sql = AzureSQLService()
@@ -44,11 +50,12 @@ class CustomerActivityETL(BaseETL):
     
     def extract(self) -> list:
         """
-        Extract customer activity data from Softbase InvoiceReg table
-        Calculates metrics for recent period (0-90 days) and previous period (91-180 days)
+        Extract customer activity data from Softbase InvoiceReg table.
+        Calculates metrics for recent period (0-90 days) and previous period (91-180 days).
+        Uses self.schema for tenant-specific table access.
         """
         
-        today = datetime.now().date()
+        schema = self.schema
         
         # Main query to get customer activity with period breakdowns
         query = f"""
@@ -57,22 +64,14 @@ class CustomerActivityETL(BaseETL):
                 InvoiceNo,
                 InvoiceDate,
                 BillTo,
-                -- Normalize customer names (consolidate variations)
-                CASE 
-                    WHEN BillToName IN ('Polaris Industries', 'Polaris') THEN 'Polaris Industries'
-                    WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
-                    ELSE BillToName
-                END as CustomerName,
+                BillToName as CustomerName,
                 GrandTotal,
                 COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0) as ServiceRevenue,
                 COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0) as PartsRevenue,
                 COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0) as RentalRevenue
-            FROM {self.BENNETT_SCHEMA}.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE BillToName IS NOT NULL
             AND BillToName != ''
-            AND BillToName NOT LIKE '%Wells Fargo%'
-            AND BillToName NOT LIKE '%Maintenance contract%'
-            AND BillToName NOT LIKE '%Rental Fleet%'
         ),
         -- Recent period: last 90 days
         RecentActivity AS (
@@ -151,7 +150,7 @@ class CustomerActivityETL(BaseETL):
         ORDER BY l.total_revenue DESC
         """
         
-        logger.info(f"Extracting customer activity data")
+        logger.info(f"Extracting customer activity data for schema={schema}, org_id={self.org_id}")
         results = self.azure_sql.execute_query(query)
         
         return results if results else []
@@ -185,16 +184,12 @@ class CustomerActivityETL(BaseETL):
             
             # Determine activity status
             if recent_count == 0 and previous_count > 0:
-                # No recent activity but had previous activity = CHURNED
                 activity_status = 'churned'
             elif previous_count > 0 and revenue_change_percent <= -50:
-                # Significant revenue drop = AT_RISK
                 activity_status = 'at_risk'
             elif previous_count == 0 and recent_count > 0:
-                # Only recent activity = NEW customer
                 activity_status = 'new'
             else:
-                # Normal activity = ACTIVE
                 activity_status = 'active'
             
             transformed.append({
@@ -242,20 +237,56 @@ class CustomerActivityETL(BaseETL):
             self.upsert_record(record, unique_columns=['org_id', 'customer_name', 'snapshot_date'])
 
 
-# Convenience function to run the ETL
-def run_customer_activity_etl():
-    """Run the customer activity ETL job"""
-    etl = CustomerActivityETL()
-    return etl.run()
+def run_customer_activity_etl(org_id=None):
+    """
+    Run the customer activity ETL job.
+    
+    If org_id is provided, runs for that specific org only.
+    Otherwise, runs for ALL discovered Softbase tenants.
+    """
+    if org_id is not None:
+        # Run for a specific org (e.g., manual refresh from API)
+        # Need to look up schema for this org
+        try:
+            from src.models.user import Organization
+            org = Organization.query.get(org_id)
+            if org and org.database_schema:
+                from .tenant_discovery import TenantInfo
+                tenant = TenantInfo(
+                    org_id=org.id,
+                    name=org.name,
+                    schema=org.database_schema,
+                    db_server=org.db_server,
+                    db_name=org.db_name,
+                    db_username=org.db_username,
+                    db_password_encrypted=org.db_password_encrypted,
+                    platform_type=org.platform_type
+                )
+                azure_sql = tenant.get_azure_sql_service()
+                etl = CustomerActivityETL(
+                    org_id=org_id,
+                    schema=org.database_schema,
+                    azure_sql=azure_sql
+                )
+                return etl.run()
+            else:
+                logger.error(f"Organization {org_id} not found or has no schema")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to run customer activity ETL for org_id={org_id}: {e}")
+            return False
+    else:
+        # Run for all tenants
+        from .tenant_discovery import run_etl_for_all_tenants
+        results = run_etl_for_all_tenants(CustomerActivityETL, 'Customer Activity')
+        return all(results.values()) if results else False
 
 
 if __name__ == '__main__':
-    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    # Run ETL
     success = run_customer_activity_etl()
     exit(0 if success else 1)

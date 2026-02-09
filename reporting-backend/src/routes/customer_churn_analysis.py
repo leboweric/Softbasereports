@@ -1,7 +1,7 @@
 """
 Customer Churn Analysis API
 Analyzes customer activity patterns to identify churned customers and provide AI-powered insights
-For Bennett organization
+Multi-tenant: uses the current user's organization for data isolation
 
 Now uses pre-computed mart_customer_activity table for fast queries (ETL runs nightly)
 """
@@ -15,13 +15,36 @@ import os
 from openai import OpenAI
 from src.services.postgres_service import PostgreSQLService
 from src.utils.tenant_utils import get_tenant_schema
+from src.models.user import User
 
 logger = logging.getLogger(__name__)
 
 customer_churn_bp = Blueprint('customer_churn', __name__)
 
-# Bennett org_id
-BENNETT_ORG_ID = 4
+
+def get_current_org_id():
+    """Get the organization ID for the current authenticated user"""
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(int(user_id))
+        if user and user.organization_id:
+            return user.organization_id
+        return None
+    except Exception as e:
+        logger.error(f"Error getting org_id: {e}")
+        return None
+
+
+def get_current_org_name():
+    """Get the organization name for the current authenticated user"""
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(int(user_id))
+        if user and user.organization:
+            return user.organization.name
+        return 'the company'
+    except Exception:
+        return 'the company'
 
 
 def get_work_order_breakdown(db, schema, customer_name):
@@ -52,6 +75,10 @@ def get_churn_analysis():
     Churn criteria: No invoices in last 90 days but had invoices in days 91-180
     """
     try:
+        org_id = get_current_org_id()
+        if not org_id:
+            return jsonify({'error': 'Could not determine organization'}), 400
+        
         pg = PostgreSQLService()
         
         # Get churned customers from mart table
@@ -86,7 +113,7 @@ def get_churn_analysis():
         LIMIT 100
         """
         
-        churned_customers = pg.execute_query(churned_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
+        churned_customers = pg.execute_query(churned_query, (org_id, org_id))
         
         # Format churned customers
         churned_list = []
@@ -119,7 +146,7 @@ def get_churn_analysis():
         AND activity_status = 'active'
         AND snapshot_date = (SELECT MAX(snapshot_date) FROM mart_customer_activity WHERE org_id = %s)
         """
-        active_result = pg.execute_query(active_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
+        active_result = pg.execute_query(active_query, (org_id, org_id))
         current_active = active_result[0]['active_count'] if active_result else 0
         
         # Calculate churn rate
@@ -132,7 +159,7 @@ def get_churn_analysis():
         FROM mart_customer_activity
         WHERE org_id = %s
         """
-        snapshot_result = pg.execute_query(snapshot_query, (BENNETT_ORG_ID,))
+        snapshot_result = pg.execute_query(snapshot_query, (org_id,))
         snapshot_date = snapshot_result[0]['snapshot_date'] if snapshot_result else datetime.now().date()
         
         # Calculate period dates (90-day periods)
@@ -172,13 +199,16 @@ def get_churn_analysis():
 def get_ai_insights():
     """
     Generate AI-powered insights from churn data
-    Uses Claude to analyze patterns and suggest actions
+    Uses AI to analyze patterns and suggest actions
     """
     try:
         data = request.get_json()
         
         if not data:
             return jsonify({'error': 'No data provided'}), 400
+        
+        # Get org name for context in the AI prompt
+        org_name = get_current_org_name()
         
         # Prepare the analysis prompt
         summary = data.get('summary', {})
@@ -196,7 +226,7 @@ def get_ai_insights():
             profile = f"- {c['customer_name']}: ${c['total_revenue']:,.0f} lifetime revenue, {c['total_invoices']} invoices, last active {c['last_invoice']}, ${c.get('previous_period_revenue', 0):,.0f} in previous 90 days"
             customer_profiles.append(profile)
         
-        prompt = f"""Analyze this customer churn data for Bennett Equipment, a forklift and material handling equipment dealership, and provide actionable insights.
+        prompt = f"""Analyze this customer churn data for {org_name}, an equipment and industrial services company, and provide actionable insights.
 
 ## Summary Statistics
 - Total Churned Customers: {summary.get('total_churned_customers', 0)}
@@ -216,7 +246,7 @@ Please provide:
 1. **Key Trends**: What patterns do you see in the churned customers? (e.g., customer size, service types, timing)
 2. **Risk Factors**: What characteristics might indicate a customer is at risk of churning?
 3. **High-Priority Win-Back Targets**: Which 3-5 customers should be prioritized for outreach and why?
-4. **Recommended Actions**: Specific steps Bennett should take to reduce churn and win back customers
+4. **Recommended Actions**: Specific steps {org_name} should take to reduce churn and win back customers
 5. **Questions to Investigate**: What additional data would help understand the churn better?
 
 Format your response in clear sections with actionable recommendations."""
@@ -229,7 +259,7 @@ Format your response in clear sections with actionable recommendations."""
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a business analyst specializing in customer retention for equipment dealerships. Provide clear, actionable insights based on data analysis. Be specific about which customers to contact and what actions to take."
+                    "content": "You are a business analyst specializing in customer retention for equipment dealerships and industrial service companies. Provide clear, actionable insights based on data analysis. Be specific about which customers to contact and what actions to take."
                 },
                 {
                     "role": "user",
@@ -262,6 +292,10 @@ def get_at_risk_customers():
     At-risk criteria: 50%+ revenue drop between 90-day periods
     """
     try:
+        org_id = get_current_org_id()
+        if not org_id:
+            return jsonify({'error': 'Could not determine organization'}), 400
+        
         pg = PostgreSQLService()
         
         # Get at-risk customers from mart table
@@ -290,7 +324,7 @@ def get_at_risk_customers():
         LIMIT 100
         """
         
-        at_risk_customers = pg.execute_query(at_risk_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
+        at_risk_customers = pg.execute_query(at_risk_query, (org_id, org_id))
         
         at_risk_list = []
         if at_risk_customers:
@@ -315,7 +349,7 @@ def get_at_risk_customers():
         FROM mart_customer_activity
         WHERE org_id = %s
         """
-        snapshot_result = pg.execute_query(snapshot_query, (BENNETT_ORG_ID,))
+        snapshot_result = pg.execute_query(snapshot_query, (org_id,))
         snapshot_date = snapshot_result[0]['snapshot_date'] if snapshot_result else datetime.now().date()
         
         return jsonify({
@@ -339,10 +373,14 @@ def refresh_churn_data():
     Admin endpoint for on-demand data refresh
     """
     try:
+        org_id = get_current_org_id()
+        if not org_id:
+            return jsonify({'error': 'Could not determine organization'}), 400
+        
         from src.etl.etl_customer_activity import run_customer_activity_etl
         
-        logger.info("Manual customer activity ETL triggered")
-        success = run_customer_activity_etl()
+        logger.info(f"Manual customer activity ETL triggered for org_id={org_id}")
+        success = run_customer_activity_etl(org_id=org_id)
         
         if success:
             return jsonify({
@@ -369,6 +407,10 @@ def get_churn_summary():
     Useful for dashboard widgets
     """
     try:
+        org_id = get_current_org_id()
+        if not org_id:
+            return jsonify({'error': 'Could not determine organization'}), 400
+        
         pg = PostgreSQLService()
         
         summary_query = """
@@ -384,7 +426,7 @@ def get_churn_summary():
         GROUP BY activity_status
         """
         
-        results = pg.execute_query(summary_query, (BENNETT_ORG_ID, BENNETT_ORG_ID))
+        results = pg.execute_query(summary_query, (org_id, org_id))
         
         summary = {
             'active': {'count': 0, 'revenue': 0},

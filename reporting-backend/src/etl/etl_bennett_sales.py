@@ -1,42 +1,49 @@
 """
-Bennett Sales Daily ETL
-Extracts daily sales data from Softbase and loads into mart_sales_daily
+Sales Daily ETL (Multi-Tenant)
+Extracts daily sales data from Softbase and loads into mart_sales_daily.
+Also includes Cash Flow ETL from GL data.
+
+Supports all Softbase tenants - discovers them automatically via tenant_discovery.
+Uses InvoiceReg fields (LaborTaxable, PartsTaxable, etc.) which are generic across all Softbase schemas.
+Uses dynamic LIKE queries for GL-based cash flow data.
 """
 
 import os
+import json
 import logging
 from datetime import datetime, timedelta
+from calendar import monthrange
 from .base_etl import BaseETL
 
 logger = logging.getLogger(__name__)
 
 
-class BennettSalesETL(BaseETL):
-    """ETL job for Bennett daily sales from Softbase"""
+class SalesDailyETL(BaseETL):
+    """ETL job for daily sales from Softbase InvoiceReg"""
     
-    # Bennett org_id (from organization table)
-    BENNETT_ORG_ID = 4
-    BENNETT_SCHEMA = 'ben002'
-    
-    def __init__(self, days_back: int = 7):
+    def __init__(self, org_id=4, schema='ben002', azure_sql=None, days_back=7):
         """
-        Initialize Bennett Sales ETL
+        Initialize Sales Daily ETL for a specific tenant.
         
         Args:
+            org_id: Organization ID from the organization table
+            schema: Database schema for the tenant (e.g., 'ben002', 'ind004')
+            azure_sql: Pre-configured AzureSQLService instance for the tenant
             days_back: Number of days to look back for data (default 7)
         """
         super().__init__(
-            job_name='etl_bennett_sales_daily',
-            org_id=self.BENNETT_ORG_ID,
+            job_name='etl_sales_daily',
+            org_id=org_id,
             source_system='softbase',
             target_table='mart_sales_daily'
         )
+        self.schema = schema
+        self._azure_sql = azure_sql
         self.days_back = days_back
-        self._azure_sql = None
     
     @property
     def azure_sql(self):
-        """Lazy load Azure SQL service"""
+        """Lazy load Azure SQL service if not provided"""
         if self._azure_sql is None:
             from src.services.azure_sql_service import AzureSQLService
             self._azure_sql = AzureSQLService()
@@ -44,8 +51,6 @@ class BennettSalesETL(BaseETL):
     
     def extract(self) -> list:
         """Extract daily sales data from Softbase InvoiceReg table"""
-        
-        # Calculate date range
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=self.days_back)
         
@@ -85,7 +90,7 @@ class BennettSalesETL(BaseETL):
             COUNT(CASE WHEN COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0) > 0 THEN 1 END) as sales_invoices,
             COUNT(*) as total_invoices
             
-        FROM {self.BENNETT_SCHEMA}.InvoiceReg
+        FROM {self.schema}.InvoiceReg
         WHERE InvoiceDate >= '{start_date}'
           AND InvoiceDate <= '{end_date}'
         GROUP BY 
@@ -96,7 +101,7 @@ class BennettSalesETL(BaseETL):
         ORDER BY sales_date
         """
         
-        logger.info(f"Extracting sales data from {start_date} to {end_date}")
+        logger.info(f"  [{self.schema}] Extracting sales data from {start_date} to {end_date}")
         results = self.azure_sql.execute_query(query)
         
         return results if results else []
@@ -127,8 +132,8 @@ class BennettSalesETL(BaseETL):
                 'rental_invoices': int(row['rental_invoices'] or 0),
                 'sales_invoices': int(row['sales_invoices'] or 0),
                 'total_invoices': int(row['total_invoices'] or 0),
-                'open_work_orders': 0,  # Will be populated separately
-                'closed_work_orders': 0,  # Will be populated separately
+                'open_work_orders': 0,
+                'closed_work_orders': 0,
                 'source_system': self.source_system
             })
         
@@ -140,50 +145,59 @@ class BennettSalesETL(BaseETL):
             self.upsert_record(record, unique_columns=['org_id', 'sales_date'])
 
 
-class BennettCashFlowETL(BaseETL):
-    """ETL job for Bennett cash flow from Softbase GL"""
+class CashFlowETL(BaseETL):
+    """ETL job for cash flow from Softbase GL - uses dynamic LIKE queries"""
     
-    BENNETT_ORG_ID = 4
-    BENNETT_SCHEMA = 'ben002'
-    
-    def __init__(self, months_back: int = 12):
+    def __init__(self, org_id=4, schema='ben002', azure_sql=None, months_back=12):
+        """
+        Initialize Cash Flow ETL for a specific tenant.
+        
+        Args:
+            org_id: Organization ID from the organization table
+            schema: Database schema for the tenant (e.g., 'ben002', 'ind004')
+            azure_sql: Pre-configured AzureSQLService instance for the tenant
+            months_back: Number of months to look back (default 12)
+        """
         super().__init__(
-            job_name='etl_bennett_cash_flow',
-            org_id=self.BENNETT_ORG_ID,
+            job_name='etl_cash_flow',
+            org_id=org_id,
             source_system='softbase_gl',
             target_table='mart_cash_flow'
         )
+        self.schema = schema
+        self._azure_sql = azure_sql
         self.months_back = months_back
-        self._azure_sql = None
     
     @property
     def azure_sql(self):
+        """Lazy load Azure SQL service if not provided"""
         if self._azure_sql is None:
             from src.services.azure_sql_service import AzureSQLService
             self._azure_sql = AzureSQLService()
         return self._azure_sql
     
     def extract(self) -> list:
-        """Extract cash flow data from GL table"""
-        
-        # Get last N months of data
+        """Extract cash flow data from GL table using dynamic LIKE queries"""
         now = datetime.now()
         
+        # Cash accounts: 1xxxxx starting with 11 (cash & equivalents)
+        # Operating: 4% revenue + 5% COGS + 6% expenses
+        # Working capital: 12% AR, 13% inventory, 20% AP
         query = f"""
         WITH CashAccounts AS (
             SELECT 
                 Year, Month,
                 SUM(YTD) as cash_balance,
                 SUM(MTD) as cash_change_mtd
-            FROM {self.BENNETT_SCHEMA}.GL
-            WHERE AccountNo IN ('110000', '113000', '114000')
+            FROM {self.schema}.GL
+            WHERE AccountNo LIKE '11%'
             GROUP BY Year, Month
         ),
         OperatingCF AS (
             SELECT 
                 Year, Month,
                 SUM(MTD) as operating_cf
-            FROM {self.BENNETT_SCHEMA}.GL
+            FROM {self.schema}.GL
             WHERE AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%'
             GROUP BY Year, Month
         ),
@@ -193,7 +207,7 @@ class BennettCashFlowETL(BaseETL):
                 SUM(CASE WHEN AccountNo LIKE '12%' THEN MTD ELSE 0 END) as ar_change,
                 SUM(CASE WHEN AccountNo LIKE '13%' THEN MTD ELSE 0 END) as inventory_change,
                 SUM(CASE WHEN AccountNo LIKE '20%' THEN MTD ELSE 0 END) as ap_change
-            FROM {self.BENNETT_SCHEMA}.GL
+            FROM {self.schema}.GL
             GROUP BY Year, Month
         )
         SELECT 
@@ -212,14 +226,12 @@ class BennettCashFlowETL(BaseETL):
         ORDER BY c.Year DESC, c.Month DESC
         """
         
+        logger.info(f"  [{self.schema}] Extracting cash flow data")
         results = self.azure_sql.execute_query(query)
         return results if results else []
     
     def transform(self, data: list) -> list:
         """Transform cash flow data"""
-        import json
-        from calendar import monthrange
-        
         transformed = []
         
         for row in data:
@@ -230,7 +242,6 @@ class BennettCashFlowETL(BaseETL):
             
             operating_cf = float(row['operating_cash_flow'] or 0)
             
-            # Determine health status
             if operating_cf > 0:
                 health_status = 'healthy'
             elif operating_cf > -50000:
@@ -249,8 +260,8 @@ class BennettCashFlowETL(BaseETL):
                 'ar_change': float(row['ar_change'] or 0),
                 'inventory_change': float(row['inventory_change'] or 0),
                 'ap_change': float(row['ap_change'] or 0),
-                'investing_cash_flow': 0,  # Would need additional query
-                'financing_cash_flow': 0,  # Would need additional query
+                'investing_cash_flow': 0,
+                'financing_cash_flow': 0,
                 'health_status': health_status,
                 'non_operating_breakdown': json.dumps({}),
                 'source_system': self.source_system
@@ -264,29 +275,94 @@ class BennettCashFlowETL(BaseETL):
             self.upsert_record(record, unique_columns=['org_id', 'year', 'month'])
 
 
-def run_bennett_etl():
-    """Run all Bennett ETL jobs"""
-    logger.info("=" * 50)
-    logger.info("Starting Bennett ETL Jobs")
-    logger.info("=" * 50)
+def run_bennett_etl(org_id=None):
+    """
+    Run Sales Daily and Cash Flow ETL jobs.
     
-    jobs = [
-        BennettSalesETL(days_back=30),
-        BennettCashFlowETL(months_back=12),
-    ]
+    If org_id is provided, runs for that specific org only.
+    Otherwise, runs for ALL discovered Softbase tenants.
     
-    results = {}
-    for job in jobs:
-        success = job.run()
-        results[job.job_name] = 'success' if success else 'failed'
-    
-    logger.info("\n" + "=" * 50)
-    logger.info("Bennett ETL Summary:")
-    for job_name, status in results.items():
-        logger.info(f"  {job_name}: {status}")
-    logger.info("=" * 50)
-    
-    return all(s == 'success' for s in results.values())
+    Note: Kept as run_bennett_etl for backward compatibility with scheduler.
+    """
+    if org_id is not None:
+        try:
+            from src.models.user import Organization
+            org = Organization.query.get(org_id)
+            if org and org.database_schema:
+                from .tenant_discovery import TenantInfo
+                tenant = TenantInfo(
+                    org_id=org.id,
+                    name=org.name,
+                    schema=org.database_schema,
+                    db_server=org.db_server,
+                    db_name=org.db_name,
+                    db_username=org.db_username,
+                    db_password_encrypted=org.db_password_encrypted,
+                    platform_type=org.platform_type
+                )
+                azure_sql = tenant.get_azure_sql_service()
+                
+                sales_etl = SalesDailyETL(
+                    org_id=org_id,
+                    schema=org.database_schema,
+                    azure_sql=azure_sql,
+                    days_back=30
+                )
+                cash_etl = CashFlowETL(
+                    org_id=org_id,
+                    schema=org.database_schema,
+                    azure_sql=azure_sql,
+                    months_back=12
+                )
+                
+                sales_ok = sales_etl.run()
+                cash_ok = cash_etl.run()
+                return sales_ok and cash_ok
+            else:
+                logger.error(f"Organization {org_id} not found or has no schema")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to run sales ETL for org_id={org_id}: {e}")
+            return False
+    else:
+        # Run for all tenants
+        from .tenant_discovery import discover_softbase_tenants
+        
+        tenants = discover_softbase_tenants()
+        if not tenants:
+            logger.warning("No Softbase tenants found")
+            return False
+        
+        all_success = True
+        for tenant in tenants:
+            logger.info(f"Running Sales/CashFlow ETL for {tenant.name} ({tenant.schema})")
+            try:
+                azure_sql = tenant.get_azure_sql_service()
+                
+                sales_etl = SalesDailyETL(
+                    org_id=tenant.org_id,
+                    schema=tenant.schema,
+                    azure_sql=azure_sql,
+                    days_back=30
+                )
+                cash_etl = CashFlowETL(
+                    org_id=tenant.org_id,
+                    schema=tenant.schema,
+                    azure_sql=azure_sql,
+                    months_back=12
+                )
+                
+                sales_ok = sales_etl.run()
+                cash_ok = cash_etl.run()
+                
+                if not (sales_ok and cash_ok):
+                    all_success = False
+                    
+            except Exception as e:
+                logger.error(f"Failed Sales/CashFlow ETL for {tenant.name}: {e}")
+                all_success = False
+        
+        return all_success
 
 
 if __name__ == '__main__':
