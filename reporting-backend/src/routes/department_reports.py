@@ -2811,14 +2811,12 @@ def register_department_routes(reports_bp):
             SELECT TOP 5
                 w.WONo,
                 w.BillTo as Customer,
-                e.Make + ' ' + e.Model as equipment,
+                COALESCE(w.UnitNo, '') as equipment,
                 w.OpenDate as startDate,
-                NULL as endDate,  -- Would need return tracking
-                0 as dailyRate,   -- Would need rate table
+                NULL as endDate,
+                0 as dailyRate,
                 'Active' as status
             FROM {schema}.WO w
-            -- Equipment join removed - column mapping issues
-            -- JOIN {schema}.Equipment e ON w.UnitNo = e.StockNo
             WHERE w.Type = 'R' AND w.ClosedDate IS NULL
             ORDER BY w.OpenDate DESC
             """
