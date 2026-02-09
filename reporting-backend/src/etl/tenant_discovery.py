@@ -96,9 +96,10 @@ def discover_softbase_tenants() -> List[TenantInfo]:
             
             # Skip organizations that don't have Softbase-style schemas
             # Softbase schemas typically follow patterns like 'ben002', 'ind004', etc.
+            # VITAL uses a different platform (vital001, etc.) and doesn't have Softbase tables
             schema = org.database_schema
-            if not schema or schema.lower() in ('vital',):
-                logger.debug(f"Skipping non-Softbase org: {org.name} (schema={schema})")
+            if not schema or schema.lower().startswith('vital'):
+                logger.info(f"Skipping non-Softbase org: {org.name} (schema={schema})")
                 continue
             
             tenant = TenantInfo(

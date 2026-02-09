@@ -160,7 +160,26 @@ def get_churn_analysis():
         WHERE org_id = %s
         """
         snapshot_result = pg.execute_query(snapshot_query, (org_id,))
-        snapshot_date = snapshot_result[0]['snapshot_date'] if snapshot_result else datetime.now().date()
+        snapshot_date = None
+        if snapshot_result and snapshot_result[0].get('snapshot_date'):
+            snapshot_date = snapshot_result[0]['snapshot_date']
+        
+        if not snapshot_date:
+            # No mart data for this tenant yet - return empty response
+            return jsonify({
+                'summary': {
+                    'total_churned_customers': 0,
+                    'total_lost_revenue': 0,
+                    'average_customer_value': 0,
+                    'churn_rate': 0,
+                    'total_customers': 0,
+                    'active_customers': 0
+                },
+                'churned_customers': [],
+                'analysis_period': {
+                    'message': 'No customer activity data available yet. ETL has not run for this tenant.'
+                }
+            })
         
         # Calculate period dates (90-day periods)
         current_end = snapshot_date
@@ -350,7 +369,9 @@ def get_at_risk_customers():
         WHERE org_id = %s
         """
         snapshot_result = pg.execute_query(snapshot_query, (org_id,))
-        snapshot_date = snapshot_result[0]['snapshot_date'] if snapshot_result else datetime.now().date()
+        snapshot_date = None
+        if snapshot_result and snapshot_result[0].get('snapshot_date'):
+            snapshot_date = snapshot_result[0]['snapshot_date']
         
         return jsonify({
             'at_risk_customers': at_risk_list,
