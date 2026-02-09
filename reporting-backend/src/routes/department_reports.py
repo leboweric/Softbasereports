@@ -1228,132 +1228,79 @@ def register_department_routes(reports_bp):
             db = get_db()
             schema = get_tenant_schema()
             
-            # Calculate average daily usage and current stock levels
+            # Optimized: Use a single query with TOP limit to avoid timeout on large datasets
             reorder_alert_query = f"""
-            WITH PartUsage AS (
-                -- Calculate average daily usage over last 90 days
+            SELECT TOP 200
+                p.PartNo,
+                p.Description,
+                p.OnHand as CurrentStock,
+                p.OnOrder as OnOrder,
+                CAST(usage_data.AvgDailyUsage AS DECIMAL(10,2)) as AvgDailyUsage,
+                CASE 
+                    WHEN usage_data.AvgDailyUsage > 0 
+                    THEN CAST(p.OnHand / usage_data.AvgDailyUsage AS INT)
+                    ELSE 999
+                END as DaysOfStock,
+                CAST(CEILING(usage_data.AvgDailyUsage * 21) AS INT) as SuggestedReorderPoint,
+                CAST(CEILING(usage_data.AvgDailyUsage * 30) AS INT) as SuggestedOrderQty,
+                p.Cost,
+                p.List,
+                usage_data.OrderCount as OrdersLast90Days,
+                CASE 
+                    WHEN p.OnHand <= 0 THEN 'Out of Stock'
+                    WHEN p.OnHand < (usage_data.AvgDailyUsage * 7) THEN 'Critical'
+                    WHEN p.OnHand < (usage_data.AvgDailyUsage * 14) THEN 'Low'
+                    WHEN p.OnHand < (usage_data.AvgDailyUsage * 21) THEN 'Reorder'
+                    ELSE 'OK'
+                END as AlertLevel
+            FROM {schema}.Parts p
+            INNER JOIN (
                 SELECT 
                     wp.PartNo,
-                    MAX(wp.Description) as Description,
                     COUNT(DISTINCT wp.WONo) as OrderCount,
-                    SUM(wp.Qty) as TotalQtyUsed,
-                    DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1 as DaysInPeriod,
                     CAST(SUM(wp.Qty) AS FLOAT) / NULLIF(DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1, 0) as AvgDailyUsage
                 FROM {schema}.WOParts wp
                 INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
                 WHERE w.OpenDate >= DATEADD(day, -90, GETDATE())
                     AND wp.Qty > 0
                 GROUP BY wp.PartNo
-                HAVING COUNT(DISTINCT wp.WONo) >= 3  -- At least 3 orders in period
-            ),
-            CurrentStock AS (
-                -- Get current stock levels and costs
-                SELECT 
-                    PartNo,
-                    MAX(OnHand) as OnHand,
-                    MAX(OnOrder) as OnOrder,
-                    MAX(Cost) as Cost,
-                    MAX(List) as List,
-                    -- Estimate reorder point as 14 days of average usage (2 week lead time)
-                    -- This should be replaced with actual reorder point field if available
-                    0 as ReorderPoint,
-                    0 as MinStock
-                FROM {schema}.Parts
-                WHERE OnHand IS NOT NULL
-                GROUP BY PartNo
-            )
-            SELECT 
-                cs.PartNo,
-                pu.Description,
-                cs.OnHand as CurrentStock,
-                cs.OnOrder as OnOrder,
-                CAST(pu.AvgDailyUsage AS DECIMAL(10,2)) as AvgDailyUsage,
-                -- Calculate days of stock remaining
-                CASE 
-                    WHEN pu.AvgDailyUsage > 0 
-                    THEN CAST(cs.OnHand / pu.AvgDailyUsage AS INT)
-                    ELSE 999
-                END as DaysOfStock,
-                -- Estimate reorder point (14 days lead time + 7 days safety stock)
-                CAST(CEILING(pu.AvgDailyUsage * 21) AS INT) as SuggestedReorderPoint,
-                -- Reorder quantity (30 days worth)
-                CAST(CEILING(pu.AvgDailyUsage * 30) AS INT) as SuggestedOrderQty,
-                cs.Cost,
-                cs.List,
-                pu.OrderCount as OrdersLast90Days,
-                -- Alert level
-                CASE 
-                    WHEN cs.OnHand <= 0 THEN 'Out of Stock'
-                    WHEN cs.OnHand < (pu.AvgDailyUsage * 7) THEN 'Critical'
-                    WHEN cs.OnHand < (pu.AvgDailyUsage * 14) THEN 'Low'
-                    WHEN cs.OnHand < (pu.AvgDailyUsage * 21) THEN 'Reorder'
-                    ELSE 'OK'
-                END as AlertLevel
-            FROM CurrentStock cs
-            INNER JOIN PartUsage pu ON cs.PartNo = pu.PartNo
-            WHERE cs.OnHand < (pu.AvgDailyUsage * 21)  -- Below suggested reorder point
-                OR cs.OnHand <= 0  -- Or completely out
+                HAVING COUNT(DISTINCT wp.WONo) >= 2
+            ) usage_data ON p.PartNo = usage_data.PartNo
+            WHERE (p.OnHand < (usage_data.AvgDailyUsage * 21) OR p.OnHand <= 0)
+                AND p.OnHand IS NOT NULL
             ORDER BY 
                 CASE 
-                    WHEN cs.OnHand <= 0 THEN 1
-                    WHEN cs.OnHand < (pu.AvgDailyUsage * 7) THEN 2
-                    WHEN cs.OnHand < (pu.AvgDailyUsage * 14) THEN 3
+                    WHEN p.OnHand <= 0 THEN 1
+                    WHEN p.OnHand < (usage_data.AvgDailyUsage * 7) THEN 2
+                    WHEN p.OnHand < (usage_data.AvgDailyUsage * 14) THEN 3
                     ELSE 4
                 END,
-                pu.AvgDailyUsage DESC
+                usage_data.AvgDailyUsage DESC
             """
             
             reorder_alerts = db.execute_query(reorder_alert_query)
             
-            # Get summary statistics
-            summary_query = f"""
-            WITH PartUsage AS (
-                SELECT 
-                    wp.PartNo,
-                    CAST(SUM(wp.Qty) AS FLOAT) / NULLIF(DATEDIFF(day, MIN(w.OpenDate), MAX(w.OpenDate)) + 1, 0) as AvgDailyUsage
-                FROM {schema}.WOParts wp
-                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
-                WHERE w.OpenDate >= DATEADD(day, -90, GETDATE())
-                    AND wp.Qty > 0
-                GROUP BY wp.PartNo
-                HAVING COUNT(DISTINCT wp.WONo) >= 3
-            ),
-            PartsAggregated AS (
-                SELECT 
-                    PartNo,
-                    MAX(OnHand) as OnHand
-                FROM {schema}.Parts
-                GROUP BY PartNo
-            )
-            SELECT 
-                COUNT(CASE WHEN pa.OnHand <= 0 THEN 1 END) as OutOfStock,
-                COUNT(CASE WHEN pa.OnHand > 0 AND pa.OnHand < (pu.AvgDailyUsage * 7) THEN 1 END) as Critical,
-                COUNT(CASE WHEN pa.OnHand >= (pu.AvgDailyUsage * 7) AND pa.OnHand < (pu.AvgDailyUsage * 14) THEN 1 END) as Low,
-                COUNT(CASE WHEN pa.OnHand >= (pu.AvgDailyUsage * 14) AND pa.OnHand < (pu.AvgDailyUsage * 21) THEN 1 END) as NeedsReorder,
-                COUNT(*) as TotalTrackedParts
-            FROM PartsAggregated pa
-            INNER JOIN PartUsage pu ON pa.PartNo = pu.PartNo
-            """
+            # Calculate summary from the results in Python instead of a second heavy query
+            summary_result = None
             
-            summary_result = db.execute_query(summary_query)
-            
+            # Compute summary from the alerts data in Python (avoids second heavy DB query)
             summary = {
                 'outOfStock': 0,
                 'critical': 0,
                 'low': 0,
                 'needsReorder': 0,
-                'totalTracked': 0
+                'totalTracked': len(reorder_alerts)
             }
-            
-            if summary_result and len(summary_result) > 0:
-                row = summary_result[0]
-                summary = {
-                    'outOfStock': row.get('OutOfStock', 0),
-                    'critical': row.get('Critical', 0),
-                    'low': row.get('Low', 0),
-                    'needsReorder': row.get('NeedsReorder', 0),
-                    'totalTracked': row.get('TotalTrackedParts', 0)
-                }
+            for alert in reorder_alerts:
+                level = alert.get('AlertLevel', '')
+                if level == 'Out of Stock':
+                    summary['outOfStock'] += 1
+                elif level == 'Critical':
+                    summary['critical'] += 1
+                elif level == 'Low':
+                    summary['low'] += 1
+                elif level == 'Reorder':
+                    summary['needsReorder'] += 1
             
             # Format the alerts
             formatted_alerts = []
