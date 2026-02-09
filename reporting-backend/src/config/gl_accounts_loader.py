@@ -72,20 +72,149 @@ EXPENSE_ACCOUNTS_BENNETT = {
     ]
 }
 
-# IPS Expense Accounts (placeholder - needs to be discovered from IPS database)
+# IPS Expense Accounts - Discovered from ind004.GL (2025 data)
+# Account format: 7-digit (XXXXYYZ) where last 2 digits = department/location
 EXPENSE_ACCOUNTS_IPS = {
-    'depreciation': [],
-    'salaries_wages': [],
-    'payroll_benefits': [],
-    'rent_facilities': [],
-    'utilities': [],
-    'insurance': [],
-    'marketing': [],
-    'professional_fees': [],
-    'office_admin': [],
-    'vehicle_equipment': [],
-    'interest_finance': [],
-    'other_expenses': []
+    'depreciation': [
+        '6100501', '6100503', '6100504',  # Depreciation - New Equipment locations
+        '6100701',  # Depreciation - Service
+        '6100801',  # Depreciation - Admin/General
+    ],
+    'salaries_wages': [
+        '6840701',  # Salaries - Management (Service)
+        '6850501',  # Salaries - Office (Parts)
+        '6880201',  # Wages - Allied/IF
+        '6880501',  # Wages - Parts
+        '6880801',  # Wages - Admin
+        '6880901',  # Wages - Rental
+        '6910201',  # Commission/Bonus - Allied
+        '6910501',  # Commission/Bonus - New Equipment Canton
+        '6910503',  # Commission/Bonus - New Equipment
+        '6910601',  # Commission/Bonus - Parts
+        '6911801',  # Commission/Bonus - Admin 1
+        '6911802',  # Commission/Bonus - Admin 2
+    ],
+    'payroll_benefits': [
+        '6210201',  # Employee Benefits - Allied
+        '6210501', '6210502', '6210503', '6210504',  # Employee Benefits - New Equipment
+        '6210601',  # Employee Benefits - Parts
+        '6210701', '6210702',  # Employee Benefits - Service
+        '6210801',  # Employee Benefits - Admin
+        '6470201',  # Medical/Health - Allied
+        '6470401',  # Medical/Health - Used Equipment
+        '6470501', '6470502', '6470503', '6470504',  # Medical/Health - New Equipment
+        '6470601',  # Medical/Health - Parts
+        '6470701', '6470702',  # Medical/Health - Service
+        '6470901', '6470902',  # Medical/Health - Rental
+        '6530201',  # Payroll Taxes - Allied
+        '6530501', '6530502', '6530503', '6530504',  # Payroll Taxes - New Equipment
+        '6530601',  # Payroll Taxes - Parts
+        '6530701',  # Payroll Taxes - Service
+        '6530801',  # Payroll Taxes - Admin
+    ],
+    'rent_facilities': [
+        '6733401',  # Rent - Used Equipment
+        '6733501', '6733502', '6733503', '6733504',  # Rent - New Equipment
+        '6733601',  # Rent - Parts
+        '6733701',  # Rent - Service
+        '6733801',  # Rent - Admin
+        '6733901',  # Rent - Rental
+        '6555201',  # Property Tax - Allied
+        '6555501',  # Property Tax - New Equipment
+        '6555503',  # Property Tax - New Equipment
+    ],
+    'utilities': [
+        '6430101',  # Utilities/Janitorial - General
+        '6430201',  # Utilities/Janitorial - Allied
+        '6430401',  # Utilities/Janitorial - Used Equipment
+        '6430501', '6430502', '6430503', '6430504',  # Utilities/Janitorial - New Equipment
+        '6430601',  # Utilities/Janitorial - Parts
+        '6430701',  # Utilities/Janitorial - Service
+        '6430801',  # Utilities/Janitorial - Admin
+        '6430901',  # Utilities/Janitorial - Rental
+    ],
+    'insurance': [
+        '6410201',  # Insurance - Allied
+        '6410501', '6410502', '6410503',  # Insurance - New Equipment
+        '6410601',  # Insurance - Parts
+        '6410701',  # Insurance - Service
+        '6410801',  # Insurance - Admin
+    ],
+    'marketing': [
+        '6010701',  # Advertising - Service
+        '6010801',  # Advertising - Admin
+        '6460201',  # Meals/Entertainment - Allied
+        '6460501', '6460502', '6460503',  # Meals/Entertainment - New Equipment
+        '6460601',  # Meals/Entertainment - Parts
+        '6460701',  # Meals/Entertainment - Service
+        '6460801',  # Meals/Entertainment - Admin
+    ],
+    'professional_fees': [
+        '6540501', '6540502', '6540503',  # Professional Fees - New Equipment
+        '6540601',  # Professional Fees - Parts
+        '6540701',  # Professional Fees - Service
+        '6540801',  # Professional Fees - Admin
+    ],
+    'office_admin': [
+        '6050201',  # Building Maintenance - Allied
+        '6050701',  # Building Maintenance - Service
+        '6050801',  # Building Maintenance - Admin
+        '6070201',  # Computer/IT - Allied
+        '6070501', '6070502', '6070503', '6070504',  # Computer/IT - New Equipment
+        '6070601',  # Computer/IT - Parts
+        '6070701',  # Computer/IT - Service
+        '6070801',  # Computer/IT - Admin
+        '6110501', '6110502',  # Dues/Subscriptions - New Equipment
+        '6110601',  # Dues/Subscriptions - Parts
+        '6110701',  # Dues/Subscriptions - Service
+        '6110801',  # Dues/Subscriptions - Admin
+        '6111401', '6111402',  # Dues - Used Equipment
+        '6111501', '6111502', '6111503',  # Dues - New Equipment
+        '6112001', '6112002',  # Dues - Allied
+        '6112203', '6112204',  # Dues - Allied
+        '6510801',  # Office Supplies - Admin
+        '6520801',  # Outside Services - Admin
+        '6920701', '6920702',  # Telephone - Service
+    ],
+    'vehicle_equipment': [
+        '6020501', '6020502', '6020503', '6020504',  # Auto/Vehicle - New Equipment
+        '6020601',  # Auto/Vehicle - Parts
+        '6310201',  # Equipment Rental - Allied
+        '6310401',  # Equipment Rental - Used Equipment
+        '6310501', '6310502', '6310503', '6310504',  # Equipment Rental - New Equipment
+        '6310601',  # Equipment Rental - Parts
+        '6310701',  # Equipment Rental - Service
+        '6310901',  # Equipment Rental - Rental
+        '6320801', '6320802',  # Freight - Admin
+        '6330801', '6330802',  # Fuel - Admin
+        '6740801',  # Repairs/Maintenance - Admin
+        '6820701',  # Small Tools - Service
+        '6820801',  # Small Tools - Admin
+    ],
+    'interest_finance': [
+        '6420701', '6420702',  # Interest Expense - Service
+    ],
+    'other_expenses': [
+        '6030701',  # Bad Debt - Service
+        '6061001', '6061003',  # Charitable Contributions
+        '6061601',  # Charitable Contributions - Parts
+        '6440501', '6440502', '6440503',  # Licenses/Permits - New Equipment
+        '6440701', '6440702',  # Licenses/Permits - Service
+        '6440801',  # Licenses/Permits - Admin
+        '6450801',  # Management Fees - Admin
+        '6480501', '6480503',  # Miscellaneous - New Equipment
+        '6480701',  # Miscellaneous - Service
+        # Departmental overhead allocations
+        '6980201',  # Overhead - Allied/IF
+        '6980401',  # Overhead - Used Equipment
+        '6980501', '6980503',  # Overhead - New Equipment
+        '6980601',  # Overhead - Parts
+        '6980701',  # Overhead - Service
+        '6980801',  # Overhead - Admin (contra/offset)
+        '6980901',  # Overhead - Rental
+        # Internal allocation accounts
+        '6930001', '6930002',  # Allocation/Transfer
+    ]
 }
 
 # Mapping of schema to GL configuration
