@@ -642,7 +642,7 @@ class CEODashboardETL(BaseETL):
         return monthly_data
     
     def _extract_top_customers(self) -> list:
-        """Extract top 10 customers by fiscal YTD sales"""
+        """Extract top 10 customers by all-time sales"""
         schema = self.schema
         
         query = f"""
@@ -651,8 +651,7 @@ class CEODashboardETL(BaseETL):
             SUM(GrandTotal) as total_sales,
             COUNT(*) as invoice_count
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= '{self.fiscal_year_start}'
-        AND BillToName IS NOT NULL
+        WHERE BillToName IS NOT NULL
         AND BillToName != ''
         GROUP BY BillToName
         ORDER BY total_sales DESC

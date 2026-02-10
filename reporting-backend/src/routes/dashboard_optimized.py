@@ -1338,17 +1338,13 @@ class DashboardQueries:
             return []
     
     def get_top_customers(self):
-        """Get top 10 customers by fiscal YTD sales"""
+        """Get top 10 customers by all-time sales"""
         try:
-            # Use fiscal year start (November)
-            ytd_start = self.fiscal_year_start
-            
-            # First get total sales since March 2025 (excluding non-customers)
+            # Get total sales across all time (excluding non-customers)
             total_sales_query = f"""
             SELECT SUM(GrandTotal) as total_sales
             FROM {self.schema}.InvoiceReg
-            WHERE InvoiceDate >= '{ytd_start}'
-            AND BillToName IS NOT NULL
+            WHERE BillToName IS NOT NULL
             AND BillToName != ''
             AND BillToName NOT LIKE '%Wells Fargo%'
             AND BillToName NOT LIKE '%Maintenance contract%'
@@ -1373,8 +1369,7 @@ class DashboardQueries:
                         ELSE BillToName
                     END as customer_name
                 FROM {self.schema}.InvoiceReg
-                WHERE InvoiceDate >= '{ytd_start}'
-                AND BillToName IS NOT NULL
+                WHERE BillToName IS NOT NULL
                 AND BillToName != ''
                 AND BillToName NOT LIKE '%Wells Fargo%'
                 AND BillToName NOT LIKE '%Maintenance contract%'

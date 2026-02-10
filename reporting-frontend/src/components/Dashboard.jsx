@@ -1510,7 +1510,7 @@ const Dashboard = ({ user }) => {
                   <div className="flex-1">
                     <CardTitle>Top 10 Customers</CardTitle>
                     <CardDescription>
-                      By fiscal YTD sales (since March)
+                      By all-time sales
                     </CardDescription>
                   </div>
                   <Button
