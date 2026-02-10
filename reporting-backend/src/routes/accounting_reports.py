@@ -574,3 +574,30 @@ def get_table_columns():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@reports_bp.route('/departments/accounting/diag-query', methods=['POST'])
+@jwt_required()
+def diag_query():
+    """Temporary diagnostic endpoint to run arbitrary SQL queries"""
+    try:
+        schema = get_tenant_schema()
+        db = get_tenant_db()
+        from flask import request
+        data = request.get_json()
+        query = data.get('query', '')
+        # Replace {schema} placeholder
+        query = query.replace('{schema}', schema)
+        results = db.execute_query(query)
+        # Convert to serializable format
+        rows = []
+        for r in results[:500]:  # Limit to 500 rows
+            row = {}
+            for k, v in r.items():
+                if isinstance(v, (int, float, str, bool, type(None))):
+                    row[k] = v
+                else:
+                    row[k] = str(v)
+            rows.append(row)
+        return jsonify({'schema': schema, 'count': len(rows), 'rows': rows})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
