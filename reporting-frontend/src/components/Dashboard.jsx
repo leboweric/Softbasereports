@@ -171,7 +171,7 @@ const Dashboard = ({ user }) => {
     return dashboardData?.monthly_equipment_sales || [];
   }, [dashboardData]);
 
-  // Filter customers based on search and risk filter
+  // Filter customers based on search
   const filteredCustomers = React.useMemo(() => {
     if (!dashboardData?.top_customers) return [];
 
@@ -184,23 +184,8 @@ const Dashboard = ({ user }) => {
       );
     }
 
-    // Apply risk filter
-    if (customerRiskFilter !== 'all') {
-      filtered = filtered.filter(customer => {
-        // Use risk data from customer object if available, otherwise fall back to getCustomerRisk
-        const riskLevel = customer.risk_level || getCustomerRisk(customer.name)?.risk_level || 'none';
-
-        if (customerRiskFilter === 'at-risk') {
-          return riskLevel !== 'none';
-        } else if (customerRiskFilter === 'healthy') {
-          return riskLevel === 'none';
-        }
-        return true;
-      });
-    }
-
     return filtered;
-  }, [dashboardData, customerSearchTerm, customerRiskFilter, customerRiskData]);
+  }, [dashboardData, customerSearchTerm]);
 
   useEffect(() => {
     // Skip API calls for VITAL Worklife users - they use different data sources
@@ -1526,12 +1511,6 @@ const Dashboard = ({ user }) => {
                     <CardTitle>Top 10 Customers</CardTitle>
                     <CardDescription>
                       By fiscal YTD sales (since March)
-                      {customerRiskData && (
-                        <span className="text-xs text-blue-600 block mt-1">
-                          <AlertTriangle className="inline h-3 w-3 mr-1" />
-                          {customerRiskData.customers?.filter(c => c.risk_level !== 'none')?.length || 0} of {customerRiskData.customers?.length || 0} customers at risk
-                        </span>
-                      )}
                     </CardDescription>
                   </div>
                   <Button
@@ -1546,7 +1525,7 @@ const Dashboard = ({ user }) => {
                   </Button>
                 </div>
 
-                {/* Search and Filter */}
+                {/* Search */}
                 <div className="flex gap-2 mt-4">
                   <div className="flex-1">
                     <Input
@@ -1556,37 +1535,18 @@ const Dashboard = ({ user }) => {
                       className="h-9"
                     />
                   </div>
-                  <Select value={customerRiskFilter} onValueChange={setCustomerRiskFilter}>
-                    <SelectTrigger className="w-[140px] h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Customers</SelectItem>
-                      <SelectItem value="at-risk">At Risk</SelectItem>
-                      <SelectItem value="healthy">Healthy</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {filteredCustomers.length > 0 ? filteredCustomers.map((customer) => {
-                    // Use integrated risk data from customer object, fallback to separate API if needed
-                    const riskLevel = customer.risk_level || getCustomerRisk(customer.name)?.risk_level || 'none'
-                    const riskFactors = customer.risk_factors || getCustomerRisk(customer.name)?.risk_factors || []
-                    const riskData = customer.risk_level ? customer : getCustomerRisk(customer.name)
-
                     return (
-                      <div key={customer.rank} className="flex items-center relative group">
+                      <div key={customer.rank} className="flex items-center">
                         <div className="w-8 text-sm font-medium text-muted-foreground">
                           {customer.rank}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${riskLevel === 'high' ? 'text-red-600' :
-                            riskLevel === 'medium' ? 'text-orange-600' :
-                              riskLevel === 'low' ? 'text-yellow-600' :
-                                'text-gray-900'
-                            }`}>
+                          <p className="text-sm font-medium truncate text-gray-900">
                             <button
                               onClick={() => {
                                 setSelectedCustomer(customer)
@@ -1596,26 +1556,9 @@ const Dashboard = ({ user }) => {
                             >
                               {customer.name}
                             </button>
-                            {riskLevel !== 'none' && (
-                              <span
-                                className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${riskLevel === 'high' ? 'bg-red-100 text-red-800' :
-                                  riskLevel === 'medium' ? 'bg-orange-100 text-orange-800' :
-                                    'bg-yellow-100 text-yellow-800'
-                                  }`}
-                                title={riskFactors.join(', ')}
-                              >
-                                <AlertTriangle className="h-3 w-3 mr-1" />
-                                {riskLevel.toUpperCase()}
-                              </span>
-                            )}
                           </p>
                           <p className="text-xs text-gray-500">
                             {customer.invoice_count} invoices
-                            {riskData && riskData.days_since_last_invoice > 7 && (
-                              <span className="ml-1 text-orange-600">
-                                • {riskData.days_since_last_invoice}d ago
-                              </span>
-                            )}
                           </p>
                         </div>
                         <div className="text-right">
@@ -1626,65 +1569,33 @@ const Dashboard = ({ user }) => {
                             {customer.percentage}%
                           </div>
                         </div>
-
-                        {/* Risk Tooltip */}
-                        {riskLevel !== 'none' && riskFactors.length > 0 && (
-                          <div className="absolute left-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
-                            <div className="flex items-center mb-2">
-                              <div className={`w-3 h-3 rounded-full mr-2 ${riskLevel === 'high' ? 'bg-red-500' :
-                                riskLevel === 'medium' ? 'bg-orange-500' :
-                                  'bg-yellow-500'
-                                }`} />
-                              <span className={`font-semibold text-sm ${riskLevel === 'high' ? 'text-red-700' :
-                                riskLevel === 'medium' ? 'text-orange-700' :
-                                  'text-yellow-700'
-                                }`}>
-                                {riskLevel.toUpperCase()} RISK
-                              </span>
-                            </div>
-                            <div className="space-y-1">
-                              {riskFactors.map((factor, index) => (
-                                <p key={index} className="text-xs text-gray-600">
-                                  • {factor}
-                                </p>
-                              ))}
-                            </div>
-                            {riskData && (
-                              <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
-                                <p>Recent 30d: {formatCurrency(riskData.recent_30_sales)}</p>
-                                <p>Expected: {formatCurrency(riskData.expected_monthly_sales)}</p>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     )
                   }) : (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <Users className="h-12 w-12 text-gray-300 mb-3" />
                       <p className="text-sm font-medium text-gray-900 mb-1">
-                        {customerSearchTerm || customerRiskFilter !== 'all'
-                          ? 'No customers match your filters'
+                        {customerSearchTerm
+                          ? 'No customers match your search'
                           : 'No customer data available'
                         }
                       </p>
                       <p className="text-xs text-gray-500">
-                        {customerSearchTerm || customerRiskFilter !== 'all'
-                          ? 'Try adjusting your search or filter criteria'
+                        {customerSearchTerm
+                          ? 'Try adjusting your search'
                           : 'Customer data will appear here once invoices are processed'
                         }
                       </p>
-                      {(customerSearchTerm || customerRiskFilter !== 'all') && (
+                      {customerSearchTerm && (
                         <Button
                           size="sm"
                           variant="outline"
                           className="mt-3"
                           onClick={() => {
                             setCustomerSearchTerm('')
-                            setCustomerRiskFilter('all')
                           }}
                         >
-                          Clear Filters
+                          Clear Search
                         </Button>
                       )}
                     </div>
