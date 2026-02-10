@@ -147,11 +147,7 @@ const CashFlowWidget = () => {
           <div>
             <CardTitle>Cash Flow Overview</CardTitle>
             <CardDescription>
-              As of {data.as_of_date ? new Date(data.as_of_date + 'T12:00:00').toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-              }) : 'Loading...'}
+              Current cash position and trends
             </CardDescription>
           </div>
           {getHealthBadge(data.health_status)}
@@ -218,10 +214,10 @@ const CashFlowWidget = () => {
 
         </div>
 
-        {/* 12-Month Trend Chart */}
+        {/* Trailing Trend Chart */}
         {data.trend && data.trend.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium mb-4">12-Month Cash Balance Trend</h4>
+            <h4 className="text-sm font-medium mb-4">Cash Balance Trend</h4>
             <ResponsiveContainer width="100%" height={250}>
               <ComposedChart data={data.trend}>
                 <CartesianGrid strokeDasharray="3 3" />

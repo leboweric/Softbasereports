@@ -5,12 +5,14 @@ Provides quick cash flow metrics for dashboard display
 Updated: Fixed cash position to use Ending balance instead of MTD
 Added: Non-operating activities breakdown
 Removed: Redundant Free CF and CapEx (always $0)
+Fixed: Multi-tenant support - pattern-based account matching for all schemas
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from flask_jwt_extended import jwt_required
 from src.utils.tenant_utils import get_tenant_db
 from src.services.cache_service import cache_service
+from src.config.gl_accounts_loader import get_expense_accounts
 from datetime import datetime, timedelta
 import logging
 import calendar
@@ -31,6 +33,16 @@ def get_tenant_schema():
         return 'ben002'
 
 
+def _get_data_start_date():
+    """Get the tenant's data start date. Returns None if no restriction."""
+    try:
+        if hasattr(g, 'current_organization') and g.current_organization:
+            if g.current_organization.data_start_date:
+                return g.current_organization.data_start_date
+        return None  # No restriction
+    except RuntimeError:
+        return None
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +56,7 @@ def get_sql_service():
 def get_cashflow_widget():
     """
     Get cash flow widget data for dashboard
-    Returns current cash balance, operating cash flow, total cash movement, and 12-month trend
+    Returns current cash balance, operating cash flow, total cash movement, and 13-month trend
     """
     try:
         # Get current date or use provided date
@@ -57,7 +69,8 @@ def get_cashflow_widget():
             current_date = datetime.now()
         
         # Use cache with 1-hour TTL
-        cache_key = f'cashflow_widget:{as_of_date or current_date.strftime("%Y-%m-%d")}'
+        schema = get_tenant_schema()
+        cache_key = f'cashflow_widget:{schema}:{as_of_date or current_date.strftime("%Y-%m-%d")}'
         
         def fetch_cashflow_data():
             return _fetch_cashflow_widget_data(current_date)
@@ -94,8 +107,8 @@ def _fetch_cashflow_widget_data(current_date):
     # Get breakdown of non-operating activities
     non_operating_breakdown = get_non_operating_breakdown(current_year, current_month)
     
-    # Get 12-month trend
-    trend_data = get_cashflow_trend(current_year, current_month, months=12)
+    # Get 13-month trend (trailing 13 months)
+    trend_data = get_cashflow_trend(current_year, current_month, months=13)
     
     # Determine health status based on operating CF
     health_status = 'healthy' if operating_cf > 0 else 'warning' if operating_cf > -50000 else 'critical'
@@ -114,9 +127,11 @@ def _fetch_cashflow_widget_data(current_date):
 
 def get_current_cash_balance(year, month):
     """
-    Get current cash balance from GL cash accounts
-    Uses YTD (Year-To-Date balance) which represents the ending balance for balance sheet accounts
-    Includes: 110000 (Operating), 113000 (Petty Cash), 114000 (Short-term Investments)
+    Get current cash balance from GL cash accounts.
+    Uses YTD (Year-To-Date balance) which represents the ending balance for balance sheet accounts.
+    Uses pattern matching (AccountNo LIKE '11%') to work across all tenant schemas:
+      - Bennett: 110000, 113000, 114000 (6-digit)
+      - IPS: 11xxxxx (7-digit)
     """
     try:
         schema = get_tenant_schema()
@@ -126,7 +141,7 @@ def get_current_cash_balance(year, month):
         FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
-          AND AccountNo IN ('110000', '113000', '114000')
+          AND AccountNo LIKE '11%'
         """
         
         result = get_sql_service().execute_query(query, [year, month])
@@ -142,9 +157,9 @@ def get_current_cash_balance(year, month):
 
 def get_total_cash_movement(year, month):
     """
-    Get total change in cash for the month
-    This is the MTD (Ending - Beginning) for cash accounts
-    Includes: 110000 (Operating), 113000 (Petty Cash), 114000 (Investments)
+    Get total change in cash for the month.
+    This is the MTD (Ending - Beginning) for cash accounts.
+    Uses pattern matching to work across all tenant schemas.
     """
     try:
         schema = get_tenant_schema()
@@ -154,7 +169,7 @@ def get_total_cash_movement(year, month):
         FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
-          AND AccountNo IN ('110000', '113000', '114000')
+          AND AccountNo LIKE '11%'
         """
         
         result = get_sql_service().execute_query(query, [year, month])
@@ -382,16 +397,30 @@ def get_monthly_net_income(year, month):
 
 
 def get_monthly_depreciation(year, month):
-    """Get depreciation expense for the month (account 600900)"""
+    """
+    Get depreciation expense for the month.
+    Uses tenant-aware depreciation accounts from gl_accounts_loader.
+    """
     try:
         schema = get_tenant_schema()
+        
+        # Get tenant-specific depreciation accounts
+        expense_accounts = get_expense_accounts(schema)
+        depreciation_accounts = expense_accounts.get('depreciation', [])
+        
+        if not depreciation_accounts:
+            logger.warning(f"No depreciation accounts configured for schema {schema}")
+            return 0.0
+        
+        # Build IN clause with the tenant's depreciation accounts
+        placeholders = ', '.join([f"'{acc}'" for acc in depreciation_accounts])
 
         query = f"""
         SELECT SUM(MTD) as depreciation
         FROM {schema}.GL
         WHERE Year = %s
           AND Month = %s
-          AND AccountNo = '600900'
+          AND AccountNo IN ({placeholders})
         """
         
         result = get_sql_service().execute_query(query, [year, month])
@@ -405,12 +434,16 @@ def get_monthly_depreciation(year, month):
         return 0.0
 
 
-def get_cashflow_trend(year, month, months=12):
-    """Get cash balance trend starting from March 2025 (Softbase cutover)"""
+def get_cashflow_trend(year, month, months=13):
+    """
+    Get cash balance trend for trailing months.
+    Uses tenant's data_start_date to determine the earliest month to include.
+    """
     try:
         trend_data = []
-        cutover_year = 2025
-        cutover_month = 3  # March 2025
+        
+        # Get tenant's data start date (None = no restriction)
+        data_start = _get_data_start_date()
         
         for i in range(months - 1, -1, -1):
             # Calculate the target month
@@ -422,9 +455,10 @@ def get_cashflow_trend(year, month, months=12):
                 target_month += 12
                 target_year -= 1
             
-            # Skip months before March 2025 (cutover)
-            if target_year < cutover_year or (target_year == cutover_year and target_month < cutover_month):
-                continue
+            # Skip months before the tenant's data start date (if set)
+            if data_start:
+                if target_year < data_start.year or (target_year == data_start.year and target_month < data_start.month):
+                    continue
             
             # Get cash balance for this month (ending balance)
             cash_balance = get_current_cash_balance(target_year, target_month)
