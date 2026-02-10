@@ -3,7 +3,7 @@ P&L Dashboard Widget API
 Provides monthly profit/loss metrics for dashboard display
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.utils.tenant_utils import get_tenant_db
 from src.services.cache_service import cache_service
@@ -45,6 +45,17 @@ def get_pl_widget():
     """
     try:
         schema = get_tenant_schema()
+        
+        # Ensure g.current_organization is set for fiscal year and cutover date calculations
+        if not hasattr(g, 'current_organization') or not g.current_organization:
+            user_id = get_jwt_identity()
+            if user_id:
+                user = User.query.get(int(user_id))
+                if user and user.organization:
+                    g.current_organization = user.organization
+                    logger.info(f"P&L Widget: Set org context - {user.organization.name}, "
+                               f"fiscal_year_start_month={user.organization.fiscal_year_start_month}, "
+                               f"data_start_date={user.organization.data_start_date}")
         
         # Get current date or use provided date
         as_of_date = request.args.get('as_of_date')

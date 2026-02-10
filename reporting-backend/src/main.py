@@ -7,9 +7,9 @@ import sys
 # DON'T CHANGE THIS !!!
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 # Force redeploy - navigation cleanup for Database Explorer and AI Query removal
-from flask import Flask, send_from_directory, jsonify, request
+from flask import Flask, send_from_directory, jsonify, request, g
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, get_jwt_identity, verify_jwt_in_request
 from datetime import datetime
 from src.models.user import db
 from src.routes.user import user_bp
@@ -159,6 +159,31 @@ def after_request(response):
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     response.headers['Access-Control-Max-Age'] = '86400'
     return response
+
+# Global before_request hook to set g.current_organization for all authenticated requests
+# This ensures fiscal year, cutover date, and other tenant-specific calculations work
+# correctly across ALL endpoints without needing per-endpoint setup.
+@app.before_request
+def set_tenant_context():
+    """Set g.current_organization for all authenticated API requests"""
+    # Skip for non-API routes, OPTIONS, and auth endpoints (no JWT yet)
+    if not request.path.startswith('/api') or request.method == 'OPTIONS':
+        return
+    if request.path.startswith('/api/auth/'):
+        return
+    
+    try:
+        verify_jwt_in_request(optional=True)
+        user_id = get_jwt_identity()
+        if user_id:
+            from src.models.user import User as UserModel
+            user = UserModel.query.get(int(user_id))
+            if user and user.organization:
+                g.current_organization = user.organization
+                g.current_user = user
+                g.tenant_id = user.organization.id
+    except Exception:
+        pass  # Not authenticated or invalid token - let endpoint handle it
 
 # Register blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
