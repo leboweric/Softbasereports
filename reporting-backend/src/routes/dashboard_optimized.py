@@ -1462,9 +1462,9 @@ class DashboardQueries:
         
         # Convert to list and ensure all months are present
         start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
-            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
-            if start_date < thirteen_months_ago:
-                start_date = thirteen_months_ago
+        thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+        if start_date < thirteen_months_ago:
+            start_date = thirteen_months_ago
         monthly_data = []
         date = start_date
         
@@ -1990,9 +1990,9 @@ def _get_monthly_active_customers_live():
         
         # Pad missing months from March onwards
         start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
-            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
-            if start_date < thirteen_months_ago:
-                start_date = thirteen_months_ago
+        thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+        if start_date < thirteen_months_ago:
+            start_date = thirteen_months_ago
         all_months = []
         date = start_date
         while date <= current_date:
