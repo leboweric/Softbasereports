@@ -1,0 +1,5 @@
+# Proxy API calls to Railway backend
+/api/*  https://softbasereports-production.up.railway.app/api/:splat  200
+
+# SPA fallback - must be last
+/*    /index.html   200
