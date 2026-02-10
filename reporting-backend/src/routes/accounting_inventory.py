@@ -16,6 +16,42 @@ import io
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
 
+
+def _get_data_start_date_str():
+    """Get the tenant's data start date as a SQL-safe string."""
+    try:
+        from flask import g
+        if hasattr(g, 'current_organization') and g.current_organization:
+            if g.current_organization.data_start_date:
+                return g.current_organization.data_start_date.strftime('%Y-%m-%d')
+            return '2000-01-01'
+    except RuntimeError:
+        pass
+    return '{_get_data_start_date_str()}'
+
+def _get_fiscal_year_end_str():
+    """Get the current fiscal year end date as a SQL-safe string."""
+    try:
+        from flask import g
+        if hasattr(g, 'current_organization') and g.current_organization:
+            fy_start_month = g.current_organization.fiscal_year_start_month or 11
+            now = datetime.now()
+            if now.month >= fy_start_month:
+                fy_end_year = now.year + 1 if fy_start_month > 1 else now.year
+            else:
+                fy_end_year = now.year
+            # Fiscal year ends the month before the next fiscal year starts
+            if fy_start_month == 1:
+                return f'{now.year}-12-31'
+            else:
+                import calendar
+                end_month = fy_start_month - 1
+                end_day = calendar.monthrange(fy_end_year, end_month)[1]
+                return f'{fy_end_year}-{end_month:02d}-{end_day:02d}'
+    except RuntimeError:
+        pass
+    return '{_get_fiscal_year_end_str()}'
+
 def get_tenant_schema():
     """Get the database schema for the current user's organization"""
     try:
@@ -71,8 +107,8 @@ def get_accounting_inventory():
         FROM [{schema}].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
-          AND EffectiveDate >= '2025-03-01'
-          AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}'
+          AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # New Equipment (131000) - Get balance for period 3/1/25 - 10/31/25
@@ -81,8 +117,8 @@ def get_accounting_inventory():
         FROM [{schema}].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
-          AND EffectiveDate >= '2025-03-01'
-          AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}'
+          AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # Get balances for period 3/1/25 - 10/31/25 for other accounts (131200, 183000, 193000)
@@ -92,7 +128,7 @@ def get_accounting_inventory():
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '131200' AND Posted = 1 
-          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}' AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         
         UNION ALL
         
@@ -101,7 +137,7 @@ def get_accounting_inventory():
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '183000' AND Posted = 1 
-          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}' AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         
         UNION ALL
         
@@ -110,7 +146,7 @@ def get_accounting_inventory():
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '193000' AND Posted = 1 
-          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}' AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # Execute all queries
@@ -127,13 +163,13 @@ def get_accounting_inventory():
             MIN(EffectiveDate) as Earliest_Date,
             MAX(EffectiveDate) as Latest_Date,
             -- Debug: Verify date filtering is working
-            COUNT(CASE WHEN EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31' THEN 1 END) as Period_Count,
-            COUNT(CASE WHEN EffectiveDate < '2025-03-01' OR EffectiveDate > '2025-10-31' THEN 1 END) as Outside_Period_Count
+            COUNT(CASE WHEN EffectiveDate >= '{_get_data_start_date_str()}' AND EffectiveDate <= '{_get_fiscal_year_end_str()}' THEN 1 END) as Period_Count,
+            COUNT(CASE WHEN EffectiveDate < '{_get_data_start_date_str()}' OR EffectiveDate > '{_get_fiscal_year_end_str()}' THEN 1 END) as Outside_Period_Count
         FROM {schema}.GLDetail
         WHERE AccountNo = '193000'
         AND Posted = 1
-        AND EffectiveDate >= '2025-03-01' 
-        AND EffectiveDate <= '2025-10-31'
+        AND EffectiveDate >= '{_get_data_start_date_str()}' 
+        AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # Execute depreciation query with debug logging
@@ -488,8 +524,8 @@ def export_inventory_excel():
         FROM [{schema}].GLDetail  
         WHERE AccountNo = '131300'
           AND Posted = 1
-          AND EffectiveDate >= '2025-03-01'
-          AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}'
+          AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # Get New Equipment GL balance
@@ -498,8 +534,8 @@ def export_inventory_excel():
         FROM [{schema}].GLDetail
         WHERE AccountNo = '131000'
           AND Posted = 1
-          AND EffectiveDate >= '2025-03-01'
-          AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}'
+          AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # Get other account balances
@@ -509,7 +545,7 @@ def export_inventory_excel():
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '131200' AND Posted = 1 
-          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}' AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         
         UNION ALL
         
@@ -518,7 +554,7 @@ def export_inventory_excel():
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '183000' AND Posted = 1 
-          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}' AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         
         UNION ALL
         
@@ -527,7 +563,7 @@ def export_inventory_excel():
             COALESCE(SUM(Amount), 0) as current_balance
         FROM [{schema}].GLDetail
         WHERE AccountNo = '193000' AND Posted = 1 
-          AND EffectiveDate >= '2025-03-01' AND EffectiveDate <= '2025-10-31'
+          AND EffectiveDate >= '{_get_data_start_date_str()}' AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # Get YTD Depreciation
@@ -537,8 +573,8 @@ def export_inventory_excel():
         FROM {schema}.GLDetail
         WHERE AccountNo = '193000'
         AND Posted = 1
-        AND EffectiveDate >= '2025-03-01' 
-        AND EffectiveDate <= '2025-10-31'
+        AND EffectiveDate >= '{_get_data_start_date_str()}' 
+        AND EffectiveDate <= '{_get_fiscal_year_end_str()}'
         """
         
         # Get all equipment data

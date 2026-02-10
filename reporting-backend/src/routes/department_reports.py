@@ -7,6 +7,20 @@ from src.models.user import User
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from flask import request
+
+def _get_data_start_date_str():
+    """Get the tenant's data start date as a SQL-safe string."""
+    try:
+        from flask import g
+        if hasattr(g, 'current_organization') and g.current_organization:
+            if g.current_organization.data_start_date:
+                return g.current_organization.data_start_date.strftime('%Y-%m-%d')
+            return '2000-01-01'
+    except RuntimeError:
+        pass
+    return '2025-03-01'
+
+
 from src.services.cache_service import cache_service
 from src.utils.auth_decorators import require_permission, require_department
 from src.utils.fiscal_year import get_fiscal_year_months, get_fiscal_year_start_month
@@ -5412,7 +5426,7 @@ def register_department_routes(reports_bp):
                         COALESCE(EquipmentCost, 0) + COALESCE(RentalCost, 0) + 
                         COALESCE(MiscCost, 0)) as total
                 FROM {schema}.InvoiceReg
-                WHERE InvoiceDate >= '2025-03-01'
+                WHERE InvoiceDate >= '{_get_data_start_date_str()}'
                 GROUP BY FORMAT(InvoiceDate, 'yyyy-MM')
                 ORDER BY FORMAT(InvoiceDate, 'yyyy-MM')
                 """
@@ -8201,7 +8215,7 @@ def register_department_routes(reports_bp):
                 ir.Comments
             FROM {schema}.InvoiceReg ir
             LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
-            WHERE ir.InvoiceDate >= '2025-03-01' 
+            WHERE ir.InvoiceDate >= '{_get_data_start_date_str()}' 
                 AND ir.InvoiceDate < '2025-04-01'
                 AND ir.SaleCode = 'LINDE'
                 AND ir.GrandTotal > 100000  -- Looking for invoices over $100K
@@ -8227,7 +8241,7 @@ def register_department_routes(reports_bp):
                 ir.Comments
             FROM {schema}.InvoiceReg ir
             LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
-            WHERE ir.InvoiceDate >= '2025-03-01' 
+            WHERE ir.InvoiceDate >= '{_get_data_start_date_str()}' 
                 AND ir.InvoiceDate < '2025-04-01'
                 AND (ir.EquipmentTaxable > 0 OR ir.EquipmentNonTax > 0)
                 AND ir.GrandTotal BETWEEN 110000 AND 115000  -- Looking around $113K
@@ -8249,7 +8263,7 @@ def register_department_routes(reports_bp):
                 ir.GrandTotal
             FROM {schema}.InvoiceReg ir
             LEFT JOIN {schema}.Customer c ON ir.BillTo = c.Number
-            WHERE ir.InvoiceDate >= '2025-03-01' 
+            WHERE ir.InvoiceDate >= '{_get_data_start_date_str()}' 
                 AND ir.InvoiceDate < '2025-04-01'
                 AND ir.SaleCode = 'LINDE'
             ORDER BY ir.GrandTotal DESC

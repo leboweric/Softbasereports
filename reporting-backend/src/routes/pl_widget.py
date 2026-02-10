@@ -7,7 +7,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from src.utils.tenant_utils import get_tenant_db
 from src.services.cache_service import cache_service
-from src.utils.fiscal_year import SOFTBASE_CUTOVER_DATE, get_fiscal_ytd_start
+from src.utils.fiscal_year import get_tenant_cutover_date, get_fiscal_ytd_start
 from src.models.user import User
 from datetime import datetime, timedelta
 import logging
@@ -202,9 +202,10 @@ def get_pl_trend(year, month, schema, months=12):
             start_date = start_date.replace(day=1) - timedelta(days=1)
         start_date = start_date.replace(day=1)
 
-        # Don't go before Softbase cutover (March 2025)
-        if start_date < SOFTBASE_CUTOVER_DATE:
-            start_date = SOFTBASE_CUTOVER_DATE
+        # Don't go before tenant's data start date
+        cutover = get_tenant_cutover_date()
+        if cutover and start_date < cutover:
+            start_date = cutover
         
         # Generate trend data from start_date to current month (inclusive)
         current = start_date

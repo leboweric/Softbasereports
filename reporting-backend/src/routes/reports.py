@@ -12,6 +12,18 @@ logger = logging.getLogger(__name__)
 reports_bp = Blueprint('reports', __name__)
 report_generator = ReportGenerator()
 
+def _get_data_start_date_str():
+    """Get the tenant's data start date as a SQL-safe string."""
+    try:
+        from flask import g
+        if hasattr(g, 'current_organization') and g.current_organization:
+            if g.current_organization.data_start_date:
+                return g.current_organization.data_start_date.strftime('%Y-%m-%d')
+            return '2000-01-01'  # No restriction
+    except RuntimeError:
+        pass
+    return '2025-03-01'  # Default fallback
+
 # Import and register department routes
 from .department_reports import register_department_routes
 register_department_routes(reports_bp)
@@ -1858,6 +1870,7 @@ def get_dashboard_summary():
             uninvoiced_count = 0
         
         # Get monthly quotes value since March
+        data_start = _get_data_start_date_str()
         monthly_quotes = []
         try:
             # Query WOQuote table for monthly quote totals
@@ -1867,7 +1880,7 @@ def get_dashboard_summary():
                 MONTH(CreationTime) as month,
                 SUM(Amount) as amount
             FROM {schema}.WOQuote
-            WHERE CreationTime >= '2025-03-01'
+            WHERE CreationTime >= '{data_start}'
             AND Amount > 0
             GROUP BY YEAR(CreationTime), MONTH(CreationTime)
             ORDER BY YEAR(CreationTime), MONTH(CreationTime)
@@ -1886,7 +1899,11 @@ def get_dashboard_summary():
             # Pad with zeros for months without quotes
             if len(monthly_quotes) < 5:  # March to July is 5 months
                 # Get all months from March to current
-                start_date = datetime(2025, 3, 1)
+                data_start = _get_data_start_date_str()
+                start_date = datetime.strptime(data_start, '%Y-%m-%d')
+                thirteen_months_ago = datetime.now().replace(day=1) - timedelta(days=365)
+                if start_date < thirteen_months_ago:
+                    start_date = thirteen_months_ago
                 current_date = datetime.now()
                 
                 all_months = []
@@ -1933,7 +1950,7 @@ def get_dashboard_summary():
                     COALESCE((SELECT SUM(Sell) FROM {schema}.WOParts WHERE WONo = w.WONo), 0) as parts_total,
                     COALESCE((SELECT SUM(Sell) FROM {schema}.WOMisc WHERE WONo = w.WONo), 0) as misc_total
                 FROM {schema}.WO w
-                WHERE w.OpenDate >= '2025-03-01'
+                WHERE w.OpenDate >= '{data_start}'
                 AND w.OpenDate IS NOT NULL
             ) as wo_with_values
             GROUP BY YEAR(OpenDate), MONTH(OpenDate), Type
@@ -1980,7 +1997,11 @@ def get_dashboard_summary():
             
             # If no data, provide empty months from March to current
             if not monthly_work_orders_by_type:
-                start_date = datetime(2025, 3, 1)
+                data_start = _get_data_start_date_str()
+                start_date = datetime.strptime(data_start, '%Y-%m-%d')
+                thirteen_months_ago = datetime.now().replace(day=1) - timedelta(days=365)
+                if start_date < thirteen_months_ago:
+                    start_date = thirteen_months_ago
                 current_date = datetime.now()
                 
                 date = start_date

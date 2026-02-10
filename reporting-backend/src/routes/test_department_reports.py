@@ -3,6 +3,20 @@ from flask import jsonify, request
 from flask_jwt_extended import jwt_required
 from src.utils.tenant_utils import get_tenant_db
 from datetime import datetime, timedelta
+
+def _get_data_start_date_str():
+    """Get the tenant's data start date as a SQL-safe string."""
+    try:
+        from flask import g
+        if hasattr(g, 'current_organization') and g.current_organization:
+            if g.current_organization.data_start_date:
+                return g.current_organization.data_start_date.strftime('%Y-%m-%d')
+            return '2000-01-01'
+    except RuntimeError:
+        pass
+    return '2025-03-01'
+
+
 import logging
 
 from flask_jwt_extended import get_jwt_identity
@@ -676,7 +690,7 @@ def register_department_routes(reports_bp):
                             SUM(GrandTotal) as total_revenue
                         FROM {schema}.InvoiceReg
                         WHERE {col_name} IN ('410004', '410005')
-                        AND InvoiceDate >= '2025-03-01'
+                        AND InvoiceDate >= '{_get_data_start_date_str()}'
                         AND InvoiceDate < '2025-08-01'
                         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
                         ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -754,7 +768,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as revenue
             FROM {schema}.InvoiceReg
             WHERE Dept = 40
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < '2025-08-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -772,7 +786,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as revenue
             FROM {schema}.InvoiceReg
             WHERE SaleCode = 'FMROAD'
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < '2025-08-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -789,7 +803,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_revenue
             FROM {schema}.InvoiceReg
             WHERE Dept IN (40, 45)
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < '2025-08-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -809,7 +823,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_revenue
             FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('FMROAD', 'FMSHOP')
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < '2025-08-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -824,7 +838,7 @@ def register_department_routes(reports_bp):
                 SUM(CASE WHEN MONTH(InvoiceDate) = 7 THEN GrandTotal ELSE 0 END) as july_revenue,
                 SUM(GrandTotal) as total_revenue
             FROM {schema}.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
+            WHERE InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < '2025-08-01'
             GROUP BY SaleCode
             HAVING SUM(CASE WHEN MONTH(InvoiceDate) = 7 THEN GrandTotal ELSE 0 END) > 5000
@@ -1164,7 +1178,7 @@ def register_department_routes(reports_bp):
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < '2025-12-01'
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY year, month
@@ -1281,7 +1295,7 @@ def register_department_routes(reports_bp):
                 SUM(LaborCost + LaborTaxable + LaborNonTax) as labor_revenue,
                 COUNT(*) as invoice_count
             FROM {schema}.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
+            WHERE InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < '2025-08-01'
             AND (LaborCost > 0 OR LaborTaxable > 0 OR LaborNonTax > 0)
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1855,7 +1869,7 @@ def register_department_routes(reports_bp):
             FROM {schema}.WO
             WHERE SaleCode IN ('SHPCST', 'RDCST')
             AND ClosedDate IS NOT NULL
-            AND ClosedDate >= '2025-03-01'
+            AND ClosedDate >= '{_get_data_start_date_str()}'
             AND ClosedDate < DATEADD(month, 1, GETDATE())
             GROUP BY YEAR(ClosedDate), MONTH(ClosedDate), DATENAME(month, ClosedDate)
             ORDER BY YEAR(ClosedDate), MONTH(ClosedDate)
@@ -1875,7 +1889,7 @@ def register_department_routes(reports_bp):
                 SUM(GrandTotal) as total_sales
             FROM {schema}.InvoiceReg
             WHERE SaleCode IN ('SHPCST', 'RDCST')
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < DATEADD(month, 1, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DATENAME(month, InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1937,7 +1951,7 @@ def register_department_routes(reports_bp):
             WHERE SaleCode IN ('RDCST', 'SHPCST', 'FMROAD', 'FMSHOP', 'PM', 'PM-FM', 'EDCO', 
                              'RENTPM', 'NEWEQP-R', 'SERVP-A', 'SERVP-A-S', 'NEQPREP', 'USEDEQP',
                              'RENTR', 'RENT-DEL', 'MO-RENT')
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{_get_data_start_date_str()}'
             AND InvoiceDate < DATEADD(month, 1, GETDATE())
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)

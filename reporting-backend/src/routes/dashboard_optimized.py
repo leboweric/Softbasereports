@@ -91,6 +91,9 @@ class DashboardQueries:
         self.thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         self.twelve_months_ago = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
         
+        # Data start date (dynamic per tenant)
+        self.data_start_date = self._get_data_start_date()
+        
         # Fiscal year start (dynamic per tenant)
         self.fiscal_year_start_month = self._get_fiscal_year_start_month()
         if self.current_date.month >= self.fiscal_year_start_month:
@@ -98,6 +101,19 @@ class DashboardQueries:
         else:
             self.fiscal_year_start = datetime(self.current_date.year - 1, self.fiscal_year_start_month, 1).strftime('%Y-%m-%d')
     
+    def _get_data_start_date(self):
+        """Get the tenant's data start date as a SQL-safe string.
+        Returns '2000-01-01' if no restriction (full trailing months)."""
+        try:
+            from flask import g
+            if hasattr(g, 'current_organization') and g.current_organization:
+                if g.current_organization.data_start_date:
+                    return g.current_organization.data_start_date.strftime('%Y-%m-%d')
+                return '2000-01-01'  # No restriction
+        except RuntimeError:
+            pass
+        return '2025-03-01'  # Default fallback
+
     def _get_fiscal_year_start_month(self):
         """Get fiscal year start month from the organization config"""
         try:
@@ -778,7 +794,7 @@ class DashboardQueries:
                     WONo,
                     MAX(CAST(CreationTime AS DATE)) as latest_quote_date
                 FROM {self.schema}.WOQuote
-                WHERE CreationTime >= '2025-03-01'
+                WHERE CreationTime >= '{self.data_start_date}'
                 AND Amount > 0
                 GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
             ),
@@ -820,7 +836,11 @@ class DashboardQueries:
                     })
             
             # Pad missing months
-            start_date = datetime(2025, 3, 1)
+            start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
+            # Use trailing 13 months if no cutover restriction
+            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+            if start_date < thirteen_months_ago:
+                start_date = thirteen_months_ago
             all_months = []
             date = start_date
             while date <= self.current_date:
@@ -1208,7 +1228,7 @@ class DashboardQueries:
                     MONTH(CompletedDate) as month,
                     EOMONTH(CompletedDate) as month_end
                 FROM {self.schema}.WO
-                WHERE CompletedDate >= '2025-03-01'
+                WHERE CompletedDate >= '{self.data_start_date}'
                     AND CompletedDate <= GETDATE()
                     AND Type IN ('S', 'SH', 'PM')  -- Service, Shop, and PM work orders
             ),
@@ -1417,7 +1437,7 @@ class DashboardQueries:
             SUM(sales_revenue) as equipment_value
         FROM mart_sales_daily
         WHERE org_id = %s
-          AND sales_date >= '2025-03-01'
+          AND sales_date >= '{self.data_start_date}'
         GROUP BY year, month
         ORDER BY year, month
         """
@@ -1441,7 +1461,10 @@ class DashboardQueries:
             }
         
         # Convert to list and ensure all months are present
-        start_date = datetime(2025, 3, 1)
+        start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
+            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+            if start_date < thirteen_months_ago:
+                start_date = thirteen_months_ago
         monthly_data = []
         date = start_date
         
@@ -1500,7 +1523,7 @@ class DashboardQueries:
             LEFT JOIN LaborTotals l ON w.WONo = l.WONo
             LEFT JOIN PartsTotals p ON w.WONo = p.WONo
             LEFT JOIN MiscTotals m ON w.WONo = m.WONo
-            WHERE w.OpenDate >= '2025-03-01'
+            WHERE w.OpenDate >= '{self.data_start_date}'
             AND w.OpenDate IS NOT NULL
             GROUP BY YEAR(w.OpenDate), MONTH(w.OpenDate), w.Type
             ORDER BY YEAR(w.OpenDate), MONTH(w.OpenDate)
@@ -1543,7 +1566,10 @@ class DashboardQueries:
                         months_data[month_key]['equipment_value'] += value
             
             # Convert to list and ensure all months are present
-            start_date = datetime(2025, 3, 1)
+            start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
+            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+            if start_date < thirteen_months_ago:
+                start_date = thirteen_months_ago
             monthly_data = []
             date = start_date
             
@@ -1735,7 +1761,7 @@ class DashboardQueries:
                     ELSE BillToName
                 END) as active_customers
             FROM {self.schema}.InvoiceReg
-            WHERE InvoiceDate >= '2025-03-01'
+            WHERE InvoiceDate >= '{self.data_start_date}'
             AND BillToName IS NOT NULL
             AND BillToName != ''
             AND BillToName NOT LIKE '%Wells Fargo%'
@@ -1757,7 +1783,10 @@ class DashboardQueries:
                     })
             
             # Pad missing months from March onwards
-            start_date = datetime(2025, 3, 1)
+            start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
+            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+            if start_date < thirteen_months_ago:
+                start_date = thirteen_months_ago
             all_months = []
             date = start_date
             while date <= self.current_date:
@@ -1786,7 +1815,7 @@ class DashboardQueries:
                     MONTH(OpenDate) as month,
                     EOMONTH(OpenDate) as month_end
                 FROM {self.schema}.WO
-                WHERE OpenDate >= '2025-03-01'
+                WHERE OpenDate >= '{self.data_start_date}'
                 AND EOMONTH(OpenDate) < EOMONTH(GETDATE())  -- Only include completed months
             )
             SELECT 
@@ -1834,7 +1863,10 @@ class DashboardQueries:
                     })
             
             # Pad missing months from March onwards (completed months only)
-            start_date = datetime(2025, 3, 1)
+            start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
+            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+            if start_date < thirteen_months_ago:
+                start_date = thirteen_months_ago
             # Get the end of the previous month (last completed month)
             current_date = datetime.now()
             if current_date.day == 1:
@@ -1938,7 +1970,7 @@ def _get_monthly_active_customers_live():
             MONTH(InvoiceDate) as month,
             COUNT(DISTINCT BillToName) as active_customers
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= '2025-03-01'
+        WHERE InvoiceDate >= '{self.data_start_date}'
         AND BillToName IS NOT NULL
         AND BillToName != ''
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -1957,7 +1989,10 @@ def _get_monthly_active_customers_live():
                 })
         
         # Pad missing months from March onwards
-        start_date = datetime(2025, 3, 1)
+        start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
+            thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
+            if start_date < thirteen_months_ago:
+                start_date = thirteen_months_ago
         all_months = []
         date = start_date
         while date <= current_date:
@@ -3077,7 +3112,7 @@ def debug_equipment_sales():
             EquipmentCost
         FROM {schema}.InvoiceReg
         WHERE SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
-            AND InvoiceDate >= '2025-03-01'
+            AND InvoiceDate >= '{self.data_start_date}'
         ORDER BY InvoiceDate DESC
         """
         
@@ -3093,7 +3128,7 @@ def debug_equipment_sales():
         test2_query = f"""
         SELECT DISTINCT SaleCode, COUNT(*) as count
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= '2025-03-01'
+        WHERE InvoiceDate >= '{self.data_start_date}'
             AND (EquipmentTaxable > 0 OR EquipmentNonTax > 0)
         GROUP BY SaleCode
         ORDER BY count DESC
@@ -3132,7 +3167,7 @@ def debug_equipment_sales():
                 ELSE 0
             END) as equipment_revenue
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= '2025-03-01'
+        WHERE InvoiceDate >= '{self.data_start_date}'
             AND SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'KOM')
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         ORDER BY year, month

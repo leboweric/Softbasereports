@@ -35,6 +35,7 @@ class Organization(db.Model):
     
     # Fiscal year configuration
     fiscal_year_start_month = db.Column(db.Integer, default=11)  # 1-12, where 1=January, 11=November
+    data_start_date = db.Column(db.Date, nullable=True)  # Cutover date - no data before this date shown. NULL = no restriction (full 13 months)
     
     # Organization settings (JSON for flexible config storage)
     settings = db.Column(db.Text, nullable=True)  # JSON string for data source configs, etc.
@@ -70,6 +71,7 @@ class Organization(db.Model):
             'trial_ends_at': self.trial_ends_at.isoformat() if self.trial_ends_at else None,
             'has_active_subscription': self.has_active_subscription(),
             'fiscal_year_start_month': self.fiscal_year_start_month,
+            'data_start_date': self.data_start_date.isoformat() if self.data_start_date else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'is_active': self.is_active,
             'logo_url': self.logo_url

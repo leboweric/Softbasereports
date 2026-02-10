@@ -9,8 +9,23 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from flask import g
 
-# Softbase migration cutover date - no data before this date should be shown
-SOFTBASE_CUTOVER_DATE = datetime(2025, 3, 1)
+# Default cutover date for tenants without a specific data_start_date
+DEFAULT_CUTOVER_DATE = datetime(2025, 3, 1)
+
+
+def get_tenant_cutover_date():
+    """
+    Get the data start (cutover) date for the current organization.
+    
+    Returns:
+        datetime or None: The cutover date, or None if no restriction.
+    """
+    if hasattr(g, 'current_organization') and g.current_organization:
+        if g.current_organization.data_start_date:
+            return datetime.combine(g.current_organization.data_start_date, datetime.min.time())
+        else:
+            return None  # No restriction - show full trailing months
+    return DEFAULT_CUTOVER_DATE  # Fallback if no org context
 
 
 def get_fiscal_year_start_month():
@@ -57,7 +72,7 @@ def get_fiscal_year_months(as_of_date=None, trailing_months=13, respect_cutover=
     Args:
         as_of_date: Optional datetime to use instead of current date
         trailing_months: Number of months to return (default: 13 for current month + previous 12)
-        respect_cutover: If True, excludes months before SOFTBASE_CUTOVER_DATE (March 2025)
+        respect_cutover: If True, excludes months before the tenant's data_start_date (per-org cutover)
 
     Returns:
         list: List of (year, month) tuples representing the trailing months
@@ -80,11 +95,13 @@ def get_fiscal_year_months(as_of_date=None, trailing_months=13, respect_cutover=
     for i in range(trailing_months):
         month_date = start_date + relativedelta(months=i)
 
-        # Filter out months before the Softbase cutover date (March 2025)
+        # Filter out months before the tenant's cutover date
         if respect_cutover:
-            cutover_year_month = (SOFTBASE_CUTOVER_DATE.year, SOFTBASE_CUTOVER_DATE.month)
-            if (month_date.year, month_date.month) < cutover_year_month:
-                continue
+            cutover_date = get_tenant_cutover_date()
+            if cutover_date:
+                cutover_year_month = (cutover_date.year, cutover_date.month)
+                if (month_date.year, month_date.month) < cutover_year_month:
+                    continue
 
         months.append((month_date.year, month_date.month))
 
