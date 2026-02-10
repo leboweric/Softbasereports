@@ -838,7 +838,7 @@ const AccountingReport = ({ user, organization }) => {
         </Card>
 
           {/* Professional Services Expenses Over Time - Hidden for IPS */}
-          {organization?.name !== 'Industrial Parts & Service' && (
+          {organization?.name !== 'Industrial Parts and Service' && (
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
