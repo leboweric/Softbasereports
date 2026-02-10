@@ -166,6 +166,14 @@ ROLE_PERMISSIONS = {
         ],
         'actions': ['view', 'export'],
     },
+    'Finance Manager': {
+        'resources': [
+            'financial', 'currie',
+            'accounting_overview', 'accounting_ar', 'accounting_ap',
+            'accounting_commissions', 'accounting_control', 'accounting_inventory'
+        ],
+        'actions': ['view', 'create', 'edit', 'export'],
+    },
     'Read Only': {
         'resources': [
             'dashboard', 'minitrac'
