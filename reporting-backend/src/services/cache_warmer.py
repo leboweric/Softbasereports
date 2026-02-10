@@ -3,18 +3,16 @@ Dashboard Cache Warmer Service
 Pre-warms the dashboard cache on server startup and maintains it with periodic refreshes.
 This eliminates the ~30 second cold-start delay for dashboard loading.
 """
-
 import logging
 import atexit
 import threading
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-
 logger = logging.getLogger(__name__)
-
 # Global scheduler instance
 _cache_warmer_scheduler = None
 _warming_in_progress = False
+_flask_app = None  # Store reference to Flask app for app context
 
 
 def warm_dashboard_cache():
@@ -32,80 +30,91 @@ def warm_dashboard_cache():
     start_time = datetime.now()
     
     try:
-        # Import here to avoid circular imports
-        from src.services.azure_sql_service import AzureSQLService
-        from src.services.cache_service import cache_service
-        from src.routes.dashboard_optimized import DashboardQueries
-        from src.models.user import Organization
-        
-        logger.info("🔥 Starting dashboard cache warm-up...")
-        
-        # Get all active organizations with database credentials
-        orgs = Organization.query.filter(
-            Organization.is_active == True,
-            Organization.database_schema.isnot(None)
-        ).all()
-        
-        if not orgs:
-            logger.warning("No active organizations found for cache warming")
+        # Must run inside app context since we use SQLAlchemy models
+        if _flask_app is None:
+            logger.error("❌ Cache warmer: Flask app not set, cannot warm cache")
             return
         
-        # For now, just use the default credentials (Bennett) for cache warming
-        # Multi-tenant cache warming would require separate cache keys per tenant
-        db = AzureSQLService()
-        # Use Bennett's schema as default for cache warming
-        queries = DashboardQueries(db, schema='ben002')
-        
-        # Cache TTL settings (in seconds) - all set to 1 hour
-        cache_ttl = 3600
-        
-        # Get current month for cache key
-        current_month = datetime.now().strftime('%Y-%m')
-        
-        # Define all queries to warm
-        query_configs = [
-            ('total_sales', queries.get_current_month_sales),
-            ('ytd_sales', queries.get_ytd_sales),
-            ('inventory_count', queries.get_inventory_count),
-            ('active_customers', queries.get_active_customers),
-            ('total_customers', queries.get_total_customers),
-            ('monthly_sales', queries.get_monthly_sales),
-            ('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment),
-            ('monthly_equipment_sales', queries.get_monthly_equipment_sales),
-            ('monthly_sales_by_stream', queries.get_monthly_sales_by_stream),
-            ('uninvoiced', queries.get_uninvoiced_work_orders),
-            ('monthly_quotes', queries.get_monthly_quotes),
-            ('work_order_types', queries.get_work_order_types),
-            ('top_customers', queries.get_top_customers),
-            ('monthly_work_orders', queries.get_monthly_work_orders_by_type),
-            ('department_margins', queries.get_department_margins),
-            ('monthly_active_customers', queries.get_monthly_active_customers),
-            ('monthly_open_work_orders', queries.get_monthly_open_work_orders),
-            ('awaiting_invoice', queries.get_awaiting_invoice_work_orders),
-            ('monthly_invoice_delays', queries.get_monthly_invoice_delay_avg),
-        ]
-        
-        success_count = 0
-        error_count = 0
-        
-        for key, query_func in query_configs:
-            try:
-                cache_key = f"dashboard:{key}:{current_month}"
-                # Force refresh to ensure fresh data
-                result = cache_service.cache_query(cache_key, query_func, cache_ttl, force_refresh=True)
-                success_count += 1
-                logger.debug(f"  ✓ Warmed cache for {key}")
-            except Exception as e:
-                error_count += 1
-                logger.error(f"  ✗ Failed to warm cache for {key}: {str(e)}")
-        
-        elapsed = (datetime.now() - start_time).total_seconds()
-        logger.info(f"✅ Dashboard cache warm-up complete in {elapsed:.1f}s ({success_count} succeeded, {error_count} failed)")
+        with _flask_app.app_context():
+            _do_warm_cache(start_time)
         
     except Exception as e:
         logger.error(f"❌ Dashboard cache warm-up failed: {str(e)}")
     finally:
         _warming_in_progress = False
+
+
+def _do_warm_cache(start_time):
+    """Inner function that runs inside app context."""
+    # Import here to avoid circular imports
+    from src.services.azure_sql_service import AzureSQLService
+    from src.services.cache_service import cache_service
+    from src.routes.dashboard_optimized import DashboardQueries
+    from src.models.user import Organization
+    
+    logger.info("🔥 Starting dashboard cache warm-up...")
+    
+    # Get all active organizations with database credentials
+    orgs = Organization.query.filter(
+        Organization.is_active == True,
+        Organization.database_schema.isnot(None)
+    ).all()
+    
+    if not orgs:
+        logger.warning("No active organizations found for cache warming")
+        return
+    
+    # For now, just use the default credentials (Bennett) for cache warming
+    # Multi-tenant cache warming would require separate cache keys per tenant
+    db = AzureSQLService()
+    # Use Bennett's schema as default for cache warming
+    queries = DashboardQueries(db, schema='ben002')
+    
+    # Cache TTL settings (in seconds) - all set to 1 hour
+    cache_ttl = 3600
+    
+    # Get current month for cache key
+    current_month = datetime.now().strftime('%Y-%m')
+    
+    # Define all queries to warm
+    query_configs = [
+        ('total_sales', queries.get_current_month_sales),
+        ('ytd_sales', queries.get_ytd_sales),
+        ('inventory_count', queries.get_inventory_count),
+        ('active_customers', queries.get_active_customers),
+        ('total_customers', queries.get_total_customers),
+        ('monthly_sales', queries.get_monthly_sales),
+        ('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment),
+        ('monthly_equipment_sales', queries.get_monthly_equipment_sales),
+        ('monthly_sales_by_stream', queries.get_monthly_sales_by_stream),
+        ('uninvoiced', queries.get_uninvoiced_work_orders),
+        ('monthly_quotes', queries.get_monthly_quotes),
+        ('work_order_types', queries.get_work_order_types),
+        ('top_customers', queries.get_top_customers),
+        ('monthly_work_orders', queries.get_monthly_work_orders_by_type),
+        ('department_margins', queries.get_department_margins),
+        ('monthly_active_customers', queries.get_monthly_active_customers),
+        ('monthly_open_work_orders', queries.get_monthly_open_work_orders),
+        ('awaiting_invoice', queries.get_awaiting_invoice_work_orders),
+        ('monthly_invoice_delays', queries.get_monthly_invoice_delay_avg),
+    ]
+    
+    success_count = 0
+    error_count = 0
+    
+    for key, query_func in query_configs:
+        try:
+            cache_key = f"dashboard:{key}:{current_month}"
+            # Force refresh to ensure fresh data
+            result = cache_service.cache_query(cache_key, query_func, cache_ttl, force_refresh=True)
+            success_count += 1
+            logger.debug(f"  ✓ Warmed cache for {key}")
+        except Exception as e:
+            error_count += 1
+            logger.error(f"  ✗ Failed to warm cache for {key}: {str(e)}")
+    
+    elapsed = (datetime.now() - start_time).total_seconds()
+    logger.info(f"✅ Dashboard cache warm-up complete in {elapsed:.1f}s ({success_count} succeeded, {error_count} failed)")
 
 
 def warm_cache_async():
@@ -124,7 +133,10 @@ def init_cache_warmer(app):
     Args:
         app: The Flask application instance
     """
-    global _cache_warmer_scheduler
+    global _cache_warmer_scheduler, _flask_app
+    
+    # Store the Flask app reference for app context in background threads
+    _flask_app = app
     
     # Only initialize once
     if _cache_warmer_scheduler is not None:
@@ -178,51 +190,3 @@ def init_cache_warmer(app):
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize cache warmer scheduler: {str(e)}")
-
-
-def get_cache_warmer_status():
-    """
-    Get the current status of the cache warmer scheduler and its jobs.
-    
-    Returns:
-        dict: Scheduler status information
-    """
-    global _cache_warmer_scheduler, _warming_in_progress
-    
-    if _cache_warmer_scheduler is None:
-        return {
-            'running': False,
-            'warming_in_progress': _warming_in_progress,
-            'jobs': []
-        }
-    
-    jobs = []
-    for job in _cache_warmer_scheduler.get_jobs():
-        jobs.append({
-            'id': job.id,
-            'name': job.name,
-            'next_run': str(job.next_run_time) if job.next_run_time else None,
-            'trigger': str(job.trigger)
-        })
-    
-    return {
-        'running': _cache_warmer_scheduler.running,
-        'warming_in_progress': _warming_in_progress,
-        'jobs': jobs
-    }
-
-
-def trigger_cache_warmup_now():
-    """
-    Manually trigger a cache warm-up.
-    Useful for testing or manual refreshes.
-    
-    Returns:
-        bool: True if triggered successfully, False otherwise
-    """
-    try:
-        warm_cache_async()
-        return True
-    except Exception as e:
-        logger.error(f"Manual cache warmup trigger failed: {str(e)}")
-        return False
