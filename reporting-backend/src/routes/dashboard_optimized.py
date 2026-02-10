@@ -2098,6 +2098,13 @@ def _get_dashboard_from_mart(start_time, org_id=4):
             'percentage': round(percentage, 1)
         })
     
+    # Set g.current_organization for fiscal year calculations
+    # The mart path doesn't go through tenant middleware, so we need to set it manually
+    from src.models.user import Organization
+    org = Organization.query.get(org_id)
+    if org:
+        g.current_organization = org
+    
     # Format monthly data with month labels
     fiscal_months = get_fiscal_year_months()
     
@@ -2197,6 +2204,14 @@ def get_dashboard_summary_optimized():
         tenant_schema = get_tenant_schema()
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
+    
+    # Ensure g.current_organization is set for fiscal year and cutover date calculations
+    if not hasattr(g, 'current_organization') or not g.current_organization:
+        from flask_jwt_extended import get_jwt_identity
+        from src.models.user import User
+        user = User.query.get(get_jwt_identity())
+        if user and user.organization:
+            g.current_organization = user.organization
     
     # Log cache status
     logger.info(f"Dashboard request - tenant: {tenant_schema}, force_refresh: {force_refresh}, cache_enabled: {cache_service.enabled}")
@@ -2369,6 +2384,14 @@ def get_dashboard_summary_fast():
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     
+    # Ensure g.current_organization is set for fiscal year and cutover date calculations
+    if not hasattr(g, 'current_organization') or not g.current_organization:
+        from flask_jwt_extended import get_jwt_identity
+        from src.models.user import User
+        user = User.query.get(get_jwt_identity())
+        if user and user.organization:
+            g.current_organization = user.organization
+    
     # Get org_id from schema mapping
     org_id = DashboardQueries.ORG_ID_MAP.get(tenant_schema)
     if org_id is None:
@@ -2437,6 +2460,12 @@ def get_dashboard_summary_fast():
                 'invoice_count': c.get('invoice_count', 0),
                 'percentage': round(percentage, 1)
             })
+        
+        # Set g.current_organization for fiscal year calculations
+        from src.models.user import Organization
+        org = Organization.query.get(org_id)
+        if org:
+            g.current_organization = org
         
         # Format monthly data with month labels
         from src.utils.fiscal_year import get_fiscal_year_months
