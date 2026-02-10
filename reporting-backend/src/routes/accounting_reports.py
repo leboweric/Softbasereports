@@ -547,3 +547,34 @@ def get_table_columns():
         return jsonify({'schema': schema, 'table': table, 'columns': columns})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/departments/accounting/diag-query', methods=['GET'])
+@jwt_required()
+def diag_query():
+    """Temporary diagnostic endpoint to run custom queries"""
+    try:
+        schema = get_tenant_schema()
+        db = get_tenant_db()
+        from flask import request
+        q = request.args.get('q', '')
+        if not q:
+            return jsonify({'error': 'No query provided'})
+        # Replace {schema} placeholder
+        q = q.replace('{schema}', schema)
+        results = db.execute_query(q)
+        # Convert to serializable format
+        rows = []
+        for r in results:
+            row = {}
+            for k, v in r.items():
+                if hasattr(v, 'strftime'):
+                    row[k] = v.strftime('%Y-%m-%d %H:%M:%S')
+                elif isinstance(v, (int, float, str, bool, type(None))):
+                    row[k] = v
+                else:
+                    row[k] = str(v)
+            rows.append(row)
+        return jsonify({'schema': schema, 'count': len(rows), 'rows': rows[:200]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
