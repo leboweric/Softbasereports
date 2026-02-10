@@ -587,26 +587,24 @@ const Dashboard = ({ user }) => {
       payload.year === currentYear &&
       paceData
 
-    // Calculate ghost bar for prior year
+    // Ghost bar for prior year - only for current month
     const priorYearAmount = payload?.prior_year_amount || 0
     const currentAmount = payload?.amount || 0
     let ghostBarHeight = 0
-    let ghostBarY = y + height // default to bottom of current bar
-    if (priorYearAmount > 0 && currentAmount > 0 && height > 0) {
-      // Scale ghost bar relative to current bar
+    let ghostBarY = y + height
+    if (isCurrentMonth && priorYearAmount > 0 && currentAmount > 0 && height > 0) {
       const ratio = priorYearAmount / currentAmount
       ghostBarHeight = height * ratio
       ghostBarY = y + height - ghostBarHeight
-    } else if (priorYearAmount > 0 && background) {
-      // Current is 0 but prior year has data - use background height as reference
-      ghostBarHeight = Math.min(background.height * 0.3, 50) // cap it
+    } else if (isCurrentMonth && priorYearAmount > 0 && background) {
+      ghostBarHeight = Math.min(background.height * 0.3, 50)
       ghostBarY = background.y + background.height - ghostBarHeight
     }
 
     return (
       <g>
-        {/* Ghost bar for prior year - rendered behind */}
-        {priorYearAmount > 0 && ghostBarHeight > 0 && (
+        {/* Ghost bar for prior year - current month only */}
+        {isCurrentMonth && priorYearAmount > 0 && ghostBarHeight > 0 && (
           <rect
             x={x - 2}
             y={ghostBarY}
@@ -1093,7 +1091,6 @@ const Dashboard = ({ user }) => {
                         ))}
                       </div>
                     )} />
-                    <Bar yAxisId="left" dataKey="prior_year_amount" fill="#8884d8" fillOpacity={0} name="Prior Year" legendType="rect" hide />
                     <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} />
                     <Line
                       yAxisId="right"
