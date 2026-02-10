@@ -86,7 +86,7 @@ ROLE_PERMISSIONS = {
         'resources': [
             'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
             'parts_forecast', 'parts_overview', 'parts_employee_performance',
-            'parts_velocity', 'parts_inventory_turns', 'minitrac'
+            'parts_velocity', 'parts_inventory_turns'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
@@ -99,7 +99,7 @@ ROLE_PERMISSIONS = {
     },
     'Service Manager': {
         'resources': [
-            'service_work_orders', 'service_overview', 'knowledge_base', 'minitrac', 'qbr'
+            'service_work_orders', 'service_overview'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
