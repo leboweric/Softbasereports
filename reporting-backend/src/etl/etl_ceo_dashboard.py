@@ -340,7 +340,7 @@ class CEODashboardETL(BaseETL):
             SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as total_cost
         FROM {schema}.GLDetail
         WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
-            AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+            AND EffectiveDate >= DATEADD(month, -25, GETDATE())
             AND Posted = 1
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -392,7 +392,7 @@ class CEODashboardETL(BaseETL):
             SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as total_cost
         FROM {schema}.GLDetail
         WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
-            AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+            AND EffectiveDate >= DATEADD(month, -25, GETDATE())
             AND Posted = 1
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -434,7 +434,7 @@ class CEODashboardETL(BaseETL):
             SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
             SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as rental_revenue
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= DATEADD(month, -13, GETDATE())
+        WHERE InvoiceDate >= DATEADD(month, -25, GETDATE())
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         """
@@ -474,7 +474,7 @@ class CEODashboardETL(BaseETL):
             MONTH(InvoiceDate) as month,
             SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= DATEADD(month, -13, GETDATE())
+        WHERE InvoiceDate >= DATEADD(month, -25, GETDATE())
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         """
@@ -508,7 +508,7 @@ class CEODashboardETL(BaseETL):
             COUNT(CASE WHEN CompletedDate IS NOT NULL THEN 1 END) as completed,
             COUNT(CASE WHEN ClosedDate IS NOT NULL THEN 1 END) as closed
         FROM {schema}.WO
-        WHERE OpenDate >= DATEADD(month, -13, GETDATE())
+        WHERE OpenDate >= DATEADD(month, -25, GETDATE())
         GROUP BY YEAR(OpenDate), MONTH(OpenDate)
         ORDER BY YEAR(OpenDate), MONTH(OpenDate)
         """
@@ -540,7 +540,7 @@ class CEODashboardETL(BaseETL):
                 WONo,
                 MAX(CAST(CreationTime AS DATE)) as latest_quote_date
             FROM {schema}.WOQuote
-            WHERE CreationTime >= DATEADD(month, -13, GETDATE())
+            WHERE CreationTime >= DATEADD(month, -25, GETDATE())
             AND Amount > 0
             GROUP BY YEAR(CreationTime), MONTH(CreationTime), WONo
         ),
@@ -619,7 +619,7 @@ class CEODashboardETL(BaseETL):
                 MONTH(CompletedDate) as month,
                 EOMONTH(CompletedDate) as month_end
             FROM {schema}.WO
-            WHERE CompletedDate >= DATEADD(month, -13, GETDATE())
+            WHERE CompletedDate >= DATEADD(month, -25, GETDATE())
                 AND CompletedDate <= GETDATE()
                 AND Type IN ('S', 'SH', 'PM')
         ),

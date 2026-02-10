@@ -2109,7 +2109,7 @@ def _get_dashboard_from_mart(start_time, org_id=4):
     fiscal_months = get_fiscal_year_months()
     
     def format_monthly_data(data, fiscal_months):
-        """Add month labels to monthly data"""
+        """Add month labels and prior year comparison to monthly data"""
         formatted = []
         data_by_key = {(d['year'], d['month']): d for d in data}
         
@@ -2121,12 +2121,31 @@ def _get_dashboard_from_mart(start_time, org_id=4):
                 month_str = month_date.strftime("%b")
             
             key = (year, month)
+            prior_key = (year - 1, month)
+            
             if key in data_by_key:
                 entry = data_by_key[key].copy()
                 entry['month'] = month_str
-                formatted.append(entry)
             else:
-                formatted.append({'month': month_str, 'year': year, 'amount': 0})
+                entry = {'month': month_str, 'year': year, 'amount': 0}
+            
+            # Add prior year comparison data
+            prior_row = data_by_key.get(prior_key)
+            if prior_row:
+                prior_amount = float(prior_row.get('amount', 0))
+                prior_cost = float(prior_row.get('cost', 0))
+                entry['prior_year_amount'] = prior_amount
+                entry['prior_year_gross_margin_dollars'] = prior_amount - prior_cost
+                if prior_amount > 0:
+                    entry['prior_year_margin'] = round(((prior_amount - prior_cost) / prior_amount) * 100, 1)
+                else:
+                    entry['prior_year_margin'] = None
+            else:
+                entry['prior_year_amount'] = 0
+                entry['prior_year_margin'] = None
+                entry['prior_year_gross_margin_dollars'] = 0
+            
+            formatted.append(entry)
         
         return formatted
     

@@ -1,0 +1,72 @@
+KEY FINDING: The 13-month trailing logic issue
+
+In fiscal_year.py, get_fiscal_year_months():
+1. It calculates 13 trailing months correctly (Feb 2025 = current, so Jan 2025 through Feb 2026)
+2. BUT it then calls get_tenant_cutover_date() which returns:
+   - g.current_organization.data_start_date if set
+   - None if data_start_date is NULL (no restriction)
+   - DEFAULT_CUTOVER_DATE = datetime(2025, 3, 1) if no org context
+
+The problem: For IPS (or whichever tenant this is), the data_start_date in the database
+might be set to 2025-02-01 or 2025-03-01, which would filter out January 2025.
+
+OR: The g.current_organization might not be set properly, causing it to fall through
+to DEFAULT_CUTOVER_DATE = March 1, 2025.
+
+Current date: Feb 9, 2026
+13 trailing months: Feb 2025 through Feb 2026
+Chart shows: Feb '25 through Feb '26 (12 months, missing Jan '25)
+
+Wait - the chart DOES start at Feb '25. That's 13 months (Feb '25 through Feb '26 = 13 months).
+Actually: Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec, Jan, Feb = 13 months.
+
+So the chart IS showing 13 months. The user might be expecting Jan '25 to be included.
+
+Let me re-count: Feb '25, Mar '25, Apr '25, May '25, Jun '25, Jul '25, Aug '25, Sep '25, Oct '25, Nov '25, Dec '25, Jan '26, Feb '26 = 13 months.
+
+That IS 13 trailing months. The issue is that 13 trailing months from Feb 2026 starts at Feb 2025, not Jan 2025.
+
+BUT WAIT - the user said "That's not 13 months trailing" - maybe they want Jan '25 included, making it 14 months? Or maybe the chart is only showing 12 months?
+
+Looking at the screenshot: Feb '25, May '25, Aug '25, Nov '25, Feb '26 are the visible x-axis labels.
+The bars between them would be: Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec, Jan, Feb = 13 bars.
+
+Actually the user might be right that it should start at Jan '25 for a true 13 trailing months.
+13 months back from Feb 2026 = Feb 2025 (12 months back) + current month = 13 months.
+
+Hmm, but if the user expects Jan '25, they might want the data_start_date to be NULL (no restriction)
+and the trailing months to be calculated as: current month - 12 months = Feb 2025.
+
+Wait, I need to re-read the code more carefully.
+
+In get_fiscal_year_months:
+  start_date = as_of_date - relativedelta(months=trailing_months - 1)
+  For trailing_months=13, as_of_date=Feb 9, 2026:
+  start_date = Feb 2026 - 12 months = Feb 2025
+  Then generates: Feb 2025, Mar 2025, ..., Feb 2026 = 13 months
+
+So the math IS correct for 13 trailing months. Feb '25 through Feb '26 = 13 months.
+
+The user might be confused, or they might want 14 months, or the chart might actually be showing fewer months due to cutover filtering.
+
+Let me check: if data_start_date is set to 2025-03-01 for this org, then Jan and Feb 2025 would be filtered out, leaving only Mar '25 through Feb '26 = 12 months.
+
+But the chart shows Feb '25 as the first month, so data_start_date must be 2025-02-01 or earlier.
+
+Actually, looking more carefully at the screenshot - I count the bars:
+Feb '25, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec, Jan '26, Feb '26 = 13 bars.
+
+That IS 13 months. But the user says it's not. Maybe they want it to start at Jan '25 (14 months)?
+
+OR: Maybe this is for IPS which has data_start_date = NULL, and the user expects the full 13 months to start from Jan '25 because IPS's fiscal year starts in January.
+
+The user said "the data starts in Feb 2025. That's not 13 trailing months" - they're saying the first data point should be earlier than Feb '25 for a true 13 trailing months.
+
+Actually wait - 13 trailing months from the current month (Feb 2026) would be:
+Feb 2025 (month -12), Mar 2025 (month -11), ..., Jan 2026 (month -1), Feb 2026 (month 0)
+= 13 months total. This IS correct.
+
+Unless the user wants the 13 months to NOT include the current incomplete month, in which case:
+Jan 2025 through Jan 2026 = 13 complete months, plus Feb 2026 partial = 14 data points.
+
+I think the user wants Jan '25 included. Let me check if the issue is the cutover date filtering.
