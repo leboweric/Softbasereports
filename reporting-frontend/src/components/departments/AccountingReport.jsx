@@ -135,15 +135,18 @@ const AccountingReport = ({ user, organization }) => {
       
       if (response.ok) {
         const data = await response.json()
-        // Filter out Nov '24 through Feb '25 (always excluded)
+        // Filter out months before the organization's data_start_date (if set)
+        const parseMonthItem = (item) => {
+          if (item.month_num && item.year) return new Date(item.year, item.month_num - 1, 1)
+          // Parse from month string like "Mar '25"
+          const parsed = new Date(Date.parse(item.month?.replace("'", "20") + " 1"))
+          return isNaN(parsed) ? null : parsed
+        }
         const baseFilteredExpenses = (data.monthly_expenses || []).filter(item => {
-          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25", "Nov", "Dec", "Jan", "Feb"]
-          if (excludedMonths.includes(item.month)) {
-            if (item.year === 2024 && ['Nov', 'Dec'].includes(item.month)) return false
-            if (item.year === 2025 && ['Jan', 'Feb'].includes(item.month)) return false
-            if (item.month.includes("'24") || item.month.includes("'25")) {
-              if (["Nov '24", "Dec '24", "Jan '25", "Feb '25"].includes(item.month)) return false
-            }
+          if (organization?.data_start_date) {
+            const startDate = new Date(organization.data_start_date)
+            const itemDate = parseMonthItem(item)
+            return itemDate ? itemDate >= startDate : true
           }
           return true
         })
@@ -227,10 +230,20 @@ const AccountingReport = ({ user, organization }) => {
 
       if (response.ok) {
         const data = await response.json()
-        // Filter out Nov '24 through Feb '25 (always excluded)
+        // Filter out months before the organization's data_start_date (if set)
+        const parseMonthItem2 = (item) => {
+          if (item.month_num && item.year) return new Date(item.year, item.month_num - 1, 1)
+          // Parse from month string like "Mar '25"
+          const parsed = new Date(Date.parse(item.month?.replace("'", "20") + " 1"))
+          return isNaN(parsed) ? null : parsed
+        }
         const baseFilteredData = (data.monthly_sales || []).filter(item => {
-          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
-          return !excludedMonths.includes(item.month)
+          if (organization?.data_start_date) {
+            const startDate = new Date(organization.data_start_date)
+            const itemDate = parseMonthItem2(item)
+            return itemDate ? itemDate >= startDate : true
+          }
+          return true
         })
         setRawGrossMarginData(baseFilteredData)
         
@@ -261,10 +274,20 @@ const AccountingReport = ({ user, organization }) => {
 
       if (response.ok) {
         const data = await response.json()
-        // Filter out Nov '24 through Feb '25 (always excluded)
+        // Filter out months before the organization's data_start_date (if set)
+        const parseMonthItem3 = (item) => {
+          if (item.month_num && item.year) return new Date(item.year, item.month_num - 1, 1)
+          // Parse from month string like "Mar '25"
+          const parsed = new Date(Date.parse(item.month?.replace("'", "20") + " 1"))
+          return isNaN(parsed) ? null : parsed
+        }
         const baseFilteredExpenses = (data.monthly_expenses || []).filter(item => {
-          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
-          return !excludedMonths.includes(item.month)
+          if (organization?.data_start_date) {
+            const startDate = new Date(organization.data_start_date)
+            const itemDate = parseMonthItem3(item)
+            return itemDate ? itemDate >= startDate : true
+          }
+          return true
         })
         setRawProfessionalServicesExpenses(baseFilteredExpenses)
         
@@ -321,10 +344,14 @@ const AccountingReport = ({ user, organization }) => {
 
       if (response.ok) {
         const data = await response.json()
-        // Filter out Nov '24 through Feb '25 (always excluded)
+        // Filter out months before the organization's data_start_date (if set)
         const baseFilteredData = (data.monthly_data || []).filter(item => {
-          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"]
-          return !excludedMonths.includes(item.month)
+          if (organization?.data_start_date) {
+            const startDate = new Date(organization.data_start_date)
+            const itemDate = new Date(item.year, item.month_num - 1, 1)
+            return itemDate >= startDate
+          }
+          return true
         })
         setRawAbsorptionRateData(baseFilteredData)
         setAbsorptionSummary(data.summary)

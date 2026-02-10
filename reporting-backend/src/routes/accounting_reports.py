@@ -246,29 +246,35 @@ def get_monthly_absorption_rate():
     Absorption Rate = (Service GP + Parts GP + Rental GP) / Overhead Expenses × 100%
     
     Returns trailing 13 months of data.
+    Uses tenant-aware GL account mappings from gl_accounts_loader.
     """
     try:
         logger.info("Starting absorption rate calculation")
         db = get_tenant_db()
         schema = get_tenant_schema()
         
-        # Import GL accounts config
-        from src.config.gl_accounts_detailed import (
-            DEPARTMENT_CONFIG, 
-            OVERHEAD_EXPENSE_ACCOUNTS,
-            get_all_expense_accounts
-        )
+        # Use tenant-aware GL accounts (supports both Bennett and IPS account formats)
+        from src.config.gl_accounts_loader import get_gl_accounts, get_expense_accounts
         
-        # Get service, parts, rental accounts
-        service_sales = [acct[0] for acct in DEPARTMENT_CONFIG['service']['sales_accounts']]
-        service_cos = [acct[0] for acct in DEPARTMENT_CONFIG['service']['cos_accounts']]
-        parts_sales = [acct[0] for acct in DEPARTMENT_CONFIG['parts']['sales_accounts']]
-        parts_cos = [acct[0] for acct in DEPARTMENT_CONFIG['parts']['cos_accounts']]
-        rental_sales = [acct[0] for acct in DEPARTMENT_CONFIG['rental']['sales_accounts']]
-        rental_cos = [acct[0] for acct in DEPARTMENT_CONFIG['rental']['cos_accounts']]
+        gl_accounts = get_gl_accounts(schema)
+        expense_accounts = get_expense_accounts(schema)
         
-        # Get overhead expense accounts
-        overhead_accounts = get_all_expense_accounts()
+        # Get service, parts, rental revenue and COGS accounts for this tenant
+        service_sales = gl_accounts.get('service', {}).get('revenue', [])
+        service_cos = gl_accounts.get('service', {}).get('cogs', [])
+        parts_sales = gl_accounts.get('parts', {}).get('revenue', [])
+        parts_cos = gl_accounts.get('parts', {}).get('cogs', [])
+        rental_sales = gl_accounts.get('rental', {}).get('revenue', [])
+        rental_cos = gl_accounts.get('rental', {}).get('cogs', [])
+        
+        # Get all overhead expense accounts (flatten all categories)
+        overhead_accounts = []
+        for category, accounts in expense_accounts.items():
+            overhead_accounts.extend(accounts)
+        
+        logger.info(f"Absorption rate for schema={schema}: service_sales={len(service_sales)}, "
+                    f"parts_sales={len(parts_sales)}, rental_sales={len(rental_sales)}, "
+                    f"overhead={len(overhead_accounts)} accounts")
         
         # Format for SQL IN clause
         service_sales_list = "', '".join(service_sales)

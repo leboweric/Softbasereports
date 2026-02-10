@@ -163,10 +163,14 @@ const Currie = ({ user, organization }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        // Filter out Nov '24 through Feb '25 (always excluded)
+        // Filter out months before the organization's data_start_date (if set)
         const baseFilteredData = (data.monthly_data || []).filter(item => {
-          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"];
-          return !excludedMonths.includes(item.month);
+          if (organization?.data_start_date) {
+            const startDate = new Date(organization.data_start_date);
+            const itemDate = new Date(item.year, item.month_num - 1, 1);
+            return itemDate >= startDate;
+          }
+          return true;
         });
         setRawAbsorptionRateData(baseFilteredData);
         setAbsorptionSummary(data.summary);

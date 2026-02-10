@@ -14,6 +14,10 @@ _cache_warmer_scheduler = None
 _warming_in_progress = False
 _flask_app = None  # Store reference to Flask app for app context
 
+# Schemas that are known Softbase tenants (have GLDetail, Equipment, WO tables etc.)
+# Non-Softbase schemas (e.g., vital001) should NOT be warmed as they use different data sources.
+SOFTBASE_SCHEMAS = {'ben002', 'ind004'}
+
 
 def warm_dashboard_cache():
     """
@@ -47,10 +51,10 @@ def warm_dashboard_cache():
 def _do_warm_cache(start_time):
     """Inner function that runs inside app context."""
     # Import here to avoid circular imports
-    from src.services.azure_sql_service import AzureSQLService
     from src.services.cache_service import cache_service
     from src.routes.dashboard_optimized import DashboardQueries
     from src.models.user import Organization
+    from src.etl.tenant_discovery import TenantInfo
     
     logger.info("🔥 Starting dashboard cache warm-up...")
     
@@ -76,6 +80,11 @@ def _do_warm_cache(start_time):
         if not schema:
             continue
         
+        # Skip non-Softbase schemas (e.g., vital001 doesn't have Softbase tables)
+        if schema not in SOFTBASE_SCHEMAS:
+            logger.info(f"  Skipping non-Softbase org: {org.name} (schema={schema})")
+            continue
+        
         logger.info(f"  Warming cache for {org.name} (schema={schema})...")
         
         # Get org-specific settings to avoid needing Flask g context
@@ -83,7 +92,20 @@ def _do_warm_cache(start_time):
         fiscal_year_start_month = org.fiscal_year_start_month or 11
         
         try:
-            db = AzureSQLService()
+            # Use per-tenant credentials via TenantInfo (same as ETL)
+            tenant = TenantInfo(
+                org_id=org.id,
+                name=org.name,
+                schema=schema,
+                db_server=org.db_server,
+                db_name=org.db_name,
+                db_username=org.db_username,
+                db_password_encrypted=org.db_password_encrypted,
+                platform_type=org.platform_type,
+                fiscal_year_start_month=fiscal_year_start_month
+            )
+            db = tenant.get_azure_sql_service()
+            
             queries = DashboardQueries(
                 db, schema=schema,
                 data_start_date=data_start_date,
