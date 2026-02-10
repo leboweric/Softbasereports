@@ -1,5 +1,5 @@
 """
-Role-Based Access Control (RBAC) models for AI First Operations (AIOP)
+Role-Based Access Control (RBAC) models for Softbase Reports
 """
 from datetime import datetime
 from src.models.user import db

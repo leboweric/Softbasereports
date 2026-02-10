@@ -97,7 +97,7 @@ const DatabaseExplorer = ({ user }) => {
       const exportData = {
         export_date: new Date().toISOString(),
         export_version: '1.0',
-        database: 'Tenant ERP Database',
+        database: 'Softbase Evolution',
         schema: 'ben002',
         summary: fullData.summary,
         tables: fullData.tables?.map(table => ({
@@ -118,7 +118,7 @@ const DatabaseExplorer = ({ user }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `erp_database_schema_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `softbase_database_schema_${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -199,7 +199,7 @@ const DatabaseExplorer = ({ user }) => {
               <Database className="h-8 w-8 text-blue-600 mr-3" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Database Explorer</h1>
-                <p className="text-gray-600">Browse ERP database structure and sample data</p>
+                <p className="text-gray-600">Browse Softbase database structure and sample data</p>
               </div>
             </div>
             <div className="flex space-x-2">
