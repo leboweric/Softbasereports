@@ -75,7 +75,7 @@ class DashboardQueries:
         'ind004': 7    # Industrial Parts and Service (IPS)
     }
     
-    def __init__(self, db, schema=None, pg_db=None):
+    def __init__(self, db, schema=None, pg_db=None, data_start_date=None, fiscal_year_start_month=None):
         if schema is None:
             raise ValueError("schema parameter is required - use get_tenant_schema() to get the current user's schema")
         self.db = db
@@ -91,11 +91,17 @@ class DashboardQueries:
         self.thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         self.twelve_months_ago = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
         
-        # Data start date (dynamic per tenant)
-        self.data_start_date = self._get_data_start_date()
+        # Data start date (dynamic per tenant) - use explicit param if provided (e.g., cache warmer)
+        if data_start_date is not None:
+            self.data_start_date = data_start_date
+        else:
+            self.data_start_date = self._get_data_start_date()
         
-        # Fiscal year start (dynamic per tenant)
-        self.fiscal_year_start_month = self._get_fiscal_year_start_month()
+        # Fiscal year start (dynamic per tenant) - use explicit param if provided
+        if fiscal_year_start_month is not None:
+            self.fiscal_year_start_month = fiscal_year_start_month
+        else:
+            self.fiscal_year_start_month = self._get_fiscal_year_start_month()
         if self.current_date.month >= self.fiscal_year_start_month:
             self.fiscal_year_start = datetime(self.current_date.year, self.fiscal_year_start_month, 1).strftime('%Y-%m-%d')
         else:
@@ -1482,12 +1488,12 @@ class DashboardQueries:
             SUM(sales_revenue) as equipment_value
         FROM mart_sales_daily
         WHERE org_id = %s
-          AND sales_date >= '{self.data_start_date}'
+          AND sales_date >= %s
         GROUP BY year, month
         ORDER BY year, month
         """
         
-        results = self.pg_db.execute_query(query, (self.org_id,))
+        results = self.pg_db.execute_query(query, (self.org_id, self.data_start_date))
         if not results:
             return None
         

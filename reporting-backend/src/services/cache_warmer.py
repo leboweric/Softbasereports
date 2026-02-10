@@ -64,57 +64,70 @@ def _do_warm_cache(start_time):
         logger.warning("No active organizations found for cache warming")
         return
     
-    # For now, just use the default credentials (Bennett) for cache warming
-    # Multi-tenant cache warming would require separate cache keys per tenant
-    db = AzureSQLService()
-    # Use Bennett's schema as default for cache warming
-    queries = DashboardQueries(db, schema='ben002')
-    
     # Cache TTL settings (in seconds) - all set to 1 hour
     cache_ttl = 3600
-    
-    # Get current month for cache key
     current_month = datetime.now().strftime('%Y-%m')
     
-    # Define all queries to warm
-    query_configs = [
-        ('total_sales', queries.get_current_month_sales),
-        ('ytd_sales', queries.get_ytd_sales),
-        ('inventory_count', queries.get_inventory_count),
-        ('active_customers', queries.get_active_customers),
-        ('total_customers', queries.get_total_customers),
-        ('monthly_sales', queries.get_monthly_sales),
-        ('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment),
-        ('monthly_equipment_sales', queries.get_monthly_equipment_sales),
-        ('monthly_sales_by_stream', queries.get_monthly_sales_by_stream),
-        ('uninvoiced', queries.get_uninvoiced_work_orders),
-        ('monthly_quotes', queries.get_monthly_quotes),
-        ('work_order_types', queries.get_work_order_types),
-        ('top_customers', queries.get_top_customers),
-        ('monthly_work_orders', queries.get_monthly_work_orders_by_type),
-        ('department_margins', queries.get_department_margins),
-        ('monthly_active_customers', queries.get_monthly_active_customers),
-        ('monthly_open_work_orders', queries.get_monthly_open_work_orders),
-        ('awaiting_invoice', queries.get_awaiting_invoice_work_orders),
-        ('monthly_invoice_delays', queries.get_monthly_invoice_delay_avg),
-    ]
+    total_success = 0
+    total_error = 0
     
-    success_count = 0
-    error_count = 0
-    
-    for key, query_func in query_configs:
+    for org in orgs:
+        schema = org.database_schema
+        if not schema:
+            continue
+        
+        logger.info(f"  Warming cache for {org.name} (schema={schema})...")
+        
+        # Get org-specific settings to avoid needing Flask g context
+        data_start_date = org.data_start_date.strftime('%Y-%m-%d') if org.data_start_date else '2000-01-01'
+        fiscal_year_start_month = org.fiscal_year_start_month or 11
+        
         try:
-            cache_key = f"dashboard:{key}:{current_month}"
-            # Force refresh to ensure fresh data
-            result = cache_service.cache_query(cache_key, query_func, cache_ttl, force_refresh=True)
-            success_count += 1
-            logger.debug(f"  ✓ Warmed cache for {key}")
+            db = AzureSQLService()
+            queries = DashboardQueries(
+                db, schema=schema,
+                data_start_date=data_start_date,
+                fiscal_year_start_month=fiscal_year_start_month
+            )
         except Exception as e:
-            error_count += 1
-            logger.error(f"  ✗ Failed to warm cache for {key}: {str(e)}")
+            logger.error(f"  ✗ Failed to init DashboardQueries for {org.name}: {str(e)}")
+            continue
+        
+        # Define all queries to warm
+        query_configs = [
+            ('total_sales', queries.get_current_month_sales),
+            ('ytd_sales', queries.get_ytd_sales),
+            ('inventory_count', queries.get_inventory_count),
+            ('active_customers', queries.get_active_customers),
+            ('total_customers', queries.get_total_customers),
+            ('monthly_sales', queries.get_monthly_sales),
+            ('monthly_sales_no_equipment', queries.get_monthly_sales_excluding_equipment),
+            ('monthly_equipment_sales', queries.get_monthly_equipment_sales),
+            ('monthly_sales_by_stream', queries.get_monthly_sales_by_stream),
+            ('uninvoiced', queries.get_uninvoiced_work_orders),
+            ('monthly_quotes', queries.get_monthly_quotes),
+            ('work_order_types', queries.get_work_order_types),
+            ('top_customers', queries.get_top_customers),
+            ('monthly_work_orders', queries.get_monthly_work_orders_by_type),
+            ('department_margins', queries.get_department_margins),
+            ('monthly_active_customers', queries.get_monthly_active_customers),
+            ('monthly_open_work_orders', queries.get_monthly_open_work_orders),
+            ('awaiting_invoice', queries.get_awaiting_invoice_work_orders),
+            ('monthly_invoice_delays', queries.get_monthly_invoice_delay_avg),
+        ]
+        
+        for key, query_func in query_configs:
+            try:
+                cache_key = f"dashboard:{key}:{current_month}:{schema}"
+                result = cache_service.cache_query(cache_key, query_func, cache_ttl, force_refresh=True)
+                total_success += 1
+                logger.debug(f"    ✓ Warmed cache for {key}")
+            except Exception as e:
+                total_error += 1
+                logger.error(f"    ✗ Failed to warm cache for {key}: {str(e)}")
     
     elapsed = (datetime.now() - start_time).total_seconds()
-    logger.info(f"✅ Dashboard cache warm-up complete in {elapsed:.1f}s ({success_count} succeeded, {error_count} failed)")
+    logger.info(f"✅ Dashboard cache warm-up complete in {elapsed:.1f}s ({total_success} succeeded, {total_error} failed)")
 
 
 def warm_cache_async():
