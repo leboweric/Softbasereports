@@ -202,7 +202,7 @@ ROLE_PERMISSIONS = {
 # Navigation menu configuration
 NAVIGATION_CONFIG = {
     'dashboard': {
-        'label': 'Sales Dashboard',
+        'label': 'Sales',
         'icon': 'LayoutDashboard',
         'path': 'dashboard',
         'required_resource': 'dashboard',
@@ -452,6 +452,6 @@ NAVIGATION_CONFIG = {
         'icon': 'Crown',
         'path': 'eds-dashboard',
         'required_resource': 'eds_dashboard',
-        'order': 1.5,
+        'order': 0.5,
     },
 }
