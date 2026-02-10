@@ -412,24 +412,32 @@ def get_parts_commissions():
         # Query InvoiceReg for parts invoices in the given month
         # Parts Sale = PartsTaxable + PartsNonTax
         # Parts Profit = Parts Sale - PartsCost
-        # Group by Salesman1 (the primary salesman on the invoice)
+        # Salesman comes from Customer table - join via BillTo = Customer.Number
+        # (BillTo is the customer number on the invoice, confirmed working for both tenants)
+        from src.config.column_mappings import get_column
+        
+        # Get tenant-specific column names
+        cust_no_col = get_column(schema, 'Customer', 'cust_no')    # 'Number' for IPS, 'CustNo' for Bennett
+        salesman_col = get_column(schema, 'Customer', 'salesman')  # 'Salesman1' for IPS, 'Salesman' for Bennett
+        
         query = f"""
             SELECT 
-                InvoiceDate,
-                InvoiceNo,
-                BillToName as CustomerName,
-                ISNULL(Salesman1, 'Unassigned') as Salesman,
-                ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0) as PartsSale,
-                ISNULL(PartsCost, 0) as PartsCost,
-                (ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) - ISNULL(PartsCost, 0) as PartsProfit
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {year}
-                AND MONTH(InvoiceDate) = {month}
+                ir.InvoiceDate,
+                ir.InvoiceNo,
+                ir.BillToName as CustomerName,
+                ISNULL(c.{salesman_col}, 'Unassigned') as Salesman,
+                ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0) as PartsSale,
+                ISNULL(ir.PartsCost, 0) as PartsCost,
+                (ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0)) - ISNULL(ir.PartsCost, 0) as PartsProfit
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.{cust_no_col}
+            WHERE YEAR(ir.InvoiceDate) = {year}
+                AND MONTH(ir.InvoiceDate) = {month}
                 AND (
-                    ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0) != 0
-                    OR ISNULL(PartsCost, 0) != 0
+                    ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0) != 0
+                    OR ISNULL(ir.PartsCost, 0) != 0
                 )
-            ORDER BY Salesman1, InvoiceDate, InvoiceNo
+            ORDER BY c.{salesman_col}, ir.InvoiceDate, ir.InvoiceNo
         """
         
         results = db.execute_query(query)
