@@ -49,6 +49,7 @@ RESOURCES = {
     'vital_mobile_app': 'VITAL Worklife Mobile App analytics from GA4 BigQuery',
     'customer_churn': 'Customer churn analysis with AI-powered insights',
     'gl_mapping': 'GL Account Mapping - manage chart of accounts for tenant',
+    'tenant_admin': 'Tenant/Organization administration - manage orgs, fiscal year settings',
 }
 
 # Action types
@@ -418,5 +419,12 @@ NAVIGATION_CONFIG = {
         'path': 'vital-mobile-app',
         'required_resource': 'vital_mobile_app',
         'order': 3,  # After Finance
+    },
+    'tenant-admin': {
+        'label': 'Tenant Management',
+        'icon': 'Building2',
+        'path': 'tenant-admin',
+        'required_resource': 'tenant_admin',
+        'order': 101,
     },
 }
