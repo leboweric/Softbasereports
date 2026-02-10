@@ -524,3 +524,26 @@ def get_parts_commissions():
     except Exception as e:
         logger.error(f"Error fetching parts commissions: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/departments/accounting/table-columns', methods=['GET'])
+@jwt_required()
+def get_table_columns():
+    """Temporary diagnostic endpoint to discover table columns for a tenant"""
+    try:
+        schema = get_tenant_schema()
+        db = get_tenant_db()
+        from flask import request
+        table = request.args.get('table', 'Customer')
+        
+        query = f"""
+            SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'
+            ORDER BY ORDINAL_POSITION
+        """
+        results = db.execute_query(query)
+        columns = [{'name': r['COLUMN_NAME'], 'type': r['DATA_TYPE'], 'max_len': r.get('CHARACTER_MAXIMUM_LENGTH')} for r in results]
+        return jsonify({'schema': schema, 'table': table, 'columns': columns})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
