@@ -1431,6 +1431,9 @@ def export_currie_excel():
         # Retained Earnings (E28)
         bs_ws['E28'] = sum_accounts(equity['retained_earnings']) + sum_accounts(equity['distributions'])
         
+        # Current Year Net Income (E29)
+        bs_ws['E29'] = equity.get('net_income', 0)
+        
         # Save to BytesIO for download
         output = io.BytesIO()
         wb.save(output)
@@ -1920,6 +1923,24 @@ def get_balance_sheet_data(as_of_date):
         if result:
             logger.info(f"First row sample: {result[0]}")
         
+        # Calculate current year net income from P&L accounts (4xx=Revenue, 5xx=COGS, 6xx=Expenses)
+        # In Softbase GL, revenue is stored as negative (credit), COGS/expenses as positive (debit)
+        # Net income = sum of all P&L accounts YTD (result will be negative = profit)
+        net_income_query = f"""
+        SELECT COALESCE(SUM(gl.YTD), 0) as net_income
+        FROM {schema}.GL gl
+        WHERE gl.Year = %s 
+          AND gl.Month = %s
+          AND (
+            gl.AccountNo LIKE '4%'  -- Revenue
+            OR gl.AccountNo LIKE '5%'  -- COGS
+            OR gl.AccountNo LIKE '6%'  -- Expenses
+          )
+        """
+        net_income_result = get_sql_service().execute_query(net_income_query, [year, month])
+        net_income = float(net_income_result[0].get('net_income', 0)) if net_income_result else 0
+        logger.info(f"Current year net income (P&L accounts): {net_income:,.2f}")
+        
         # Categorize accounts
         assets = {
             'current_assets': {
@@ -1944,6 +1965,7 @@ def get_balance_sheet_data(as_of_date):
             'capital_stock': [],
             'retained_earnings': [],
             'distributions': [],
+            'net_income': net_income,
             'total': 0
         }
         
@@ -2003,6 +2025,9 @@ def get_balance_sheet_data(as_of_date):
                         equity['retained_earnings'].append(account_data)  # Default to retained earnings
                     
                     equity['total'] += balance
+        
+        # Add current year net income to equity total
+        equity['total'] += net_income
         
         return {
             'assets': assets,

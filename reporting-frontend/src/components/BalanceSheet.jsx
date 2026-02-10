@@ -134,7 +134,8 @@ const BalanceSheet = () => {
     const capitalStock = bs.equity.capital_stock.reduce((sum, acc) => sum + acc.balance, 0);
     const retainedEarnings = bs.equity.retained_earnings.reduce((sum, acc) => sum + acc.balance, 0) +
       bs.equity.distributions.reduce((sum, acc) => sum + acc.balance, 0);
-    const totalNetWorth = capitalStock + retainedEarnings;
+    const netIncomeExport = bs.equity.net_income || 0;
+    const totalNetWorth = capitalStock + retainedEarnings + netIncomeExport;
 
     // Create worksheet data
     const worksheetData = [
@@ -188,6 +189,7 @@ const BalanceSheet = () => {
       ['NET WORTH/OWNER EQUITY'],
       ['  Capital Stock', capitalStock],
       ['  Retained Earnings', retainedEarnings],
+      ['  Current Year Net Income', netIncomeExport],
       ['Total Net Worth', totalNetWorth],
       [''],
       ['TOTAL LIABILITIES & NET WORTH', bs.liabilities.total + bs.equity.total],
@@ -339,7 +341,8 @@ const BalanceSheet = () => {
   const capitalStock = bs.equity.capital_stock.reduce((sum, acc) => sum + acc.balance, 0);
   const retainedEarnings = bs.equity.retained_earnings.reduce((sum, acc) => sum + acc.balance, 0) +
     bs.equity.distributions.reduce((sum, acc) => sum + acc.balance, 0);
-  const totalNetWorth = capitalStock + retainedEarnings;
+  const netIncome = bs.equity.net_income || 0;
+  const totalNetWorth = capitalStock + retainedEarnings + netIncome;
 
   return (
     <div className="p-6">
@@ -636,6 +639,10 @@ const BalanceSheet = () => {
                   <div className="flex justify-between text-sm py-1">
                     <span className="text-gray-700">Retained Earnings</span>
                     <span className="font-medium">{formatCurrency(retainedEarnings)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm py-1">
+                    <span className="text-gray-700">Current Year Net Income</span>
+                    <span className="font-medium">{formatCurrency(netIncome)}</span>
                   </div>
                   <div className="flex justify-between text-sm py-1 font-semibold border-t border-gray-400 mt-1 pt-1">
                     <span className="text-gray-800 italic">Total Net Worth</span>
