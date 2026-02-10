@@ -27,7 +27,7 @@ def _get_data_start_date_str():
             return '2000-01-01'
     except RuntimeError:
         pass
-    return '{_get_data_start_date_str()}'
+    return '2025-03-01'  # Default fallback
 
 def _get_fiscal_year_end_str():
     """Get the current fiscal year end date as a SQL-safe string."""
@@ -50,7 +50,7 @@ def _get_fiscal_year_end_str():
                 return f'{fy_end_year}-{end_month:02d}-{end_day:02d}'
     except RuntimeError:
         pass
-    return '{_get_fiscal_year_end_str()}'
+    return '2025-10-31'  # Default fallback (BMH fiscal year end)
 
 def get_tenant_schema():
     """Get the database schema for the current user's organization"""

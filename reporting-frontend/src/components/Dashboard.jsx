@@ -1255,7 +1255,7 @@ const Dashboard = ({ user }) => {
                     <CardTitle>Monthly Quotes</CardTitle>
                     <CardDescription>Quote activity through February {new Date().getFullYear() + 1}</CardDescription>
                   </div>
-                  {monthlyExpenses && monthlyExpenses.length > 0 && (() => {
+                  {monthlyExpenses && monthlyExpenses.length > 0 && dashboardData?.monthly_quotes?.length > 1 && (() => {
                     const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
                     const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                     return (
@@ -1455,18 +1455,18 @@ const Dashboard = ({ user }) => {
                   }`}>
                   {dashboardData?.active_customers || 0}
                   {dashboardData?.active_customers_change !== undefined && dashboardData?.active_customers_change !== 0 && (
-                    <span className={`ml-2 text-sm font-normal ${dashboardData.active_customers_change > 0 ? 'text-green-600' : 'text-red-600'
+                    <span className={`ml-2 text-sm font-normal ${dashboardData?.active_customers_change > 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                      {dashboardData.active_customers_change > 0 ? '+' : ''}{dashboardData.active_customers_change}
+                      {dashboardData?.active_customers_change > 0 ? '+' : ''}{dashboardData?.active_customers_change}
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Customers with invoices in last 30 days
                   {dashboardData?.active_customers_change_percent !== undefined && dashboardData?.active_customers_change_percent !== 0 && (
-                    <span className={`ml-1 ${dashboardData.active_customers_change_percent > 0 ? 'text-green-600' : 'text-red-600'
+                    <span className={`ml-1 ${dashboardData?.active_customers_change_percent > 0 ? 'text-green-600' : 'text-red-600'
                       }`}>
-                      ({dashboardData.active_customers_change_percent > 0 ? '+' : ''}{dashboardData.active_customers_change_percent.toFixed(1)}% vs prev month)
+                      ({dashboardData?.active_customers_change_percent > 0 ? '+' : ''}{dashboardData?.active_customers_change_percent?.toFixed(1)}% vs prev month)
                     </span>
                   )}
                 </p>
