@@ -18,6 +18,7 @@ export const TenantForm = ({ organization, onClose }) => {
     db_password: '',
     subscription_tier: 'basic',
     max_users: 5,
+    fiscal_year_start_month: 1,
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +35,7 @@ export const TenantForm = ({ organization, onClose }) => {
         db_password: '', // Always empty for security
         subscription_tier: organization.subscription_tier || 'basic',
         max_users: organization.max_users || 5,
+        fiscal_year_start_month: organization.fiscal_year_start_month || 1,
       });
     }
   }, [organization]);
@@ -195,6 +197,43 @@ export const TenantForm = ({ organization, onClose }) => {
                   required={!organization}
                   placeholder={organization ? "Leave blank to keep current password" : "Enter password"}
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Fiscal Year Settings */}
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-medium mb-4">Fiscal Year</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <Label htmlFor="fiscal_year_start_month" className="text-sm font-medium">
+                  Fiscal Year Start Month
+                </Label>
+                <Select 
+                  value={String(formData.fiscal_year_start_month)} 
+                  onValueChange={(value) => handleSelectChange('fiscal_year_start_month', parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">January (Calendar Year)</SelectItem>
+                    <SelectItem value="2">February</SelectItem>
+                    <SelectItem value="3">March</SelectItem>
+                    <SelectItem value="4">April</SelectItem>
+                    <SelectItem value="5">May</SelectItem>
+                    <SelectItem value="6">June</SelectItem>
+                    <SelectItem value="7">July</SelectItem>
+                    <SelectItem value="8">August</SelectItem>
+                    <SelectItem value="9">September</SelectItem>
+                    <SelectItem value="10">October</SelectItem>
+                    <SelectItem value="11">November</SelectItem>
+                    <SelectItem value="12">December</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Determines how YTD and fiscal year calculations are computed
+                </p>
               </div>
             </div>
           </div>

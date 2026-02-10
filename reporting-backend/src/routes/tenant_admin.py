@@ -125,6 +125,7 @@ def create_organization():
             db_username=data.get('db_username'),
             subscription_tier=data.get('subscription_tier', 'basic'),
             max_users=data.get('max_users', 5),
+            fiscal_year_start_month=data.get('fiscal_year_start_month', 1),
             is_active=True
         )
         
@@ -206,6 +207,11 @@ def update_organization(org_id):
         
         if 'is_active' in data:
             org.is_active = data['is_active']
+        
+        if 'fiscal_year_start_month' in data:
+            fy_month = data['fiscal_year_start_month']
+            if isinstance(fy_month, int) and 1 <= fy_month <= 12:
+                org.fiscal_year_start_month = fy_month
         
         db.session.commit()
         
