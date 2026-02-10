@@ -87,6 +87,11 @@ class PermissionService:
                 if user.organization.name != 'VITAL Worklife':
                     continue
             
+            # Minitrac is only available for Bennett Material Handling
+            if required_resource == 'minitrac':
+                if user.organization.name != 'Bennett Material Handling':
+                    continue
+            
             # Filter tabs if they exist
             if 'tabs' in nav_config:
                 accessible_tabs = {}
