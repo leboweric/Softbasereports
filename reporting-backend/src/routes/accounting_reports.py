@@ -412,33 +412,59 @@ def get_parts_commissions():
         # Query InvoiceReg for parts invoices in the given month
         # Parts Sale = PartsTaxable + PartsNonTax
         # Parts Profit = Parts Sale - PartsCost
-        # Salesman comes from Customer table - join via BillTo = Customer.Number
-        # (BillTo is the customer number on the invoice, confirmed working for both tenants)
+        #
+        # For IPS (ind004):
+        #   - Salesman comes from WO table (WO.Salesman) via InvoiceNo = WONo
+        #   - Filter: SaleDept = 50 (counter parts) AND SaleCode IN ('C1', 'C2')
+        #   - This matches the Softbase "Invoice Detail by Salesmen (Parts)" report exactly
+        #
+        # For Bennett (ben002):
+        #   - Salesman comes from Customer table (Customer.Salesman)
+        #   - No SaleDept/SaleCode filter needed (all parts invoices)
         from src.config.column_mappings import get_column
         
-        # Get tenant-specific column names
-        cust_no_col = get_column(schema, 'Customer', 'cust_no')    # 'Number' for IPS, 'CustNo' for Bennett
-        salesman_col = get_column(schema, 'Customer', 'salesman')  # 'Salesman1' for IPS, 'Salesman' for Bennett
-        
-        query = f"""
-            SELECT 
-                ir.InvoiceDate,
-                ir.InvoiceNo,
-                ir.BillToName as CustomerName,
-                ISNULL(c.{salesman_col}, 'Unassigned') as Salesman,
-                ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0) as PartsSale,
-                ISNULL(ir.PartsCost, 0) as PartsCost,
-                (ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0)) - ISNULL(ir.PartsCost, 0) as PartsProfit
-            FROM {schema}.InvoiceReg ir
-            LEFT JOIN {schema}.Customer c ON ir.BillTo = c.{cust_no_col}
-            WHERE YEAR(ir.InvoiceDate) = {year}
-                AND MONTH(ir.InvoiceDate) = {month}
-                AND (
-                    ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0) != 0
-                    OR ISNULL(ir.PartsCost, 0) != 0
-                )
-            ORDER BY c.{salesman_col}, ir.InvoiceDate, ir.InvoiceNo
-        """
+        if schema == 'ind004':
+            # IPS: Join InvoiceReg -> WO to get salesman, filter by SaleDept=50 and SaleCode
+            query = f"""
+                SELECT 
+                    ir.InvoiceDate,
+                    ir.InvoiceNo,
+                    ir.BillToName as CustomerName,
+                    ISNULL(LTRIM(RTRIM(wo.Salesman)), 'Unassigned') as Salesman,
+                    ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0) as PartsSale,
+                    ISNULL(ir.PartsCost, 0) as PartsCost,
+                    (ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0)) - ISNULL(ir.PartsCost, 0) as PartsProfit
+                FROM {schema}.InvoiceReg ir
+                INNER JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
+                WHERE YEAR(ir.InvoiceDate) = {year}
+                    AND MONTH(ir.InvoiceDate) = {month}
+                    AND ir.SaleDept = 50
+                    AND ir.SaleCode IN ('C1', 'C2')
+                ORDER BY wo.Salesman, ir.InvoiceDate, ir.InvoiceNo
+            """
+        else:
+            # Bennett: Use Customer.Salesman
+            cust_no_col = get_column(schema, 'Customer', 'cust_no')
+            salesman_col = get_column(schema, 'Customer', 'salesman')
+            query = f"""
+                SELECT 
+                    ir.InvoiceDate,
+                    ir.InvoiceNo,
+                    ir.BillToName as CustomerName,
+                    ISNULL(c.{salesman_col}, 'Unassigned') as Salesman,
+                    ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0) as PartsSale,
+                    ISNULL(ir.PartsCost, 0) as PartsCost,
+                    (ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0)) - ISNULL(ir.PartsCost, 0) as PartsProfit
+                FROM {schema}.InvoiceReg ir
+                LEFT JOIN {schema}.Customer c ON ir.BillTo = c.{cust_no_col}
+                WHERE YEAR(ir.InvoiceDate) = {year}
+                    AND MONTH(ir.InvoiceDate) = {month}
+                    AND (
+                        ISNULL(ir.PartsTaxable, 0) + ISNULL(ir.PartsNonTax, 0) != 0
+                        OR ISNULL(ir.PartsCost, 0) != 0
+                    )
+                ORDER BY c.{salesman_col}, ir.InvoiceDate, ir.InvoiceNo
+            """
         
         results = db.execute_query(query)
         
