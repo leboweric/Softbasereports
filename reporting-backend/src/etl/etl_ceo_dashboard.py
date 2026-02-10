@@ -719,7 +719,8 @@ def run_ceo_dashboard_etl(org_id=None):
                 etl = CEODashboardETL(
                     org_id=org_id,
                     schema=org.database_schema,
-                    azure_sql=azure_sql
+                    azure_sql=azure_sql,
+                    fiscal_year_start_month=org.fiscal_year_start_month or 11
                 )
                 return etl.run()
             else:
