@@ -2009,13 +2009,17 @@ def _get_monthly_active_customers_live():
         schema = get_tenant_schema()  # Use ben002 schema, not Bennett
         current_date = datetime.now()
         
+        # Calculate data_start_date: 13 months ago from current date
+        thirteen_months_ago = (current_date.replace(day=1) - timedelta(days=365)).strftime('%Y-%m-%d')
+        data_start_date = thirteen_months_ago
+        
         query = f"""
         SELECT 
             YEAR(InvoiceDate) as year,
             MONTH(InvoiceDate) as month,
             COUNT(DISTINCT BillToName) as active_customers
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= '{self.data_start_date}'
+        WHERE InvoiceDate >= '{data_start_date}'
         AND BillToName IS NOT NULL
         AND BillToName != ''
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -2033,11 +2037,8 @@ def _get_monthly_active_customers_live():
                     'customers': int(row['active_customers'])
                 })
         
-        # Pad missing months from March onwards
-        start_date = datetime.strptime(self.data_start_date, '%Y-%m-%d')
-        thirteen_months_ago = self.current_date.replace(day=1) - timedelta(days=365)
-        if start_date < thirteen_months_ago:
-            start_date = thirteen_months_ago
+        # Pad missing months
+        start_date = datetime.strptime(data_start_date, '%Y-%m-%d')
         all_months = []
         date = start_date
         while date <= current_date:

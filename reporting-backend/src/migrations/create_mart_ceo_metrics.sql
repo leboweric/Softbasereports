@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS mart_ceo_metrics (
     -- KPI Metrics
     current_month_sales NUMERIC(18,2) DEFAULT 0,
     ytd_sales NUMERIC(18,2) DEFAULT 0,
+    ytd_margin NUMERIC(8,2) DEFAULT 0,
+    prior_year_ytd_sales NUMERIC(18,2) DEFAULT 0,
+    prior_year_ytd_margin NUMERIC(8,2) DEFAULT 0,
     inventory_count INTEGER DEFAULT 0,
     active_customers INTEGER DEFAULT 0,
     active_customers_previous INTEGER DEFAULT 0,
