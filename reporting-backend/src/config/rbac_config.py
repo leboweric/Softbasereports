@@ -185,7 +185,7 @@ ROLE_PERMISSIONS = {
 # Navigation menu configuration
 NAVIGATION_CONFIG = {
     'dashboard': {
-        'label': 'CEO Dashboard',
+        'label': 'Sales Dashboard',
         'icon': 'LayoutDashboard',
         'path': 'dashboard',
         'required_resource': 'dashboard',

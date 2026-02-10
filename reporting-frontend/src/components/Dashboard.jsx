@@ -861,7 +861,7 @@ const Dashboard = ({ user }) => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">AI Operations Platform</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Sales Dashboard</h1>
           <p className="text-muted-foreground text-sm md:text-base">
             Welcome back, {user?.first_name}! Here's what's happening with your business.
           </p>
