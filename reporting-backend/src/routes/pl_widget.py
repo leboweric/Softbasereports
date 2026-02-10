@@ -80,8 +80,8 @@ def _fetch_pl_widget_data(current_date, schema):
     # Get current month P&L
     current_pl = get_monthly_pl(current_year, current_month, schema)
     
-    # Get 12-month trend
-    trend_data = get_pl_trend(current_year, current_month, schema, months=12)
+    # Get 13-month trend (trailing 13 months)
+    trend_data = get_pl_trend(current_year, current_month, schema, months=13)
     
     # Debug logging
     logger.info(f"=" * 80)

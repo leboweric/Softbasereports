@@ -184,11 +184,7 @@ const ProfitLossWidget = () => {
           <div>
             <CardTitle>Monthly Profit & Loss</CardTitle>
             <CardDescription>
-              As of {data.as_of_date ? new Date(data.as_of_date + 'T12:00:00').toLocaleDateString('en-US', { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              }) : 'Loading...'}
+              Net profit/loss trends and metrics
             </CardDescription>
           </div>
           {getHealthBadge(data.health_status)}
@@ -274,15 +270,15 @@ const ProfitLossWidget = () => {
               {formatCurrency(data.avg_monthly_pl)}
             </div>
             <div className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-              12-month average
+              Trailing average
             </div>
           </div>
         </div>
 
-        {/* 12-Month Trend Chart with Linear Regression */}
+        {/* Trailing Trend Chart with Linear Regression */}
         {trendDataWithRegression && trendDataWithRegression.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-sm font-medium mb-4">12-Month Profit/Loss Trend</h4>
+            <h4 className="text-sm font-medium mb-4">Profit/Loss Trend</h4>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={trendDataWithRegression}>
                 <CartesianGrid strokeDasharray="3 3" />
