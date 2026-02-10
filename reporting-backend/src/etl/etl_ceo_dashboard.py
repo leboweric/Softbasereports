@@ -117,17 +117,40 @@ class CEODashboardETL(BaseETL):
         result = self.azure_sql.execute_query(query)
         current_month_sales = float(result[0]['total_sales'] or 0) if result else 0
         
-        # YTD sales - dynamic revenue query
+        # YTD sales and margin - revenue (4%) and COGS (5%)
         query = f"""
-        SELECT -SUM(Amount) as ytd_sales
+        SELECT 
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as ytd_sales,
+            SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as ytd_cogs
         FROM {schema}.GLDetail
-        WHERE AccountNo LIKE '4%'
+        WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
             AND EffectiveDate >= '{self.fiscal_year_start}'
             AND EffectiveDate < DATEADD(DAY, 1, GETDATE())
             AND Posted = 1
         """
         result = self.azure_sql.execute_query(query)
         ytd_sales = float(result[0]['ytd_sales'] or 0) if result else 0
+        ytd_cogs = float(result[0]['ytd_cogs'] or 0) if result else 0
+        ytd_margin = round(((ytd_sales - ytd_cogs) / ytd_sales) * 100, 1) if ytd_sales > 0 else 0
+        
+        # Prior year YTD sales and margin (same period last year)
+        fy_start = datetime.strptime(self.fiscal_year_start, '%Y-%m-%d')
+        prior_fy_start = fy_start.replace(year=fy_start.year - 1)
+        prior_year_today = self.current_date.replace(year=self.current_date.year - 1)
+        query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as ytd_sales,
+            SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as ytd_cogs
+        FROM {schema}.GLDetail
+        WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
+            AND EffectiveDate >= '{prior_fy_start.strftime('%Y-%m-%d')}'
+            AND EffectiveDate < DATEADD(DAY, 1, '{prior_year_today.strftime('%Y-%m-%d')}')
+            AND Posted = 1
+        """
+        result = self.azure_sql.execute_query(query)
+        prior_year_ytd_sales = float(result[0]['ytd_sales'] or 0) if result else 0
+        prior_year_ytd_cogs = float(result[0]['ytd_cogs'] or 0) if result else 0
+        prior_year_ytd_margin = round(((prior_year_ytd_sales - prior_year_ytd_cogs) / prior_year_ytd_sales) * 100, 1) if prior_year_ytd_sales > 0 else 0
         
         # Inventory count
         query = f"""
@@ -172,6 +195,9 @@ class CEODashboardETL(BaseETL):
         return {
             'current_month_sales': current_month_sales,
             'ytd_sales': ytd_sales,
+            'ytd_margin': ytd_margin,
+            'prior_year_ytd_sales': prior_year_ytd_sales,
+            'prior_year_ytd_margin': prior_year_ytd_margin,
             'inventory_count': inventory_count,
             'active_customers': active_customers,
             'active_customers_previous': active_customers_previous,

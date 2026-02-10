@@ -2209,14 +2209,14 @@ def _get_dashboard_from_mart(start_time, org_id=4):
     response_data = {
         'total_sales': float(metrics['current_month_sales'] or 0),
         'ytd_sales': float(metrics['ytd_sales'] or 0),
-        'ytd_margin': 0,  # Not in mart yet - live query fallback needed
-        'prior_year_ytd_sales': 0,  # Not in mart yet
-        'prior_year_ytd_margin': 0,  # Not in mart yet
+        'ytd_margin': float(metrics.get('ytd_margin') or 0),
+        'prior_year_ytd_sales': float(metrics.get('prior_year_ytd_sales') or 0),
+        'prior_year_ytd_margin': float(metrics.get('prior_year_ytd_margin') or 0),
         'inventory_count': int(metrics['inventory_count'] or 0),
-        'active_customers': active_current,
-        'active_customers_change': active_change,
-        'active_customers_change_percent': round(active_change_pct, 1),
-        'active_customers_previous': active_previous,
+            'active_customers': active_current,
+            'active_customers_change': active_change,
+            'active_customers_change_percent': round(active_change_pct, 1),
+            'active_customers_previous': active_previous,
         'total_customers': _get_total_customers_live(),  # Live query for accurate count
         'uninvoiced_work_orders': int(metrics['uninvoiced_wo_value'] or 0),
         'uninvoiced_count': int(metrics['uninvoiced_wo_count'] or 0),
@@ -2598,9 +2598,9 @@ def get_dashboard_summary_fast():
         response_data = {
             'total_sales': float(metrics['current_month_sales'] or 0),
             'ytd_sales': float(metrics['ytd_sales'] or 0),
-            'ytd_margin': 0,  # Not in mart yet
-            'prior_year_ytd_sales': 0,  # Not in mart yet
-            'prior_year_ytd_margin': 0,  # Not in mart yet
+            'ytd_margin': float(metrics.get('ytd_margin') or 0),
+            'prior_year_ytd_sales': float(metrics.get('prior_year_ytd_sales') or 0),
+            'prior_year_ytd_margin': float(metrics.get('prior_year_ytd_margin') or 0),
             'inventory_count': int(metrics['inventory_count'] or 0),
             'active_customers': active_current,
             'active_customers_change': active_change,
