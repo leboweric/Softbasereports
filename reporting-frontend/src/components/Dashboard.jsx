@@ -992,6 +992,37 @@ const Dashboard = ({ user }) => {
                 <div className="text-2xl font-bold">
                   {formatCurrency(dashboardData?.ytd_sales || 0)}
                 </div>
+                <div className="space-y-1 mt-1">
+                  {/* YTD Margin */}
+                  {dashboardData?.ytd_margin > 0 && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Blended Margin:</span>
+                      <span className="font-medium">
+                        {dashboardData.ytd_margin}%
+                        {dashboardData?.prior_year_ytd_margin > 0 && (() => {
+                          const diff = (dashboardData.ytd_margin - dashboardData.prior_year_ytd_margin).toFixed(1)
+                          return (
+                            <span className={`ml-1 ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                              ({diff > 0 ? '+' : ''}{diff} pts vs PY)
+                            </span>
+                          )
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                  {/* Prior Year YTD Comparison */}
+                  {dashboardData?.prior_year_ytd_sales > 0 && (() => {
+                    const change = ((dashboardData.ytd_sales - dashboardData.prior_year_ytd_sales) / dashboardData.prior_year_ytd_sales * 100).toFixed(1)
+                    return (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">vs Same Period Last Year:</span>
+                        <span className={`font-medium ${change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                          {change > 0 ? '+' : ''}{change}%
+                        </span>
+                      </div>
+                    )
+                  })()}
+                </div>
               </CardContent>
             </Card>
           </div>

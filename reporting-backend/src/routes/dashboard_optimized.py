@@ -155,33 +155,78 @@ class DashboardQueries:
     
     
     def get_ytd_sales(self):
-        """Get fiscal year-to-date sales using GLDetail (matches Monthly Sales chart)"""
+        """Get fiscal year-to-date sales and margin using GLDetail (matches Monthly Sales chart)"""
         try:
-            # Collect all revenue accounts from all departments (tenant-specific)
             all_revenue_accounts = []
+            all_cogs_accounts = []
             for dept in self.gl_accounts.values():
                 all_revenue_accounts.extend(dept['revenue'])
-            
-            # Add Other Income accounts (tenant-specific)
+                all_cogs_accounts.extend(dept.get('cogs', []))
             all_revenue_accounts.extend(self.other_income_accounts)
             
-            # Format for SQL IN clause
             revenue_list = "', '".join(all_revenue_accounts)
+            cogs_list = "', '".join(all_cogs_accounts)
+            all_list = "', '".join(all_revenue_accounts + all_cogs_accounts)
             
-            # Get YTD revenue from GLDetail
             query = f"""
-            SELECT -SUM(Amount) as ytd_sales
+            SELECT 
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as ytd_sales,
+                SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END) as ytd_cogs
             FROM {self.schema}.GLDetail
-            WHERE AccountNo IN ('{revenue_list}')
+            WHERE AccountNo IN ('{all_list}')
                 AND EffectiveDate >= '{self.fiscal_year_start}'
                 AND EffectiveDate < DATEADD(DAY, 1, GETDATE())
                 AND Posted = 1
             """
             result = self.db.execute_query(query)
-            return int(float(result[0]['ytd_sales'] or 0)) if result else 0
+            if result:
+                revenue = float(result[0]['ytd_sales'] or 0)
+                cogs = float(result[0]['ytd_cogs'] or 0)
+                margin = round(((revenue - cogs) / revenue) * 100, 1) if revenue > 0 else 0
+                return {'ytd_sales': int(revenue), 'ytd_margin': margin}
+            return {'ytd_sales': 0, 'ytd_margin': 0}
         except Exception as e:
             logger.error(f"YTD sales query failed: {str(e)}")
-            return 0
+            return {'ytd_sales': 0, 'ytd_margin': 0}
+    
+    def get_prior_year_ytd_sales(self):
+        """Get prior fiscal year-to-date sales and margin for the same period last year."""
+        try:
+            all_revenue_accounts = []
+            all_cogs_accounts = []
+            for dept in self.gl_accounts.values():
+                all_revenue_accounts.extend(dept['revenue'])
+                all_cogs_accounts.extend(dept.get('cogs', []))
+            all_revenue_accounts.extend(self.other_income_accounts)
+            
+            revenue_list = "', '".join(all_revenue_accounts)
+            cogs_list = "', '".join(all_cogs_accounts)
+            all_list = "', '".join(all_revenue_accounts + all_cogs_accounts)
+            
+            fy_start = datetime.strptime(self.fiscal_year_start, '%Y-%m-%d')
+            prior_fy_start = fy_start.replace(year=fy_start.year - 1)
+            prior_year_today = self.current_date.replace(year=self.current_date.year - 1)
+            
+            query = f"""
+            SELECT 
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as ytd_sales,
+                SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END) as ytd_cogs
+            FROM {self.schema}.GLDetail
+            WHERE AccountNo IN ('{all_list}')
+                AND EffectiveDate >= '{prior_fy_start.strftime('%Y-%m-%d')}'
+                AND EffectiveDate < DATEADD(DAY, 1, '{prior_year_today.strftime('%Y-%m-%d')}')
+                AND Posted = 1
+            """
+            result = self.db.execute_query(query)
+            if result:
+                revenue = float(result[0]['ytd_sales'] or 0)
+                cogs = float(result[0]['ytd_cogs'] or 0)
+                margin = round(((revenue - cogs) / revenue) * 100, 1) if revenue > 0 else 0
+                return {'ytd_sales': int(revenue), 'ytd_margin': margin}
+            return {'ytd_sales': 0, 'ytd_margin': 0}
+        except Exception as e:
+            logger.error(f"Prior year YTD sales query failed: {str(e)}")
+            return {'ytd_sales': 0, 'ytd_margin': 0}
     
     def get_inventory_count(self):
         """Get count of equipment ready to rent"""
@@ -2164,6 +2209,9 @@ def _get_dashboard_from_mart(start_time, org_id=4):
     response_data = {
         'total_sales': float(metrics['current_month_sales'] or 0),
         'ytd_sales': float(metrics['ytd_sales'] or 0),
+        'ytd_margin': 0,  # Not in mart yet - live query fallback needed
+        'prior_year_ytd_sales': 0,  # Not in mart yet
+        'prior_year_ytd_margin': 0,  # Not in mart yet
         'inventory_count': int(metrics['inventory_count'] or 0),
         'active_customers': active_current,
         'active_customers_change': active_change,
@@ -2254,6 +2302,7 @@ def get_dashboard_summary_optimized():
         cache_ttl = {
             'total_sales': 3600,  # 1 hour
             'ytd_sales': 3600,  # 1 hour
+            'prior_year_ytd_sales': 3600,  # 1 hour
             'inventory_count': 3600,  # 1 hour
             'active_customers': 3600,  # 1 hour
             'monthly_sales': 3600,  # 1 hour
@@ -2273,6 +2322,7 @@ def get_dashboard_summary_optimized():
         query_tasks = {
             'total_sales': lambda: cached_query('total_sales', queries.get_current_month_sales, cache_ttl['total_sales']),
             'ytd_sales': lambda: cached_query('ytd_sales', queries.get_ytd_sales, cache_ttl['ytd_sales']),
+            'prior_year_ytd_sales': lambda: cached_query('prior_year_ytd_sales', queries.get_prior_year_ytd_sales, cache_ttl['prior_year_ytd_sales']),
             'inventory_count': lambda: cached_query('inventory_count', queries.get_inventory_count, cache_ttl['inventory_count']),
             'active_customers': lambda: cached_query('active_customers', queries.get_active_customers, cache_ttl['active_customers']),
             'total_customers': lambda: cached_query('total_customers', queries.get_total_customers, cache_ttl['active_customers']),
@@ -2333,9 +2383,30 @@ def get_dashboard_summary_optimized():
                 'change_percent': 0
             }
         
+        # Handle ytd_sales (now returns dict with ytd_sales and ytd_margin)
+        ytd_data = results.get('ytd_sales', {})
+        if isinstance(ytd_data, dict):
+            ytd_sales = ytd_data.get('ytd_sales', 0)
+            ytd_margin = ytd_data.get('ytd_margin', 0)
+        else:
+            ytd_sales = ytd_data
+            ytd_margin = 0
+        
+        # Handle prior_year_ytd_sales (same dict format)
+        py_ytd_data = results.get('prior_year_ytd_sales', {})
+        if isinstance(py_ytd_data, dict):
+            prior_year_ytd_sales = py_ytd_data.get('ytd_sales', 0)
+            prior_year_ytd_margin = py_ytd_data.get('ytd_margin', 0)
+        else:
+            prior_year_ytd_sales = py_ytd_data
+            prior_year_ytd_margin = 0
+        
         response_data = {
             'total_sales': results.get('total_sales', 0),
-            'ytd_sales': results.get('ytd_sales', 0),
+            'ytd_sales': ytd_sales,
+            'ytd_margin': ytd_margin,
+            'prior_year_ytd_sales': prior_year_ytd_sales,
+            'prior_year_ytd_margin': prior_year_ytd_margin,
             'inventory_count': results.get('inventory_count', 0),
             'active_customers': active_customers_info['current'],
             'active_customers_change': active_customers_info['change'],
@@ -2527,6 +2598,9 @@ def get_dashboard_summary_fast():
         response_data = {
             'total_sales': float(metrics['current_month_sales'] or 0),
             'ytd_sales': float(metrics['ytd_sales'] or 0),
+            'ytd_margin': 0,  # Not in mart yet
+            'prior_year_ytd_sales': 0,  # Not in mart yet
+            'prior_year_ytd_margin': 0,  # Not in mart yet
             'inventory_count': int(metrics['inventory_count'] or 0),
             'active_customers': active_current,
             'active_customers_change': active_change,
