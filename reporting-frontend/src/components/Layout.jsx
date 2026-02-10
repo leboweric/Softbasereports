@@ -19,7 +19,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   // Menu order: Dashboard, Finance, then other items
   // Removed vital-quickbooks (reports moved to Finance)
   // Renamed: vital-hubspot -> Sales & Marketing, vital-case-data -> CMS, vital-azure-sql -> CMS Data
-  const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'currie', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'gl-mapping', 'support-tickets', 'tenant-admin', 'vital-data-sources', 'user-management']
+  const desiredOrder = ['dashboard', 'eds-dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'currie', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'gl-mapping', 'support-tickets', 'tenant-admin', 'vital-data-sources', 'user-management']
   
   const navItems = hasNavigation 
     ? desiredOrder

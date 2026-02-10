@@ -27,7 +27,6 @@ import SalesCommissionReport from '@/components/SalesCommissionReport'
 import ControlNumberReport from '@/components/ControlNumberReport'
 import InventoryReport from '@/components/InventoryReport'
 import PartsCommissionsReport from '@/components/PartsCommissionsReport'
-import SalesGPReport from '@/components/SalesGPReport'
 
 
 const AccountingReport = ({ user, organization }) => {
@@ -451,7 +450,6 @@ const AccountingReport = ({ user, organization }) => {
           <TabsTrigger value="control">Control Numbers</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
           <TabsTrigger value="parts-commissions">Parts Commissions</TabsTrigger>
-          <TabsTrigger value="sales-gp">Sales GP</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -1099,10 +1097,6 @@ const AccountingReport = ({ user, organization }) => {
 
         <TabsContent value="parts-commissions" className="space-y-6">
           <PartsCommissionsReport user={user} />
-        </TabsContent>
-
-        <TabsContent value="sales-gp" className="space-y-6">
-          <SalesGPReport user={user} />
         </TabsContent>
 
 

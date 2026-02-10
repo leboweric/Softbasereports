@@ -48,6 +48,7 @@ RESOURCES = {
     'vital_finance': 'VITAL Worklife Finance billing management and revenue tracking',
     'vital_mobile_app': 'VITAL Worklife Mobile App analytics from GA4 BigQuery',
     'customer_churn': 'Customer churn analysis with AI-powered insights',
+    'eds_dashboard': "Ed's Dashboard - Sales GP Report by Branch and Department",
     'gl_mapping': 'GL Account Mapping - manage chart of accounts for tenant',
     'tenant_admin': 'Tenant/Organization administration - manage orgs, fiscal year settings',
 }
@@ -72,7 +73,7 @@ ROLE_PERMISSIONS = {
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
             'minitrac', 'knowledge_base', 'currie', 'financial',
-            'qbr', 'my_commissions', 'customer_churn'
+            'qbr', 'my_commissions', 'customer_churn', 'eds_dashboard'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
@@ -445,5 +446,12 @@ NAVIGATION_CONFIG = {
         'path': 'support-tickets',
         'required_resource': 'user_management',
         'order': 98,
+    },
+    'eds-dashboard': {
+        'label': "Ed's Dashboard",
+        'icon': 'Crown',
+        'path': 'eds-dashboard',
+        'required_resource': 'eds_dashboard',
+        'order': 1.5,
     },
 }
