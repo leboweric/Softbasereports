@@ -987,11 +987,15 @@ def export_pl_excel():
         last_day_num = calendar.monthrange(year, month)[1]
         last_day = f"{year}-{month:02d}-{last_day_num:02d}"
         
-        # Calculate fiscal YTD date range (fiscal year starts in November)
-        if month >= 11:
-            ytd_start = f"{year}-11-01"
+        # Calculate fiscal YTD date range (dynamic per tenant)
+        from flask import g
+        fy_start_month = 11  # Default
+        if hasattr(g, 'current_organization') and g.current_organization:
+            fy_start_month = g.current_organization.fiscal_year_start_month or 11
+        if month >= fy_start_month:
+            ytd_start = f"{year}-{fy_start_month:02d}-01"
         else:
-            ytd_start = f"{year-1}-11-01"
+            ytd_start = f"{year-1}-{fy_start_month:02d}-01"
         ytd_end = last_day
         
         logger.info(f"Generating P&L Excel for {calendar.month_name[month]} {year}")
