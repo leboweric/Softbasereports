@@ -59,7 +59,7 @@ export default function PartsCommissionsReport({ user }) {
     try {
       const token = localStorage.getItem('token')
       const response = await fetch(
-        `${apiUrl}/api/reports/departments/accounting/parts-commissions?month=${selectedMonth}&year=${selectedYear}`,
+        apiUrl(`/api/reports/departments/accounting/parts-commissions?month=${selectedMonth}&year=${selectedYear}`),
         {
           headers: { Authorization: `Bearer ${token}` }
         }
