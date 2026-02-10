@@ -552,6 +552,173 @@ def get_parts_commissions():
         return jsonify({'error': str(e)}), 500
 
 
+@reports_bp.route('/departments/accounting/sales-gp-report', methods=['GET'])
+@jwt_required()
+def get_sales_gp_report():
+    """Sales GP Report - replicates the Softbase Sales GP Report for the owner dashboard.
+    
+    Groups revenue (4xxxx) and cost of sales (5xxxx) GL accounts by Branch and Department.
+    COS is matched by swapping the leading '4' with '5' in the account number.
+    GP is only calculated for lines that have a matching COS account with non-zero MTD.
+    """
+    try:
+        schema = get_tenant_schema()
+        db = get_tenant_db()
+        from flask import request
+        
+        now = datetime.now()
+        if now.month == 1:
+            default_month = 12
+            default_year = now.year - 1
+        else:
+            default_month = now.month - 1
+            default_year = now.year
+        
+        month = int(request.args.get('month', default_month))
+        year = int(request.args.get('year', default_year))
+        
+        logger.info(f"Sales GP Report for {schema}: {year}-{month:02d}")
+        
+        query = f"""
+            SELECT 
+                c.Branch,
+                c.Department as Dept,
+                c.AccountNo as Account,
+                CASE WHEN cos_gl.MTD IS NOT NULL AND cos_gl.MTD != 0 
+                     THEN '5' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
+                     ELSE '' END as GPAccount,
+                c.Description as AccountDescription,
+                -g.MTD as Sales,
+                CASE WHEN cos_gl.MTD IS NOT NULL AND cos_gl.MTD != 0 
+                     THEN cos_gl.MTD ELSE 0 END as COS,
+                CASE WHEN cos_gl.MTD IS NOT NULL AND cos_gl.MTD != 0 
+                     THEN -g.MTD - cos_gl.MTD ELSE 0 END as GP
+            FROM {schema}.GL g
+            JOIN {schema}.ChartOfAccounts c ON g.AccountNo = c.AccountNo
+            LEFT JOIN {schema}.GL cos_gl 
+                ON cos_gl.AccountNo = '5' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
+                AND cos_gl.Month = {month} AND cos_gl.Year = {year} 
+                AND cos_gl.AccountField = 'Actual'
+            WHERE g.AccountNo LIKE '4%'
+            AND g.Month = {month} AND g.Year = {year}
+            AND g.AccountField = 'Actual'
+            AND g.MTD != 0
+            ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
+        """
+        
+        results = db.execute_query(query)
+        
+        if not results:
+            return jsonify({
+                'month': month,
+                'year': year,
+                'branches': [],
+                'grand_total': {'sales': 0, 'cos': 0, 'gp': 0}
+            })
+        
+        from collections import OrderedDict
+        branches = OrderedDict()
+        grand_sales = 0
+        grand_cos = 0
+        grand_gp = 0
+        
+        for row in results:
+            branch_no = str(row['Branch'] or '0').strip()
+            dept_no = str(row['Dept'] or '0').strip()
+            
+            sales = float(row['Sales'] or 0)
+            cos = float(row['COS'] or 0)
+            gp = float(row['GP'] or 0)
+            
+            if branch_no not in branches:
+                branches[branch_no] = {
+                    'branch': branch_no,
+                    'departments': OrderedDict(),
+                    'total_sales': 0,
+                    'total_cos': 0,
+                    'total_gp': 0
+                }
+            
+            branch = branches[branch_no]
+            
+            if dept_no not in branch['departments']:
+                branch['departments'][dept_no] = {
+                    'dept': dept_no,
+                    'line_items': [],
+                    'total_sales': 0,
+                    'total_cos': 0,
+                    'total_gp': 0
+                }
+            
+            dept = branch['departments'][dept_no]
+            
+            dept['line_items'].append({
+                'account': row['Account'],
+                'gp_account': row['GPAccount'] or '',
+                'description': row['AccountDescription'],
+                'sales': round(sales, 2),
+                'cos': round(cos, 2),
+                'gp': round(gp, 2)
+            })
+            
+            dept['total_sales'] += sales
+            dept['total_cos'] += cos
+            dept['total_gp'] += gp
+            
+            branch['total_sales'] += sales
+            branch['total_cos'] += cos
+            branch['total_gp'] += gp
+            
+            grand_sales += sales
+            grand_cos += cos
+            grand_gp += gp
+        
+        branches_list = []
+        for b in branches.values():
+            depts_list = []
+            for d in b['departments'].values():
+                d['total_sales'] = round(d['total_sales'], 2)
+                d['total_cos'] = round(d['total_cos'], 2)
+                d['total_gp'] = round(d['total_gp'], 2)
+                depts_list.append(d)
+            b['departments'] = depts_list
+            b['total_sales'] = round(b['total_sales'], 2)
+            b['total_cos'] = round(b['total_cos'], 2)
+            b['total_gp'] = round(b['total_gp'], 2)
+            branches_list.append(b)
+        
+        try:
+            branch_query = f"""
+                SELECT Number, Name FROM {schema}.Branch ORDER BY Number
+            """
+            branch_results = db.execute_query(branch_query)
+            branch_names = {str(r['Number']): r['Name'] for r in branch_results}
+        except:
+            branch_names = {}
+        
+        for b in branches_list:
+            b['branch_name'] = branch_names.get(b['branch'], f'Branch {b["branch"]}')
+        
+        gp_pct = (grand_gp / grand_sales * 100) if grand_sales != 0 else 0
+        
+        return jsonify({
+            'month': month,
+            'year': year,
+            'branches': branches_list,
+            'grand_total': {
+                'sales': round(grand_sales, 2),
+                'cos': round(grand_cos, 2),
+                'gp': round(grand_gp, 2),
+                'gp_pct': round(gp_pct, 2)
+            },
+            'branch_names': branch_names
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching Sales GP Report: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @reports_bp.route('/departments/accounting/table-columns', methods=['GET'])
 @jwt_required()
 def get_table_columns():
