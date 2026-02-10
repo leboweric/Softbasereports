@@ -661,7 +661,7 @@ const Dashboard = ({ user }) => {
     )
   }
 
-  // Custom bar shape for No Equipment chart
+  // Custom bar shape for Aftermarket Sales chart
   const CustomBarNoEquipment = (props) => {
     const { fill, x, y, width, height, payload } = props
     const currentMonth = new Date().getMonth() + 1
@@ -1160,9 +1160,9 @@ const Dashboard = ({ user }) => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle>Monthly Sales (No Equipment)</CardTitle>
+                    <CardTitle>Aftermarket Sales</CardTitle>
                     <CardDescription>
-                      Sales excluding new equipment
+                      Service, Parts, Rental & Transportation
                     </CardDescription>
                   </div>
                   {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {

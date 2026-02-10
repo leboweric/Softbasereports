@@ -420,6 +420,18 @@ NAVIGATION_CONFIG = {
         'required_resource': 'vital_mobile_app',
         'order': 3,  # After Finance
     },
+    'currie': {
+        'label': 'Currie',
+        'icon': 'FileSpreadsheet',
+        'path': 'currie',
+        'order': 7.5,
+        'tabs': {
+            'kpis': {'label': "Currie KPI's", 'resource': 'currie'},
+            'sales': {'label': 'Sales', 'resource': 'currie'},
+            'expenses': {'label': 'Expenses', 'resource': 'currie'},
+            'balance': {'label': 'Balance Sheet', 'resource': 'currie'},
+        }
+    },
     'tenant-admin': {
         'label': 'Tenant Management',
         'icon': 'Building2',

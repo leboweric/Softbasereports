@@ -394,30 +394,49 @@ class CEODashboardETL(BaseETL):
     
     def _extract_monthly_sales_excluding_equipment(self) -> list:
         """
-        Extract monthly sales excluding equipment departments.
-        Uses dynamic LIKE queries but excludes accounts starting with 41/51 (new equipment)
-        and 41x002/51x002 patterns (used equipment).
-        
-        For a generic approach, we exclude accounts in the 10 (new equip) and 20 (used equip) 
-        department ranges. Since we don't know exact account mappings per tenant, we use
-        a broader approach: include all 4%/5% accounts but exclude known equipment patterns.
-        
-        Note: This is a best-effort approach. Once the Softbase Chart of Accounts is available,
-        this can be refined with exact department-to-account mappings.
+        Extract monthly sales excluding equipment departments (aftermarket sales).
+        Uses tenant-specific GL account configs to include only non-equipment departments:
+        service, parts, rental, transportation, administrative.
         """
-        schema = self.schema
+        from src.config.gl_accounts_loader import get_gl_accounts, get_other_income_accounts
         
-        # For now, use the same dynamic approach but try to exclude equipment-related accounts
-        # Equipment departments typically use specific account suffixes
-        # This query includes everything - the department breakdown will be refined later
+        schema = self.schema
+        gl_accounts = get_gl_accounts(schema)
+        other_income = get_other_income_accounts(schema)
+        
+        # Collect revenue and cost accounts from non-equipment departments only
+        include_depts = ['service', 'parts', 'rental', 'transportation', 'administrative']
+        all_revenue_accounts = []
+        all_cost_accounts = []
+        
+        for dept_key in include_depts:
+            if dept_key in gl_accounts:
+                dept = gl_accounts[dept_key]
+                all_revenue_accounts.extend(dept['revenue'])
+                all_cost_accounts.extend(dept['cogs'])
+        
+        # Add Other Income accounts
+        all_revenue_accounts.extend(other_income)
+        
+        if not all_revenue_accounts and not all_cost_accounts:
+            # Fallback: if no GL config found, use LIKE '4%' minus known equipment patterns
+            logger.warning(f"No GL account config found for {schema}, falling back to LIKE queries")
+            return self._extract_monthly_sales()  # Fall back to all sales
+        
+        # Format for SQL IN clause
+        revenue_list = "', '".join(all_revenue_accounts)
+        cost_list = "', '".join(all_cost_accounts)
+        all_accounts = all_revenue_accounts + all_cost_accounts
+        all_list = "', '".join(all_accounts)
+        
         query = f"""
         SELECT 
             YEAR(EffectiveDate) as year,
             MONTH(EffectiveDate) as month,
-            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as total_revenue,
-            SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as total_cost
+            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_revenue,
+            SUM(CASE WHEN AccountNo IN ('{cost_list}') THEN Amount ELSE 0 END) as total_cost
         FROM {schema}.GLDetail
-        WHERE (AccountNo LIKE '4%' OR AccountNo LIKE '5%')
+        WHERE AccountNo IN ('{all_list}')
             AND EffectiveDate >= DATEADD(month, -25, GETDATE())
             AND Posted = 1
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -592,15 +611,33 @@ class CEODashboardETL(BaseETL):
         """
         
         results = self.azure_sql.execute_query(query)
-        monthly_data = []
         
+        # Build lookup of actual data
+        existing = {}
         if results:
             for row in results:
-                monthly_data.append({
-                    'year': row['year'],
-                    'month': row['month'],
-                    'amount': float(row['amount']),
-                })
+                key = f"{row['year']}-{row['month']}"
+                existing[key] = float(row['amount'])
+        
+        # Pad with zero-amount months for the full 13-month window
+        from datetime import datetime, timedelta
+        current_date = datetime.now()
+        start_date = current_date.replace(day=1) - timedelta(days=365)
+        start_date = start_date.replace(day=1)
+        
+        monthly_data = []
+        date = start_date
+        while date <= current_date:
+            key = f"{date.year}-{date.month}"
+            monthly_data.append({
+                'year': date.year,
+                'month': date.month,
+                'amount': existing.get(key, 0),
+            })
+            if date.month == 12:
+                date = date.replace(year=date.year + 1, month=1)
+            else:
+                date = date.replace(month=date.month + 1)
         
         return monthly_data
     

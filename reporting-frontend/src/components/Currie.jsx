@@ -1,8 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, Download, Calendar, RefreshCw } from 'lucide-react';
 import axios from 'axios';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { apiUrl } from '@/lib/api';
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Legend,
+} from 'recharts';
 
-const Currie = () => {
+const Currie = ({ user, organization }) => {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState(null);
@@ -11,7 +27,11 @@ const Currie = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('sales'); // 'sales', 'expenses', 'balance'
+  const [activeTab, setActiveTab] = useState('kpis'); // 'kpis', 'sales', 'expenses', 'balance'
+  const [absorptionRateData, setAbsorptionRateData] = useState([]);
+  const [rawAbsorptionRateData, setRawAbsorptionRateData] = useState([]);
+  const [includeCurrentMonthAbsorption, setIncludeCurrentMonthAbsorption] = useState(false);
+  const [absorptionSummary, setAbsorptionSummary] = useState(null);
 
   // Initialize with current quarter
   useEffect(() => {
@@ -36,7 +56,21 @@ const Currie = () => {
     }
 
     setQuarter(quarter, calendarYear);
+    fetchAbsorptionRateData();
   }, []);
+
+  // Re-filter absorption rate data when toggle changes
+  useEffect(() => {
+    if (rawAbsorptionRateData.length > 0) {
+      const now = new Date();
+      const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '");
+      const filteredData = rawAbsorptionRateData.filter(item => {
+        if (!includeCurrentMonthAbsorption && item.month === currentMonthStr) return false;
+        return true;
+      });
+      setAbsorptionRateData(filteredData);
+    }
+  }, [includeCurrentMonthAbsorption, rawAbsorptionRateData]);
 
   const setQuarter = (quarter, calendarYear) => {
     let start, end;
@@ -118,6 +152,39 @@ const Currie = () => {
       fetchData();
     }
   }, [startDate, endDate]);
+
+  const fetchAbsorptionRateData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl('/api/reports/departments/accounting/absorption-rate'), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Filter out Nov '24 through Feb '25 (always excluded)
+        const baseFilteredData = (data.monthly_data || []).filter(item => {
+          const excludedMonths = ["Nov '24", "Dec '24", "Jan '25", "Feb '25"];
+          return !excludedMonths.includes(item.month);
+        });
+        setRawAbsorptionRateData(baseFilteredData);
+        setAbsorptionSummary(data.summary);
+        // Apply current month filter based on toggle state
+        const now = new Date();
+        const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '");
+        const filteredData = baseFilteredData.filter(item => {
+          if (!includeCurrentMonthAbsorption && item.month === currentMonthStr) return false;
+          return true;
+        });
+        setAbsorptionRateData(filteredData);
+      } else {
+        console.error('Absorption rate data error:', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.error('Error fetching absorption rate data:', error);
+    }
+  };
 
   const formatCurrency = (value) => {
     if (value === null || value === undefined) return '$0';
@@ -296,39 +363,198 @@ const Currie = () => {
       )}
 
       {/* Tab Navigation */}
-      {data && (
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('sales')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'sales'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                Sales, COGS & GP
-              </button>
-              <button
-                onClick={() => setActiveTab('expenses')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'expenses'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                Expenses & Metrics
-              </button>
-              <button
-                onClick={() => setActiveTab('balance')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'balance'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-              >
-                Balance Sheet
-              </button>
-            </nav>
-          </div>
+      <div className="mb-6">
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('kpis')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'kpis'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              Currie KPI's
+            </button>
+            <button
+              onClick={() => setActiveTab('sales')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'sales'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              Sales, COGS & GP
+            </button>
+            <button
+              onClick={() => setActiveTab('expenses')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'expenses'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              Expenses & Metrics
+            </button>
+            <button
+              onClick={() => setActiveTab('balance')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'balance'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+            >
+              Balance Sheet
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Currie KPI's Tab */}
+      {activeTab === 'kpis' && (
+        <div className="space-y-6">
+          {/* Monthly Absorption Rate */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Monthly Absorption Rate</CardTitle>
+                  <CardDescription>(Service GP + Parts GP + Rental GP) / Overhead Expenses</CardDescription>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Switch
+                      id="include-current-month-absorption-currie"
+                      checked={includeCurrentMonthAbsorption}
+                      onCheckedChange={setIncludeCurrentMonthAbsorption}
+                    />
+                    <Label htmlFor="include-current-month-absorption-currie" className="text-sm text-muted-foreground cursor-pointer">
+                      Include current month
+                    </Label>
+                  </div>
+                </div>
+                {absorptionRateData && absorptionRateData.length > 0 && (() => {
+                  const avgAbsorption = absorptionRateData.reduce((sum, item) => sum + (item.absorption_rate || 0), 0) / absorptionRateData.length;
+                  const latestAbsorption = absorptionRateData[absorptionRateData.length - 1]?.absorption_rate || 0;
+                  return (
+                    <div className="flex gap-6 text-right">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Average</p>
+                        <p className={`text-lg font-semibold ${avgAbsorption >= 100 ? 'text-green-600' : avgAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {avgAbsorption.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Latest</p>
+                        <p className={`text-lg font-semibold ${latestAbsorption >= 100 ? 'text-green-600' : latestAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {latestAbsorption.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {absorptionRateData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={350}>
+                  <ComposedChart data={(() => {
+                    const chartData = absorptionRateData || [];
+                    if (chartData.length === 0) return chartData;
+                    const monthsWithData = chartData.filter(item => item.total_aftermarket_gp > 0);
+                    let trendSlope = 0;
+                    let trendIntercept = 0;
+                    if (monthsWithData.length >= 2) {
+                      const n = monthsWithData.length;
+                      const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0);
+                      const sumY = monthsWithData.reduce((sum, item) => sum + item.total_aftermarket_gp, 0);
+                      const meanX = sumX / n;
+                      const meanY = sumY / n;
+                      let numerator = 0;
+                      let denominator = 0;
+                      monthsWithData.forEach((item, i) => {
+                        numerator += (i - meanX) * (item.total_aftermarket_gp - meanY);
+                        denominator += (i - meanX) * (i - meanX);
+                      });
+                      trendSlope = denominator !== 0 ? numerator / denominator : 0;
+                      trendIntercept = meanY - trendSlope * meanX;
+                    }
+                    return chartData.map((item, index) => ({
+                      ...item,
+                      aftermarket_trendline: item.total_aftermarket_gp > 0 ? trendSlope * index + trendIntercept : null
+                    }));
+                  })()} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis yAxisId="left" tickFormatter={(value) => `${value}%`} domain={[0, 'auto']} />
+                    <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                    <Tooltip content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0]?.payload;
+                        return (
+                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
+                            <p className="font-semibold mb-1">{label}</p>
+                            <p className={`font-semibold ${d?.absorption_rate >= 100 ? 'text-green-600' : d?.absorption_rate >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              Absorption Rate: {d?.absorption_rate?.toFixed(1)}%
+                            </p>
+                            <hr className="my-2" />
+                            <p className="text-sm text-gray-600">Service GP: {formatCurrency(d?.service_gp)}</p>
+                            <p className="text-sm text-gray-600">Parts GP: {formatCurrency(d?.parts_gp)}</p>
+                            <p className="text-sm text-gray-600">Rental GP: {formatCurrency(d?.rental_gp)}</p>
+                            <p className="text-sm font-medium text-blue-600">Total Aftermarket GP: {formatCurrency(d?.total_aftermarket_gp)}</p>
+                            <hr className="my-2" />
+                            <p className="text-sm text-gray-600">Overhead Expenses: {formatCurrency(d?.overhead_expenses)}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }} />
+                    <Legend />
+                    <ReferenceLine yAxisId="left" y={100} stroke="#22c55e" strokeDasharray="5 5" label={{ value: '100% Target', position: 'insideTopRight', fill: '#22c55e', fontSize: 12 }} />
+                    <ReferenceLine yAxisId="left" y={80} stroke="#eab308" strokeDasharray="3 3" label={{ value: '80% Threshold', position: 'insideBottomRight', fill: '#eab308', fontSize: 10 }} />
+                    <Bar
+                      yAxisId="right"
+                      dataKey="total_aftermarket_gp"
+                      name="Aftermarket GP $"
+                      fill="#3b82f6"
+                      opacity={0.7}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="aftermarket_trendline"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      name="GP Trend"
+                      connectNulls
+                    />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="absorption_rate"
+                      name="Absorption Rate %"
+                      stroke="#22c55e"
+                      strokeWidth={3}
+                      dot={(props) => {
+                        const { cx, cy, payload } = props;
+                        const isBelow100 = payload.absorption_rate < 100;
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={5}
+                            fill={isBelow100 ? '#ef4444' : '#22c55e'}
+                            stroke={isBelow100 ? '#ef4444' : '#22c55e'}
+                            strokeWidth={2}
+                          />
+                        );
+                      }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-48 text-gray-500">
+                  Loading absorption rate data...
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 

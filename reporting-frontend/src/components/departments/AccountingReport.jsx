@@ -28,7 +28,7 @@ import ControlNumberReport from '@/components/ControlNumberReport'
 import InventoryReport from '@/components/InventoryReport'
 
 
-const AccountingReport = ({ user }) => {
+const AccountingReport = ({ user, organization }) => {
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [rawMonthlyExpenses, setRawMonthlyExpenses] = useState([])
   const [includeCurrentMonthGNA, setIncludeCurrentMonthGNA] = useState(false)
@@ -466,153 +466,7 @@ const AccountingReport = ({ user }) => {
             )}
           </div>
 
-          {/* Monthly Absorption Rate */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle>Monthly Absorption Rate</CardTitle>
-                  <CardDescription>(Service GP + Parts GP + Rental GP) / Overhead Expenses - March 2025 onwards</CardDescription>
-                  <div className="flex items-center gap-2 mt-2">
-                    <Switch
-                      id="include-current-month-absorption"
-                      checked={includeCurrentMonthAbsorption}
-                      onCheckedChange={setIncludeCurrentMonthAbsorption}
-                    />
-                    <Label htmlFor="include-current-month-absorption" className="text-sm text-muted-foreground cursor-pointer">
-                      Include current month
-                    </Label>
-                  </div>
-                </div>
-                {absorptionRateData && absorptionRateData.length > 0 && (() => {
-                  const avgAbsorption = absorptionRateData.reduce((sum, item) => sum + (item.absorption_rate || 0), 0) / absorptionRateData.length
-                  const latestAbsorption = absorptionRateData[absorptionRateData.length - 1]?.absorption_rate || 0
-                  return (
-                    <div className="flex gap-6 text-right">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Average</p>
-                        <p className={`text-lg font-semibold ${avgAbsorption >= 100 ? 'text-green-600' : avgAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {avgAbsorption.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Latest</p>
-                        <p className={`text-lg font-semibold ${latestAbsorption >= 100 ? 'text-green-600' : latestAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
-                          {latestAbsorption.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={(() => {
-                  const data = absorptionRateData || []
-                  if (data.length === 0) return data
-
-                  // Calculate linear regression for Aftermarket GP trendline
-                  const monthsWithData = data.filter(item => item.total_aftermarket_gp > 0)
-                  let trendSlope = 0
-                  let trendIntercept = 0
-
-                  if (monthsWithData.length >= 2) {
-                    const n = monthsWithData.length
-                    const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0)
-                    const sumY = monthsWithData.reduce((sum, item) => sum + item.total_aftermarket_gp, 0)
-                    const meanX = sumX / n
-                    const meanY = sumY / n
-
-                    let numerator = 0
-                    let denominator = 0
-                    monthsWithData.forEach((item, i) => {
-                      numerator += (i - meanX) * (item.total_aftermarket_gp - meanY)
-                      denominator += (i - meanX) * (i - meanX)
-                    })
-
-                    trendSlope = denominator !== 0 ? numerator / denominator : 0
-                    trendIntercept = meanY - trendSlope * meanX
-                  }
-
-                  // Add trendline to each data point
-                  return data.map((item, index) => ({
-                    ...item,
-                    aftermarket_trendline: item.total_aftermarket_gp > 0 ? trendSlope * index + trendIntercept : null
-                  }))
-                })()} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis yAxisId="left" tickFormatter={(value) => `${value}%`} domain={[0, 'auto']} />
-                  <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                  <Tooltip content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0]?.payload
-                      return (
-                        <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                          <p className="font-semibold mb-1">{label}</p>
-                          <p className={`font-semibold ${data?.absorption_rate >= 100 ? 'text-green-600' : data?.absorption_rate >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
-                            Absorption Rate: {data?.absorption_rate?.toFixed(1)}%
-                          </p>
-                          <hr className="my-2" />
-                          <p className="text-sm text-gray-600">Service GP: {formatCurrency(data?.service_gp)}</p>
-                          <p className="text-sm text-gray-600">Parts GP: {formatCurrency(data?.parts_gp)}</p>
-                          <p className="text-sm text-gray-600">Rental GP: {formatCurrency(data?.rental_gp)}</p>
-                          <p className="text-sm font-medium text-blue-600">Total Aftermarket GP: {formatCurrency(data?.total_aftermarket_gp)}</p>
-                          <hr className="my-2" />
-                          <p className="text-sm text-gray-600">Overhead Expenses: {formatCurrency(data?.overhead_expenses)}</p>
-                        </div>
-                      )
-                    }
-                    return null
-                  }} />
-                  <Legend />
-                  <ReferenceLine yAxisId="left" y={100} stroke="#22c55e" strokeDasharray="5 5" label={{ value: '100% Target', position: 'insideTopRight', fill: '#22c55e', fontSize: 12 }} />
-                  <ReferenceLine yAxisId="left" y={80} stroke="#eab308" strokeDasharray="3 3" label={{ value: '80% Threshold', position: 'insideBottomRight', fill: '#eab308', fontSize: 10 }} />
-                  <Bar 
-                    yAxisId="right" 
-                    dataKey="total_aftermarket_gp" 
-                    name="Aftermarket GP $" 
-                    fill="#3b82f6" 
-                    opacity={0.7}
-                  />
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="aftermarket_trendline"
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                    name="GP Trend"
-                    connectNulls
-                  />
-                  <Line 
-                    yAxisId="left" 
-                    type="monotone" 
-                    dataKey="absorption_rate" 
-                    name="Absorption Rate %" 
-                    stroke="#22c55e" 
-                    strokeWidth={3}
-                    dot={(props) => {
-                      const { cx, cy, payload } = props
-                      const isBelow100 = payload.absorption_rate < 100
-                      return (
-                        <circle 
-                          cx={cx} 
-                          cy={cy} 
-                          r={5} 
-                          fill={isBelow100 ? '#ef4444' : '#22c55e'} 
-                          stroke={isBelow100 ? '#ef4444' : '#22c55e'}
-                          strokeWidth={2}
-                        />
-                      )
-                    }}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          {/* Monthly Absorption Rate - Moved to Currie KPI's tab */}
 
           {/* Monthly Gross Margin Dollars */}
           <Card>
@@ -956,7 +810,8 @@ const AccountingReport = ({ user }) => {
           </CardContent>
         </Card>
 
-          {/* Professional Services Expenses Over Time */}
+          {/* Professional Services Expenses Over Time - Hidden for IPS */}
+          {organization?.name !== 'Industrial Parts & Service' && (
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between">
@@ -1154,7 +1009,7 @@ const AccountingReport = ({ user }) => {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-
+          )}
       {/* Key Customers Over 90 Days */}
       {arData && arData.specific_customers && arData.specific_customers.length > 0 && (
         <Card>
