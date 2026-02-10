@@ -60,6 +60,21 @@ ROLE_PERMISSIONS = {
         'resources': list(RESOURCES.keys()),  # All resources
         'actions': ACTIONS,  # All actions
     },
+    'Owner': {
+        'resources': [
+            'dashboard',
+            'parts_work_orders', 'parts_inventory', 'parts_stock_alerts',
+            'parts_forecast', 'parts_overview', 'parts_employee_performance',
+            'parts_velocity', 'parts_inventory_turns',
+            'service_work_orders', 'service_overview',
+            'rental_availability', 'rental_overview',
+            'accounting_overview', 'accounting_ar', 'accounting_ap',
+            'accounting_commissions', 'accounting_control', 'accounting_inventory',
+            'minitrac', 'knowledge_base', 'currie', 'financial',
+            'qbr', 'my_commissions', 'customer_churn'
+        ],
+        'actions': ['view', 'create', 'edit', 'export'],
+    },
     'Sales Manager': {
         'resources': [
             'dashboard', 'accounting_commissions', 'my_commissions',
