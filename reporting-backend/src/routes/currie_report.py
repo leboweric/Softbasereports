@@ -2034,7 +2034,7 @@ def get_balance_sheet_data(as_of_date):
             'liabilities': liabilities,
             'equity': equity,
             'as_of_date': as_of_date,
-            'balanced': abs(assets['total'] - (liabilities['total'] + equity['total'])) < 0.01
+            'balanced': abs(assets['total'] + liabilities['total'] + equity['total']) < 0.01
         }
         
     except Exception as e:

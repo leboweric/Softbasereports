@@ -115,26 +115,28 @@ const BalanceSheet = () => {
 
     const otherAssets = bs.assets.other_assets.reduce((sum, acc) => sum + acc.balance, 0);
 
-    const apPrimary = sumByPattern(bs.liabilities.current_liabilities, ['ACCOUNTS PAYABLE', 'TRADE']);
-    const shortTermRentalFinance = sumByPattern(bs.liabilities.current_liabilities, ['RENTAL FINANCE', 'FLOOR PLAN']);
-    const usedEquipFinancing = sumByPattern(bs.liabilities.current_liabilities, ['TRUCKS PURCHASED']);
-    const otherCurrentLiab = bs.liabilities.current_liabilities.reduce((sum, acc) => sum + acc.balance, 0) -
-      (apPrimary + shortTermRentalFinance + usedEquipFinancing);
+    // Negate liabilities and equity for display (GL stores credits as negative)
+    const apPrimary = -sumByPattern(bs.liabilities.current_liabilities, ['ACCOUNTS PAYABLE', 'TRADE']);
+    const shortTermRentalFinance = -sumByPattern(bs.liabilities.current_liabilities, ['RENTAL FINANCE', 'FLOOR PLAN']);
+    const usedEquipFinancing = -sumByPattern(bs.liabilities.current_liabilities, ['TRUCKS PURCHASED']);
+    const rawCurrentLiab = -bs.liabilities.current_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+    const otherCurrentLiab = rawCurrentLiab - (apPrimary + shortTermRentalFinance + usedEquipFinancing);
     const totalCurrentLiab = apPrimary + shortTermRentalFinance + usedEquipFinancing + otherCurrentLiab;
 
-    const longTermNotes = sumByPattern(bs.liabilities.long_term_liabilities, ['NOTES PAYABLE', 'SCALE BANK']);
-    const loansFromStockholders = sumByPattern(bs.liabilities.long_term_liabilities, ['STOCKHOLDER', 'SHAREHOLDER']);
-    const ltRentalFleetFinancing = sumByPattern(bs.liabilities.long_term_liabilities, ['RENTAL', 'FLEET']) - shortTermRentalFinance;
-    const otherLongTermDebt = bs.liabilities.long_term_liabilities.reduce((sum, acc) => sum + acc.balance, 0) -
-      (longTermNotes + loansFromStockholders + ltRentalFleetFinancing);
+    const longTermNotes = -sumByPattern(bs.liabilities.long_term_liabilities, ['NOTES PAYABLE', 'SCALE BANK']);
+    const loansFromStockholders = -sumByPattern(bs.liabilities.long_term_liabilities, ['STOCKHOLDER', 'SHAREHOLDER']);
+    const ltRentalFleetFinancing = -sumByPattern(bs.liabilities.long_term_liabilities, ['RENTAL', 'FLEET']) - shortTermRentalFinance;
+    const rawLTLiab = -bs.liabilities.long_term_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+    const otherLongTermDebt = rawLTLiab - (longTermNotes + loansFromStockholders + ltRentalFleetFinancing);
     const totalLTLiab = longTermNotes + loansFromStockholders + ltRentalFleetFinancing + otherLongTermDebt;
 
-    const otherLiabilities = bs.liabilities.other_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+    const otherLiabilities = -bs.liabilities.other_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+    const totalLiabilitiesExport = totalCurrentLiab + totalLTLiab + otherLiabilities;
 
-    const capitalStock = bs.equity.capital_stock.reduce((sum, acc) => sum + acc.balance, 0);
-    const retainedEarnings = bs.equity.retained_earnings.reduce((sum, acc) => sum + acc.balance, 0) +
-      bs.equity.distributions.reduce((sum, acc) => sum + acc.balance, 0);
-    const netIncomeExport = bs.equity.net_income || 0;
+    const capitalStock = -bs.equity.capital_stock.reduce((sum, acc) => sum + acc.balance, 0);
+    const retainedEarnings = -(bs.equity.retained_earnings.reduce((sum, acc) => sum + acc.balance, 0) +
+      bs.equity.distributions.reduce((sum, acc) => sum + acc.balance, 0));
+    const netIncomeExport = -(bs.equity.net_income || 0);
     const totalNetWorth = capitalStock + retainedEarnings + netIncomeExport;
 
     // Create worksheet data
@@ -184,7 +186,7 @@ const BalanceSheet = () => {
       [''],
       ['Other Liabilities', otherLiabilities],
       [''],
-      ['TOTAL LIABILITIES', bs.liabilities.total],
+      ['TOTAL LIABILITIES', totalLiabilitiesExport],
       [''],
       ['NET WORTH/OWNER EQUITY'],
       ['  Capital Stock', capitalStock],
@@ -192,7 +194,7 @@ const BalanceSheet = () => {
       ['  Current Year Net Income', netIncomeExport],
       ['Total Net Worth', totalNetWorth],
       [''],
-      ['TOTAL LIABILITIES & NET WORTH', bs.liabilities.total + bs.equity.total],
+      ['TOTAL LIABILITIES & NET WORTH', totalLiabilitiesExport + totalNetWorth],
     ];
 
     const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
@@ -318,30 +320,33 @@ const BalanceSheet = () => {
   const otherAssets = bs.assets.other_assets.reduce((sum, acc) => sum + acc.balance, 0);
 
   // LIABILITIES calculations
-  const apPrimary = sumByPattern(bs.liabilities.current_liabilities, ['ACCOUNTS PAYABLE', 'TRADE']);
+  // GL stores credits (liabilities, equity) as negative values
+  // For balance sheet display, we negate them to show as positive
+  const apPrimary = -sumByPattern(bs.liabilities.current_liabilities, ['ACCOUNTS PAYABLE', 'TRADE']);
   const apOther = 0;
   const notesPayableCurrent = 0;
-  const shortTermRentalFinance = sumByPattern(bs.liabilities.current_liabilities, ['RENTAL FINANCE', 'FLOOR PLAN']);
-  const usedEquipFinancing = sumByPattern(bs.liabilities.current_liabilities, ['TRUCKS PURCHASED']);
-  const otherCurrentLiab = bs.liabilities.current_liabilities.reduce((sum, acc) => sum + acc.balance, 0) -
-    (apPrimary + apOther + notesPayableCurrent + shortTermRentalFinance + usedEquipFinancing);
+  const shortTermRentalFinance = -sumByPattern(bs.liabilities.current_liabilities, ['RENTAL FINANCE', 'FLOOR PLAN']);
+  const usedEquipFinancing = -sumByPattern(bs.liabilities.current_liabilities, ['TRUCKS PURCHASED']);
+  const rawCurrentLiab = -bs.liabilities.current_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+  const otherCurrentLiab = rawCurrentLiab - (apPrimary + apOther + notesPayableCurrent + shortTermRentalFinance + usedEquipFinancing);
   const totalCurrentLiab = apPrimary + apOther + notesPayableCurrent + shortTermRentalFinance + usedEquipFinancing + otherCurrentLiab;
 
   // Long-term Liabilities
-  const longTermNotes = sumByPattern(bs.liabilities.long_term_liabilities, ['NOTES PAYABLE', 'SCALE BANK']);
-  const loansFromStockholders = sumByPattern(bs.liabilities.long_term_liabilities, ['STOCKHOLDER', 'SHAREHOLDER']);
-  const ltRentalFleetFinancing = sumByPattern(bs.liabilities.long_term_liabilities, ['RENTAL', 'FLEET']) - shortTermRentalFinance;
-  const otherLongTermDebt = bs.liabilities.long_term_liabilities.reduce((sum, acc) => sum + acc.balance, 0) -
-    (longTermNotes + loansFromStockholders + ltRentalFleetFinancing);
+  const longTermNotes = -sumByPattern(bs.liabilities.long_term_liabilities, ['NOTES PAYABLE', 'SCALE BANK']);
+  const loansFromStockholders = -sumByPattern(bs.liabilities.long_term_liabilities, ['STOCKHOLDER', 'SHAREHOLDER']);
+  const ltRentalFleetFinancing = -sumByPattern(bs.liabilities.long_term_liabilities, ['RENTAL', 'FLEET']) - shortTermRentalFinance;
+  const rawLTLiab = -bs.liabilities.long_term_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+  const otherLongTermDebt = rawLTLiab - (longTermNotes + loansFromStockholders + ltRentalFleetFinancing);
   const totalLTLiab = longTermNotes + loansFromStockholders + ltRentalFleetFinancing + otherLongTermDebt;
 
-  const otherLiabilities = bs.liabilities.other_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+  const otherLiabilities = -bs.liabilities.other_liabilities.reduce((sum, acc) => sum + acc.balance, 0);
+  const totalLiabilities = totalCurrentLiab + totalLTLiab + otherLiabilities;
 
-  // EQUITY calculations
-  const capitalStock = bs.equity.capital_stock.reduce((sum, acc) => sum + acc.balance, 0);
-  const retainedEarnings = bs.equity.retained_earnings.reduce((sum, acc) => sum + acc.balance, 0) +
-    bs.equity.distributions.reduce((sum, acc) => sum + acc.balance, 0);
-  const netIncome = bs.equity.net_income || 0;
+  // EQUITY calculations (also negate for display)
+  const capitalStock = -bs.equity.capital_stock.reduce((sum, acc) => sum + acc.balance, 0);
+  const retainedEarnings = -(bs.equity.retained_earnings.reduce((sum, acc) => sum + acc.balance, 0) +
+    bs.equity.distributions.reduce((sum, acc) => sum + acc.balance, 0));
+  const netIncome = -(bs.equity.net_income || 0);
   const totalNetWorth = capitalStock + retainedEarnings + netIncome;
 
   return (
@@ -624,7 +629,7 @@ const BalanceSheet = () => {
               <div className="border-t border-gray-600 pt-2 mb-6">
                 <div className="flex justify-between font-semibold text-base">
                   <span>Total Liabilities</span>
-                  <span>{formatCurrency(bs.liabilities.total)}</span>
+                  <span>{formatCurrency(totalLiabilities)}</span>
                 </div>
               </div>
 
@@ -655,7 +660,7 @@ const BalanceSheet = () => {
               <div className="border-t-2 border-gray-900 pt-2">
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total Liabilities & Net Worth</span>
-                  <span>{formatCurrency(bs.liabilities.total + bs.equity.total)}</span>
+                  <span>{formatCurrency(totalLiabilities + totalNetWorth)}</span>
                 </div>
               </div>
             </div>
