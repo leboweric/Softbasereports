@@ -576,7 +576,7 @@ const Dashboard = ({ user }) => {
 
   // Custom bar shape with pace indicator
   const CustomBar = (props) => {
-    const { fill, x, y, width, height, payload } = props
+    const { fill, x, y, width, height, payload, background } = props
     const currentMonth = new Date().getMonth() + 1
     const currentYear = new Date().getFullYear()
 
@@ -586,8 +586,43 @@ const Dashboard = ({ user }) => {
       payload.month === monthNames[currentMonth - 1] &&
       payload.year === currentYear &&
       paceData
+
+    // Calculate ghost bar for prior year
+    const priorYearAmount = payload?.prior_year_amount || 0
+    const currentAmount = payload?.amount || 0
+    let ghostBarHeight = 0
+    let ghostBarY = y + height // default to bottom of current bar
+    if (priorYearAmount > 0 && currentAmount > 0 && height > 0) {
+      // Scale ghost bar relative to current bar
+      const ratio = priorYearAmount / currentAmount
+      ghostBarHeight = height * ratio
+      ghostBarY = y + height - ghostBarHeight
+    } else if (priorYearAmount > 0 && background) {
+      // Current is 0 but prior year has data - use background height as reference
+      ghostBarHeight = Math.min(background.height * 0.3, 50) // cap it
+      ghostBarY = background.y + background.height - ghostBarHeight
+    }
+
     return (
       <g>
+        {/* Ghost bar for prior year - rendered behind */}
+        {priorYearAmount > 0 && ghostBarHeight > 0 && (
+          <rect
+            x={x - 2}
+            y={ghostBarY}
+            width={width + 4}
+            height={ghostBarHeight}
+            fill={fill}
+            fillOpacity={0.12}
+            rx={4}
+            ry={4}
+            stroke={fill}
+            strokeOpacity={0.25}
+            strokeWidth={1}
+            strokeDasharray="4 2"
+          />
+        )}
+        {/* Current year bar */}
         <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
         {isCurrentMonth && paceData && (
           <g>
@@ -1014,10 +1049,15 @@ const Dashboard = ({ user }) => {
                               Revenue: {formatCurrency(monthData?.amount || 0)}
                               {priorYearValue && priorYearValue > 0 && (
                                 <span className="text-sm ml-2">
-                                  ({formatPercentage(calculatePercentageChange(monthData?.amount, priorYearValue))} vs last year)
+                                  ({formatPercentage(calculatePercentageChange(monthData?.amount, priorYearValue))} vs PY)
                                 </span>
                               )}
                             </p>
+                            {priorYearValue && priorYearValue > 0 && (
+                              <p className="text-gray-400 text-sm">
+                                Prior Year: {formatCurrency(priorYearValue)}
+                              </p>
+                            )}
                             {monthData?.margin !== null && monthData?.margin !== undefined && (
                               <p className="text-blue-600">
                                 Blended Margin: {monthData.margin.toFixed(1)}%
@@ -1033,7 +1073,27 @@ const Dashboard = ({ user }) => {
                       }
                       return null
                     }} />
-                    <Legend />
+                    <Legend content={({ payload }) => (
+                      <div className="flex justify-center gap-4 mt-2 text-sm">
+                        {payload?.map((entry, index) => (
+                          <span key={index} className="flex items-center gap-1">
+                            {entry.value === 'Prior Year' ? (
+                              <svg width="14" height="14"><rect width="14" height="14" fill="#8884d8" fillOpacity="0.15" stroke="#8884d8" strokeOpacity="0.3" strokeWidth="1" strokeDasharray="3 2" rx="2" /></svg>
+                            ) : (
+                              <svg width="14" height="14">
+                                {entry.type === 'line' ? (
+                                  <line x1="0" y1="7" x2="14" y2="7" stroke={entry.color} strokeWidth="2" strokeDasharray={entry.value === 'Revenue Trend' ? '4 3' : '0'} />
+                                ) : (
+                                  <rect width="14" height="14" fill={entry.color} rx="2" />
+                                )}
+                              </svg>
+                            )}
+                            <span className="text-gray-600">{entry.value}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )} />
+                    <Bar yAxisId="left" dataKey="prior_year_amount" fill="#8884d8" fillOpacity={0} name="Prior Year" legendType="rect" hide />
                     <Bar yAxisId="left" dataKey="amount" fill="#8884d8" name="Revenue" shape={<CustomBar />} />
                     <Line
                       yAxisId="right"
