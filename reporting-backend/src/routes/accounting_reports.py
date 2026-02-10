@@ -379,3 +379,140 @@ def get_monthly_absorption_rate():
     except Exception as e:
         logger.error(f"Error calculating absorption rate: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/departments/accounting/parts-commissions', methods=['GET'])
+@jwt_required()
+def get_parts_commissions():
+    """
+    Parts Commissions report - Invoice Detail by Salesmen (Parts).
+    Returns parts invoice data grouped by salesman for a given month/year.
+    Columns: Invoice Date, Invoice No, Customer, Parts Sale, Parts Cost, Parts Profit
+    """
+    try:
+        schema = get_tenant_schema()
+        db = get_tenant_db()
+        
+        # Get month/year from query params (default to previous month)
+        now = datetime.now()
+        # Default to previous month
+        if now.month == 1:
+            default_month = 12
+            default_year = now.year - 1
+        else:
+            default_month = now.month - 1
+            default_year = now.year
+        
+        from flask import request
+        month = int(request.args.get('month', default_month))
+        year = int(request.args.get('year', default_year))
+        
+        logger.info(f"Parts Commissions report for {schema}: {year}-{month:02d}")
+        
+        # Query InvoiceReg for parts invoices in the given month
+        # Parts Sale = PartsTaxable + PartsNonTax
+        # Parts Profit = Parts Sale - PartsCost
+        # Group by Salesman1 (the primary salesman on the invoice)
+        query = f"""
+            SELECT 
+                InvoiceDate,
+                InvoiceNo,
+                BillToName as CustomerName,
+                ISNULL(Salesman1, 'Unassigned') as Salesman,
+                ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0) as PartsSale,
+                ISNULL(PartsCost, 0) as PartsCost,
+                (ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0)) - ISNULL(PartsCost, 0) as PartsProfit
+            FROM {schema}.InvoiceReg
+            WHERE YEAR(InvoiceDate) = {year}
+                AND MONTH(InvoiceDate) = {month}
+                AND (
+                    ISNULL(PartsTaxable, 0) + ISNULL(PartsNonTax, 0) != 0
+                    OR ISNULL(PartsCost, 0) != 0
+                )
+            ORDER BY Salesman1, InvoiceDate, InvoiceNo
+        """
+        
+        results = db.execute_query(query)
+        
+        if not results:
+            return jsonify({
+                'month': month,
+                'year': year,
+                'salesmen': [],
+                'grand_total': {
+                    'parts_sale': 0,
+                    'parts_cost': 0,
+                    'parts_profit': 0,
+                    'invoice_count': 0
+                }
+            })
+        
+        # Group by salesman
+        from collections import OrderedDict
+        salesmen = OrderedDict()
+        grand_total_sale = 0
+        grand_total_cost = 0
+        grand_total_profit = 0
+        
+        for row in results:
+            salesman = row['Salesman'] or 'Unassigned'
+            parts_sale = float(row['PartsSale'] or 0)
+            parts_cost = float(row['PartsCost'] or 0)
+            parts_profit = float(row['PartsProfit'] or 0)
+            
+            if salesman not in salesmen:
+                salesmen[salesman] = {
+                    'name': salesman,
+                    'invoices': [],
+                    'total_sale': 0,
+                    'total_cost': 0,
+                    'total_profit': 0
+                }
+            
+            invoice_date = row['InvoiceDate']
+            if hasattr(invoice_date, 'strftime'):
+                invoice_date_str = invoice_date.strftime('%m/%d/%Y')
+            else:
+                invoice_date_str = str(invoice_date)
+            
+            salesmen[salesman]['invoices'].append({
+                'invoice_date': invoice_date_str,
+                'invoice_no': row['InvoiceNo'],
+                'customer': row['CustomerName'] or 'Unknown',
+                'parts_sale': round(parts_sale, 2),
+                'parts_cost': round(parts_cost, 2),
+                'parts_profit': round(parts_profit, 2)
+            })
+            
+            salesmen[salesman]['total_sale'] += parts_sale
+            salesmen[salesman]['total_cost'] += parts_cost
+            salesmen[salesman]['total_profit'] += parts_profit
+            
+            grand_total_sale += parts_sale
+            grand_total_cost += parts_cost
+            grand_total_profit += parts_profit
+        
+        # Round salesman totals
+        salesmen_list = []
+        for s in salesmen.values():
+            s['total_sale'] = round(s['total_sale'], 2)
+            s['total_cost'] = round(s['total_cost'], 2)
+            s['total_profit'] = round(s['total_profit'], 2)
+            s['invoice_count'] = len(s['invoices'])
+            salesmen_list.append(s)
+        
+        return jsonify({
+            'month': month,
+            'year': year,
+            'salesmen': salesmen_list,
+            'grand_total': {
+                'parts_sale': round(grand_total_sale, 2),
+                'parts_cost': round(grand_total_cost, 2),
+                'parts_profit': round(grand_total_profit, 2),
+                'invoice_count': sum(len(s['invoices']) for s in salesmen.values())
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching parts commissions: {str(e)}")
+        return jsonify({'error': str(e)}), 500

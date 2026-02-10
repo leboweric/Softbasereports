@@ -26,6 +26,7 @@ import APAgingReport from '@/components/APAgingReport'
 import SalesCommissionReport from '@/components/SalesCommissionReport'
 import ControlNumberReport from '@/components/ControlNumberReport'
 import InventoryReport from '@/components/InventoryReport'
+import PartsCommissionsReport from '@/components/PartsCommissionsReport'
 
 
 const AccountingReport = ({ user, organization }) => {
@@ -448,6 +449,7 @@ const AccountingReport = ({ user, organization }) => {
           <TabsTrigger value="commissions">Sales Commissions</TabsTrigger>
           <TabsTrigger value="control">Control Numbers</TabsTrigger>
           <TabsTrigger value="inventory">Inventory</TabsTrigger>
+          <TabsTrigger value="parts-commissions">Parts Commissions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -1091,6 +1093,10 @@ const AccountingReport = ({ user, organization }) => {
         </TabsContent>
         <TabsContent value="inventory" className="space-y-6">
           <InventoryReport user={user} />
+        </TabsContent>
+
+        <TabsContent value="parts-commissions" className="space-y-6">
+          <PartsCommissionsReport user={user} />
         </TabsContent>
 
 
