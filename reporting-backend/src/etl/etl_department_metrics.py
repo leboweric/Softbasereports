@@ -29,7 +29,7 @@ def format_month_label(year: int, month: int) -> str:
 class DepartmentMetricsETL(BaseETL):
     """ETL job for Department page metrics from Softbase"""
     
-    def __init__(self, org_id=4, schema='ben002', azure_sql=None):
+    def __init__(self, org_id=4, schema='ben002', azure_sql=None, fiscal_year_start_month=11):
         """
         Initialize Department Metrics ETL for a specific tenant.
         
@@ -37,6 +37,7 @@ class DepartmentMetricsETL(BaseETL):
             org_id: Organization ID from the organization table
             schema: Database schema for the tenant (e.g., 'ben002', 'ind004')
             azure_sql: Pre-configured AzureSQLService instance for the tenant
+            fiscal_year_start_month: Month number (1-12) when fiscal year starts
         """
         super().__init__(
             job_name='etl_department_metrics',
@@ -48,12 +49,13 @@ class DepartmentMetricsETL(BaseETL):
         self._azure_sql = azure_sql
         self.start_time = None
         self.current_date = datetime.now()
+        self.fiscal_year_start_month = fiscal_year_start_month
         
-        # Fiscal year calculation (November 1st start)
-        if self.current_date.month >= 11:
-            self.fiscal_year_start = datetime(self.current_date.year, 11, 1)
+        # Fiscal year calculation (dynamic per tenant)
+        if self.current_date.month >= self.fiscal_year_start_month:
+            self.fiscal_year_start = datetime(self.current_date.year, self.fiscal_year_start_month, 1)
         else:
-            self.fiscal_year_start = datetime(self.current_date.year - 1, 11, 1)
+            self.fiscal_year_start = datetime(self.current_date.year - 1, self.fiscal_year_start_month, 1)
         
         # Generate fiscal year months - ONLY up to current month (no future months)
         self.fiscal_months = []

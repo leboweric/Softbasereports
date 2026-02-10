@@ -2005,12 +2005,16 @@ def get_dashboard_summary():
         # Get Top 10 customers by YTD sales
         top_customers = []
         try:
-            # Get fiscal year start (November 1st of previous year)
+            # Get fiscal year start (dynamic per tenant)
+            from flask import g
             today = datetime.now()
-            if today.month >= 11:
-                fiscal_year_start = datetime(today.year, 11, 1)
+            fy_start_month = 11  # Default
+            if hasattr(g, 'current_organization') and g.current_organization:
+                fy_start_month = g.current_organization.fiscal_year_start_month or 11
+            if today.month >= fy_start_month:
+                fiscal_year_start = datetime(today.year, fy_start_month, 1)
             else:
-                fiscal_year_start = datetime(today.year - 1, 11, 1)
+                fiscal_year_start = datetime(today.year - 1, fy_start_month, 1)
             
             top_customers_query = f"""
             SELECT TOP 10

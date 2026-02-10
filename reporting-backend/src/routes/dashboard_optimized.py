@@ -91,11 +91,22 @@ class DashboardQueries:
         self.thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         self.twelve_months_ago = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
         
-        # Fiscal year start (November 1st)
-        if self.current_date.month >= 11:
-            self.fiscal_year_start = datetime(self.current_date.year, 11, 1).strftime('%Y-%m-%d')
+        # Fiscal year start (dynamic per tenant)
+        self.fiscal_year_start_month = self._get_fiscal_year_start_month()
+        if self.current_date.month >= self.fiscal_year_start_month:
+            self.fiscal_year_start = datetime(self.current_date.year, self.fiscal_year_start_month, 1).strftime('%Y-%m-%d')
         else:
-            self.fiscal_year_start = datetime(self.current_date.year - 1, 11, 1).strftime('%Y-%m-%d')
+            self.fiscal_year_start = datetime(self.current_date.year - 1, self.fiscal_year_start_month, 1).strftime('%Y-%m-%d')
+    
+    def _get_fiscal_year_start_month(self):
+        """Get fiscal year start month from the organization config"""
+        try:
+            from flask import g
+            if hasattr(g, 'current_organization') and g.current_organization:
+                return g.current_organization.fiscal_year_start_month or 11
+        except RuntimeError:
+            pass  # Outside request context
+        return 11  # Default to November
     
     def get_current_month_sales(self):
         """Get current month's total sales using GLDetail (matches Monthly Sales chart)"""
@@ -2632,12 +2643,13 @@ def analyze_customer_risk():
         
         db = get_tenant_db()
         
-        # Current fiscal year dates
+        # Current fiscal year dates (dynamic per tenant)
         current_date = datetime.now()
-        if current_date.month >= 11:
-            fiscal_year_start = datetime(current_date.year, 11, 1)
+        fy_start_month = user.organization.fiscal_year_start_month or 11
+        if current_date.month >= fy_start_month:
+            fiscal_year_start = datetime(current_date.year, fy_start_month, 1)
         else:
-            fiscal_year_start = datetime(current_date.year - 1, 11, 1)
+            fiscal_year_start = datetime(current_date.year - 1, fy_start_month, 1)
         
         fiscal_year_start_str = fiscal_year_start.strftime('%Y-%m-%d')
         

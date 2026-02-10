@@ -20,12 +20,16 @@ def get_customer_details(customer_id):
     try:
         db = get_tenant_db()
         
-        # Current fiscal year dates
+        # Current fiscal year dates (dynamic per tenant)
+        from flask import g
         current_date = datetime.now()
-        if current_date.month >= 11:
-            fiscal_year_start = datetime(current_date.year, 11, 1)
+        fy_start_month = 11  # Default
+        if hasattr(g, 'current_organization') and g.current_organization:
+            fy_start_month = g.current_organization.fiscal_year_start_month or 11
+        if current_date.month >= fy_start_month:
+            fiscal_year_start = datetime(current_date.year, fy_start_month, 1)
         else:
-            fiscal_year_start = datetime(current_date.year - 1, 11, 1)
+            fiscal_year_start = datetime(current_date.year - 1, fy_start_month, 1)
         
         fiscal_year_start_str = fiscal_year_start.strftime('%Y-%m-%d')
         

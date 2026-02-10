@@ -70,11 +70,27 @@ def get_date_filter(period, date_column='InvoiceDate'):
     elif period == 'today':
         return f"{date_column} >= '{today.strftime('%Y-%m-%d')}'"
     elif period == 'this_year':
-        year_start = today.replace(month=1, day=1)
+        # Use fiscal year start month from org config
+        from flask import g
+        fy_month = 1  # Default to calendar year
+        if hasattr(g, 'current_organization') and g.current_organization:
+            fy_month = g.current_organization.fiscal_year_start_month or 1
+        if today.month >= fy_month:
+            year_start = today.replace(month=fy_month, day=1)
+        else:
+            year_start = today.replace(year=today.year-1, month=fy_month, day=1)
         return f"{date_column} >= '{year_start.strftime('%Y-%m-%d')}'"
     elif period == 'last_year':
-        last_year_start = today.replace(year=today.year-1, month=1, day=1)
-        this_year_start = today.replace(month=1, day=1)
+        from flask import g
+        fy_month = 1  # Default to calendar year
+        if hasattr(g, 'current_organization') and g.current_organization:
+            fy_month = g.current_organization.fiscal_year_start_month or 1
+        if today.month >= fy_month:
+            this_year_start = today.replace(month=fy_month, day=1)
+            last_year_start = today.replace(year=today.year-1, month=fy_month, day=1)
+        else:
+            this_year_start = today.replace(year=today.year-1, month=fy_month, day=1)
+            last_year_start = today.replace(year=today.year-2, month=fy_month, day=1)
         return f"{date_column} >= '{last_year_start.strftime('%Y-%m-%d')}' AND {date_column} < '{this_year_start.strftime('%Y-%m-%d')}'"
     else:
         thirty_days_ago = today - timedelta(days=30)

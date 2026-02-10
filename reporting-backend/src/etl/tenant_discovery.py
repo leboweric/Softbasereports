@@ -19,7 +19,7 @@ class TenantInfo:
     def __init__(self, org_id: int, name: str, schema: str, 
                  db_server: str = None, db_name: str = None,
                  db_username: str = None, db_password_encrypted: str = None,
-                 platform_type: str = None):
+                 platform_type: str = None, fiscal_year_start_month: int = 11):
         self.org_id = org_id
         self.name = name
         self.schema = schema
@@ -28,6 +28,7 @@ class TenantInfo:
         self.db_username = db_username
         self.db_password_encrypted = db_password_encrypted
         self.platform_type = platform_type or 'evolution'
+        self.fiscal_year_start_month = fiscal_year_start_month
     
     def __repr__(self):
         return f"TenantInfo(org_id={self.org_id}, name='{self.name}', schema='{self.schema}')"
@@ -110,7 +111,8 @@ def discover_softbase_tenants() -> List[TenantInfo]:
                 db_name=org.db_name,
                 db_username=org.db_username,
                 db_password_encrypted=org.db_password_encrypted,
-                platform_type=org.platform_type
+                platform_type=org.platform_type,
+                fiscal_year_start_month=org.fiscal_year_start_month or 11
             )
             tenants.append(tenant)
             logger.info(f"Discovered Softbase tenant: {tenant}")
@@ -153,7 +155,8 @@ def create_tenant_azure_sql(org_id: int):
             db_name=org.db_name,
             db_username=org.db_username,
             db_password_encrypted=org.db_password_encrypted,
-            platform_type=org.platform_type
+            platform_type=org.platform_type,
+            fiscal_year_start_month=org.fiscal_year_start_month or 11
         )
         return tenant.get_azure_sql_service()
     except Exception as e:
@@ -184,6 +187,7 @@ def run_etl_for_all_tenants(etl_class, etl_name: str, **extra_kwargs) -> Dict[st
                 org_id=tenant.org_id,
                 schema=tenant.schema,
                 azure_sql=azure_sql,
+                fiscal_year_start_month=tenant.fiscal_year_start_month,
                 **extra_kwargs
             )
             success = etl.run()

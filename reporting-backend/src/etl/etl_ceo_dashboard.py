@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class CEODashboardETL(BaseETL):
     """ETL job for CEO Dashboard metrics from Softbase"""
     
-    def __init__(self, org_id=4, schema='ben002', azure_sql=None):
+    def __init__(self, org_id=4, schema='ben002', azure_sql=None, fiscal_year_start_month=11):
         """
         Initialize CEO Dashboard ETL for a specific tenant.
         
@@ -28,6 +28,7 @@ class CEODashboardETL(BaseETL):
             org_id: Organization ID from the organization table
             schema: Database schema for the tenant (e.g., 'ben002', 'ind004')
             azure_sql: Pre-configured AzureSQLService instance for the tenant
+            fiscal_year_start_month: Month number (1-12) when fiscal year starts
         """
         super().__init__(
             job_name='etl_ceo_dashboard',
@@ -41,12 +42,13 @@ class CEODashboardETL(BaseETL):
         self.current_date = datetime.now()
         self.month_start = self.current_date.replace(day=1).strftime('%Y-%m-%d')
         self.thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+        self.fiscal_year_start_month = fiscal_year_start_month
         
-        # Fiscal year start (November 1st)
-        if self.current_date.month >= 11:
-            self.fiscal_year_start = datetime(self.current_date.year, 11, 1).strftime('%Y-%m-%d')
+        # Fiscal year start (dynamic per tenant)
+        if self.current_date.month >= self.fiscal_year_start_month:
+            self.fiscal_year_start = datetime(self.current_date.year, self.fiscal_year_start_month, 1).strftime('%Y-%m-%d')
         else:
-            self.fiscal_year_start = datetime(self.current_date.year - 1, 11, 1).strftime('%Y-%m-%d')
+            self.fiscal_year_start = datetime(self.current_date.year - 1, self.fiscal_year_start_month, 1).strftime('%Y-%m-%d')
     
     @property
     def azure_sql(self):
