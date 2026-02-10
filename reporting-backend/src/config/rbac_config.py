@@ -99,7 +99,7 @@ ROLE_PERMISSIONS = {
     },
     'Service Manager': {
         'resources': [
-            'service_work_orders', 'service_overview'
+            'service_work_orders', 'service_overview', 'knowledge_base'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
