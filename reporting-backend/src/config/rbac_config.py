@@ -439,4 +439,11 @@ NAVIGATION_CONFIG = {
         'required_resource': 'tenant_admin',
         'order': 101,
     },
+    'support-tickets': {
+        'label': 'Support Tickets',
+        'icon': 'Ticket',
+        'path': 'support-tickets',
+        'required_resource': 'user_management',
+        'order': 98,
+    },
 }

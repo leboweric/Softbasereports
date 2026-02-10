@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import * as Icons from 'lucide-react'
+import HelpWidget from './HelpWidget'
 
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -18,7 +19,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
   // Menu order: Dashboard, Finance, then other items
   // Removed vital-quickbooks (reports moved to Finance)
   // Renamed: vital-hubspot -> Sales & Marketing, vital-case-data -> CMS, vital-azure-sql -> CMS Data
-  const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'currie', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'gl-mapping', 'tenant-admin', 'vital-data-sources', 'user-management']
+  const desiredOrder = ['dashboard', 'vital-finance', 'vital-mobile-app', 'vital-case-data', 'vital-financial', 'vital-marketing', 'vital-hubspot', 'vital-azure-sql', 'vital-zoom', 'vital-high-fives', 'vital-anonymous-questions', 'parts', 'service', 'rental', 'accounting', 'currie', 'customer-churn', 'knowledge-base', 'financial', 'qbr', 'my-commissions', 'minitrac', 'database-explorer', 'schema-explorer', 'rep-comp-admin', 'gl-mapping', 'support-tickets', 'tenant-admin', 'vital-data-sources', 'user-management']
   
   const navItems = hasNavigation 
     ? desiredOrder
@@ -223,6 +224,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
           </div>
         </main>
       </div>
+      <HelpWidget user={user} />
     </div>
   )
 }

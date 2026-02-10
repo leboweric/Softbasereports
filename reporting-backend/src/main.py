@@ -122,7 +122,9 @@ from src.routes.vital_sentiment import vital_sentiment_bp
 from src.routes.vital_operations import vital_operations_bp
 from src.routes.vital_forecasting import vital_forecasting_bp
 from src.routes.customer_churn_analysis import customer_churn_bp
+from src.models.support_ticket import SupportTicket, SupportTicketAttachment
 from src.routes.gl_mapping import gl_mapping_bp
+from src.routes.support_tickets import support_tickets_bp
 from src.etl.scheduler import register_etl_routes, init_etl_scheduler
 from src.services.postgres_service import get_postgres_db
 from src.services.forecast_scheduler import init_forecast_scheduler
@@ -296,6 +298,7 @@ app.register_blueprint(vital_operations_bp)
 app.register_blueprint(vital_forecasting_bp)
 app.register_blueprint(customer_churn_bp)
 app.register_blueprint(gl_mapping_bp, url_prefix='/api/gl-mapping')
+app.register_blueprint(support_tickets_bp)
 
 # Register ETL management routes
 register_etl_routes(app)
