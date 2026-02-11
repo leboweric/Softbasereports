@@ -226,7 +226,6 @@ def get_control_number_summary():
         SELECT TOP 100
             ControlNo,
             SerialNo,
-            UnitNo,
             OldControlNo,
             NewControlNo,
             ChangeDate,
@@ -235,7 +234,11 @@ def get_control_number_summary():
         ORDER BY ChangeDate DESC
         """
         
-        changes_result = db.execute_query(changes_query)
+        try:
+            changes_result = db.execute_query(changes_query)
+        except Exception as e:
+            logger.warning(f"EQControlNoChange query failed (table may not exist): {e}")
+            changes_result = []
         
         # Format results
         usage_stats = []
@@ -257,7 +260,6 @@ def get_control_number_summary():
                 recent_changes.append({
                     'control_number': row.get('ControlNo', ''),
                     'serial_number': row.get('SerialNo', ''),
-                    'unit_number': row.get('UnitNo', ''),
                     'old_control_no': row.get('OldControlNo', ''),
                     'new_control_no': row.get('NewControlNo', ''),
                     'change_date': row.get('ChangeDate').strftime('%Y-%m-%d %H:%M') if row.get('ChangeDate') else None,

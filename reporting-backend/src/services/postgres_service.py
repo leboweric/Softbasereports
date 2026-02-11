@@ -245,6 +245,16 @@ class PostgreSQLService:
                     
                     cursor.execute(create_forecast_history_table)
                     logger.info("Forecast history table created/verified successfully")
+                    
+                    # Migration: Add actual_invoice_count column if it doesn't exist
+                    try:
+                        cursor.execute("""
+                            ALTER TABLE forecast_history 
+                            ADD COLUMN IF NOT EXISTS actual_invoice_count INTEGER NULL
+                        """)
+                        logger.info("forecast_history.actual_invoice_count column verified")
+                    except Exception as col_err:
+                        logger.warning(f"actual_invoice_count migration note: {col_err}")
 
                     # Create QBR tables
                     cursor.execute(self._get_qbr_tables_sql())

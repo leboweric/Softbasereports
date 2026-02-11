@@ -1853,46 +1853,57 @@ class DashboardQueries:
     def get_monthly_open_work_orders(self):
         """Get monthly open work orders value since March 2025"""
         try:
-            # Get snapshot of open work orders value at the end of each month (completed months only)
+            # Optimized: Pre-calculate WO totals, then filter per month-end
+            # Avoids CROSS JOIN cartesian product that caused timeouts
             query = f"""
-            WITH MonthEnds AS (
+            WITH WOTotals AS (
+                SELECT 
+                    w.WONo,
+                    w.OpenDate,
+                    w.ClosedDate,
+                    w.InvoiceDate,
+                    COALESCE(l.labor_total, 0) + COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0) as total_value
+                FROM {self.schema}.WO w
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as labor_total 
+                    FROM {self.schema}.WOLabor 
+                    GROUP BY WONo
+                ) l ON w.WONo = l.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell * Qty) as parts_total 
+                    FROM {self.schema}.WOParts 
+                    GROUP BY WONo
+                ) p ON w.WONo = p.WONo
+                LEFT JOIN (
+                    SELECT WONo, SUM(Sell) as misc_total 
+                    FROM {self.schema}.WOMisc 
+                    GROUP BY WONo
+                ) m ON w.WONo = m.WONo
+                WHERE w.OpenDate >= '{self.data_start_date}'
+            ),
+            MonthEnds AS (
                 SELECT DISTINCT 
                     YEAR(OpenDate) as year,
                     MONTH(OpenDate) as month,
                     EOMONTH(OpenDate) as month_end
                 FROM {self.schema}.WO
                 WHERE OpenDate >= '{self.data_start_date}'
-                AND EOMONTH(OpenDate) < EOMONTH(GETDATE())  -- Only include completed months
+                AND EOMONTH(OpenDate) < EOMONTH(GETDATE())
             )
             SELECT 
                 me.year,
                 me.month,
-                SUM(
+                COALESCE(SUM(
                     CASE 
-                        WHEN w.OpenDate <= me.month_end 
-                        AND (w.ClosedDate IS NULL OR w.ClosedDate > me.month_end)
-                        AND (w.InvoiceDate IS NULL OR w.InvoiceDate > me.month_end)
-                        THEN COALESCE(l.labor_total, 0) + COALESCE(p.parts_total, 0) + COALESCE(m.misc_total, 0)
+                        WHEN wt.OpenDate <= me.month_end 
+                        AND (wt.ClosedDate IS NULL OR wt.ClosedDate > me.month_end)
+                        AND (wt.InvoiceDate IS NULL OR wt.InvoiceDate > me.month_end)
+                        THEN wt.total_value
                         ELSE 0
                     END
-                ) as open_value
+                ), 0) as open_value
             FROM MonthEnds me
-            CROSS JOIN {self.schema}.WO w
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as labor_total 
-                FROM {self.schema}.WOLabor 
-                GROUP BY WONo
-            ) l ON w.WONo = l.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell * Qty) as parts_total 
-                FROM {self.schema}.WOParts 
-                GROUP BY WONo
-            ) p ON w.WONo = p.WONo
-            LEFT JOIN (
-                SELECT WONo, SUM(Sell) as misc_total 
-                FROM {self.schema}.WOMisc 
-                GROUP BY WONo
-            ) m ON w.WONo = m.WONo
+            LEFT JOIN WOTotals wt ON wt.OpenDate <= me.month_end
             GROUP BY me.year, me.month, me.month_end
             ORDER BY me.year, me.month
             """
