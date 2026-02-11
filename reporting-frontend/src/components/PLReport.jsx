@@ -179,47 +179,7 @@ const PLReport = ({ user, organization }) => {
             Refresh
           </button>
 
-          {/* Detailed Export Button - Matches Accounting Firm Format */}
-          <button
-            onClick={async () => {
-              try {
-                // Extract month and year from startDate (YYYY-MM-DD format)
-                // Parse directly to avoid timezone issues
-                const [year, month] = startDate.split('-').map(Number);
-
-                const token = localStorage.getItem('token');
-                const response = await axios.get(
-                  apiUrl('/api/reports/pl/detailed/export'),
-                  {
-                    params: { month, year },
-                    headers: { Authorization: `Bearer ${token}` },
-                    responseType: 'blob'
-                  }
-                );
-
-                // Create download link
-                const url = window.URL.createObjectURL(new Blob([response.data]));
-                const link = document.createElement('a');
-                link.href = url;
-                const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                link.setAttribute('download', `ProfitLoss_Detailed_${monthNames[month-1]}${year}.xlsx`);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                window.URL.revokeObjectURL(url);
-              } catch (error) {
-                console.error('Error downloading detailed Excel file:', error);
-                alert('Failed to download detailed Excel file');
-              }
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium"
-            title="Export with department tabs and GL account detail (matches accounting firm format)"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Detailed Export
-          </button>
-
-          {/* EVO Export Button - Tenant-specific P&L template */}
+          {/* Detailed Export Button - Tenant-specific P&L template */}
           <button
             onClick={async () => {
               try {
@@ -251,11 +211,11 @@ const PLReport = ({ user, organization }) => {
                 }
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
-            title="Export using your organization's custom EVO template"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium"
+            title="Export using your organization's custom detailed template"
           >
             <FileSpreadsheet className="h-4 w-4" />
-            EVO
+            Detailed Export
           </button>
         </div>
       </div>
