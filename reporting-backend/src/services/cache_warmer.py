@@ -140,7 +140,7 @@ def _do_warm_cache(start_time):
         
         for key, query_func in query_configs:
             try:
-                cache_key = f"dashboard:{key}:{current_month}:{schema}"
+                cache_key = f"dashboard:{schema}:{key}:{current_month}"
                 result = cache_service.cache_query(cache_key, query_func, cache_ttl, force_refresh=True)
                 total_success += 1
                 logger.debug(f"    ✓ Warmed cache for {key}")

@@ -2283,7 +2283,18 @@ def get_dashboard_summary_optimized():
             g.current_organization = user.organization
     
     # Log cache status
-    logger.info(f"Dashboard request - tenant: {tenant_schema}, force_refresh: {force_refresh}, cache_enabled: {cache_service.enabled}")
+    print(f"[Dashboard] Request - tenant: {tenant_schema}, force_refresh: {force_refresh}, cache_backend: {'Redis' if cache_service.redis_client else 'memory'}")
+    
+    # Check Redis cache first for the full dashboard response (fastest path)
+    dashboard_cache_key = f"dashboard_full:{tenant_schema}:{datetime.now().strftime('%Y-%m')}"
+    if not force_refresh and cache_service.enabled:
+        cached_dashboard = cache_service.get(dashboard_cache_key)
+        if cached_dashboard is not None:
+            cached_dashboard['query_time'] = round(time.time() - start_time, 3)
+            cached_dashboard['from_cache'] = True
+            cached_dashboard['cache_source'] = 'redis' if cache_service.redis_client else 'memory'
+            print(f"[Dashboard] ✅ FULL CACHE HIT for {tenant_schema} in {cached_dashboard['query_time']}s")
+            return jsonify(cached_dashboard)
     
     # Try fast mart-based response (unless force refresh requested)
     org_id = DashboardQueries.ORG_ID_MAP.get(tenant_schema)
@@ -2291,6 +2302,13 @@ def get_dashboard_summary_optimized():
         try:
             fast_response = _get_dashboard_from_mart(start_time, org_id=org_id)
             if fast_response:
+                # Cache the mart response in Redis for instant repeat access
+                try:
+                    response_data = fast_response.get_json()
+                    cache_service.set(dashboard_cache_key, response_data, ttl_seconds=3600)
+                    print(f"[Dashboard] 💾 Cached mart response for {tenant_schema} in Redis (TTL: 1h)")
+                except Exception as cache_err:
+                    print(f"[Dashboard] ⚠️ Failed to cache mart response: {cache_err}")
                 return fast_response
         except Exception as e:
             logger.warning(f"Mart lookup failed for org_id={org_id}, falling back to queries: {str(e)}")
@@ -2449,7 +2467,15 @@ def get_dashboard_summary_optimized():
             'from_cache': not force_refresh and cache_service.enabled
         }
         
-        logger.info(f"✅ Dashboard loaded in {response_data['query_time']} seconds (from_cache: {response_data['from_cache']})")
+        print(f"[Dashboard] ✅ Dashboard loaded via queries in {response_data['query_time']}s")
+        
+        # Cache the full response in Redis for instant repeat access
+        try:
+            cache_service.set(dashboard_cache_key, response_data, ttl_seconds=3600)
+            print(f"[Dashboard] 💾 Cached query response for {tenant_schema} in Redis (TTL: 1h)")
+        except Exception as cache_err:
+            print(f"[Dashboard] ⚠️ Failed to cache query response: {cache_err}")
+        
         return jsonify(response_data)
         
     except Exception as e:
