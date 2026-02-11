@@ -26,7 +26,8 @@ class CacheService:
             redis_url = os.environ.get('REDIS_URL')
             
             if redis_url:
-                logger.info(f"🔌 Attempting Redis connection (URL found, length={len(redis_url)})")
+                # Use print() for critical startup messages - logger.info may be suppressed
+                print(f"🔌 [CacheService] Attempting Redis connection (URL length={len(redis_url)})")
                 # Parse Redis URL and connect with proper retry imports
                 retry_strategy = Retry(
                     backoff=ExponentialBackoff(cap=10, base=0.1),
@@ -44,13 +45,13 @@ class CacheService:
                 # Test connection
                 self.redis_client.ping()
                 self.enabled = True
-                logger.info("✅ Redis cache connected successfully")
+                print("✅ [CacheService] Redis cache connected successfully")
             else:
-                logger.warning("⚠️ REDIS_URL not found in environment variables, using in-memory cache fallback")
+                print("⚠️ [CacheService] REDIS_URL not found in environment variables, using in-memory cache fallback")
                 self.enabled = True  # Enable caching with in-memory fallback
         except Exception as e:
-            logger.error(f"❌ Redis connection failed: {type(e).__name__}: {str(e)}")
-            logger.warning("⚠️ Falling back to in-memory cache")
+            print(f"❌ [CacheService] Redis connection failed: {type(e).__name__}: {str(e)}")
+            print("⚠️ [CacheService] Falling back to in-memory cache")
             self.enabled = True  # Enable caching with in-memory fallback
             self.redis_client = None
     
