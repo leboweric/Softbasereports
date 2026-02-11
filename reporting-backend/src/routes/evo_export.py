@@ -93,34 +93,24 @@ def build_lookup_dicts(current_data, prior_year_data, prior_month_data):
     """
     tb_lookup = {}
     for acct in current_data:
-        key = acct['AccountNo']
-        tb_lookup[key] = acct
+        tb_lookup[acct['AccountNo']] = acct
 
     tb1_lookup = {}
     for acct in prior_year_data:
-        key = acct['AccountNo']
-        tb1_lookup[key] = acct
+        tb1_lookup[acct['AccountNo']] = acct
 
     tb2_lookup = {}
     for acct in prior_month_data:
-        key = acct['AccountNo']
-        tb2_lookup[key] = acct
+        tb2_lookup[acct['AccountNo']] = acct
 
     return tb_lookup, tb1_lookup, tb2_lookup
 
 
 # VLOOKUP column index to data field mapping
-# Table_TB and Table_TB1_1 have same structure: AccountNo(1), Year(2), Month(3), YTD(4), MTD(5), Description(6), Type(7)
 TB_COL_MAP = {1: 'AccountNo', 2: 'Year', 3: 'Month', 4: 'YTD', 5: 'MTD', 6: 'Description', 7: 'Type'}
-# Table_TB2_ has: AccountNo(1), AccountField(2), YTD(3), MTD(4), Type(5), Description(6)
 TB2_COL_MAP = {1: 'AccountNo', 2: 'AccountField', 3: 'YTD', 4: 'MTD', 5: 'Type', 6: 'Description'}
 
 # Regex to parse VLOOKUP formulas
-# Patterns seen:
-#   =VLOOKUP(A7,TB!TB,5,FALSE)*-1
-#   =VLOOKUP(A7,TB!TB1_1,5,FALSE)*-1
-#   =VLOOKUP(A7,TB!TB,5,FALSE)
-#   =VLOOKUP(A7,TB!TB2_,4,FALSE)
 VLOOKUP_RE = re.compile(
     r'^=VLOOKUP\(([A-Z]+)(\d+),TB!(TB|TB1_1|TB2_),(\d+),FALSE\)(?:\*(-?1))?$'
 )
@@ -133,18 +123,16 @@ def resolve_vlookup(formula, sheet, tb_lookup, tb1_lookup, tb2_lookup):
     """
     match = VLOOKUP_RE.match(formula)
     if not match:
-        return None  # Not a recognized VLOOKUP formula
+        return None
 
-    ref_col_letter = match.group(1)  # e.g., 'A'
-    ref_row = int(match.group(2))     # e.g., 7
-    table_name = match.group(3)       # 'TB', 'TB1_1', or 'TB2_'
-    col_idx = int(match.group(4))     # e.g., 5
-    multiplier_str = match.group(5)   # '-1', '1', or None
+    ref_row = int(match.group(2))
+    table_name = match.group(3)
+    col_idx = int(match.group(4))
+    multiplier_str = match.group(5)
     multiplier = int(multiplier_str) if multiplier_str else 1
 
-    # Get the lookup value (account number) from the referenced cell
-    ref_cell = sheet.cell(row=ref_row, column=1)  # Always column A
-    lookup_value = ref_cell.value
+    # Get the lookup value (account number) from column A of the referenced row
+    lookup_value = sheet.cell(row=ref_row, column=1).value
     if lookup_value is None:
         return 0
 
@@ -167,12 +155,10 @@ def resolve_vlookup(formula, sheet, tb_lookup, tb1_lookup, tb2_lookup):
     else:
         return 0
 
-    # Look up the account
     acct_data = lookup_dict.get(lookup_key)
     if acct_data is None:
-        return 0  # Account not found = 0 (same as VLOOKUP #N/A wrapped in IFERROR)
+        return 0
 
-    # Get the value from the specified column
     field_name = col_map.get(col_idx)
     if field_name is None:
         return 0
@@ -181,52 +167,72 @@ def resolve_vlookup(formula, sheet, tb_lookup, tb1_lookup, tb2_lookup):
     if value is None:
         value = 0
 
-    # Apply multiplier
     if isinstance(value, (int, float)):
         return value * multiplier
-    else:
-        return value
+    return value
 
 
 def precompute_all_vlookups(wb, tb_lookup, tb1_lookup, tb2_lookup):
     """
-    Walk every sheet (except TB), find all VLOOKUP formulas,
-    compute the result, and write it as the cached value.
-    The formula is preserved; only the cached value is updated.
+    Efficiently scan only the specific columns known to contain VLOOKUP formulas
+    in each sheet. This avoids scanning all 16,384 columns which causes timeouts.
     """
     total_computed = 0
-    
+
+    # Known VLOOKUP column locations per sheet (from template analysis)
+    # Format: {sheet_name: (min_row, max_row, [columns])}
+    VLOOKUP_LOCATIONS = {
+        'Balance Sheet':               (5, 175, [5, 7]),
+        'Trial Balance':               (7, 130, [5, 7, 9, 13]),
+        'Combined Detail P and L':     (7, 638, [5, 8, 11, 14]),
+        'Dynamic Storage Solutions':   (6, 59,  [5, 8, 11, 14]),
+        'C H Steel Solutions':         (6, 60,  [5, 8, 11, 14]),
+        'AMI Sales Department':        (7, 52,  [5, 8, 11, 14]),
+        'Canton Sales Department':     (7, 59,  [5, 8, 11, 14]),
+        'Canton Parts Department':     (7, 85,  [5, 8, 11, 14]),
+        'Canton Service Department':   (7, 80,  [7, 10, 13, 16]),
+        'Canton Rental Department':    (7, 39,  [5, 8, 11, 14]),
+        'Canton Used Department':      (7, 48,  [5, 8, 11, 14]),
+        'Administration Department':   (7, 51,  [5, 8, 11, 14]),
+        'Cleveland Sales Department':  (7, 62,  [5, 8, 11, 14]),
+        'Cleveland Parts Department':  (7, 76,  [5, 8, 11, 14]),
+        'Cleveland Service Department':(7, 80,  [7, 10, 13, 16]),
+        'Cleveland Rental Department': (7, 37,  [5, 8, 11, 14]),
+        'Cleveland Used Department':   (7, 48,  [5, 8, 11, 14]),
+    }
+
     for sheet_name in wb.sheetnames:
         if sheet_name == 'TB':
             continue
-        
+
         ws = wb[sheet_name]
         sheet_computed = 0
-        
-        for row in ws.iter_rows(min_row=1, max_row=ws.max_row, max_col=ws.max_column):
-            for cell in row:
-                if cell.value and isinstance(cell.value, str) and cell.value.startswith('=VLOOKUP'):
-                    result = resolve_vlookup(cell.value, ws, tb_lookup, tb1_lookup, tb2_lookup)
-                    if result is not None:
-                        # Write the computed value as the cached value
-                        # openpyxl stores this in cell.value when data_only=True reads it
-                        # We need to use the internal _value and set the cached value
-                        # The way to do this in openpyxl is to keep the formula but
-                        # we can't set cached values directly with openpyxl.
-                        # 
-                        # ALTERNATIVE APPROACH: Replace the formula with the computed value.
-                        # This means the cells become static values, not formulas.
-                        # This is actually better because:
-                        # 1. Numbers show immediately in ALL Excel versions
-                        # 2. The TB data is still there if Amy wants to re-add formulas
-                        # 3. No dependency on Excel recalculation behavior
-                        cell.value = result
-                        sheet_computed += 1
-        
+
+        if sheet_name in VLOOKUP_LOCATIONS:
+            # Fast path: only scan known VLOOKUP cells
+            min_row, max_row, cols = VLOOKUP_LOCATIONS[sheet_name]
+            for row_idx in range(min_row, max_row + 1):
+                for col_idx in cols:
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    if cell.value and isinstance(cell.value, str) and cell.value.startswith('=VLOOKUP'):
+                        result = resolve_vlookup(cell.value, ws, tb_lookup, tb1_lookup, tb2_lookup)
+                        if result is not None:
+                            cell.value = result
+                            sheet_computed += 1
+        else:
+            # Fallback: scan all cells but limit to max_col=20 to avoid 16384 col issue
+            for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 700), max_col=20):
+                for cell in row:
+                    if cell.value and isinstance(cell.value, str) and cell.value.startswith('=VLOOKUP'):
+                        result = resolve_vlookup(cell.value, ws, tb_lookup, tb1_lookup, tb2_lookup)
+                        if result is not None:
+                            cell.value = result
+                            sheet_computed += 1
+
         if sheet_computed > 0:
             logger.info(f"  Pre-computed {sheet_computed} VLOOKUPs in '{sheet_name}'")
             total_computed += sheet_computed
-    
+
     logger.info(f"Total VLOOKUPs pre-computed: {total_computed}")
     return total_computed
 
@@ -296,68 +302,63 @@ def export_evo():
         logger.info(f"Prior month ({prev_year}-{prev_month}): {len(prior_month_data)} accounts")
         
         # --- Update control cells ---
-        # A3 = month number, A4 = year
         ws.cell(row=3, column=1, value=month)
         ws.cell(row=4, column=1, value=year)
         
         # --- Populate Table_TB (columns B-H, starting row 6) ---
-        # Clear existing data first
         for row in range(6, 762):
-            for col in [2, 3, 4, 5, 6, 7, 8]:  # B-H
+            for col in [2, 3, 4, 5, 6, 7, 8]:
                 ws.cell(row=row, column=col, value=None)
         
         for i, acct in enumerate(current_data):
             row = 6 + i
             if row > 761:
                 break
-            ws.cell(row=row, column=2, value=int(acct['AccountNo']) if acct['AccountNo'].isdigit() else acct['AccountNo'])  # B: AccountNo
-            ws.cell(row=row, column=3, value=acct['Year'])      # C: Year
-            ws.cell(row=row, column=4, value=acct['Month'])      # D: Month
-            ws.cell(row=row, column=5, value=acct['YTD'])        # E: YTD
-            ws.cell(row=row, column=6, value=acct['MTD'])        # F: MTD
-            ws.cell(row=row, column=7, value=acct['Description'])# G: Description
-            ws.cell(row=row, column=8, value=acct['Type'])       # H: Type
+            ws.cell(row=row, column=2, value=int(acct['AccountNo']) if acct['AccountNo'].isdigit() else acct['AccountNo'])
+            ws.cell(row=row, column=3, value=acct['Year'])
+            ws.cell(row=row, column=4, value=acct['Month'])
+            ws.cell(row=row, column=5, value=acct['YTD'])
+            ws.cell(row=row, column=6, value=acct['MTD'])
+            ws.cell(row=row, column=7, value=acct['Description'])
+            ws.cell(row=row, column=8, value=acct['Type'])
         
         # --- Populate Table_TB1_1 (columns P-V, starting row 6) ---
         for row in range(6, 754):
-            for col in [16, 17, 18, 19, 20, 21, 22]:  # P-V
+            for col in [16, 17, 18, 19, 20, 21, 22]:
                 ws.cell(row=row, column=col, value=None)
         
         for i, acct in enumerate(prior_year_data):
             row = 6 + i
             if row > 753:
                 break
-            ws.cell(row=row, column=16, value=int(acct['AccountNo']) if acct['AccountNo'].isdigit() else acct['AccountNo'])  # P: AccountNo
-            ws.cell(row=row, column=17, value=acct['Year'])      # Q: Year
-            ws.cell(row=row, column=18, value=acct['Month'])     # R: Month
-            ws.cell(row=row, column=19, value=acct['YTD'])       # S: YTD
-            ws.cell(row=row, column=20, value=acct['MTD'])       # T: MTD
-            ws.cell(row=row, column=21, value=acct['Description'])# U: Description
-            ws.cell(row=row, column=22, value=acct['Type'])      # V: Type
+            ws.cell(row=row, column=16, value=int(acct['AccountNo']) if acct['AccountNo'].isdigit() else acct['AccountNo'])
+            ws.cell(row=row, column=17, value=acct['Year'])
+            ws.cell(row=row, column=18, value=acct['Month'])
+            ws.cell(row=row, column=19, value=acct['YTD'])
+            ws.cell(row=row, column=20, value=acct['MTD'])
+            ws.cell(row=row, column=21, value=acct['Description'])
+            ws.cell(row=row, column=22, value=acct['Type'])
         
         # --- Populate Table_TB2_ (columns Y-AD, starting row 6) ---
         for row in range(6, 753):
-            for col in [25, 26, 27, 28, 29, 30]:  # Y-AD
+            for col in [25, 26, 27, 28, 29, 30]:
                 ws.cell(row=row, column=col, value=None)
         
         for i, acct in enumerate(prior_month_data):
             row = 6 + i
             if row > 752:
                 break
-            ws.cell(row=row, column=25, value=int(acct['AccountNo']) if acct['AccountNo'].isdigit() else acct['AccountNo'])  # Y: AccountNo
-            ws.cell(row=row, column=26, value='Actual')          # Z: AccountField
-            ws.cell(row=row, column=27, value=acct['YTD'])       # AA: YTD
-            ws.cell(row=row, column=28, value=acct['MTD'])       # AB: MTD
-            ws.cell(row=row, column=29, value=acct['Type'])      # AC: Type
-            ws.cell(row=row, column=30, value=acct['Description'])# AD: Description
+            ws.cell(row=row, column=25, value=int(acct['AccountNo']) if acct['AccountNo'].isdigit() else acct['AccountNo'])
+            ws.cell(row=row, column=26, value='Actual')
+            ws.cell(row=row, column=27, value=acct['YTD'])
+            ws.cell(row=row, column=28, value=acct['MTD'])
+            ws.cell(row=row, column=29, value=acct['Type'])
+            ws.cell(row=row, column=30, value=acct['Description'])
         
         # --- Pre-compute all VLOOKUP formulas across all P&L sheets ---
-        # Build lookup dictionaries from the data we just wrote
         tb_lookup, tb1_lookup, tb2_lookup = build_lookup_dicts(
             current_data, prior_year_data, prior_month_data
         )
-        
-        # Replace all VLOOKUP formulas with their computed values
         precompute_all_vlookups(wb, tb_lookup, tb1_lookup, tb2_lookup)
         
         # --- Save to BytesIO and return ---
@@ -365,7 +366,6 @@ def export_evo():
         wb.save(output)
         output.seek(0)
         
-        # Generate filename matching Amy's naming convention
         month_str = f"{month:02d}"
         filename = f"{month_str}-{year}EVO.xlsx"
         
