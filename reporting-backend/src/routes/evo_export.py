@@ -568,6 +568,71 @@ def export_evo():
         output = BytesIO()
         total_vlookups = 0
         
+        # Files to EXCLUDE from the output.
+        # The template contains ODBC connection definitions that cause Excel
+        # to attempt a background data refresh on open, which overwrites our
+        # pre-populated data with empty/stale results. We must strip these
+        # along with their supporting files (queryTables, calcChain, etc.).
+        # This matches the structure of Amy's known-working openpyxl output.
+        EXCLUDE_PREFIXES = (
+            'xl/connections.xml',      # ODBC connection definitions
+            'xl/queryTables/',         # Query table definitions
+            'xl/calcChain.xml',        # Calc chain (forces recalculation)
+            'xl/sharedStrings.xml',    # Stale shared strings (we use inline)
+            'xl/printerSettings/',     # Printer settings binaries
+            'xl/tables/_rels/',        # Table rels that reference queryTables
+            'customXml/',              # Custom XML parts
+        )
+        # Worksheet rels for sheets 2-23 only contain printerSettings refs,
+        # so exclude them. Sheet 1 rels need to be rewritten (keep table refs,
+        # remove printerSettings ref).
+        EXCLUDE_SHEET_RELS = tuple(
+            f'xl/worksheets/_rels/sheet{i}.xml.rels' for i in range(2, 24)
+        )
+        
+        def should_exclude(filename):
+            """Check if a file should be excluded from the output."""
+            if filename.startswith(EXCLUDE_PREFIXES):
+                return True
+            if filename in EXCLUDE_SHEET_RELS:
+                return True
+            return False
+        
+        def clean_content_types(raw_data):
+            """Remove Content_Types entries for excluded files."""
+            xml_str = raw_data.decode('utf-8')
+            # Remove Override entries for excluded file types
+            xml_str = re.sub(r'<Override[^>]*PartName="/xl/connections\.xml"[^>]*/>', '', xml_str)
+            xml_str = re.sub(r'<Override[^>]*PartName="/xl/queryTables/[^"]*"[^>]*/>', '', xml_str)
+            xml_str = re.sub(r'<Override[^>]*PartName="/xl/calcChain\.xml"[^>]*/>', '', xml_str)
+            xml_str = re.sub(r'<Override[^>]*PartName="/xl/sharedStrings\.xml"[^>]*/>', '', xml_str)
+            xml_str = re.sub(r'<Override[^>]*PartName="/customXml/[^"]*"[^>]*/>', '', xml_str)
+            return xml_str.encode('utf-8')
+        
+        def clean_workbook_rels(raw_data):
+            """Remove relationship entries for excluded files from workbook.xml.rels."""
+            xml_str = raw_data.decode('utf-8')
+            # Remove connections, sharedStrings, calcChain, customXml relationships
+            xml_str = re.sub(r'<Relationship[^>]*Target="connections\.xml"[^>]*/>', '', xml_str)
+            xml_str = re.sub(r'<Relationship[^>]*Target="sharedStrings\.xml"[^>]*/>', '', xml_str)
+            xml_str = re.sub(r'<Relationship[^>]*Target="calcChain\.xml"[^>]*/>', '', xml_str)
+            xml_str = re.sub(r'<Relationship[^>]*Target="\.\./customXml/[^"]*"[^>]*/>', '', xml_str)
+            return xml_str.encode('utf-8')
+        
+        def clean_sheet1_rels(raw_data):
+            """Rewrite sheet1.xml.rels to keep only table relationships."""
+            xml_str = raw_data.decode('utf-8')
+            # Remove printerSettings relationship
+            xml_str = re.sub(r'<Relationship[^>]*printerSettings[^>]*/>', '', xml_str)
+            return xml_str.encode('utf-8')
+        
+        def clean_worksheet_xml(raw_data):
+            """Remove pageSetup r:id references that point to excluded printerSettings."""
+            xml_str = raw_data.decode('utf-8')
+            # Remove r:id attribute from pageSetup elements
+            xml_str = re.sub(r'(<pageSetup[^>]*?) r:id="[^"]*"', r'\1', xml_str)
+            return xml_str.encode('utf-8')
+        
         with zipfile.ZipFile(template_path, 'r') as zin:
             # Load shared strings for resolving account numbers in P&L sheets
             shared_strings = load_shared_strings(zin)
@@ -575,14 +640,29 @@ def export_evo():
             
             with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zout:
                 for item in zin.infolist():
+                    # Skip excluded files
+                    if should_exclude(item.filename):
+                        continue
+                    
                     raw_data = zin.read(item.filename)
                     
-                    if item.filename == 'xl/worksheets/sheet1.xml':
-                        # TB sheet - populate with GL data
+                    # Clean up XML references in metadata files
+                    if item.filename == '[Content_Types].xml':
+                        zout.writestr(item, clean_content_types(raw_data))
+                    
+                    elif item.filename == 'xl/_rels/workbook.xml.rels':
+                        zout.writestr(item, clean_workbook_rels(raw_data))
+                    
+                    elif item.filename == 'xl/worksheets/_rels/sheet1.xml.rels':
+                        zout.writestr(item, clean_sheet1_rels(raw_data))
+                    
+                    elif item.filename == 'xl/worksheets/sheet1.xml':
+                        # TB sheet - populate with GL data AND clean pageSetup
                         modified = modify_tb_sheet(
                             raw_data, current_data, prior_year_data,
                             prior_month_data, year, month
                         )
+                        modified = clean_worksheet_xml(modified)
                         zout.writestr(item, modified)
                         logger.info(f"Populated TB sheet: {len(current_data)} current, "
                                    f"{len(prior_year_data)} prior year, "
@@ -590,7 +670,7 @@ def export_evo():
                     
                     elif (item.filename.startswith('xl/worksheets/sheet') 
                           and item.filename.endswith('.xml')):
-                        # P&L sheets - update VLOOKUP cached values
+                        # P&L sheets - update VLOOKUP cached values + clean pageSetup
                         sheet_num = int(re.search(r'sheet(\d+)\.xml', item.filename).group(1))
                         
                         sheet_name = None
@@ -604,13 +684,14 @@ def export_evo():
                                 raw_data, sheet_name, shared_strings,
                                 tb_lookup, tb1_lookup, tb2_lookup
                             )
+                            modified = clean_worksheet_xml(modified)
                             zout.writestr(item, modified)
                             total_vlookups += computed
                             if computed > 0:
                                 logger.info(f"Updated {computed} VLOOKUP values in '{sheet_name}'")
                         else:
-                            # No VLOOKUPs to update, copy as-is
-                            zout.writestr(item, raw_data)
+                            # No VLOOKUPs to update, just clean pageSetup
+                            zout.writestr(item, clean_worksheet_xml(raw_data))
                     else:
                         # All other files: copy byte-for-byte
                         zout.writestr(item, raw_data)
