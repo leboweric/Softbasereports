@@ -24,6 +24,25 @@ const CashFlowWidget = () => {
   const [error, setError] = useState(null)
   const [showBreakdown, setShowBreakdown] = useState(false)
 
+  // Calculate linear regression trendline for cash balance
+  const trendlineData = React.useMemo(() => {
+    if (!data?.trend || data.trend.length < 2) return null
+    const points = data.trend.map((item, i) => ({ x: i, y: item.cashflow || 0 }))
+    const n = points.length
+    const sumX = points.reduce((s, p) => s + p.x, 0)
+    const sumY = points.reduce((s, p) => s + p.y, 0)
+    const sumXY = points.reduce((s, p) => s + p.x * p.y, 0)
+    const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0)
+    const denom = n * sumX2 - sumX * sumX
+    if (denom === 0) return null
+    const slope = (n * sumXY - sumX * sumY) / denom
+    const intercept = (sumY - slope * sumX) / n
+    return data.trend.map((item, i) => ({
+      ...item,
+      trendline: intercept + slope * i
+    }))
+  }, [data])
+
   useEffect(() => {
     fetchCashFlowData()
   }, [])
@@ -129,25 +148,6 @@ const CashFlowWidget = () => {
   if (!data) {
     return null
   }
-
-  // Calculate linear regression trendline for cash balance
-  const trendlineData = React.useMemo(() => {
-    if (!data?.trend || data.trend.length < 2) return null
-    const points = data.trend.map((item, i) => ({ x: i, y: item.cashflow || 0 }))
-    const n = points.length
-    const sumX = points.reduce((s, p) => s + p.x, 0)
-    const sumY = points.reduce((s, p) => s + p.y, 0)
-    const sumXY = points.reduce((s, p) => s + p.x * p.y, 0)
-    const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0)
-    const denom = n * sumX2 - sumX * sumX
-    if (denom === 0) return null
-    const slope = (n * sumXY - sumX * sumY) / denom
-    const intercept = (sumY - slope * sumX) / n
-    return data.trend.map((item, i) => ({
-      ...item,
-      trendline: intercept + slope * i
-    }))
-  }, [data])
 
   // Calculate cash balance change
   let cashChange = null
