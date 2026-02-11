@@ -130,6 +130,25 @@ const CashFlowWidget = () => {
     return null
   }
 
+  // Calculate linear regression trendline for cash balance
+  const trendlineData = React.useMemo(() => {
+    if (!data?.trend || data.trend.length < 2) return null
+    const points = data.trend.map((item, i) => ({ x: i, y: item.cashflow || 0 }))
+    const n = points.length
+    const sumX = points.reduce((s, p) => s + p.x, 0)
+    const sumY = points.reduce((s, p) => s + p.y, 0)
+    const sumXY = points.reduce((s, p) => s + p.x * p.y, 0)
+    const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0)
+    const denom = n * sumX2 - sumX * sumX
+    if (denom === 0) return null
+    const slope = (n * sumXY - sumX * sumY) / denom
+    const intercept = (sumY - slope * sumX) / n
+    return data.trend.map((item, i) => ({
+      ...item,
+      trendline: intercept + slope * i
+    }))
+  }, [data])
+
   // Calculate cash balance change
   let cashChange = null
   if (data.trend && data.trend.length >= 2) {
@@ -219,7 +238,7 @@ const CashFlowWidget = () => {
           <div className="mt-6">
             <h4 className="text-sm font-medium mb-4">Cash Balance Trend</h4>
             <ResponsiveContainer width="100%" height={250}>
-              <ComposedChart data={data.trend}>
+              <ComposedChart data={trendlineData || data.trend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="month"
@@ -269,6 +288,19 @@ const CashFlowWidget = () => {
                   dot={{ fill: '#3b82f6', r: 4 }}
                   activeDot={{ r: 6 }}
                 />
+                {trendlineData && (
+                  <Line
+                    yAxisId="left"
+                    type="linear"
+                    dataKey="trendline"
+                    name="Trend"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    strokeDasharray="6 3"
+                    dot={false}
+                    activeDot={false}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
