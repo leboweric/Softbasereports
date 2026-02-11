@@ -10,6 +10,9 @@ from datetime import datetime
 import logging
 import re
 import os
+import zipfile
+import shutil
+import tempfile
 from io import BytesIO
 from openpyxl import load_workbook
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -361,9 +364,30 @@ def export_evo():
         )
         precompute_all_vlookups(wb, tb_lookup, tb1_lookup, tb2_lookup)
         
-        # --- Save to BytesIO and return ---
+        # --- Save to BytesIO and patch XML to prevent corruption ---
+        raw_output = BytesIO()
+        wb.save(raw_output)
+        raw_output.seek(0)
+        
+        # Post-save: fix the calcPr element that openpyxl corrupts.
+        # openpyxl changes calcId to 0 and adds forceFullCalc which triggers
+        # Excel's "We found a problem with some content" warning.
+        # We restore the original calcPr from Amy's template.
         output = BytesIO()
-        wb.save(output)
+        with zipfile.ZipFile(raw_output, 'r') as zin:
+            with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+                    if item.filename == 'xl/workbook.xml':
+                        # Replace the corrupted calcPr with the original
+                        content = data.decode('utf-8')
+                        content = re.sub(
+                            r'<calcPr[^/]*/>', 
+                            '<calcPr calcId="191029" fullCalcOnLoad="1"/>', 
+                            content
+                        )
+                        data = content.encode('utf-8')
+                    zout.writestr(item, data)
         output.seek(0)
         
         month_str = f"{month:02d}"
