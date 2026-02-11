@@ -24,11 +24,10 @@ const CashFlowWidget = () => {
   const [error, setError] = useState(null)
   const [showBreakdown, setShowBreakdown] = useState(false)
 
-  // Calculate linear regression trendline for cash balance
-  const trendlineData = React.useMemo(() => {
-    if (!data?.trend || data.trend.length < 2) return null
-    const points = data.trend.map((item, i) => ({ x: i, y: item.cashflow || 0 }))
+  // Helper: compute linear regression over a set of (x, y) points
+  const linearRegression = (points) => {
     const n = points.length
+    if (n < 2) return null
     const sumX = points.reduce((s, p) => s + p.x, 0)
     const sumY = points.reduce((s, p) => s + p.y, 0)
     const sumXY = points.reduce((s, p) => s + p.x * p.y, 0)
@@ -37,9 +36,32 @@ const CashFlowWidget = () => {
     if (denom === 0) return null
     const slope = (n * sumXY - sumX * sumY) / denom
     const intercept = (sumY - slope * sumX) / n
+    return { slope, intercept }
+  }
+
+  // Calculate both full-period and trailing 3-month trendlines
+  const chartData = React.useMemo(() => {
+    if (!data?.trend || data.trend.length < 2) return null
+
+    // Full-period trendline
+    const allPoints = data.trend.map((item, i) => ({ x: i, y: item.cashflow || 0 }))
+    const fullReg = linearRegression(allPoints)
+
+    // Trailing 3-month trendline (only plotted over last 3 months)
+    const TRAILING = 3
+    const len = data.trend.length
+    const trailingPoints = allPoints.slice(Math.max(0, len - TRAILING))
+    const trailingStartIdx = Math.max(0, len - TRAILING)
+    const shortReg = trailingPoints.length >= 2
+      ? linearRegression(trailingPoints.map((p, i) => ({ x: i, y: p.y })))
+      : null
+
     return data.trend.map((item, i) => ({
       ...item,
-      trendline: intercept + slope * i
+      trendline: fullReg ? fullReg.intercept + fullReg.slope * i : undefined,
+      shortTrend: (shortReg && i >= trailingStartIdx)
+        ? shortReg.intercept + shortReg.slope * (i - trailingStartIdx)
+        : undefined
     }))
   }, [data])
 
@@ -238,7 +260,7 @@ const CashFlowWidget = () => {
           <div className="mt-6">
             <h4 className="text-sm font-medium mb-4">Cash Balance Trend</h4>
             <ResponsiveContainer width="100%" height={250}>
-              <ComposedChart data={trendlineData || data.trend}>
+              <ComposedChart data={chartData || data.trend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="month"
@@ -288,17 +310,32 @@ const CashFlowWidget = () => {
                   dot={{ fill: '#3b82f6', r: 4 }}
                   activeDot={{ r: 6 }}
                 />
-                {trendlineData && (
+                {chartData && (
                   <Line
                     yAxisId="left"
                     type="linear"
                     dataKey="trendline"
-                    name="Trend"
+                    name="Long-term Trend"
                     stroke="#f97316"
                     strokeWidth={2}
                     strokeDasharray="6 3"
                     dot={false}
                     activeDot={false}
+                    connectNulls={false}
+                  />
+                )}
+                {chartData && (
+                  <Line
+                    yAxisId="left"
+                    type="linear"
+                    dataKey="shortTrend"
+                    name="3-Month Trend"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    strokeDasharray="4 2"
+                    dot={false}
+                    activeDot={false}
+                    connectNulls={false}
                   />
                 )}
               </ComposedChart>
