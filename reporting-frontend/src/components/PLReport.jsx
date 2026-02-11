@@ -179,7 +179,7 @@ const PLReport = ({ user, organization }) => {
             Refresh
           </button>
 
-          {/* Strande Export Button - Matches Accounting Firm Format */}
+          {/* Detailed Export Button - Matches Accounting Firm Format */}
           <button
             onClick={async () => {
               try {
@@ -216,7 +216,7 @@ const PLReport = ({ user, organization }) => {
             title="Export with department tabs and GL account detail (matches accounting firm format)"
           >
             <FileSpreadsheet className="h-4 w-4" />
-            Strande
+            Detailed Export
           </button>
 
           {/* EVO Export Button - Tenant-specific P&L template */}
