@@ -275,7 +275,7 @@ const PLReport = ({ user, organization }) => {
       )}
 
       {/* P&L Report */}
-      {!loading && data && (
+      {!loading && data && data.consolidated && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {/* Header */}
           <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
