@@ -205,19 +205,21 @@ def export_evo():
             ws.cell(row=row, column=29, value=acct['Type'])      # AC: Type
             ws.cell(row=row, column=30, value=acct['Description'])# AD: Description
         
-        # --- Update the Excel table ranges to match actual data ---
-        # Table_TB: B5:H{5+len(current_data)}
-        new_tb_end = 5 + len(current_data)
-        new_tb1_end = 5 + len(prior_year_data)
-        new_tb2_end = 5 + len(prior_month_data)
+        # NOTE: Do NOT resize the Excel table ranges.
+        # The template has fixed table ranges that the VLOOKUP formulas reference.
+        # Resizing can break structured references. Keep original ranges intact.
+        # Data rows beyond our data are already cleared to None which is fine.
         
-        for table in ws.tables.values():
-            if table.name == 'Table_TB':
-                table.ref = f'B5:H{new_tb_end}'
-            elif table.name == 'Table_TB1_1':
-                table.ref = f'P5:V{new_tb1_end}'
-            elif table.name == 'Table_TB2_':
-                table.ref = f'Y5:AD{new_tb2_end}'
+        # --- Force Excel to recalculate all formulas on open ---
+        # This is critical because openpyxl doesn't compute VLOOKUP formulas,
+        # so we need Excel to recalculate when the file is opened.
+        from openpyxl.workbook.properties import CalcProperties
+        wb.calculation = CalcProperties(
+            calcId=0,           # Reset calc ID to force recalc
+            fullCalcOnLoad=True,
+            forceFullCalc=True,
+            calcMode='auto'
+        )
         
         # --- Save to BytesIO and return ---
         output = BytesIO()
