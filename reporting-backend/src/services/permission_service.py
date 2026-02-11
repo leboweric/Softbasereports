@@ -92,6 +92,11 @@ class PermissionService:
                 if user.organization.name != 'Bennett Material Handling':
                     continue
             
+            # Ed's Dashboard is only available for IPS (ind004)
+            if required_resource == 'eds_dashboard':
+                if not user.organization.database_schema or user.organization.database_schema != 'ind004':
+                    continue
+            
             # Filter tabs if they exist
             if 'tabs' in nav_config:
                 accessible_tabs = {}
