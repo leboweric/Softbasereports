@@ -286,16 +286,17 @@ def modify_tb_sheet(raw_xml, current_data, prior_year_data, prior_month_data, ye
     def build_empty_cells(row_num, col_letters):
         return ''.join(f'<c r="{cl}{row_num}" s="1"/>' for cl in col_letters)
     
-    # 3. Replace each data row
-    # Strategy: find each <row r="N"...>...</row> and replace the table cells
-    # We need to be careful to preserve non-table cells (like column A)
+    # 3. Replace each DATA row (not totals rows)
+    # Table_TB: data rows 6-760, totals row 761 (SUBTOTAL formulas)
+    # Table_TB1_1: data rows 6-752, totals area 753+
+    # Table_TB2_: data rows 6-751, totals area 752+
+    # Totals rows contain SUBTOTAL formulas and must be PRESERVED.
     
-    # For rows 6 through max, replace the table data cells
-    # Table_TB: rows 6-761, cols B-H
-    # Table_TB1_1: rows 6-753, cols P-V  
-    # Table_TB2_: rows 6-752, cols Y-AD
+    TB_DATA_END = 760    # Last data row for Table_TB (row 761 = totals)
+    TB1_DATA_END = 752   # Last data row for Table_TB1_1
+    TB2_DATA_END = 751   # Last data row for Table_TB2_
     
-    max_row = 761  # Max row across all tables
+    max_row = TB_DATA_END  # Only process data rows
     
     for row_num in range(6, max_row + 1):
         # Find the existing row element
@@ -310,6 +311,10 @@ def modify_tb_sheet(raw_xml, current_data, prior_year_data, prior_month_data, ye
         
         row_attrs = row_match.group(1)
         row_content = row_match.group(2)
+        
+        # Check if this row has formulas - if so, preserve it entirely
+        if '<f>' in row_content:
+            continue
         
         # Parse existing cells to preserve non-table cells (like column A)
         cell_pattern = re.compile(r'<c r="([A-Z]+)' + str(row_num) + r'"[^>]*(?:/>|>.*?</c>)', re.DOTALL)
@@ -329,7 +334,7 @@ def modify_tb_sheet(raw_xml, current_data, prior_year_data, prior_month_data, ye
         data_idx = row_num - 6
         if data_idx < len(current_data):
             new_cells.append(build_tb_row(row_num, current_data[data_idx]))
-        elif row_num <= 761:
+        elif row_num <= TB_DATA_END:
             new_cells.append(build_empty_cells(row_num, ['B', 'C', 'D', 'E', 'F', 'G', 'H']))
         
         # Keep any cells between H and P (cols I-O) if they exist
@@ -338,7 +343,7 @@ def modify_tb_sheet(raw_xml, current_data, prior_year_data, prior_month_data, ye
                 new_cells.append(existing_cells[col])
         
         # Table_TB1_1 data (cols P-V)
-        if row_num <= 753:
+        if row_num <= TB1_DATA_END:
             if data_idx < len(prior_year_data):
                 new_cells.append(build_tb1_row(row_num, prior_year_data[data_idx]))
             else:
@@ -350,7 +355,7 @@ def modify_tb_sheet(raw_xml, current_data, prior_year_data, prior_month_data, ye
                 new_cells.append(existing_cells[col])
         
         # Table_TB2_ data (cols Y-AD)
-        if row_num <= 752:
+        if row_num <= TB2_DATA_END:
             if data_idx < len(prior_month_data):
                 new_cells.append(build_tb2_row(row_num, prior_month_data[data_idx]))
             else:
