@@ -12,6 +12,7 @@ from datetime import datetime
 import logging
 import re
 import os
+import zipfile
 from io import BytesIO
 from openpyxl import load_workbook
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -369,13 +370,47 @@ def export_evo():
         )
         precompute_all_vlookups(wb, tb_lookup, tb1_lookup, tb2_lookup)
         
-        # --- Save directly with openpyxl (no XML post-processing) ---
-        # This matches Amy's proven approach. openpyxl strips ODBC connections,
-        # queryTables, and other problematic elements automatically.
-        # The file may show a minor "repair" dialog in Excel (same as Amy's),
-        # but data is fully preserved after clicking Yes.
+        # --- Save with openpyxl, then apply targeted ZIP patch ---
+        # openpyxl strips ODBC connections/queryTables automatically but leaves
+        # behind 3 artifacts that trigger Excel's corruption warning:
+        #   1. ExternalData defined names pointing to #REF! (stripped query ranges)
+        #   2. tableType="queryTable" and queryTableFieldId attrs in table XMLs
+        #   3. calcPr with calcId=0 (invalid calculation engine ID)
+        # We fix these with a lightweight post-save ZIP pass that only touches
+        # workbook.xml and the 3 table XMLs — all 23 worksheets stay byte-identical.
+        raw_output = BytesIO()
+        wb.save(raw_output)
+        raw_output.seek(0)
+        
         output = BytesIO()
-        wb.save(output)
+        with zipfile.ZipFile(raw_output, 'r') as zin:
+            with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zout:
+                for item in zin.infolist():
+                    data = zin.read(item.filename)
+                    
+                    if item.filename == 'xl/workbook.xml':
+                        content = data.decode('utf-8')
+                        # FIX 1: Remove ExternalData defined names (point to #REF!)
+                        content = re.sub(
+                            r'<definedName[^>]*name="ExternalData_\d+"[^>]*>[^<]*</definedName>',
+                            '', content
+                        )
+                        # FIX 3: Fix calcPr — replace calcId=0 with valid engine ID
+                        content = re.sub(
+                            r'<calcPr[^/]*/>',
+                            '<calcPr calcId="191029" calcMode="auto" fullCalcOnLoad="1"/>',
+                            content
+                        )
+                        data = content.encode('utf-8')
+                    
+                    elif item.filename.startswith('xl/tables/') and item.filename.endswith('.xml'):
+                        content = data.decode('utf-8')
+                        # FIX 2: Remove queryTable references (connections were stripped)
+                        content = re.sub(r' tableType="queryTable"', '', content)
+                        content = re.sub(r' queryTableFieldId="\d+"', '', content)
+                        data = content.encode('utf-8')
+                    
+                    zout.writestr(item, data)
         output.seek(0)
         
         month_str = f"{month:02d}"
