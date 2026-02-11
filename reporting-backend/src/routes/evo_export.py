@@ -157,7 +157,11 @@ def build_lookup_dicts(current_data, prior_year_data, prior_month_data):
 # ─── Shared String Resolution ────────────────────────────────────────────────
 
 def load_shared_strings(zip_file):
-    """Load the shared string table from the xlsx zip."""
+    """Load the shared string table from the xlsx zip.
+    Returns two lists:
+    - strings: plain text values (for VLOOKUP resolution)
+    - strings_xml: XML-safe values with entities preserved (for inline string insertion)
+    """
     try:
         ss_data = zip_file.read('xl/sharedStrings.xml')
         root = ET.fromstring(ss_data)
@@ -165,9 +169,48 @@ def load_shared_strings(zip_file):
         for si in root.findall(f'{{{SSML_NS}}}si'):
             t = si.find(f'{{{SSML_NS}}}t')
             strings.append(t.text if t is not None and t.text else '')
-        return strings
+        
+        # Also extract XML-safe versions using regex on raw XML
+        # This preserves &amp; and other XML entities correctly
+        raw_str = ss_data.decode('utf-8')
+        strings_xml = re.findall(r'<t[^>]*>(.*?)</t>', raw_str)
+        
+        return strings, strings_xml
     except (KeyError, ET.ParseError):
-        return []
+        return [], []
+
+
+def convert_shared_to_inline(xml_bytes, strings_xml):
+    """Convert all shared string references (t="s") to inline strings.
+    
+    When we exclude sharedStrings.xml from the output, all cells that
+    reference shared strings via t="s" and <v>INDEX</v> become broken.
+    This function converts them to t="inlineStr" with <is><t>TEXT</t></is>.
+    
+    Args:
+        xml_bytes: Raw worksheet XML as bytes
+        strings_xml: List of XML-safe shared string values (with entities preserved)
+    Returns:
+        Modified XML as bytes
+    """
+    xml_str = xml_bytes.decode('utf-8') if isinstance(xml_bytes, bytes) else xml_bytes
+    
+    def replace_shared(match):
+        full_match = match.group(0)
+        v_match = re.search(r'<v>(\d+)</v>', full_match)
+        if not v_match:
+            return full_match
+        idx = int(v_match.group(1))
+        if idx >= len(strings_xml):
+            return full_match
+        text = strings_xml[idx]
+        # Replace t="s" with t="inlineStr" and <v>N</v> with <is><t>TEXT</t></is>
+        new_cell = full_match.replace('t="s"', 't="inlineStr"')
+        new_cell = re.sub(r'<v>\d+</v>', f'<is><t>{text}</t></is>', new_cell)
+        return new_cell
+    
+    result = re.sub(r'<c [^>]*t="s"[^>]*>.*?</c>', replace_shared, xml_str, flags=re.DOTALL)
+    return result.encode('utf-8')
 
 
 # ─── Column Helpers ───────────────────────────────────────────────────────────
@@ -635,7 +678,9 @@ def export_evo():
         
         with zipfile.ZipFile(template_path, 'r') as zin:
             # Load shared strings for resolving account numbers in P&L sheets
-            shared_strings = load_shared_strings(zin)
+            # strings: plain text for VLOOKUP resolution
+            # strings_xml: XML-entity-safe for inline string conversion
+            shared_strings, strings_xml = load_shared_strings(zin)
             logger.info(f"Loaded {len(shared_strings)} shared strings from template")
             
             with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as zout:
@@ -657,11 +702,13 @@ def export_evo():
                         zout.writestr(item, clean_sheet1_rels(raw_data))
                     
                     elif item.filename == 'xl/worksheets/sheet1.xml':
-                        # TB sheet - populate with GL data AND clean pageSetup
+                        # TB sheet - populate with GL data AND clean up
                         modified = modify_tb_sheet(
                             raw_data, current_data, prior_year_data,
                             prior_month_data, year, month
                         )
+                        # Convert remaining shared string refs to inline
+                        modified = convert_shared_to_inline(modified, strings_xml)
                         modified = clean_worksheet_xml(modified)
                         zout.writestr(item, modified)
                         logger.info(f"Populated TB sheet: {len(current_data)} current, "
@@ -670,8 +717,12 @@ def export_evo():
                     
                     elif (item.filename.startswith('xl/worksheets/sheet') 
                           and item.filename.endswith('.xml')):
-                        # P&L sheets - update VLOOKUP cached values + clean pageSetup
+                        # P&L sheets - convert shared strings + update VLOOKUPs + clean
                         sheet_num = int(re.search(r'sheet(\d+)\.xml', item.filename).group(1))
+                        
+                        # First: convert all shared string refs to inline strings
+                        # (must happen before VLOOKUP resolution which reads cell values)
+                        modified = convert_shared_to_inline(raw_data, strings_xml)
                         
                         sheet_name = None
                         for name, num in SHEET_NAME_TO_NUM.items():
@@ -681,7 +732,7 @@ def export_evo():
                         
                         if sheet_name and sheet_name in VLOOKUP_LOCATIONS:
                             modified, computed = update_vlookup_cached_values(
-                                raw_data, sheet_name, shared_strings,
+                                modified, sheet_name, shared_strings,
                                 tb_lookup, tb1_lookup, tb2_lookup
                             )
                             modified = clean_worksheet_xml(modified)
@@ -691,7 +742,8 @@ def export_evo():
                                 logger.info(f"Updated {computed} VLOOKUP values in '{sheet_name}'")
                         else:
                             # No VLOOKUPs to update, just clean pageSetup
-                            zout.writestr(item, clean_worksheet_xml(raw_data))
+                            modified = clean_worksheet_xml(modified)
+                            zout.writestr(item, modified)
                     else:
                         # All other files: copy byte-for-byte
                         zout.writestr(item, raw_data)
