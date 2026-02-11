@@ -217,6 +217,45 @@ const PLReport = ({ user, organization }) => {
             <FileSpreadsheet className="h-4 w-4" />
             Strande
           </button>
+
+          {/* EVO Export Button - Tenant-specific P&L template */}
+          <button
+            onClick={async () => {
+              try {
+                const [year, month] = startDate.split('-').map(Number);
+                const token = localStorage.getItem('token');
+                const response = await axios.get(
+                  `${import.meta.env.VITE_API_URL}/api/reports/pl/evo/export`,
+                  {
+                    params: { month, year },
+                    headers: { Authorization: `Bearer ${token}` },
+                    responseType: 'blob'
+                  }
+                );
+
+                const url = window.URL.createObjectURL(new Blob([response.data]));
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `${String(month).padStart(2, '0')}-${year}EVO.xlsx`);
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                window.URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error('Error downloading EVO Excel file:', error);
+                if (error.response && error.response.status === 404) {
+                  alert('No EVO template configured for this organization. Please contact support.');
+                } else {
+                  alert('Failed to download EVO Excel file');
+                }
+              }
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+            title="Export using your organization's custom EVO template"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            EVO
+          </button>
         </div>
       </div>
 
