@@ -180,56 +180,108 @@ const PLReport = ({ user, organization }) => {
             Refresh
           </button>
 
-          {/* Detailed Export Button - Tenant-specific P&L template */}
-          <button
-            disabled={exporting}
-            onClick={async () => {
-              setExporting(true);
-              try {
-                const [year, month] = startDate.split('-').map(Number);
-                const token = localStorage.getItem('token');
-                const response = await axios.get(
-                  apiUrl('/api/reports/pl/evo/export'),
-                  {
-                    params: { month, year },
-                    headers: { Authorization: `Bearer ${token}` },
-                    responseType: 'blob'
-                  }
-                );
+          {/* Strande Export Button - BMH only (matches accounting firm format) */}
+          {organization && organization.database_schema !== 'ind004' && (
+            <button
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true);
+                try {
+                  const [year, month] = startDate.split('-').map(Number);
+                  const token = localStorage.getItem('token');
+                  const response = await axios.get(
+                    apiUrl('/api/reports/pl/detailed/export'),
+                    {
+                      params: { month, year },
+                      headers: { Authorization: `Bearer ${token}` },
+                      responseType: 'blob'
+                    }
+                  );
 
-                const url = window.URL.createObjectURL(new Blob([response.data]));
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', `${String(month).padStart(2, '0')}-${year}EVO.xlsx`);
-                document.body.appendChild(link);
-                link.click();
-                link.remove();
-                window.URL.revokeObjectURL(url);
-              } catch (error) {
-                console.error('Error downloading EVO Excel file:', error);
-                if (error.response && error.response.status === 404) {
-                  alert('No EVO template configured for this organization. Please contact support.');
-                } else {
-                  alert('Failed to download EVO Excel file');
+                  const url = window.URL.createObjectURL(new Blob([response.data]));
+                  const link = document.createElement('a');
+                  link.href = url;
+                  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                  link.setAttribute('download', `ProfitLoss_Detailed_${monthNames[month-1]}${year}.xlsx`);
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                  window.URL.revokeObjectURL(url);
+                } catch (error) {
+                  console.error('Error downloading detailed Excel file:', error);
+                  alert('Failed to download detailed Excel file');
+                } finally {
+                  setExporting(false);
                 }
-              } finally {
-                setExporting(false);
-              }
-            }}
-            className={`flex items-center gap-2 px-4 py-2 text-white rounded-md text-sm font-medium ${
-              exporting
-                ? 'bg-emerald-400 cursor-not-allowed'
-                : 'bg-emerald-600 hover:bg-emerald-700'
-            }`}
-            title="Export using your organization's custom detailed template"
-          >
-            {exporting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="h-4 w-4" />
-            )}
-            {exporting ? 'Exporting...' : 'Detailed Export'}
-          </button>
+              }}
+              className={`flex items-center gap-2 px-4 py-2 text-white rounded-md text-sm font-medium ${
+                exporting
+                  ? 'bg-emerald-400 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
+              title="Export with department tabs and GL account detail (matches accounting firm format)"
+            >
+              {exporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4" />
+              )}
+              {exporting ? 'Exporting...' : 'Strande'}
+            </button>
+          )}
+
+          {/* Detailed Export Button - IPS only (EVO template) */}
+          {organization && organization.database_schema === 'ind004' && (
+            <button
+              disabled={exporting}
+              onClick={async () => {
+                setExporting(true);
+                try {
+                  const [year, month] = startDate.split('-').map(Number);
+                  const token = localStorage.getItem('token');
+                  const response = await axios.get(
+                    apiUrl('/api/reports/pl/evo/export'),
+                    {
+                      params: { month, year },
+                      headers: { Authorization: `Bearer ${token}` },
+                      responseType: 'blob'
+                    }
+                  );
+
+                  const url = window.URL.createObjectURL(new Blob([response.data]));
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.setAttribute('download', `${String(month).padStart(2, '0')}-${year}EVO.xlsx`);
+                  document.body.appendChild(link);
+                  link.click();
+                  link.remove();
+                  window.URL.revokeObjectURL(url);
+                } catch (error) {
+                  console.error('Error downloading EVO Excel file:', error);
+                  if (error.response && error.response.status === 404) {
+                    alert('No EVO template configured for this organization. Please contact support.');
+                  } else {
+                    alert('Failed to download EVO Excel file');
+                  }
+                } finally {
+                  setExporting(false);
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 text-white rounded-md text-sm font-medium ${
+                exporting
+                  ? 'bg-emerald-400 cursor-not-allowed'
+                  : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
+              title="Export using your organization's custom detailed template"
+            >
+              {exporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4" />
+              )}
+              {exporting ? 'Exporting...' : 'Detailed Export'}
+            </button>
+          )}
         </div>
       </div>
 
