@@ -40,8 +40,8 @@ const CashFlowWidget = () => {
   }
 
   // Calculate both full-period and trailing 3-month trendlines
-  const chartData = React.useMemo(() => {
-    if (!data?.trend || data.trend.length < 2) return null
+  const { chartData, longSlope, shortSlope } = React.useMemo(() => {
+    if (!data?.trend || data.trend.length < 2) return { chartData: null, longSlope: null, shortSlope: null }
 
     // Full-period trendline
     const allPoints = data.trend.map((item, i) => ({ x: i, y: item.cashflow || 0 }))
@@ -56,13 +56,19 @@ const CashFlowWidget = () => {
       ? linearRegression(trailingPoints.map((p, i) => ({ x: i, y: p.y })))
       : null
 
-    return data.trend.map((item, i) => ({
+    const points = data.trend.map((item, i) => ({
       ...item,
       trendline: fullReg ? fullReg.intercept + fullReg.slope * i : undefined,
       shortTrend: (shortReg && i >= trailingStartIdx)
         ? shortReg.intercept + shortReg.slope * (i - trailingStartIdx)
         : undefined
     }))
+
+    return {
+      chartData: points,
+      longSlope: fullReg ? fullReg.slope : null,
+      shortSlope: shortReg ? shortReg.slope : null
+    }
   }, [data])
 
   useEffect(() => {
@@ -283,11 +289,28 @@ const CashFlowWidget = () => {
                       return (
                         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                           <p className="font-semibold mb-2">{label}</p>
-                          {payload.map((entry, index) => (
-                            <p key={index} style={{ color: entry.color }}>
-                              {entry.name}: {formatCurrency(entry.value)}
-                            </p>
-                          ))}
+                          {payload.map((entry, index) => {
+                            // For trendlines, show slope (rate of change per month)
+                            if (entry.dataKey === 'trendline' && longSlope !== null) {
+                              return (
+                                <p key={index} style={{ color: entry.color }}>
+                                  {entry.name}: {longSlope >= 0 ? '+' : ''}{formatCurrency(longSlope)}/mo
+                                </p>
+                              )
+                            }
+                            if (entry.dataKey === 'shortTrend' && shortSlope !== null) {
+                              return (
+                                <p key={index} style={{ color: entry.color }}>
+                                  {entry.name}: {shortSlope >= 0 ? '+' : ''}{formatCurrency(shortSlope)}/mo
+                                </p>
+                              )
+                            }
+                            return (
+                              <p key={index} style={{ color: entry.color }}>
+                                {entry.name}: {formatCurrency(entry.value)}
+                              </p>
+                            )
+                          })}
                         </div>
                       )
                     }
