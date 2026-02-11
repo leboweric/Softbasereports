@@ -190,3 +190,29 @@ def check_rbac_config():
             'error_type': type(e).__name__,
             'traceback': str(e.__traceback__) if hasattr(e, '__traceback__') else None
         }), 500
+
+@debug_bp.route('/api/debug/cache-status', methods=['GET'])
+@jwt_required()
+def check_cache_status():
+    """Debug endpoint to check Redis cache status"""
+    try:
+        from src.services.cache_service import cache_service
+        
+        status = cache_service.get_status()
+        
+        # Test set/get cycle
+        test_key = '_debug_test_key'
+        cache_service.set(test_key, {'test': True, 'timestamp': str(os.environ.get('REDIS_URL', 'NOT SET')[:20] + '...')}, ttl_seconds=60)
+        test_get = cache_service.get(test_key)
+        status['test_write_read'] = 'OK' if test_get else 'FAILED'
+        
+        # Clean up test key
+        cache_service.delete(test_key)
+        
+        return jsonify(status), 200
+        
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            'error_type': type(e).__name__
+        }), 500

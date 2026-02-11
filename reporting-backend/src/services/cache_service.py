@@ -1,4 +1,6 @@
 import redis
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
 import json
 import os
 import logging
@@ -24,7 +26,12 @@ class CacheService:
             redis_url = os.environ.get('REDIS_URL')
             
             if redis_url:
-                # Parse Redis URL and connect
+                logger.info(f"🔌 Attempting Redis connection (URL found, length={len(redis_url)})")
+                # Parse Redis URL and connect with proper retry imports
+                retry_strategy = Retry(
+                    backoff=ExponentialBackoff(cap=10, base=0.1),
+                    retries=3
+                )
                 self.redis_client = redis.from_url(
                     redis_url,
                     decode_responses=True,
@@ -32,17 +39,18 @@ class CacheService:
                     socket_timeout=5,
                     retry_on_timeout=True,
                     retry_on_error=[redis.ConnectionError, redis.TimeoutError],
-                    retry=redis.Retry(backoff=redis.ExponentialBackoff(cap=10, base=0.1), retries=3)
+                    retry=retry_strategy
                 )
                 # Test connection
                 self.redis_client.ping()
                 self.enabled = True
                 logger.info("✅ Redis cache connected successfully")
             else:
-                logger.info("⚠️ Redis URL not found, using in-memory cache fallback")
+                logger.warning("⚠️ REDIS_URL not found in environment variables, using in-memory cache fallback")
                 self.enabled = True  # Enable caching with in-memory fallback
         except Exception as e:
-            logger.warning(f"⚠️ Redis connection failed, using in-memory cache fallback: {str(e)}")
+            logger.error(f"❌ Redis connection failed: {type(e).__name__}: {str(e)}")
+            logger.warning("⚠️ Falling back to in-memory cache")
             self.enabled = True  # Enable caching with in-memory fallback
             self.redis_client = None
     
@@ -140,7 +148,7 @@ class CacheService:
         if not force_refresh:
             cached_result = self.get(cache_key)
             if cached_result is not None:
-                logger.info(f"✅ CACHE HIT for {cache_key}")
+                logger.info(f"✅ CACHE HIT for {cache_key} (using {'Redis' if self.redis_client else 'memory'})")
                 return cached_result
         
         # Execute query
@@ -153,7 +161,7 @@ class CacheService:
         
         # Store in cache
         self.set(cache_key, result, ttl_seconds)
-        logger.info(f"💾 Cached result for {cache_key} (TTL: {ttl_seconds}s)")
+        logger.info(f"💾 Cached result for {cache_key} (TTL: {ttl_seconds}s, backend: {'Redis' if self.redis_client else 'memory'})")
         
         return result
     
@@ -161,6 +169,27 @@ class CacheService:
         """Invalidate all dashboard cache entries"""
         self.delete("dashboard:")
         logger.info("Dashboard cache invalidated")
+
+
+    def get_status(self) -> dict:
+        """Return cache status for diagnostics"""
+        status = {
+            'enabled': self.enabled,
+            'backend': 'redis' if self.redis_client else 'memory',
+            'redis_url_set': bool(os.environ.get('REDIS_URL')),
+        }
+        if self.redis_client:
+            try:
+                info = self.redis_client.info('memory')
+                status['redis_connected'] = True
+                status['redis_used_memory'] = info.get('used_memory_human', 'unknown')
+                status['redis_keys'] = self.redis_client.dbsize()
+            except Exception as e:
+                status['redis_connected'] = False
+                status['redis_error'] = str(e)
+        else:
+            status['memory_cache_keys'] = len(self.memory_cache)
+        return status
 
 
 # Global cache instance

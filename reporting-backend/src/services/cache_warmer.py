@@ -16,7 +16,7 @@ _flask_app = None  # Store reference to Flask app for app context
 
 # Schemas that are known Softbase tenants (have GLDetail, Equipment, WO tables etc.)
 # Non-Softbase schemas (e.g., vital001) should NOT be warmed as they use different data sources.
-SOFTBASE_SCHEMAS = {'ben002', 'ind004'}
+SOFTBASE_SCHEMAS = {'ben002', 'ind004', 'bmh'}
 
 
 def warm_dashboard_cache():
