@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileSpreadsheet, Download, Calendar, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
 import axios from 'axios';
+import { apiUrl } from '../lib/api';
 
 const PLReport = ({ user, organization }) => {
   const [loading, setLoading] = useState(false);
@@ -65,7 +66,7 @@ const PLReport = ({ user, organization }) => {
       const token = localStorage.getItem('token');
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/reports/pl`,
+        apiUrl('/api/reports/pl'),
         {
           params: {
             start_date: startDate,
@@ -188,7 +189,7 @@ const PLReport = ({ user, organization }) => {
 
                 const token = localStorage.getItem('token');
                 const response = await axios.get(
-                  `${import.meta.env.VITE_API_URL}/api/reports/pl/detailed/export`,
+                  apiUrl('/api/reports/pl/detailed/export'),
                   {
                     params: { month, year },
                     headers: { Authorization: `Bearer ${token}` },
@@ -225,7 +226,7 @@ const PLReport = ({ user, organization }) => {
                 const [year, month] = startDate.split('-').map(Number);
                 const token = localStorage.getItem('token');
                 const response = await axios.get(
-                  `${import.meta.env.VITE_API_URL}/api/reports/pl/evo/export`,
+                  apiUrl('/api/reports/pl/evo/export'),
                   {
                     params: { month, year },
                     headers: { Authorization: `Bearer ${token}` },
