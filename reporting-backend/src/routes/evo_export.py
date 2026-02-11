@@ -21,7 +21,7 @@ evo_export_bp = Blueprint('evo_export', __name__)
 
 # Map organization schema to template file
 TEMPLATE_MAP = {
-    'ips001': 'IPS_template.xlsx',
+    'ind004': 'IPS_template.xlsx',
     # Add more tenants here as needed:
     # 'bmh001': 'BMH_template.xlsx',
 }

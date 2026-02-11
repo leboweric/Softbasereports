@@ -171,3 +171,7 @@ analyze_*.py
 *.csv
 *.json
 *.xml
+
+# Exception: EVO and other template files needed at runtime
+!reporting-backend/src/templates/**/*.xlsx
+!reporting-backend/templates/**/*.xlsx
