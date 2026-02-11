@@ -192,7 +192,6 @@ def check_rbac_config():
         }), 500
 
 @debug_bp.route('/api/debug/cache-status', methods=['GET'])
-@jwt_required()
 def check_cache_status():
     """Debug endpoint to check Redis cache status"""
     try:
