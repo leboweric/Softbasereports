@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download, Calendar, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileSpreadsheet, Download, Calendar, RefreshCw, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { apiUrl } from '../lib/api';
 
 const PLReport = ({ user, organization }) => {
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [data, setData] = useState(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -181,7 +182,9 @@ const PLReport = ({ user, organization }) => {
 
           {/* Detailed Export Button - Tenant-specific P&L template */}
           <button
+            disabled={exporting}
             onClick={async () => {
+              setExporting(true);
               try {
                 const [year, month] = startDate.split('-').map(Number);
                 const token = localStorage.getItem('token');
@@ -209,13 +212,23 @@ const PLReport = ({ user, organization }) => {
                 } else {
                   alert('Failed to download EVO Excel file');
                 }
+              } finally {
+                setExporting(false);
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 text-sm font-medium"
+            className={`flex items-center gap-2 px-4 py-2 text-white rounded-md text-sm font-medium ${
+              exporting
+                ? 'bg-emerald-400 cursor-not-allowed'
+                : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
             title="Export using your organization's custom detailed template"
           >
-            <FileSpreadsheet className="h-4 w-4" />
-            Detailed Export
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="h-4 w-4" />
+            )}
+            {exporting ? 'Exporting...' : 'Detailed Export'}
           </button>
         </div>
       </div>
