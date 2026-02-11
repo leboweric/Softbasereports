@@ -131,6 +131,9 @@ from src.services.postgres_service import get_postgres_db
 from src.services.forecast_scheduler import init_forecast_scheduler
 from src.services.cache_warmer import init_cache_warmer
 from src.init_rbac import initialize_all_rbac
+from src.services.cache_service import cache_service
+import hashlib
+import json as json_module
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -149,6 +152,101 @@ CORS(app,
 # Initialize JWT
 jwt = JWTManager(app)
 
+# ============================================================
+# AUTOMATIC REDIS CACHING MIDDLEWARE
+# Caches ALL GET API responses in Redis so every page loads instantly
+# on repeat visits. Skips auth, admin, debug, diagnostic, and write endpoints.
+# ============================================================
+
+# Paths that should NEVER be cached (auth, admin, write operations, diagnostics)
+CACHE_SKIP_PREFIXES = (
+    '/api/auth/',           # Auth endpoints (login, register, etc.)
+    '/api/admin/',          # Admin operations
+    '/api/debug/',          # Debug/diagnostic endpoints
+    '/api/health',          # Health check
+    '/api/user',            # User profile (session-specific)
+    '/api/billing',         # Billing (sensitive, real-time)
+    '/api/organization/settings',  # Settings mutations
+)
+
+# Paths that contain these substrings are skipped
+CACHE_SKIP_CONTAINS = (
+    'diagnostic',           # All diagnostic routes
+    'password',             # Password operations
+    'investigation',        # One-off investigation routes
+    'schema_export',        # Schema exports (large, one-off)
+    'table_discovery',      # Schema exploration
+    'database_explorer',    # DB exploration
+    'database_query',       # Ad-hoc queries
+)
+
+# Default TTL per route pattern (seconds)
+CACHE_TTL_MAP = {
+    '/api/reports/dashboard': 3600,      # Dashboard: 1 hour
+    '/api/reports/cashflow': 1800,       # Cashflow: 30 min
+    '/api/reports/pl': 1800,             # P&L: 30 min
+    '/api/reports/parts': 1800,          # Parts inventory: 30 min
+    '/api/reports/department': 1800,     # Department reports: 30 min
+    '/api/vital/': 900,                  # VITAL endpoints: 15 min
+    '/api/reports/': 900,                # Other reports: 15 min
+    '/api/': 600,                        # Everything else: 10 min
+}
+
+def _should_cache_request():
+    """Determine if the current request should be cached"""
+    # Only cache GET requests
+    if request.method != 'GET':
+        return False
+    
+    # Only cache API routes
+    if not request.path.startswith('/api/'):
+        return False
+    
+    # Skip if force refresh requested
+    if request.args.get('refresh', '').lower() == 'true':
+        return False
+    
+    # Skip excluded prefixes
+    for prefix in CACHE_SKIP_PREFIXES:
+        if request.path.startswith(prefix):
+            return False
+    
+    # Skip excluded substrings
+    path_lower = request.path.lower()
+    for substring in CACHE_SKIP_CONTAINS:
+        if substring in path_lower:
+            return False
+    
+    return True
+
+def _get_cache_key():
+    """Generate a unique cache key for the current request"""
+    # Include tenant schema if available
+    tenant = ''
+    try:
+        if hasattr(g, 'current_organization') and g.current_organization:
+            tenant = getattr(g.current_organization, 'softbase_schema', '') or str(g.current_organization.id)
+    except Exception:
+        pass
+    
+    # Include path and sorted query params (excluding 'refresh')
+    params = {k: v for k, v in sorted(request.args.items()) if k != 'refresh'}
+    params_str = json_module.dumps(params, sort_keys=True) if params else ''
+    
+    raw_key = f"{request.path}:{tenant}:{params_str}"
+    key_hash = hashlib.md5(raw_key.encode()).hexdigest()
+    return f"api_cache:{key_hash}"
+
+def _get_cache_ttl():
+    """Get the TTL for the current request based on route pattern"""
+    for pattern, ttl in CACHE_TTL_MAP.items():
+        if request.path.startswith(pattern):
+            return ttl
+    return 600  # Default: 10 minutes
+
+# NOTE: Cache check happens INSIDE set_tenant_context (below) AFTER tenant is resolved,
+# so cache keys correctly include the tenant schema.
+
 # Add CORS headers to all responses
 @app.after_request
 def after_request(response):
@@ -161,6 +259,26 @@ def after_request(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD'
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     response.headers['Access-Control-Max-Age'] = '86400'
+    
+    # AUTO-CACHE: Store successful GET API responses in Redis
+    if (
+        _should_cache_request()
+        and response.status_code == 200
+        and response.content_type
+        and 'application/json' in response.content_type
+        and response.headers.get('X-Cache') != 'HIT'  # Don't re-cache cached responses
+    ):
+        try:
+            cache_key = _get_cache_key()
+            ttl = _get_cache_ttl()
+            response_data = response.get_json()
+            if response_data is not None:
+                cache_service.set(cache_key, response_data, ttl_seconds=ttl)
+                response.headers['X-Cache'] = 'MISS'
+                response.headers['X-Cache-TTL'] = str(ttl)
+        except Exception as e:
+            print(f"[AutoCache] Cache store error: {e}")
+    
     return response
 
 # Global before_request hook to set g.current_organization for all authenticated requests
@@ -168,13 +286,14 @@ def after_request(response):
 # correctly across ALL endpoints without needing per-endpoint setup.
 @app.before_request
 def set_tenant_context():
-    """Set g.current_organization for all authenticated API requests"""
+    """Set g.current_organization for all authenticated API requests, then check Redis cache"""
     # Skip for non-API routes, OPTIONS, and auth endpoints (no JWT yet)
     if not request.path.startswith('/api') or request.method == 'OPTIONS':
         return
     if request.path.startswith('/api/auth/'):
         return
     
+    # Step 1: Resolve tenant context (needed for cache keys)
     try:
         verify_jwt_in_request(optional=True)
         user_id = get_jwt_identity()
@@ -187,6 +306,19 @@ def set_tenant_context():
                 g.tenant_id = user.organization.id
     except Exception:
         pass  # Not authenticated or invalid token - let endpoint handle it
+    
+    # Step 2: Check Redis cache AFTER tenant is resolved (so cache key includes tenant)
+    if _should_cache_request() and cache_service.enabled:
+        cache_key = _get_cache_key()
+        try:
+            cached = cache_service.get(cache_key)
+            if cached is not None:
+                response = app.make_response(jsonify(cached))
+                response.headers['X-Cache'] = 'HIT'
+                response.headers['X-Cache-Key'] = cache_key[:20] + '...'
+                return response
+        except Exception as e:
+            print(f"[AutoCache] Cache check error: {e}")
 
 # Register blueprints
 app.register_blueprint(user_bp, url_prefix='/api')
