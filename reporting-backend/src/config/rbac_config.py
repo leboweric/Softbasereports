@@ -72,8 +72,8 @@ ROLE_PERMISSIONS = {
             'rental_availability', 'rental_overview',
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
-            'minitrac', 'knowledge_base', 'currie', 'financial',
-            'qbr', 'customer_churn', 'eds_dashboard'
+            'minitrac', 'currie', 'financial',
+            'customer_churn', 'eds_dashboard'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
