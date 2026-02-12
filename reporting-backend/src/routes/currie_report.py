@@ -1915,7 +1915,9 @@ def get_balance_sheet_data(as_of_date):
         if result:
             logger.info(f"First row sample: {result[0]}")
         
-        # Calculate current year net income from P&L accounts (4xx=Revenue, 5xx=COGS, 6xx=Expenses)
+        # Calculate current year net income from ALL P&L accounts
+        # P&L accounts are everything NOT on the balance sheet (not 1xx, 2xx, 3xx)
+        # This includes: 4xx=Revenue, 5xx=COGS, 6xx=Expenses, 7xx=Other Income/Expense
         # In Softbase GL, revenue is stored as negative (credit), COGS/expenses as positive (debit)
         # Net income = sum of all P&L accounts YTD (result will be negative = profit)
         net_income_query = f"""
@@ -1923,11 +1925,9 @@ def get_balance_sheet_data(as_of_date):
         FROM {schema}.GL gl
         WHERE gl.Year = %s 
           AND gl.Month = %s
-          AND (
-            gl.AccountNo LIKE '4%'  -- Revenue
-            OR gl.AccountNo LIKE '5%'  -- COGS
-            OR gl.AccountNo LIKE '6%'  -- Expenses
-          )
+          AND gl.AccountNo NOT LIKE '1%'  -- Exclude Assets
+          AND gl.AccountNo NOT LIKE '2%'  -- Exclude Liabilities
+          AND gl.AccountNo NOT LIKE '3%'  -- Exclude Equity
         """
         net_income_result = get_sql_service().execute_query(net_income_query, [year, month])
         net_income = float(net_income_result[0].get('net_income', 0)) if net_income_result else 0
