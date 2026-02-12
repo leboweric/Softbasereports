@@ -27,7 +27,7 @@ DEPARTMENT_CONFIG = {
             ('526001', 'COS - KOMATSU - New Equip'),
             # Removed: ('531001', 'COS - SKID LOADERS - New Equip') - no longer used
             # Removed: ('534001', 'COS - TRUCKING/DELIVERY - New Equip') - no longer used
-            # Removed: ('534013', 'COS - TRUCKING/DELIVERY - New Equipment Demo') - no longer used
+            ('534013', 'COS - TRUCKING/DELIVERY - New Equipment Demo'),
             ('538000', 'COS - EQ. ADJUSTMENT'),
         ]
     },
