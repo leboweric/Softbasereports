@@ -8771,7 +8771,8 @@ def register_department_routes(reports_bp):
                 END as CustomerZip,
                 CASE 
                     WHEN open_rental.WONo IS NOT NULL THEN 'On Rent'
-                    ELSE 'Available'  -- Includes NULL, 'Ready To Rent', and 'Hold'
+                    WHEN e.RentalStatus = 'Hold' THEN 'Hold'
+                    ELSE 'Available'
                 END as Status,
                 e.RentalStatus as OriginalStatus,
                 e.WebRentalFlag,
@@ -8863,7 +8864,8 @@ def register_department_routes(reports_bp):
                     END as CustomerZip,
                     CASE 
                         WHEN open_rental.WONo IS NOT NULL THEN 'On Rent'
-                        ELSE 'Available'  -- Includes NULL, 'Ready To Rent', and 'Hold'
+                        WHEN e.RentalStatus = 'Hold' THEN 'Hold'
+                        ELSE 'Available'
                     END as Status,
                     e.RentalStatus as OriginalStatus,
                     e.WebRentalFlag,
