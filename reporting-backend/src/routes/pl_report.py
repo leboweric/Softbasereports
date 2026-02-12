@@ -436,7 +436,8 @@ def get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema):
     """
     Get consolidated P&L using dynamic LIKE queries on GL.MTD.
     This captures ALL accounts by prefix pattern, ensuring nothing is missed.
-    Revenue = 4xxxxxx, COGS = 5xxxxxx, Expenses = 6xxxxxx
+    Revenue = 4xxxxxx + 7xxxxx (Softbase includes 7xx in Total Sales)
+    COGS = 5xxxxxx, Expenses = 6xxxxxx
     
     Returns:
         Dictionary with revenue, cogs, expenses totals
@@ -444,12 +445,13 @@ def get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema):
     try:
         query = f"""
         SELECT 
-            -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END)
+            -SUM(CASE WHEN AccountNo LIKE '7%' THEN MTD ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
             SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END) as expenses
         FROM {schema}.GL
         WHERE Year = %s AND Month = %s
-          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
+          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%')
         """
         
         results = get_sql_service().execute_query(query, [year, month])
@@ -480,7 +482,8 @@ def get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema):
     """
     Get consolidated P&L using dynamic LIKE queries on GLDetail.
     Used for custom date ranges or current (unclosed) months.
-    Revenue = 4xxxxxx, COGS = 5xxxxxx, Expenses = 6xxxxxx
+    Revenue = 4xxxxxx + 7xxxxx (Softbase includes 7xx in Total Sales)
+    COGS = 5xxxxxx, Expenses = 6xxxxxx
     
     Returns:
         Dictionary with revenue, cogs, expenses totals
@@ -488,14 +491,15 @@ def get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema):
     try:
         query = f"""
         SELECT 
-            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as revenue,
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END)
+            -SUM(CASE WHEN AccountNo LIKE '7%' THEN Amount ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as cogs,
             SUM(CASE WHEN AccountNo LIKE '6%' THEN Amount ELSE 0 END) as expenses
         FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
-          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
+          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%')
         """
         
         results = get_sql_service().execute_query(query, [start_date, end_date])
