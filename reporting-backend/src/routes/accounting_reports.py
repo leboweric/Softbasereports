@@ -66,7 +66,7 @@ def get_control_serial_link_report():
         where_clause = f"WHERE rc.DeletionTime IS NULL" if has_deletion else "WHERE 1=1"
         
         query = f"""
-        SELECT DISTINCT
+        SELECT 
             rc.RentalContractNo as ControlNumber,
             {'rc.' + rc_serial + ' as SerialNo' if rc_serial else "'' as SerialNo"},
             {'e.' + eq_unit + ' as UnitNo' if eq_unit and serial_join else "'' as UnitNo"},
@@ -97,13 +97,7 @@ def get_control_serial_link_report():
         {serial_join}
         {cust_join}
         {where_clause}
-        ORDER BY 
-            CASE 
-                WHEN rc.EndDate IS NULL THEN 0
-                WHEN rc.EndDate > GETDATE() THEN 1
-                ELSE 2
-            END,
-            rc.RentalContractNo DESC
+        ORDER BY rc.RentalContractNo DESC
         """
         
         result = db.execute_query(query)
@@ -196,45 +190,84 @@ def get_control_serial_summary():
         schema = get_tenant_schema()
         db = get_tenant_db()
         
-        # Get summary by customer
-        customer_summary_query = f"""
-        SELECT 
-            c.Number as CustomerNo,
-            c.Name as CustomerName,
-            COUNT(DISTINCT rc.RentalContractNo) as ContractCount,
-            COUNT(DISTINCT rc.SerialNo) as EquipmentCount,
-            MIN(rc.StartDate) as FirstContractDate,
-            MAX(rc.StartDate) as LatestContractDate,
-            SUM(CASE WHEN rc.EndDate IS NULL OR rc.EndDate > GETDATE() THEN 1 ELSE 0 END) as ActiveContracts
-        FROM {schema}.RentalContract rc
-        LEFT JOIN {schema}.Customer c ON rc.CustomerNo = c.Number
-        WHERE rc.DeletionTime IS NULL
-        GROUP BY c.Number, c.Name
-        HAVING COUNT(DISTINCT rc.RentalContractNo) > 0
-        ORDER BY COUNT(DISTINCT rc.RentalContractNo) DESC
-        """
+        from src.config.column_mappings import get_column
+        cust_id_col = get_column(schema, 'Customer', 'cust_no') or 'Number'
+        cust_name_col = get_column(schema, 'Customer', 'name') or 'Name'
         
-        customer_results = db.execute_query(customer_summary_query)
+        # Discover available columns in RentalContract
+        rc_cols = db.execute_query(f"""
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'RentalContract'
+        """)
+        rc_col_names = [r['COLUMN_NAME'] for r in rc_cols] if rc_cols else []
         
-        # Get equipment utilization
+        rc_serial = 'SerialNo' if 'SerialNo' in rc_col_names else 'Serial' if 'Serial' in rc_col_names else None
+        rc_customer = 'CustomerNo' if 'CustomerNo' in rc_col_names else 'Customer' if 'Customer' in rc_col_names else None
+        has_deletion = 'DeletionTime' in rc_col_names
+        deletion_filter = 'AND rc.DeletionTime IS NULL' if has_deletion else ''
+        
+        # Get summary by customer (only if RentalContract has customer column)
+        customer_results = []
+        if rc_customer:
+            customer_summary_query = f"""
+            SELECT 
+                c.{cust_id_col} as CustomerNo,
+                c.{cust_name_col} as CustomerName,
+                COUNT(DISTINCT rc.RentalContractNo) as ContractCount,
+                {'COUNT(DISTINCT rc.' + rc_serial + ')' if rc_serial else '0'} as EquipmentCount,
+                MIN(rc.StartDate) as FirstContractDate,
+                MAX(rc.StartDate) as LatestContractDate,
+                SUM(CASE WHEN rc.EndDate IS NULL OR rc.EndDate > GETDATE() THEN 1 ELSE 0 END) as ActiveContracts
+            FROM {schema}.RentalContract rc
+            LEFT JOIN {schema}.Customer c ON rc.{rc_customer} = c.{cust_id_col}
+            WHERE 1=1 {deletion_filter}
+            GROUP BY c.{cust_id_col}, c.{cust_name_col}
+            HAVING COUNT(DISTINCT rc.RentalContractNo) > 0
+            ORDER BY COUNT(DISTINCT rc.RentalContractNo) DESC
+            """
+            customer_results = db.execute_query(customer_summary_query) or []
+        else:
+            # No customer column - just get contract counts
+            contract_count_query = f"""
+            SELECT 
+                COUNT(DISTINCT rc.RentalContractNo) as ContractCount,
+                MIN(rc.StartDate) as FirstContractDate,
+                MAX(rc.StartDate) as LatestContractDate,
+                SUM(CASE WHEN rc.EndDate IS NULL OR rc.EndDate > GETDATE() THEN 1 ELSE 0 END) as ActiveContracts
+            FROM {schema}.RentalContract rc
+            WHERE 1=1 {deletion_filter}
+            """
+            count_results = db.execute_query(contract_count_query)
+            if count_results:
+                customer_results = [{
+                    'CustomerNo': 'ALL',
+                    'CustomerName': 'All Contracts (no customer link in RentalContract)',
+                    'ContractCount': count_results[0].get('ContractCount', 0),
+                    'EquipmentCount': 0,
+                    'FirstContractDate': count_results[0].get('FirstContractDate'),
+                    'LatestContractDate': count_results[0].get('LatestContractDate'),
+                    'ActiveContracts': count_results[0].get('ActiveContracts', 0)
+                }]
+        
+        # Get equipment utilization from Equipment table (rental-capable equipment)
         utilization_query = f"""
         SELECT 
             e.Make,
             e.Model,
             COUNT(DISTINCT e.SerialNo) as TotalUnits,
-            COUNT(DISTINCT rc.SerialNo) as UnitsOnContract,
-            CAST(COUNT(DISTINCT rc.SerialNo) * 100.0 / NULLIF(COUNT(DISTINCT e.SerialNo), 0) as DECIMAL(5,2)) as UtilizationRate
+            SUM(CASE WHEN e.RentalStatus IS NOT NULL AND e.RentalStatus != '' THEN 1 ELSE 0 END) as UnitsOnContract,
+            CAST(
+                SUM(CASE WHEN e.RentalStatus IS NOT NULL AND e.RentalStatus != '' THEN 1 ELSE 0 END) * 100.0 
+                / NULLIF(COUNT(DISTINCT e.SerialNo), 0) as DECIMAL(5,2)
+            ) as UtilizationRate
         FROM {schema}.Equipment e
-        LEFT JOIN {schema}.RentalContract rc ON e.SerialNo = rc.SerialNo 
-            AND rc.DeletionTime IS NULL
-            AND (rc.EndDate IS NULL OR rc.EndDate > GETDATE())
         WHERE e.DayRent > 0 OR e.WeekRent > 0 OR e.MonthRent > 0
         GROUP BY e.Make, e.Model
         HAVING COUNT(DISTINCT e.SerialNo) > 0
-        ORDER BY COUNT(DISTINCT rc.SerialNo) DESC
+        ORDER BY COUNT(DISTINCT e.SerialNo) DESC
         """
         
-        utilization_results = db.execute_query(utilization_query)
+        utilization_results = db.execute_query(utilization_query) or []
         
         # Format results
         customer_summary = []
@@ -256,7 +289,7 @@ def get_control_serial_summary():
                 'model': row.get('Model', ''),
                 'total_units': row.get('TotalUnits', 0),
                 'units_on_contract': row.get('UnitsOnContract', 0),
-                'utilization_rate': float(row.get('UtilizationRate', 0))
+                'utilization_rate': float(row.get('UtilizationRate', 0) or 0)
             })
         
         return jsonify({

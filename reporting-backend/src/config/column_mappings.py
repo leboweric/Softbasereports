@@ -78,7 +78,7 @@ IPS_COLUMNS = {
     },
     'Customer': {
         'cust_no': 'Number',
-        'name': 'BillToName',
+        'name': 'Name',
         'salesman': 'Salesman1',
         'branch': 'Branch',
         'balance': None,  # Column doesn't exist in IPS schema
