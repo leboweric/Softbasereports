@@ -1318,6 +1318,179 @@ def create_balance_sheet_worksheet(wb, year, month):
     return ws
 
 
+def _get_months_in_range(start_date_str, end_date_str):
+    """Get list of (year, month) tuples for all months in a date range"""
+    start = datetime.strptime(start_date_str, '%Y-%m-%d')
+    end = datetime.strptime(end_date_str, '%Y-%m-%d')
+    months = []
+    current = start.replace(day=1)
+    while current <= end:
+        months.append((current.year, current.month))
+        # Move to next month
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+    return months
+
+
+def _sum_dept_data(dept_data_list):
+    """Sum department data across multiple months. Uses 'mtd' fields as the period total."""
+    if not dept_data_list:
+        return None
+    
+    # Start with a copy of the first month's structure
+    combined = {
+        'dept_code': dept_data_list[0]['dept_code'],
+        'dept_name': dept_data_list[0]['dept_name'],
+        'tab_name': dept_data_list[0]['tab_name'],
+        'sales_detail': [],
+        'cos_detail': [],
+        'total_sales_mtd': 0,
+        'total_sales_ytd': dept_data_list[-1]['total_sales_ytd'],  # YTD from last month
+        'total_cos_mtd': 0,
+        'total_cos_ytd': dept_data_list[-1]['total_cos_ytd'],
+        'gross_profit_mtd': 0,
+        'gross_profit_ytd': dept_data_list[-1]['gross_profit_ytd'],
+        'gross_margin_mtd': 0,
+        'gross_margin_ytd': dept_data_list[-1].get('gross_margin_ytd', 0),
+    }
+    
+    # Build account-level detail by summing MTD across months
+    sales_by_account = {}
+    cos_by_account = {}
+    
+    for dd in dept_data_list:
+        for item in dd['sales_detail']:
+            key = item['account_no']
+            if key not in sales_by_account:
+                sales_by_account[key] = {'account_no': key, 'description': item['description'], 'mtd': 0, 'ytd': 0}
+            sales_by_account[key]['mtd'] += item['mtd']
+            sales_by_account[key]['ytd'] = item['ytd']  # YTD from last month
+        
+        for item in dd['cos_detail']:
+            key = item['account_no']
+            if key not in cos_by_account:
+                cos_by_account[key] = {'account_no': key, 'description': item['description'], 'mtd': 0, 'ytd': 0}
+            cos_by_account[key]['mtd'] += item['mtd']
+            cos_by_account[key]['ytd'] = item['ytd']
+    
+    combined['sales_detail'] = list(sales_by_account.values())
+    combined['cos_detail'] = list(cos_by_account.values())
+    combined['total_sales_mtd'] = sum(item['mtd'] for item in combined['sales_detail'])
+    combined['total_cos_mtd'] = sum(item['mtd'] for item in combined['cos_detail'])
+    combined['gross_profit_mtd'] = combined['total_sales_mtd'] - combined['total_cos_mtd']
+    combined['gross_margin_mtd'] = (combined['gross_profit_mtd'] / combined['total_sales_mtd'] * 100) if combined['total_sales_mtd'] else 0
+    
+    return combined
+
+
+def _sum_expense_data(expense_data_list):
+    """Sum overhead expense data across multiple months"""
+    if not expense_data_list:
+        return {}
+    
+    combined = {}
+    total_mtd = 0
+    
+    for ed in expense_data_list:
+        for key, val in ed.items():
+            if key in ('total_overhead_mtd', 'total_overhead_ytd'):
+                continue
+            if isinstance(val, dict) and 'detail' in val:
+                if key not in combined:
+                    combined[key] = {'detail': [], 'total_mtd': 0, 'total_ytd': val.get('total_ytd', 0)}
+                    # Initialize detail from first month
+                    detail_by_account = {}
+                    for item in val['detail']:
+                        detail_by_account[item['account_no']] = {
+                            'account_no': item['account_no'],
+                            'description': item['description'],
+                            'mtd': item['mtd'],
+                            'ytd': item['ytd']
+                        }
+                    combined[key]['_detail_map'] = detail_by_account
+                else:
+                    for item in val['detail']:
+                        akey = item['account_no']
+                        if akey in combined[key]['_detail_map']:
+                            combined[key]['_detail_map'][akey]['mtd'] += item['mtd']
+                            combined[key]['_detail_map'][akey]['ytd'] = item['ytd']
+                        else:
+                            combined[key]['_detail_map'][akey] = {
+                                'account_no': akey,
+                                'description': item['description'],
+                                'mtd': item['mtd'],
+                                'ytd': item['ytd']
+                            }
+                    combined[key]['total_ytd'] = val.get('total_ytd', 0)
+    
+    # Finalize
+    for key in combined:
+        if '_detail_map' in combined[key]:
+            combined[key]['detail'] = list(combined[key]['_detail_map'].values())
+            combined[key]['total_mtd'] = sum(item['mtd'] for item in combined[key]['detail'])
+            del combined[key]['_detail_map']
+            total_mtd += combined[key]['total_mtd']
+    
+    combined['total_overhead_mtd'] = total_mtd
+    combined['total_overhead_ytd'] = expense_data_list[-1].get('total_overhead_ytd', 0)
+    
+    return combined
+
+
+def _sum_other_data(other_data_list):
+    """Sum other income & expense data across multiple months"""
+    if not other_data_list:
+        return {}
+    
+    combined = {}
+    
+    for od in other_data_list:
+        for key, val in od.items():
+            if key in ('total_mtd', 'total_ytd'):
+                continue
+            if isinstance(val, dict) and 'detail' in val:
+                if key not in combined:
+                    combined[key] = {'detail': [], 'total_mtd': 0, 'total_ytd': val.get('total_ytd', 0)}
+                    detail_map = {}
+                    for item in val['detail']:
+                        detail_map[item['account_no']] = {
+                            'account_no': item['account_no'],
+                            'description': item['description'],
+                            'mtd': item['mtd'],
+                            'ytd': item['ytd']
+                        }
+                    combined[key]['_detail_map'] = detail_map
+                else:
+                    for item in val['detail']:
+                        akey = item['account_no']
+                        if akey in combined[key]['_detail_map']:
+                            combined[key]['_detail_map'][akey]['mtd'] += item['mtd']
+                            combined[key]['_detail_map'][akey]['ytd'] = item['ytd']
+                        else:
+                            combined[key]['_detail_map'][akey] = {
+                                'account_no': akey,
+                                'description': item['description'],
+                                'mtd': item['mtd'],
+                                'ytd': item['ytd']
+                            }
+                    combined[key]['total_ytd'] = val.get('total_ytd', 0)
+    
+    for key in combined:
+        if '_detail_map' in combined[key]:
+            combined[key]['detail'] = list(combined[key]['_detail_map'].values())
+            combined[key]['total_mtd'] = sum(item['mtd'] for item in combined[key]['detail'])
+            del combined[key]['_detail_map']
+    
+    combined['total_mtd'] = sum(
+        combined[k].get('total_mtd', 0) for k in combined if isinstance(combined.get(k), dict) and 'total_mtd' in combined[k]
+    )
+    combined['total_ytd'] = other_data_list[-1].get('total_ytd', 0)
+    
+    return combined
+
+
 @pl_detailed_bp.route('/api/reports/pl/detailed/export', methods=['GET'])
 @jwt_required()
 def export_detailed_pl():
@@ -1325,61 +1498,106 @@ def export_detailed_pl():
     Export detailed P&L report to Excel with department tabs
     Matches the accounting firm's format exactly
     
+    Supports both single-month and multi-month date ranges.
+    
     Query Parameters:
-        year: Year for the report (default: current year)
-        month: Month for the report (default: current month)
+        start_date: Start date YYYY-MM-DD (preferred)
+        end_date: End date YYYY-MM-DD (preferred)
+        year: Year for single-month report (legacy, fallback)
+        month: Month for single-month report (legacy, fallback)
     """
     try:
         schema = get_tenant_schema()
-        
-        # Get parameters
         now = datetime.now()
-        year = request.args.get('year', type=int, default=now.year)
-        month = request.args.get('month', type=int, default=now.month)
         
-        logger.info(f"Generating detailed P&L export for {year}-{month:02d}, schema: {schema}")
+        # Support both new (start_date/end_date) and legacy (month/year) params
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        if start_date and end_date:
+            months_in_range = _get_months_in_range(start_date, end_date)
+        else:
+            # Legacy single-month params
+            year = request.args.get('year', type=int, default=now.year)
+            month = request.args.get('month', type=int, default=now.month)
+            months_in_range = [(year, month)]
+        
+        is_multi_month = len(months_in_range) > 1
+        # Use last month in range for YTD and balance sheet
+        last_year, last_month = months_in_range[-1]
+        first_year, first_month = months_in_range[0]
+        
+        logger.info(f"Generating detailed P&L export for {len(months_in_range)} month(s): {months_in_range}, schema: {schema}")
         
         # Create workbook
         wb = Workbook()
-        
-        # Remove default sheet
         wb.remove(wb.active)
         
-        # Get data for all departments
-        all_dept_data = {}
         dept_order = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation', 'in_house']
         
-        total_gross_profit_mtd = 0
-        total_gross_profit_ytd = 0
-        
-        for dept_key in dept_order:
-            dept_data = get_department_detail(schema, dept_key, year, month)
-            if dept_data:
-                all_dept_data[dept_key] = dept_data
-                # Don't create a separate worksheet for in_house - it's handled in the In House expenses tab
-                if dept_key != 'in_house':
-                    create_department_worksheet(wb, dept_data, year, month)
-                total_gross_profit_mtd += dept_data['gross_profit_mtd']
-                total_gross_profit_ytd += dept_data['gross_profit_ytd']
-        
-        # Get expense and other income data
-        expense_data = get_overhead_expenses(schema, year, month)
-        other_data = get_other_income_expense(schema, year, month)
+        if is_multi_month:
+            # Multi-month: collect data for each month, then sum
+            all_months_dept_data = {dk: [] for dk in dept_order}
+            all_months_expense_data = []
+            all_months_other_data = []
+            
+            for yr, mo in months_in_range:
+                for dept_key in dept_order:
+                    dept_data = get_department_detail(schema, dept_key, yr, mo)
+                    if dept_data:
+                        all_months_dept_data[dept_key].append(dept_data)
+                all_months_expense_data.append(get_overhead_expenses(schema, yr, mo))
+                all_months_other_data.append(get_other_income_expense(schema, yr, mo))
+            
+            # Sum across months
+            all_dept_data = {}
+            total_gross_profit_mtd = 0
+            total_gross_profit_ytd = 0
+            
+            for dept_key in dept_order:
+                if all_months_dept_data[dept_key]:
+                    combined = _sum_dept_data(all_months_dept_data[dept_key])
+                    if combined:
+                        all_dept_data[dept_key] = combined
+                        if dept_key != 'in_house':
+                            create_department_worksheet(wb, combined, last_year, last_month)
+                        total_gross_profit_mtd += combined['gross_profit_mtd']
+                        total_gross_profit_ytd += combined['gross_profit_ytd']
+            
+            expense_data = _sum_expense_data(all_months_expense_data)
+            other_data = _sum_other_data(all_months_other_data)
+        else:
+            # Single month: original behavior
+            year, month = months_in_range[0]
+            all_dept_data = {}
+            total_gross_profit_mtd = 0
+            total_gross_profit_ytd = 0
+            
+            for dept_key in dept_order:
+                dept_data = get_department_detail(schema, dept_key, year, month)
+                if dept_data:
+                    all_dept_data[dept_key] = dept_data
+                    if dept_key != 'in_house':
+                        create_department_worksheet(wb, dept_data, year, month)
+                    total_gross_profit_mtd += dept_data['gross_profit_mtd']
+                    total_gross_profit_ytd += dept_data['gross_profit_ytd']
+            
+            expense_data = get_overhead_expenses(schema, year, month)
+            other_data = get_other_income_expense(schema, year, month)
         
         # Create In House worksheet with expenses
         inhouse_summary = {
             'total_gross_profit_mtd': total_gross_profit_mtd,
             'total_gross_profit_ytd': total_gross_profit_ytd
         }
-        # Get the in_house department data for Sales/COGS section
         inhouse_dept_data = all_dept_data.get('in_house', None)
-        create_inhouse_worksheet(wb, inhouse_summary, expense_data, other_data, year, month, inhouse_dept_data)
+        create_inhouse_worksheet(wb, inhouse_summary, expense_data, other_data, last_year, last_month, inhouse_dept_data)
         
         # Create consolidated summary worksheet
-        create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, year, month)
+        create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, last_year, last_month)
         
-        # Create Balance Sheet worksheet
-        create_balance_sheet_worksheet(wb, year, month)
+        # Create Balance Sheet worksheet (as of end of range)
+        create_balance_sheet_worksheet(wb, last_year, last_month)
         
         # Save to BytesIO
         output = BytesIO()
@@ -1387,8 +1605,13 @@ def export_detailed_pl():
         output.seek(0)
         
         # Generate filename
-        month_name = calendar.month_name[month]
-        filename = f"ProfitLoss_Detailed_{month_name}{year}.xlsx"
+        if is_multi_month:
+            first_month_name = calendar.month_name[first_month]
+            last_month_name = calendar.month_name[last_month]
+            filename = f"ProfitLoss_Detailed_{first_month_name}{first_year}_to_{last_month_name}{last_year}.xlsx"
+        else:
+            month_name = calendar.month_name[months_in_range[0][1]]
+            filename = f"ProfitLoss_Detailed_{month_name}{months_in_range[0][0]}.xlsx"
         
         logger.info(f"Detailed P&L Excel export generated: {filename}")
         

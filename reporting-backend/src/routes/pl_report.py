@@ -432,23 +432,32 @@ def is_full_calendar_month(start_date, end_date):
     except:
         return False, None, None
 
+# Other Expense accounts that should be separated from Operating Expenses
+# These appear below Operating Profit in the P&L
+OTHER_EXPENSE_ACCOUNTS = ['601400', '602500', '603400', '604200', '999999']
+
 def get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema):
     """
     Get consolidated P&L using dynamic LIKE queries on GL.MTD.
     This captures ALL accounts by prefix pattern, ensuring nothing is missed.
-    Revenue = 4xxxxxx + 7xxxxx (Softbase includes 7xx in Total Sales)
-    COGS = 5xxxxxx, Expenses = 6xxxxxx
+    Revenue = 4xxxxxx (Sales only)
+    COGS = 5xxxxxx
+    Operating Expenses = 6xxxxxx (excluding Other Expense accounts)
+    Other Income = 7xxxxxx (Gain/Loss, Misc Income, Discounts)
+    Other Expense = specific 6xx accounts (Taxes, Warranty, Error)
     
     Returns:
-        Dictionary with revenue, cogs, expenses totals
+        Dictionary with revenue, cogs, expenses, other_income, other_expense totals
     """
     try:
+        other_exp_list = "', '".join(OTHER_EXPENSE_ACCOUNTS)
         query = f"""
         SELECT 
-            -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END)
-            -SUM(CASE WHEN AccountNo LIKE '7%' THEN MTD ELSE 0 END) as revenue,
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
-            SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END) as expenses
+            SUM(CASE WHEN AccountNo LIKE '6%' AND AccountNo NOT IN ('{other_exp_list}') THEN MTD ELSE 0 END) as expenses,
+            -SUM(CASE WHEN AccountNo LIKE '7%' THEN MTD ELSE 0 END) as other_income,
+            SUM(CASE WHEN AccountNo IN ('{other_exp_list}') THEN MTD ELSE 0 END) as other_expense
         FROM {schema}.GL
         WHERE Year = %s AND Month = %s
           AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%')
@@ -460,17 +469,23 @@ def get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema):
             revenue = float(results[0].get('revenue') or 0)
             cogs = float(results[0].get('cogs') or 0)
             expenses = float(results[0].get('expenses') or 0)
+            other_income = float(results[0].get('other_income') or 0)
+            other_expense = float(results[0].get('other_expense') or 0)
         else:
             revenue = 0.0
             cogs = 0.0
             expenses = 0.0
+            other_income = 0.0
+            other_expense = 0.0
         
-        logger.info(f"Dynamic GL.MTD P&L for {schema} {year}-{month:02d}: Rev=${revenue:,.2f}, COGS=${cogs:,.2f}, Exp=${expenses:,.2f}")
+        logger.info(f"Dynamic GL.MTD P&L for {schema} {year}-{month:02d}: Rev=${revenue:,.2f}, COGS=${cogs:,.2f}, Exp=${expenses:,.2f}, OtherInc=${other_income:,.2f}, OtherExp=${other_expense:,.2f}")
         
         return {
             'revenue': revenue,
             'cogs': cogs,
-            'expenses': expenses
+            'expenses': expenses,
+            'other_income': other_income,
+            'other_expense': other_expense
         }
         
     except Exception as e:
@@ -482,19 +497,24 @@ def get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema):
     """
     Get consolidated P&L using dynamic LIKE queries on GLDetail.
     Used for custom date ranges or current (unclosed) months.
-    Revenue = 4xxxxxx + 7xxxxx (Softbase includes 7xx in Total Sales)
-    COGS = 5xxxxxx, Expenses = 6xxxxxx
+    Revenue = 4xxxxxx (Sales only)
+    COGS = 5xxxxxx
+    Operating Expenses = 6xxxxxx (excluding Other Expense accounts)
+    Other Income = 7xxxxxx
+    Other Expense = specific 6xx accounts (Taxes, Warranty, Error)
     
     Returns:
-        Dictionary with revenue, cogs, expenses totals
+        Dictionary with revenue, cogs, expenses, other_income, other_expense totals
     """
     try:
+        other_exp_list = "', '".join(OTHER_EXPENSE_ACCOUNTS)
         query = f"""
         SELECT 
-            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END)
-            -SUM(CASE WHEN AccountNo LIKE '7%' THEN Amount ELSE 0 END) as revenue,
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as cogs,
-            SUM(CASE WHEN AccountNo LIKE '6%' THEN Amount ELSE 0 END) as expenses
+            SUM(CASE WHEN AccountNo LIKE '6%' AND AccountNo NOT IN ('{other_exp_list}') THEN Amount ELSE 0 END) as expenses,
+            -SUM(CASE WHEN AccountNo LIKE '7%' THEN Amount ELSE 0 END) as other_income,
+            SUM(CASE WHEN AccountNo IN ('{other_exp_list}') THEN Amount ELSE 0 END) as other_expense
         FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
@@ -508,17 +528,23 @@ def get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema):
             revenue = float(results[0].get('revenue') or 0)
             cogs = float(results[0].get('cogs') or 0)
             expenses = float(results[0].get('expenses') or 0)
+            other_income = float(results[0].get('other_income') or 0)
+            other_expense = float(results[0].get('other_expense') or 0)
         else:
             revenue = 0.0
             cogs = 0.0
             expenses = 0.0
+            other_income = 0.0
+            other_expense = 0.0
         
-        logger.info(f"Dynamic GLDetail P&L for {schema} {start_date} to {end_date}: Rev=${revenue:,.2f}, COGS=${cogs:,.2f}, Exp=${expenses:,.2f}")
+        logger.info(f"Dynamic GLDetail P&L for {schema} {start_date} to {end_date}: Rev=${revenue:,.2f}, COGS=${cogs:,.2f}, Exp=${expenses:,.2f}, OtherInc=${other_income:,.2f}, OtherExp=${other_expense:,.2f}")
         
         return {
             'revenue': revenue,
             'cogs': cogs,
-            'expenses': expenses
+            'expenses': expenses,
+            'other_income': other_income,
+            'other_expense': other_expense
         }
         
     except Exception as e:
@@ -792,12 +818,15 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail, schema):
                 if dept_key != 'administrative':
                     departments[dept_key] = dept_data
         
-        # Use DYNAMIC consolidated totals (LIKE '4%', '5%', '6%') for accuracy
+        # Use DYNAMIC consolidated totals (LIKE '4%', '5%', '6%', '7%') for accuracy
         # This captures ALL accounts by prefix, ensuring nothing is missed
+        # Now separates Other Income (7xx) and Other Expense (taxes, warranty) from Operating
         dynamic_totals = get_dynamic_consolidated_pl(start_date, end_date, schema)
         total_revenue = dynamic_totals['revenue']
         total_cogs = dynamic_totals['cogs']
         total_expenses = dynamic_totals['expenses']
+        total_other_income = dynamic_totals.get('other_income', 0)
+        total_other_expense = dynamic_totals.get('other_expense', 0)
         
         # Also get category breakdown from mapped accounts (for display)
         expenses = get_expense_data(start_date, end_date, schema)
@@ -810,7 +839,14 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail, schema):
         operating_profit = total_gross_profit - total_expenses
         operating_margin = (operating_profit / total_revenue * 100) if total_revenue > 0 else 0
         
-        logger.info(f"P&L Report ({schema}): Rev=${total_revenue:,.2f}, COGS=${total_cogs:,.2f}, GP=${total_gross_profit:,.2f}, Exp=${total_expenses:,.2f}, OP=${operating_profit:,.2f} ({operating_margin:.1f}%)")
+        # Other Income & Expense (below operating line)
+        total_other_ie = total_other_income - total_other_expense
+        
+        # Net Income = Operating Profit + Other Income - Other Expense
+        net_income = operating_profit + total_other_ie
+        net_margin = (net_income / total_revenue * 100) if total_revenue > 0 else 0
+        
+        logger.info(f"P&L Report ({schema}): Rev=${total_revenue:,.2f}, COGS=${total_cogs:,.2f}, GP=${total_gross_profit:,.2f}, Exp=${total_expenses:,.2f}, OP=${operating_profit:,.2f}, OtherI&E=${total_other_ie:,.2f}, NI=${net_income:,.2f}")
         
         # Build response
         response = {
@@ -824,7 +860,12 @@ def _fetch_pl_report_data(start_date, end_date, view, include_detail, schema):
                 'gross_margin': gross_margin,
                 'operating_expenses': total_expenses,
                 'operating_profit': operating_profit,
-                'operating_margin': operating_margin
+                'operating_margin': operating_margin,
+                'other_income': total_other_income,
+                'other_expense': total_other_expense,
+                'other_income_expense': total_other_ie,
+                'net_income': net_income,
+                'net_margin': net_margin
             },
             'departments': departments,
             'expenses': expenses

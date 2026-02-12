@@ -203,12 +203,11 @@ const PLReport = ({ user, organization }) => {
               onClick={async () => {
                 setExporting(true);
                 try {
-                  const [year, month] = startDate.split('-').map(Number);
                   const token = localStorage.getItem('token');
                   const response = await axios.get(
                     apiUrl('/api/reports/pl/detailed/export'),
                     {
-                      params: { month, year },
+                      params: { start_date: startDate, end_date: endDate },
                       headers: { Authorization: `Bearer ${token}` },
                       responseType: 'blob'
                     }
@@ -217,8 +216,17 @@ const PLReport = ({ user, organization }) => {
                   const url = window.URL.createObjectURL(new Blob([response.data]));
                   const link = document.createElement('a');
                   link.href = url;
+                  // Generate filename based on date range
+                  const [startYear, startMonth] = startDate.split('-').map(Number);
+                  const [endYear, endMonth] = endDate.split('-').map(Number);
                   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-                  link.setAttribute('download', `ProfitLoss_Detailed_${monthNames[month-1]}${year}.xlsx`);
+                  let filename;
+                  if (startYear === endYear && startMonth === endMonth) {
+                    filename = `ProfitLoss_Detailed_${monthNames[startMonth-1]}${startYear}.xlsx`;
+                  } else {
+                    filename = `ProfitLoss_Detailed_${monthNames[startMonth-1]}${startYear}_to_${monthNames[endMonth-1]}${endYear}.xlsx`;
+                  }
+                  link.setAttribute('download', filename);
                   document.body.appendChild(link);
                   link.click();
                   link.remove();
@@ -371,6 +379,17 @@ const PLReport = ({ user, organization }) => {
                   {formatPercent(data.consolidated.operating_margin)} margin
                 </p>
               </div>
+              {data.consolidated.net_income !== undefined && (
+                <div>
+                  <p className="text-sm text-gray-600">Net Income</p>
+                  <p className={`text-2xl font-bold ${data.consolidated.net_income >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(data.consolidated.net_income)}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {formatPercent(data.consolidated.net_margin)} margin
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -496,7 +515,7 @@ const PLReport = ({ user, organization }) => {
             </div>
           </div>
 
-          {/* Bottom Line */}
+          {/* Operating Profit */}
           <div className="px-6 py-4 bg-blue-50 border-t border-blue-100">
             <div className="flex justify-between items-center">
               <span className="text-lg font-semibold text-gray-900">Operating Profit</span>
@@ -510,6 +529,47 @@ const PLReport = ({ user, organization }) => {
               </div>
             </div>
           </div>
+
+          {/* Other Income & Expense */}
+          {(data.consolidated.other_income !== undefined) && (
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-700">Other Income</span>
+                <span className="text-sm font-medium text-green-600">
+                  {formatCurrency(data.consolidated.other_income)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-700">Other Expense</span>
+                <span className="text-sm font-medium text-red-600">
+                  ({formatCurrency(data.consolidated.other_expense)})
+                </span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                <span className="text-sm font-semibold text-gray-800">Net Other Income & Expense</span>
+                <span className={`text-sm font-semibold ${data.consolidated.other_income_expense >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(data.consolidated.other_income_expense)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Net Income - Bottom Line */}
+          {(data.consolidated.net_income !== undefined) && (
+            <div className="px-6 py-4 bg-emerald-50 border-t-2 border-emerald-200">
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-bold text-gray-900">Net Income</span>
+                <div className="text-right">
+                  <span className={`text-2xl font-bold ${data.consolidated.net_income >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(data.consolidated.net_income)}
+                  </span>
+                  <p className="text-sm text-gray-600">
+                    {formatPercent(data.consolidated.net_margin)} margin
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
