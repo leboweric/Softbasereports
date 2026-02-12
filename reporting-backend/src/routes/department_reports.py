@@ -742,8 +742,21 @@ def register_department_routes(reports_bp):
             # Get tenant-specific GL accounts for service department
             tenant_gl_accounts = get_gl_accounts(schema)
             service_config = tenant_gl_accounts.get('service', {})
-            service_revenue_accounts = service_config.get('revenue', [])
-            service_cogs_accounts = service_config.get('cogs', [])
+            
+            # Use Currie-aligned controllable accounts for department cards
+            # Only includes accounts the Service Manager can directly control:
+            # Customer Labor, Internal Labor, Warranty, Sublet, PM/Shop Supplies
+            # Excludes freight, allied, trucking/delivery, and other non-controllable costs
+            currie_service_revenue = service_config.get('currie_revenue', None)
+            currie_service_cogs = service_config.get('currie_cogs', None)
+            
+            if currie_service_revenue and currie_service_cogs:
+                service_revenue_accounts = currie_service_revenue
+                service_cogs_accounts = currie_service_cogs
+            else:
+                # Fallback: use full service accounts if currie overrides not defined
+                service_revenue_accounts = service_config.get('revenue', [])
+                service_cogs_accounts = service_config.get('cogs', [])
             
             # Get field/shop sub-categories if available
             # Falls back to first/second account for backward compatibility (Bennett)
