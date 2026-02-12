@@ -25,7 +25,7 @@ import {
   ComposedChart,
   Legend
 } from 'recharts'
-import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download, Target } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download, Target, RotateCcw, DollarSign, ChevronRight, Archive, CircleCheck } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import {
   Tooltip,
@@ -606,91 +606,218 @@ const PartsReport = ({ user, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'overview') && (
           <TabsContent value="overview" className="space-y-6">
-          {/* Currie Benchmark Card */}
-          {benchmarkData && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Currie Model Benchmarks
-                  {benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target && (
-                    <Badge className="ml-2 bg-green-100 text-green-800">Meeting Target</Badge>
+          {/* Row 1: Glanceable KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-5">
+            {/* Fill Rate */}
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <CircleCheck className="h-4 w-4 text-green-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Fill Rate</span>
+                </div>
+                <div className={`text-2xl font-bold ${fillRateData?.overall_fill_rate >= 90 ? 'text-green-600' : 'text-red-600'}`}>
+                  {fillRateData?.overall_fill_rate ? `${fillRateData.overall_fill_rate}%` : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Target: 90%</p>
+              </CardContent>
+            </Card>
+
+            {/* Inventory Turnover */}
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <RotateCcw className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Inventory Turns</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {fillRateData?.inventory_turnover ? `${fillRateData.inventory_turnover}x` : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Target: 4-6x annually</p>
+              </CardContent>
+            </Card>
+
+            {/* Open Parts WOs */}
+            <Card className={`border-l-4 ${openWorkOrdersData?.count > 0 ? 'border-l-orange-500' : 'border-l-gray-300'}`}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Package className="h-4 w-4 text-orange-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Open Parts WOs</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {openWorkOrdersData?.count || 0}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {openWorkOrdersData ? formatCurrency(openWorkOrdersData.total_value) : '$0'} value
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Reorder Alerts */}
+            <Card className={`border-l-4 ${reorderAlertData?.critical_count > 0 ? 'border-l-red-500' : 'border-l-yellow-500'}`}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Reorder Alerts</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {reorderAlertData ? (reorderAlertData.critical_count + reorderAlertData.warning_count) : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {reorderAlertData?.critical_count || 0} critical
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Obsolete Inventory */}
+            <Card className="border-l-4 border-l-purple-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Archive className="h-4 w-4 text-purple-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Obsolete Value</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {fillRateData?.obsolete_parts_value ? formatCurrency(fillRateData.obsolete_parts_value) : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {fillRateData?.obsolete_parts_count || 0} parts &gt;365 days
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Currie GP% Benchmark (compact) + Action Items */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Compact Currie Benchmark - 2/3 width */}
+            <Card className="md:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Parts GP% vs Currie Benchmark
+                  {benchmarkData?.current_month?.gp_margin >= benchmarkData?.currie_gp_target && (
+                    <Badge className="ml-2 bg-green-100 text-green-800 text-xs">On Target</Badge>
                   )}
                 </CardTitle>
-                <CardDescription>
-                  Parts department gross margin vs Currie Financial Model targets
-                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-6 md:grid-cols-3">
-                  {/* Current Month GP% vs Target */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Current Month GP%</h4>
-                    <div className="flex items-baseline gap-2">
+                {benchmarkData ? (
+                  <div className="grid gap-6 md:grid-cols-3">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Current Month</p>
                       <div className={`text-3xl font-bold ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
                         {benchmarkData.current_month?.gp_margin || 0}%
                       </div>
-                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div 
+                          className={`h-1.5 rounded-full ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${Math.min((benchmarkData.current_month?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Target: {benchmarkData.currie_gp_target}%</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min((benchmarkData.current_month?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className={`text-sm font-medium ${benchmarkData.current_month?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {benchmarkData.current_month?.vs_target >= 0 ? '+' : ''}{benchmarkData.current_month?.vs_target || 0}pp vs target
-                    </p>
-                  </div>
-
-                  {/* Trailing Average GP% vs Target */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Trailing {benchmarkData.trailing_average?.months || 12}mo Avg GP%</h4>
-                    <div className="flex items-baseline gap-2">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Trailing {benchmarkData.trailing_average?.months || 12}mo Avg</p>
                       <div className={`text-3xl font-bold ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
                         {benchmarkData.trailing_average?.gp_margin || 0}%
                       </div>
-                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div 
+                          className={`h-1.5 rounded-full ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${Math.min((benchmarkData.trailing_average?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Target: {benchmarkData.currie_gp_target}%</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min((benchmarkData.trailing_average?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className={`text-sm font-medium ${benchmarkData.trailing_average?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {benchmarkData.trailing_average?.vs_target >= 0 ? '+' : ''}{benchmarkData.trailing_average?.vs_target || 0}pp vs target
-                    </p>
-                  </div>
-
-                  {/* Currie Target Summary */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Currie Model Targets</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">GP Margin Target</span>
-                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_gp_target}%</span>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Current Month GP$</p>
+                      <div className="text-3xl font-bold text-blue-600">
+                        {formatCurrency(benchmarkData.current_month?.gross_profit || 0)}
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Operating Profit Target</span>
-                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_op_target}%</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm text-muted-foreground">Current Month GP$</span>
-                        <span className="text-sm font-medium">{formatCurrency(benchmarkData.current_month?.gross_profit || 0)}</span>
-                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">OP Target: {benchmarkData.currie_op_target}%</p>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">Loading benchmarks...</div>
+                )}
               </CardContent>
             </Card>
-          )}
 
-          {/* Monthly Parts Revenue Charts */}
+            {/* Action Items - 1/3 width */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  Action Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Reorder Alerts */}
+                {reorderAlertData && (reorderAlertData.critical_count + reorderAlertData.warning_count) > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('stock-alerts')}
+                    className="w-full flex items-center justify-between p-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <div>
+                        <p className="text-sm font-medium text-red-800">{reorderAlertData.critical_count + reorderAlertData.warning_count} Parts to Reorder</p>
+                        <p className="text-xs text-red-600">{reorderAlertData.critical_count} critical, {reorderAlertData.warning_count} warning</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-red-400" />
+                  </button>
+                )}
+
+                {/* Open Parts WOs */}
+                {openWorkOrdersData?.count > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('work-orders')}
+                    className="w-full flex items-center justify-between p-2 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-orange-600" />
+                      <div>
+                        <p className="text-sm font-medium text-orange-800">{openWorkOrdersData.count} Open Parts WOs</p>
+                        <p className="text-xs text-orange-600">{formatCurrency(openWorkOrdersData.total_value)} value, avg {openWorkOrdersData.avg_days_open?.toFixed(0)} days</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-orange-400" />
+                  </button>
+                )}
+
+                {/* Obsolete Inventory */}
+                {fillRateData?.obsolete_parts_count > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('velocity')}
+                    className="w-full flex items-center justify-between p-2 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Archive className="h-4 w-4 text-purple-600" />
+                      <div>
+                        <p className="text-sm font-medium text-purple-800">{fillRateData.obsolete_parts_count} Obsolete Parts</p>
+                        <p className="text-xs text-purple-600">{formatCurrency(fillRateData.obsolete_parts_value)} in stale inventory</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-purple-400" />
+                  </button>
+                )}
+
+                {/* All clear state */}
+                {(!reorderAlertData || (reorderAlertData.critical_count + reorderAlertData.warning_count) === 0) && 
+                 !openWorkOrdersData?.count && 
+                 !fillRateData?.obsolete_parts_count && (
+                  <div className="text-center py-4 text-green-600">
+                    <p className="text-sm font-medium">All clear — no action items</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 3: Single Combined Revenue Chart */}
           <RevenueChart
             data={partsData?.monthlyPartsRevenue}
-            title="Combined Parts Revenue & Margin"
-            description="Total external customer parts sales (Counter + Repair Order) over the last 12 months"
+            title="Parts Revenue & Margin Trend"
+            description="Combined parts revenue (Counter + Repair Order) over the last 12 months"
             tooltipInfo={
               <>
                 <p className="font-semibold mb-1">Includes:</p>
@@ -702,208 +829,23 @@ const PartsReport = ({ user, onNavigate }) => {
             barColor="#10b981"
           />
 
-          <RevenueChart
-            data={partsData?.monthlyCounterRevenue}
-            title="Counter Sales"
-            description="Walk-in and over-the-counter parts sales over the last 12 months"
-            barColor="#10b981"
-          />
+          {/* Row 4: Supporting Detail - Revenue Breakdown + Top 10 */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <RevenueChart
+              data={partsData?.monthlyCounterRevenue}
+              title="Counter Sales"
+              description="Walk-in and over-the-counter parts sales"
+              barColor="#10b981"
+            />
+            <RevenueChart
+              data={partsData?.monthlyRepairOrderRevenue}
+              title="Repair Order Parts"
+              description="Parts sold through service repair orders"
+              barColor="#059669"
+            />
+          </div>
 
-          <RevenueChart
-            data={partsData?.monthlyRepairOrderRevenue}
-            title="Customer Repair Order Parts"
-            description="Parts sold through service repair orders over the last 12 months"
-            barColor="#059669"
-          />
-
-          {/* Placeholder Card (will be replaced) */}
-          <Card style={{display: 'none'}}>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CardTitle>Monthly Parts Revenue & Margin</CardTitle>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-sm">
-                          <p className="font-semibold mb-1">Includes:</p>
-                          <p className="text-xs mb-2">• Counter sales<br/>• Customer repair order parts</p>
-                          <p className="font-semibold mb-1">Excludes:</p>
-                          <p className="text-xs">• Internal parts repairs<br/>• Freight charges<br/>• PM contract parts<br/>• Shop supplies<br/>• Warranty parts</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <CardDescription>External customer parts sales and gross margin % over the last 12 months</CardDescription>
-                </div>
-                {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
-                  // Only include historical months (before current month)
-                  const currentDate = new Date()
-                  const currentMonthIndex = currentDate.getMonth()
-                  const currentYear = currentDate.getFullYear()
-                  
-                  // Month names in order
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                  const currentMonthName = monthNames[currentMonthIndex]
-                  
-                  // Get index of current month in the data
-                  const currentMonthDataIndex = partsData.monthlyPartsRevenue.findIndex(item => item.month === currentMonthName)
-                  
-                  // Filter to only include months before current month with positive revenue
-                  const historicalMonths = currentMonthDataIndex > 0 
-                    ? partsData.monthlyPartsRevenue.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                    : partsData.monthlyPartsRevenue.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                  
-                  const avgRevenue = historicalMonths.length > 0 ? 
-                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                  const avgMargin = historicalMonths.length > 0 ? 
-                    historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
-                  
-                  return (
-                    <div className="text-right">
-                      <div className="mb-2">
-                        <p className="text-sm text-muted-foreground">Avg Revenue</p>
-                        <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Avg Margin</p>
-                        <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={(() => {
-                  const data = sortedMonthlyRevenue || []
-                  
-                  if (data.length === 0) return data
-                  
-                  // Identify complete months (exclude current month)
-                  const currentDate = new Date()
-                  const currentMonthIndex = currentDate.getMonth()
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                  const currentMonthName = monthNames[currentMonthIndex]
-                  
-                  // Filter complete months with positive revenue
-                  const completeMonths = data.filter(item => 
-                    item.month !== currentMonthName && item.amount > 0
-                  )
-                  
-                  // Calculate linear regression for trendline
-                  let trendSlope = 0
-                  let trendIntercept = 0
-                  
-                  if (completeMonths.length >= 2) {
-                    // Map complete months to their indices in the full dataset
-                    const completeMonthsWithIndex = completeMonths.map(cm => {
-                      const index = data.findIndex(d => d.month === cm.month)
-                      return { ...cm, dataIndex: index }
-                    })
-                    
-                    // Calculate means
-                    const n = completeMonthsWithIndex.length
-                    const sumX = completeMonthsWithIndex.reduce((sum, item, i) => sum + i, 0)
-                    const sumY = completeMonthsWithIndex.reduce((sum, item) => sum + item.amount, 0)
-                    const meanX = sumX / n
-                    const meanY = sumY / n
-                    
-                    // Calculate slope and intercept
-                    let numerator = 0
-                    let denominator = 0
-                    completeMonthsWithIndex.forEach((item, i) => {
-                      numerator += (i - meanX) * (item.amount - meanY)
-                      denominator += (i - meanX) * (i - meanX)
-                    })
-                    
-                    trendSlope = denominator !== 0 ? numerator / denominator : 0
-                    trendIntercept = meanY - trendSlope * meanX
-                  }
-                  
-                  // Add trendline values to data
-                  return data.map((item, index) => {
-                    const isComplete = completeMonths.some(cm => cm.month === item.month)
-                    const completeIndex = completeMonths.findIndex(cm => cm.month === item.month)
-                    const trendValue = isComplete && completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null
-                    
-                    return {
-                      ...item,
-                      trendline: trendValue
-                    }
-                  })
-                })()} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                  <RechartsTooltip 
-                    content={({ active, payload, label }) => {
-                      if (active && payload && payload.length && partsData?.monthlyPartsRevenue) {
-                        const data = partsData.monthlyPartsRevenue
-                        const currentIndex = data.findIndex(item => item.month === label)
-                        const currentData = data[currentIndex]
-                        const previousData = currentIndex > 0 ? data[currentIndex - 1] : null
-                        
-                        return (
-                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                            <p className="font-semibold mb-2">{label}</p>
-                            <div className="space-y-1">
-                              <p className="text-green-600">
-                                Revenue: {formatCurrency(currentData.amount)}
-                                {formatPercentage(calculatePercentageChange(currentData.amount, previousData?.amount))}
-                              </p>
-                              {currentData.margin !== null && currentData.margin !== undefined && (
-                                <p className="text-amber-600">
-                                  Margin: {currentData.margin}%
-                                  {previousData && previousData.margin !== null && previousData.margin !== undefined && (
-                                    <span className={`ml-2 text-sm ${currentData.margin > previousData.margin ? 'text-green-600' : 'text-red-600'}`}>
-                                      ({currentData.margin > previousData.margin ? '+' : ''}{(currentData.margin - previousData.margin).toFixed(1)}pp)
-                                    </span>
-                                  )}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      }
-                      return null
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="amount" fill="#10b981" shape={<CustomBar />} name="Revenue" />
-                  {/* Trendline */}
-                  <Line 
-                    type="monotone"
-                    dataKey="trendline"
-                    stroke="#059669"
-                    strokeWidth={2}
-                    name="Trend"
-                    dot={false}
-                    connectNulls={false}
-                  />
-                  {partsData?.monthlyPartsRevenue && partsData.monthlyPartsRevenue.length > 0 && (() => {
-                    // Only calculate average for complete months (exclude current month - August)
-                    const completeMonths = partsData.monthlyPartsRevenue.slice(0, -1)
-                    const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                    return (
-                      <ReferenceLine 
-                        y={average} 
-                        stroke="#666" 
-                        strokeDasharray="3 3"
-                        label={{ value: "Average", position: "insideTopRight" }}
-                      />
-                    )
-                  })()}
-                </ComposedChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Top 10 Parts */}
+          {/* Row 5: Top 10 Parts */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
