@@ -5838,18 +5838,28 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/units-on-rent', methods=['GET'])
     @jwt_required()
     def get_units_on_rent():
-        """Get count of units currently on rent using Equipment.RentalStatus (not RentalHistory)"""
+        """Get count of units currently on rent using open rental work orders.
+        Uses WO Type='R' with ClosedDate IS NULL to match Softbase 'Open Rental Orders'."""
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Use Equipment.RentalStatus = 'Rented' for accurate current on-rent count
-            # The old query counted DISTINCT SerialNo from RentalHistory for current month,
-            # which included units that were rented and returned during the month (not currently on rent)
+            # Count units with open rental work orders (Type='R', ClosedDate IS NULL)
+            # This matches the Availability tab's proven on-rent detection logic
             query = f"""
-            SELECT COUNT(*) as units_on_rent
-            FROM {schema}.Equipment
-            WHERE RentalStatus = 'Rented'
+            SELECT COUNT(DISTINCT e.SerialNo) as units_on_rent
+            FROM {schema}.Equipment e
+            INNER JOIN {schema}.WORental wr ON (
+                (e.UnitNo IS NOT NULL AND e.UnitNo != '' AND e.UnitNo = wr.UnitNo)
+                OR (e.SerialNo IS NOT NULL AND e.SerialNo != '' AND e.SerialNo = wr.SerialNo)
+            )
+            INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+            WHERE wo.Type = 'R'
+                AND wo.ClosedDate IS NULL
+                AND wo.DeletionTime IS NULL
+                AND wo.WONo NOT LIKE '9%'
+                AND e.InventoryDept = 60
+                AND (e.Customer = 0 OR e.Customer IS NULL)
             """
             
             result = db.execute_query(query)
@@ -5868,15 +5878,15 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/units-on-rent-detail', methods=['GET'])
     @jwt_required()
     def get_units_on_rent_detail():
-        """Get detailed list of units currently on rent using Equipment.RentalStatus = 'Rented'"""
+        """Get detailed list of units currently on rent using open rental work orders.
+        Uses WO Type='R' with ClosedDate IS NULL to match Softbase 'Open Rental Orders'."""
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Get units currently on rent from Equipment table (RentalStatus = 'Rented')
-            # Also LEFT JOIN RentalHistory for current month to get days/amount info
+            # Get units with open rental work orders, plus RentalHistory for current month info
             query = f"""
-            SELECT 
+            SELECT DISTINCT
                 e.SerialNo,
                 COALESCE(rh.DaysRented, 0) as DaysRented,
                 COALESCE(rh.RentAmount, 0) as RentAmount,
@@ -5888,16 +5898,29 @@ def register_department_routes(reports_bp):
                 e.DayRent,
                 e.WeekRent,
                 e.MonthRent,
-                e.CustomerNo,
-                c.Name as CustomerName
+                -- Show the rental customer (Ship To preferred, then Bill To)
+                COALESCE(ship_cust.Number, bill_cust.Number, e.CustomerNo) as CustomerNo,
+                COALESCE(ship_cust.Name, bill_cust.Name, c.Name) as CustomerName
             FROM {schema}.Equipment e
+            INNER JOIN {schema}.WORental wr ON (
+                (e.UnitNo IS NOT NULL AND e.UnitNo != '' AND e.UnitNo = wr.UnitNo)
+                OR (e.SerialNo IS NOT NULL AND e.SerialNo != '' AND e.SerialNo = wr.SerialNo)
+            )
+            INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+            LEFT JOIN {schema}.Customer ship_cust ON wo.ShipTo = ship_cust.Number
+            LEFT JOIN {schema}.Customer bill_cust ON wo.BillTo = bill_cust.Number
             LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
             LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
                 AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
                 AND rh.DeletionTime IS NULL
-            WHERE e.RentalStatus = 'Rented'
-            ORDER BY c.Name, e.Make, e.Model, e.UnitNo
+            WHERE wo.Type = 'R'
+                AND wo.ClosedDate IS NULL
+                AND wo.DeletionTime IS NULL
+                AND wo.WONo NOT LIKE '9%'
+                AND e.InventoryDept = 60
+                AND (e.Customer = 0 OR e.Customer IS NULL)
+            ORDER BY COALESCE(ship_cust.Name, bill_cust.Name, c.Name), e.Make, e.Model, e.UnitNo
             """
             
             results = db.execute_query(query)
@@ -6035,10 +6058,10 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/fleet-status-summary', methods=['GET'])
     @jwt_required()
     def get_fleet_status_summary():
-        """Get total fleet count and breakdown by RentalStatus for KPI cards.
-        Uses Equipment table RentalStatus field for accurate current state.
-        Total fleet = all rental equipment (WebRentalFlag=1 or InventoryDept=60),
-        excluding sold/disposed/transferred units."""
+        """Get total fleet count and breakdown for KPI cards.
+        Uses InventoryDept=60 for fleet identification and open rental work orders
+        (WO Type='R', ClosedDate IS NULL) for on-rent detection - matching the
+        Availability tab's proven logic."""
         try:
             db = get_db()
             schema = get_tenant_schema()
@@ -6046,14 +6069,29 @@ def register_department_routes(reports_bp):
             query = f"""
             SELECT 
                 COUNT(*) as total_fleet,
-                COUNT(CASE WHEN RentalStatus = 'Rented' THEN 1 END) as on_rent,
-                COUNT(CASE WHEN RentalStatus = 'Ready To Rent' THEN 1 END) as available,
-                COUNT(CASE WHEN RentalStatus = 'Hold' THEN 1 END) as on_hold,
-                COUNT(CASE WHEN RentalStatus NOT IN ('Rented', 'Ready To Rent', 'Hold') 
-                           OR RentalStatus IS NULL THEN 1 END) as other
-            FROM {schema}.Equipment
-            WHERE (WebRentalFlag = 1 OR InventoryDept = 60)
-                AND (RentalStatus IS NULL OR RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred'))
+                COUNT(CASE WHEN open_rental.WONo IS NOT NULL THEN 1 END) as on_rent,
+                COUNT(CASE WHEN open_rental.WONo IS NULL AND e.RentalStatus = 'Ready To Rent' THEN 1 END) as available,
+                COUNT(CASE WHEN open_rental.WONo IS NULL AND e.RentalStatus = 'Hold' THEN 1 END) as on_hold
+            FROM {schema}.Equipment e
+            LEFT JOIN (
+                SELECT DISTINCT
+                    COALESCE(wr.UnitNo, '') as UnitNo,
+                    COALESCE(wr.SerialNo, '') as SerialNo,
+                    wo.WONo
+                FROM {schema}.WORental wr
+                INNER JOIN {schema}.WO wo ON wr.WONo = wo.WONo
+                WHERE wo.Type = 'R'
+                    AND wo.ClosedDate IS NULL
+                    AND wo.DeletionTime IS NULL
+                    AND wo.WONo NOT LIKE '9%'
+                    AND (wr.UnitNo IS NOT NULL AND wr.UnitNo != '' 
+                         OR wr.SerialNo IS NOT NULL AND wr.SerialNo != '')
+            ) open_rental ON (
+                (e.UnitNo IS NOT NULL AND e.UnitNo != '' AND e.UnitNo = open_rental.UnitNo)
+                OR (e.SerialNo IS NOT NULL AND e.SerialNo != '' AND e.SerialNo = open_rental.SerialNo)
+            )
+            WHERE e.InventoryDept = 60
+                AND (e.Customer = 0 OR e.Customer IS NULL)
             """
             
             result = db.execute_query(query)
@@ -6063,7 +6101,7 @@ def register_department_routes(reports_bp):
             on_rent = int(row.get('on_rent') or 0)
             available = int(row.get('available') or 0)
             on_hold = int(row.get('on_hold') or 0)
-            other = int(row.get('other') or 0)
+            other = max(0, total_fleet - on_rent - available - on_hold)
             
             utilization = round((on_rent / total_fleet) * 100, 1) if total_fleet > 0 else 0
             
