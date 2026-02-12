@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FileSpreadsheet, Download, Calendar, RefreshCw, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { apiUrl } from '../lib/api';
@@ -26,11 +26,16 @@ const PLReport = ({ user, organization }) => {
     setEndDate(lastDayStr);
   }, []);
 
-  // Auto-fetch when dates are set
+  // Auto-fetch when dates are set (debounced to avoid race conditions when both dates change)
+  const fetchTimerRef = useRef(null);
   useEffect(() => {
     if (startDate && endDate) {
-      fetchData();
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+      fetchTimerRef.current = setTimeout(() => {
+        fetchData(startDate, endDate);
+      }, 300);
     }
+    return () => { if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current); };
   }, [startDate, endDate]);
 
   const setMTD = () => {
@@ -54,11 +59,19 @@ const PLReport = ({ user, organization }) => {
     setViewMode('ytd');
   };
 
-  const fetchData = async () => {
-    if (!startDate || !endDate) {
+  const fetchControllerRef = useRef(null);
+  const fetchData = async (sd, ed) => {
+    const start = sd || startDate;
+    const end = ed || endDate;
+    if (!start || !end) {
       setError('Please select a date range');
       return;
     }
+
+    // Cancel any in-flight request
+    if (fetchControllerRef.current) fetchControllerRef.current.abort();
+    const controller = new AbortController();
+    fetchControllerRef.current = controller;
 
     setLoading(true);
     setError(null);
@@ -70,17 +83,19 @@ const PLReport = ({ user, organization }) => {
         apiUrl('/api/reports/pl'),
         {
           params: {
-            start_date: startDate,
-            end_date: endDate,
+            start_date: start,
+            end_date: end,
             detail: false, // Set to true if you want account-level detail
             refresh: true
           },
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal
         }
       );
 
       setData(response.data);
     } catch (err) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return;
       console.error('Error fetching P&L data:', err);
       setError(err.response?.data?.error || 'Failed to fetch P&L data');
     } finally {
@@ -173,7 +188,7 @@ const PLReport = ({ user, organization }) => {
 
           {/* Refresh Button */}
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             disabled={loading}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 text-sm font-medium"
           >
