@@ -11,6 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { 
   BarChart, 
   Bar, 
@@ -44,7 +45,8 @@ import {
   Activity,
   CheckCircle,
   ArrowRight,
-  Gauge
+  Gauge,
+  HelpCircle
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
@@ -566,6 +568,16 @@ const RentalReport = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <PauseCircle className="h-4 w-4 text-orange-500" />
                   <span className="text-xs font-medium text-muted-foreground">On Hold</span>
+                  <TooltipProvider>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p className="text-xs">Units with RentalStatus set to "Hold" in Softbase. These are rental fleet units temporarily unavailable for rent due to maintenance, damage, pending inspection, or other reasons.</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
                 </div>
                 <div className={`text-2xl font-bold ${unitsOnHold > 0 ? 'text-orange-600' : ''}`}>
                   {unitsOnHold}
