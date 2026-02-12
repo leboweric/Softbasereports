@@ -371,17 +371,17 @@ const PLReport = ({ user, organization }) => {
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Operating Profit</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(data.consolidated.operating_profit)}
+                <p className="text-sm text-gray-600">Net Income</p>
+                <p className={`text-2xl font-bold ${data.consolidated.net_income >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {formatCurrency(data.consolidated.net_income)}
                 </p>
                 <p className="text-sm text-gray-600">
-                  {formatPercent(data.consolidated.operating_margin)} margin
+                  {formatPercent(data.consolidated.net_margin)} margin
                 </p>
               </div>
-              {data.consolidated.net_income !== undefined && (
+              {false && (
                 <div>
-                  <p className="text-sm text-gray-600">Net Income</p>
+                  <p className="text-sm text-gray-600">Net Income (duplicate)</p>
                   <p className={`text-2xl font-bold ${data.consolidated.net_income >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                     {formatCurrency(data.consolidated.net_income)}
                   </p>
@@ -515,61 +515,20 @@ const PLReport = ({ user, organization }) => {
             </div>
           </div>
 
-          {/* Operating Profit */}
-          <div className="px-6 py-4 bg-blue-50 border-t border-blue-100">
+          {/* Net Income - Bottom Line (matches Softbase exactly) */}
+          <div className="px-6 py-4 bg-emerald-50 border-t-2 border-emerald-200">
             <div className="flex justify-between items-center">
-              <span className="text-lg font-semibold text-gray-900">Operating Profit</span>
+              <span className="text-lg font-bold text-gray-900">Net Income</span>
               <div className="text-right">
-                <span className="text-2xl font-bold text-blue-600">
-                  {formatCurrency(data.consolidated.operating_profit)}
+                <span className={`text-2xl font-bold ${data.consolidated.net_income >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {formatCurrency(data.consolidated.net_income)}
                 </span>
                 <p className="text-sm text-gray-600">
-                  {formatPercent(data.consolidated.operating_margin)} margin
+                  {formatPercent(data.consolidated.net_margin)} margin
                 </p>
               </div>
             </div>
           </div>
-
-          {/* Other Income & Expense */}
-          {(data.consolidated.other_income !== undefined) && (
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">Other Income</span>
-                <span className="text-sm font-medium text-green-600">
-                  {formatCurrency(data.consolidated.other_income)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">Other Expense</span>
-                <span className="text-sm font-medium text-red-600">
-                  ({formatCurrency(data.consolidated.other_expense)})
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-2 border-t border-gray-300">
-                <span className="text-sm font-semibold text-gray-800">Net Other Income & Expense</span>
-                <span className={`text-sm font-semibold ${data.consolidated.other_income_expense >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(data.consolidated.other_income_expense)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Net Income - Bottom Line */}
-          {(data.consolidated.net_income !== undefined) && (
-            <div className="px-6 py-4 bg-emerald-50 border-t-2 border-emerald-200">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-gray-900">Net Income</span>
-                <div className="text-right">
-                  <span className={`text-2xl font-bold ${data.consolidated.net_income >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                    {formatCurrency(data.consolidated.net_income)}
-                  </span>
-                  <p className="text-sm text-gray-600">
-                    {formatPercent(data.consolidated.net_margin)} margin
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
