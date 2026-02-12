@@ -139,15 +139,14 @@ def get_current_user():
     
     # Get permissions
     permissions = []
-    valid_roles = current_user._valid_roles()
-    is_super_admin = any(r.name == 'Super Admin' for r in valid_roles)
+    is_super_admin = any(r.name == 'Super Admin' for r in current_user.roles)
     if is_super_admin:
         permissions = ['*', 'manage_users', 'view_dashboard', 'view_service', 
                      'view_parts', 'view_rental', 'view_accounting', 
                      'view_minitrac', 'use_ai_query', 'use_report_creator',
                      'view_database_explorer', 'view_users']
     else:
-        permissions = [p.name for role in valid_roles for p in role.permissions]
+        permissions = [p.name for role in current_user.roles for p in role.permissions]
     
     # Get dynamic navigation and permissions
     from src.services.permission_service import PermissionService
