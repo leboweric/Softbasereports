@@ -124,6 +124,7 @@ const RentalReport = ({ user }) => {
   const [unitsOnRent, setUnitsOnRent] = useState(0)
   const [unitsOnHold, setUnitsOnHold] = useState(0)
   const [benchmarkData, setBenchmarkData] = useState(null)
+  const [activeTab, setActiveTab] = useState('overview')
   const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
   const [rawMonthlyRevenueData, setRawMonthlyRevenueData] = useState(null)
   
@@ -544,7 +545,7 @@ const RentalReport = ({ user }) => {
         <p className="text-muted-foreground">Fleet management and rental analytics</p>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="availability">Availability</TabsTrigger>
@@ -712,10 +713,7 @@ const RentalReport = ({ user }) => {
                   {/* Units on Hold */}
                   {unitsOnHold > 0 && (
                     <button 
-                      onClick={() => {
-                        const tabTrigger = document.querySelector('[data-value="availability"]') || document.querySelector('button[value="availability"]')
-                        if (tabTrigger) tabTrigger.click()
-                      }}
+                      onClick={() => setActiveTab('availability')}
                       className="w-full flex items-center gap-3 p-2 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors text-left"
                     >
                       <PauseCircle className="h-5 w-5 text-orange-600 flex-shrink-0" />
