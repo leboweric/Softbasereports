@@ -730,8 +730,8 @@ def _fetch_currie_metrics_data(start_date, end_date):
     
     # 8. Revenue/GP per Technician (combine service revenue with tech count)
     tech_count = metrics.get('technician_count', {}).get('active_technicians', 0)
-    service_revenue = totals.get('total_aftermarket', {}).get('sales', 0) - totals.get('total_aftermarket', {}).get('sales', 0) + (data.get('service', {}).get('customer_labor', {}).get('sales', 0) + data.get('service', {}).get('internal_labor', {}).get('sales', 0) + data.get('service', {}).get('warranty_labor', {}).get('sales', 0) + data.get('service', {}).get('sublet', {}).get('sales', 0) + data.get('service', {}).get('other', {}).get('sales', 0))
-    service_gp_val = (data.get('service', {}).get('customer_labor', {}).get('gross_profit', 0) + data.get('service', {}).get('internal_labor', {}).get('gross_profit', 0) + data.get('service', {}).get('warranty_labor', {}).get('gross_profit', 0) + data.get('service', {}).get('sublet', {}).get('gross_profit', 0) + data.get('service', {}).get('other', {}).get('gross_profit', 0))
+    service_revenue = totals.get('total_service', {}).get('sales', 0)
+    service_gp_val = totals.get('total_service', {}).get('gross_profit', 0)
     num_months_calc = max(1, int(num_months))
     metrics['service_productivity'] = {
         'revenue_per_tech_monthly': round(service_revenue / num_months_calc / tech_count, 2) if tech_count > 0 else 0,
