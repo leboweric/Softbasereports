@@ -87,7 +87,7 @@ const ProfitLossWidget = () => {
       setLoading(true)
       const token = localStorage.getItem('token')
       
-      const response = await fetch(apiUrl('/api/pl/widget'), {
+      const response = await fetch(apiUrl('/api/pl/widget?refresh=true'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

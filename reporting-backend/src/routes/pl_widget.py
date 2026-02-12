@@ -126,18 +126,21 @@ def get_monthly_pl(year, month, schema):
     Get monthly profit/loss from GL.MTD
     Uses dynamic LIKE queries to capture ALL accounts by prefix pattern.
     This ensures consistency with the P&L Report's consolidated totals.
-    Operating Profit = Revenue (4%) - COGS (5%) - Expenses (6%)
+    Net Income = Revenue (4xx) - COGS (5xx) - Expenses (6xx) + Other Income/Expense (7xx)
+    Note: 7xx accounts are stored as credits (negative) for income, positive for expense.
+    Negating them gives: positive = net income, negative = net expense.
     """
     try:
-        # Dynamic query using LIKE patterns - captures ALL accounts
+        # Dynamic query using LIKE patterns - captures ALL accounts including 7xx
         query = f"""
         SELECT 
             -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
-            SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END) as expenses
+            SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END) as expenses,
+            SUM(CASE WHEN AccountNo LIKE '7%' THEN MTD ELSE 0 END) as other_income_expense
         FROM {schema}.GL
         WHERE Year = %s AND Month = %s
-          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%')
+          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%')
         """
         
         result = get_sql_service().execute_query(query, [year, month])
@@ -146,18 +149,23 @@ def get_monthly_pl(year, month, schema):
             revenue = float(result[0].get('revenue') or 0)
             cogs = float(result[0].get('cogs') or 0)
             expenses = float(result[0].get('expenses') or 0)
+            other_ie = float(result[0].get('other_income_expense') or 0)
         else:
             revenue = 0.0
             cogs = 0.0
             expenses = 0.0
+            other_ie = 0.0
         
-        # Calculate Operating Profit
+        # Calculate Net Income (consistent with P&L Report)
         # Revenue is positive (negated in query from credit convention)
         # COGS and Expenses are positive (debit convention)
+        # Other I&E: stored as positive for expenses, negative for income
+        #   so we subtract it (subtracting a negative = adding income)
         gross_profit = revenue - cogs
         operating_profit = gross_profit - expenses
+        net_income = operating_profit - other_ie
         
-        return operating_profit
+        return net_income
         
     except Exception as e:
         logger.error(f"Error getting monthly P&L: {str(e)}")
