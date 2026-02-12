@@ -25,7 +25,7 @@ import {
   ComposedChart,
   Legend
 } from 'recharts'
-import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download } from 'lucide-react'
+import { TrendingUp, TrendingDown, Package, AlertTriangle, Clock, ShoppingCart, Info, Zap, Turtle, Download, Target } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import {
   Tooltip,
@@ -126,7 +126,7 @@ const PartsReport = ({ user, onNavigate }) => {
   const [openWorkOrdersData, setOpenWorkOrdersData] = useState(null)
   const [openWorkOrdersDetails, setOpenWorkOrdersDetails] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
-  const [paceData, setPaceData] = useState(null)
+  const [benchmarkData, setBenchmarkData] = useState(null)
   const [fillRateLoading, setFillRateLoading] = useState(true)
   const [reorderAlertLoading, setReorderAlertLoading] = useState(true)
   const [velocityLoading, setVelocityLoading] = useState(true)
@@ -187,7 +187,7 @@ const PartsReport = ({ user, onNavigate }) => {
     fetchVelocityData()
     fetchForecastData()
     fetchTop10Data()
-    fetchPaceData()
+    fetchBenchmarkData()
     fetchOpenWorkOrdersData()
   }, [])
 
@@ -348,10 +348,10 @@ const PartsReport = ({ user, onNavigate }) => {
     }
   }
 
-  const fetchPaceData = async () => {
+  const fetchBenchmarkData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/departments/parts/pace'), {
+      const response = await fetch(apiUrl('/api/reports/departments/parts/currie-benchmarks'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -359,10 +359,10 @@ const PartsReport = ({ user, onNavigate }) => {
       
       if (response.ok) {
         const data = await response.json()
-        setPaceData(data)
+        setBenchmarkData(data)
       }
     } catch (error) {
-      console.error('Error fetching parts pace data:', error)
+      console.error('Error fetching parts currie benchmarks:', error)
     }
   }
 
@@ -447,56 +447,12 @@ const PartsReport = ({ user, onNavigate }) => {
   }
 
 
-  // Custom bar shape with pace indicator
+  // Custom bar shape
   const CustomBar = (props) => {
-    const { fill, x, y, width, height, payload } = props
-    const currentMonth = new Date().getMonth() + 1
-    const currentYear = new Date().getFullYear()
-    
-    // Check if this is the current month
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const isCurrentMonth = payload && 
-      payload.month === monthNames[currentMonth - 1] && 
-      paceData
-    
+    const { fill, x, y, width, height } = props
     return (
       <g>
         <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} />
-        {isCurrentMonth && paceData && (
-          <g>
-            {/* Pace indicator */}
-            <rect 
-              x={x} 
-              y={y - 20} 
-              width={width} 
-              height={18} 
-              fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
-              rx={4}
-            />
-            <text 
-              x={x + width / 2} 
-              y={y - 6} 
-              textAnchor="middle" 
-              fill="white" 
-              fontSize="11" 
-              fontWeight="bold"
-            >
-              {paceData.pace_percentage > 0 ? '+' : ''}{paceData.pace_percentage}%
-            </text>
-            {/* Arrow icon */}
-            {paceData.pace_percentage !== 0 && (
-              <text 
-                x={x + width / 2} 
-                y={y - 25} 
-                textAnchor="middle" 
-                fill={paceData.pace_percentage > 0 ? '#10b981' : '#ef4444'}
-                fontSize="16"
-              >
-                {paceData.pace_percentage > 0 ? '↑' : '↓'}
-              </text>
-            )}
-          </g>
-        )}
       </g>
     )
   }
@@ -650,103 +606,80 @@ const PartsReport = ({ user, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'overview') && (
           <TabsContent value="overview" className="space-y-6">
-          {/* Parts Pace Analysis Card */}
-          {paceData?.adaptive_comparisons && (
+          {/* Currie Benchmark Card */}
+          {benchmarkData && (
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Parts Sales Pace Analysis
-                  {paceData.adaptive_comparisons.performance_indicators?.is_best_month_ever && (
-                    <Badge variant="success" className="ml-2">Best Month Ever! 🏆</Badge>
+                  <Target className="h-5 w-5" />
+                  Currie Model Benchmarks
+                  {benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target && (
+                    <Badge className="ml-2 bg-green-100 text-green-800">Meeting Target</Badge>
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Multiple comparison perspectives ({paceData.adaptive_comparisons.available_months_count} months of data available)
+                  Parts department gross margin vs Currie Financial Model targets
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
-                  {/* Previous Month Comparison */}
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm text-muted-foreground">vs Previous Month</h4>
-                    <div className="flex items-center gap-2">
-                      <div className={`text-2xl font-bold ${paceData.pace_percentage > 0 ? 'text-green-600' : paceData.pace_percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                        {paceData.pace_percentage > 0 ? '+' : ''}{paceData.pace_percentage}%
+                <div className="grid gap-6 md:grid-cols-3">
+                  {/* Current Month GP% vs Target */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground">Current Month GP%</h4>
+                    <div className="flex items-baseline gap-2">
+                      <div className={`text-3xl font-bold ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
+                        {benchmarkData.current_month?.gp_margin || 0}%
                       </div>
-                      {paceData.pace_percentage > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                      ) : paceData.pace_percentage < 0 ? (
-                        <TrendingDown className="h-4 w-4 text-red-600" />
-                      ) : null}
+                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {paceData.comparison_base === 'full_previous_month' ? 'vs Full Previous Month' : 'vs Same Day Previous Month'}
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className={`h-2.5 rounded-full ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min((benchmarkData.current_month?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
+                      />
+                    </div>
+                    <p className={`text-sm font-medium ${benchmarkData.current_month?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {benchmarkData.current_month?.vs_target >= 0 ? '+' : ''}{benchmarkData.current_month?.vs_target || 0}pp vs target
                     </p>
                   </div>
 
-                  {/* Available Average Comparison */}
-                  {paceData.adaptive_comparisons.vs_available_average?.percentage !== null && (
-                    <div className="space-y-2">
-                      <h4 className="font-medium text-sm text-muted-foreground">vs Average Performance</h4>
-                      <div className="flex items-center gap-2">
-                        <div className={`text-2xl font-bold ${paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_available_average.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                          {paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_available_average.percentage}%
-                        </div>
-                        {paceData.adaptive_comparisons.vs_available_average.percentage > 0 ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
-                        ) : paceData.adaptive_comparisons.vs_available_average.percentage < 0 ? (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
-                        ) : null}
+                  {/* Trailing Average GP% vs Target */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground">Trailing {benchmarkData.trailing_average?.months || 12}mo Avg GP%</h4>
+                    <div className="flex items-baseline gap-2">
+                      <div className={`text-3xl font-bold ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
+                        {benchmarkData.trailing_average?.gp_margin || 0}%
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        Avg: {formatCurrency(paceData.adaptive_comparisons.vs_available_average.average_monthly_sales)}
-                      </p>
+                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
                     </div>
-                  )}
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className={`h-2.5 rounded-full ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min((benchmarkData.trailing_average?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
+                      />
+                    </div>
+                    <p className={`text-sm font-medium ${benchmarkData.trailing_average?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {benchmarkData.trailing_average?.vs_target >= 0 ? '+' : ''}{benchmarkData.trailing_average?.vs_target || 0}pp vs target
+                    </p>
+                  </div>
 
-                  {/* Same Month Last Year or Performance Indicators */}
-                  <div className="space-y-2">
-                    {paceData.adaptive_comparisons.vs_same_month_last_year?.percentage !== null ? (
-                      <>
-                        <h4 className="font-medium text-sm text-muted-foreground">vs Same Month Last Year</h4>
-                        <div className="flex items-center gap-2">
-                          <div className={`text-2xl font-bold ${paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                            {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_same_month_last_year.percentage}%
-                          </div>
-                          {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? (
-                            <TrendingUp className="h-4 w-4 text-green-600" />
-                          ) : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? (
-                            <TrendingDown className="h-4 w-4 text-red-600" />
-                          ) : null}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Last Year: {formatCurrency(paceData.adaptive_comparisons.vs_same_month_last_year.last_year_sales)}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <h4 className="font-medium text-sm text-muted-foreground">Performance Range</h4>
-                        <div className="space-y-1">
-                          {paceData.adaptive_comparisons.performance_indicators?.vs_best_percentage !== null && (
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">vs Best:</span>
-                              <span className={`ml-2 font-medium ${paceData.adaptive_comparisons.performance_indicators.vs_best_percentage > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {paceData.adaptive_comparisons.performance_indicators.vs_best_percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.performance_indicators.vs_best_percentage}%
-                              </span>
-                            </div>
-                          )}
-                          {paceData.adaptive_comparisons.performance_indicators?.vs_worst_percentage !== null && (
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">vs Worst:</span>
-                              <span className="ml-2 font-medium text-green-600">
-                                +{paceData.adaptive_comparisons.performance_indicators.vs_worst_percentage}%
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
+                  {/* Currie Target Summary */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm text-muted-foreground">Currie Model Targets</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">GP Margin Target</span>
+                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_gp_target}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Operating Profit Target</span>
+                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_op_target}%</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <span className="text-sm text-muted-foreground">Current Month GP$</span>
+                        <span className="text-sm font-medium">{formatCurrency(benchmarkData.current_month?.gross_profit || 0)}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>

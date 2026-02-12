@@ -129,149 +129,121 @@ def _format_monthly_data_from_mart(data: list, fiscal_months: list) -> list:
 def register_department_routes(reports_bp):
     """Register department report routes with the reports blueprint"""
     
-    @reports_bp.route('/departments/service/pace', methods=['GET'])
+    @reports_bp.route('/departments/service/currie-benchmarks', methods=['GET'])
     @require_permission('view_service')
-    def get_service_pace():
-        """Get service department revenue pace comparing current month to previous month"""
+    def get_service_currie_benchmarks():
+        """Get service department GP margin vs Currie model benchmarks"""
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Get current date info
+            # Currie model benchmarks for Service
+            CURRIE_GP_TARGET = 65.0
+            CURRIE_OP_TARGET = 30.0
+            
+            # Get tenant-specific GL accounts (Currie-aligned)
+            tenant_gl_accounts = get_gl_accounts(schema)
+            service_config = tenant_gl_accounts.get('service', {})
+            rev_accounts = service_config.get('currie_revenue', service_config.get('revenue', []))
+            cogs_accounts = service_config.get('currie_cogs', service_config.get('cogs', []))
+            
+            rev_list = "', '".join(rev_accounts)
+            cogs_list = "', '".join(cogs_accounts)
+            
+            # Query monthly revenue and COGS from GLDetail for last 13 months
+            query = f"""
+            SELECT 
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                ABS(SUM(CASE WHEN AccountNo IN ('{rev_list}') THEN Amount ELSE 0 END)) as revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END)) as cogs
+            FROM {schema}.GLDetail
+            WHERE AccountNo IN ('{rev_list}', '{cogs_list}')
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            """
+            
+            result = db.execute_query(query)
+            
             now = datetime.now()
             current_year = now.year
             current_month = now.month
-            current_day = now.day
             
-            # Calculate previous month
-            if current_month == 1:
-                prev_month = 12
-                prev_year = current_year - 1
-            else:
-                prev_month = current_month - 1
-                prev_year = current_year
+            monthly_data = []
+            trailing_revenue = 0
+            trailing_cogs = 0
+            trailing_months = 0
+            current_month_data = None
             
-            # Get service revenue through same day for current and previous month
-            # Using LaborTaxable + LaborNonTax to match the main labor revenue query
-            current_query = f"""
-            SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {current_year}
-                AND MONTH(InvoiceDate) = {current_month}
-                AND DAY(InvoiceDate) <= {current_day}
-                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
-            """
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             
-            prev_query = f"""
-            SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {prev_year}
-                AND MONTH(InvoiceDate) = {prev_month}
-                AND DAY(InvoiceDate) <= {current_day}
-                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
-            """
+            for row in result:
+                revenue = float(row['revenue'] or 0)
+                cogs = float(row['cogs'] or 0)
+                gp = revenue - cogs
+                gp_margin = round((gp / revenue) * 100, 1) if revenue > 0 else 0
+                
+                entry = {
+                    'month': month_names[int(row['month']) - 1],
+                    'year': int(row['year']),
+                    'revenue': round(revenue, 2),
+                    'cogs': round(cogs, 2),
+                    'gross_profit': round(gp, 2),
+                    'gp_margin': gp_margin,
+                    'currie_target': CURRIE_GP_TARGET,
+                    'vs_target': round(gp_margin - CURRIE_GP_TARGET, 1)
+                }
+                
+                if int(row['year']) == current_year and int(row['month']) == current_month:
+                    current_month_data = entry
+                else:
+                    trailing_revenue += revenue
+                    trailing_cogs += cogs
+                    trailing_months += 1
+                
+                monthly_data.append(entry)
             
-            # Get full previous month total for comparison
-            full_month_query = f"""
-            SELECT SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {prev_year}
-                AND MONTH(InvoiceDate) = {prev_month}
-                AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
-            """
+            # Calculate trailing average margin
+            trailing_gp = trailing_revenue - trailing_cogs
+            trailing_margin = round((trailing_gp / trailing_revenue) * 100, 1) if trailing_revenue > 0 else 0
             
-            # Get adaptive comparison data
-            adaptive_query = f"""
-            WITH MonthlyTotals AS (
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    SUM(COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) as total_revenue
-                FROM {schema}.InvoiceReg
-                WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                    AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
-                    AND (COALESCE(LaborTaxable, 0) + COALESCE(LaborNonTax, 0)) > 0
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            )
-            SELECT 
-                AVG(total_revenue) as avg_monthly_revenue,
-                MAX(total_revenue) as best_monthly_revenue,
-                MIN(total_revenue) as worst_monthly_revenue,
-                COUNT(*) as months_available,
-                MAX(CASE WHEN month = {current_month} THEN total_revenue END) as same_month_last_year
-            FROM MonthlyTotals
-            """
-            
-            current_result = db.execute_query(current_query)
-            prev_result = db.execute_query(prev_query)
-            full_month_result = db.execute_query(full_month_query)
-            adaptive_result = db.execute_query(adaptive_query)
-            
-            current_revenue = float(current_result[0]['total_revenue'] or 0) if current_result else 0
-            previous_revenue = float(prev_result[0]['total_revenue'] or 0) if prev_result else 0
-            previous_full_month = float(full_month_result[0]['total_revenue'] or 0) if full_month_result else 0
-            
-            # Extract adaptive data
-            adaptive_data = adaptive_result[0] if adaptive_result else {}
-            avg_monthly_revenue = float(adaptive_data.get('avg_monthly_revenue') or 0)
-            best_monthly_revenue = float(adaptive_data.get('best_monthly_revenue') or 0)
-            worst_monthly_revenue = float(adaptive_data.get('worst_monthly_revenue') or 0)
-            months_available = int(adaptive_data.get('months_available') or 0)
-            same_month_last_year = float(adaptive_data.get('same_month_last_year') or 0)
-            
-            # Calculate multiple pace percentages for adaptive comparison
-            # 1. Previous month comparison (existing logic)
-            if current_revenue > previous_full_month and previous_full_month > 0:
-                pace_percentage = round(((current_revenue / previous_full_month) - 1) * 100, 1)
-                comparison_base = "full_previous_month"
-            else:
-                pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
-                comparison_base = "same_day_previous_month"
-            
-            # Calculate projected month total for fair comparison
-            import calendar
-            days_in_month = calendar.monthrange(current_year, current_month)[1]
-            projected_revenue = (current_revenue / current_day) * days_in_month if current_day > 0 else 0
-            
-            # 2. Additional adaptive comparisons (use projected total for fair comparison)
-            pace_pct_avg = round(((projected_revenue / avg_monthly_revenue) - 1) * 100, 1) if avg_monthly_revenue > 0 else None
-            pace_pct_same_month_ly = round(((projected_revenue / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
-            is_best_month = projected_revenue > best_monthly_revenue
+            # If no current month data yet, use zeros
+            if not current_month_data:
+                current_month_data = {
+                    'month': month_names[current_month - 1],
+                    'year': current_year,
+                    'revenue': 0, 'cogs': 0, 'gross_profit': 0,
+                    'gp_margin': 0, 'currie_target': CURRIE_GP_TARGET, 'vs_target': -CURRIE_GP_TARGET
+                }
             
             return jsonify({
-                'pace_percentage': pace_percentage,
-                'current_revenue': current_revenue,
-                'previous_revenue': previous_revenue,
-                'previous_full_month': previous_full_month,
-                'current_month': current_month,
-                'current_day': current_day,
-                'comparison_base': comparison_base,
-                'exceeded_previous_month': current_revenue > previous_full_month,
-                'adaptive_comparisons': {
-                    'available_months_count': months_available,
-                    'vs_available_average': {
-                        'percentage': pace_pct_avg,
-                        'average_monthly_revenue': avg_monthly_revenue,
-                        'ahead_behind': 'ahead' if pace_pct_avg and pace_pct_avg > 0 else 'behind' if pace_pct_avg and pace_pct_avg < 0 else 'on pace' if pace_pct_avg is not None else None
-                    },
-                    'vs_same_month_last_year': {
-                        'percentage': pace_pct_same_month_ly,
-                        'last_year_revenue': same_month_last_year if same_month_last_year > 0 else None,
-                        'ahead_behind': 'ahead' if pace_pct_same_month_ly and pace_pct_same_month_ly > 0 else 'behind' if pace_pct_same_month_ly and pace_pct_same_month_ly < 0 else 'on pace' if pace_pct_same_month_ly is not None else None
-                    },
-                    'performance_indicators': {
-                        'is_best_month_ever': is_best_month,
-                        'best_month_revenue': best_monthly_revenue,
-                        'worst_month_revenue': worst_monthly_revenue,
-                        'vs_best_percentage': round(((current_revenue / best_monthly_revenue) - 1) * 100, 1) if best_monthly_revenue > 0 else None,
-                        'vs_worst_percentage': round(((current_revenue / worst_monthly_revenue) - 1) * 100, 1) if worst_monthly_revenue > 0 else None
-                    }
-                }
+                'department': 'Service',
+                'currie_gp_target': CURRIE_GP_TARGET,
+                'currie_op_target': CURRIE_OP_TARGET,
+                'current_month': current_month_data,
+                'trailing_average': {
+                    'months': trailing_months,
+                    'revenue': round(trailing_revenue, 2),
+                    'cogs': round(trailing_cogs, 2),
+                    'gross_profit': round(trailing_gp, 2),
+                    'gp_margin': trailing_margin,
+                    'vs_target': round(trailing_margin - CURRIE_GP_TARGET, 1)
+                },
+                'monthly_data': monthly_data
             })
             
         except Exception as e:
-            logger.error(f"Error fetching service pace: {str(e)}")
+            logger.error(f"Error fetching service currie benchmarks: {str(e)}")
             return jsonify({'error': str(e)}), 500
+
+    # Keep legacy pace endpoint as alias for backward compatibility
+    @reports_bp.route('/departments/service/pace', methods=['GET'])
+    @require_permission('view_service')
+    def get_service_pace():
+        """Legacy pace endpoint - redirects to currie benchmarks"""
+        return get_service_currie_benchmarks()
 
     @reports_bp.route('/departments/parts/open-work-orders', methods=['GET'])
     @require_permission('view_parts_work_orders', 'view_parts')
@@ -898,149 +870,120 @@ def register_department_routes(reports_bp):
             }), 500
 
 
-    @reports_bp.route('/departments/parts/pace', methods=['GET'])
+    @reports_bp.route('/departments/parts/currie-benchmarks', methods=['GET'])
     @jwt_required()
-    def get_parts_pace():
-        """Get parts department sales pace comparing current month to previous month"""
+    def get_parts_currie_benchmarks():
+        """Get parts department GP margin vs Currie model benchmarks"""
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Get current date info
+            # Currie model benchmarks for Parts
+            CURRIE_GP_TARGET = 40.0
+            CURRIE_OP_TARGET = 25.0
+            
+            # Get tenant-specific GL accounts
+            tenant_gl_accounts = get_gl_accounts(schema)
+            parts_config = tenant_gl_accounts.get('parts', {})
+            rev_accounts = parts_config.get('revenue', [])
+            cogs_accounts = parts_config.get('cogs', [])
+            
+            rev_list = "', '".join(rev_accounts)
+            cogs_list = "', '".join(cogs_accounts)
+            
+            # Query monthly revenue and COGS from GLDetail for last 13 months
+            query = f"""
+            SELECT 
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                ABS(SUM(CASE WHEN AccountNo IN ('{rev_list}') THEN Amount ELSE 0 END)) as revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END)) as cogs
+            FROM {schema}.GLDetail
+            WHERE AccountNo IN ('{rev_list}', '{cogs_list}')
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            """
+            
+            result = db.execute_query(query)
+            
             now = datetime.now()
             current_year = now.year
             current_month = now.month
-            current_day = now.day
             
-            # Calculate previous month
-            if current_month == 1:
-                prev_month = 12
-                prev_year = current_year - 1
-            else:
-                prev_month = current_month - 1
-                prev_year = current_year
+            monthly_data = []
+            trailing_revenue = 0
+            trailing_cogs = 0
+            trailing_months = 0
+            current_month_data = None
             
-            # Get parts sales through same day for current and previous month
-            # Using PartsTaxable + PartsNonTax to match the main parts revenue query
-            current_query = f"""
-            SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {current_year}
-                AND MONTH(InvoiceDate) = {current_month}
-                AND DAY(InvoiceDate) <= {current_day}
-                AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
-            """
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             
-            prev_query = f"""
-            SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {prev_year}
-                AND MONTH(InvoiceDate) = {prev_month}
-                AND DAY(InvoiceDate) <= {current_day}
-                AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
-            """
+            for row in result:
+                revenue = float(row['revenue'] or 0)
+                cogs = float(row['cogs'] or 0)
+                gp = revenue - cogs
+                gp_margin = round((gp / revenue) * 100, 1) if revenue > 0 else 0
+                
+                entry = {
+                    'month': month_names[int(row['month']) - 1],
+                    'year': int(row['year']),
+                    'revenue': round(revenue, 2),
+                    'cogs': round(cogs, 2),
+                    'gross_profit': round(gp, 2),
+                    'gp_margin': gp_margin,
+                    'currie_target': CURRIE_GP_TARGET,
+                    'vs_target': round(gp_margin - CURRIE_GP_TARGET, 1)
+                }
+                
+                if int(row['year']) == current_year and int(row['month']) == current_month:
+                    current_month_data = entry
+                else:
+                    trailing_revenue += revenue
+                    trailing_cogs += cogs
+                    trailing_months += 1
+                
+                monthly_data.append(entry)
             
-            # Get full previous month total for comparison
-            full_month_query = f"""
-            SELECT SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {prev_year}
-                AND MONTH(InvoiceDate) = {prev_month}
-                AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
-            """
+            # Calculate trailing average margin
+            trailing_gp = trailing_revenue - trailing_cogs
+            trailing_margin = round((trailing_gp / trailing_revenue) * 100, 1) if trailing_revenue > 0 else 0
             
-            # Get adaptive comparison data
-            adaptive_query = f"""
-            WITH MonthlyTotals AS (
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as total_sales
-                FROM {schema}.InvoiceReg
-                WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                    AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
-                    AND (COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) > 0
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            )
-            SELECT 
-                AVG(total_sales) as avg_monthly_sales,
-                MAX(total_sales) as best_monthly_sales,
-                MIN(total_sales) as worst_monthly_sales,
-                COUNT(*) as months_available,
-                MAX(CASE WHEN month = {current_month} THEN total_sales END) as same_month_last_year
-            FROM MonthlyTotals
-            """
-            
-            current_result = db.execute_query(current_query)
-            prev_result = db.execute_query(prev_query)
-            full_month_result = db.execute_query(full_month_query)
-            adaptive_result = db.execute_query(adaptive_query)
-            
-            current_sales = float(current_result[0]['total_sales'] or 0) if current_result else 0
-            previous_sales = float(prev_result[0]['total_sales'] or 0) if prev_result else 0
-            previous_full_month = float(full_month_result[0]['total_sales'] or 0) if full_month_result else 0
-            
-            # Extract adaptive data
-            adaptive_data = adaptive_result[0] if adaptive_result else {}
-            avg_monthly_sales = float(adaptive_data.get('avg_monthly_sales') or 0)
-            best_monthly_sales = float(adaptive_data.get('best_monthly_sales') or 0)
-            worst_monthly_sales = float(adaptive_data.get('worst_monthly_sales') or 0)
-            months_available = int(adaptive_data.get('months_available') or 0)
-            same_month_last_year = float(adaptive_data.get('same_month_last_year') or 0)
-            
-            # Calculate multiple pace percentages for adaptive comparison
-            # 1. Previous month comparison (existing logic)
-            if current_sales > previous_full_month and previous_full_month > 0:
-                pace_percentage = round(((current_sales / previous_full_month) - 1) * 100, 1)
-                comparison_base = "full_previous_month"
-            else:
-                pace_percentage = round(((current_sales / previous_sales) - 1) * 100, 1) if previous_sales > 0 else 0
-                comparison_base = "same_day_previous_month"
-            
-            # Calculate projected month total for fair comparison
-            import calendar
-            days_in_month = calendar.monthrange(current_year, current_month)[1]
-            projected_sales = (current_sales / current_day) * days_in_month if current_day > 0 else 0
-            
-            # 2. Additional adaptive comparisons (use projected total for fair comparison)
-            pace_pct_avg = round(((projected_sales / avg_monthly_sales) - 1) * 100, 1) if avg_monthly_sales > 0 else None
-            pace_pct_same_month_ly = round(((projected_sales / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
-            is_best_month = projected_sales > best_monthly_sales
+            if not current_month_data:
+                current_month_data = {
+                    'month': month_names[current_month - 1],
+                    'year': current_year,
+                    'revenue': 0, 'cogs': 0, 'gross_profit': 0,
+                    'gp_margin': 0, 'currie_target': CURRIE_GP_TARGET, 'vs_target': -CURRIE_GP_TARGET
+                }
             
             return jsonify({
-                'pace_percentage': pace_percentage,
-                'current_sales': current_sales,
-                'previous_sales': previous_sales,
-                'previous_full_month': previous_full_month,
-                'current_month': current_month,
-                'current_day': current_day,
-                'comparison_base': comparison_base,
-                'exceeded_previous_month': current_sales > previous_full_month,
-                'adaptive_comparisons': {
-                    'available_months_count': months_available,
-                    'vs_available_average': {
-                        'percentage': pace_pct_avg,
-                        'average_monthly_sales': avg_monthly_sales,
-                        'ahead_behind': 'ahead' if pace_pct_avg and pace_pct_avg > 0 else 'behind' if pace_pct_avg and pace_pct_avg < 0 else 'on pace' if pace_pct_avg is not None else None
-                    },
-                    'vs_same_month_last_year': {
-                        'percentage': pace_pct_same_month_ly,
-                        'last_year_sales': same_month_last_year if same_month_last_year > 0 else None,
-                        'ahead_behind': 'ahead' if pace_pct_same_month_ly and pace_pct_same_month_ly > 0 else 'behind' if pace_pct_same_month_ly and pace_pct_same_month_ly < 0 else 'on pace' if pace_pct_same_month_ly is not None else None
-                    },
-                    'performance_indicators': {
-                        'is_best_month_ever': is_best_month,
-                        'best_month_sales': best_monthly_sales,
-                        'worst_month_sales': worst_monthly_sales,
-                        'vs_best_percentage': round(((current_sales / best_monthly_sales) - 1) * 100, 1) if best_monthly_sales > 0 else None,
-                        'vs_worst_percentage': round(((current_sales / worst_monthly_sales) - 1) * 100, 1) if worst_monthly_sales > 0 else None
-                    }
-                }
+                'department': 'Parts',
+                'currie_gp_target': CURRIE_GP_TARGET,
+                'currie_op_target': CURRIE_OP_TARGET,
+                'current_month': current_month_data,
+                'trailing_average': {
+                    'months': trailing_months,
+                    'revenue': round(trailing_revenue, 2),
+                    'cogs': round(trailing_cogs, 2),
+                    'gross_profit': round(trailing_gp, 2),
+                    'gp_margin': trailing_margin,
+                    'vs_target': round(trailing_margin - CURRIE_GP_TARGET, 1)
+                },
+                'monthly_data': monthly_data
             })
             
         except Exception as e:
-            logger.error(f"Error fetching parts pace: {str(e)}")
+            logger.error(f"Error fetching parts currie benchmarks: {str(e)}")
             return jsonify({'error': str(e)}), 500
+
+    # Keep legacy pace endpoint as alias for backward compatibility
+    @reports_bp.route('/departments/parts/pace', methods=['GET'])
+    @jwt_required()
+    def get_parts_pace():
+        """Legacy pace endpoint - redirects to currie benchmarks"""
+        return get_parts_currie_benchmarks()
 
     @reports_bp.route('/departments/parts', methods=['GET'])
     @require_permission('view_parts')
@@ -2534,149 +2477,120 @@ def register_department_routes(reports_bp):
             }), 500
 
 
-    @reports_bp.route('/departments/rental/pace', methods=['GET'])
+    @reports_bp.route('/departments/rental/currie-benchmarks', methods=['GET'])
     @jwt_required()
-    def get_rental_pace():
-        """Get rental department revenue pace comparing current month to previous month"""
+    def get_rental_currie_benchmarks():
+        """Get rental department GP margin vs Currie model benchmarks"""
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Get current date info
+            # Currie model benchmarks for Rental (Short Term)
+            CURRIE_GP_TARGET = 45.0
+            CURRIE_OP_TARGET = 30.0
+            
+            # Get tenant-specific GL accounts
+            tenant_gl_accounts = get_gl_accounts(schema)
+            rental_config = tenant_gl_accounts.get('rental', {})
+            rev_accounts = rental_config.get('revenue', [])
+            cogs_accounts = rental_config.get('cogs', [])
+            
+            rev_list = "', '".join(rev_accounts)
+            cogs_list = "', '".join(cogs_accounts)
+            
+            # Query monthly revenue and COGS from GLDetail for last 13 months
+            query = f"""
+            SELECT 
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                ABS(SUM(CASE WHEN AccountNo IN ('{rev_list}') THEN Amount ELSE 0 END)) as revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN Amount ELSE 0 END)) as cogs
+            FROM {schema}.GLDetail
+            WHERE AccountNo IN ('{rev_list}', '{cogs_list}')
+                AND EffectiveDate >= DATEADD(month, -13, GETDATE())
+                AND Posted = 1
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            """
+            
+            result = db.execute_query(query)
+            
             now = datetime.now()
             current_year = now.year
             current_month = now.month
-            current_day = now.day
             
-            # Calculate previous month
-            if current_month == 1:
-                prev_month = 12
-                prev_year = current_year - 1
-            else:
-                prev_month = current_month - 1
-                prev_year = current_year
+            monthly_data = []
+            trailing_revenue = 0
+            trailing_cogs = 0
+            trailing_months = 0
+            current_month_data = None
             
-            # Get rental revenue through same day for current and previous month
-            # Use RentalTaxable + RentalNonTax to match the monthly revenue calculation
-            current_query = f"""
-            SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {current_year}
-                AND MONTH(InvoiceDate) = {current_month}
-                AND DAY(InvoiceDate) <= {current_day}
-                AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
-            """
+            month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             
-            prev_query = f"""
-            SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {prev_year}
-                AND MONTH(InvoiceDate) = {prev_month}
-                AND DAY(InvoiceDate) <= {current_day}
-                AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
-            """
+            for row in result:
+                revenue = float(row['revenue'] or 0)
+                cogs = float(row['cogs'] or 0)
+                gp = revenue - cogs
+                gp_margin = round((gp / revenue) * 100, 1) if revenue > 0 else 0
+                
+                entry = {
+                    'month': month_names[int(row['month']) - 1],
+                    'year': int(row['year']),
+                    'revenue': round(revenue, 2),
+                    'cogs': round(cogs, 2),
+                    'gross_profit': round(gp, 2),
+                    'gp_margin': gp_margin,
+                    'currie_target': CURRIE_GP_TARGET,
+                    'vs_target': round(gp_margin - CURRIE_GP_TARGET, 1)
+                }
+                
+                if int(row['year']) == current_year and int(row['month']) == current_month:
+                    current_month_data = entry
+                else:
+                    trailing_revenue += revenue
+                    trailing_cogs += cogs
+                    trailing_months += 1
+                
+                monthly_data.append(entry)
             
-            # Get full previous month total for comparison
-            full_month_query = f"""
-            SELECT SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-            FROM {schema}.InvoiceReg
-            WHERE YEAR(InvoiceDate) = {prev_year}
-                AND MONTH(InvoiceDate) = {prev_month}
-                AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
-            """
+            # Calculate trailing average margin
+            trailing_gp = trailing_revenue - trailing_cogs
+            trailing_margin = round((trailing_gp / trailing_revenue) * 100, 1) if trailing_revenue > 0 else 0
             
-            # Get adaptive comparison data
-            adaptive_query = f"""
-            WITH MonthlyTotals AS (
-                SELECT 
-                    YEAR(InvoiceDate) as year,
-                    MONTH(InvoiceDate) as month,
-                    SUM(COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) as total_revenue
-                FROM {schema}.InvoiceReg
-                WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
-                    AND YEAR(InvoiceDate) * 100 + MONTH(InvoiceDate) < {current_year} * 100 + {current_month}
-                    AND (COALESCE(RentalTaxable, 0) + COALESCE(RentalNonTax, 0)) > 0
-                GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-            )
-            SELECT 
-                AVG(total_revenue) as avg_monthly_revenue,
-                MAX(total_revenue) as best_monthly_revenue,
-                MIN(total_revenue) as worst_monthly_revenue,
-                COUNT(*) as months_available,
-                MAX(CASE WHEN month = {current_month} THEN total_revenue END) as same_month_last_year
-            FROM MonthlyTotals
-            """
-            
-            current_result = db.execute_query(current_query)
-            prev_result = db.execute_query(prev_query)
-            full_month_result = db.execute_query(full_month_query)
-            adaptive_result = db.execute_query(adaptive_query)
-            
-            current_revenue = float(current_result[0]['total_revenue'] or 0) if current_result else 0
-            previous_revenue = float(prev_result[0]['total_revenue'] or 0) if prev_result else 0
-            previous_full_month = float(full_month_result[0]['total_revenue'] or 0) if full_month_result else 0
-            
-            # Extract adaptive data
-            adaptive_data = adaptive_result[0] if adaptive_result else {}
-            avg_monthly_revenue = float(adaptive_data.get('avg_monthly_revenue') or 0)
-            best_monthly_revenue = float(adaptive_data.get('best_monthly_revenue') or 0)
-            worst_monthly_revenue = float(adaptive_data.get('worst_monthly_revenue') or 0)
-            months_available = int(adaptive_data.get('months_available') or 0)
-            same_month_last_year = float(adaptive_data.get('same_month_last_year') or 0)
-            
-            # Calculate multiple pace percentages for adaptive comparison
-            # 1. Previous month comparison (existing logic)
-            if current_revenue > previous_full_month and previous_full_month > 0:
-                pace_percentage = round(((current_revenue / previous_full_month) - 1) * 100, 1)
-                comparison_base = "full_previous_month"
-            else:
-                pace_percentage = round(((current_revenue / previous_revenue) - 1) * 100, 1) if previous_revenue > 0 else 0
-                comparison_base = "same_day_previous_month"
-            
-            # Calculate projected month total for fair comparison
-            import calendar
-            days_in_month = calendar.monthrange(current_year, current_month)[1]
-            projected_revenue = (current_revenue / current_day) * days_in_month if current_day > 0 else 0
-            
-            # 2. Additional adaptive comparisons (use projected total for fair comparison)
-            pace_pct_avg = round(((projected_revenue / avg_monthly_revenue) - 1) * 100, 1) if avg_monthly_revenue > 0 else None
-            pace_pct_same_month_ly = round(((projected_revenue / same_month_last_year) - 1) * 100, 1) if same_month_last_year > 0 else None
-            is_best_month = projected_revenue > best_monthly_revenue
+            if not current_month_data:
+                current_month_data = {
+                    'month': month_names[current_month - 1],
+                    'year': current_year,
+                    'revenue': 0, 'cogs': 0, 'gross_profit': 0,
+                    'gp_margin': 0, 'currie_target': CURRIE_GP_TARGET, 'vs_target': -CURRIE_GP_TARGET
+                }
             
             return jsonify({
-                'pace_percentage': pace_percentage,
-                'current_revenue': current_revenue,
-                'previous_revenue': previous_revenue,
-                'previous_full_month': previous_full_month,
-                'current_month': current_month,
-                'current_day': current_day,
-                'comparison_base': comparison_base,
-                'exceeded_previous_month': current_revenue > previous_full_month,
-                'adaptive_comparisons': {
-                    'available_months_count': months_available,
-                    'vs_available_average': {
-                        'percentage': pace_pct_avg,
-                        'average_monthly_revenue': avg_monthly_revenue,
-                        'ahead_behind': 'ahead' if pace_pct_avg and pace_pct_avg > 0 else 'behind' if pace_pct_avg and pace_pct_avg < 0 else 'on pace' if pace_pct_avg is not None else None
-                    },
-                    'vs_same_month_last_year': {
-                        'percentage': pace_pct_same_month_ly,
-                        'last_year_revenue': same_month_last_year if same_month_last_year > 0 else None,
-                        'ahead_behind': 'ahead' if pace_pct_same_month_ly and pace_pct_same_month_ly > 0 else 'behind' if pace_pct_same_month_ly and pace_pct_same_month_ly < 0 else 'on pace' if pace_pct_same_month_ly is not None else None
-                    },
-                    'performance_indicators': {
-                        'is_best_month_ever': is_best_month,
-                        'best_month_revenue': best_monthly_revenue,
-                        'worst_month_revenue': worst_monthly_revenue,
-                        'vs_best_percentage': round(((current_revenue / best_monthly_revenue) - 1) * 100, 1) if best_monthly_revenue > 0 else None,
-                        'vs_worst_percentage': round(((current_revenue / worst_monthly_revenue) - 1) * 100, 1) if worst_monthly_revenue > 0 else None
-                    }
-                }
+                'department': 'Rental',
+                'currie_gp_target': CURRIE_GP_TARGET,
+                'currie_op_target': CURRIE_OP_TARGET,
+                'current_month': current_month_data,
+                'trailing_average': {
+                    'months': trailing_months,
+                    'revenue': round(trailing_revenue, 2),
+                    'cogs': round(trailing_cogs, 2),
+                    'gross_profit': round(trailing_gp, 2),
+                    'gp_margin': trailing_margin,
+                    'vs_target': round(trailing_margin - CURRIE_GP_TARGET, 1)
+                },
+                'monthly_data': monthly_data
             })
             
         except Exception as e:
-            logger.error(f"Error fetching rental pace: {str(e)}")
+            logger.error(f"Error fetching rental currie benchmarks: {str(e)}")
             return jsonify({'error': str(e)}), 500
+
+    # Keep legacy pace endpoint as alias for backward compatibility
+    @reports_bp.route('/departments/rental/pace', methods=['GET'])
+    @jwt_required()
+    def get_rental_pace():
+        """Legacy pace endpoint - redirects to currie benchmarks"""
+        return get_rental_currie_benchmarks()
 
     @reports_bp.route('/departments/rental', methods=['GET'])
     @require_permission('view_rental')
