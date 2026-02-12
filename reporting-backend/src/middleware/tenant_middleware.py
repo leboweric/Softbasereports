@@ -192,8 +192,8 @@ class TenantMiddleware:
             if not current_user:
                 return jsonify({'message': 'User not found'}), 401
 
-            # Check if user has Super Admin role
-            user_roles = [role.name for role in current_user.roles]
+            # Check if user has Super Admin role (only count org-matching roles)
+            user_roles = [role.name for role in current_user._valid_roles()]
 
             if 'Super Admin' not in user_roles:
                 return jsonify({

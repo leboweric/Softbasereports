@@ -40,7 +40,8 @@ def temp_login():
                 permissions = []
                 
                 # Check if user is Super Admin - if so, give all permissions
-                is_super_admin = any(r.name == 'Super Admin' for r in user.roles)
+                valid_roles = user._valid_roles()
+                is_super_admin = any(r.name == 'Super Admin' for r in valid_roles)
                 if is_super_admin:
                     # Super Admin gets all permissions
                     permissions = ['*', 'manage_users', 'view_dashboard', 'view_service', 
@@ -48,8 +49,8 @@ def temp_login():
                                  'view_minitrac', 'use_ai_query', 'use_report_creator',
                                  'view_database_explorer', 'view_users']
                 else:
-                    # Regular users get permissions from their roles
-                    for role in user.roles:
+                    # Regular users get permissions from their roles (org-filtered)
+                    for role in valid_roles:
                         for permission in role.permissions:
                             if permission.name not in permissions:
                                 permissions.append(permission.name)
