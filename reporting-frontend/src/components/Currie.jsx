@@ -356,7 +356,7 @@ const Currie = ({ user, organization }) => {
               </button>
             </div>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               disabled={loading}
               className={`px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center mt-6 transition-all ${loading ? 'opacity-75 cursor-not-allowed' : ''
                 }`}
