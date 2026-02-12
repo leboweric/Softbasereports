@@ -37,10 +37,10 @@ def get_sales_cogs_gp():
         if not start_date or not end_date:
             return jsonify({'error': 'start_date and end_date are required'}), 400
         
-        # Use cache with 1-hour TTL
-        cache_key = f'currie_sales_cogs_gp:{start_date}:{end_date}'
-        
+        # Use cache with 1-hour TTL, include tenant schema to isolate orgs
         user_identity = get_jwt_identity()
+        schema = get_tenant_schema()
+        cache_key = f'currie_sales_cogs_gp:{schema}:{start_date}:{end_date}'
         
         def fetch_data():
             return _fetch_sales_cogs_gp_data(start_date, end_date, user_identity)
@@ -61,10 +61,14 @@ def _fetch_sales_cogs_gp_data(start_date, end_date, user_identity):
         end = datetime.strptime(end_date, '%Y-%m-%d')
         months_diff = (end.year - start.year) * 12 + end.month - start.month + 1
         
+        # Get organization name for the current user
+        user = User.query.get(user_identity)
+        org_name = user.organization.name if user and user.organization else 'Unknown'
+        
         # Get all revenue and COGS data
         data = {
             'dealership_info': {
-                'name': 'Bennett Material Handling',  # TODO: Make configurable
+                'name': org_name,
                 'submitted_by': user_identity,
                 'date': datetime.now().strftime('%Y-%m-%d'),
                 'num_locations': 1,  # TODO: Make configurable
@@ -654,7 +658,8 @@ def get_currie_metrics():
             return jsonify({'error': 'start_date and end_date are required'}), 400
         
         # Use cache with 1-hour TTL
-        cache_key = f'currie_metrics:{start_date}:{end_date}'
+        schema = get_tenant_schema()
+        cache_key = f'currie_metrics:{schema}:{start_date}:{end_date}'
         
         def fetch_metrics():
             return _fetch_currie_metrics_data(start_date, end_date)
