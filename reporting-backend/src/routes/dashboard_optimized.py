@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, jsonify, request, g, copy_current_request_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 import logging
@@ -2379,12 +2379,12 @@ def get_dashboard_summary_optimized():
             'monthly_invoice_delays': lambda: cached_query('monthly_invoice_delays', queries.get_monthly_invoice_delay_avg, cache_ttl['work_order_types'])
         }
         
-        # Execute queries in parallel
+        # Execute queries in parallel (wrap with Flask request context for thread safety)
         results = {}
         cache_hits = 0
         with ThreadPoolExecutor(max_workers=10) as executor:
-            # Submit all tasks
-            future_to_key = {executor.submit(func): key for key, func in query_tasks.items()}
+            # Submit all tasks wrapped with Flask request context so g.current_organization is available
+            future_to_key = {executor.submit(copy_current_request_context(func)): key for key, func in query_tasks.items()}
             
             # Collect results as they complete
             for future in as_completed(future_to_key):

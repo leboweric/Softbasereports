@@ -1563,6 +1563,7 @@ def get_gl_expenses_from_gl_mtd(year, month):
     This matches Softbase exactly for monthly reports
     """
     try:
+        schema = get_tenant_schema()
         # Personnel Costs
         personnel_query = f"""
         SELECT 
