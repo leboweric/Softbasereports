@@ -21,9 +21,10 @@ qbr_bp = Blueprint('qbr', __name__)
 
 def get_qbr_service():
     """Get QBR service instance with both Azure SQL (Softbase) and PostgreSQL (sessions)"""
+    from src.utils.tenant_utils import get_tenant_schema
     sql_service = get_tenant_db()  # For Softbase data (customers, WOs, invoices)
     postgres_service = get_postgres_db()  # For QBR session storage
-    return QBRService(sql_service, postgres_service)
+    return QBRService(sql_service, postgres_service, schema=get_tenant_schema())
 
 
 @qbr_bp.route('/api/qbr/customers', methods=['GET'])

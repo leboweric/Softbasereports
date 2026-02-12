@@ -20,15 +20,19 @@ logger = logging.getLogger(__name__)
 class QBRService:
     """Service class for QBR business logic"""
 
-    def __init__(self, sql_service, postgres_service=None):
+    def __init__(self, sql_service, postgres_service=None, schema=None):
         """
         Initialize QBR Service
         Args:
             sql_service: AzureSQLService for Softbase data (customers, WOs, invoices)
             postgres_service: PostgreSQLService for QBR session storage (optional)
+            schema: Database schema name (e.g., 'ben002', 'ind004'). Required.
         """
+        if not schema:
+            raise ValueError("schema parameter is required for QBRService")
         self.sql_service = sql_service  # Azure SQL for Softbase data
         self.postgres_service = postgres_service  # PostgreSQL for QBR sessions
+        self.schema = schema
 
     def get_quarter_date_range(self, quarter: str, year: int) -> tuple:
         """
@@ -83,7 +87,7 @@ class QBRService:
                     END as customer_name,
                     InvoiceNo,
                     InvoiceDate
-                FROM ben002.InvoiceReg
+                FROM {self.schema}.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(year, -2, GETDATE())
                   AND BillToName IS NOT NULL
                   AND BillToName != ''
@@ -122,8 +126,8 @@ class QBRService:
         """
         try:
             # BillTo subquery for customer name lookup
-            billto_subquery = """
-                SELECT DISTINCT BillTo FROM ben002.InvoiceReg
+            billto_subquery = f"""
+                SELECT DISTINCT BillTo FROM {self.schema}.InvoiceReg
                 WHERE CASE
                     WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -137,8 +141,8 @@ class QBRService:
                 COUNT(DISTINCT wo.UnitNo) as total_units,
                 e.Make,
                 e.Model
-            FROM ben002.WO wo
-            LEFT JOIN ben002.Equipment e ON wo.UnitNo = e.UnitNo
+            FROM {self.schema}.WO wo
+            LEFT JOIN {self.schema}.Equipment e ON wo.UnitNo = e.UnitNo
             WHERE wo.BillTo IN ({billto_subquery})
               AND wo.OpenDate >= %s
               AND wo.OpenDate <= %s
@@ -152,7 +156,7 @@ class QBRService:
             # Get total unique units
             total_query = f"""
             SELECT COUNT(DISTINCT UnitNo) as total_units
-            FROM ben002.WO
+            FROM {self.schema}.WO
             WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
@@ -281,8 +285,8 @@ class QBRService:
         """
         try:
             # BillTo subquery for customer name lookup
-            billto_subquery = """
-                SELECT DISTINCT BillTo FROM ben002.InvoiceReg
+            billto_subquery = f"""
+                SELECT DISTINCT BillTo FROM {self.schema}.InvoiceReg
                 WHERE CASE
                     WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -297,7 +301,7 @@ class QBRService:
                 SUM(CASE WHEN Type = 'S' AND WONo LIKE 'PM%' THEN 1 ELSE 0 END) as pm_count,
                 SUM(CASE WHEN Type = 'S' AND WONo LIKE 'PM%' AND ClosedDate IS NOT NULL THEN 1 ELSE 0 END) as pm_completed,
                 SUM(CASE WHEN ClosedDate IS NOT NULL THEN 1 ELSE 0 END) as completed_calls
-            FROM ben002.WO
+            FROM {self.schema}.WO
             WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
@@ -326,7 +330,7 @@ class QBRService:
                     ELSE 'Other'
                 END as service_type,
                 COUNT(*) as count
-            FROM ben002.WO
+            FROM {self.schema}.WO
             WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
@@ -357,7 +361,7 @@ class QBRService:
             SELECT
                 MONTH(OpenDate) as month,
                 COUNT(*) as calls
-            FROM ben002.WO
+            FROM {self.schema}.WO
             WHERE BillTo IN ({billto_subquery})
               AND OpenDate >= %s
               AND OpenDate <= %s
@@ -414,7 +418,7 @@ class QBRService:
                 SUM(LaborTaxable + LaborNonTax) as labor_total,
                 SUM(PartsTaxable + PartsNonTax) as parts_total,
                 COUNT(*) as invoice_count
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE CASE
                 WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                 WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -446,9 +450,9 @@ class QBRService:
 
                 q_start, q_end = self.get_quarter_date_range(f'Q{q_num}', q_year)
 
-                q_query = """
+                q_query = f"""
                 SELECT SUM(GrandTotal) as cost
-                FROM ben002.InvoiceReg
+                FROM {self.schema}.InvoiceReg
                 WHERE CASE
                     WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -501,11 +505,11 @@ class QBRService:
         """
         try:
             # Parts from InvoiceReg using BillToName normalization
-            parts_query = """
+            parts_query = f"""
             SELECT
                 COUNT(*) as orders,
                 SUM(PartsTaxable + PartsNonTax) as total_spend
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE CASE
                 WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                 WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -520,11 +524,11 @@ class QBRService:
             parts = parts_result[0] if parts_result else {'orders': 0, 'total_spend': 0}
 
             # Rental from InvoiceReg using BillToName normalization
-            rental_query = """
+            rental_query = f"""
             SELECT
                 COUNT(*) as rental_invoices,
                 SUM(RentalTaxable + RentalNonTaxable) as rental_spend
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE CASE
                 WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                 WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -539,11 +543,11 @@ class QBRService:
             rentals = rental_result[0] if rental_result else {'rental_invoices': 0, 'rental_spend': 0}
 
             # Monthly rental trend using BillToName normalization
-            rental_trend_query = """
+            rental_trend_query = f"""
             SELECT
                 MONTH(InvoiceDate) as month,
                 SUM(RentalTaxable + RentalNonTaxable) as amount
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE CASE
                 WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                 WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'
@@ -626,9 +630,9 @@ class QBRService:
                 q_start, q_end = self.get_quarter_date_range(f'Q{q_num}', q_year)
 
                 # Get total spend for quarter using BillToName normalization
-                q_query = """
+                q_query = f"""
                 SELECT SUM(GrandTotal) as total
-                FROM ben002.InvoiceReg
+                FROM {self.schema}.InvoiceReg
                 WHERE CASE
                     WHEN BillToName IN ('Polaris Industries', 'Polaris', 'Polaris Monticello, Co.') THEN 'Polaris Industries'
                     WHEN BillToName IN ('Tinnacity', 'Tinnacity Inc') THEN 'Tinnacity'

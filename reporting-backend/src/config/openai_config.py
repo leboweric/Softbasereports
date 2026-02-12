@@ -161,10 +161,16 @@ class OpenAIConfig:
     }
     
     @classmethod
-    def get_system_prompt(cls):
+    def get_schema_context(cls, schema='ben002'):
+        """Get schema context with dynamic tenant schema"""
+        return cls.SCHEMA_CONTEXT.replace('ben002', schema)
+    
+    @classmethod
+    def get_system_prompt(cls, schema=None):
         """Get the system prompt for OpenAI"""
+        schema_ctx = cls.get_schema_context(schema) if schema else cls.SCHEMA_CONTEXT
         return f"""
-        {cls.SCHEMA_CONTEXT}
+        {schema_ctx}
         
         Your role is to help users query this Softbase dealership database using natural language.
         

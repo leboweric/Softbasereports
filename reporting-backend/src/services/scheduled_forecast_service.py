@@ -20,11 +20,32 @@ class ScheduledForecastService:
     @staticmethod
     def generate_daily_forecast():
         """
-        Generate and save daily forecast
+        Generate and save daily forecast for all tenants
         Called by cron job at 8 AM daily
         """
         try:
-            logger.info("Starting scheduled daily forecast generation...")
+            from src.etl.tenant_discovery import TenantDiscovery
+            tenants = TenantDiscovery.discover_tenants()
+            for tenant in tenants:
+                try:
+                    schema = tenant.get('database_schema')
+                    if schema:
+                        logger.info(f"Generating forecast for tenant: {schema}")
+                        ScheduledForecastService._generate_forecast_for_tenant(schema)
+                except Exception as e:
+                    logger.error(f"Failed to generate forecast for {tenant.get('database_schema', 'unknown')}: {str(e)}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to generate daily forecasts: {str(e)}")
+            return False
+    
+    @staticmethod
+    def _generate_forecast_for_tenant(schema):
+        """
+        Generate and save daily forecast for a specific tenant
+        """
+        try:
+            logger.info(f"Starting scheduled daily forecast generation for {schema}...")
             
             azure_db = AzureSQLService()
             postgres_db = get_postgres_db()
@@ -39,7 +60,7 @@ class ScheduledForecastService:
             current_day = now.day
             
             # Get historical daily sales patterns (last 12 months)
-            daily_pattern_query = """
+            daily_pattern_query = f"""
             WITH DailySales AS (
                 SELECT 
                     YEAR(InvoiceDate) as year,
@@ -47,7 +68,7 @@ class ScheduledForecastService:
                     DAY(InvoiceDate) as day,
                     SUM(GrandTotal) as daily_total,
                     COUNT(*) as invoice_count
-                FROM ben002.InvoiceReg
+                FROM {schema}.InvoiceReg
                 WHERE InvoiceDate >= DATEADD(month, -12, GETDATE())
                     AND InvoiceDate < CAST(GETDATE() AS DATE)
                 GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate), DAY(InvoiceDate)
@@ -85,7 +106,7 @@ class ScheduledForecastService:
                 SUM(GrandTotal) as mtd_sales,
                 COUNT(*) as mtd_invoices,
                 AVG(GrandTotal) as avg_invoice_value
-            FROM ben002.InvoiceReg
+            FROM {schema}.InvoiceReg
             WHERE YEAR(InvoiceDate) = {current_year}
                 AND MONTH(InvoiceDate) = {current_month}
             """
@@ -96,7 +117,7 @@ class ScheduledForecastService:
                 SELECT 
                     WONo,
                     MAX(CAST(CreationTime AS DATE)) as latest_quote_date
-                FROM ben002.WOQuote
+                FROM {schema}.WOQuote
                 WHERE YEAR(CreationTime) = {current_year}
                     AND MONTH(CreationTime) = {current_month}
                     AND Amount > 0
@@ -106,7 +127,7 @@ class ScheduledForecastService:
                 COUNT(DISTINCT lq.WONo) as open_quotes,
                 SUM(wq.Amount) as pipeline_value
             FROM LatestQuotes lq
-            INNER JOIN ben002.WOQuote wq
+            INNER JOIN {schema}.WOQuote wq
                 ON lq.WONo = wq.WONo
                 AND CAST(wq.CreationTime AS DATE) = lq.latest_quote_date
             WHERE wq.Amount > 0

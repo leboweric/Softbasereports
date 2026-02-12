@@ -99,7 +99,8 @@ def generate_sql_from_analysis(analysis):
     if 'query_action' in analysis:
         try:
             logger.info(f"Using SmartSQLGenerator with action: {analysis['query_action']}")
-            smart_gen = SmartSQLGenerator()
+            from src.utils.tenant_utils import get_tenant_schema
+            smart_gen = SmartSQLGenerator(schema=get_tenant_schema())
             sql = smart_gen.generate_sql(analysis)
             if sql and 'Query not recognized' not in sql:
                 return sql

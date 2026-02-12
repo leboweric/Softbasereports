@@ -10,12 +10,14 @@ logger = logging.getLogger(__name__)
 class SmartSQLGenerator:
     """Generate SQL based on structured query analysis instead of pattern matching"""
     
-    def __init__(self):
+    def __init__(self, schema=None):
+        if not schema:
+            raise ValueError("schema parameter is required - use get_tenant_schema() to get the current user's schema")
+        self.schema = schema
         # Use current date
         now = datetime.now()
         self.current_year = now.year
         self.current_month = now.month
-        # We'll need to check if data exists for current year in rental queries
     
     def generate_sql(self, query_analysis):
         """Main entry point - routes to appropriate handler based on query_action"""
@@ -61,7 +63,7 @@ class SmartSQLGenerator:
         # Otherwise, general equipment query
         sql = "SELECT e.UnitNo, e.SerialNo, e.Make, e.Model"
         sql += ", e.RentalStatus, e.Location"
-        sql += " FROM ben002.Equipment e"
+        sql += f" FROM {self.schema}.Equipment e"
         
         where_clauses = []
         
@@ -79,7 +81,7 @@ class SmartSQLGenerator:
         
         # Add customer filter if specified
         if filters.get('customer'):
-            sql += " INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number"
+            sql += f" INNER JOIN {self.schema}.Customer c ON e.CustomerNo = c.Number"
             where_clauses.append(f"UPPER(c.Name) LIKE '%{filters['customer'].upper()}%'")
         
         if where_clauses:
@@ -95,36 +97,36 @@ class SmartSQLGenerator:
         
         if query_type == 'count' or 'how many' in filters.get('original_intent', '').lower():
             # Count query - Use most recent rental data available
-            sql = """
+            sql = f"""
             WITH LatestRentals AS (
                 SELECT 
                     SerialNo,
                     MAX(Year * 100 + Month) as latest_period
-                FROM ben002.RentalHistory 
+                FROM {self.schema}.RentalHistory 
                 WHERE DaysRented > 0
                 GROUP BY SerialNo
             ),
             CurrentRentals AS (
                 SELECT DISTINCT e.SerialNo
-                FROM ben002.RentalHistory rh
-                INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+                FROM {self.schema}.RentalHistory rh
+                INNER JOIN {self.schema}.Equipment e ON rh.SerialNo = e.SerialNo
                 INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
                     AND (rh.Year * 100 + rh.Month) = lr.latest_period
                 WHERE rh.DaysRented > 0
             )
             SELECT COUNT(*) as count
             FROM CurrentRentals cr
-            INNER JOIN ben002.Equipment e ON cr.SerialNo = e.SerialNo
+            INNER JOIN {self.schema}.Equipment e ON cr.SerialNo = e.SerialNo
             WHERE 1=1
             """
         else:
             # List query - Include all fields in SELECT that are used in ORDER BY
-            sql = """
+            sql = f"""
             WITH LatestRentals AS (
                 SELECT 
                     SerialNo,
                     MAX(Year * 100 + Month) as latest_period
-                FROM ben002.RentalHistory 
+                FROM {self.schema}.RentalHistory 
                 WHERE DaysRented > 0
                 GROUP BY SerialNo
             )
@@ -138,9 +140,9 @@ class SmartSQLGenerator:
                 rh.RentAmount,
                 rh.Year,
                 rh.Month
-            FROM ben002.RentalHistory rh
-            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-            LEFT JOIN ben002.Customer c ON e.CustomerNo = c.Number
+            FROM {self.schema}.RentalHistory rh
+            INNER JOIN {self.schema}.Equipment e ON rh.SerialNo = e.SerialNo
+            LEFT JOIN {self.schema}.Customer c ON e.CustomerNo = c.Number
             INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
                 AND (rh.Year * 100 + rh.Month) = lr.latest_period
             WHERE rh.DaysRented > 0
@@ -176,18 +178,18 @@ class SmartSQLGenerator:
                 return self._generate_rental_equipment_query('forklift', filters)
             else:
                 # Count all rentals using latest data
-                sql = """
+                sql = f"""
                 WITH LatestRentals AS (
                     SELECT 
                         SerialNo,
                         MAX(Year * 100 + Month) as latest_period
-                    FROM ben002.RentalHistory 
+                    FROM {self.schema}.RentalHistory 
                     WHERE DaysRented > 0
                     GROUP BY SerialNo
                 )
                 SELECT COUNT(DISTINCT e.SerialNo) as count
-                FROM ben002.RentalHistory rh
-                INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+                FROM {self.schema}.RentalHistory rh
+                INNER JOIN {self.schema}.Equipment e ON rh.SerialNo = e.SerialNo
                 INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
                     AND (rh.Year * 100 + rh.Month) = lr.latest_period
                 WHERE rh.DaysRented > 0
@@ -196,12 +198,12 @@ class SmartSQLGenerator:
         
         # For listing active rentals, use latest rental data
         # Note: When using DISTINCT with ORDER BY, all ORDER BY columns must be in SELECT
-        sql = """
+        sql = f"""
         WITH LatestRentals AS (
             SELECT 
                 SerialNo,
                 MAX(Year * 100 + Month) as latest_period
-            FROM ben002.RentalHistory 
+            FROM {self.schema}.RentalHistory 
             WHERE DaysRented > 0
             GROUP BY SerialNo
         )
@@ -211,9 +213,9 @@ class SmartSQLGenerator:
             e.Make,
             e.Model,
             e.UnitNo + ' - ' + e.Make + ' ' + e.Model as rental
-        FROM ben002.RentalHistory rh
-        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
-        INNER JOIN ben002.Customer c ON e.CustomerNo = c.Number
+        FROM {self.schema}.RentalHistory rh
+        INNER JOIN {self.schema}.Equipment e ON rh.SerialNo = e.SerialNo
+        INNER JOIN {self.schema}.Customer c ON e.CustomerNo = c.Number
         INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
             AND (rh.Year * 100 + rh.Month) = lr.latest_period
         WHERE rh.DaysRented > 0
@@ -234,18 +236,18 @@ class SmartSQLGenerator:
         
         # If counting rented equipment, use latest rental data
         if status == 'rented' or 'rent' in filters.get('original_intent', '').lower():
-            sql = """
+            sql = f"""
             WITH LatestRentals AS (
                 SELECT 
                     SerialNo,
                     MAX(Year * 100 + Month) as latest_period
-                FROM ben002.RentalHistory 
+                FROM {self.schema}.RentalHistory 
                 WHERE DaysRented > 0
                 GROUP BY SerialNo
             )
             SELECT COUNT(DISTINCT e.SerialNo) as count
-            FROM ben002.RentalHistory rh
-            INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+            FROM {self.schema}.RentalHistory rh
+            INNER JOIN {self.schema}.Equipment e ON rh.SerialNo = e.SerialNo
             INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
                 AND (rh.Year * 100 + rh.Month) = lr.latest_period
             WHERE rh.DaysRented > 0
@@ -260,7 +262,7 @@ class SmartSQLGenerator:
             return sql
         else:
             # Count equipment by status
-            sql = "SELECT COUNT(*) as count FROM ben002.Equipment e WHERE 1=1"
+            sql = f"SELECT COUNT(*) as count FROM {self.schema}.Equipment e WHERE 1=1"
             
             # Add equipment type filter
             if entity_subtype == 'forklift':
@@ -280,18 +282,18 @@ class SmartSQLGenerator:
         """Handle rental counting queries"""
         filters = analysis.get('filters', {})
         
-        sql = """
+        sql = f"""
         WITH LatestRentals AS (
             SELECT 
                 SerialNo,
                 MAX(Year * 100 + Month) as latest_period
-            FROM ben002.RentalHistory 
+            FROM {self.schema}.RentalHistory 
             WHERE DaysRented > 0
             GROUP BY SerialNo
         )
         SELECT COUNT(DISTINCT rh.SerialNo) as count
-        FROM ben002.RentalHistory rh
-        INNER JOIN ben002.Equipment e ON rh.SerialNo = e.SerialNo
+        FROM {self.schema}.RentalHistory rh
+        INNER JOIN {self.schema}.Equipment e ON rh.SerialNo = e.SerialNo
         INNER JOIN LatestRentals lr ON rh.SerialNo = lr.SerialNo 
             AND (rh.Year * 100 + rh.Month) = lr.latest_period
         WHERE rh.DaysRented > 0
@@ -299,7 +301,7 @@ class SmartSQLGenerator:
         
         # Add customer filter if specified
         if filters.get('customer'):
-            sql += " AND EXISTS (SELECT 1 FROM ben002.Customer c WHERE e.CustomerNo = c.Number"
+            sql += f" AND EXISTS (SELECT 1 FROM {self.schema}.Customer c WHERE e.CustomerNo = c.Number"
             sql += f" AND UPPER(c.Name) LIKE '%{filters['customer'].upper()}%')"
         
         return sql
@@ -336,7 +338,7 @@ class SmartSQLGenerator:
                 COUNT(DISTINCT InvoiceNo) as invoice_count,
                 SUM(GrandTotal) as total_sales,
                 AVG(GrandTotal) as average_sale
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE {date_filter}
             """
         else:
@@ -346,7 +348,7 @@ class SmartSQLGenerator:
                 InvoiceDate,
                 BillToName as CustomerName,
                 GrandTotal
-            FROM ben002.InvoiceReg
+            FROM {self.schema}.InvoiceReg
             WHERE {date_filter}
             ORDER BY InvoiceDate DESC
             """
@@ -357,17 +359,17 @@ class SmartSQLGenerator:
         status = filters.get('status', '')
         
         if status == 'low' or 'reorder' in analysis.get('intent', ''):
-            return """
+            return f"""
             SELECT TOP 100
                 p.PartNo,
                 p.Description,
                 p.OnHand as QtyOnHand
-            FROM ben002.Parts p
+            FROM {self.schema}.Parts p
             WHERE p.OnHand < COALESCE(p.MinStock, 10)
             ORDER BY p.OnHand ASC
             """
         else:
-            return """
+            return f"""
             SELECT TOP 100
                 PartNo,
                 Description,
@@ -375,7 +377,7 @@ class SmartSQLGenerator:
                 Bin,
                 Cost,
                 List as Price
-            FROM ben002.Parts
+            FROM {self.schema}.Parts
             ORDER BY OnHand DESC
             """
     
@@ -431,27 +433,22 @@ class SmartSQLGenerator:
     
     def _handle_service_status(self, analysis):
         """Handle service-related queries"""
-        # Implementation for service queries
-        return "SELECT * FROM ben002.WO WHERE Type = 'S' AND ClosedDate IS NULL"
+        return f"SELECT * FROM {self.schema}.WO WHERE Type = 'S' AND ClosedDate IS NULL"
     
     def _handle_customer_info(self, analysis):
         """Handle customer information queries"""
-        # Implementation for customer queries
-        return "SELECT TOP 100 * FROM ben002.Customer"
+        return f"SELECT TOP 100 * FROM {self.schema}.Customer"
     
     def _handle_financial_summary(self, analysis):
         """Handle financial summary queries"""
-        # Implementation for financial queries
-        return "SELECT SUM(GrandTotal) as total FROM ben002.InvoiceReg"
+        return f"SELECT SUM(GrandTotal) as total FROM {self.schema}.InvoiceReg"
     
     def _handle_show_inventory(self, analysis):
         """Handle inventory queries"""
-        # Implementation for inventory queries
-        return "SELECT * FROM ben002.Equipment WHERE RentalStatus = 'In Stock'"
+        return f"SELECT * FROM {self.schema}.Equipment WHERE RentalStatus = 'In Stock'"
     
     def _fallback_generation(self, analysis):
         """Fallback to basic SQL generation"""
-        # This would contain the current pattern matching logic as a fallback
         intent = analysis.get('intent', '').lower()
         return f"""
         SELECT 

@@ -30,8 +30,14 @@ class OpenAIQueryService:
                     "error": f"Query too long. Maximum {self.config.MAX_QUERY_LENGTH} characters allowed."
                 }
             
-            # Prepare the prompt
-            system_prompt = self.config.get_system_prompt()
+            # Prepare the prompt - use tenant schema if available
+            schema = None
+            try:
+                from src.utils.tenant_utils import get_tenant_schema
+                schema = get_tenant_schema()
+            except Exception:
+                pass
+            system_prompt = self.config.get_system_prompt(schema=schema)
             
             user_prompt = f"""
             User query: "{query}"

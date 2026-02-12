@@ -483,16 +483,17 @@ def debug_tables():
                 'table': row[1]
             })
         
-        # Filter for ben002 schema
-        ben002_tables = [t['table'] for t in all_tables if t['schema'] == '{schema}']
+        # Filter for tenant schema
+        schema = get_tenant_schema()
+        tenant_tables = [t['table'] for t in all_tables if t['schema'] == schema]
         
         # Filter for relevant keywords
-        rate_tables = [t for t in ben002_tables if any(keyword in t.lower() for keyword in ['flat', 'rate', 'quote', 'estimate', 'labor', 'service', 'charge'])]
+        rate_tables = [t for t in tenant_tables if any(keyword in t.lower() for keyword in ['flat', 'rate', 'quote', 'estimate', 'labor', 'service', 'charge'])]
         
         return jsonify({
             'total_tables': len(all_tables),
             'all_tables': all_tables,
-            'ben002_tables': ben002_tables,
+            'tenant_tables': tenant_tables,
             'potentially_relevant': rate_tables
         })
         
