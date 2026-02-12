@@ -458,7 +458,7 @@ def get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema):
         query = f"""
         SELECT 
             -SUM(CASE WHEN AccountNo LIKE '4%' THEN MTD ELSE 0 END)
-            + SUM(CASE WHEN AccountNo IN ('{contra_rev_list}') THEN MTD ELSE 0 END) as revenue,
+            - SUM(CASE WHEN AccountNo IN ('{contra_rev_list}') THEN MTD ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN MTD ELSE 0 END) as cogs,
             SUM(CASE WHEN AccountNo LIKE '6%' THEN MTD ELSE 0 END)
             + SUM(CASE WHEN AccountNo IN ('{non_std_exp_list}') THEN MTD ELSE 0 END) as expenses
@@ -510,7 +510,7 @@ def get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema):
         query = f"""
         SELECT 
             -SUM(CASE WHEN AccountNo LIKE '4%' THEN Amount ELSE 0 END)
-            + SUM(CASE WHEN AccountNo IN ('{contra_rev_list}') THEN Amount ELSE 0 END) as revenue,
+            - SUM(CASE WHEN AccountNo IN ('{contra_rev_list}') THEN Amount ELSE 0 END) as revenue,
             SUM(CASE WHEN AccountNo LIKE '5%' THEN Amount ELSE 0 END) as cogs,
             SUM(CASE WHEN AccountNo LIKE '6%' THEN Amount ELSE 0 END)
             + SUM(CASE WHEN AccountNo IN ('{non_std_exp_list}') THEN Amount ELSE 0 END) as expenses
@@ -548,16 +548,48 @@ def get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema):
 def get_dynamic_consolidated_pl(start_date, end_date, schema):
     """
     Get consolidated P&L using dynamic LIKE queries.
-    Automatically selects GL.MTD for closed months or GLDetail for current/custom ranges.
+    For full calendar month(s), sums GL.MTD for each month (exact Softbase match).
+    For partial months or custom ranges, falls back to GLDetail.
     
     Returns:
         Dictionary with revenue, cogs, expenses totals
     """
-    is_full_month, year, month = is_full_calendar_month(start_date, end_date)
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
     
-    if is_full_month:
-        return get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema)
+    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+    
+    # Check if the range spans full calendar months
+    # Start must be 1st of month, end must be last day of month
+    import calendar
+    is_start_first = start_dt.day == 1
+    last_day_of_end_month = calendar.monthrange(end_dt.year, end_dt.month)[1]
+    is_end_last = end_dt.day == last_day_of_end_month
+    
+    if is_start_first and is_end_last:
+        # Sum GL.MTD for each month in the range
+        total_revenue = 0.0
+        total_cogs = 0.0
+        total_expenses = 0.0
+        
+        current = start_dt
+        while current <= end_dt:
+            month_data = get_dynamic_consolidated_pl_from_gl_mtd(current.year, current.month, schema)
+            total_revenue += month_data['revenue']
+            total_cogs += month_data['cogs']
+            total_expenses += month_data['expenses']
+            current += relativedelta(months=1)
+        
+        logger.info(f"Multi-month GL.MTD P&L for {schema} {start_date} to {end_date}: Rev=${total_revenue:,.2f}, COGS=${total_cogs:,.2f}, Exp=${total_expenses:,.2f}")
+        
+        return {
+            'revenue': total_revenue,
+            'cogs': total_cogs,
+            'expenses': total_expenses
+        }
     else:
+        # Partial month — use GLDetail
         return get_dynamic_consolidated_pl_from_gldetail(start_date, end_date, schema)
 
 
