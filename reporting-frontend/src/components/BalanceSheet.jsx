@@ -38,7 +38,7 @@ const BalanceSheet = () => {
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/currie/sales-cogs-gp`,
         {
-          params: { start_date: asOfDate, end_date: asOfDate },
+          params: { start_date: asOfDate, end_date: asOfDate, refresh: 'true' },
           headers: { Authorization: `Bearer ${token}` }
         }
       );
