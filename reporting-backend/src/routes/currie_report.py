@@ -725,6 +725,61 @@ def _fetch_currie_metrics_data(start_date, end_date):
         'total_expenses': round(total_expenses, 2)
     }
     
+    # 7. Rental Fleet Metrics
+    metrics['rental_fleet'] = get_rental_fleet_metrics(start_date, end_date)
+    
+    # 8. Revenue/GP per Technician (combine service revenue with tech count)
+    tech_count = metrics.get('technician_count', {}).get('active_technicians', 0)
+    service_revenue = totals.get('total_aftermarket', {}).get('sales', 0) - totals.get('total_aftermarket', {}).get('sales', 0) + (data.get('service', {}).get('customer_labor', {}).get('sales', 0) + data.get('service', {}).get('internal_labor', {}).get('sales', 0) + data.get('service', {}).get('warranty_labor', {}).get('sales', 0) + data.get('service', {}).get('sublet', {}).get('sales', 0) + data.get('service', {}).get('other', {}).get('sales', 0))
+    service_gp_val = (data.get('service', {}).get('customer_labor', {}).get('gross_profit', 0) + data.get('service', {}).get('internal_labor', {}).get('gross_profit', 0) + data.get('service', {}).get('warranty_labor', {}).get('gross_profit', 0) + data.get('service', {}).get('sublet', {}).get('gross_profit', 0) + data.get('service', {}).get('other', {}).get('gross_profit', 0))
+    num_months_calc = max(1, int(num_months))
+    metrics['service_productivity'] = {
+        'revenue_per_tech_monthly': round(service_revenue / num_months_calc / tech_count, 2) if tech_count > 0 else 0,
+        'gp_per_tech_monthly': round(service_gp_val / num_months_calc / tech_count, 2) if tech_count > 0 else 0,
+        'total_service_revenue': round(service_revenue, 2),
+        'total_service_gp': round(service_gp_val, 2),
+        'hours_per_tech_monthly': round((metrics.get('labor_metrics', {}).get('total_billed_hours', 0)) / num_months_calc / tech_count, 1) if tech_count > 0 else 0,
+    }
+    
+    # 9. Department GP% summary for benchmarking
+    service_total = totals.get('total_service', totals.get('total_aftermarket', {}))
+    parts_total = totals.get('total_parts', {})
+    rental_total = totals.get('total_rental', {})
+    
+    def calc_gp_pct(dept_data):
+        sales = dept_data.get('sales', 0)
+        gp = dept_data.get('gross_profit', 0)
+        return round((gp / sales * 100) if sales > 0 else 0, 1)
+    
+    # Get service totals from the raw data
+    svc_sales = sum(data.get('service', {}).get(k, {}).get('sales', 0) for k in ['customer_labor', 'internal_labor', 'warranty_labor', 'sublet', 'other'])
+    svc_gp = sum(data.get('service', {}).get(k, {}).get('gross_profit', 0) for k in ['customer_labor', 'internal_labor', 'warranty_labor', 'sublet', 'other'])
+    parts_sales = sum(data.get('parts', {}).get(k, {}).get('sales', 0) for k in data.get('parts', {}).keys())
+    parts_gp_val = sum(data.get('parts', {}).get(k, {}).get('gross_profit', 0) for k in data.get('parts', {}).keys())
+    rental_sales = data.get('rental', {}).get('sales', 0)
+    rental_gp_val = data.get('rental', {}).get('gross_profit', 0)
+    
+    metrics['dept_gp_benchmarks'] = {
+        'service': {
+            'gp_pct': round((svc_gp / svc_sales * 100) if svc_sales > 0 else 0, 1),
+            'target': 65.0,
+            'sales': round(svc_sales, 2),
+            'gp': round(svc_gp, 2)
+        },
+        'parts': {
+            'gp_pct': round((parts_gp_val / parts_sales * 100) if parts_sales > 0 else 0, 1),
+            'target': 40.0,
+            'sales': round(parts_sales, 2),
+            'gp': round(parts_gp_val, 2)
+        },
+        'rental': {
+            'gp_pct': round((rental_gp_val / rental_sales * 100) if rental_sales > 0 else 0, 1),
+            'target': 45.0,
+            'sales': round(rental_sales, 2),
+            'gp': round(rental_gp_val, 2)
+        }
+    }
+    
     return {
         'metrics': metrics,
         'date_range': {
@@ -986,6 +1041,94 @@ def get_parts_inventory_metrics(start_date, end_date):
         
     except Exception as e:
         logger.error(f"Error fetching parts inventory metrics: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+
+def get_rental_fleet_metrics(start_date, end_date):
+    """Get rental fleet metrics: fleet value, depreciation, financial utilization"""
+    try:
+        schema = get_tenant_schema()
+        
+        # 1. Rental Fleet Value from GL accounts
+        # Account 183000 = Gross Rental Equipment, 193000 = Accumulated Depreciation
+        fleet_query = f"""
+        SELECT 
+            SUM(CASE WHEN AccountNo LIKE '183%' THEN Balance ELSE 0 END) as gross_fleet_value,
+            SUM(CASE WHEN AccountNo LIKE '193%' THEN ABS(Balance) ELSE 0 END) as accumulated_depreciation
+        FROM {schema}.GLAccounts
+        WHERE AccountNo LIKE '183%' OR AccountNo LIKE '193%'
+        """
+        
+        fleet_result = get_sql_service().execute_query(fleet_query, [])
+        gross_value = float(fleet_result[0]['gross_fleet_value'] or 0) if fleet_result else 0
+        accum_deprec = float(fleet_result[0]['accumulated_depreciation'] or 0) if fleet_result else 0
+        net_value = gross_value - accum_deprec
+        
+        # 2. Rental Revenue for the period (from GL)
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        days_in_period = (end - start).days + 1
+        
+        rental_rev_query = f"""
+        SELECT ABS(SUM(Amount)) as rental_revenue
+        FROM {schema}.GLDetail
+        WHERE AccountNo IN ('400000','401000','402000','403000','404000','405000')
+          AND PostDate >= %s AND PostDate <= %s
+          AND Posted = 1
+        """
+        
+        rental_rev_result = get_sql_service().execute_query(rental_rev_query, [start_date, end_date])
+        period_revenue = float(rental_rev_result[0]['rental_revenue'] or 0) if rental_rev_result else 0
+        
+        # Annualize the revenue
+        annualized_revenue = (period_revenue / days_in_period * 365) if days_in_period > 0 else 0
+        
+        # Financial Utilization = Annualized Revenue / Gross Fleet Value (acquisition cost)
+        financial_utilization = (annualized_revenue / gross_value * 100) if gross_value > 0 else 0
+        
+        # Depreciation for the period
+        deprec_query = f"""
+        SELECT ABS(SUM(Amount)) as depreciation_expense
+        FROM {schema}.GLDetail
+        WHERE AccountNo LIKE '593%'
+          AND PostDate >= %s AND PostDate <= %s
+          AND Posted = 1
+        """
+        
+        deprec_result = get_sql_service().execute_query(deprec_query, [start_date, end_date])
+        period_depreciation = float(deprec_result[0]['depreciation_expense'] or 0) if deprec_result else 0
+        annualized_depreciation = (period_depreciation / days_in_period * 365) if days_in_period > 0 else 0
+        
+        # Rental Multiple = Revenue / Depreciation
+        rental_multiple = (annualized_revenue / annualized_depreciation) if annualized_depreciation > 0 else 0
+        
+        # Fleet unit count from Equipment table
+        unit_query = f"""
+        SELECT COUNT(*) as unit_count
+        FROM {schema}.Equipment
+        WHERE Status = 'A'
+          AND RentalUnit = 1
+        """
+        
+        unit_result = get_sql_service().execute_query(unit_query, [])
+        unit_count = int(unit_result[0]['unit_count'] or 0) if unit_result else 0
+        
+        return {
+            'gross_fleet_value': round(gross_value, 2),
+            'accumulated_depreciation': round(accum_deprec, 2),
+            'net_fleet_value': round(net_value, 2),
+            'unit_count': unit_count,
+            'annualized_revenue': round(annualized_revenue, 2),
+            'financial_utilization': round(financial_utilization, 1),
+            'annualized_depreciation': round(annualized_depreciation, 2),
+            'rental_multiple': round(rental_multiple, 2),
+            'revenue_per_unit': round(annualized_revenue / unit_count, 2) if unit_count > 0 else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching rental fleet metrics: {str(e)}")
         import traceback
         traceback.print_exc()
         return {}

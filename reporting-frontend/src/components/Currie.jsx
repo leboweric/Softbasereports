@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download, Calendar, RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, Download, Calendar, RefreshCw, Target, TrendingUp, TrendingDown, Wrench, Package, Truck, DollarSign, Users, Activity, BarChart3, Gauge } from 'lucide-react';
 import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -567,6 +567,439 @@ const Currie = ({ user, organization }) => {
               )}
             </CardContent>
           </Card>
+
+          {/* Department GP% Benchmarks */}
+          {metrics && metrics.dept_gp_benchmarks && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Target className="w-5 h-5 text-blue-600" />
+                  <CardTitle>Department GP% vs Currie Benchmarks</CardTitle>
+                </div>
+                <CardDescription>Gross Profit margins compared to Currie Financial Model targets for the selected period</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {[{key: 'service', label: 'Service', icon: Wrench, color: 'blue'},
+                    {key: 'parts', label: 'Parts', icon: Package, color: 'emerald'},
+                    {key: 'rental', label: 'Rental', icon: Truck, color: 'purple'}].map(dept => {
+                    const d = metrics.dept_gp_benchmarks[dept.key];
+                    if (!d) return null;
+                    const meetsTarget = d.gp_pct >= d.target;
+                    const pctOfTarget = Math.min((d.gp_pct / d.target) * 100, 150);
+                    return (
+                      <div key={dept.key} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <dept.icon className={`w-4 h-4 text-${dept.color}-600`} />
+                            <span className="font-semibold text-gray-900">{dept.label}</span>
+                          </div>
+                          <span className={`text-2xl font-bold ${meetsTarget ? 'text-green-600' : 'text-red-600'}`}>
+                            {d.gp_pct}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                          <div
+                            className={`h-3 rounded-full transition-all ${meetsTarget ? 'bg-green-500' : d.gp_pct >= d.target * 0.9 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${Math.min(pctOfTarget, 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Currie Target: {d.target}%</span>
+                          <span className={meetsTarget ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
+                            {meetsTarget ? '+' : ''}{(d.gp_pct - d.target).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="mt-2 pt-2 border-t text-xs text-gray-500 flex justify-between">
+                          <span>Revenue: {formatCurrency(d.sales)}</span>
+                          <span>GP: {formatCurrency(d.gp)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Service Department KPIs */}
+          {metrics && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Wrench className="w-5 h-5 text-blue-600" />
+                  <CardTitle>Service Department KPIs</CardTitle>
+                </div>
+                <CardDescription>Technician productivity and service operations metrics</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Revenue per Technician */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                    <DollarSign className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Revenue / Tech / Mo</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.service_productivity?.revenue_per_tech_monthly || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Currie: $20-25K</p>
+                  </div>
+                  {/* GP per Technician */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <TrendingUp className="w-5 h-5 text-green-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">GP / Tech / Mo</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.service_productivity?.gp_per_tech_monthly || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Currie: ~$15K</p>
+                  </div>
+                  {/* Effective Labor Rate */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                    <Gauge className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Effective Labor Rate</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.labor_metrics?.average_labor_rate || 0)}/hr
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{(metrics.labor_metrics?.total_billed_hours || 0).toFixed(0)} total hrs billed</p>
+                  </div>
+                  {/* Billed Hours per Tech */}
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center">
+                    <Activity className="w-5 h-5 text-orange-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Billed Hrs / Tech / Mo</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {metrics.service_productivity?.hours_per_tech_monthly?.toFixed(1) || '0.0'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Target: 130+ hrs/mo</p>
+                  </div>
+                  {/* Service Calls per Day */}
+                  <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center">
+                    <Wrench className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Service Calls / Day</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {metrics.service_calls_per_day?.calls_per_day?.toFixed(1) || '0.0'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{metrics.service_calls_per_day?.total_service_calls || 0} total calls</p>
+                  </div>
+                  {/* Active Technicians */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                    <Users className="w-5 h-5 text-gray-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Active Technicians</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {metrics.technician_count?.active_technicians || 0}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">WOs with labor: {metrics.labor_metrics?.work_orders_with_labor || 0}</p>
+                  </div>
+                  {/* Total Service Revenue */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                    <BarChart3 className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Total Service Revenue</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.service_productivity?.total_service_revenue || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">For selected period</p>
+                  </div>
+                  {/* Total Service GP */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <DollarSign className="w-5 h-5 text-green-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Total Service GP</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.service_productivity?.total_service_gp || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">For selected period</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Parts Department KPIs */}
+          {metrics && metrics.parts_inventory && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-emerald-600" />
+                  <CardTitle>Parts Department KPIs</CardTitle>
+                </div>
+                <CardDescription>Inventory performance and fill rate metrics</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Fill Rate */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
+                    <Target className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Fill Rate</p>
+                    <p className={`text-xl font-bold ${(metrics.parts_inventory.fill_rate || 0) >= 90 ? 'text-green-600' : (metrics.parts_inventory.fill_rate || 0) >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {metrics.parts_inventory.fill_rate?.toFixed(1) || '0.0'}%
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Target: 90%+</p>
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                      <div className={`h-2 rounded-full ${(metrics.parts_inventory.fill_rate || 0) >= 90 ? 'bg-green-500' : 'bg-yellow-500'}`}
+                        style={{ width: `${Math.min(metrics.parts_inventory.fill_rate || 0, 100)}%` }} />
+                    </div>
+                  </div>
+                  {/* Inventory Turnover */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                    <Activity className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Inventory Turnover</p>
+                    <p className={`text-xl font-bold ${(metrics.parts_inventory.inventory_turnover || 0) >= 4 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {metrics.parts_inventory.inventory_turnover?.toFixed(2) || '0.00'}x
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Target: 4-6x/year</p>
+                  </div>
+                  {/* Inventory Value */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                    <DollarSign className="w-5 h-5 text-gray-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Inventory Value</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.parts_inventory.inventory_value || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{metrics.parts_inventory.filled_orders || 0} / {metrics.parts_inventory.total_orders || 0} orders filled</p>
+                  </div>
+                  {/* Obsolete Parts */}
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                    <TrendingDown className="w-5 h-5 text-red-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Obsolete Parts (365+ days)</p>
+                    <p className="text-xl font-bold text-red-600">
+                      {metrics.parts_inventory.aging?.obsolete_count || 0}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Value: {formatCurrency(metrics.parts_inventory.aging?.obsolete_value || 0)}</p>
+                  </div>
+                </div>
+                {/* Inventory Aging Breakdown */}
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Inventory Aging Breakdown</p>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>Fast (&lt;90 days)</span>
+                        <span className="font-medium text-green-600">{metrics.parts_inventory.aging?.fast_count || 0}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-green-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.fast_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>Medium (91-180)</span>
+                        <span className="font-medium text-yellow-600">{metrics.parts_inventory.aging?.medium_count || 0}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-yellow-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.medium_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>Slow (181-365)</span>
+                        <span className="font-medium text-orange-600">{metrics.parts_inventory.aging?.slow_count || 0}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-orange-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.slow_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>Obsolete (365+)</span>
+                        <span className="font-medium text-red-600">{metrics.parts_inventory.aging?.obsolete_count || 0}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-red-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.obsolete_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Rental Department KPIs */}
+          {metrics && metrics.rental_fleet && Object.keys(metrics.rental_fleet).length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-purple-600" />
+                  <CardTitle>Rental Department KPIs</CardTitle>
+                </div>
+                <CardDescription>Fleet utilization, rental multiple, and fleet value metrics</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {/* Financial Utilization */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                    <Gauge className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Financial Utilization</p>
+                    <p className={`text-xl font-bold ${(metrics.rental_fleet.financial_utilization || 0) >= 60 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {metrics.rental_fleet.financial_utilization?.toFixed(1) || '0.0'}%
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Ann. Rev / Acquisition Cost</p>
+                  </div>
+                  {/* Rental Multiple */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                    <TrendingUp className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Rental Multiple</p>
+                    <p className={`text-xl font-bold ${(metrics.rental_fleet.rental_multiple || 0) >= 3 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {metrics.rental_fleet.rental_multiple?.toFixed(2) || '0.00'}x
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Target: 3.0x+ (Rev/Deprec)</p>
+                  </div>
+                  {/* Revenue per Unit */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                    <DollarSign className="w-5 h-5 text-green-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Revenue / Unit / Year</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.rental_fleet.revenue_per_unit || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">{metrics.rental_fleet.unit_count || 0} active units</p>
+                  </div>
+                  {/* Annualized Revenue */}
+                  <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center">
+                    <BarChart3 className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 mb-1">Annualized Revenue</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(metrics.rental_fleet.annualized_revenue || 0)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">Deprec: {formatCurrency(metrics.rental_fleet.annualized_depreciation || 0)}/yr</p>
+                  </div>
+                </div>
+                {/* Fleet Value Summary */}
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Fleet Value Summary</p>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500">Gross Fleet Value</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCurrency(metrics.rental_fleet.gross_fleet_value || 0)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500">Accumulated Depreciation</p>
+                      <p className="text-lg font-semibold text-red-600">({formatCurrency(metrics.rental_fleet.accumulated_depreciation || 0)})</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500">Net Fleet Value</p>
+                      <p className="text-lg font-semibold text-blue-600">{formatCurrency(metrics.rental_fleet.net_fleet_value || 0)}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Financial Health KPIs */}
+          {data && data.balance_sheet && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-gray-700" />
+                  <CardTitle>Company Financial Health</CardTitle>
+                </div>
+                <CardDescription>Key financial ratios from the balance sheet and income statement</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const bs = data.balance_sheet;
+                  const totalAssets = bs.assets?.total || 0;
+                  const netIncome = -(bs.equity?.net_income || 0);
+                  const totalCurrentAssets = bs.assets?.current_assets ? (
+                    bs.assets.current_assets.cash.reduce((s, a) => s + a.balance, 0) +
+                    bs.assets.current_assets.accounts_receivable.reduce((s, a) => s + a.balance, 0) +
+                    bs.assets.current_assets.inventory.reduce((s, a) => s + a.balance, 0) +
+                    bs.assets.current_assets.other_current.reduce((s, a) => s + a.balance, 0)
+                  ) : 0;
+                  const totalCurrentLiab = bs.liabilities?.current_liabilities ?
+                    -bs.liabilities.current_liabilities.reduce((s, a) => s + a.balance, 0) : 0;
+                  const totalLiabilities = (totalCurrentLiab) +
+                    (bs.liabilities?.long_term_liabilities ? -bs.liabilities.long_term_liabilities.reduce((s, a) => s + a.balance, 0) : 0) +
+                    (bs.liabilities?.other_liabilities ? -bs.liabilities.other_liabilities.reduce((s, a) => s + a.balance, 0) : 0);
+                  const totalEquity = -(bs.equity?.capital_stock?.reduce((s, a) => s + a.balance, 0) || 0) +
+                    -(bs.equity?.retained_earnings?.reduce((s, a) => s + a.balance, 0) || 0) +
+                    -(bs.equity?.distributions?.reduce((s, a) => s + a.balance, 0) || 0) +
+                    netIncome;
+
+                  const roa = totalAssets !== 0 ? (netIncome / Math.abs(totalAssets) * 100) : 0;
+                  const debtToEquity = totalEquity !== 0 ? (totalLiabilities / totalEquity) : 0;
+                  const currentRatio = totalCurrentLiab !== 0 ? (totalCurrentAssets / totalCurrentLiab) : 0;
+                  const operatingProfit = data.total_operating_profit || 0;
+                  const totalRevenue = data.totals?.total_net_sales_gp?.sales || 0;
+                  const opPct = totalRevenue !== 0 ? (operatingProfit / totalRevenue * 100) : 0;
+
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {/* ROA */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                        <TrendingUp className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+                        <p className="text-xs text-gray-500 mb-1">Return on Assets</p>
+                        <p className={`text-xl font-bold ${roa >= 10 ? 'text-green-600' : roa >= 5 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {roa.toFixed(1)}%
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">Net Income / Total Assets</p>
+                      </div>
+                      {/* Debt to Equity */}
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center">
+                        <Activity className="w-5 h-5 text-orange-600 mx-auto mb-1" />
+                        <p className="text-xs text-gray-500 mb-1">Debt to Equity</p>
+                        <p className={`text-xl font-bold ${debtToEquity <= 2 ? 'text-green-600' : debtToEquity <= 3 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {debtToEquity.toFixed(2)}x
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">Lower is better</p>
+                      </div>
+                      {/* Current Ratio */}
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                        <Gauge className="w-5 h-5 text-green-600 mx-auto mb-1" />
+                        <p className="text-xs text-gray-500 mb-1">Current Ratio</p>
+                        <p className={`text-xl font-bold ${currentRatio >= 1.5 ? 'text-green-600' : currentRatio >= 1.0 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {currentRatio.toFixed(2)}x
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">Target: 1.5x+</p>
+                      </div>
+                      {/* Operating Profit % */}
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                        <DollarSign className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+                        <p className="text-xs text-gray-500 mb-1">Operating Profit %</p>
+                        <p className={`text-xl font-bold ${opPct >= 5 ? 'text-green-600' : opPct >= 2 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          {opPct.toFixed(1)}%
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">Currie: 5-7% pre-tax</p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* AR Aging */}
+          {metrics && metrics.ar_aging && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="w-5 h-5 text-gray-700" />
+                  <CardTitle>Accounts Receivable Aging</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-5 gap-4">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500 mb-1">Current (0-30)</p>
+                    <p className="text-lg font-bold text-green-600">{formatCurrency(metrics.ar_aging.current || 0)}</p>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500 mb-1">31-60 Days</p>
+                    <p className="text-lg font-bold text-yellow-600">{formatCurrency(metrics.ar_aging.days_31_60 || 0)}</p>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500 mb-1">61-90 Days</p>
+                    <p className="text-lg font-bold text-orange-600">{formatCurrency(metrics.ar_aging.days_61_90 || 0)}</p>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500 mb-1">91+ Days</p>
+                    <p className="text-lg font-bold text-red-600">{formatCurrency(metrics.ar_aging.days_91_plus || 0)}</p>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-500 mb-1">Total AR</p>
+                    <p className="text-lg font-bold text-gray-900">{formatCurrency(metrics.ar_aging.total || 0)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
         </div>
       )}
 
