@@ -259,7 +259,7 @@ NAVIGATION_CONFIG = {
         }
     },
     'customer-churn': {
-        'label': 'Customer Churn',
+        'label': 'Customers',
         'icon': 'TrendingDown',
         'path': 'customer-churn',
         'required_resource': 'customer_churn',
