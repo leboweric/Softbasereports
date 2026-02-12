@@ -11,6 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { 
   BarChart, 
@@ -122,7 +124,23 @@ const RentalReport = ({ user }) => {
   const [unitsOnRent, setUnitsOnRent] = useState(0)
   const [unitsOnHold, setUnitsOnHold] = useState(0)
   const [benchmarkData, setBenchmarkData] = useState(null)
+  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
+  const [rawMonthlyRevenueData, setRawMonthlyRevenueData] = useState(null)
   
+  // Re-filter monthly revenue data when toggle changes
+  useEffect(() => {
+    if (rawMonthlyRevenueData && rawMonthlyRevenueData.length > 0) {
+      const now = new Date()
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const currentMonthName = monthNames[now.getMonth()]
+      const filteredData = rawMonthlyRevenueData.filter(item => {
+        if (!includeCurrentMonth && item.month === currentMonthName) return false
+        return true
+      })
+      setMonthlyRevenueData(filteredData)
+    }
+  }, [includeCurrentMonth, rawMonthlyRevenueData])
+
   // Sort monthly revenue data chronologically for correct trendline calculation
   const sortedMonthlyRevenue = React.useMemo(() => {
     if (!monthlyRevenueData) {
@@ -200,10 +218,21 @@ const RentalReport = ({ user }) => {
       
       if (response.ok) {
         const data = await response.json()
-        setMonthlyRevenueData(data.monthlyRentalRevenue || [])
+        const rawData = data.monthlyRentalRevenue || []
+        setRawMonthlyRevenueData(rawData)
+        // Apply initial filter (exclude current month by default)
+        const now = new Date()
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        const currentMonthName = monthNames[now.getMonth()]
+        const filteredData = rawData.filter(item => {
+          if (!includeCurrentMonth && item.month === currentMonthName) return false
+          return true
+        })
+        setMonthlyRevenueData(filteredData)
       }
     } catch (error) {
       console.error('Error fetching monthly revenue data:', error)
+      setRawMonthlyRevenueData([])
       setMonthlyRevenueData([])
     }
   }
@@ -594,11 +623,13 @@ const RentalReport = ({ user }) => {
                   <span className="text-xs font-medium text-muted-foreground">Avg Revenue / Mo</span>
                 </div>
                 <div className="text-2xl font-bold">
-                  {monthlyRevenueData && monthlyRevenueData.length > 1 ? 
-                    formatCurrency(monthlyRevenueData.slice(0, -1).filter(m => m.amount > 0).reduce((sum, m) => sum + m.amount, 0) / Math.max(1, monthlyRevenueData.slice(0, -1).filter(m => m.amount > 0).length)) 
+                  {monthlyRevenueData && monthlyRevenueData.length > 0 ? 
+                    formatCurrency(monthlyRevenueData.filter(m => m.amount > 0).reduce((sum, m) => sum + m.amount, 0) / Math.max(1, monthlyRevenueData.filter(m => m.amount > 0).length)) 
                     : '—'}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Trailing 12mo avg</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {includeCurrentMonth ? 'Including current month' : 'Excluding current month'}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -734,14 +765,21 @@ const RentalReport = ({ user }) => {
                 <div>
                   <CardTitle>Monthly Rental Revenue</CardTitle>
                   <CardDescription>Revenue trend over the last 12 months</CardDescription>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Switch
+                      id="include-current-month-rental"
+                      checked={includeCurrentMonth}
+                      onCheckedChange={setIncludeCurrentMonth}
+                    />
+                    <Label htmlFor="include-current-month-rental" className="text-sm text-muted-foreground cursor-pointer">
+                      Include current month
+                    </Label>
+                  </div>
                 </div>
                 {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
-                  const currentDate = new Date()
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                  const currentMonthName = monthNames[currentDate.getMonth()]
-                  const historicalMonths = monthlyRevenueData.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                  const avgRevenue = historicalMonths.length > 0 ? 
-                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                  const monthsWithRevenue = monthlyRevenueData.filter(item => item.amount > 0)
+                  const avgRevenue = monthsWithRevenue.length > 0 ? 
+                    monthsWithRevenue.reduce((sum, item) => sum + item.amount, 0) / monthsWithRevenue.length : 0
                   return (
                     <div className="text-right">
                       <p className="text-sm text-muted-foreground">Avg Revenue</p>
@@ -756,10 +794,7 @@ const RentalReport = ({ user }) => {
                 <ComposedChart data={(() => {
                   const data = sortedMonthlyRevenue || []
                   if (data.length === 0) return data
-                  const currentDate = new Date()
-                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                  const currentMonthName = monthNames[currentDate.getMonth()]
-                  const completeMonths = data.filter(item => item.month !== currentMonthName && item.amount > 0)
+                  const completeMonths = data.filter(item => item.amount > 0)
                   let trendSlope = 0, trendIntercept = 0
                   if (completeMonths.length >= 2) {
                     const n = completeMonths.length
@@ -805,8 +840,9 @@ const RentalReport = ({ user }) => {
                   <Bar dataKey="amount" fill="#9333ea" shape={<CustomBar />} name="Revenue" />
                   <Line type="monotone" dataKey="trendline" stroke="#7c3aed" strokeWidth={2} name="Trend" dot={false} connectNulls={false} />
                   {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
-                    const completeMonths = monthlyRevenueData.slice(0, -1)
-                    const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    const monthsWithRevenue = monthlyRevenueData.filter(item => item.amount > 0)
+                    if (monthsWithRevenue.length === 0) return null
+                    const average = monthsWithRevenue.reduce((sum, item) => sum + item.amount, 0) / monthsWithRevenue.length
                     return <ReferenceLine y={average} stroke="#666" strokeDasharray="3 3" label={{ value: "Average", position: "insideTopRight" }} />
                   })()}
                 </ComposedChart>

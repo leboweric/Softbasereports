@@ -1,5 +1,7 @@
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import {
   ComposedChart,
   Bar,
@@ -45,42 +47,47 @@ export default function RevenueChart({
   title, 
   description, 
   tooltipInfo,
-  barColor = "#10b981"
+  barColor = "#10b981",
+  chartId
 }) {
+  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
+
   // Sort data by month order
   const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  const sortedData = data ? [...data].sort((a, b) => 
-    monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month)
-  ) : []
 
-  // Calculate average revenue and margin (excluding current month)
-  const currentDate = new Date()
-  const currentMonthIndex = currentDate.getMonth()
-  const currentMonthName = monthOrder[currentMonthIndex]
-  
-  const historicalMonths = sortedData.filter(item => 
-    item.month !== currentMonthName && item.amount > 0
-  )
-  
-  const avgRevenue = historicalMonths.length > 0 ? 
-    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-  const avgMargin = historicalMonths.length > 0 ? 
-    historicalMonths.reduce((sum, item) => sum + (item.margin || 0), 0) / historicalMonths.length : 0
+  // Filter data based on toggle
+  const filteredData = useMemo(() => {
+    if (!data) return []
+    const sorted = [...data].sort((a, b) => 
+      monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month)
+    )
+    if (includeCurrentMonth) return sorted
+    const currentMonthName = monthOrder[new Date().getMonth()]
+    return sorted.filter(item => item.month !== currentMonthName)
+  }, [data, includeCurrentMonth])
 
-  // Calculate trendline
-  const dataWithTrend = (() => {
-    if (historicalMonths.length < 2) return sortedData
+  // Calculate average revenue and margin from filtered data
+  const monthsWithRevenue = filteredData.filter(item => item.amount > 0)
+  
+  const avgRevenue = monthsWithRevenue.length > 0 ? 
+    monthsWithRevenue.reduce((sum, item) => sum + item.amount, 0) / monthsWithRevenue.length : 0
+  const avgMargin = monthsWithRevenue.length > 0 ? 
+    monthsWithRevenue.reduce((sum, item) => sum + (item.margin || 0), 0) / monthsWithRevenue.length : 0
+
+  // Calculate trendline from filtered data
+  const dataWithTrend = useMemo(() => {
+    if (monthsWithRevenue.length < 2) return filteredData
 
     // Calculate linear regression
-    const n = historicalMonths.length
-    const sumX = historicalMonths.reduce((sum, _, i) => sum + i, 0)
-    const sumY = historicalMonths.reduce((sum, item) => sum + item.amount, 0)
+    const n = monthsWithRevenue.length
+    const sumX = monthsWithRevenue.reduce((sum, _, i) => sum + i, 0)
+    const sumY = monthsWithRevenue.reduce((sum, item) => sum + item.amount, 0)
     const meanX = sumX / n
     const meanY = sumY / n
     
     let numerator = 0
     let denominator = 0
-    historicalMonths.forEach((item, i) => {
+    monthsWithRevenue.forEach((item, i) => {
       numerator += (i - meanX) * (item.amount - meanY)
       denominator += (i - meanX) * (i - meanX)
     })
@@ -89,9 +96,9 @@ export default function RevenueChart({
     const intercept = meanY - slope * meanX
 
     // Add trendline to data
-    return sortedData.map((item) => {
-      const isComplete = historicalMonths.some(hm => hm.month === item.month)
-      const completeIndex = historicalMonths.findIndex(hm => hm.month === item.month)
+    return filteredData.map((item) => {
+      const isComplete = monthsWithRevenue.some(hm => hm.month === item.month)
+      const completeIndex = monthsWithRevenue.findIndex(hm => hm.month === item.month)
       const trendValue = isComplete && completeIndex >= 0 ? slope * completeIndex + intercept : null
       
       return {
@@ -99,7 +106,9 @@ export default function RevenueChart({
         trendline: trendValue
       }
     })
-  })()
+  }, [filteredData, monthsWithRevenue])
+
+  const switchId = chartId ? `include-current-month-${chartId}` : `include-current-month-${title?.replace(/\s+/g, '-').toLowerCase()}`
 
   return (
     <Card>
@@ -122,6 +131,16 @@ export default function RevenueChart({
               )}
             </div>
             <CardDescription>{description}</CardDescription>
+            <div className="flex items-center gap-2 mt-2">
+              <Switch
+                id={switchId}
+                checked={includeCurrentMonth}
+                onCheckedChange={setIncludeCurrentMonth}
+              />
+              <Label htmlFor={switchId} className="text-sm text-muted-foreground cursor-pointer">
+                Include current month
+              </Label>
+            </div>
           </div>
           {avgRevenue > 0 && (
             <div className="text-right">
@@ -145,10 +164,10 @@ export default function RevenueChart({
             <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
             <RechartsTooltip 
               content={({ active, payload, label }) => {
-                if (active && payload && payload.length && sortedData) {
-                  const currentIndex = sortedData.findIndex(item => item.month === label)
-                  const currentData = sortedData[currentIndex]
-                  const previousData = currentIndex > 0 ? sortedData[currentIndex - 1] : null
+                if (active && payload && payload.length && filteredData) {
+                  const currentIndex = filteredData.findIndex(item => item.month === label)
+                  const currentData = filteredData[currentIndex]
+                  const previousData = currentIndex > 0 ? filteredData[currentIndex - 1] : null
                   
                   return (
                     <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
