@@ -40,7 +40,11 @@ import {
   AlertCircle,
   Download,
   PauseCircle,
-  Target
+  Target,
+  Activity,
+  CheckCircle,
+  ArrowRight,
+  Gauge
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
@@ -543,295 +547,404 @@ const RentalReport = ({ user }) => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Currie Benchmark Card */}
-          {benchmarkData && (
-            <Card className="mb-6">
-              <CardHeader>
+          {/* Row 1: Glanceable KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-5">
+            {/* Fleet Utilization */}
+            <Card className="border-l-4 border-l-purple-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Gauge className="h-4 w-4 text-purple-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Fleet Utilization</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {inventoryCount > 0 ? `${((unitsOnRent / inventoryCount) * 100).toFixed(1)}%` : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {unitsOnRent} of {inventoryCount} units
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Units on Rent */}
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity className="h-4 w-4 text-green-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Units on Rent</span>
+                </div>
+                <div className="text-2xl font-bold text-green-600">{unitsOnRent}</div>
+                <p className="text-xs text-muted-foreground mt-1">Currently deployed</p>
+              </CardContent>
+            </Card>
+
+            {/* Units Available */}
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <CheckCircle className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Available</span>
+                </div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {Math.max(0, inventoryCount - unitsOnRent - unitsOnHold)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Ready to rent</p>
+              </CardContent>
+            </Card>
+
+            {/* Units on Hold */}
+            <Card className={`border-l-4 ${unitsOnHold > 0 ? 'border-l-orange-500' : 'border-l-gray-300'}`}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <PauseCircle className="h-4 w-4 text-orange-500" />
+                  <span className="text-xs font-medium text-muted-foreground">On Hold</span>
+                </div>
+                <div className={`text-2xl font-bold ${unitsOnHold > 0 ? 'text-orange-600' : ''}`}>
+                  {unitsOnHold}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Maintenance / other</p>
+              </CardContent>
+            </Card>
+
+            {/* Avg Monthly Revenue */}
+            <Card className="border-l-4 border-l-emerald-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign className="h-4 w-4 text-emerald-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Avg Revenue / Mo</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {monthlyRevenueData && monthlyRevenueData.length > 1 ? 
+                    formatCurrency(monthlyRevenueData.slice(0, -1).filter(m => m.amount > 0).reduce((sum, m) => sum + m.amount, 0) / Math.max(1, monthlyRevenueData.slice(0, -1).filter(m => m.amount > 0).length)) 
+                    : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Trailing 12mo avg</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Currie Benchmark + Action Items */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Currie Benchmark - Compact */}
+            <Card className="md:col-span-2">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   <Target className="h-5 w-5" />
-                  Currie Model Benchmarks
-                  {benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target && (
+                  Currie Benchmarks
+                  {benchmarkData?.current_month?.gp_margin >= benchmarkData?.currie_gp_target && (
                     <Badge className="ml-2 bg-green-100 text-green-800">Meeting Target</Badge>
                   )}
                 </CardTitle>
-                <CardDescription>
-                  Rental department gross margin vs Currie Financial Model targets
-                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-6 md:grid-cols-3">
-                  {/* Current Month GP% vs Target */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Current Month GP%</h4>
-                    <div className="flex items-baseline gap-2">
-                      <div className={`text-3xl font-bold ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
-                        {benchmarkData.current_month?.gp_margin || 0}%
-                      </div>
-                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min((benchmarkData.current_month?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className={`text-sm font-medium ${benchmarkData.current_month?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {benchmarkData.current_month?.vs_target >= 0 ? '+' : ''}{benchmarkData.current_month?.vs_target || 0}pp vs target
-                    </p>
-                  </div>
-
-                  {/* Trailing Average GP% vs Target */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Trailing {benchmarkData.trailing_average?.months || 12}mo Avg GP%</h4>
-                    <div className="flex items-baseline gap-2">
-                      <div className={`text-3xl font-bold ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
-                        {benchmarkData.trailing_average?.gp_margin || 0}%
-                      </div>
-                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min((benchmarkData.trailing_average?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className={`text-sm font-medium ${benchmarkData.trailing_average?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {benchmarkData.trailing_average?.vs_target >= 0 ? '+' : ''}{benchmarkData.trailing_average?.vs_target || 0}pp vs target
-                    </p>
-                  </div>
-
-                  {/* Currie Target Summary */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Currie Model Targets</h4>
+                {benchmarkData ? (
+                  <div className="grid gap-6 md:grid-cols-3">
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">GP Margin Target</span>
-                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_gp_target}%</span>
+                      <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Current Month GP%</h4>
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-3xl font-bold ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
+                          {benchmarkData.current_month?.gp_margin || 0}%
+                        </span>
+                        <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}%</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Operating Profit Target</span>
-                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_op_target}%</span>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${Math.min((benchmarkData.current_month?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }} />
                       </div>
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm text-muted-foreground">Current Month GP$</span>
-                        <span className="text-sm font-medium">{formatCurrency(benchmarkData.current_month?.gross_profit || 0)}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Trailing {benchmarkData.trailing_average?.months || 12}mo Avg</h4>
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-3xl font-bold ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
+                          {benchmarkData.trailing_average?.gp_margin || 0}%
+                        </span>
+                        <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${Math.min((benchmarkData.trailing_average?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wide">GP$ This Month</h4>
+                      <div className="text-3xl font-bold text-blue-600">
+                        {formatCurrency(benchmarkData.current_month?.gross_profit || 0)}
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground pt-1 border-t">
+                        <span>GP Target: {benchmarkData.currie_gp_target}%</span>
+                        <span>OP Target: {benchmarkData.currie_op_target}%</span>
                       </div>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Loading benchmark data...</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Action Items */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-orange-500" />
+                  Action Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {/* Units on Hold */}
+                  {unitsOnHold > 0 && (
+                    <button 
+                      onClick={() => {
+                        const tabTrigger = document.querySelector('[data-value="availability"]') || document.querySelector('button[value="availability"]')
+                        if (tabTrigger) tabTrigger.click()
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors text-left"
+                    >
+                      <PauseCircle className="h-5 w-5 text-orange-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-orange-800">{unitsOnHold} Units on Hold</p>
+                        <p className="text-xs text-orange-600">Not generating revenue</p>
+                      </div>
+                      <ArrowRight className="h-4 w-4 text-orange-400 ml-auto" />
+                    </button>
+                  )}
+
+                  {/* Low Utilization Warning */}
+                  {inventoryCount > 0 && ((unitsOnRent / inventoryCount) * 100) < 65 && (
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-yellow-50">
+                      <Gauge className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800">Low Fleet Utilization</p>
+                        <p className="text-xs text-yellow-600">{((unitsOnRent / inventoryCount) * 100).toFixed(1)}% — target 65-75%</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* GP Below Target */}
+                  {benchmarkData?.current_month?.vs_target < 0 && (
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-red-50">
+                      <TrendingDown className="h-5 w-5 text-red-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-red-800">GP Below Currie Target</p>
+                        <p className="text-xs text-red-600">{benchmarkData.current_month?.vs_target}pp below {benchmarkData.currie_gp_target}%</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All clear state */}
+                  {unitsOnHold === 0 && 
+                   (inventoryCount === 0 || ((unitsOnRent / inventoryCount) * 100) >= 65) &&
+                   (!benchmarkData?.current_month?.vs_target || benchmarkData?.current_month?.vs_target >= 0) && (
+                    <div className="text-center py-4 text-green-600">
+                      <CheckCircle className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm font-medium">All Clear</p>
+                      <p className="text-xs text-muted-foreground">No items need attention</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
-          )}
+          </div>
 
-
-
-      {/* Monthly Revenue & Margin */}
-      <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>Monthly Rental Revenue</CardTitle>
-                <CardDescription>Rental revenue over the last 12 months</CardDescription>
-              </div>
-              {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
-                // Only include historical months (before current month)
-                const currentDate = new Date()
-                const currentMonthIndex = currentDate.getMonth()
-                const currentYear = currentDate.getFullYear()
-                
-                // Month names in order
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                const currentMonthName = monthNames[currentMonthIndex]
-                
-                // Get index of current month in the data
-                const currentMonthDataIndex = monthlyRevenueData.findIndex(item => item.month === currentMonthName)
-                
-                // Filter to only include months before current month with positive revenue
-                const historicalMonths = currentMonthDataIndex > 0 
-                  ? monthlyRevenueData.slice(0, currentMonthDataIndex).filter(item => item.amount > 0)
-                  : monthlyRevenueData.filter(item => item.amount > 0 && item.month !== currentMonthName)
-                
-                const avgRevenue = historicalMonths.length > 0 ? 
-                  historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
-                
-                return (
-                  <div className="text-right">
-                    <div className="mb-2">
+          {/* Row 3: Revenue Trend Chart */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Monthly Rental Revenue</CardTitle>
+                  <CardDescription>Revenue trend over the last 12 months</CardDescription>
+                </div>
+                {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
+                  const currentDate = new Date()
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const currentMonthName = monthNames[currentDate.getMonth()]
+                  const historicalMonths = monthlyRevenueData.filter(item => item.amount > 0 && item.month !== currentMonthName)
+                  const avgRevenue = historicalMonths.length > 0 ? 
+                    historicalMonths.reduce((sum, item) => sum + item.amount, 0) / historicalMonths.length : 0
+                  return (
+                    <div className="text-right">
                       <p className="text-sm text-muted-foreground">Avg Revenue</p>
                       <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
                     </div>
-                  </div>
-                )
-              })()}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={(() => {
-                const data = sortedMonthlyRevenue || []
-                
-                if (data.length === 0) return data
-                
-                // Identify complete months (exclude current month)
-                const currentDate = new Date()
-                const currentMonthIndex = currentDate.getMonth()
-                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                const currentMonthName = monthNames[currentMonthIndex]
-                
-                // Filter complete months with positive revenue
-                const completeMonths = data.filter(item => 
-                  item.month !== currentMonthName && item.amount > 0
-                )
-                
-                // Calculate linear regression for trendline
-                let trendSlope = 0
-                let trendIntercept = 0
-                
-                if (completeMonths.length >= 2) {
-                  // Map complete months to their indices in the full dataset
-                  const completeMonthsWithIndex = completeMonths.map(cm => {
-                    const index = data.findIndex(d => d.month === cm.month)
-                    return { ...cm, dataIndex: index }
-                  })
-                  
-                  // Calculate means
-                  const n = completeMonthsWithIndex.length
-                  const sumX = completeMonthsWithIndex.reduce((sum, item, i) => sum + i, 0)
-                  const sumY = completeMonthsWithIndex.reduce((sum, item) => sum + item.amount, 0)
-                  const meanX = sumX / n
-                  const meanY = sumY / n
-                  
-                  // Calculate slope and intercept
-                  let numerator = 0
-                  let denominator = 0
-                  completeMonthsWithIndex.forEach((item, i) => {
-                    numerator += (i - meanX) * (item.amount - meanY)
-                    denominator += (i - meanX) * (i - meanX)
-                  })
-                  
-                  trendSlope = denominator !== 0 ? numerator / denominator : 0
-                  trendIntercept = meanY - trendSlope * meanX
-                }
-                
-                // Add trendline values to data
-                return data.map((item, index) => {
-                  const isComplete = completeMonths.some(cm => cm.month === item.month)
-                  const completeIndex = completeMonths.findIndex(cm => cm.month === item.month)
-                  const trendValue = isComplete && completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null
-                  
-                  return {
-                    ...item,
-                    trendline: trendValue
+                  )
+                })()}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={(() => {
+                  const data = sortedMonthlyRevenue || []
+                  if (data.length === 0) return data
+                  const currentDate = new Date()
+                  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                  const currentMonthName = monthNames[currentDate.getMonth()]
+                  const completeMonths = data.filter(item => item.month !== currentMonthName && item.amount > 0)
+                  let trendSlope = 0, trendIntercept = 0
+                  if (completeMonths.length >= 2) {
+                    const n = completeMonths.length
+                    const sumX = completeMonths.reduce((sum, _, i) => sum + i, 0)
+                    const sumY = completeMonths.reduce((sum, item) => sum + item.amount, 0)
+                    const meanX = sumX / n, meanY = sumY / n
+                    let numerator = 0, denominator = 0
+                    completeMonths.forEach((item, i) => {
+                      numerator += (i - meanX) * (item.amount - meanY)
+                      denominator += (i - meanX) * (i - meanX)
+                    })
+                    trendSlope = denominator !== 0 ? numerator / denominator : 0
+                    trendIntercept = meanY - trendSlope * meanX
                   }
-                })
-              })()} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                <Tooltip 
-                  content={({ active, payload, label }) => {
+                  return data.map((item) => {
+                    const isComplete = completeMonths.some(cm => cm.month === item.month)
+                    const completeIndex = completeMonths.findIndex(cm => cm.month === item.month)
+                    return { ...item, trendline: isComplete && completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null }
+                  })
+                })()} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                  <Tooltip content={({ active, payload, label }) => {
                     if (active && payload && payload.length && monthlyRevenueData) {
-                      const data = monthlyRevenueData
-                      const currentIndex = data.findIndex(item => item.month === label)
-                      const currentData = data[currentIndex]
-                      const previousData = currentIndex > 0 ? data[currentIndex - 1] : null
-                      
-                      // Safety check for currentData
+                      const currentIndex = monthlyRevenueData.findIndex(item => item.month === label)
+                      const currentData = monthlyRevenueData[currentIndex]
+                      const previousData = currentIndex > 0 ? monthlyRevenueData[currentIndex - 1] : null
                       if (!currentData) return null
-                      
                       return (
                         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
                           <p className="font-semibold mb-2">{label}</p>
-                          <div className="space-y-1">
-                            <p className="text-purple-600">
-                              Revenue: {formatCurrency(currentData.amount || 0)}
-                              {formatPercentage(calculatePercentageChange(currentData.amount || 0, previousData?.amount))}
-                            </p>
-                          </div>
+                          <p className="text-purple-600">
+                            Revenue: {formatCurrency(currentData.amount || 0)}
+                            {formatPercentage(calculatePercentageChange(currentData.amount || 0, previousData?.amount))}
+                          </p>
                         </div>
                       )
                     }
                     return null
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="amount" fill="#9333ea" shape={<CustomBar />} name="Revenue" />
-                {/* Trendline */}
-                <Line 
-                  type="monotone"
-                  dataKey="trendline"
-                  stroke="#7c3aed"
-                  strokeWidth={2}
-                  name="Trend"
-                  dot={false}
-                  connectNulls={false}
-                />
-                {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
-                  // Only calculate average for complete months (exclude current month - August)
-                  const completeMonths = monthlyRevenueData.slice(0, -1)
-                  const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                  return (
-                    <ReferenceLine 
-                      y={average} 
-                      stroke="#666" 
-                      strokeDasharray="3 3"
-                      label={{ value: "Average", position: "insideTopRight" }}
-                    />
-                  )
-                })()}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </CardContent>
-      </Card>
+                  }} />
+                  <Legend />
+                  <Bar dataKey="amount" fill="#9333ea" shape={<CustomBar />} name="Revenue" />
+                  <Line type="monotone" dataKey="trendline" stroke="#7c3aed" strokeWidth={2} name="Trend" dot={false} connectNulls={false} />
+                  {monthlyRevenueData && monthlyRevenueData.length > 0 && (() => {
+                    const completeMonths = monthlyRevenueData.slice(0, -1)
+                    const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    return <ReferenceLine y={average} stroke="#666" strokeDasharray="3 3" label={{ value: "Average", position: "insideTopRight" }} />
+                  })()}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-      {/* Top 10 Rental Customers */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Top 10 Rental Customers</CardTitle>
-          <CardDescription>By YTD rental revenue</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {topCustomers?.top_customers ? (
-            <div className="space-y-3">
-              {topCustomers.top_customers.map((customer) => (
-                <div key={customer.rank} className="flex items-center">
-                  <div className="w-8 text-sm font-medium text-muted-foreground">
-                    {customer.rank}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {customer.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {customer.invoice_count} invoices
-                      {customer.units_on_rent > 0 && (
-                        <span className="ml-1 text-purple-600">
-                          • {customer.units_on_rent} units on rent
-                        </span>
-                      )}
-                      {customer.days_since_last > 30 && (
-                        <span className="ml-1 text-orange-600">
-                          • {customer.days_since_last}d ago
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-gray-900">
-                      {formatCurrency(customer.revenue)}
+          {/* Row 4: Fleet Status + Top Customers */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Fleet Status Donut */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Fleet Status</CardTitle>
+                <CardDescription>Current fleet allocation</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {inventoryCount > 0 ? (
+                  <div className="flex items-center gap-6">
+                    <ResponsiveContainer width="50%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'On Rent', value: unitsOnRent, color: '#10b981' },
+                            { name: 'Available', value: Math.max(0, inventoryCount - unitsOnRent - unitsOnHold), color: '#3b82f6' },
+                            { name: 'On Hold', value: unitsOnHold, color: '#f59e0b' }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {[
+                            { name: 'On Rent', value: unitsOnRent, color: '#10b981' },
+                            { name: 'Available', value: Math.max(0, inventoryCount - unitsOnRent - unitsOnHold), color: '#3b82f6' },
+                            { name: 'On Hold', value: unitsOnHold, color: '#f59e0b' }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => [`${value} units`, '']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="space-y-4 flex-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-green-500" />
+                          <span className="text-sm">On Rent</span>
+                        </div>
+                        <span className="text-sm font-bold">{unitsOnRent}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-blue-500" />
+                          <span className="text-sm">Available</span>
+                        </div>
+                        <span className="text-sm font-bold">{Math.max(0, inventoryCount - unitsOnRent - unitsOnHold)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                          <span className="text-sm">On Hold</span>
+                        </div>
+                        <span className="text-sm font-bold">{unitsOnHold}</span>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium">Total Fleet</span>
+                          <span className="text-sm font-bold">{inventoryCount}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {customer.percentage}%
-                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">No customer data available</p>
-          )}
-        </CardContent>
-      </Card>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No fleet data available</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Top 10 Rental Customers */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Top 10 Rental Customers</CardTitle>
+                <CardDescription>By YTD rental revenue</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {topCustomers?.top_customers ? (
+                  <div className="space-y-3">
+                    {topCustomers.top_customers.map((customer) => (
+                      <div key={customer.rank} className="flex items-center">
+                        <div className="w-8 text-sm font-medium text-muted-foreground">
+                          {customer.rank}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{customer.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {customer.invoice_count} invoices
+                            {customer.units_on_rent > 0 && (
+                              <span className="ml-1 text-purple-600">• {customer.units_on_rent} on rent</span>
+                            )}
+                            {customer.days_since_last > 30 && (
+                              <span className="ml-1 text-orange-600">• {customer.days_since_last}d ago</span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-medium text-gray-900">{formatCurrency(customer.revenue)}</div>
+                          <div className="text-xs text-gray-500">{customer.percentage}%</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No customer data available</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="service-report">
