@@ -5838,23 +5838,18 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/units-on-rent', methods=['GET'])
     @jwt_required()
     def get_units_on_rent():
-        """Get count of units currently on rent based on RentalHistory"""
+        """Get count of units currently on rent using Equipment.RentalStatus (not RentalHistory)"""
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Count distinct units with rental activity in current month
-            # This directly shows what's on rent regardless of ownership
-            schema = get_tenant_schema()
-
+            # Use Equipment.RentalStatus = 'Rented' for accurate current on-rent count
+            # The old query counted DISTINCT SerialNo from RentalHistory for current month,
+            # which included units that were rented and returned during the month (not currently on rent)
             query = f"""
-            SELECT COUNT(DISTINCT SerialNo) as units_on_rent
-            FROM {schema}.RentalHistory
-            WHERE Year = YEAR(GETDATE()) 
-                AND Month = MONTH(GETDATE())
-                AND DaysRented > 0
-                AND RentAmount > 0
-                AND DeletionTime IS NULL
+            SELECT COUNT(*) as units_on_rent
+            FROM {schema}.Equipment
+            WHERE RentalStatus = 'Rented'
             """
             
             result = db.execute_query(query)
@@ -5873,19 +5868,18 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/rental/units-on-rent-detail', methods=['GET'])
     @jwt_required()
     def get_units_on_rent_detail():
-        """Get detailed list of units currently on rent with customer information"""
+        """Get detailed list of units currently on rent using Equipment.RentalStatus = 'Rented'"""
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Get units on rent from RentalHistory with equipment details
-            schema = get_tenant_schema()
-
+            # Get units currently on rent from Equipment table (RentalStatus = 'Rented')
+            # Also LEFT JOIN RentalHistory for current month to get days/amount info
             query = f"""
             SELECT 
-                rh.SerialNo,
-                rh.DaysRented,
-                rh.RentAmount,
+                e.SerialNo,
+                COALESCE(rh.DaysRented, 0) as DaysRented,
+                COALESCE(rh.RentAmount, 0) as RentAmount,
                 e.UnitNo,
                 e.Make,
                 e.Model,
@@ -5896,14 +5890,13 @@ def register_department_routes(reports_bp):
                 e.MonthRent,
                 e.CustomerNo,
                 c.Name as CustomerName
-            FROM {schema}.RentalHistory rh
-            INNER JOIN {schema}.Equipment e ON rh.SerialNo = e.SerialNo
+            FROM {schema}.Equipment e
             LEFT JOIN {schema}.Customer c ON e.CustomerNo = c.Number
-            WHERE rh.Year = YEAR(GETDATE()) 
+            LEFT JOIN {schema}.RentalHistory rh ON e.SerialNo = rh.SerialNo 
+                AND rh.Year = YEAR(GETDATE()) 
                 AND rh.Month = MONTH(GETDATE())
-                AND rh.DaysRented > 0
-                AND rh.RentAmount > 0
                 AND rh.DeletionTime IS NULL
+            WHERE e.RentalStatus = 'Rented'
             ORDER BY c.Name, e.Make, e.Model, e.UnitNo
             """
             
@@ -5911,7 +5904,7 @@ def register_department_routes(reports_bp):
             
             units_detail = []
             for row in results:
-                # Handle customer info - could be from Equipment owner or from rental activity
+                # Handle customer info
                 customer_name = row['CustomerName']
                 if not customer_name or customer_name == 'RENTAL FLEET - EXPENSE':
                     customer_name = 'Rental Customer'
@@ -6039,6 +6032,57 @@ def register_department_routes(reports_bp):
                 'type': 'units_on_hold_detail_error'
             }), 500
     
+    @reports_bp.route('/departments/rental/fleet-status-summary', methods=['GET'])
+    @jwt_required()
+    def get_fleet_status_summary():
+        """Get total fleet count and breakdown by RentalStatus for KPI cards.
+        Uses Equipment table RentalStatus field for accurate current state.
+        Total fleet = all rental equipment (WebRentalFlag=1 or InventoryDept=60),
+        excluding sold/disposed/transferred units."""
+        try:
+            db = get_db()
+            schema = get_tenant_schema()
+            
+            query = f"""
+            SELECT 
+                COUNT(*) as total_fleet,
+                COUNT(CASE WHEN RentalStatus = 'Rented' THEN 1 END) as on_rent,
+                COUNT(CASE WHEN RentalStatus = 'Ready To Rent' THEN 1 END) as available,
+                COUNT(CASE WHEN RentalStatus = 'Hold' THEN 1 END) as on_hold,
+                COUNT(CASE WHEN RentalStatus NOT IN ('Rented', 'Ready To Rent', 'Hold') 
+                           OR RentalStatus IS NULL THEN 1 END) as other
+            FROM {schema}.Equipment
+            WHERE (WebRentalFlag = 1 OR InventoryDept = 60)
+                AND (RentalStatus IS NULL OR RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred'))
+                AND (IsDeleted = 0 OR IsDeleted IS NULL)
+            """
+            
+            result = db.execute_query(query)
+            row = result[0] if result else {}
+            
+            total_fleet = int(row.get('total_fleet') or 0)
+            on_rent = int(row.get('on_rent') or 0)
+            available = int(row.get('available') or 0)
+            on_hold = int(row.get('on_hold') or 0)
+            other = int(row.get('other') or 0)
+            
+            utilization = round((on_rent / total_fleet) * 100, 1) if total_fleet > 0 else 0
+            
+            return jsonify({
+                'total_fleet': total_fleet,
+                'on_rent': on_rent,
+                'available': available,
+                'on_hold': on_hold,
+                'other': other,
+                'utilization_pct': utilization
+            })
+            
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'type': 'fleet_status_summary_error'
+            }), 500
+
     @reports_bp.route('/departments/rental/equipment-report', methods=['GET'])
     @jwt_required()
     def get_rental_equipment_report():

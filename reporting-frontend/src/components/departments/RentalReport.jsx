@@ -110,6 +110,7 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 const RentalReport = ({ user }) => {
   const [rentalData, setRentalData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [totalFleet, setTotalFleet] = useState(0)
   const [inventoryCount, setInventoryCount] = useState(0)
   const [monthlyRevenueData, setMonthlyRevenueData] = useState(null)
   const [topCustomers, setTopCustomers] = useState(null)
@@ -138,11 +139,9 @@ const RentalReport = ({ user }) => {
 
   useEffect(() => {
     fetchRentalData()
-    fetchInventoryCount()
+    fetchFleetSummary()
     fetchMonthlyRevenueData()
     fetchTopCustomers()
-    fetchUnitsOnRent()
-    fetchUnitsOnHold()
     fetchBenchmarkData()
   }, [])
 
@@ -166,21 +165,38 @@ const RentalReport = ({ user }) => {
     }
   }
 
-  const fetchInventoryCount = async () => {
+  const fetchFleetSummary = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/dashboard/summary-optimized'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
+      // Fetch all fleet metrics from individual endpoints in parallel
+      const [onRentRes, onHoldRes, dashRes] = await Promise.all([
+        fetch(apiUrl('/api/reports/departments/rental/units-on-rent'), {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch(apiUrl('/api/reports/departments/rental/units-on-hold'), {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch(apiUrl('/api/reports/departments/rental/fleet-status-summary'), {
+          headers: { 'Authorization': `Bearer ${token}` },
+        })
+      ])
       
-      if (response.ok) {
-        const data = await response.json()
-        setInventoryCount(data.inventory_count || 0)
+      if (onRentRes.ok) {
+        const data = await onRentRes.json()
+        setUnitsOnRent(data.units_on_rent || 0)
+      }
+      if (onHoldRes.ok) {
+        const data = await onHoldRes.json()
+        setUnitsOnHold(data.units_on_hold || 0)
+      }
+      if (dashRes.ok) {
+        const data = await dashRes.json()
+        setTotalFleet(data.total_fleet || 0)
+        // inventoryCount is kept for backward compatibility but now means total fleet
+        setInventoryCount(data.total_fleet || 0)
       }
     } catch (error) {
-      console.error('Error fetching inventory count:', error)
+      console.error('Error fetching fleet summary:', error)
     }
   }
 
@@ -222,41 +238,7 @@ const RentalReport = ({ user }) => {
     }
   }
 
-  const fetchUnitsOnRent = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-rent'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setUnitsOnRent(data.units_on_rent || 0)
-      }
-    } catch (error) {
-      console.error('Error fetching units on rent:', error)
-    }
-  }
-
-  const fetchUnitsOnHold = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/departments/rental/units-on-hold'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setUnitsOnHold(data.units_on_hold || 0)
-      }
-    } catch (error) {
-      console.error('Error fetching units on hold:', error)
-    }
-  }
+  // fetchUnitsOnRent and fetchUnitsOnHold are now handled by fetchFleetSummary
 
   const fetchBenchmarkData = async () => {
     try {
@@ -557,10 +539,10 @@ const RentalReport = ({ user }) => {
                   <span className="text-xs font-medium text-muted-foreground">Fleet Utilization</span>
                 </div>
                 <div className="text-2xl font-bold">
-                  {inventoryCount > 0 ? `${((unitsOnRent / inventoryCount) * 100).toFixed(1)}%` : '—'}
+                  {totalFleet > 0 ? `${((unitsOnRent / totalFleet) * 100).toFixed(1)}%` : '—'}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {unitsOnRent} of {inventoryCount} units
+                  {unitsOnRent} of {totalFleet} units
                 </p>
               </CardContent>
             </Card>
@@ -585,7 +567,7 @@ const RentalReport = ({ user }) => {
                   <span className="text-xs font-medium text-muted-foreground">Available</span>
                 </div>
                 <div className="text-2xl font-bold text-blue-600">
-                  {Math.max(0, inventoryCount - unitsOnRent - unitsOnHold)}
+                  {Math.max(0, totalFleet - unitsOnRent - unitsOnHold)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Ready to rent</p>
               </CardContent>
@@ -710,12 +692,12 @@ const RentalReport = ({ user }) => {
                   )}
 
                   {/* Low Utilization Warning */}
-                  {inventoryCount > 0 && ((unitsOnRent / inventoryCount) * 100) < 65 && (
+                  {totalFleet > 0 && ((unitsOnRent / totalFleet) * 100) < 65 && (
                     <div className="flex items-center gap-3 p-2 rounded-lg bg-yellow-50">
                       <Gauge className="h-5 w-5 text-yellow-600 flex-shrink-0" />
                       <div>
                         <p className="text-sm font-medium text-yellow-800">Low Fleet Utilization</p>
-                        <p className="text-xs text-yellow-600">{((unitsOnRent / inventoryCount) * 100).toFixed(1)}% — target 65-75%</p>
+                        <p className="text-xs text-yellow-600">{((unitsOnRent / totalFleet) * 100).toFixed(1)}% — target 65-75%</p>
                       </div>
                     </div>
                   )}
@@ -733,7 +715,7 @@ const RentalReport = ({ user }) => {
 
                   {/* All clear state */}
                   {unitsOnHold === 0 && 
-                   (inventoryCount === 0 || ((unitsOnRent / inventoryCount) * 100) >= 65) &&
+                   (totalFleet === 0 || ((unitsOnRent / totalFleet) * 100) >= 65) &&
                    (!benchmarkData?.current_month?.vs_target || benchmarkData?.current_month?.vs_target >= 0) && (
                     <div className="text-center py-4 text-green-600">
                       <CheckCircle className="h-8 w-8 mx-auto mb-2" />
@@ -842,14 +824,14 @@ const RentalReport = ({ user }) => {
                 <CardDescription>Current fleet allocation</CardDescription>
               </CardHeader>
               <CardContent>
-                {inventoryCount > 0 ? (
+                {totalFleet > 0 ? (
                   <div className="flex items-center gap-6">
                     <ResponsiveContainer width="50%" height={220}>
                       <PieChart>
                         <Pie
                           data={[
                             { name: 'On Rent', value: unitsOnRent, color: '#10b981' },
-                            { name: 'Available', value: Math.max(0, inventoryCount - unitsOnRent - unitsOnHold), color: '#3b82f6' },
+                            { name: 'Available', value: Math.max(0, totalFleet - unitsOnRent - unitsOnHold), color: '#3b82f6' },
                             { name: 'On Hold', value: unitsOnHold, color: '#f59e0b' }
                           ]}
                           cx="50%"
@@ -861,7 +843,7 @@ const RentalReport = ({ user }) => {
                         >
                           {[
                             { name: 'On Rent', value: unitsOnRent, color: '#10b981' },
-                            { name: 'Available', value: Math.max(0, inventoryCount - unitsOnRent - unitsOnHold), color: '#3b82f6' },
+                            { name: 'Available', value: Math.max(0, totalFleet - unitsOnRent - unitsOnHold), color: '#3b82f6' },
                             { name: 'On Hold', value: unitsOnHold, color: '#f59e0b' }
                           ].map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
@@ -883,7 +865,7 @@ const RentalReport = ({ user }) => {
                           <div className="w-3 h-3 rounded-full bg-blue-500" />
                           <span className="text-sm">Available</span>
                         </div>
-                        <span className="text-sm font-bold">{Math.max(0, inventoryCount - unitsOnRent - unitsOnHold)}</span>
+                        <span className="text-sm font-bold">{Math.max(0, totalFleet - unitsOnRent - unitsOnHold)}</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -895,7 +877,7 @@ const RentalReport = ({ user }) => {
                       <div className="pt-2 border-t">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">Total Fleet</span>
-                          <span className="text-sm font-bold">{inventoryCount}</span>
+                          <span className="text-sm font-bold">{totalFleet}</span>
                         </div>
                       </div>
                     </div>
