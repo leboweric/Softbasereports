@@ -248,7 +248,7 @@ NAVIGATION_CONFIG = {
         'label': 'Accounting',
         'icon': 'DollarSign',
         'path': 'accounting',
-        'order': 5,
+        'order': 1.6,
         'tabs': {
             'overview': {'label': 'Overview', 'resource': 'accounting_overview'},
             'ar': {'label': 'Accounts Receivable', 'resource': 'accounting_ar'},
@@ -273,11 +273,11 @@ NAVIGATION_CONFIG = {
         'order': 6,
     },
     'financial': {
-        'label': 'Financial',
+        'label': 'Finance',
         'icon': 'FileSpreadsheet',
         'path': 'financial',
         'required_resource': 'financial',
-        'order': 7,
+        'order': 1.5,
     },
     'minitrac': {
         'label': 'Minitrac',
