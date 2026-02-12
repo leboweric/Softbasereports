@@ -73,7 +73,7 @@ ROLE_PERMISSIONS = {
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
             'minitrac', 'knowledge_base', 'currie', 'financial',
-            'qbr', 'my_commissions', 'customer_churn', 'eds_dashboard'
+            'qbr', 'customer_churn', 'eds_dashboard'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
