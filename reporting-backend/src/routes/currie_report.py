@@ -1055,9 +1055,9 @@ def get_rental_fleet_metrics(start_date, end_date):
         # Account 183000 = Gross Rental Equipment, 193000 = Accumulated Depreciation
         fleet_query = f"""
         SELECT 
-            SUM(CASE WHEN AccountNo LIKE '183%' THEN Balance ELSE 0 END) as gross_fleet_value,
-            SUM(CASE WHEN AccountNo LIKE '193%' THEN ABS(Balance) ELSE 0 END) as accumulated_depreciation
-        FROM {schema}.GLAccounts
+            SUM(CASE WHEN AccountNo LIKE '183%' THEN CurrentBalance ELSE 0 END) as gross_fleet_value,
+            SUM(CASE WHEN AccountNo LIKE '193%' THEN ABS(CurrentBalance) ELSE 0 END) as accumulated_depreciation
+        FROM {schema}.GL
         WHERE AccountNo LIKE '183%' OR AccountNo LIKE '193%'
         """
         
