@@ -168,32 +168,19 @@ const RentalReport = ({ user }) => {
   const fetchFleetSummary = async () => {
     try {
       const token = localStorage.getItem('token')
-      // Fetch all fleet metrics from individual endpoints in parallel
-      const [onRentRes, onHoldRes, dashRes] = await Promise.all([
-        fetch(apiUrl('/api/reports/departments/rental/units-on-rent'), {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(apiUrl('/api/reports/departments/rental/units-on-hold'), {
-          headers: { 'Authorization': `Bearer ${token}` },
-        }),
-        fetch(apiUrl('/api/reports/departments/rental/fleet-status-summary'), {
-          headers: { 'Authorization': `Bearer ${token}` },
-        })
-      ])
+      // Use the same /availability endpoint as the Availability tab
+      // This is the proven source of truth for fleet metrics (949 total, 732 on rent, 217 available)
+      const response = await fetch(apiUrl('/api/reports/departments/rental/availability'), {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
       
-      if (onRentRes.ok) {
-        const data = await onRentRes.json()
-        setUnitsOnRent(data.units_on_rent || 0)
-      }
-      if (onHoldRes.ok) {
-        const data = await onHoldRes.json()
-        setUnitsOnHold(data.units_on_hold || 0)
-      }
-      if (dashRes.ok) {
-        const data = await dashRes.json()
-        setTotalFleet(data.total_fleet || 0)
-        // inventoryCount is kept for backward compatibility but now means total fleet
-        setInventoryCount(data.total_fleet || 0)
+      if (response.ok) {
+        const data = await response.json()
+        const summary = data.summary || {}
+        setTotalFleet(summary.totalUnits || 0)
+        setInventoryCount(summary.totalUnits || 0)
+        setUnitsOnRent(summary.onRentUnits || 0)
+        setUnitsOnHold(summary.onHoldUnits || 0)
       }
     } catch (error) {
       console.error('Error fetching fleet summary:', error)
