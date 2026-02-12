@@ -6054,7 +6054,6 @@ def register_department_routes(reports_bp):
             FROM {schema}.Equipment
             WHERE (WebRentalFlag = 1 OR InventoryDept = 60)
                 AND (RentalStatus IS NULL OR RentalStatus NOT IN ('Sold', 'Disposed', 'Transferred'))
-                AND (IsDeleted = 0 OR IsDeleted IS NULL)
             """
             
             result = db.execute_query(query)
