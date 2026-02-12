@@ -229,7 +229,7 @@ const CustomerChurnAnalysis = () => {
             <DollarSign className="w-10 h-10 text-orange-200" />
           </div>
           <p className="text-xs text-gray-400 mt-2">
-            Lifetime value of churned customers
+            Previous period revenue from churned customers
           </p>
         </div>
 

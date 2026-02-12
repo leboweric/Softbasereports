@@ -82,6 +82,24 @@ def get_churn_analysis():
         pg = PostgreSQLService()
         
         # Get churned customers from mart table
+        # First, get accurate summary stats from DB (no LIMIT)
+        churned_summary_query = """
+        SELECT 
+            COUNT(*) as total_churned,
+            COALESCE(SUM(previous_revenue), 0) as total_lost_revenue,
+            COALESCE(SUM(lifetime_revenue), 0) as total_lifetime_revenue
+        FROM mart_customer_activity
+        WHERE org_id = %s
+        AND activity_status = 'churned'
+        AND snapshot_date = (SELECT MAX(snapshot_date) FROM mart_customer_activity WHERE org_id = %s)
+        """
+        
+        summary_result = pg.execute_query(churned_summary_query, (org_id, org_id))
+        total_churned = int(summary_result[0]['total_churned']) if summary_result else 0
+        total_lost_revenue = float(summary_result[0]['total_lost_revenue'] or 0) if summary_result else 0
+        avg_customer_value = total_lost_revenue / total_churned if total_churned > 0 else 0
+        
+        # Then get the detailed list (limited for display performance)
         churned_query = """
         SELECT 
             customer_name,
@@ -110,12 +128,12 @@ def get_churn_analysis():
         AND activity_status = 'churned'
         AND snapshot_date = (SELECT MAX(snapshot_date) FROM mart_customer_activity WHERE org_id = %s)
         ORDER BY previous_revenue DESC
-        LIMIT 100
+        LIMIT 200
         """
         
         churned_customers = pg.execute_query(churned_query, (org_id, org_id))
         
-        # Format churned customers
+        # Format churned customers for display
         churned_list = []
         if churned_customers:
             for customer in churned_customers:
@@ -132,11 +150,6 @@ def get_churn_analysis():
                     'work_order_breakdown': customer['work_order_breakdown'] if customer['work_order_breakdown'] else [],
                     'revenue_trend': customer['monthly_revenue_trend'] if customer['monthly_revenue_trend'] else []
                 })
-        
-        # Get summary statistics
-        total_churned = len(churned_list)
-        total_lost_revenue = sum(c['previous_period_revenue'] for c in churned_list)
-        avg_customer_value = total_lost_revenue / total_churned if total_churned > 0 else 0
         
         # Get current active customer count
         active_query = """
