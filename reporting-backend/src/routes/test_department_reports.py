@@ -1,7 +1,7 @@
 # Simplified department report endpoints for testing
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from datetime import datetime, timedelta
 
 def _get_data_start_date_str():

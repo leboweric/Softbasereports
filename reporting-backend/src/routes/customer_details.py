@@ -11,7 +11,7 @@ customer_details_bp = Blueprint('customer_details', __name__)
 def get_customer_details(customer_id):
     """Get detailed information for a specific customer"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:

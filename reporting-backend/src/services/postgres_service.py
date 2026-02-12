@@ -256,6 +256,16 @@ class PostgreSQLService:
                     except Exception as col_err:
                         logger.warning(f"actual_invoice_count migration note: {col_err}")
 
+                    # Migration: Add end_of_month_captured_at column if it doesn't exist
+                    try:
+                        cursor.execute("""
+                            ALTER TABLE forecast_history 
+                            ADD COLUMN IF NOT EXISTS end_of_month_captured_at TIMESTAMP NULL
+                        """)
+                        logger.info("forecast_history.end_of_month_captured_at column verified")
+                    except Exception as col_err:
+                        logger.warning(f"end_of_month_captured_at migration note: {col_err}")
+
                     # Create QBR tables
                     cursor.execute(self._get_qbr_tables_sql())
                     logger.info("QBR tables created/verified successfully")

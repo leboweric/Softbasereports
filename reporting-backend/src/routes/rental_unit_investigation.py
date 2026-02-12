@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 
 from flask_jwt_extended import get_jwt_identity
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.models.user import User
 
 logger = logging.getLogger(__name__)

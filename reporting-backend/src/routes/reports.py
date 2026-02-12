@@ -1572,7 +1572,7 @@ def validate_sales():
 def get_current_month_sales():
     """Simple endpoint that returns current month sales"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -1616,7 +1616,7 @@ def get_current_month_sales():
 def get_dashboard_summary():
     """Simplified dashboard - just return YTD sales for now"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -2273,7 +2273,7 @@ def get_dashboard_summary():
 def get_inventory_details():
     """Get detailed list of available inventory"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:

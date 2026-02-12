@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from datetime import datetime
-from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
 from src.config.gl_accounts_loader import get_gl_accounts, get_other_income_accounts
 
 dashboard_pace_bp = Blueprint('dashboard_pace', __name__)

@@ -10,7 +10,7 @@ Fixed: Multi-tenant support - pattern-based account matching for all schemas
 
 from flask import Blueprint, jsonify, request, g
 from flask_jwt_extended import jwt_required
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.services.cache_service import cache_service
 from src.config.gl_accounts_loader import get_expense_accounts
 from datetime import datetime, timedelta

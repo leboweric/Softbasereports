@@ -6,7 +6,7 @@ Stores data in PostgreSQL (Railway)
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 import logging
 from src.services.postgres_service import get_postgres_db
 from src.services.permission_service import PermissionService

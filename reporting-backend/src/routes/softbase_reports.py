@@ -31,7 +31,7 @@ def get_date_range(period='month'):
 def customer_activity_report():
     """Get customer activity report including sales, service, and equipment"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -184,7 +184,7 @@ def customer_activity_report():
 def equipment_inventory_report():
     """Get equipment inventory status report"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -294,7 +294,7 @@ def equipment_inventory_report():
 def sales_analysis_report():
     """Get sales analysis report"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -411,7 +411,7 @@ def sales_analysis_report():
 def service_history_report():
     """Get service history report"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -527,7 +527,7 @@ def service_history_report():
 def parts_usage_report():
     """Get parts usage and inventory report"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -710,7 +710,7 @@ def run_financial_etl_now():
 def financial_summary_report():
     """Get financial summary report"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:

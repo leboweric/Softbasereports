@@ -15,7 +15,7 @@ except ImportError:
     HAS_SCIPY = False
 import logging
 from src.services.cache_service import cache_service
-from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
 
 logger = logging.getLogger(__name__)
 parts_inventory_bp = Blueprint('parts_inventory', __name__)
@@ -27,7 +27,7 @@ def calculate_inventory_turns():
     Calculate min/max inventory levels for parts to achieve target turns
     """
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:

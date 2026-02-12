@@ -5,7 +5,7 @@ Automates quarterly Currie reporting by extracting data from Softbase
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.services.cache_service import cache_service
 from datetime import datetime, timedelta
 import logging

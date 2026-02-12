@@ -2,7 +2,7 @@
 # Version 1.0.1 - Added Guaranteed Maintenance profitability endpoint
 from flask import jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.models.user import User
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta

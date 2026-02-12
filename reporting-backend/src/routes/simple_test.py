@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 import re
 from datetime import datetime
 

@@ -5,7 +5,7 @@ Provides monthly profit/loss metrics for dashboard display
 
 from flask import Blueprint, jsonify, request, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.services.cache_service import cache_service
 from src.utils.fiscal_year import get_tenant_cutover_date, get_fiscal_ytd_start
 from src.models.user import User

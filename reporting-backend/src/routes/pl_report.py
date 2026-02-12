@@ -11,7 +11,7 @@ from src.services.cache_service import cache_service
 from src.utils.fiscal_year import get_fiscal_ytd_start
 
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.models.user import User
 from src.config.gl_accounts_loader import get_gl_accounts, get_other_income_accounts, get_expense_accounts
 

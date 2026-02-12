@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
 from src.services.postgres_service import get_postgres_db
 from src.services.cache_service import cache_service
-from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
 from datetime import datetime, timedelta
 import calendar
 import numpy as np
@@ -18,7 +18,7 @@ sales_forecast_bp = Blueprint('sales_forecast', __name__)
 def get_sales_forecast():
     """Generate sales forecast for current month based on historical patterns"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -400,7 +400,7 @@ def save_forecast_to_history(forecast_result, is_scheduled_snapshot=False):
 def backfill_forecast_actuals():
     """Backfill actual totals for completed months in forecast history"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:
@@ -666,7 +666,7 @@ def get_performance_rating(mape):
 def generate_test_data():
     """Generate test forecast data for October 2025 for demonstration purposes"""
     # Get tenant schema
-    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
+    from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
     try:
         schema = get_tenant_schema()
     except ValueError as e:

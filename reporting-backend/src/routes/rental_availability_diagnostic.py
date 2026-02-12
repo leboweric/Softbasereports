@@ -3,7 +3,7 @@ Diagnostic endpoint to understand Equipment table structure and identify sold un
 """
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 import logging
 
 from flask_jwt_extended import get_jwt_identity

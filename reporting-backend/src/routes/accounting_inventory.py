@@ -3,7 +3,7 @@ Accounting inventory report endpoint - GL Based
 """
 from flask import Blueprint, jsonify, send_file
 from flask_jwt_extended import jwt_required
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from decimal import Decimal, ROUND_HALF_UP
 import traceback
 import logging

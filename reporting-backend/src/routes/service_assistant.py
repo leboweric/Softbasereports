@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.services.postgres_service import get_postgres_db
 import openai
 import os

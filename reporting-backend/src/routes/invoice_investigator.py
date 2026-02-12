@@ -3,7 +3,7 @@ Invoice Investigator - Show ALL fields for invoice 110000014
 """
 from flask import Blueprint, Response, request
 from flask_jwt_extended import jwt_required
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 import json
 
 from flask_jwt_extended import get_jwt_identity
