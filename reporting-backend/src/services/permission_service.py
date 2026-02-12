@@ -5,12 +5,20 @@ from src.config.rbac_config import ROLE_PERMISSIONS, RESOURCES, NAVIGATION_CONFI
 
 class PermissionService:
     @staticmethod
+    def _get_valid_roles(user):
+        """Get only roles that belong to the user's organization (prevents cross-org privilege escalation)"""
+        if not user or not user.roles:
+            return []
+        return [role for role in user.roles 
+                if role.organization_id == user.organization_id or role.organization_id is None]
+    
+    @staticmethod
     def user_has_permission(user, resource, action='view'):
         """Check if user has permission for resource/action"""
         if not user or not user.roles:
             return False
         
-        for role in user.roles:
+        for role in PermissionService._get_valid_roles(user):
             role_perms = ROLE_PERMISSIONS.get(role.name, {})
             
             # Check if role has access to this resource
@@ -28,7 +36,7 @@ class PermissionService:
             return []
         
         resources = set()
-        for role in user.roles:
+        for role in PermissionService._get_valid_roles(user):
             role_perms = ROLE_PERMISSIONS.get(role.name, {})
             resources.update(role_perms.get('resources', []))
         
@@ -41,7 +49,7 @@ class PermissionService:
             return []
         
         actions = set()
-        for role in user.roles:
+        for role in PermissionService._get_valid_roles(user):
             role_perms = ROLE_PERMISSIONS.get(role.name, {})
             
             # Check if role has access to this resource
@@ -126,8 +134,9 @@ class PermissionService:
         
         resources = PermissionService.get_user_resources(user)
         navigation = PermissionService.get_user_navigation(user)
-        role_names = [role.name for role in user.roles]
-        is_admin = any(role.name == 'Super Admin' for role in user.roles)
+        valid_roles = PermissionService._get_valid_roles(user)
+        role_names = [role.name for role in valid_roles]
+        is_admin = any(role.name == 'Super Admin' for role in valid_roles)
         
         # Build resource-action mapping
         resource_actions = {}
@@ -148,7 +157,7 @@ class PermissionService:
         if not user or not user.roles:
             return False
         
-        return any(role.name == 'Super Admin' for role in user.roles)
+        return any(role.name == 'Super Admin' for role in PermissionService._get_valid_roles(user))
     
     @staticmethod
     def can_manage_users(user):

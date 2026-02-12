@@ -49,7 +49,7 @@ def get_users():
             'last_login': u.last_login.isoformat() if u.last_login else None,
             'organization_id': u.organization_id,
             'salesman_name': u.salesman_name,
-            'roles': [{'id': r.id, 'name': r.name, 'department': r.department} for r in u.roles]
+            'roles': [{'id': r.id, 'name': r.name, 'department': r.department} for r in u.roles if r.organization_id == current_user.organization_id or r.organization_id is None]
         } for u in users])
     except Exception as e:
         return jsonify({'error': f'Failed to fetch users: {str(e)}'}), 500
@@ -91,11 +91,11 @@ def create_user():
             salesman_name=data.get('salesman_name')  # For Sales Rep users
         )
         
-        # Assign roles
+        # Assign roles - only allow roles from user's own organization
         if 'role_ids' in data:
             for role_id in data['role_ids']:
                 role = Role.query.get(role_id)
-                if role:
+                if role and (role.organization_id == user.organization_id or role.organization_id is None):
                     user.roles.append(role)
         
         db.session.add(user)
@@ -142,12 +142,12 @@ def update_user(user_id):
         if 'password' in data and data['password']:
             user.password_hash = generate_password_hash(data['password'])
         
-        # Update roles
+        # Update roles - only allow roles from user's own organization
         if 'role_ids' in data:
             user.roles.clear()
             for role_id in data['role_ids']:
                 role = Role.query.get(role_id)
-                if role:
+                if role and (role.organization_id == user.organization_id or role.organization_id is None):
                     user.roles.append(role)
         
         db.session.commit()

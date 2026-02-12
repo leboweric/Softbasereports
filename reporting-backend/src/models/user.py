@@ -109,29 +109,35 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
     
+    def _valid_roles(self):
+        """Get only roles belonging to this user's organization (prevents cross-org privilege escalation)"""
+        return [r for r in self.roles 
+                if r.organization_id == self.organization_id or r.organization_id is None]
+    
     @property
     def is_admin(self):
         """Check if user has admin role (legacy support + new RBAC)"""
         if self.role == 'admin':  # Legacy check
             return True
-        return any(r.name in ['Super Admin', 'Leadership'] for r in self.roles)
+        return any(r.name in ['Super Admin', 'Leadership'] for r in self._valid_roles())
     
     def has_role(self, role_name):
         """Check if user has a specific role"""
-        return any(r.name == role_name for r in self.roles)
+        return any(r.name == role_name for r in self._valid_roles())
     
     def has_permission(self, permission_name):
         """Check if user has a specific permission through any of their roles"""
+        valid_roles = self._valid_roles()
         # Super Admin has all permissions
-        if any(r.name == 'Super Admin' for r in self.roles):
+        if any(r.name == 'Super Admin' for r in valid_roles):
             return True
         
         # Check if permission name includes wildcard
-        if permission_name.startswith('view_') and any(r.name == 'Leadership' for r in self.roles):
+        if permission_name.startswith('view_') and any(r.name == 'Leadership' for r in valid_roles):
             return True  # Leadership can view everything
         
         # Check specific permissions
-        for role in self.roles:
+        for role in valid_roles:
             if role.has_permission(permission_name):
                 return True
         return False
@@ -146,20 +152,22 @@ class User(db.Model):
     
     def can_access_department(self, department_name):
         """Check if user can access a specific department"""
+        valid_roles = self._valid_roles()
         # Super Admin and Leadership can access all
-        if any(r.name in ['Super Admin', 'Leadership'] for r in self.roles):
+        if any(r.name in ['Super Admin', 'Leadership'] for r in valid_roles):
             return True
         
         # Check if user has role in that department
-        return any(r.department == department_name for r in self.roles)
+        return any(r.department == department_name for r in valid_roles)
     
     def get_accessible_departments(self):
         """Get list of departments user can access"""
-        if any(r.name in ['Super Admin', 'Leadership'] for r in self.roles):
+        valid_roles = self._valid_roles()
+        if any(r.name in ['Super Admin', 'Leadership'] for r in valid_roles):
             return ['Dashboard', 'Parts', 'Service', 'Rental', 'Accounting', 'Database', 'AI']
         
         departments = set(['Dashboard'])  # Everyone can see dashboard
-        for role in self.roles:
+        for role in valid_roles:
             if role.department:
                 departments.add(role.department)
         return list(departments)
