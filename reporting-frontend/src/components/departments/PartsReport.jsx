@@ -845,68 +845,6 @@ const PartsReport = ({ user, onNavigate }) => {
             />
           </div>
 
-          {/* Row 5: Top 10 Parts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                Top 10 Parts by Quantity (excluding fluids)
-              </CardTitle>
-              <CardDescription>
-                {top10Data?.period || 'Last 30 days'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {top10Loading ? (
-                <LoadingSpinner />
-              ) : top10Data && top10Data.topParts && top10Data.topParts.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]">Rank</TableHead>
-                      <TableHead>Part Number</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead className="text-right">Qty Sold</TableHead>
-                      <TableHead className="text-center">Orders</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                      <TableHead className="text-center">Stock Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {top10Data.topParts.map((part, index) => (
-                      <TableRow key={part.partNo}>
-                        <TableCell className="font-medium">#{index + 1}</TableCell>
-                        <TableCell className="font-medium">{part.partNo}</TableCell>
-                        <TableCell>{part.description}</TableCell>
-                        <TableCell className="text-right font-medium text-lg">{Math.round(part.totalQuantity).toLocaleString()}</TableCell>
-                        <TableCell className="text-center">{part.orderCount}</TableCell>
-                        <TableCell className="text-right">
-                          ${part.totalRevenue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge 
-                            variant={
-                              part.stockStatus === 'Out of Stock' ? 'destructive' :
-                              part.stockStatus === 'Low Stock' ? 'secondary' : 'outline'
-                            }
-                            className={
-                              part.stockStatus === 'Low Stock' ? 'bg-yellow-500 hover:bg-yellow-600' : ''
-                            }
-                          >
-                            {part.stockStatus}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  No parts data available for this period
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
         )}
 
