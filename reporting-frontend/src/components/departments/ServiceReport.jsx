@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
-import { AlertTriangle, Clock, Download, FileText, TrendingUp, TrendingDown, Info, Target } from 'lucide-react'
+import { AlertTriangle, Clock, Download, FileText, TrendingUp, TrendingDown, Info, Target, Wrench, Users, DollarSign, Activity, Flame, CirclePause, ChevronRight } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -130,6 +130,8 @@ const ServiceReport = ({ user, onNavigate }) => {
   // Shop work orders state
   const [shopWorkOrders, setShopWorkOrders] = useState(null)
   const [shopWorkOrdersLoading, setShopWorkOrdersLoading] = useState(false)
+  // Service KPI summary state
+  const [serviceKpis, setServiceKpis] = useState(null)
 
   // Sort monthly revenue data chronologically for correct trendline calculation
   const sortedMonthlyRevenue = React.useMemo(() => {
@@ -175,6 +177,8 @@ const ServiceReport = ({ user, onNavigate }) => {
     fetchServiceData()
     fetchBenchmarkData()
     fetchAwaitingInvoiceData()
+    fetchServiceKpis()
+    fetchShopWorkOrders()
   }, [])
 
   useEffect(() => {
@@ -237,6 +241,30 @@ const ServiceReport = ({ user, onNavigate }) => {
       }
     } catch (error) {
       console.error('Error fetching service currie benchmarks:', error)
+    }
+  }
+
+  const fetchServiceKpis = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      // Use trailing 12 months for KPI data
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setFullYear(startDate.getFullYear() - 1)
+      const formatDate = (d) => d.toISOString().split('T')[0]
+      
+      const response = await fetch(apiUrl(`/api/reports/currie/metrics?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}&refresh=true`), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setServiceKpis(data)
+      }
+    } catch (error) {
+      console.error('Error fetching service KPIs:', error)
     }
   }
 
@@ -559,91 +587,220 @@ const ServiceReport = ({ user, onNavigate }) => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Currie Benchmark Card */}
-          {benchmarkData && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Currie Model Benchmarks
-                  {benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target && (
-                    <Badge className="ml-2 bg-green-100 text-green-800">Meeting Target</Badge>
+          {/* Row 1: Glanceable KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-5">
+            {/* Effective Labor Rate */}
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Effective Labor Rate</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {serviceKpis?.labor_metrics?.effective_rate ? `$${serviceKpis.labor_metrics.effective_rate}/hr` : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {serviceKpis?.labor_metrics?.total_hours_billed ? `${serviceKpis.labor_metrics.total_hours_billed.toLocaleString()} hrs billed` : ''}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Active Technicians */}
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="h-4 w-4 text-green-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Active Technicians</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {serviceKpis?.service_productivity?.active_technicians || '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {serviceKpis?.service_productivity?.wos_with_labor ? `${serviceKpis.service_productivity.wos_with_labor} WOs with labor` : ''}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Cash Stalled (Awaiting Invoice) */}
+            <Card className={`border-l-4 ${awaitingInvoiceData?.count > 0 ? 'border-l-orange-500' : 'border-l-gray-300'}`}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <CirclePause className="h-4 w-4 text-orange-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Cash Stalled</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {awaitingInvoiceData ? formatCurrency(awaitingInvoiceData.value) : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {awaitingInvoiceData ? `${awaitingInvoiceData.count} WOs awaiting invoice` : ''}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Cash Burn (WOs at Risk) */}
+            <Card className={`border-l-4 ${shopWorkOrders?.summary?.total_work_orders > 0 ? 'border-l-red-500' : 'border-l-gray-300'}`}>
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Flame className="h-4 w-4 text-red-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Cash Burn</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {shopWorkOrders?.summary?.unbillable_labor_value ? formatCurrency(shopWorkOrders.summary.unbillable_labor_value) : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {shopWorkOrders?.summary?.total_work_orders ? `${shopWorkOrders.summary.total_work_orders} WOs over budget` : ''}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Service Calls / Day */}
+            <Card className="border-l-4 border-l-purple-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Activity className="h-4 w-4 text-purple-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Service Calls / Day</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {serviceKpis?.service_productivity?.service_calls_per_day?.toFixed(1) || '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {serviceKpis?.service_productivity?.total_service_calls ? `${serviceKpis.service_productivity.total_service_calls} total calls` : ''}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: Currie GP% Benchmark (compact) + Action Items */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* Compact Currie Benchmark - 2/3 width */}
+            <Card className="md:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Service GP% vs Currie Benchmark
+                  {benchmarkData?.current_month?.gp_margin >= benchmarkData?.currie_gp_target && (
+                    <Badge className="ml-2 bg-green-100 text-green-800 text-xs">On Target</Badge>
                   )}
                 </CardTitle>
-                <CardDescription>
-                  Service department gross margin vs Currie Financial Model targets
-                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-6 md:grid-cols-3">
-                  {/* Current Month GP% vs Target */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Current Month GP%</h4>
-                    <div className="flex items-baseline gap-2">
+                {benchmarkData ? (
+                  <div className="grid gap-6 md:grid-cols-3">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Current Month</p>
                       <div className={`text-3xl font-bold ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
                         {benchmarkData.current_month?.gp_margin || 0}%
                       </div>
-                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div 
+                          className={`h-1.5 rounded-full ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${Math.min((benchmarkData.current_month?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Target: {benchmarkData.currie_gp_target}%</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${benchmarkData.current_month?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min((benchmarkData.current_month?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className={`text-sm font-medium ${benchmarkData.current_month?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {benchmarkData.current_month?.vs_target >= 0 ? '+' : ''}{benchmarkData.current_month?.vs_target || 0}pp vs target
-                    </p>
-                  </div>
-
-                  {/* Trailing Average GP% vs Target */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Trailing {benchmarkData.trailing_average?.months || 12}mo Avg GP%</h4>
-                    <div className="flex items-baseline gap-2">
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Trailing {benchmarkData.trailing_average?.months || 12}mo Avg</p>
                       <div className={`text-3xl font-bold ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'text-green-600' : 'text-red-600'}`}>
                         {benchmarkData.trailing_average?.gp_margin || 0}%
                       </div>
-                      <span className="text-sm text-muted-foreground">/ {benchmarkData.currie_gp_target}% target</span>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div 
+                          className={`h-1.5 rounded-full ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
+                          style={{ width: `${Math.min((benchmarkData.trailing_average?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Target: {benchmarkData.currie_gp_target}%</p>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className={`h-2.5 rounded-full ${benchmarkData.trailing_average?.gp_margin >= benchmarkData.currie_gp_target ? 'bg-green-500' : 'bg-red-500'}`}
-                        style={{ width: `${Math.min((benchmarkData.trailing_average?.gp_margin || 0) / benchmarkData.currie_gp_target * 100, 100)}%` }}
-                      />
-                    </div>
-                    <p className={`text-sm font-medium ${benchmarkData.trailing_average?.vs_target >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {benchmarkData.trailing_average?.vs_target >= 0 ? '+' : ''}{benchmarkData.trailing_average?.vs_target || 0}pp vs target
-                    </p>
-                  </div>
-
-                  {/* Currie Target Summary */}
-                  <div className="space-y-3">
-                    <h4 className="font-medium text-sm text-muted-foreground">Currie Model Targets</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">GP Margin Target</span>
-                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_gp_target}%</span>
+                    <div className="text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Current Month GP$</p>
+                      <div className="text-3xl font-bold text-blue-600">
+                        {formatCurrency(benchmarkData.current_month?.gross_profit || 0)}
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Operating Profit Target</span>
-                        <span className="text-lg font-bold text-blue-600">{benchmarkData.currie_op_target}%</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t">
-                        <span className="text-sm text-muted-foreground">Current Month GP$</span>
-                        <span className="text-sm font-medium">{formatCurrency(benchmarkData.current_month?.gross_profit || 0)}</span>
-                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">OP Target: {benchmarkData.currie_op_target}%</p>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">Loading benchmarks...</div>
+                )}
               </CardContent>
             </Card>
-          )}
 
-          {/* Monthly Labor Revenue Charts */}
+            {/* Action Items - 1/3 width */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                  Action Items
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {/* Cash Burn Alert */}
+                {shopWorkOrders?.summary?.total_work_orders > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('shop-work-orders')}
+                    className="w-full flex items-center justify-between p-2 rounded-lg bg-red-50 hover:bg-red-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Flame className="h-4 w-4 text-red-600" />
+                      <div>
+                        <p className="text-sm font-medium text-red-800">{shopWorkOrders.summary.total_work_orders} WOs Burning Cash</p>
+                        <p className="text-xs text-red-600">{shopWorkOrders.summary.hours_at_risk} hrs over budget</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-red-400" />
+                  </button>
+                )}
+
+                {/* Cash Stalled Alert */}
+                {awaitingInvoiceData?.count > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('work-orders')}
+                    className="w-full flex items-center justify-between p-2 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CirclePause className="h-4 w-4 text-orange-600" />
+                      <div>
+                        <p className="text-sm font-medium text-orange-800">{awaitingInvoiceData.count} WOs Awaiting Invoice</p>
+                        <p className="text-xs text-orange-600">{formatCurrency(awaitingInvoiceData.value)} unbilled</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-orange-400" />
+                  </button>
+                )}
+
+                {/* Over 3 Days Alert */}
+                {awaitingInvoiceData?.over_three > 0 && (
+                  <button 
+                    onClick={() => setActiveTab('work-orders')}
+                    className="w-full flex items-center justify-between p-2 rounded-lg bg-yellow-50 hover:bg-yellow-100 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-yellow-600" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800">{awaitingInvoiceData.over_three} WOs Over 3 Days</p>
+                        <p className="text-xs text-yellow-600">Avg {awaitingInvoiceData.avg_days.toFixed(1)} days waiting</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-yellow-400" />
+                  </button>
+                )}
+
+                {/* All clear state */}
+                {(!shopWorkOrders?.summary?.total_work_orders && !awaitingInvoiceData?.count) && (
+                  <div className="text-center py-4 text-green-600">
+                    <p className="text-sm font-medium">All clear — no action items</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 3: Single Combined Revenue Chart */}
           <RevenueChart
             data={serviceData?.monthlyLaborRevenue}
-            title="Combined Service Revenue & Margin"
-            description="Total external customer service revenue (Field + Shop) over the last 12 months"
+            title="Service Revenue & Margin Trend"
+            description="Combined service revenue (Field + Shop) over the last 12 months"
             tooltipInfo={
               <>
                 <p className="font-semibold mb-1">Includes:</p>
@@ -655,19 +812,21 @@ const ServiceReport = ({ user, onNavigate }) => {
             barColor="#3b82f6"
           />
 
-          <RevenueChart
-            data={serviceData?.monthlyFieldRevenue}
-            title="Field Service"
-            description="On-site field service revenue over the last 12 months"
-            barColor="#3b82f6"
-          />
-
-          <RevenueChart
-            data={serviceData?.monthlyShopRevenue}
-            title="Shop Service"
-            description="In-shop service revenue over the last 12 months"
-            barColor="#1e40af"
-          />
+          {/* Row 4: Supporting Detail - Revenue Breakdown */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <RevenueChart
+              data={serviceData?.monthlyFieldRevenue}
+              title="Field Service Revenue"
+              description="On-site field service revenue"
+              barColor="#3b82f6"
+            />
+            <RevenueChart
+              data={serviceData?.monthlyShopRevenue}
+              title="Shop Service Revenue"
+              description="In-shop service revenue"
+              barColor="#1e40af"
+            />
+          </div>
 
           {/* Placeholder Card (will be replaced) */}
           <Card style={{display: 'none'}}>
