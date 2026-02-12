@@ -705,7 +705,7 @@ const ServiceReport = ({ user, onNavigate }) => {
             tooltipInfo={
               <>
                 <p className="font-semibold mb-1">Includes:</p>
-                <p className="text-xs mb-2">• Field service (GL 410004)<br/>• Shop service (GL 410005)</p>
+                <p className="text-xs mb-2">• Field service<br/>• Shop service</p>
                 <p className="font-semibold mb-1">Excludes:</p>
                 <p className="text-xs">• Internal repairs<br/>• Freight charges<br/>• PM contract labor<br/>• Sublet labor<br/>• Warranty labor<br/>• GM Service</p>
               </>
@@ -715,14 +715,14 @@ const ServiceReport = ({ user, onNavigate }) => {
 
           <RevenueChart
             data={serviceData?.monthlyFieldRevenue}
-            title="Field Service (GL 410004)"
+            title="Field Service"
             description="On-site field service revenue over the last 12 months"
             barColor="#3b82f6"
           />
 
           <RevenueChart
             data={serviceData?.monthlyShopRevenue}
-            title="Shop Service (GL 410005)"
+            title="Shop Service"
             description="In-shop service revenue over the last 12 months"
             barColor="#1e40af"
           />
@@ -741,7 +741,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                     </TooltipTrigger>
                     <TooltipContent className="max-w-sm">
                       <p className="font-semibold mb-1">Includes:</p>
-                      <p className="text-xs mb-2">• Field service (GL 410004)<br/>• Shop service (GL 410005)</p>
+                      <p className="text-xs mb-2">• Field service<br/>• Shop service</p>
                       <p className="font-semibold mb-1">Excludes:</p>
                       <p className="text-xs">• Internal repairs<br/>• Freight charges<br/>• PM contract labor<br/>• Sublet labor<br/>• Warranty labor<br/>• GM Service</p>
                     </TooltipContent>

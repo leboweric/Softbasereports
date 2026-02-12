@@ -846,7 +846,7 @@ const AccountingReport = ({ user, organization }) => {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle>Professional Services Expenses Over Time</CardTitle>
-                  <CardDescription>Account 603000 - March 2025 onwards • Click a bar for invoice details</CardDescription>
+                  <CardDescription>March 2025 onwards • Click a bar for invoice details</CardDescription>
                   <div className="flex items-center gap-2 mt-2">
                     <Switch
                       id="include-current-month-prof-services"

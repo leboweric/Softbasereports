@@ -761,7 +761,7 @@ const PartsReport = ({ user, onNavigate }) => {
             tooltipInfo={
               <>
                 <p className="font-semibold mb-1">Includes:</p>
-                <p className="text-xs mb-2">• Counter sales (GL 410003)<br/>• Customer repair order parts (GL 410012)</p>
+                <p className="text-xs mb-2">• Counter sales<br/>• Customer repair order parts</p>
                 <p className="font-semibold mb-1">Excludes:</p>
                 <p className="text-xs">• Internal parts repairs<br/>• Freight charges<br/>• PM contract parts<br/>• Shop supplies<br/>• Warranty parts</p>
               </>
@@ -771,14 +771,14 @@ const PartsReport = ({ user, onNavigate }) => {
 
           <RevenueChart
             data={partsData?.monthlyCounterRevenue}
-            title="Counter Sales (GL 410003)"
+            title="Counter Sales"
             description="Walk-in and over-the-counter parts sales over the last 12 months"
             barColor="#10b981"
           />
 
           <RevenueChart
             data={partsData?.monthlyRepairOrderRevenue}
-            title="Customer Repair Order Parts (GL 410012)"
+            title="Customer Repair Order Parts"
             description="Parts sold through service repair orders over the last 12 months"
             barColor="#059669"
           />
@@ -797,7 +797,7 @@ const PartsReport = ({ user, onNavigate }) => {
                         </TooltipTrigger>
                         <TooltipContent className="max-w-sm">
                           <p className="font-semibold mb-1">Includes:</p>
-                          <p className="text-xs mb-2">• Counter sales (GL 410003)<br/>• Customer repair order parts (GL 410012)</p>
+                          <p className="text-xs mb-2">• Counter sales<br/>• Customer repair order parts</p>
                           <p className="font-semibold mb-1">Excludes:</p>
                           <p className="text-xs">• Internal parts repairs<br/>• Freight charges<br/>• PM contract parts<br/>• Shop supplies<br/>• Warranty parts</p>
                         </TooltipContent>

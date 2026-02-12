@@ -393,7 +393,7 @@ const InvoiceExplorer = () => {
                     console.log('Target:', data.target)
                     console.log('Summaries:', data.summaries)
                     console.log('Details:', data.details)
-                    alert(`July 2025 Revenue Totals:\n\nFMROAD only: $${data.summaries.field_only?.toLocaleString()}\nFMSHOP only: $${data.summaries.shop_only?.toLocaleString()}\nFMROAD+FMSHOP: $${data.summaries.salecode_fm?.toLocaleString()}\nRecvAccount 410004+410005: $${data.summaries.recv_410004_410005?.toLocaleString()}\n\nTotal July Revenue: $${data.summaries.total_july?.toLocaleString()}\nTarget: $${data.target?.toLocaleString()}\n\nCheck console for full details`)
+                    alert(`July 2025 Revenue Totals:\n\nFMROAD only: $${data.summaries.field_only?.toLocaleString()}\nFMSHOP only: $${data.summaries.shop_only?.toLocaleString()}\nFMROAD+FMSHOP: $${data.summaries.salecode_fm?.toLocaleString()}\nRecv Account Total: $${data.summaries.recv_410004_410005?.toLocaleString()}\n\nTotal July Revenue: $${data.summaries.total_july?.toLocaleString()}\nTarget: $${data.target?.toLocaleString()}\n\nCheck console for full details`)
                   } else {
                     alert('Failed to run test')
                   }
