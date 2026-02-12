@@ -14,9 +14,28 @@ _cache_warmer_scheduler = None
 _warming_in_progress = False
 _flask_app = None  # Store reference to Flask app for app context
 
-# Schemas that are known Softbase tenants (have GLDetail, Equipment, WO tables etc.)
-# Non-Softbase schemas (e.g., vital001) should NOT be warmed as they use different data sources.
-SOFTBASE_SCHEMAS = {'ben002', 'ind004', 'bmh'}
+def _get_softbase_schemas():
+    """Dynamically discover Softbase tenant schemas from the database.
+    Falls back to a known set if discovery fails."""
+    try:
+        from src.models.user import Organization
+        orgs = Organization.query.filter(
+            Organization.is_active == True,
+            Organization.database_schema.isnot(None),
+            Organization.database_schema != ''
+        ).all()
+        schemas = set()
+        for org in orgs:
+            schema = org.database_schema
+            # Skip non-Softbase platforms (VITAL uses different data sources)
+            if schema and not schema.lower().startswith('vital'):
+                schemas.add(schema)
+        if schemas:
+            return schemas
+    except Exception as e:
+        logger.warning(f"Failed to discover Softbase schemas: {e}")
+    # Fallback to known tenants
+    return {'ben002', 'ind004', 'bmh'}
 
 
 def warm_dashboard_cache():
@@ -81,7 +100,8 @@ def _do_warm_cache(start_time):
             continue
         
         # Skip non-Softbase schemas (e.g., vital001 doesn't have Softbase tables)
-        if schema not in SOFTBASE_SCHEMAS:
+        softbase_schemas = _get_softbase_schemas()
+        if schema not in softbase_schemas:
             logger.info(f"  Skipping non-Softbase org: {org.name} (schema={schema})")
             continue
         
