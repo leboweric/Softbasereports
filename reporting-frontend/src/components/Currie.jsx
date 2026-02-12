@@ -826,12 +826,12 @@ const Currie = ({ user, organization }) => {
 
                 return (
                   <div>
-                    {/* Top section: Gauge + Summary Stats */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                      {/* Gauge */}
-                      <div className="lg:col-span-1 flex flex-col items-center justify-center">
-                        <div className="relative" style={{ width: 220, height: 130 }}>
-                          <ResponsiveContainer width="100%" height={220}>
+                    {/* Top section: Gauge centered + Summary Stats below */}
+                    <div className="flex flex-col items-center mb-8">
+                      {/* Gauge - centered */}
+                      <div className="flex flex-col items-center">
+                        <div className="relative" style={{ width: 280, height: 155 }}>
+                          <ResponsiveContainer width={280} height={280}>
                             <PieChart>
                               <Pie
                                 data={[
@@ -839,11 +839,11 @@ const Currie = ({ user, organization }) => {
                                   { value: gaugeRemaining, fill: '#e5e7eb' },
                                 ]}
                                 cx="50%"
-                                cy="100%"
+                                cy="50%"
                                 startAngle={180}
                                 endAngle={0}
-                                innerRadius={70}
-                                outerRadius={100}
+                                innerRadius={90}
+                                outerRadius={130}
                                 dataKey="value"
                                 stroke="none"
                               >
@@ -852,23 +852,23 @@ const Currie = ({ user, organization }) => {
                               </Pie>
                             </PieChart>
                           </ResponsiveContainer>
-                          <div className="absolute inset-0 flex flex-col items-center justify-end pb-2">
-                            <span className={`text-4xl font-bold ${latestAbsorption >= 100 ? 'text-green-600' : latestAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
+                            <span className={`text-5xl font-bold ${latestAbsorption >= 100 ? 'text-green-600' : latestAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
                               {latestAbsorption.toFixed(1)}%
                             </span>
-                            <span className="text-xs text-gray-500 mt-1">Latest Month</span>
+                            <span className="text-sm text-gray-500 mt-1">Latest Month</span>
                           </div>
                         </div>
-                        <div className="flex justify-between w-full max-w-[220px] text-xs text-gray-400 mt-1 px-2">
+                        <div className="flex justify-between w-full max-w-[280px] text-xs text-gray-400 mt-2 px-1">
                           <span>0%</span>
-                          <span>80%</span>
-                          <span>100%</span>
+                          <span className="ml-6">80%</span>
+                          <span className="mr-2">100%</span>
                           <span>160%</span>
                         </div>
                       </div>
 
-                      {/* Summary Stats */}
-                      <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {/* Summary Stats - row below gauge */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mt-6">
                         <div className="bg-gray-50 rounded-lg p-3 text-center">
                           <p className="text-xs text-gray-500 mb-1">Latest Month</p>
                           <p className={`text-2xl font-bold ${latestAbsorption >= 100 ? 'text-green-600' : latestAbsorption >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
