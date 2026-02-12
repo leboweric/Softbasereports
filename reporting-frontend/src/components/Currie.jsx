@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, Download, Calendar, RefreshCw, Target, TrendingUp, TrendingDown, Wrench, Package, Truck, DollarSign, Users, Activity, BarChart3, Gauge } from 'lucide-react';
+import { FileSpreadsheet, Download, Calendar, RefreshCw, Target, TrendingUp, TrendingDown, Wrench, Package, Truck, DollarSign, Users, Activity, BarChart3, Gauge, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { apiUrl } from '@/lib/api';
@@ -23,6 +24,367 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
+
+// KPI Help Content — What it means, how it's calculated, and actionable steps
+const KPI_HELP = {
+  // Absorption Rate
+  absorption_rate: {
+    title: 'Absorption Rate',
+    what: 'Absorption rate measures whether your aftermarket departments (Service, Parts, Rental) generate enough gross profit to cover all of the dealership\'s overhead expenses. At 100%, your aftermarket GP fully "absorbs" your fixed costs — meaning every dollar of equipment sales GP is pure profit.',
+    formula: '(Service GP + Parts GP + Rental GP) ÷ Total Overhead Expenses × 100',
+    actions: [
+      'Increase service labor rates and improve technician utilization to boost Service GP',
+      'Grow parts counter sales and improve parts margins through better vendor negotiations',
+      'Maximize rental fleet utilization and review rental rates against market',
+      'Scrutinize overhead expenses — reduce discretionary spending where possible',
+      'Target 100%+ absorption so equipment sales become pure profit'
+    ]
+  },
+  // Department GP% Benchmarks
+  dept_gp_service: {
+    title: 'Service GP%',
+    what: 'Service Gross Profit Percentage measures how much of your service revenue remains after direct costs (technician wages, parts used on jobs, sublet costs). The Currie benchmark for service departments is 65%.',
+    formula: '(Service Revenue − Service COGS) ÷ Service Revenue × 100',
+    actions: [
+      'Review and increase labor rates — ensure your effective rate keeps pace with technician pay increases',
+      'Reduce warranty and goodwill write-offs by improving first-time fix rates',
+      'Minimize unbilled time — track and bill for travel, diagnostics, and setup',
+      'Negotiate better sublet pricing or bring high-volume sublet work in-house',
+      'Train technicians to upsell PM services and identify additional needed repairs'
+    ]
+  },
+  dept_gp_parts: {
+    title: 'Parts GP%',
+    what: 'Parts Gross Profit Percentage measures the margin on parts sales across all channels (counter, RO, warranty, internal). The Currie benchmark for parts departments is 40%.',
+    formula: '(Parts Revenue − Parts COGS) ÷ Parts Revenue × 100',
+    actions: [
+      'Review and enforce markup matrices — ensure competitive but profitable pricing',
+      'Reduce internal parts transfers at cost; charge a fair internal markup',
+      'Negotiate better purchasing terms, volume discounts, and rebates from suppliers',
+      'Minimize obsolete inventory that gets liquidated at low margins',
+      'Grow higher-margin counter sales vs. lower-margin warranty/internal channels'
+    ]
+  },
+  dept_gp_rental: {
+    title: 'Rental GP%',
+    what: 'Rental Gross Profit Percentage measures the margin on rental revenue after direct costs (depreciation, maintenance, transport). The Currie benchmark for rental departments is 45%.',
+    formula: '(Rental Revenue − Rental COGS) ÷ Rental Revenue × 100',
+    actions: [
+      'Review rental rates against market — increase rates on high-demand equipment',
+      'Maximize fleet utilization to spread fixed depreciation over more revenue',
+      'Reduce maintenance costs through preventive maintenance programs',
+      'Dispose of underperforming or aged units that carry high depreciation',
+      'Charge for delivery, pickup, and damage to recover all costs'
+    ]
+  },
+  // Service Department KPIs
+  revenue_per_tech: {
+    title: 'Revenue per Technician per Month',
+    what: 'Total service department revenue divided by the number of active technicians and the number of months in the period. This measures how much revenue each tech generates. Currie benchmark is $20,000–$25,000 per tech per month.',
+    formula: 'Total Service Revenue ÷ Number of Months ÷ Active Technicians',
+    actions: [
+      'Increase billable hours per tech — reduce downtime between jobs',
+      'Raise labor rates to match market and technician skill levels',
+      'Improve dispatching efficiency to reduce travel and idle time',
+      'Cross-train technicians to handle a wider variety of equipment',
+      'Ensure all billable work is captured — audit for missed charges'
+    ]
+  },
+  gp_per_tech: {
+    title: 'GP per Technician per Month',
+    what: 'Gross profit generated per technician per month. This is the most important service productivity metric because it accounts for both revenue generation AND cost control. Currie benchmark is approximately $15,000 per tech per month.',
+    formula: 'Total Service GP ÷ Number of Months ÷ Active Technicians',
+    actions: [
+      'Focus on high-margin work — PM contracts, customer labor vs. warranty',
+      'Reduce parts costs on service jobs through better sourcing',
+      'Minimize rework and comebacks that consume labor without revenue',
+      'Invest in training to improve first-time fix rates',
+      'Review sublet costs — bring profitable work in-house when possible'
+    ]
+  },
+  effective_labor_rate: {
+    title: 'Effective Labor Rate',
+    what: 'The actual average rate you collect per billed hour of labor. This is calculated from actual invoiced labor dollars divided by billed hours — it reflects discounts, write-offs, and rate variations across job types.',
+    formula: 'Total Labor Revenue ÷ Total Billed Hours',
+    actions: [
+      'Review posted labor rates and increase where the market supports it',
+      'Reduce discounting and goodwill adjustments on labor charges',
+      'Charge appropriate rates for overtime, emergency, and after-hours work',
+      'Ensure flat-rate jobs are priced to reflect actual time investment',
+      'Track by technician to identify who is discounting or under-billing'
+    ]
+  },
+  billed_hours_per_tech: {
+    title: 'Billed Hours per Technician per Month',
+    what: 'The average number of hours billed to customers per technician per month. This measures technician utilization — how much of their available time is being converted to billable work. Target is 130+ hours per month (about 75% of available time).',
+    formula: 'Total Billed Hours ÷ Number of Months ÷ Active Technicians',
+    actions: [
+      'Improve job scheduling and dispatching to minimize gaps between jobs',
+      'Reduce non-billable time (meetings, training, waiting for parts)',
+      'Ensure all billable time is captured — audit timesheets vs. work orders',
+      'Pre-stage parts and equipment to reduce setup time on jobs',
+      'Use route optimization for field service to reduce travel time'
+    ]
+  },
+  service_calls_per_day: {
+    title: 'Service Calls per Day',
+    what: 'The average number of work orders opened per business day across the department. This measures overall service demand and throughput.',
+    formula: 'Total Service Calls (WOs) ÷ Business Days in Period',
+    actions: [
+      'Grow the customer base through proactive outreach and PM programs',
+      'Improve turnaround time to handle more jobs per day',
+      'Streamline the intake process to reduce administrative bottlenecks',
+      'Market service capabilities to attract new customers',
+      'Offer scheduled maintenance programs to create predictable demand'
+    ]
+  },
+  active_technicians: {
+    title: 'Active Technicians',
+    what: 'The number of unique technicians who have billed labor hours during the selected period. This is your productive workforce count.',
+    formula: 'Count of unique technicians with billed labor in the period',
+    actions: [
+      'Recruit and retain skilled technicians — competitive pay and benefits',
+      'Invest in apprenticeship programs to build your pipeline',
+      'Cross-train existing staff to increase flexibility',
+      'Reduce turnover through career development and good working conditions',
+      'Track this over time to spot staffing trends before they become problems'
+    ]
+  },
+  total_service_revenue: {
+    title: 'Total Service Revenue',
+    what: 'The total revenue generated by the service department during the selected period, including customer labor, internal labor, warranty, sublet, and other service revenue.',
+    formula: 'Sum of all service revenue GL accounts for the period',
+    actions: [
+      'Grow customer labor revenue — the highest-margin channel',
+      'Expand PM contract programs for recurring revenue',
+      'Increase labor rates in line with market and cost increases',
+      'Improve technician productivity to generate more billable hours',
+      'Market service capabilities to capture more of the local market'
+    ]
+  },
+  total_service_gp: {
+    title: 'Total Service GP',
+    what: 'The total gross profit generated by the service department during the selected period. This is revenue minus direct costs (technician wages, parts, sublet).',
+    formula: 'Total Service Revenue − Total Service COGS',
+    actions: [
+      'Focus on the GP% levers: labor rates, parts markup, sublet management',
+      'Shift mix toward higher-margin work (customer labor vs. warranty)',
+      'Control direct costs — negotiate better parts and sublet pricing',
+      'Reduce rework and warranty comebacks',
+      'Grow total volume while maintaining or improving GP%'
+    ]
+  },
+  // Parts Department KPIs
+  fill_rate: {
+    title: 'Parts Fill Rate',
+    what: 'The percentage of parts orders that can be filled immediately from stock. A high fill rate means customers and technicians get parts quickly without waiting for special orders. Currie target is 90%+.',
+    formula: 'Orders Filled from Stock ÷ Total Orders × 100',
+    actions: [
+      'Analyze demand patterns and adjust stocking levels for fast-moving parts',
+      'Set up automatic reorder points based on usage history',
+      'Review and return slow-moving inventory to free up capital for fast movers',
+      'Negotiate faster delivery from suppliers for non-stock items',
+      'Track lost sales to identify parts you should be stocking'
+    ]
+  },
+  inventory_turnover: {
+    title: 'Inventory Turnover',
+    what: 'How many times your parts inventory is sold and replaced during the year. Higher turnover means your capital is working harder. Currie target is 4–6 turns per year.',
+    formula: 'Annual Parts COGS ÷ Average Inventory Value',
+    actions: [
+      'Identify and liquidate obsolete and slow-moving inventory',
+      'Tighten purchasing — order what sells, return what doesn\'t',
+      'Negotiate consignment arrangements for slow-moving but necessary parts',
+      'Review min/max levels quarterly based on actual usage',
+      'Run promotions or specials to move aged inventory'
+    ]
+  },
+  inventory_value: {
+    title: 'Parts Inventory Value',
+    what: 'The total dollar value of parts currently in stock. This represents capital tied up in inventory that needs to generate returns through sales.',
+    formula: 'Sum of all parts inventory at cost',
+    actions: [
+      'Right-size inventory to match actual demand — avoid overstocking',
+      'Return excess and obsolete parts to suppliers when possible',
+      'Monitor inventory-to-sales ratio to ensure appropriate investment level',
+      'Implement cycle counting to maintain accurate inventory records',
+      'Review and adjust reorder quantities based on lead times and demand'
+    ]
+  },
+  obsolete_parts: {
+    title: 'Obsolete Parts (365+ Days)',
+    what: 'Parts that have been in inventory for over 365 days without selling. These represent dead capital and potential write-offs. Keeping obsolete inventory ties up cash and warehouse space.',
+    formula: 'Count and value of parts with no sales activity in 365+ days',
+    actions: [
+      'Establish a formal obsolescence policy — review monthly',
+      'Return eligible parts to suppliers under return programs',
+      'Sell obsolete parts at discount through online channels or promotions',
+      'Write off truly unsaleable parts to clean up the books',
+      'Prevent future obsolescence by tightening initial stocking decisions'
+    ]
+  },
+  // Rental Department KPIs
+  financial_utilization: {
+    title: 'Financial Utilization',
+    what: 'Measures how much revenue the rental fleet generates relative to its acquisition cost. This is the primary measure of whether your fleet investment is producing adequate returns.',
+    formula: 'Annualized Rental Revenue ÷ Total Fleet Acquisition Cost × 100',
+    actions: [
+      'Increase rental rates on high-demand equipment',
+      'Improve fleet utilization — reduce idle time through better sales efforts',
+      'Dispose of underperforming units that drag down the average',
+      'Right-size the fleet to match market demand',
+      'Add equipment types that command premium rental rates'
+    ]
+  },
+  rental_multiple: {
+    title: 'Rental Multiple',
+    what: 'The ratio of rental revenue to depreciation expense. A multiple of 3.0x or higher means you\'re generating $3 of revenue for every $1 of depreciation — indicating the fleet is earning well above its cost of ownership.',
+    formula: 'Annualized Rental Revenue ÷ Annualized Depreciation Expense',
+    actions: [
+      'Review rental rates — ensure they cover depreciation plus a healthy margin',
+      'Accelerate disposal of units with high depreciation and low utilization',
+      'Negotiate better purchase pricing to reduce the depreciation base',
+      'Extend useful life of well-maintained equipment to reduce depreciation rates',
+      'Focus fleet additions on equipment types with the best revenue-to-depreciation ratio'
+    ]
+  },
+  revenue_per_unit: {
+    title: 'Revenue per Unit per Year',
+    what: 'The average annual revenue generated by each unit in the rental fleet. This helps identify whether individual units are pulling their weight.',
+    formula: 'Annualized Rental Revenue ÷ Number of Active Rental Units',
+    actions: [
+      'Identify and address low-performing units — increase their rates or dispose',
+      'Market underutilized equipment types to find new rental customers',
+      'Bundle services (delivery, maintenance) to increase per-unit revenue',
+      'Implement minimum rental periods to improve revenue per transaction',
+      'Track by equipment type to focus fleet investment on highest-revenue categories'
+    ]
+  },
+  annualized_revenue: {
+    title: 'Annualized Rental Revenue',
+    what: 'The rental department\'s revenue projected to a full 12-month basis. This normalizes for the selected date range so you can compare against annual benchmarks.',
+    formula: 'Period Rental Revenue × (12 ÷ Months in Period)',
+    actions: [
+      'Grow the rental customer base through targeted sales outreach',
+      'Increase rental rates in line with market conditions',
+      'Expand the fleet with in-demand equipment types',
+      'Reduce downtime between rentals through faster turnaround',
+      'Offer long-term rental contracts for predictable revenue streams'
+    ]
+  },
+  // Company Financial Health
+  roa: {
+    title: 'Return on Assets (ROA)',
+    what: 'Measures how efficiently the company uses its total assets to generate profit. A higher ROA means you\'re getting more income from every dollar invested in the business.',
+    formula: 'Net Income ÷ Total Assets × 100',
+    actions: [
+      'Increase profitability through revenue growth and cost control',
+      'Reduce idle or unproductive assets — sell unused equipment and property',
+      'Improve inventory turnover to get more revenue from inventory investment',
+      'Collect receivables faster to reduce AR balances',
+      'Evaluate major asset purchases carefully for their return potential'
+    ]
+  },
+  debt_to_equity: {
+    title: 'Debt to Equity Ratio',
+    what: 'Measures how much debt the company uses relative to owner equity. A lower ratio means less financial risk. High leverage amplifies both gains and losses.',
+    formula: 'Total Liabilities ÷ Total Equity',
+    actions: [
+      'Pay down high-interest debt to reduce the ratio',
+      'Retain earnings instead of distributing all profits',
+      'Avoid taking on new debt unless the return clearly exceeds the cost',
+      'Refinance existing debt at lower rates when possible',
+      'Monitor the trend — a rising ratio signals increasing financial risk'
+    ]
+  },
+  current_ratio: {
+    title: 'Current Ratio',
+    what: 'Measures the company\'s ability to pay short-term obligations. A ratio above 1.5x means you have $1.50 in current assets for every $1.00 in current liabilities — a healthy liquidity cushion.',
+    formula: 'Total Current Assets ÷ Total Current Liabilities',
+    actions: [
+      'Speed up AR collections to increase cash on hand',
+      'Manage inventory levels to avoid tying up too much cash',
+      'Negotiate longer payment terms with suppliers',
+      'Maintain a cash reserve for unexpected expenses',
+      'Avoid using short-term debt to fund long-term assets'
+    ]
+  },
+  operating_profit_pct: {
+    title: 'Operating Profit %',
+    what: 'The percentage of total revenue that remains after all operating expenses. The Currie benchmark is 5–7% pre-tax operating profit. This is the ultimate measure of dealership profitability.',
+    formula: '(Total Revenue − Total COGS − Total Operating Expenses) ÷ Total Revenue × 100',
+    actions: [
+      'Improve department GP% across all departments (the biggest lever)',
+      'Control overhead expenses — review every line item annually',
+      'Grow revenue to spread fixed costs over a larger base',
+      'Achieve 100%+ absorption rate so equipment GP flows to the bottom line',
+      'Benchmark expenses against Currie model to identify areas of overspending'
+    ]
+  },
+  // AR Aging
+  ar_aging: {
+    title: 'Accounts Receivable Aging',
+    what: 'Shows how long customer invoices have been outstanding. Money in AR is cash you\'ve earned but haven\'t collected. The longer it sits, the higher the risk of non-payment and the greater the impact on cash flow.',
+    formula: 'Invoices grouped by days outstanding: Current (0–30), 31–60, 61–90, 91+',
+    actions: [
+      'Follow up on all invoices over 30 days immediately — call, don\'t just email',
+      'Implement credit policies — require deposits or COD for new/risky customers',
+      'Offer early payment discounts (e.g., 2% net 10) to accelerate collections',
+      'Review credit limits for customers with chronic late payments',
+      'Escalate 90+ day accounts to collections or legal action'
+    ]
+  }
+};
+
+// Reusable KPI Help Button component
+const KpiHelpButton = ({ helpKey }) => {
+  const [open, setOpen] = useState(false);
+  const help = KPI_HELP[helpKey];
+  if (!help) return null;
+
+  return (
+    <>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        className="absolute top-2 right-2 w-5 h-5 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors z-10"
+        title="Learn more"
+      >
+        <HelpCircle className="w-3.5 h-3.5" />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{help.title}</DialogTitle>
+            <DialogDescription>Understanding this metric and how to improve it</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-1">What is this?</h4>
+              <p className="text-sm text-gray-600 leading-relaxed">{help.what}</p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-1">How it's calculated</h4>
+              <div className="bg-gray-50 rounded-md px-3 py-2">
+                <code className="text-sm text-blue-700">{help.formula}</code>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-1">How to improve it</h4>
+              <ul className="space-y-1.5">
+                {help.actions.map((action, i) => (
+                  <li key={i} className="text-sm text-gray-600 flex gap-2">
+                    <span className="text-green-500 mt-0.5 flex-shrink-0">&#10003;</span>
+                    <span>{action}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
 
 const Currie = ({ user, organization }) => {
   const [loading, setLoading] = useState(false);
@@ -640,7 +1002,8 @@ const Currie = ({ user, organization }) => {
                     const meetsTarget = d.gp_pct >= d.target;
                     const pctOfTarget = Math.min((d.gp_pct / d.target) * 100, 150);
                     return (
-                      <div key={dept.key} className="border rounded-lg p-4">
+                      <div key={dept.key} className="border rounded-lg p-4 relative">
+                        <KpiHelpButton helpKey={`dept_gp_${dept.key}`} />
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
                             <dept.icon className={`w-4 h-4 text-${dept.color}-600`} />
@@ -687,7 +1050,8 @@ const Currie = ({ user, organization }) => {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {/* Revenue per Technician */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="revenue_per_tech" />
                     <DollarSign className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Revenue / Tech / Mo</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -696,7 +1060,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">Currie: $20-25K</p>
                   </div>
                   {/* GP per Technician */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="gp_per_tech" />
                     <TrendingUp className="w-5 h-5 text-green-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">GP / Tech / Mo</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -705,7 +1070,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">Currie: ~$15K</p>
                   </div>
                   {/* Effective Labor Rate */}
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="effective_labor_rate" />
                     <Gauge className="w-5 h-5 text-purple-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Effective Labor Rate</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -714,7 +1080,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">{(metrics.labor_metrics?.total_billed_hours || 0).toFixed(0)} total hrs billed</p>
                   </div>
                   {/* Billed Hours per Tech */}
-                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center">
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="billed_hours_per_tech" />
                     <Activity className="w-5 h-5 text-orange-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Billed Hrs / Tech / Mo</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -723,7 +1090,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">Target: 130+ hrs/mo</p>
                   </div>
                   {/* Service Calls per Day */}
-                  <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center">
+                  <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="service_calls_per_day" />
                     <Wrench className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Service Calls / Day</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -732,7 +1100,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">{metrics.service_calls_per_day?.total_service_calls || 0} total calls</p>
                   </div>
                   {/* Active Technicians */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="active_technicians" />
                     <Users className="w-5 h-5 text-gray-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Active Technicians</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -741,7 +1110,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">WOs with labor: {metrics.labor_metrics?.work_orders_with_labor || 0}</p>
                   </div>
                   {/* Total Service Revenue */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="total_service_revenue" />
                     <BarChart3 className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Total Service Revenue</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -750,7 +1120,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">For selected period</p>
                   </div>
                   {/* Total Service GP */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="total_service_gp" />
                     <DollarSign className="w-5 h-5 text-green-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Total Service GP</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -776,7 +1147,8 @@ const Currie = ({ user, organization }) => {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {/* Fill Rate */}
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="fill_rate" />
                     <Target className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Fill Rate</p>
                     <p className={`text-xl font-bold ${(metrics.parts_inventory.fill_rate || 0) >= 90 ? 'text-green-600' : (metrics.parts_inventory.fill_rate || 0) >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -789,7 +1161,8 @@ const Currie = ({ user, organization }) => {
                     </div>
                   </div>
                   {/* Inventory Turnover */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="inventory_turnover" />
                     <Activity className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Inventory Turnover</p>
                     <p className={`text-xl font-bold ${(metrics.parts_inventory.inventory_turnover || 0) >= 4 ? 'text-green-600' : 'text-yellow-600'}`}>
@@ -798,7 +1171,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">Target: 4-6x/year</p>
                   </div>
                   {/* Inventory Value */}
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center">
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="inventory_value" />
                     <DollarSign className="w-5 h-5 text-gray-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Inventory Value</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -807,7 +1181,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">{metrics.parts_inventory.filled_orders || 0} / {metrics.parts_inventory.total_orders || 0} orders filled</p>
                   </div>
                   {/* Obsolete Parts */}
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="obsolete_parts" />
                     <TrendingDown className="w-5 h-5 text-red-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Obsolete Parts (365+ days)</p>
                     <p className="text-xl font-bold text-red-600">
@@ -875,7 +1250,8 @@ const Currie = ({ user, organization }) => {
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {/* Financial Utilization */}
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="financial_utilization" />
                     <Gauge className="w-5 h-5 text-purple-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Financial Utilization</p>
                     <p className={`text-xl font-bold ${(metrics.rental_fleet.financial_utilization || 0) >= 60 ? 'text-green-600' : 'text-yellow-600'}`}>
@@ -884,7 +1260,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">Ann. Rev / Acquisition Cost</p>
                   </div>
                   {/* Rental Multiple */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="rental_multiple" />
                     <TrendingUp className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Rental Multiple</p>
                     <p className={`text-xl font-bold ${(metrics.rental_fleet.rental_multiple || 0) >= 3 ? 'text-green-600' : 'text-yellow-600'}`}>
@@ -893,7 +1270,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">Target: 3.0x+ (Rev/Deprec)</p>
                   </div>
                   {/* Revenue per Unit */}
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="revenue_per_unit" />
                     <DollarSign className="w-5 h-5 text-green-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Revenue / Unit / Year</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -902,7 +1280,8 @@ const Currie = ({ user, organization }) => {
                     <p className="text-xs text-gray-400 mt-1">{metrics.rental_fleet.unit_count || 0} active units</p>
                   </div>
                   {/* Annualized Revenue */}
-                  <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center">
+                  <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center relative">
+                    <KpiHelpButton helpKey="annualized_revenue" />
                     <BarChart3 className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Annualized Revenue</p>
                     <p className="text-xl font-bold text-gray-900">
@@ -974,7 +1353,8 @@ const Currie = ({ user, organization }) => {
                   return (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {/* ROA */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center relative">
+                        <KpiHelpButton helpKey="roa" />
                         <TrendingUp className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                         <p className="text-xs text-gray-500 mb-1">Return on Assets</p>
                         <p className={`text-xl font-bold ${roa >= 10 ? 'text-green-600' : roa >= 5 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -983,7 +1363,8 @@ const Currie = ({ user, organization }) => {
                         <p className="text-xs text-gray-400 mt-1">Net Income / Total Assets</p>
                       </div>
                       {/* Debt to Equity */}
-                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center">
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center relative">
+                        <KpiHelpButton helpKey="debt_to_equity" />
                         <Activity className="w-5 h-5 text-orange-600 mx-auto mb-1" />
                         <p className="text-xs text-gray-500 mb-1">Debt to Equity</p>
                         <p className={`text-xl font-bold ${debtToEquity <= 2 ? 'text-green-600' : debtToEquity <= 3 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -992,7 +1373,8 @@ const Currie = ({ user, organization }) => {
                         <p className="text-xs text-gray-400 mt-1">Lower is better</p>
                       </div>
                       {/* Current Ratio */}
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center relative">
+                        <KpiHelpButton helpKey="current_ratio" />
                         <Gauge className="w-5 h-5 text-green-600 mx-auto mb-1" />
                         <p className="text-xs text-gray-500 mb-1">Current Ratio</p>
                         <p className={`text-xl font-bold ${currentRatio >= 1.5 ? 'text-green-600' : currentRatio >= 1.0 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -1001,7 +1383,8 @@ const Currie = ({ user, organization }) => {
                         <p className="text-xs text-gray-400 mt-1">Target: 1.5x+</p>
                       </div>
                       {/* Operating Profit % */}
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center relative">
+                        <KpiHelpButton helpKey="operating_profit_pct" />
                         <DollarSign className="w-5 h-5 text-purple-600 mx-auto mb-1" />
                         <p className="text-xs text-gray-500 mb-1">Operating Profit %</p>
                         <p className={`text-xl font-bold ${opPct >= 5 ? 'text-green-600' : opPct >= 2 ? 'text-yellow-600' : 'text-red-600'}`}>
@@ -1018,7 +1401,8 @@ const Currie = ({ user, organization }) => {
 
           {/* AR Aging */}
           {metrics && metrics.ar_aging && (
-            <Card>
+            <Card className="relative">
+              <KpiHelpButton helpKey="ar_aging" />
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-5 h-5 text-gray-700" />
