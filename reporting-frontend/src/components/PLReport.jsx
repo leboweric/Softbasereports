@@ -72,7 +72,8 @@ const PLReport = ({ user, organization }) => {
           params: {
             start_date: startDate,
             end_date: endDate,
-            detail: false // Set to true if you want account-level detail
+            detail: false, // Set to true if you want account-level detail
+            refresh: true
           },
           headers: { Authorization: `Bearer ${token}` }
         }
