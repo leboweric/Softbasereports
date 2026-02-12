@@ -535,6 +535,7 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
         'office_admin': 'Office & Administrative',
         'vehicle_equipment': 'Vehicle & Equipment',
         'other_expenses': 'Other Expenses',
+        'interest_finance': 'Interest & Finance',
     }
     
     for category, display_name in category_names.items():
@@ -707,15 +708,16 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     current_row = 6
     
     # Calculate totals
-    # Note: Other income (7xxxxx accounts) includes contra-revenue items like A/R Discounts
-    # which reduce total revenue. The dashboard adds other_income to revenue (negative value reduces it)
+    # Income = sum of department sales (4xx accounts only)
+    # Other Income & Expense (7xx accounts) shown as separate line and factored into Net Profit
     total_other_mtd = other_data.get('total_mtd', 0)
-    total_income_mtd = sum(all_dept_data[k]['total_sales_mtd'] for k in dept_keys if k in all_dept_data) - total_other_mtd
+    total_income_mtd = sum(all_dept_data[k]['total_sales_mtd'] for k in dept_keys if k in all_dept_data)
     total_cogs_mtd = sum(all_dept_data[k]['total_cos_mtd'] for k in dept_keys if k in all_dept_data)
     total_gross_profit_mtd = total_income_mtd - total_cogs_mtd
     total_overhead_mtd = expense_data.get('total_overhead_mtd', 0)
     total_operating_profit_mtd = total_gross_profit_mtd - total_overhead_mtd
-    total_net_profit_mtd = total_operating_profit_mtd
+    # Net Profit = Operating Profit - Other Income & Expense (7xx contra-revenue like A/R Discounts)
+    total_net_profit_mtd = total_operating_profit_mtd - total_other_mtd
     
     # Income row
     ws.cell(row=current_row, column=2, value='Income')

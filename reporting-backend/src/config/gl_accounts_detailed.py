@@ -284,6 +284,9 @@ OVERHEAD_EXPENSE_ACCOUNTS = {
         ('603900', 'UNIFORMS'),
         ('650000', 'OTHER EXPENSE'),
         ('706000', 'ADMINISTRATIVE FUND EXPENSE'),
+    ],
+    'interest_finance': [
+        ('601800', 'INTEREST'),
     ]
 }
 
@@ -298,7 +301,6 @@ OTHER_INCOME_EXPENSE_ACCOUNTS = {
     ],
     'other_expense': [
         ('601400', 'FEDERAL INCOME TAX'),
-        ('601800', 'INTEREST'),
         ('602500', 'OTHER TAXES'),
         ('603400', 'STATE INCOME TAXES'),
         ('604200', 'WARRANTY'),
