@@ -400,6 +400,8 @@ const Currie = ({ user, organization }) => {
   const [rawAbsorptionRateData, setRawAbsorptionRateData] = useState([]);
   const [includeCurrentMonthAbsorption, setIncludeCurrentMonthAbsorption] = useState(false);
   const [absorptionSummary, setAbsorptionSummary] = useState(null);
+  const [kpiMetrics, setKpiMetrics] = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
 
   // Initialize with current quarter
   useEffect(() => {
@@ -425,6 +427,7 @@ const Currie = ({ user, organization }) => {
 
     setQuarter(quarter, calendarYear);
     fetchAbsorptionRateData();
+    fetchKpiData();
   }, []);
 
   // Re-filter absorption rate data when toggle changes
@@ -464,6 +467,30 @@ const Currie = ({ user, organization }) => {
 
     setStartDate(start);
     setEndDate(end);
+  };
+
+  // Fetch KPI metrics with trailing 12 months (independent of date picker)
+  const fetchKpiData = async () => {
+    setKpiLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const now = new Date();
+      const t12End = now.toISOString().split('T')[0];
+      const t12Start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1).toISOString().split('T')[0];
+      
+      const metricsResponse = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/currie/metrics`,
+        {
+          params: { start_date: t12Start, end_date: t12End, refresh: 'true' },
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      setKpiMetrics(metricsResponse.data.metrics);
+    } catch (err) {
+      console.error('Error fetching KPI metrics:', err);
+    } finally {
+      setKpiLoading(false);
+    }
   };
 
   const fetchData = async (start, end) => {
@@ -666,8 +693,8 @@ const Currie = ({ user, organization }) => {
         </div>
       </div>
 
-      {/* Date Range Selector */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+      {/* Date Range Selector - hidden on KPI tab */}
+      <div className={`bg-white rounded-lg shadow p-4 mb-6 ${activeTab === 'kpis' ? 'hidden' : ''}`}>
         <div className="flex items-center space-x-4">
           <Calendar className="w-5 h-5 text-gray-500" />
           <div className="flex items-center space-x-4">
@@ -789,6 +816,18 @@ const Currie = ({ user, organization }) => {
       {/* Currie KPI's Tab */}
       {activeTab === 'kpis' && (
         <div className="space-y-6">
+          {/* Trailing 12 months label */}
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500 italic">All KPIs reflect trailing 12-month data</p>
+            <button
+              onClick={() => fetchKpiData()}
+              disabled={kpiLoading}
+              className={`px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center text-sm transition-all ${kpiLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${kpiLoading ? 'animate-spin' : ''}`} />
+              {kpiLoading ? 'Refreshing...' : 'Refresh KPIs'}
+            </button>
+          </div>
           {/* Absorption Rate */}
           <Card>
             <CardHeader>
@@ -983,7 +1022,7 @@ const Currie = ({ user, organization }) => {
           </Card>
 
           {/* Department GP% Benchmarks */}
-          {metrics && metrics.dept_gp_benchmarks && (
+          {kpiMetrics && kpiMetrics.dept_gp_benchmarks && (
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -997,7 +1036,7 @@ const Currie = ({ user, organization }) => {
                   {[{key: 'service', label: 'Service', icon: Wrench, color: 'blue'},
                     {key: 'parts', label: 'Parts', icon: Package, color: 'emerald'},
                     {key: 'rental', label: 'Rental', icon: Truck, color: 'purple'}].map(dept => {
-                    const d = metrics.dept_gp_benchmarks[dept.key];
+                    const d = kpiMetrics.dept_gp_benchmarks[dept.key];
                     if (!d) return null;
                     const meetsTarget = d.gp_pct >= d.target;
                     const pctOfTarget = Math.min((d.gp_pct / d.target) * 100, 150);
@@ -1038,14 +1077,14 @@ const Currie = ({ user, organization }) => {
           )}
 
           {/* Service Department KPIs */}
-          {metrics && (
+          {kpiMetrics && (
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Wrench className="w-5 h-5 text-blue-600" />
                   <CardTitle>Service Department KPIs</CardTitle>
                 </div>
-                <CardDescription>Technician productivity and service operations metrics</CardDescription>
+                <CardDescription>Technician productivity and service operations kpiMetrics</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1055,7 +1094,7 @@ const Currie = ({ user, organization }) => {
                     <DollarSign className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Revenue / Tech / Mo</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.service_productivity?.revenue_per_tech_monthly || 0)}
+                      {formatCurrency(kpiMetrics.service_productivity?.revenue_per_tech_monthly || 0)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Currie: $20-25K</p>
                   </div>
@@ -1065,7 +1104,7 @@ const Currie = ({ user, organization }) => {
                     <TrendingUp className="w-5 h-5 text-green-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">GP / Tech / Mo</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.service_productivity?.gp_per_tech_monthly || 0)}
+                      {formatCurrency(kpiMetrics.service_productivity?.gp_per_tech_monthly || 0)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Currie: ~$15K</p>
                   </div>
@@ -1075,9 +1114,9 @@ const Currie = ({ user, organization }) => {
                     <Gauge className="w-5 h-5 text-purple-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Effective Labor Rate</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.labor_metrics?.average_labor_rate || 0)}/hr
+                      {formatCurrency(kpiMetrics.labor_metrics?.average_labor_rate || 0)}/hr
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">{(metrics.labor_metrics?.total_billed_hours || 0).toFixed(0)} total hrs billed</p>
+                    <p className="text-xs text-gray-400 mt-1">{(kpiMetrics.labor_metrics?.total_billed_hours || 0).toFixed(0)} total hrs billed</p>
                   </div>
                   {/* Billed Hours per Tech */}
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 text-center relative">
@@ -1085,7 +1124,7 @@ const Currie = ({ user, organization }) => {
                     <Activity className="w-5 h-5 text-orange-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Billed Hrs / Tech / Mo</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {metrics.service_productivity?.hours_per_tech_monthly?.toFixed(1) || '0.0'}
+                      {kpiMetrics.service_productivity?.hours_per_tech_monthly?.toFixed(1) || '0.0'}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Target: 130+ hrs/mo</p>
                   </div>
@@ -1095,9 +1134,9 @@ const Currie = ({ user, organization }) => {
                     <Wrench className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Service Calls / Day</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {metrics.service_calls_per_day?.calls_per_day?.toFixed(1) || '0.0'}
+                      {kpiMetrics.service_calls_per_day?.calls_per_day?.toFixed(1) || '0.0'}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">{metrics.service_calls_per_day?.total_service_calls || 0} total calls</p>
+                    <p className="text-xs text-gray-400 mt-1">{kpiMetrics.service_calls_per_day?.total_service_calls || 0} total calls</p>
                   </div>
                   {/* Active Technicians */}
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-center relative">
@@ -1105,9 +1144,9 @@ const Currie = ({ user, organization }) => {
                     <Users className="w-5 h-5 text-gray-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Active Technicians</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {metrics.technician_count?.active_technicians || 0}
+                      {kpiMetrics.technician_count?.active_technicians || 0}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">WOs with labor: {metrics.labor_metrics?.work_orders_with_labor || 0}</p>
+                    <p className="text-xs text-gray-400 mt-1">WOs with labor: {kpiMetrics.labor_metrics?.work_orders_with_labor || 0}</p>
                   </div>
                   {/* Total Service Revenue */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center relative">
@@ -1115,7 +1154,7 @@ const Currie = ({ user, organization }) => {
                     <BarChart3 className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Total Service Revenue</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.service_productivity?.total_service_revenue || 0)}
+                      {formatCurrency(kpiMetrics.service_productivity?.total_service_revenue || 0)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">For selected period</p>
                   </div>
@@ -1125,7 +1164,7 @@ const Currie = ({ user, organization }) => {
                     <DollarSign className="w-5 h-5 text-green-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Total Service GP</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.service_productivity?.total_service_gp || 0)}
+                      {formatCurrency(kpiMetrics.service_productivity?.total_service_gp || 0)}
                     </p>
                     <p className="text-xs text-gray-400 mt-1">For selected period</p>
                   </div>
@@ -1135,14 +1174,14 @@ const Currie = ({ user, organization }) => {
           )}
 
           {/* Parts Department KPIs */}
-          {metrics && metrics.parts_inventory && (
+          {kpiMetrics && kpiMetrics.parts_inventory && (
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Package className="w-5 h-5 text-emerald-600" />
                   <CardTitle>Parts Department KPIs</CardTitle>
                 </div>
-                <CardDescription>Inventory performance and fill rate metrics</CardDescription>
+                <CardDescription>Inventory performance and fill rate kpiMetrics</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1151,13 +1190,13 @@ const Currie = ({ user, organization }) => {
                     <KpiHelpButton helpKey="fill_rate" />
                     <Target className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Fill Rate</p>
-                    <p className={`text-xl font-bold ${(metrics.parts_inventory.fill_rate || 0) >= 90 ? 'text-green-600' : (metrics.parts_inventory.fill_rate || 0) >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
-                      {metrics.parts_inventory.fill_rate?.toFixed(1) || '0.0'}%
+                    <p className={`text-xl font-bold ${(kpiMetrics.parts_inventory.fill_rate || 0) >= 90 ? 'text-green-600' : (kpiMetrics.parts_inventory.fill_rate || 0) >= 80 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {kpiMetrics.parts_inventory.fill_rate?.toFixed(1) || '0.0'}%
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Target: 90%+</p>
                     <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                      <div className={`h-2 rounded-full ${(metrics.parts_inventory.fill_rate || 0) >= 90 ? 'bg-green-500' : 'bg-yellow-500'}`}
-                        style={{ width: `${Math.min(metrics.parts_inventory.fill_rate || 0, 100)}%` }} />
+                      <div className={`h-2 rounded-full ${(kpiMetrics.parts_inventory.fill_rate || 0) >= 90 ? 'bg-green-500' : 'bg-yellow-500'}`}
+                        style={{ width: `${Math.min(kpiMetrics.parts_inventory.fill_rate || 0, 100)}%` }} />
                     </div>
                   </div>
                   {/* Inventory Turnover */}
@@ -1165,8 +1204,8 @@ const Currie = ({ user, organization }) => {
                     <KpiHelpButton helpKey="inventory_turnover" />
                     <Activity className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Inventory Turnover</p>
-                    <p className={`text-xl font-bold ${(metrics.parts_inventory.inventory_turnover || 0) >= 4 ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {metrics.parts_inventory.inventory_turnover?.toFixed(2) || '0.00'}x
+                    <p className={`text-xl font-bold ${(kpiMetrics.parts_inventory.inventory_turnover || 0) >= 4 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {kpiMetrics.parts_inventory.inventory_turnover?.toFixed(2) || '0.00'}x
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Target: 4-6x/year</p>
                   </div>
@@ -1176,9 +1215,9 @@ const Currie = ({ user, organization }) => {
                     <DollarSign className="w-5 h-5 text-gray-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Inventory Value</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.parts_inventory.inventory_value || 0)}
+                      {formatCurrency(kpiMetrics.parts_inventory.inventory_value || 0)}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">{metrics.parts_inventory.filled_orders || 0} / {metrics.parts_inventory.total_orders || 0} orders filled</p>
+                    <p className="text-xs text-gray-400 mt-1">{kpiMetrics.parts_inventory.filled_orders || 0} / {kpiMetrics.parts_inventory.total_orders || 0} orders filled</p>
                   </div>
                   {/* Obsolete Parts */}
                   <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center relative">
@@ -1186,9 +1225,9 @@ const Currie = ({ user, organization }) => {
                     <TrendingDown className="w-5 h-5 text-red-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Obsolete Parts (365+ days)</p>
                     <p className="text-xl font-bold text-red-600">
-                      {metrics.parts_inventory.aging?.obsolete_count || 0}
+                      {kpiMetrics.parts_inventory.aging?.obsolete_count || 0}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Value: {formatCurrency(metrics.parts_inventory.aging?.obsolete_value || 0)}</p>
+                    <p className="text-xs text-gray-400 mt-1">Value: {formatCurrency(kpiMetrics.parts_inventory.aging?.obsolete_value || 0)}</p>
                   </div>
                 </div>
                 {/* Inventory Aging Breakdown */}
@@ -1198,37 +1237,37 @@ const Currie = ({ user, organization }) => {
                     <div className="flex-1">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
                         <span>Fast (&lt;90 days)</span>
-                        <span className="font-medium text-green-600">{metrics.parts_inventory.aging?.fast_count || 0}</span>
+                        <span className="font-medium text-green-600">{kpiMetrics.parts_inventory.aging?.fast_count || 0}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="h-2 rounded-full bg-green-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.fast_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                        <div className="h-2 rounded-full bg-green-500" style={{ width: `${Math.min(((kpiMetrics.parts_inventory.aging?.fast_count || 0) / Math.max((kpiMetrics.parts_inventory.aging?.fast_count || 0) + (kpiMetrics.parts_inventory.aging?.medium_count || 0) + (kpiMetrics.parts_inventory.aging?.slow_count || 0) + (kpiMetrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
                       </div>
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
                         <span>Medium (91-180)</span>
-                        <span className="font-medium text-yellow-600">{metrics.parts_inventory.aging?.medium_count || 0}</span>
+                        <span className="font-medium text-yellow-600">{kpiMetrics.parts_inventory.aging?.medium_count || 0}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="h-2 rounded-full bg-yellow-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.medium_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                        <div className="h-2 rounded-full bg-yellow-500" style={{ width: `${Math.min(((kpiMetrics.parts_inventory.aging?.medium_count || 0) / Math.max((kpiMetrics.parts_inventory.aging?.fast_count || 0) + (kpiMetrics.parts_inventory.aging?.medium_count || 0) + (kpiMetrics.parts_inventory.aging?.slow_count || 0) + (kpiMetrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
                       </div>
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
                         <span>Slow (181-365)</span>
-                        <span className="font-medium text-orange-600">{metrics.parts_inventory.aging?.slow_count || 0}</span>
+                        <span className="font-medium text-orange-600">{kpiMetrics.parts_inventory.aging?.slow_count || 0}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="h-2 rounded-full bg-orange-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.slow_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                        <div className="h-2 rounded-full bg-orange-500" style={{ width: `${Math.min(((kpiMetrics.parts_inventory.aging?.slow_count || 0) / Math.max((kpiMetrics.parts_inventory.aging?.fast_count || 0) + (kpiMetrics.parts_inventory.aging?.medium_count || 0) + (kpiMetrics.parts_inventory.aging?.slow_count || 0) + (kpiMetrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
                       </div>
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
                         <span>Obsolete (365+)</span>
-                        <span className="font-medium text-red-600">{metrics.parts_inventory.aging?.obsolete_count || 0}</span>
+                        <span className="font-medium text-red-600">{kpiMetrics.parts_inventory.aging?.obsolete_count || 0}</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div className="h-2 rounded-full bg-red-500" style={{ width: `${Math.min(((metrics.parts_inventory.aging?.obsolete_count || 0) / Math.max((metrics.parts_inventory.aging?.fast_count || 0) + (metrics.parts_inventory.aging?.medium_count || 0) + (metrics.parts_inventory.aging?.slow_count || 0) + (metrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
+                        <div className="h-2 rounded-full bg-red-500" style={{ width: `${Math.min(((kpiMetrics.parts_inventory.aging?.obsolete_count || 0) / Math.max((kpiMetrics.parts_inventory.aging?.fast_count || 0) + (kpiMetrics.parts_inventory.aging?.medium_count || 0) + (kpiMetrics.parts_inventory.aging?.slow_count || 0) + (kpiMetrics.parts_inventory.aging?.obsolete_count || 0), 1)) * 100, 100)}%` }} />
                       </div>
                     </div>
                   </div>
@@ -1238,14 +1277,14 @@ const Currie = ({ user, organization }) => {
           )}
 
           {/* Rental Department KPIs */}
-          {metrics && metrics.rental_fleet && Object.keys(metrics.rental_fleet).length > 0 && (
+          {kpiMetrics && kpiMetrics.rental_fleet && Object.keys(kpiMetrics.rental_fleet).length > 0 && (
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Truck className="w-5 h-5 text-purple-600" />
                   <CardTitle>Rental Department KPIs</CardTitle>
                 </div>
-                <CardDescription>Fleet utilization, rental multiple, and fleet value metrics</CardDescription>
+                <CardDescription>Fleet utilization, rental multiple, and fleet value kpiMetrics</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1254,8 +1293,8 @@ const Currie = ({ user, organization }) => {
                     <KpiHelpButton helpKey="financial_utilization" />
                     <Gauge className="w-5 h-5 text-purple-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Financial Utilization</p>
-                    <p className={`text-xl font-bold ${(metrics.rental_fleet.financial_utilization || 0) >= 60 ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {metrics.rental_fleet.financial_utilization?.toFixed(1) || '0.0'}%
+                    <p className={`text-xl font-bold ${(kpiMetrics.rental_fleet.financial_utilization || 0) >= 60 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {kpiMetrics.rental_fleet.financial_utilization?.toFixed(1) || '0.0'}%
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Ann. Rev / Acquisition Cost</p>
                   </div>
@@ -1264,8 +1303,8 @@ const Currie = ({ user, organization }) => {
                     <KpiHelpButton helpKey="rental_multiple" />
                     <TrendingUp className="w-5 h-5 text-blue-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Rental Multiple</p>
-                    <p className={`text-xl font-bold ${(metrics.rental_fleet.rental_multiple || 0) >= 3 ? 'text-green-600' : 'text-yellow-600'}`}>
-                      {metrics.rental_fleet.rental_multiple?.toFixed(2) || '0.00'}x
+                    <p className={`text-xl font-bold ${(kpiMetrics.rental_fleet.rental_multiple || 0) >= 3 ? 'text-green-600' : 'text-yellow-600'}`}>
+                      {kpiMetrics.rental_fleet.rental_multiple?.toFixed(2) || '0.00'}x
                     </p>
                     <p className="text-xs text-gray-400 mt-1">Target: 3.0x+ (Rev/Deprec)</p>
                   </div>
@@ -1275,9 +1314,9 @@ const Currie = ({ user, organization }) => {
                     <DollarSign className="w-5 h-5 text-green-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Revenue / Unit / Year</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.rental_fleet.revenue_per_unit || 0)}
+                      {formatCurrency(kpiMetrics.rental_fleet.revenue_per_unit || 0)}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">{metrics.rental_fleet.unit_count || 0} active units</p>
+                    <p className="text-xs text-gray-400 mt-1">{kpiMetrics.rental_fleet.unit_count || 0} active units</p>
                   </div>
                   {/* Annualized Revenue */}
                   <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 text-center relative">
@@ -1285,9 +1324,9 @@ const Currie = ({ user, organization }) => {
                     <BarChart3 className="w-5 h-5 text-cyan-600 mx-auto mb-1" />
                     <p className="text-xs text-gray-500 mb-1">Annualized Revenue</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {formatCurrency(metrics.rental_fleet.annualized_revenue || 0)}
+                      {formatCurrency(kpiMetrics.rental_fleet.annualized_revenue || 0)}
                     </p>
-                    <p className="text-xs text-gray-400 mt-1">Deprec: {formatCurrency(metrics.rental_fleet.annualized_depreciation || 0)}/yr</p>
+                    <p className="text-xs text-gray-400 mt-1">Deprec: {formatCurrency(kpiMetrics.rental_fleet.annualized_depreciation || 0)}/yr</p>
                   </div>
                 </div>
                 {/* Fleet Value Summary */}
@@ -1296,15 +1335,15 @@ const Currie = ({ user, organization }) => {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center">
                       <p className="text-xs text-gray-500">Gross Fleet Value</p>
-                      <p className="text-lg font-semibold text-gray-900">{formatCurrency(metrics.rental_fleet.gross_fleet_value || 0)}</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCurrency(kpiMetrics.rental_fleet.gross_fleet_value || 0)}</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-500">Accumulated Depreciation</p>
-                      <p className="text-lg font-semibold text-red-600">({formatCurrency(metrics.rental_fleet.accumulated_depreciation || 0)})</p>
+                      <p className="text-lg font-semibold text-red-600">({formatCurrency(kpiMetrics.rental_fleet.accumulated_depreciation || 0)})</p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-500">Net Fleet Value</p>
-                      <p className="text-lg font-semibold text-blue-600">{formatCurrency(metrics.rental_fleet.net_fleet_value || 0)}</p>
+                      <p className="text-lg font-semibold text-blue-600">{formatCurrency(kpiMetrics.rental_fleet.net_fleet_value || 0)}</p>
                     </div>
                   </div>
                 </div>
@@ -1400,7 +1439,7 @@ const Currie = ({ user, organization }) => {
           )}
 
           {/* AR Aging */}
-          {metrics && metrics.ar_aging && (
+          {kpiMetrics && kpiMetrics.ar_aging && (
             <Card className="relative">
               <KpiHelpButton helpKey="ar_aging" />
               <CardHeader>
@@ -1413,23 +1452,23 @@ const Currie = ({ user, organization }) => {
                 <div className="grid grid-cols-5 gap-4">
                   <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
                     <p className="text-xs text-gray-500 mb-1">Current (0-30)</p>
-                    <p className="text-lg font-bold text-green-600">{formatCurrency(metrics.ar_aging.current || 0)}</p>
+                    <p className="text-lg font-bold text-green-600">{formatCurrency(kpiMetrics.ar_aging.current || 0)}</p>
                   </div>
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center">
                     <p className="text-xs text-gray-500 mb-1">31-60 Days</p>
-                    <p className="text-lg font-bold text-yellow-600">{formatCurrency(metrics.ar_aging.days_31_60 || 0)}</p>
+                    <p className="text-lg font-bold text-yellow-600">{formatCurrency(kpiMetrics.ar_aging.days_31_60 || 0)}</p>
                   </div>
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
                     <p className="text-xs text-gray-500 mb-1">61-90 Days</p>
-                    <p className="text-lg font-bold text-orange-600">{formatCurrency(metrics.ar_aging.days_61_90 || 0)}</p>
+                    <p className="text-lg font-bold text-orange-600">{formatCurrency(kpiMetrics.ar_aging.days_61_90 || 0)}</p>
                   </div>
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
                     <p className="text-xs text-gray-500 mb-1">91+ Days</p>
-                    <p className="text-lg font-bold text-red-600">{formatCurrency(metrics.ar_aging.days_91_plus || 0)}</p>
+                    <p className="text-lg font-bold text-red-600">{formatCurrency(kpiMetrics.ar_aging.days_91_plus || 0)}</p>
                   </div>
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center">
                     <p className="text-xs text-gray-500 mb-1">Total AR</p>
-                    <p className="text-lg font-bold text-gray-900">{formatCurrency(metrics.ar_aging.total || 0)}</p>
+                    <p className="text-lg font-bold text-gray-900">{formatCurrency(kpiMetrics.ar_aging.total || 0)}</p>
                   </div>
                 </div>
               </CardContent>
