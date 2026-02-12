@@ -98,8 +98,12 @@ const Currie = ({ user, organization }) => {
     setEndDate(end);
   };
 
-  const fetchData = async () => {
-    if (!startDate || !endDate) {
+  const fetchData = async (start, end) => {
+    // Use passed params or fall back to state
+    const sd = start || startDate;
+    const ed = end || endDate;
+
+    if (!sd || !ed) {
       setError('Please select a date range');
       return;
     }
@@ -114,7 +118,7 @@ const Currie = ({ user, organization }) => {
       const salesResponse = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/currie/sales-cogs-gp`,
         {
-          params: { start_date: startDate, end_date: endDate },
+          params: { start_date: sd, end_date: ed },
           headers: { Authorization: `Bearer ${token}` }
         }
       );
@@ -124,7 +128,7 @@ const Currie = ({ user, organization }) => {
       const metricsResponse = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/currie/metrics`,
         {
-          params: { start_date: startDate, end_date: endDate },
+          params: { start_date: sd, end_date: ed },
           headers: { Authorization: `Bearer ${token}` }
         }
       );
@@ -134,7 +138,7 @@ const Currie = ({ user, organization }) => {
       const expensesResponse = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/currie/expenses`,
         {
-          params: { start_date: startDate, end_date: endDate },
+          params: { start_date: sd, end_date: ed },
           headers: { Authorization: `Bearer ${token}` }
         }
       );
@@ -147,9 +151,13 @@ const Currie = ({ user, organization }) => {
     }
   };
 
+  // Debounce date changes to avoid race conditions when both dates update
   useEffect(() => {
     if (startDate && endDate) {
-      fetchData();
+      const timer = setTimeout(() => {
+        fetchData(startDate, endDate);
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [startDate, endDate]);
 
