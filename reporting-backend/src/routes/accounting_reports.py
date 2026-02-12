@@ -17,19 +17,63 @@ def get_control_serial_link_report():
     try:
         logger.info("Starting control number to serial number link report")
         db = get_tenant_db()
-        
-        # Get all rental contracts with their associated equipment
         schema = get_tenant_schema()
-
+        
+        # First check if RentalContract table exists for this tenant
+        table_check = db.execute_query(f"""
+            SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'RentalContract'
+        """)
+        
+        if not table_check:
+            return jsonify({
+                'contracts': [],
+                'summary': {
+                    'total_contracts': 0, 'active_contracts': 0,
+                    'expired_contracts': 0, 'open_ended_contracts': 0,
+                    'total_equipment': 0, 'total_monthly_revenue': 0
+                },
+                'message': 'RentalContract table not available for this tenant'
+            })
+        
+        # Discover available columns to build a compatible query
+        rc_cols = db.execute_query(f"""
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'RentalContract'
+        """)
+        rc_col_names = [r['COLUMN_NAME'] for r in rc_cols] if rc_cols else []
+        
+        eq_cols = db.execute_query(f"""
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'Equipment'
+        """)
+        eq_col_names = [r['COLUMN_NAME'] for r in eq_cols] if eq_cols else []
+        
+        # Determine correct column names
+        rc_serial = 'SerialNo' if 'SerialNo' in rc_col_names else 'Serial' if 'Serial' in rc_col_names else None
+        eq_serial = 'SerialNo' if 'SerialNo' in eq_col_names else 'Serial' if 'Serial' in eq_col_names else None
+        eq_unit = 'UnitNo' if 'UnitNo' in eq_col_names else 'StockNo' if 'StockNo' in eq_col_names else None
+        rc_customer = 'CustomerNo' if 'CustomerNo' in rc_col_names else 'Customer' if 'Customer' in rc_col_names else None
+        has_deletion = 'DeletionTime' in rc_col_names
+        
+        from src.config.column_mappings import get_column
+        cust_id_col = get_column(schema, 'Customer', 'cust_no') or 'Number'
+        cust_name_col = get_column(schema, 'Customer', 'name') or 'Name'
+        
+        # Build dynamic query based on available columns
+        serial_join = f"LEFT JOIN {schema}.Equipment e ON rc.{rc_serial} = e.{eq_serial}" if rc_serial and eq_serial else ""
+        cust_join = f"LEFT JOIN {schema}.Customer c ON rc.{rc_customer} = c.{cust_id_col}" if rc_customer else ""
+        where_clause = f"WHERE rc.DeletionTime IS NULL" if has_deletion else "WHERE 1=1"
+        
         query = f"""
         SELECT DISTINCT
             rc.RentalContractNo as ControlNumber,
-            rc.SerialNo,
-            e.UnitNo,
-            e.Make,
-            e.Model,
-            rc.CustomerNo,
-            c.Name as CustomerName,
+            {'rc.' + rc_serial + ' as SerialNo' if rc_serial else "'' as SerialNo"},
+            {'e.' + eq_unit + ' as UnitNo' if eq_unit and serial_join else "'' as UnitNo"},
+            {'e.Make' if serial_join else "'' as Make"},
+            {'e.Model' if serial_join else "'' as Model"},
+            {'rc.' + rc_customer + ' as CustomerNo' if rc_customer else "'' as CustomerNo"},
+            {'c.' + cust_name_col + ' as CustomerName' if cust_join else "'' as CustomerName"},
             rc.StartDate,
             rc.EndDate,
             CASE 
@@ -38,22 +82,21 @@ def get_control_serial_link_report():
                 WHEN rc.EndDate <= GETDATE() THEN 'Expired'
                 ELSE 'Unknown'
             END as ContractStatus,
-            rc.DeliveryCharge,
-            rc.PickupCharge,
-            e.DayRent,
-            e.WeekRent,
-            e.MonthRent,
-            -- Calculate estimated monthly revenue
+            {'rc.DeliveryCharge' if 'DeliveryCharge' in rc_col_names else '0 as DeliveryCharge'},
+            {'rc.PickupCharge' if 'PickupCharge' in rc_col_names else '0 as PickupCharge'},
+            {'e.DayRent' if serial_join and 'DayRent' in eq_col_names else '0 as DayRent'},
+            {'e.WeekRent' if serial_join and 'WeekRent' in eq_col_names else '0 as WeekRent'},
+            {'e.MonthRent' if serial_join and 'MonthRent' in eq_col_names else '0 as MonthRent'},
             CASE 
-                WHEN e.MonthRent > 0 THEN e.MonthRent
-                WHEN e.WeekRent > 0 THEN e.WeekRent * 4.33
-                WHEN e.DayRent > 0 THEN e.DayRent * 30
+                WHEN {'e.MonthRent' if serial_join and 'MonthRent' in eq_col_names else '0'} > 0 THEN {'e.MonthRent' if serial_join and 'MonthRent' in eq_col_names else '0'}
+                WHEN {'e.WeekRent' if serial_join and 'WeekRent' in eq_col_names else '0'} > 0 THEN {'e.WeekRent' if serial_join and 'WeekRent' in eq_col_names else '0'} * 4.33
+                WHEN {'e.DayRent' if serial_join and 'DayRent' in eq_col_names else '0'} > 0 THEN {'e.DayRent' if serial_join and 'DayRent' in eq_col_names else '0'} * 30
                 ELSE 0
             END as EstimatedMonthlyRevenue
         FROM {schema}.RentalContract rc
-        LEFT JOIN {schema}.Equipment e ON rc.SerialNo = e.SerialNo
-        LEFT JOIN {schema}.Customer c ON rc.CustomerNo = c.Number
-        WHERE rc.DeletionTime IS NULL
+        {serial_join}
+        {cust_join}
+        {where_clause}
         ORDER BY 
             CASE 
                 WHEN rc.EndDate IS NULL THEN 0
@@ -150,6 +193,7 @@ def get_control_serial_link_report():
 def get_control_serial_summary():
     """Get summary statistics for control number to serial number relationships"""
     try:
+        schema = get_tenant_schema()
         db = get_tenant_db()
         
         # Get summary by customer

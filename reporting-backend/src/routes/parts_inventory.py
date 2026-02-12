@@ -500,6 +500,7 @@ def get_inventory_summary():
     Get high-level inventory summary statistics
     """
     try:
+        schema = get_tenant_schema()
         db = get_tenant_db()
         
         summary_query = f"""
@@ -563,6 +564,7 @@ def get_part_detail():
                 'error': 'Part number is required'
             }), 400
         
+        schema = get_tenant_schema()
         db = get_tenant_db()
         
         # Get part master data
@@ -649,6 +651,7 @@ def test_tables():
     Test endpoint to verify table and column names exist
     """
     try:
+        schema = get_tenant_schema()
         db = get_tenant_db()
         logger.info("Testing database table and column access...")
         
@@ -785,6 +788,7 @@ def get_schema_tables():
     Discover all tables in tenant schema to find correct table names
     """
     try:
+        schema = get_tenant_schema()
         db = get_tenant_db()
         logger.info("Discovering tables in tenant schema...")
         
@@ -891,6 +895,7 @@ def get_table_sample(table_name):
     Get detailed sample data from a specific table
     """
     try:
+        schema = get_tenant_schema()
         db = get_tenant_db()
         logger.info(f"Getting sample data from table: {table_name}")
         

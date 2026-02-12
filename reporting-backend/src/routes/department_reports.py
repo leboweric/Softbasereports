@@ -2887,15 +2887,20 @@ def register_department_routes(reports_bp):
             db = get_db()
             schema = get_tenant_schema()
             
+            # Use tenant-aware column names
+            from src.config.column_mappings import get_column
+            cust_id_col = get_column(schema, 'Customer', 'cust_no') or 'Number'
+            cust_name_col = get_column(schema, 'Customer', 'name') or 'Name'
+            
             # Get unique sale codes with counts
             codes_query = f"""
             SELECT 
                 w.SaleCode,
                 w.SaleDept,
                 COUNT(*) as Count,
-                MIN(c.CustomerName) as SampleCustomer
+                MIN(c.{cust_name_col}) as SampleCustomer
             FROM {schema}.WO w
-            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Customer
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.{cust_id_col}
             WHERE w.Type = 'S'
             AND w.OpenDate >= DATEADD(month, -3, GETDATE())
             GROUP BY w.SaleCode, w.SaleDept
@@ -2911,13 +2916,13 @@ def register_department_routes(reports_bp):
                 w.SaleCode,
                 w.SaleDept,
                 w.BillTo,
-                c.CustomerName,
+                c.{cust_name_col} as CustomerName,
                 w.Comments
             FROM {schema}.WO w
-            LEFT JOIN {schema}.Customer c ON w.BillTo = c.Customer
+            LEFT JOIN {schema}.Customer c ON w.BillTo = c.{cust_id_col}
             WHERE w.Type = 'S'
             AND (
-                c.CustomerName LIKE '%Rental%' OR
+                c.{cust_name_col} LIKE '%Rental%' OR
                 w.Comments LIKE '%rental%' OR
                 w.Comments LIKE '%RENTAL%'
             )
