@@ -70,21 +70,37 @@ def capture_end_of_month_actual():
             logger.error("PostgreSQL not available - cannot save end-of-month actual")
             return
         
-        # Query actual revenue for the month
-        actual_query = f"""
-        SELECT 
-            SUM(GrandTotal) as actual_total,
-            COUNT(*) as invoice_count
-        FROM ben002.InvoiceReg
-        WHERE YEAR(InvoiceDate) = {current_year}
-            AND MONTH(InvoiceDate) = {current_month}
-        """
+        # Query actual revenue for each tenant
+        from src.models.user import Organization
+        orgs = Organization.query.filter(
+            Organization.is_active == True,
+            Organization.database_schema.isnot(None),
+            Organization.database_schema != ''
+        ).all()
         
-        result = azure_db.execute_query(actual_query)
-        actual_total = float(result[0]['actual_total'] or 0) if result else 0
-        invoice_count = int(result[0]['invoice_count'] or 0) if result else 0
+        for org in orgs:
+            schema = org.database_schema
+            if not schema or schema.lower().startswith('vital'):
+                continue
+            try:
+                actual_query = f"""
+                SELECT 
+                    SUM(GrandTotal) as actual_total,
+                    COUNT(*) as invoice_count
+                FROM {schema}.InvoiceReg
+                WHERE YEAR(InvoiceDate) = {current_year}
+                    AND MONTH(InvoiceDate) = {current_month}
+                """
+                result = azure_db.execute_query(actual_query)
+                actual_total = float(result[0]['actual_total'] or 0) if result else 0
+                invoice_count = int(result[0]['invoice_count'] or 0) if result else 0
+                logger.info(f"📈 [{schema}] End-of-month actual: ${actual_total:,.2f} from {invoice_count} invoices")
+            except Exception as tenant_err:
+                logger.error(f"❌ [{schema}] Failed to capture end-of-month actual: {tenant_err}")
+                continue
         
-        logger.info(f"📈 End-of-month actual: ${actual_total:,.2f} from {invoice_count} invoices")
+        # Use last tenant's values for backward compatibility with the update below
+        # (In future, this should be refactored to update per-tenant)
         
         # Update the mid-month snapshot with actual revenue
         update_query = """

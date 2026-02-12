@@ -30,20 +30,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def get_tenant_schema():
-    """Get the database schema for the current user's organization"""
-    try:
-        user_id = get_jwt_identity()
-        user = User.query.get(int(user_id))
-        if user and user.organization and user.organization.database_schema:
-            return user.organization.database_schema
-        return 'ben002'  # Fallback for backward compatibility
-    except Exception as e:
-        logger.error(f"Error getting tenant schema: {e}")
-        return 'ben002'
-
-# Salesman name aliases - maps variant names to canonical names
-# This handles cases where the same person has multiple entries in Softbase
 SALESMAN_ALIASES = {
     'Tod Auge': 'Todd Auge',
     # Add more aliases here as needed, e.g.:

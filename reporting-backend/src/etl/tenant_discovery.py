@@ -126,6 +126,7 @@ def discover_softbase_tenants() -> List[TenantInfo]:
         logger.warning("Falling back to hardcoded tenant list")
         return [
             TenantInfo(org_id=4, name='Bennett', schema='ben002'),
+            TenantInfo(org_id=7, name='Industrial Parts and Service', schema='ind004'),
         ]
 
 

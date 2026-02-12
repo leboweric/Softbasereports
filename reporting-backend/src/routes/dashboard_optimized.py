@@ -81,7 +81,9 @@ class DashboardQueries:
         self.db = db
         self.pg_db = pg_db  # PostgreSQL connection for Mart queries
         self.schema = schema  # Tenant-specific database schema
-        self.org_id = self.ORG_ID_MAP.get(schema, 4)  # Default to Bennett
+        self.org_id = self.ORG_ID_MAP.get(schema)
+        if self.org_id is None:
+            logger.warning(f"Unknown schema '{schema}' not in ORG_ID_MAP - mart queries will be skipped")
         
         # Load tenant-specific GL account mappings
         self.gl_accounts = get_gl_accounts(schema)
@@ -2089,11 +2091,15 @@ def _get_total_customers_live():
         return 0
 
 
-def _get_dashboard_from_mart(start_time, org_id=4):
+def _get_dashboard_from_mart(start_time, org_id=None):
     """
     Helper function to get dashboard data from mart_ceo_metrics table.
     Returns None if data is unavailable or stale, allowing fallback to queries.
     """
+    if org_id is None:
+        logger.info("No org_id provided to mart lookup - skipping")
+        return None
+    
     from src.services.postgres_service import PostgreSQLService
     import json
     

@@ -236,7 +236,11 @@ def get_gl_accounts(schema: str) -> dict:
     Returns:
         Dictionary of GL account mappings by department
     """
-    config = TENANT_GL_CONFIGS.get(schema, TENANT_GL_CONFIGS['ben002'])
+    config = TENANT_GL_CONFIGS.get(schema)
+    if config is None:
+        import logging
+        logging.getLogger(__name__).warning(f"No GL config for schema '{schema}' - falling back to ben002. Add this tenant to TENANT_GL_CONFIGS!")
+        config = TENANT_GL_CONFIGS['ben002']
     return config['gl_accounts']
 
 
@@ -250,7 +254,11 @@ def get_other_income_accounts(schema: str) -> list:
     Returns:
         List of Other Income GL account codes
     """
-    config = TENANT_GL_CONFIGS.get(schema, TENANT_GL_CONFIGS['ben002'])
+    config = TENANT_GL_CONFIGS.get(schema)
+    if config is None:
+        import logging
+        logging.getLogger(__name__).warning(f"No GL config for schema '{schema}' - falling back to ben002. Add this tenant to TENANT_GL_CONFIGS!")
+        config = TENANT_GL_CONFIGS['ben002']
     return config['other_income']
 
 
@@ -298,5 +306,9 @@ def get_expense_accounts(schema: str) -> dict:
     Returns:
         Dictionary of expense account mappings by category
     """
-    config = TENANT_GL_CONFIGS.get(schema, TENANT_GL_CONFIGS['ben002'])
+    config = TENANT_GL_CONFIGS.get(schema)
+    if config is None:
+        import logging
+        logging.getLogger(__name__).warning(f"No GL config for schema '{schema}' - falling back to ben002. Add this tenant to TENANT_GL_CONFIGS!")
+        config = TENANT_GL_CONFIGS['ben002']
     return config['expense_accounts']

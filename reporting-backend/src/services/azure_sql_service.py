@@ -158,22 +158,26 @@ class AzureSQLService:
             logger.error(f"Failed to create DataFrame: {str(e)}")
             raise
     
-    def get_tables(self) -> List[str]:
-        """Get list of all views in the ben002 schema (Softbase uses views for data access)"""
-        query = """
+    def get_tables(self, schema: str = None) -> List[str]:
+        """Get list of all views in the tenant's schema (Softbase uses views for data access)"""
+        if not schema:
+            raise ValueError("schema parameter is required - do not hardcode ben002")
+        query = f"""
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_TYPE = 'VIEW' 
-        AND TABLE_SCHEMA = 'ben002'
+        AND TABLE_SCHEMA = '{schema}'
         ORDER BY TABLE_NAME
         """
         results = self.execute_query(query)
         return [row['TABLE_NAME'] for row in results]
     
-    def get_table_columns(self, table_name: str) -> List[Dict[str, str]]:
+    def get_table_columns(self, table_name: str, schema: str = None) -> List[Dict[str, str]]:
         """Get column information for a specific table"""
+        if not schema:
+            raise ValueError("schema parameter is required - do not hardcode ben002")
         if self.driver == 'pymssql':
-            query = """
+            query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -181,11 +185,11 @@ class AzureSQLService:
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = %s
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             ORDER BY ORDINAL_POSITION
             """
         else:  # pyodbc
-            query = """
+            query = f"""
             SELECT 
                 COLUMN_NAME,
                 DATA_TYPE,
@@ -193,7 +197,7 @@ class AzureSQLService:
                 IS_NULLABLE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = ?
-            AND TABLE_SCHEMA = 'ben002'
+            AND TABLE_SCHEMA = '{schema}'
             ORDER BY ORDINAL_POSITION
             """
         return self.execute_query(query, {'table_name': table_name})
