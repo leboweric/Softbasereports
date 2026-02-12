@@ -726,7 +726,11 @@ def _fetch_currie_metrics_data(start_date, end_date):
     }
     
     # 7. Rental Fleet Metrics
-    metrics['rental_fleet'] = get_rental_fleet_metrics(start_date, end_date)
+    try:
+        metrics['rental_fleet'] = get_rental_fleet_metrics(start_date, end_date)
+    except Exception as e:
+        logger.error(f"Error fetching rental fleet metrics: {str(e)}")
+        metrics['rental_fleet'] = {}
     
     # 8. Revenue/GP per Technician (combine service revenue with tech count)
     tech_count = metrics.get('technician_count', {}).get('active_technicians', 0)

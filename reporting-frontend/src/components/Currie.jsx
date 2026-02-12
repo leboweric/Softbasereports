@@ -496,7 +496,7 @@ const Currie = ({ user, organization }) => {
       const metricsResponse = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/currie/metrics`,
         {
-          params: { start_date: sd, end_date: ed },
+          params: { start_date: sd, end_date: ed, refresh: 'true' },
           headers: { Authorization: `Bearer ${token}` }
         }
       );
