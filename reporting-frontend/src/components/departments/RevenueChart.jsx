@@ -58,12 +58,21 @@ export default function RevenueChart({
   // Filter data based on toggle
   const filteredData = useMemo(() => {
     if (!data) return []
-    const sorted = [...data].sort((a, b) => 
-      monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month)
-    )
+    const sorted = [...data].sort((a, b) => {
+      // Parse month strings like "Feb '26" or "Jan '25"
+      const parseMonth = (m) => {
+        const parts = m.match(/^(\w+)\s*'?(\d{2})?$/)
+        if (!parts) return monthOrder.indexOf(m)
+        const monthIdx = monthOrder.indexOf(parts[1])
+        const year = parts[2] ? parseInt(parts[2]) : 0
+        return year * 12 + monthIdx
+      }
+      return parseMonth(a.month) - parseMonth(b.month)
+    })
     if (includeCurrentMonth) return sorted
-    const currentMonthName = monthOrder[new Date().getMonth()]
-    return sorted.filter(item => item.month !== currentMonthName)
+    const now = new Date()
+    const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+    return sorted.filter(item => item.month !== currentMonthStr)
   }, [data, includeCurrentMonth])
 
   // Calculate average revenue and margin from filtered data

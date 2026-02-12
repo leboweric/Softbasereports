@@ -131,10 +131,9 @@ const RentalReport = ({ user }) => {
   useEffect(() => {
     if (rawMonthlyRevenueData && rawMonthlyRevenueData.length > 0) {
       const now = new Date()
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-      const currentMonthName = monthNames[now.getMonth()]
+      const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
       const filteredData = rawMonthlyRevenueData.filter(item => {
-        if (!includeCurrentMonth && item.month === currentMonthName) return false
+        if (!includeCurrentMonth && item.month === currentMonthStr) return false
         return true
       })
       setMonthlyRevenueData(filteredData)
@@ -152,8 +151,16 @@ const RentalReport = ({ user }) => {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
 
+    const parseMonth = (m) => {
+      const parts = m.match(/^(\w+)\s*'?(\d{2})?$/);
+      if (!parts) return monthOrder.indexOf(m);
+      const monthIdx = monthOrder.indexOf(parts[1]);
+      const year = parts[2] ? parseInt(parts[2]) : 0;
+      return year * 12 + monthIdx;
+    };
+
     return [...monthlyRevenueData].sort((a, b) => {
-      return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+      return parseMonth(a.month) - parseMonth(b.month);
     });
   }, [monthlyRevenueData]);
 
@@ -222,10 +229,9 @@ const RentalReport = ({ user }) => {
         setRawMonthlyRevenueData(rawData)
         // Apply initial filter (exclude current month by default)
         const now = new Date()
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        const currentMonthName = monthNames[now.getMonth()]
+        const currentMonthStr = now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
         const filteredData = rawData.filter(item => {
-          if (!includeCurrentMonth && item.month === currentMonthName) return false
+          if (!includeCurrentMonth && item.month === currentMonthStr) return false
           return true
         })
         setMonthlyRevenueData(filteredData)
