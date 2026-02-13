@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import VitalExecutiveDashboard from './vital/VitalExecutiveDashboard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tooltip as UITooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -55,7 +57,14 @@ import {
   ShoppingCart,
   Brain,
   Clock,
-  HelpCircle
+  HelpCircle,
+  Target,
+  Activity,
+  Gauge,
+  ChevronRight,
+  AlertCircle,
+  CheckCircle,
+  ArrowRight
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
 import WorkOrderTypes from './WorkOrderTypes'
@@ -144,32 +153,40 @@ const Dashboard = ({ user }) => {
   // Customer detail modal
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [customerDetailModalOpen, setCustomerDetailModalOpen] = useState(false)
+  // Include current month toggle (defaults to OFF to exclude partial month)
+  const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
 
   const isMountedRef = useRef(true)
 
+  // Helper to get current month string in the format used by backend (e.g. "Feb '26")
+  const currentMonthStr = React.useMemo(() => {
+    const now = new Date()
+    return now.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }).replace(' ', " '")
+  }, [])
+
+  // Filter function that respects includeCurrentMonth toggle
+  const filterCurrentMonth = React.useCallback((data) => {
+    if (!data) return []
+    if (includeCurrentMonth) return data
+    return data.filter(item => item.month !== currentMonthStr)
+  }, [includeCurrentMonth, currentMonthStr])
+
   // Backend already returns data in chronological order (ORDER BY year, month)
-  // No need to sort - just use the data as-is
   const sortedMonthlySales = React.useMemo(() => {
-    return dashboardData?.monthly_sales || [];
-  }, [dashboardData]);
+    return filterCurrentMonth(dashboardData?.monthly_sales || []);
+  }, [dashboardData, filterCurrentMonth]);
 
-  // Backend already returns data in chronological order (ORDER BY year, month)
-  // No need to sort - just use the data as-is
   const sortedMonthlySalesNoEquipment = React.useMemo(() => {
-    return dashboardData?.monthly_sales_no_equipment || [];
-  }, [dashboardData]);
+    return filterCurrentMonth(dashboardData?.monthly_sales_no_equipment || []);
+  }, [dashboardData, filterCurrentMonth]);
 
-  // Backend already returns data in chronological order (ORDER BY year, month)
-  // No need to sort - just use the data as-is
   const sortedMonthlyQuotes = React.useMemo(() => {
-    return dashboardData?.monthly_quotes || [];
-  }, [dashboardData]);
+    return filterCurrentMonth(dashboardData?.monthly_quotes || []);
+  }, [dashboardData, filterCurrentMonth]);
 
-  // Backend already returns data in chronological order (ORDER BY year, month)
-  // No need to sort - just use the data as-is
   const sortedMonthlyEquipmentSales = React.useMemo(() => {
-    return dashboardData?.monthly_equipment_sales || [];
-  }, [dashboardData]);
+    return filterCurrentMonth(dashboardData?.monthly_equipment_sales || []);
+  }, [dashboardData, filterCurrentMonth]);
 
   // Filter customers based on search
   const filteredCustomers = React.useMemo(() => {
@@ -834,16 +851,13 @@ const Dashboard = ({ user }) => {
         {/* Skeleton preview */}
         <div className="px-8 pb-8">
           <div className="max-w-6xl mx-auto space-y-6 opacity-30">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {[...Array(4)].map((_, i) => (
-                <Card key={i}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <div className="h-4 bg-gray-200 rounded w-20 animate-pulse" />
-                    <div className="h-4 w-4 bg-gray-200 rounded animate-pulse" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-8 bg-gray-200 rounded w-24 animate-pulse mb-2" />
-                    <div className="h-3 bg-gray-200 rounded w-32 animate-pulse" />
+            <div className="grid gap-4 md:grid-cols-5">
+              {[...Array(5)].map((_, i) => (
+                <Card key={i} className="border-l-4 border-l-gray-300">
+                  <CardContent className="pt-4 pb-3 px-4">
+                    <div className="h-3 bg-gray-200 rounded w-16 animate-pulse mb-2" />
+                    <div className="h-7 bg-gray-200 rounded w-20 animate-pulse mb-1" />
+                    <div className="h-3 bg-gray-200 rounded w-24 animate-pulse" />
                   </CardContent>
                 </Card>
               ))}
@@ -926,105 +940,274 @@ const Dashboard = ({ user }) => {
 
         {/* Sales Tab */}
         <TabsContent value="sales" className="space-y-4">
-          {/* Key Sales Metrics */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Current Month Sales</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
+          {/* Row 1: Glanceable KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-5">
+            {/* MTD Sales */}
+            <Card className="border-l-4 border-l-green-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign className="h-4 w-4 text-green-500" />
+                  <span className="text-xs font-medium text-muted-foreground">MTD Sales</span>
+                </div>
                 <div className="text-2xl font-bold">
                   {formatCurrency(dashboardData?.total_sales || 0)}
                   {paceData?.adaptive_comparisons?.performance_indicators?.is_best_month_ever && (
-                    <span className="ml-2 text-lg">⭐</span>
+                    <span className="ml-1 text-sm">⭐</span>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    {dashboardData?.period || 'Current Period'}
-                  </p>
-                  {paceData && (
-                    <div className="space-y-1">
-                      {/* Same month last year */}
-                      {paceData.adaptive_comparisons?.vs_same_month_last_year?.percentage !== null && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">vs Same Month Last Year:</span>
-                          <span className={`font-medium ${paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                            {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_same_month_last_year.percentage}%
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Best month indicator */}
-                      {paceData.adaptive_comparisons?.performance_indicators?.is_best_month_ever && (
-                        <div className="text-xs font-medium text-green-600">
-                          🎉 Best Month Ever!
-                        </div>
-                      )}
-                    </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {paceData?.adaptive_comparisons?.vs_same_month_last_year?.percentage !== null && paceData?.adaptive_comparisons?.vs_same_month_last_year?.percentage !== undefined ? (
+                    <span className={paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? 'text-red-600' : ''}>
+                      {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_same_month_last_year.percentage}% vs PY
+                    </span>
+                  ) : (
+                    dashboardData?.period || 'Current Period'
                   )}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* YTD Sales */}
+            <Card className="border-l-4 border-l-blue-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <TrendingUp className="h-4 w-4 text-blue-500" />
+                  <span className="text-xs font-medium text-muted-foreground">FY26 YTD Sales</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(dashboardData?.ytd_sales || 0)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {dashboardData?.prior_year_ytd_sales > 0 ? (() => {
+                    const change = ((dashboardData.ytd_sales - dashboardData.prior_year_ytd_sales) / dashboardData.prior_year_ytd_sales * 100).toFixed(1)
+                    return (
+                      <span className={change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : ''}>
+                        {change > 0 ? '+' : ''}{change}% vs PY
+                      </span>
+                    )
+                  })() : 'Nov 2025 – Present'}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Blended GP% */}
+            <Card className="border-l-4 border-l-purple-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Gauge className="h-4 w-4 text-purple-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Blended GP%</span>
+                </div>
+                <div className={`text-2xl font-bold ${dashboardData?.ytd_margin >= 25 ? 'text-green-600' : dashboardData?.ytd_margin > 0 ? 'text-red-600' : ''}`}>
+                  {dashboardData?.ytd_margin > 0 ? `${dashboardData.ytd_margin}%` : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {dashboardData?.prior_year_ytd_margin > 0 ? (() => {
+                    const diff = (dashboardData.ytd_margin - dashboardData.prior_year_ytd_margin).toFixed(1)
+                    return (
+                      <span className={diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : ''}>
+                        {diff > 0 ? '+' : ''}{diff} pts vs PY
+                      </span>
+                    )
+                  })() : 'YTD blended margin'}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Equipment Units Sold FY */}
+            <Card className="border-l-4 border-l-cyan-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Package className="h-4 w-4 text-cyan-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Equip. Units (FY)</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {dashboardData?.monthly_equipment_sales ? 
+                    dashboardData.monthly_equipment_sales
+                      .filter(item => item.year > 2025 || (item.year === 2025 && item.month_number >= 11))
+                      .reduce((sum, item) => sum + (item.unit_count || 0), 0)
+                    : '—'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Linde new trucks sold</p>
+              </CardContent>
+            </Card>
+
+            {/* Active Customers */}
+            <Card className="border-l-4 border-l-amber-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <Users className="h-4 w-4 text-amber-500" />
+                  <span className="text-xs font-medium text-muted-foreground">Active Customers</span>
+                </div>
+                <div className="text-2xl font-bold">
+                  {dashboardData?.active_customers || '—'}
+                  {dashboardData?.active_customers_change !== undefined && dashboardData?.active_customers_change !== 0 && (
+                    <span className={`ml-1 text-sm ${dashboardData.active_customers_change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {dashboardData.active_customers_change > 0 ? '+' : ''}{dashboardData.active_customers_change}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Last 30 days</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Row 2: YTD Performance Summary + Action Items */}
+          <div className="grid gap-4 md:grid-cols-3">
+            {/* YTD Performance Summary - 2/3 width */}
+            <Card className="md:col-span-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  YTD Performance Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wide">YTD Blended GP%</h4>
+                    <div className="flex items-baseline gap-2">
+                      <span className={`text-3xl font-bold ${dashboardData?.ytd_margin >= 25 ? 'text-green-600' : 'text-red-600'}`}>
+                        {dashboardData?.ytd_margin > 0 ? `${dashboardData.ytd_margin}%` : '—'}
+                      </span>
+                      <span className="text-sm text-muted-foreground">/ 25%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className={`h-2 rounded-full ${dashboardData?.ytd_margin >= 25 ? 'bg-green-500' : 'bg-red-500'}`}
+                        style={{ width: `${Math.min((dashboardData?.ytd_margin || 0) / 25 * 100, 100)}%` }} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Aftermarket Avg/Mo</h4>
+                    <div className="text-3xl font-bold text-emerald-600">
+                      {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 1 ? 
+                        formatCurrency(dashboardData.monthly_sales_no_equipment.slice(0, -1).reduce((sum, item) => sum + item.amount, 0) / dashboardData.monthly_sales_no_equipment.slice(0, -1).length)
+                        : '—'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Parts + Service + Rental</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wide">Sales Pace</h4>
+                    <div className={`text-3xl font-bold ${paceData?.pace?.percentage > 0 ? 'text-green-600' : paceData?.pace?.percentage < 0 ? 'text-red-600' : ''}`}>
+                      {paceData?.pace?.percentage !== undefined ? `${paceData.pace.percentage > 0 ? '+' : ''}${paceData.pace.percentage}%` : '—'}
+                    </div>
+                    <p className="text-xs text-muted-foreground">vs prior month pace</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
+            {/* Action Items - 1/3 width */}
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Fiscal Year 2026 YTD Sales</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-orange-500" />
+                  Action Items
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(dashboardData?.ytd_sales || 0)}
-                </div>
-                <div className="space-y-1 mt-1">
-                  {/* YTD Margin */}
-                  {dashboardData?.ytd_margin > 0 && (
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Blended Margin:</span>
-                      <span className="font-medium">
-                        {dashboardData.ytd_margin}%
-                        {dashboardData?.prior_year_ytd_margin > 0 && (() => {
-                          const diff = (dashboardData.ytd_margin - dashboardData.prior_year_ytd_margin).toFixed(1)
-                          return (
-                            <span className={`ml-1 ${diff > 0 ? 'text-green-600' : diff < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                              ({diff > 0 ? '+' : ''}{diff} pts vs PY)
-                            </span>
-                          )
-                        })()}
-                      </span>
+                <div className="space-y-3">
+                  {/* Declining sales trend */}
+                  {dashboardData?.monthly_sales && dashboardData.monthly_sales.length >= 3 && (() => {
+                    const recent = dashboardData.monthly_sales.slice(-3, -1) // last 2 complete months
+                    if (recent.length >= 2 && recent[1].amount < recent[0].amount) {
+                      const decline = ((recent[0].amount - recent[1].amount) / recent[0].amount * 100).toFixed(1)
+                      return (
+                        <div className="flex items-center gap-3 p-2 rounded-lg bg-red-50">
+                          <TrendingDown className="h-5 w-5 text-red-600 flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium text-red-800">Sales Declining</p>
+                            <p className="text-xs text-red-600">-{decline}% month-over-month</p>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+
+                  {/* GP below target */}
+                  {dashboardData?.ytd_margin > 0 && dashboardData.ytd_margin < 25 && (
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-yellow-50">
+                      <Gauge className="h-5 w-5 text-yellow-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-800">GP% Below Target</p>
+                        <p className="text-xs text-yellow-600">{dashboardData.ytd_margin}% — target 25%</p>
+                      </div>
                     </div>
                   )}
-                  {/* Prior Year YTD Comparison */}
-                  {dashboardData?.prior_year_ytd_sales > 0 && (() => {
-                    const change = ((dashboardData.ytd_sales - dashboardData.prior_year_ytd_sales) / dashboardData.prior_year_ytd_sales * 100).toFixed(1)
-                    return (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">vs Same Period Last Year:</span>
-                        <span className={`font-medium ${change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                          {change > 0 ? '+' : ''}{change}%
-                        </span>
+
+                  {/* At-risk customers */}
+                  {customerRiskData?.at_risk_count > 0 && (
+                    <button
+                      onClick={() => setActiveTab('customers')}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg bg-orange-50 hover:bg-orange-100 transition-colors text-left"
+                    >
+                      <Users className="h-5 w-5 text-orange-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-orange-800">{customerRiskData.at_risk_count} At-Risk Customers</p>
+                        <p className="text-xs text-orange-600">Declining activity detected</p>
                       </div>
-                    )
-                  })()}
+                      <ChevronRight className="h-4 w-4 text-orange-400 ml-auto" />
+                    </button>
+                  )}
+
+                  {/* Invoice delays */}
+                  {invoiceDelayData?.totals?.count > 0 && invoiceDelayData.totals.avg_days > 3 && (
+                    <button
+                      onClick={() => setActiveTab('workorders')}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors text-left"
+                    >
+                      <Clock className="h-5 w-5 text-purple-600 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-purple-800">Invoice Delays</p>
+                        <p className="text-xs text-purple-600">Avg {invoiceDelayData.totals.avg_days} days, {formatCurrency(invoiceDelayData.totals.value)} pending</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-purple-400 ml-auto" />
+                    </button>
+                  )}
+
+                  {/* All clear state */}
+                  {(!dashboardData?.monthly_sales || dashboardData.monthly_sales.length < 3 || (() => {
+                    const recent = dashboardData.monthly_sales.slice(-3, -1)
+                    return recent.length < 2 || recent[1].amount >= recent[0].amount
+                  })()) &&
+                   (!dashboardData?.ytd_margin || dashboardData.ytd_margin >= 25) &&
+                   (!customerRiskData?.at_risk_count || customerRiskData.at_risk_count === 0) &&
+                   (!invoiceDelayData?.totals?.count || invoiceDelayData.totals.avg_days <= 3) && (
+                    <div className="text-center py-4 text-green-600">
+                      <CheckCircle className="h-8 w-8 mx-auto mb-2" />
+                      <p className="text-sm font-medium">All Clear</p>
+                      <p className="text-xs text-muted-foreground">No items need attention</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Charts - First Row */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle>Monthly Sales</CardTitle>
-                  </div>
-                  {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
-                    const completeMonths = dashboardData.monthly_sales.slice(0, -1)
-                    const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                    const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
-                      .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
+          {/* Include Current Month Toggle */}
+          <div className="flex items-center justify-end gap-2">
+            <Switch
+              id="include-current-month"
+              checked={includeCurrentMonth}
+              onCheckedChange={setIncludeCurrentMonth}
+            />
+            <Label htmlFor="include-current-month" className="text-sm text-muted-foreground cursor-pointer">
+              Include current month
+            </Label>
+          </div>
+
+          {/* Row 3: Primary Chart - Monthly Sales (full width) */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-start justify-between">
+                <div>
+                  <CardTitle>Monthly Sales</CardTitle>
+                  <CardDescription>Total revenue including equipment and aftermarket</CardDescription>
+                </div>
+                  {sortedMonthlySales.length > 0 && (() => {
+                    const avgRevenue = sortedMonthlySales.reduce((sum, item) => sum + item.amount, 0) / sortedMonthlySales.length
+                    const marginsOnly = sortedMonthlySales.filter(item => item.margin !== null && item.margin !== undefined)
+                    const avgMargin = marginsOnly.length > 0 ? marginsOnly.reduce((sum, item) => sum + item.margin, 0) / marginsOnly.length : 0
                     return (
                       <div className="text-right">
                         <div className="mb-2">
@@ -1042,7 +1225,7 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlySales, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlySales, 'month', 'amount', false)} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1117,15 +1300,16 @@ const Dashboard = ({ user }) => {
                       dot={{ fill: '#10b981' }}
                       name="Gross Margin %"
                       connectNulls={false}
-                      data={sortedMonthlySales.map((item, index) =>
-                        index === sortedMonthlySales.length - 1 ? { ...item, margin: null } : item
-                      )}
+                      data={includeCurrentMonth 
+                        ? sortedMonthlySales.map((item, index) =>
+                            index === sortedMonthlySales.length - 1 ? { ...item, margin: null } : item
+                          )
+                        : sortedMonthlySales
+                      }
                     />
                     <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
-                    {dashboardData?.monthly_sales && dashboardData.monthly_sales.length > 0 && (() => {
-                      // Only calculate average for complete months (exclude current month - August)
-                      const completeMonths = dashboardData.monthly_sales.slice(0, -1)
-                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    {sortedMonthlySales.length > 0 && (() => {
+                      const average = sortedMonthlySales.reduce((sum, item) => sum + item.amount, 0) / sortedMonthlySales.length
                       return (
                         <ReferenceLine
                           yAxisId="left"
@@ -1141,11 +1325,13 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
 
+          {/* Row 4: Supporting Charts - 3 across */}
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle>Aftermarket Sales</CardTitle>
+                    <CardTitle className="text-base">Aftermarket Sales</CardTitle>
                     <CardDescription>
                       Service, Parts, Rental & Transportation
                     </CardDescription>
@@ -1153,26 +1339,18 @@ const Dashboard = ({ user }) => {
                   {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
                     const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
                     const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                    const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
-                      .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
                     return (
                       <div className="text-right">
-                        <div className="mb-2">
-                          <p className="text-sm text-muted-foreground">Avg Revenue</p>
-                          <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Avg Margin</p>
-                          <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
-                        </div>
+                        <p className="text-xs text-muted-foreground">Avg</p>
+                        <p className="text-sm font-semibold">{formatCurrency(avgRevenue)}</p>
                       </div>
                     )
                   })()}
                 </div>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlySalesNoEquipment, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlySalesNoEquipment, 'month', 'amount', false)} margin={{ top: 20, right: 50, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1234,15 +1412,16 @@ const Dashboard = ({ user }) => {
                       dot={{ fill: '#f59e0b' }}
                       name="Gross Margin %"
                       connectNulls={false}
-                      data={sortedMonthlySalesNoEquipment.map((item, index) =>
-                        index === sortedMonthlySalesNoEquipment.length - 1 ? { ...item, margin: null } : item
-                      )}
+                      data={includeCurrentMonth
+                        ? sortedMonthlySalesNoEquipment.map((item, index) =>
+                            index === sortedMonthlySalesNoEquipment.length - 1 ? { ...item, margin: null } : item
+                          )
+                        : sortedMonthlySalesNoEquipment
+                      }
                     />
                     <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
-                    {dashboardData?.monthly_sales_no_equipment && dashboardData.monthly_sales_no_equipment.length > 0 && (() => {
-                      // Only calculate average for complete months (exclude current month - August)
-                      const completeMonths = dashboardData.monthly_sales_no_equipment.slice(0, -1)
-                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    {sortedMonthlySalesNoEquipment.length > 0 && (() => {
+                      const average = sortedMonthlySalesNoEquipment.reduce((sum, item) => sum + item.amount, 0) / sortedMonthlySalesNoEquipment.length
                       return (
                         <ReferenceLine
                           yAxisId="left"
@@ -1257,32 +1436,29 @@ const Dashboard = ({ user }) => {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </div>
 
-          {/* Charts - Second Row */}
-          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle>Monthly Quotes</CardTitle>
+                    <CardTitle className="text-base">Monthly Quotes</CardTitle>
                     <CardDescription>Quote activity through February {new Date().getFullYear() + 1}</CardDescription>
                   </div>
-                  {monthlyExpenses && monthlyExpenses.length > 0 && dashboardData?.monthly_quotes?.length > 1 && (() => {
+                  {dashboardData?.monthly_quotes?.length > 1 && (() => {
                     const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
                     const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
                     return (
                       <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Average</p>
-                        <p className="text-lg font-semibold">{formatCurrency(average)}</p>
+                        <p className="text-xs text-muted-foreground">Avg</p>
+                        <p className="text-sm font-semibold">{formatCurrency(average)}</p>
                       </div>
                     )
                   })()}
                 </div>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlyQuotes, 'month', 'amount')} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlyQuotes, 'month', 'amount', false)} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1307,10 +1483,8 @@ const Dashboard = ({ user }) => {
                     }} />
                     <Bar dataKey="amount" fill="#f59e0b" shape={<CustomBarQuotes />} />
                     <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Quotes Trend" dot={false} />
-                    {dashboardData?.monthly_quotes && dashboardData.monthly_quotes.length > 0 && (() => {
-                      // Only calculate average for complete months (exclude current month - August)
-                      const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
-                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    {sortedMonthlyQuotes.length > 0 && (() => {
+                      const average = sortedMonthlyQuotes.reduce((sum, item) => sum + item.amount, 0) / sortedMonthlyQuotes.length
                       return (
                         <ReferenceLine
                           y={average}
@@ -1329,7 +1503,7 @@ const Dashboard = ({ user }) => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle>Linde New Equipment Sales</CardTitle>
+                    <CardTitle className="text-base">Linde New Equipment Sales</CardTitle>
                     <CardDescription>
                       Linde new truck revenue and gross margin
                     </CardDescription>
@@ -1337,37 +1511,18 @@ const Dashboard = ({ user }) => {
                   {dashboardData?.monthly_equipment_sales && dashboardData.monthly_equipment_sales.length > 0 && (() => {
                     const completeMonths = dashboardData.monthly_equipment_sales.slice(0, -1)
                     const avgRevenue = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                    const avgMargin = completeMonths.filter(item => item.margin !== null && item.margin !== undefined)
-                      .reduce((sum, item, _, arr) => sum + item.margin / arr.length, 0)
-
-                    // Calculate Total Units starting Nov 2025 (Fiscal Year 2026)
-                    // Filter for year > 2025 OR (year == 2025 AND month_number >= 11)
-                    const fy26Units = dashboardData.monthly_equipment_sales
-                      .filter(item => item.year > 2025 || (item.year === 2025 && item.month_number >= 11))
-                      .reduce((sum, item) => sum + (item.unit_count || 0), 0)
-
                     return (
                       <div className="text-right">
-                        <div className="mb-1">
-                          <p className="text-sm text-muted-foreground">Avg Revenue</p>
-                          <p className="text-lg font-semibold">{formatCurrency(avgRevenue)}</p>
-                        </div>
-                        <div className="mb-1">
-                          <p className="text-sm text-muted-foreground">Total Sold (Nov '25+)</p>
-                          <p className="text-lg font-semibold">{fy26Units}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Avg Margin</p>
-                          <p className="text-lg font-semibold">{avgMargin.toFixed(1)}%</p>
-                        </div>
+                        <p className="text-xs text-muted-foreground">Avg</p>
+                        <p className="text-sm font-semibold">{formatCurrency(avgRevenue)}</p>
                       </div>
                     )
                   })()}
                 </div>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlyEquipmentSales, 'month', 'amount')} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                <ResponsiveContainer width="100%" height={280}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlyEquipmentSales, 'month', 'amount', false)} margin={{ top: 20, right: 50, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1423,14 +1578,16 @@ const Dashboard = ({ user }) => {
                       dot={{ fill: '#f59e0b' }}
                       name="Gross Margin %"
                       connectNulls={false}
-                      data={sortedMonthlyEquipmentSales.map((item, index) =>
-                        index === sortedMonthlyEquipmentSales.length - 1 ? { ...item, margin: null } : item
-                      )}
+                      data={includeCurrentMonth
+                        ? sortedMonthlyEquipmentSales.map((item, index) =>
+                            index === sortedMonthlyEquipmentSales.length - 1 ? { ...item, margin: null } : item
+                          )
+                        : sortedMonthlyEquipmentSales
+                      }
                     />
                     <Line yAxisId="left" type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Revenue Trend" dot={false} />
-                    {dashboardData?.monthly_equipment_sales && dashboardData.monthly_equipment_sales.length > 0 && (() => {
-                      const completeMonths = dashboardData.monthly_equipment_sales.slice(0, -1)
-                      const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
+                    {sortedMonthlyEquipmentSales.length > 0 && (() => {
+                      const average = sortedMonthlyEquipmentSales.reduce((sum, item) => sum + item.amount, 0) / sortedMonthlyEquipmentSales.length
                       return (
                         <ReferenceLine
                           yAxisId="left"
