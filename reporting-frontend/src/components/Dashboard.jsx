@@ -956,7 +956,9 @@ const Dashboard = ({ user }) => {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {paceData?.adaptive_comparisons?.vs_same_month_last_year?.percentage !== null && paceData?.adaptive_comparisons?.vs_same_month_last_year?.percentage !== undefined ? (
+                  {paceData?.adaptive_comparisons?.vs_same_month_last_year?.data_unavailable ? (
+                    <span className="text-muted-foreground">No PY data (pre-cutover)</span>
+                  ) : paceData?.adaptive_comparisons?.vs_same_month_last_year?.percentage !== null && paceData?.adaptive_comparisons?.vs_same_month_last_year?.percentage !== undefined ? (
                     <span className={paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? 'text-green-600' : paceData.adaptive_comparisons.vs_same_month_last_year.percentage < 0 ? 'text-red-600' : ''}>
                       {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_same_month_last_year.percentage}% vs PY
                     </span>

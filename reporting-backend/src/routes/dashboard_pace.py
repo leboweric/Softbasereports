@@ -1,7 +1,7 @@
-from flask import Blueprint, jsonify
-from flask_jwt_extended import jwt_required
-from datetime import datetime
-from src.utils.tenant_utils import get_tenant_db, get_tenant_schema, get_tenant_schema
+from flask import Blueprint, jsonify, g
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import datetime, date
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.config.gl_accounts_loader import get_gl_accounts, get_other_income_accounts
 
 dashboard_pace_bp = Blueprint('dashboard_pace', __name__)
@@ -19,6 +19,20 @@ def get_sales_pace():
     try:
         db = get_tenant_db()
         
+        # Get the organization's data_start_date (cutover date)
+        # Any data before this date is migration/import data and should be excluded
+        data_start_date = None
+        try:
+            if not hasattr(g, 'current_organization') or not g.current_organization:
+                from src.models.user import User
+                user = User.query.get(get_jwt_identity())
+                if user and user.organization:
+                    g.current_organization = user.organization
+            if hasattr(g, 'current_organization') and g.current_organization:
+                data_start_date = g.current_organization.data_start_date
+        except Exception:
+            pass
+        
         # Get current date info
         now = datetime.now()
         current_year = now.year
@@ -32,6 +46,21 @@ def get_sales_pace():
         else:
             prev_month = current_month - 1
             prev_year = current_year
+        
+        # Helper: check if a year/month is before the data_start_date (migration data)
+        def is_before_cutover(year, month):
+            """Returns True if the given year/month is before the org's data_start_date"""
+            if not data_start_date:
+                return False
+            # Compare year/month against the cutover date's year/month
+            return (year * 100 + month) < (data_start_date.year * 100 + data_start_date.month)
+        
+        # Helper: build EffectiveDate >= cutover filter for SQL queries
+        def cutover_filter(schema_prefix=''):
+            """Returns a SQL AND clause to exclude data before cutover, or empty string if no cutover"""
+            if not data_start_date:
+                return ''
+            return f" AND EffectiveDate >= '{data_start_date.strftime('%Y-%m-%d')}'"
         
         # Load tenant-specific GL Account Mappings
         GL_ACCOUNTS = get_gl_accounts(schema)
@@ -77,7 +106,11 @@ def get_sales_pace():
         
         # Execute queries
         current_results = db.execute_query(current_sales_query)
-        prev_results = db.execute_query(prev_sales_query)
+        
+        # Only query previous month if it's after the cutover date
+        prev_results = None
+        if not is_before_cutover(prev_year, prev_month):
+            prev_results = db.execute_query(prev_sales_query)
         
         # Process results
         current_sales = 0
@@ -104,9 +137,13 @@ def get_sales_pace():
             AND Posted = 1
         """
         
-        full_month_results = db.execute_query(full_month_query)
-        previous_full_month = float(full_month_results[0]['total_sales'] or 0) if full_month_results else 0
-        previous_full_month_no_equip = float(full_month_results[0]['sales_no_equipment'] or 0) if full_month_results else 0
+        # Only query full month if previous month is after cutover
+        previous_full_month = 0
+        previous_full_month_no_equip = 0
+        if not is_before_cutover(prev_year, prev_month):
+            full_month_results = db.execute_query(full_month_query)
+            previous_full_month = float(full_month_results[0]['total_sales'] or 0) if full_month_results else 0
+            previous_full_month_no_equip = float(full_month_results[0]['sales_no_equipment'] or 0) if full_month_results else 0
         
         # Get same-day comparison for prior year same month (apples-to-apples)
         same_month_ly_query = f"""
@@ -120,24 +157,32 @@ def get_sales_pace():
             AND Posted = 1
         """
         
-        same_month_ly_results = db.execute_query(same_month_ly_query)
-        same_month_ly_sales = float(same_month_ly_results[0]['total_sales'] or 0) if same_month_ly_results and same_month_ly_results[0]['total_sales'] else 0
-        same_month_ly_no_equip = float(same_month_ly_results[0]['sales_no_equipment'] or 0) if same_month_ly_results and same_month_ly_results[0]['sales_no_equipment'] else 0
+        # Only query same month last year if that month is after the cutover date
+        same_month_ly_sales = 0
+        same_month_ly_no_equip = 0
+        same_month_ly_full = 0
+        same_month_ly_full_no_equip = 0
+        ly_is_before_cutover = is_before_cutover(current_year - 1, current_month)
         
-        # Also get full month total for same month last year (for context)
-        same_month_ly_full_query = f"""
-        SELECT 
-            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
-            -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
-        FROM {schema}.GLDetail
-        WHERE YEAR(EffectiveDate) = {current_year - 1}
-            AND MONTH(EffectiveDate) = {current_month}
-            AND Posted = 1
-        """
-        
-        same_month_ly_full_results = db.execute_query(same_month_ly_full_query)
-        same_month_ly_full = float(same_month_ly_full_results[0]['total_sales'] or 0) if same_month_ly_full_results and same_month_ly_full_results[0]['total_sales'] else 0
-        same_month_ly_full_no_equip = float(same_month_ly_full_results[0]['sales_no_equipment'] or 0) if same_month_ly_full_results and same_month_ly_full_results[0]['sales_no_equipment'] else 0
+        if not ly_is_before_cutover:
+            same_month_ly_results = db.execute_query(same_month_ly_query)
+            same_month_ly_sales = float(same_month_ly_results[0]['total_sales'] or 0) if same_month_ly_results and same_month_ly_results[0]['total_sales'] else 0
+            same_month_ly_no_equip = float(same_month_ly_results[0]['sales_no_equipment'] or 0) if same_month_ly_results and same_month_ly_results[0]['sales_no_equipment'] else 0
+            
+            # Also get full month total for same month last year (for context)
+            same_month_ly_full_query = f"""
+            SELECT 
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
+                -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
+            FROM {schema}.GLDetail
+            WHERE YEAR(EffectiveDate) = {current_year - 1}
+                AND MONTH(EffectiveDate) = {current_month}
+                AND Posted = 1
+            """
+            
+            same_month_ly_full_results = db.execute_query(same_month_ly_full_query)
+            same_month_ly_full = float(same_month_ly_full_results[0]['total_sales'] or 0) if same_month_ly_full_results and same_month_ly_full_results[0]['total_sales'] else 0
+            same_month_ly_full_no_equip = float(same_month_ly_full_results[0]['sales_no_equipment'] or 0) if same_month_ly_full_results and same_month_ly_full_results[0]['sales_no_equipment'] else 0
         
         # Get adaptive comparison data using GLDetail
         adaptive_query = f"""
@@ -150,7 +195,7 @@ def get_sales_pace():
             FROM {schema}.GLDetail
             WHERE EffectiveDate >= DATEADD(month, -12, GETDATE())
                 AND YEAR(EffectiveDate) * 100 + MONTH(EffectiveDate) < {current_year} * 100 + {current_month}
-                AND Posted = 1
+                AND Posted = 1{cutover_filter()}
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
         )
         SELECT 
@@ -298,7 +343,9 @@ def get_sales_pace():
                 'sales_through_same_day': previous_sales,
                 'sales_no_equipment_through_same_day': previous_no_equip,
                 'full_month_total': previous_full_month,
-                'full_month_no_equipment': previous_full_month_no_equip
+                'full_month_no_equipment': previous_full_month_no_equip,
+                'data_unavailable': is_before_cutover(prev_year, prev_month),
+                'data_unavailable_reason': 'Before data cutover date' if is_before_cutover(prev_year, prev_month) else None
             },
             'pace': {
                 # Primary pace (previous month) - for backward compatibility
@@ -329,6 +376,8 @@ def get_sales_pace():
                     'last_year_full_month_sales': same_month_ly_full if same_month_ly_full > 0 else None,
                     'last_year_full_month_sales_no_equip': same_month_ly_full_no_equip if same_month_ly_full_no_equip > 0 else None,
                     'comparison_basis': f'through_day_{current_day}',
+                    'data_unavailable': ly_is_before_cutover,
+                    'data_unavailable_reason': 'Before data cutover date (migration data excluded)' if ly_is_before_cutover else None,
                     'ahead_behind': 'ahead' if pace_pct_same_month_ly and pace_pct_same_month_ly > 0 else 'behind' if pace_pct_same_month_ly and pace_pct_same_month_ly < 0 else 'on pace' if pace_pct_same_month_ly is not None else None,
                     'ahead_behind_no_equipment': 'ahead' if pace_pct_same_month_ly_no_equip and pace_pct_same_month_ly_no_equip > 0 else 'behind' if pace_pct_same_month_ly_no_equip and pace_pct_same_month_ly_no_equip < 0 else 'on pace' if pace_pct_same_month_ly_no_equip is not None else None
                 },
