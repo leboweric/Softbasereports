@@ -108,6 +108,37 @@ def get_sales_pace():
         previous_full_month = float(full_month_results[0]['total_sales'] or 0) if full_month_results else 0
         previous_full_month_no_equip = float(full_month_results[0]['sales_no_equipment'] or 0) if full_month_results else 0
         
+        # Get same-day comparison for prior year same month (apples-to-apples)
+        same_month_ly_query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
+            -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
+        FROM {schema}.GLDetail
+        WHERE YEAR(EffectiveDate) = {current_year - 1}
+            AND MONTH(EffectiveDate) = {current_month}
+            AND DAY(EffectiveDate) <= {current_day}
+            AND Posted = 1
+        """
+        
+        same_month_ly_results = db.execute_query(same_month_ly_query)
+        same_month_ly_sales = float(same_month_ly_results[0]['total_sales'] or 0) if same_month_ly_results and same_month_ly_results[0]['total_sales'] else 0
+        same_month_ly_no_equip = float(same_month_ly_results[0]['sales_no_equipment'] or 0) if same_month_ly_results and same_month_ly_results[0]['sales_no_equipment'] else 0
+        
+        # Also get full month total for same month last year (for context)
+        same_month_ly_full_query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as total_sales,
+            -SUM(CASE WHEN AccountNo NOT IN ('{equipment_list}') AND AccountNo IN ('{revenue_list}') THEN Amount ELSE 0 END) as sales_no_equipment
+        FROM {schema}.GLDetail
+        WHERE YEAR(EffectiveDate) = {current_year - 1}
+            AND MONTH(EffectiveDate) = {current_month}
+            AND Posted = 1
+        """
+        
+        same_month_ly_full_results = db.execute_query(same_month_ly_full_query)
+        same_month_ly_full = float(same_month_ly_full_results[0]['total_sales'] or 0) if same_month_ly_full_results and same_month_ly_full_results[0]['total_sales'] else 0
+        same_month_ly_full_no_equip = float(same_month_ly_full_results[0]['sales_no_equipment'] or 0) if same_month_ly_full_results and same_month_ly_full_results[0]['sales_no_equipment'] else 0
+        
         # Get adaptive comparison data using GLDetail
         adaptive_query = f"""
         WITH MonthlyTotals AS (
@@ -173,9 +204,9 @@ def get_sales_pace():
         pace_pct_avg = ((projected_total / avg_monthly_sales) - 1) * 100 if avg_monthly_sales > 0 else 0
         pace_pct_avg_no_equip = ((projected_no_equip / avg_monthly_sales_no_equip) - 1) * 100 if avg_monthly_sales_no_equip > 0 else 0
         
-        # 3. Same month last year comparison - use ACTUAL current sales to match tooltip
-        pace_pct_same_month_ly = ((current_sales / same_month_last_year) - 1) * 100 if same_month_last_year > 0 else None
-        pace_pct_same_month_ly_no_equip = ((current_no_equip / same_month_last_year_no_equip) - 1) * 100 if same_month_last_year_no_equip > 0 else None
+        # 3. Same month last year comparison - use same-day data for apples-to-apples
+        pace_pct_same_month_ly = ((current_sales / same_month_ly_sales) - 1) * 100 if same_month_ly_sales > 0 else None
+        pace_pct_same_month_ly_no_equip = ((current_no_equip / same_month_ly_no_equip) - 1) * 100 if same_month_ly_no_equip > 0 else None
         
         # 4. Performance indicators - use projected total for fair comparison
         is_best_month = projected_total > best_monthly_sales
@@ -293,8 +324,11 @@ def get_sales_pace():
                 'vs_same_month_last_year': {
                     'percentage': round(pace_pct_same_month_ly, 1) if pace_pct_same_month_ly is not None else None,
                     'percentage_no_equipment': round(pace_pct_same_month_ly_no_equip, 1) if pace_pct_same_month_ly_no_equip is not None else None,
-                    'last_year_sales': same_month_last_year if same_month_last_year > 0 else None,
-                    'last_year_sales_no_equip': same_month_last_year_no_equip if same_month_last_year_no_equip > 0 else None,
+                    'last_year_same_day_sales': same_month_ly_sales if same_month_ly_sales > 0 else None,
+                    'last_year_same_day_sales_no_equip': same_month_ly_no_equip if same_month_ly_no_equip > 0 else None,
+                    'last_year_full_month_sales': same_month_ly_full if same_month_ly_full > 0 else None,
+                    'last_year_full_month_sales_no_equip': same_month_ly_full_no_equip if same_month_ly_full_no_equip > 0 else None,
+                    'comparison_basis': f'through_day_{current_day}',
                     'ahead_behind': 'ahead' if pace_pct_same_month_ly and pace_pct_same_month_ly > 0 else 'behind' if pace_pct_same_month_ly and pace_pct_same_month_ly < 0 else 'on pace' if pace_pct_same_month_ly is not None else None,
                     'ahead_behind_no_equipment': 'ahead' if pace_pct_same_month_ly_no_equip and pace_pct_same_month_ly_no_equip > 0 else 'behind' if pace_pct_same_month_ly_no_equip and pace_pct_same_month_ly_no_equip < 0 else 'on pace' if pace_pct_same_month_ly_no_equip is not None else None
                 },

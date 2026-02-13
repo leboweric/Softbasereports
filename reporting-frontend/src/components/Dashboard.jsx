@@ -961,7 +961,7 @@ const Dashboard = ({ user }) => {
                       {paceData.adaptive_comparisons.vs_same_month_last_year.percentage > 0 ? '+' : ''}{paceData.adaptive_comparisons.vs_same_month_last_year.percentage}% vs PY
                     </span>
                   ) : (
-                    dashboardData?.period || 'Current Period'
+                    dashboardData?.period || `Through day ${new Date().getDate()}`
                   )}
                 </p>
               </CardContent>
