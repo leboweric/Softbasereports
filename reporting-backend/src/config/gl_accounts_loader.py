@@ -387,6 +387,54 @@ CURRIE_MAPPINGS_BENNETT = {
         'accumulated_depreciation': '193000'
     },
 
+    # --- BALANCE SHEET CATEGORIZATION ---
+    # Account number prefix rules for categorizing BS accounts
+    # Bennett uses 6-digit accounts: 1xxxxx=Assets, 2xxxxx=Liabilities, 3xxxxx=Equity
+    'balance_sheet_categories': {
+        'assets': {
+            'cash': ['11'],                    # 110xxx-119xxx
+            'accounts_receivable': ['12'],      # 120xxx-129xxx
+            'inventory': ['13'],                # 130xxx-139xxx
+            'other_current': ['14', '15'],      # 140xxx-159xxx (prepaid, other current)
+            'fixed_assets': ['18', '19'],       # 180xxx-199xxx (fixed assets + accum depreciation)
+        },
+        'liabilities': {
+            'current': ['21', '22', '23', '24'],  # 210xxx-249xxx
+            'long_term': ['25', '26'],             # 250xxx-269xxx
+        },
+        'equity': {
+            'capital_stock': ['31'],             # 310xxx
+            'distributions': ['33'],             # 330xxx
+            'retained_earnings': ['34'],          # 340xxx
+        }
+    },
+    # Description-based patterns for inventory sub-categorization
+    'inventory_patterns': {
+        'new_equipment_primary': ['NEW TRUCK'],
+        'new_allied_inventory': ['NEW ALLIED'],
+        'used_equipment_inventory': ['USED TRUCK'],
+        'parts_inventory': ['PARTS'],
+        'battery_inventory': ['BATTRY', 'BATTERY', 'CHARGER'],
+        'wip': ['WORK-IN-PROCESS', 'WORK IN PROCESS'],
+    },
+    # Description-based patterns for liability sub-categorization
+    'liability_patterns': {
+        'current': {
+            'ap_primary': ['ACCOUNTS PAYABLE', 'A/P TRADE'],
+            'short_term_rental_finance': ['RENTAL FINANCE', 'FLOOR PLAN'],
+            'used_equipment_financing': ['TRUCKS PURCHASED', 'USED EQUIPMENT'],
+        },
+        'long_term': {
+            'long_term_notes': ['NOTES PAYABLE', 'SCALE BANK'],
+            'loans_from_stockholders': ['STOCKHOLDER', 'SHAREHOLDER'],
+            'lt_rental_fleet_financing': ['RENTAL', 'FLEET'],
+        }
+    },
+    # Description-based patterns for fixed asset sub-categorization
+    'fixed_asset_patterns': {
+        'rental_fleet': ['RENTAL EQUIP', 'RENTAL EQUIPMENT'],
+    },
+
     # --- SERVICE DEPARTMENT CODES (for WO queries) ---
     'service_dept_codes': [4, 5, 6, 7, 8],
 
@@ -866,6 +914,65 @@ CURRIE_MAPPINGS_IPS = {
     'rental_fleet_bs': {
         'gross_equipment': '1830901',  # Rental fleet gross value (prefix 183)
         'accumulated_depreciation': '1930901'  # Accumulated depreciation (prefix 193)
+    },
+
+    # --- BALANCE SHEET CATEGORIZATION ---
+    # Account number prefix rules for IPS 7-digit accounts
+    # IPS chart of accounts: 1xxxxxx=Assets, 2xxxxxx=Liabilities, 3xxxxxx=Equity
+    'balance_sheet_categories': {
+        'assets': {
+            # Cash: 1010xxx (Money Market), 1011xxx (Checking) — more specific to avoid
+            # catching AR-Other (1014), AR-Promler (1015), AR-Ed Jr (1016), AR-Mark (1017)
+            'cash': ['1010', '1011'],
+            # AR: 103xxxx (Trade, Employees) + 101[4-7]xxx (Other, Promler, Ed Jr, Mark)
+            'accounts_receivable': ['103', '1014', '1015', '1016', '1017'],
+            # Inventory: 111=New Equip, 112=Used, 114=Allied, 115=WIP
+            'inventory': ['111', '112', '114', '115'],
+            # Other Current: 1210xxx (Prepaid Expense), 1213xxx (Prepaid Income Tax), 1216xxx (Prepaid Interest)
+            'other_current': ['1210', '1213', '1216'],
+            # Fixed Assets: 1217-1219=Finance Leases, 122-126=Gross assets (F&F, Vehicles, Rental Fleet, Leasehold)
+            # 151-156=Accumulated depreciation, 160=Clearing
+            'fixed_assets': ['1217', '1218', '1219', '122', '123', '124', '125', '1260',
+                             '151', '154', '155', '156', '160'],
+        },
+        # Other assets: anything starting with 1 not matching above (e.g. 1260401=Deposits, 1260402=Note-Ed Jr)
+        'liabilities': {
+            'current': ['204', '205', '207', '208', '209'],  # 204=ST Notes, 205=AP, 207-209=Accrued
+            'long_term': ['202', '203'],                       # 202=Deferred Tax, 203=LT Notes/Leases
+        },
+        'equity': {
+            'capital_stock': ['391'],               # 391xxxx (Common Stock, Treasury Stock)
+            'distributions': ['392', '393'],         # 392xxxx (Officer Advance), 393xxxx (Dividends)
+            'retained_earnings': ['394'],             # 394xxxx (YTD Net Income, Retained Earnings)
+        }
+    },
+    # Description-based patterns for inventory sub-categorization
+    'inventory_patterns': {
+        'new_equipment_primary': ['NEW EQUIPMENT INVENTORY'],
+        'new_allied_inventory': ['ALLIED LINES INVENTORY'],
+        'used_equipment_inventory': ['USED EQUIPMENT INVENTORY', 'AMI USED EQUIPMENT'],
+        'parts_inventory': ['PARTS INVENTORY'],
+        'battery_inventory': ['BATTERY', 'CHARGER'],
+        'wip': ['WORK IN PROGRESS'],
+    },
+    # Description-based patterns for liability sub-categorization
+    'liability_patterns': {
+        'current': {
+            'ap_primary': ['ACCOUNTS PAYABLE TRADE', 'ACCOUNTS PAYABLE CREDIT'],
+            'short_term_rental_finance': ['FLOORPLAN', 'S.T. FLOORPLAN'],
+            'used_equipment_financing': [],  # IPS doesn't have separate used equip financing
+        },
+        'long_term': {
+            # Order matters: check floorplan BEFORE general notes payable
+            'lt_rental_fleet_financing': ['FLOORPLAN', 'L.T. FLOORPLAN'],
+            'loans_from_stockholders': ['STOCKHOLDER', 'SHAREHOLDER'],
+            'long_term_notes': ['NOTES PAYABLE L.T', 'NOTE PAYABLE MARK'],
+        }
+    },
+    # Description-based patterns for fixed asset sub-categorization
+    'fixed_asset_patterns': {
+        'rental_fleet': ['RENTAL FLEET', 'AMI LEASE FLEET', 'IPS LEASE FLEET',
+                         'ACCUM.DEPR.-RENTAL FLEET', 'ACCUM.DEPR.-AMI LEASE FLEET', 'ACCUM.DEPR.-IPS LEASE FLEET'],
     },
 
     # --- SERVICE DEPARTMENT CODES (for WO queries) ---

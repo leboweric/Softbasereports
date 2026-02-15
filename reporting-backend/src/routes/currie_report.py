@@ -1419,8 +1419,15 @@ def export_currie_excel():
         # All Other Accounts Receivable (B8) - set to 0 or use other current assets if needed
         bs_ws['B8'] = 0
         
-        # Inventory breakdown - map by account description to match Currie web page exactly
+        # Inventory breakdown - use tenant-specific description patterns
         inventory_accounts = assets['current_assets']['inventory']
+        inv_patterns = currie.get('inventory_patterns', {})
+        
+        # Helper: check if description matches any pattern in a list
+        def desc_matches(description, patterns):
+            desc_upper = description.upper()
+            return any(p in desc_upper for p in patterns)
+        
         new_equipment_primary = 0
         new_equipment_other = 0
         new_allied_inventory = 0
@@ -1428,25 +1435,25 @@ def export_currie_excel():
         used_equipment_inventory = 0
         parts_inventory = 0
         battery_inventory = 0
+        wip_balance = 0
         other_inventory = 0
         
         for acc in inventory_accounts:
-            desc = acc['description'].upper()
+            desc = acc['description']
             balance = acc['balance']
-            # Map based on account descriptions to match web page display
-            if 'NEW TRUCK' in desc:
+            if desc_matches(desc, inv_patterns.get('wip', [])):
+                wip_balance += balance
+            elif desc_matches(desc, inv_patterns.get('new_equipment_primary', [])):
                 new_equipment_primary += balance
-            elif 'NEW ALLIED' in desc:
+            elif desc_matches(desc, inv_patterns.get('new_allied_inventory', [])):
                 new_allied_inventory += balance
-            elif 'USED TRUCK' in desc:
+            elif desc_matches(desc, inv_patterns.get('used_equipment_inventory', [])):
                 used_equipment_inventory += balance
-            elif 'PARTS' in desc and 'MISC' not in desc:
+            elif desc_matches(desc, inv_patterns.get('parts_inventory', [])):
                 parts_inventory += balance
-            elif 'BATTRY' in desc or 'BATTERY' in desc or 'CHARGER' in desc:
+            elif desc_matches(desc, inv_patterns.get('battery_inventory', [])):
                 battery_inventory += balance
-            elif not ('WORK' in desc and 'PROCESS' in desc):
-                # Everything else goes to Other Inventory EXCEPT WIP (Sublet Labor, Misc Parts, Reserve, etc.)
-                # WIP is handled separately below
+            else:
                 other_inventory += balance
         
         bs_ws['B11'] = new_equipment_primary  # New Equipment, primary brand
@@ -1457,38 +1464,26 @@ def export_currie_excel():
         bs_ws['B16'] = parts_inventory  # Parts Inventory
         bs_ws['B17'] = battery_inventory  # Battery Inventory
         bs_ws['B18'] = other_inventory  # Other Inventory
-        
-        # WIP (B21) - search for WORK-IN-PROCESS account
-        wip_balance = 0
-        for acc in inventory_accounts:
-            if 'WORK' in acc['description'].upper() and 'PROCESS' in acc['description'].upper():
-                wip_balance += acc['balance']
-        bs_ws['B21'] = wip_balance
+        bs_ws['B21'] = wip_balance  # Work in Progress
         
         # Other Current Assets (B23)
         bs_ws['B23'] = sum_accounts(assets['current_assets']['other_current'])
         
-        # Fixed Assets
-        # Rental Fleet (B27) = FIXED ASSETS - RENTAL EQUIPMENT + ACCUM. DEPREC. - RENTAL EQUIP.
-        # Other LT/Fixed Assets (B28) = All other fixed assets with their depreciation
-        rental_fleet_gross = 0
-        rental_fleet_deprec = 0
+        # Fixed Assets - use tenant-specific patterns for rental fleet identification
+        fa_patterns = currie.get('fixed_asset_patterns', {})
+        rental_fleet_patterns = fa_patterns.get('rental_fleet', [])
+        rental_fleet_net = 0
         other_fixed = 0
         
         for acc in assets['fixed_assets']:
-            desc = acc['description'].upper()
+            desc = acc['description']
             balance = acc['balance']
-            # Match rental equipment accounts - be more specific
-            # Look for "RENTAL EQUIPMENT" or "RENTAL EQUIP" in description
-            if ('RENTAL' in desc and 'EQUIP' in desc):
-                if 'DEPREC' in desc or 'ACCUM' in desc:
-                    rental_fleet_deprec += balance
-                else:
-                    rental_fleet_gross += balance
+            if desc_matches(desc, rental_fleet_patterns):
+                rental_fleet_net += balance
             else:
                 other_fixed += balance
         
-        bs_ws['B27'] = rental_fleet_gross + rental_fleet_deprec  # Rental Fleet (net)
+        bs_ws['B27'] = rental_fleet_net  # Rental Fleet (net of depreciation)
         bs_ws['B28'] = other_fixed  # Other Long Term or Fixed Assets
         
         # Other Assets (B29)
@@ -1497,7 +1492,11 @@ def export_currie_excel():
         # LIABILITIES - match Currie web page structure exactly
         liabilities = balance_sheet_data['liabilities']
         
-        # Current Liabilities breakdown
+        # Current Liabilities breakdown - use tenant-specific patterns
+        liab_patterns = currie.get('liability_patterns', {})
+        cl_patterns = liab_patterns.get('current', {})
+        lt_patterns = liab_patterns.get('long_term', {})
+        
         ap_primary = 0
         ap_other = 0
         notes_payable_current = 0
@@ -1506,57 +1505,48 @@ def export_currie_excel():
         other_current_liabilities = 0
         
         for acc in liabilities['current_liabilities']:
-            desc = acc['description'].upper()
+            desc = acc['description']
             balance = acc['balance']
-            # Map by description to match web page
-            if 'ACCOUNTS PAYABLE' in desc and 'TRADE' in desc:
+            if desc_matches(desc, cl_patterns.get('ap_primary', [])):
                 ap_primary += balance
-            elif 'RENTAL FINANCE' in desc or 'FLOOR PLAN' in desc:
+            elif desc_matches(desc, cl_patterns.get('short_term_rental_finance', [])):
                 short_term_rental_finance += balance
-            elif 'TRUCKS PURCHASED' in desc or 'USED EQUIPMENT' in desc:
+            elif desc_matches(desc, cl_patterns.get('used_equipment_financing', [])):
                 used_equipment_financing += balance
             else:
-                # All other current liabilities
                 other_current_liabilities += balance
         
-        bs_ws['E7'] = ap_primary  # A/P Primary Brand (ACCOUNTS PAYABLE - TRADE)
-        bs_ws['E8'] = ap_other  # A/P Other (currently $0)
-        bs_ws['E9'] = notes_payable_current  # Notes Payable - due within 1 year (currently $0)
+        bs_ws['E7'] = ap_primary  # A/P Primary Brand
+        bs_ws['E8'] = ap_other  # A/P Other
+        bs_ws['E9'] = notes_payable_current  # Notes Payable - due within 1 year
         bs_ws['E10'] = short_term_rental_finance  # Short Term Rental Finance
         bs_ws['E11'] = used_equipment_financing  # Used Equipment Financing
         bs_ws['E12'] = other_current_liabilities  # Other Current Liabilities
         
-        # Long-term Liabilities breakdown - MATCH FRONTEND EXACTLY
-        # Frontend: const longTermNotes = sumByPattern(['NOTES PAYABLE', 'SCALE BANK']);
+        # Long-term Liabilities breakdown - use tenant-specific patterns
         long_term_notes = 0
-        for acc in liabilities['long_term_liabilities']:
-            desc = acc['description'].upper()
-            if 'NOTES PAYABLE' in desc or 'SCALE BANK' in desc:
-                long_term_notes += acc['balance']
-        
-        # Frontend: const loansFromStockholders = sumByPattern(['STOCKHOLDER', 'SHAREHOLDER']);
         loans_from_stockholders = 0
-        for acc in liabilities['long_term_liabilities']:
-            desc = acc['description'].upper()
-            if 'STOCKHOLDER' in desc or 'SHAREHOLDER' in desc:
-                loans_from_stockholders += acc['balance']
-        
-        # Frontend: const ltRentalFleetFinancing = sumByPattern(['RENTAL', 'FLEET']) - shortTermRentalFinance;
         lt_rental_fleet_financing = 0
-        for acc in liabilities['long_term_liabilities']:
-            desc = acc['description'].upper()
-            if 'RENTAL' in desc or 'FLEET' in desc:
-                lt_rental_fleet_financing += acc['balance']
-        lt_rental_fleet_financing -= short_term_rental_finance
         
-        # Frontend: const otherLongTermDebt = total - (longTermNotes + loansFromStockholders + ltRentalFleetFinancing);
+        for acc in liabilities['long_term_liabilities']:
+            desc = acc['description']
+            balance = acc['balance']
+            # Check patterns in priority order: floorplan first (most specific),
+            # then stockholders, then general notes payable (least specific)
+            if desc_matches(desc, lt_patterns.get('lt_rental_fleet_financing', [])):
+                lt_rental_fleet_financing += balance
+            elif desc_matches(desc, lt_patterns.get('loans_from_stockholders', [])):
+                loans_from_stockholders += balance
+            elif desc_matches(desc, lt_patterns.get('long_term_notes', [])):
+                long_term_notes += balance
+        
         total_long_term_liabilities = sum(acc['balance'] for acc in liabilities['long_term_liabilities'])
         other_long_term_debt = total_long_term_liabilities - (long_term_notes + loans_from_stockholders + lt_rental_fleet_financing)
         
         # Other Liabilities
         other_liab_remaining = sum_accounts(liabilities['other_liabilities'])
         
-        bs_ws['E15'] = long_term_notes  # Long Term notes Payable
+        bs_ws['E15'] = long_term_notes  # Long Term Notes Payable
         bs_ws['E16'] = loans_from_stockholders  # Loans from Stockholders
         bs_ws['E17'] = lt_rental_fleet_financing  # LT Rental Fleet Financing
         bs_ws['E18'] = other_long_term_debt  # Other Long Term Debt
@@ -1932,10 +1922,11 @@ def get_other_income_and_interest(start_date, end_date):
 
 def get_balance_sheet_data(as_of_date):
     """
-    Get Balance Sheet data from GL accounts
-    Assets: 1xxxxx series
-    Liabilities: 2xxxxx series  
-    Equity: 3xxxxx series
+    Get Balance Sheet data from GL accounts.
+    Uses tenant-specific balance_sheet_categories from currie_mappings for account prefix routing.
+    Assets: 1xxxxx (Bennett) or 1xxxxxx (IPS)
+    Liabilities: 2xxxxx or 2xxxxxx
+    Equity: 3xxxxx or 3xxxxxx
     
     Returns categorized balance sheet accounts with balances as of the specified date
     """
@@ -1945,10 +1936,19 @@ def get_balance_sheet_data(as_of_date):
         year = date_obj.year
         month = date_obj.month
         
-        # Query GL.YTD for balance sheet accounts
-        # For balance sheet accounts, we want the cumulative Year-To-Date balance
+        # Get tenant-specific balance sheet categorization rules
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        bs_cats = currie.get('balance_sheet_categories', {})
+        asset_cats = bs_cats.get('assets', {})
+        liab_cats = bs_cats.get('liabilities', {})
+        equity_cats = bs_cats.get('equity', {})
+        
+        # Helper: check if account_no starts with any prefix in a list
+        def matches_prefixes(account_no, prefixes):
+            return any(account_no.startswith(p) for p in prefixes)
 
+        # Query GL.YTD for balance sheet accounts
         query = f"""
         SELECT 
             gl.AccountNo,
@@ -1969,30 +1969,26 @@ def get_balance_sheet_data(as_of_date):
         
         result = get_sql_service().execute_query(query, [year, month])
         
-        logger.info(f"Balance Sheet query for year={year}, month={month}")
+        logger.info(f"Balance Sheet query for year={year}, month={month}, schema={schema}")
         logger.info(f"Query returned {len(result) if result else 0} rows")
         if result:
             logger.info(f"First row sample: {result[0]}")
         
         # Calculate current year net income from ALL P&L accounts
-        # P&L accounts are everything NOT on the balance sheet (not 1xx, 2xx, 3xx)
-        # This includes: 4xx=Revenue, 5xx=COGS, 6xx=Expenses, 7xx=Other Income/Expense
-        # In Softbase GL, revenue is stored as negative (credit), COGS/expenses as positive (debit)
-        # Net income = sum of all P&L accounts YTD (result will be negative = profit)
         net_income_query = f"""
         SELECT COALESCE(SUM(gl.YTD), 0) as net_income
         FROM {schema}.GL gl
         WHERE gl.Year = %s 
           AND gl.Month = %s
-          AND gl.AccountNo NOT LIKE '1%'  -- Exclude Assets
-          AND gl.AccountNo NOT LIKE '2%'  -- Exclude Liabilities
-          AND gl.AccountNo NOT LIKE '3%'  -- Exclude Equity
+          AND gl.AccountNo NOT LIKE '1%'
+          AND gl.AccountNo NOT LIKE '2%'
+          AND gl.AccountNo NOT LIKE '3%'
         """
         net_income_result = get_sql_service().execute_query(net_income_query, [year, month])
         net_income = float(net_income_result[0].get('net_income', 0)) if net_income_result else 0
         logger.info(f"Current year net income (P&L accounts): {net_income:,.2f}")
         
-        # Categorize accounts
+        # Initialize categorized structures
         assets = {
             'current_assets': {
                 'cash': [],
@@ -2032,45 +2028,49 @@ def get_balance_sheet_data(as_of_date):
                     'balance': balance
                 }
                 
-                # Categorize by account number
-                if account_no.startswith('1'):  # Assets
-                    # Current Assets
-                    if account_no.startswith('11'):  # Cash accounts (110xxx-119xxx)
+                # --- ASSETS ---
+                if account_no.startswith('1'):
+                    categorized = False
+                    # Check each asset sub-category using tenant-specific prefixes
+                    if matches_prefixes(account_no, asset_cats.get('cash', [])):
                         assets['current_assets']['cash'].append(account_data)
-                    elif account_no.startswith('12'):  # AR accounts (120xxx-129xxx)
+                        categorized = True
+                    elif matches_prefixes(account_no, asset_cats.get('accounts_receivable', [])):
                         assets['current_assets']['accounts_receivable'].append(account_data)
-                    elif account_no.startswith('13'):  # Inventory accounts (130xxx-139xxx)
+                        categorized = True
+                    elif matches_prefixes(account_no, asset_cats.get('inventory', [])):
                         assets['current_assets']['inventory'].append(account_data)
-                    elif account_no.startswith('14') or account_no.startswith('15'):  # Other current (140xxx-159xxx)
+                        categorized = True
+                    elif matches_prefixes(account_no, asset_cats.get('other_current', [])):
                         assets['current_assets']['other_current'].append(account_data)
-                    # Fixed Assets
-                    elif account_no.startswith('18') or account_no.startswith('19'):  # Fixed assets and depreciation (180xxx-199xxx)
+                        categorized = True
+                    elif matches_prefixes(account_no, asset_cats.get('fixed_assets', [])):
                         assets['fixed_assets'].append(account_data)
-                    # Other Assets
-                    else:
+                        categorized = True
+                    
+                    if not categorized:
                         assets['other_assets'].append(account_data)
                     
                     assets['total'] += balance
                 
-                elif account_no.startswith('2'):  # Liabilities
-                    # Current Liabilities (210xxx-249xxx)
-                    if account_no.startswith('21') or account_no.startswith('22') or account_no.startswith('23') or account_no.startswith('24'):
+                # --- LIABILITIES ---
+                elif account_no.startswith('2'):
+                    if matches_prefixes(account_no, liab_cats.get('current', [])):
                         liabilities['current_liabilities'].append(account_data)
-                    # Long-term Liabilities (250xxx-269xxx)
-                    elif account_no.startswith('25') or account_no.startswith('26'):
+                    elif matches_prefixes(account_no, liab_cats.get('long_term', [])):
                         liabilities['long_term_liabilities'].append(account_data)
-                    # Other Liabilities
                     else:
                         liabilities['other_liabilities'].append(account_data)
                     
                     liabilities['total'] += balance
                 
-                elif account_no.startswith('3'):  # Equity
-                    if account_no.startswith('31'):  # Capital Stock
+                # --- EQUITY ---
+                elif account_no.startswith('3'):
+                    if matches_prefixes(account_no, equity_cats.get('capital_stock', [])):
                         equity['capital_stock'].append(account_data)
-                    elif account_no.startswith('33'):  # Distributions
+                    elif matches_prefixes(account_no, equity_cats.get('distributions', [])):
                         equity['distributions'].append(account_data)
-                    elif account_no.startswith('34'):  # Retained Earnings
+                    elif matches_prefixes(account_no, equity_cats.get('retained_earnings', [])):
                         equity['retained_earnings'].append(account_data)
                     else:
                         equity['retained_earnings'].append(account_data)  # Default to retained earnings
