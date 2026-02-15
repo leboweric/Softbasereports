@@ -1215,6 +1215,10 @@ def export_currie_excel():
         expenses = get_gl_expenses(start_date, end_date)
         ar_aging = get_ar_aging()
         service_calls_per_day = get_service_calls_per_day(start_date, end_date, num_days)
+        labor_metrics = get_labor_metrics(start_date, end_date)
+        tech_count_data = get_technician_count(start_date, end_date)
+        parts_inventory = get_parts_inventory_metrics(start_date, end_date)
+        rental_fleet = get_rental_fleet_metrics(start_date, end_date)
         
         # Build data structure for calculate_totals
         data = {
@@ -1398,6 +1402,57 @@ def export_currie_excel():
         expenses_ws['B24'] = ar_aging.get('days_61_90', 0)  # 61-90 days
         expenses_ws['B25'] = ar_aging.get('days_91_plus', 0)  # 91+ days
         # B26 has a formula =SUM(B22:B25) which will calculate automatically
+        
+        # Parts Department Metrics (column E, rows 22-26)
+        expenses_ws['E22'] = parts_inventory.get('fill_rate', 0) / 100 if parts_inventory.get('fill_rate', 0) else 0  # Stock Fill Rate as decimal
+        # E23 (Stock v. NonStock) - not available from Softbase
+        # E24 (Parts Inventory Aging %) - percentage of inventory over 12 months
+        if parts_inventory.get('aging'):
+            aging = parts_inventory['aging']
+            total_parts = aging.get('obsolete_count', 0) + aging.get('slow_count', 0) + aging.get('medium_count', 0) + aging.get('fast_count', 0)
+            if total_parts > 0:
+                expenses_ws['E24'] = aging.get('obsolete_count', 0) / total_parts  # % over 12 months
+        
+        # Technician Productivity (column H, rows 22-28)
+        tech_count = tech_count_data.get('active_technicians', 0)
+        total_billed_hours = labor_metrics.get('total_billed_hours', 0)
+        avg_labor_rate = labor_metrics.get('average_labor_rate', 0)
+        
+        # H22: # of units under full maintenance contract - not directly available
+        expenses_ws['H23'] = round(avg_labor_rate, 2) if avg_labor_rate else None  # Customer Labor Rate
+        # H24: Avg. Hourly Tech Pay Rate - not available from Softbase GL
+        expenses_ws['H25'] = round(total_billed_hours, 1) if total_billed_hours else None  # Total Hours Billed
+        # H26: Productive Hours - need to split billed vs non-productive (not available)
+        # H27: Non-Productive Hours - not available
+        # H28: Total Hours Paid - not available from Softbase
+        
+        # Additional Technician Productivity (column L, rows 28-30)
+        # L28: PM Completion Rate - not available
+        # L29: First Call Completion Rate - not available
+        # L30: Average Response Time - not available
+        
+        # Marketshare Information (column E, rows 29-31)
+        # E29: Sold Units - requires external data, not available from Softbase
+        # E30: Lost Units - requires external data
+        # E31: Size of Market - requires external data
+        
+        # ST Rental Fleet Metrics (column E-F, rows 34-40)
+        rental_unit_count = rental_fleet.get('unit_count', 0)
+        rental_gross_value = rental_fleet.get('gross_fleet_value', 0)
+        rental_depreciation = rental_fleet.get('annualized_depreciation', 0)
+        
+        # Scale depreciation/interest to match the reporting period (not annualized)
+        period_scale = num_days / 365 if num_days > 0 else 1
+        period_depreciation = rental_depreciation * period_scale
+        
+        expenses_ws['E34'] = round(period_depreciation, 2) if period_depreciation else None  # ST Rental Depreciation
+        # E35: Interest - would need separate GL query for rental interest expense
+        # E36: Maintenance - would need separate GL query for rental maintenance expense
+        expenses_ws['F38'] = rental_unit_count if rental_unit_count > 0 else None  # # of Units in ST Rental Fleet (was hardcoded 440)
+        expenses_ws['E39'] = round(rental_gross_value, 2) if rental_gross_value else None  # Acquisition Cost of ST Fleet
+        
+        # Service Calls per day (cell L37)
+        expenses_ws['L37'] = service_calls_per_day.get('calls_per_day', 0)
         
         # Write Balance Sheet data
         balance_sheet_data = get_balance_sheet_data(end_date)
