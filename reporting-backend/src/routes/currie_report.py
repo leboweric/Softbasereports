@@ -1419,7 +1419,7 @@ def export_currie_excel():
         avg_labor_rate = labor_metrics.get('average_labor_rate', 0)
         
         # H22: # of units under full maintenance contract - not directly available
-        expenses_ws['H23'] = round(avg_labor_rate, 2) if avg_labor_rate else None  # Customer Labor Rate
+        expenses_ws['G23'] = round(avg_labor_rate, 2) if avg_labor_rate else None  # Customer Labor Rate (G23:H23 merged)
         # H24: Avg. Hourly Tech Pay Rate - not available from Softbase GL
         expenses_ws['H25'] = round(total_billed_hours, 1) if total_billed_hours else None  # Total Hours Billed
         # H26: Productive Hours - need to split billed vs non-productive (not available)
@@ -1445,11 +1445,11 @@ def export_currie_excel():
         period_scale = num_days / 365 if num_days > 0 else 1
         period_depreciation = rental_depreciation * period_scale
         
-        expenses_ws['E34'] = round(period_depreciation, 2) if period_depreciation else None  # ST Rental Depreciation
+        expenses_ws['D34'] = round(period_depreciation, 2) if period_depreciation else None  # ST Rental Depreciation (D34:E34 merged)
         # E35: Interest - would need separate GL query for rental interest expense
         # E36: Maintenance - would need separate GL query for rental maintenance expense
         expenses_ws['F38'] = rental_unit_count if rental_unit_count > 0 else None  # # of Units in ST Rental Fleet (was hardcoded 440)
-        expenses_ws['E39'] = round(rental_gross_value, 2) if rental_gross_value else None  # Acquisition Cost of ST Fleet
+        expenses_ws['D39'] = round(rental_gross_value, 2) if rental_gross_value else None  # Acquisition Cost of ST Fleet (D39:E39 merged)
         
         # Service Calls per day (cell L37)
         expenses_ws['L37'] = service_calls_per_day.get('calls_per_day', 0)
