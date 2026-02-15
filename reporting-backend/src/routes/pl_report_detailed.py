@@ -12,10 +12,12 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
-from src.config.gl_accounts_detailed import (
-    DEPARTMENT_CONFIG, 
-    OVERHEAD_EXPENSE_ACCOUNTS, 
-    OTHER_INCOME_EXPENSE_ACCOUNTS
+from src.config.gl_accounts_detailed_loader import (
+    get_department_config,
+    get_overhead_expense_config,
+    get_other_income_expense_config,
+    get_dept_order,
+    get_inhouse_config,
 )
 from src.routes.currie_report import get_balance_sheet_data
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -78,12 +80,14 @@ def get_gl_account_data(schema, account_numbers, year, month):
 
 def get_department_detail(schema, dept_key, year, month):
     """
-    Get detailed P&L data for a specific department
+    Get detailed P&L data for a specific department.
+    Uses tenant-aware config based on schema.
     
     Returns:
         Dictionary with sales_detail, cos_detail, totals
     """
-    dept_config = DEPARTMENT_CONFIG.get(dept_key)
+    department_config = get_department_config(schema)
+    dept_config = department_config.get(dept_key)
     if not dept_config:
         return None
     
@@ -155,9 +159,10 @@ def get_department_detail(schema, dept_key, year, month):
 
 
 def get_overhead_expenses(schema, year, month):
-    """Get overhead expense data organized by category"""
+    """Get overhead expense data organized by category. Uses tenant-aware config."""
+    overhead_expense_accounts = get_overhead_expense_config(schema)
     all_expense_accounts = []
-    for category_accounts in OVERHEAD_EXPENSE_ACCOUNTS.values():
+    for category_accounts in overhead_expense_accounts.values():
         all_expense_accounts.extend([acct[0] for acct in category_accounts])
     
     gl_data = get_gl_account_data(schema, all_expense_accounts, year, month)
@@ -166,7 +171,7 @@ def get_overhead_expenses(schema, year, month):
     total_mtd = 0
     total_ytd = 0
     
-    for category, accounts in OVERHEAD_EXPENSE_ACCOUNTS.items():
+    for category, accounts in overhead_expense_accounts.items():
         category_detail = []
         category_mtd = 0
         category_ytd = 0
@@ -199,16 +204,17 @@ def get_overhead_expenses(schema, year, month):
 
 
 def get_other_income_expense(schema, year, month):
-    """Get other income and expense data"""
+    """Get other income and expense data. Uses tenant-aware config."""
+    other_income_expense_accounts = get_other_income_expense_config(schema)
     all_accounts = []
-    for category_accounts in OTHER_INCOME_EXPENSE_ACCOUNTS.values():
+    for category_accounts in other_income_expense_accounts.values():
         all_accounts.extend([acct[0] for acct in category_accounts])
     
     gl_data = get_gl_account_data(schema, all_accounts, year, month)
     
     result = {}
     
-    for category, accounts in OTHER_INCOME_EXPENSE_ACCOUNTS.items():
+    for category, accounts in other_income_expense_accounts.items():
         category_detail = []
         category_mtd = 0
         category_ytd = 0
@@ -396,7 +402,7 @@ def create_department_worksheet(wb, dept_data, year, month):
     return ws
 
 
-def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, month, inhouse_dept_data=None):
+def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, month, inhouse_dept_data=None, inhouse_config=None):
     """Create the In House / Administrative worksheet with expenses
     
     Args:
@@ -407,8 +413,11 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
         year: Report year
         month: Report month
         inhouse_dept_data: Optional In House department Sales/COGS data
+        inhouse_config: Optional dict with dept_key, dept_code, tab_name for tenant
     """
-    ws = wb.create_sheet(title='P&L In House')
+    tab_name = (inhouse_config or {}).get('tab_name', 'P&L In House')
+    dept_code = (inhouse_config or {}).get('dept_code', 90)
+    ws = wb.create_sheet(title=tab_name)
     
     # Define styles
     header_font = Font(bold=True)
@@ -427,11 +436,11 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
     ws['A2'].font = header_font
     
     # Row 3: Department Code
-    ws['A3'] = 90
+    ws['A3'] = dept_code
     ws['A3'].font = header_font
     
     # Row 4: Headers
-    ws['A4'] = 'In House / Administrative'
+    ws['A4'] = tab_name.replace('P&L ', '')
     ws['A4'].font = header_font
     ws['C4'] = 'MTD'
     ws['C4'].font = header_font
@@ -668,8 +677,8 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
     return ws
 
 
-def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, year, month):
-    """Create the consolidated P&L summary worksheet"""
+def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, year, month, schema=None):
+    """Create the consolidated P&L summary worksheet. Uses tenant-aware dept order."""
     ws = wb.create_sheet(title='Profit & Loss Consolidated')
     
     # Define styles
@@ -690,9 +699,15 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     ws['B4'] = 'MTD Summary'
     ws['B4'].font = header_font
     
-    # Row 5: Column headers
-    headers = ['', 'New Equipment', 'Used Equipment', 'Parts', 'Service', 'Rental', 'Transportation', 'In House', 'Total']
-    dept_codes = ['', '10', '20', '30', '40', '60', '80', '90', '']
+    # Build dynamic headers from all_dept_data (tenant-aware)
+    # Use the dept_order from the loader if schema is provided, otherwise use all_dept_data keys
+    if schema:
+        dept_keys = [k for k in get_dept_order(schema) if k in all_dept_data]
+    else:
+        dept_keys = list(all_dept_data.keys())
+    
+    headers = [''] + [all_dept_data[k]['dept_name'] for k in dept_keys] + ['Total']
+    dept_codes = [''] + [str(all_dept_data[k]['dept_code']) for k in dept_keys] + ['']
     
     for col, (header, code) in enumerate(zip(headers, dept_codes), 2):
         ws.cell(row=4, column=col, value=code).font = header_font
@@ -703,11 +718,14 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
                   'Overhead Expenses', 'Operating Profit', 'Operating Margin',
                   'Other Income & Expense', 'Net Profit', 'Net Margin']
     
-    dept_keys = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation', 'in_house']
-    
     current_row = 6
     
     # Calculate totals
+    # Total column = 3 (first dept col) + len(dept_keys) = after last dept
+    total_col = 3 + len(dept_keys)
+    # Overhead column = total_col - 1 (placed in the last dept column, before Total)
+    overhead_col = total_col - 1
+    
     # Income = sum of department sales (4xx accounts only)
     # Other Income & Expense (7xx accounts) shown as separate line and factored into Net Profit
     total_other_mtd = other_data.get('total_mtd', 0)
@@ -724,7 +742,7 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     for col, key in enumerate(dept_keys, 3):
         if key in all_dept_data:
             ws.cell(row=current_row, column=col, value=all_dept_data[key]['total_sales_mtd']).number_format = money_format
-    ws.cell(row=current_row, column=10, value=total_income_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_income_mtd).number_format = money_format
     current_row += 1
     
     # COGS row
@@ -732,7 +750,7 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     for col, key in enumerate(dept_keys, 3):
         if key in all_dept_data:
             ws.cell(row=current_row, column=col, value=all_dept_data[key]['total_cos_mtd']).number_format = money_format
-    ws.cell(row=current_row, column=10, value=total_cogs_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_cogs_mtd).number_format = money_format
     current_row += 1
     
     # Gross Profit row
@@ -740,7 +758,7 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     for col, key in enumerate(dept_keys, 3):
         if key in all_dept_data:
             ws.cell(row=current_row, column=col, value=all_dept_data[key]['gross_profit_mtd']).number_format = money_format
-    ws.cell(row=current_row, column=10, value=total_gross_profit_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_gross_profit_mtd).number_format = money_format
     current_row += 1
     
     # Gross Margin row
@@ -750,47 +768,47 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
             margin = all_dept_data[key]['gross_profit_mtd'] / all_dept_data[key]['total_sales_mtd']
             ws.cell(row=current_row, column=col, value=margin).number_format = percent_format
     if total_income_mtd != 0:
-        ws.cell(row=current_row, column=10, value=total_gross_profit_mtd / total_income_mtd).number_format = percent_format
+        ws.cell(row=current_row, column=total_col, value=total_gross_profit_mtd / total_income_mtd).number_format = percent_format
     current_row += 1
     
     # Overhead row
     ws.cell(row=current_row, column=2, value='Overhead Expenses')
-    ws.cell(row=current_row, column=9, value=total_overhead_mtd).number_format = money_format
-    ws.cell(row=current_row, column=10, value=total_overhead_mtd).number_format = money_format
+    ws.cell(row=current_row, column=overhead_col, value=total_overhead_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_overhead_mtd).number_format = money_format
     current_row += 1
     
     # Operating Profit row
     ws.cell(row=current_row, column=2, value='Operating Profit')
-    ws.cell(row=current_row, column=10, value=total_operating_profit_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_operating_profit_mtd).number_format = money_format
     current_row += 1
     
     # Operating Margin row
     ws.cell(row=current_row, column=2, value='Operating Margin').font = header_font
     if total_income_mtd != 0:
-        ws.cell(row=current_row, column=10, value=total_operating_profit_mtd / total_income_mtd).number_format = percent_format
+        ws.cell(row=current_row, column=total_col, value=total_operating_profit_mtd / total_income_mtd).number_format = percent_format
     current_row += 1
     
     # Other Income & Expense row
     ws.cell(row=current_row, column=2, value='Other Income & Expense')
-    ws.cell(row=current_row, column=9, value=total_other_mtd).number_format = money_format
-    ws.cell(row=current_row, column=10, value=total_other_mtd).number_format = money_format
+    ws.cell(row=current_row, column=overhead_col, value=total_other_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_other_mtd).number_format = money_format
     current_row += 1
     
     # Net Profit row
     ws.cell(row=current_row, column=2, value='Net Profit').font = header_font
-    ws.cell(row=current_row, column=10, value=total_net_profit_mtd).number_format = money_format
-    ws.cell(row=current_row, column=10).font = header_font
+    ws.cell(row=current_row, column=total_col, value=total_net_profit_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col).font = header_font
     current_row += 1
     
     # Net Margin row
     ws.cell(row=current_row, column=2, value='Net Margin').font = header_font
     if total_income_mtd != 0:
-        ws.cell(row=current_row, column=10, value=total_net_profit_mtd / total_income_mtd).number_format = percent_format
+        ws.cell(row=current_row, column=total_col, value=total_net_profit_mtd / total_income_mtd).number_format = percent_format
     
     # Set column widths
     ws.column_dimensions['A'].width = 5
     ws.column_dimensions['B'].width = 25
-    for col in range(3, 11):
+    for col in range(3, total_col + 1):
         ws.column_dimensions[get_column_letter(col)].width = 18
     
     return ws
@@ -1533,7 +1551,10 @@ def export_detailed_pl():
         wb = Workbook()
         wb.remove(wb.active)
         
-        dept_order = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation', 'in_house']
+        # Get tenant-aware department order and inhouse config
+        dept_order = get_dept_order(schema)
+        ih_config = get_inhouse_config(schema)
+        inhouse_dept_key = ih_config['dept_key']
         
         if is_multi_month:
             # Multi-month: collect data for each month, then sum
@@ -1559,7 +1580,7 @@ def export_detailed_pl():
                     combined = _sum_dept_data(all_months_dept_data[dept_key])
                     if combined:
                         all_dept_data[dept_key] = combined
-                        if dept_key != 'in_house':
+                        if dept_key != inhouse_dept_key:
                             create_department_worksheet(wb, combined, last_year, last_month)
                         total_gross_profit_mtd += combined['gross_profit_mtd']
                         total_gross_profit_ytd += combined['gross_profit_ytd']
@@ -1577,7 +1598,7 @@ def export_detailed_pl():
                 dept_data = get_department_detail(schema, dept_key, year, month)
                 if dept_data:
                     all_dept_data[dept_key] = dept_data
-                    if dept_key != 'in_house':
+                    if dept_key != inhouse_dept_key:
                         create_department_worksheet(wb, dept_data, year, month)
                     total_gross_profit_mtd += dept_data['gross_profit_mtd']
                     total_gross_profit_ytd += dept_data['gross_profit_ytd']
@@ -1585,16 +1606,16 @@ def export_detailed_pl():
             expense_data = get_overhead_expenses(schema, year, month)
             other_data = get_other_income_expense(schema, year, month)
         
-        # Create In House worksheet with expenses
+        # Create In House / Admin worksheet with expenses
         inhouse_summary = {
             'total_gross_profit_mtd': total_gross_profit_mtd,
             'total_gross_profit_ytd': total_gross_profit_ytd
         }
-        inhouse_dept_data = all_dept_data.get('in_house', None)
-        create_inhouse_worksheet(wb, inhouse_summary, expense_data, other_data, last_year, last_month, inhouse_dept_data)
+        inhouse_dept_data = all_dept_data.get(inhouse_dept_key, None)
+        create_inhouse_worksheet(wb, inhouse_summary, expense_data, other_data, last_year, last_month, inhouse_dept_data, ih_config)
         
         # Create consolidated summary worksheet
-        create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, last_year, last_month)
+        create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, last_year, last_month, schema)
         
         # Create Balance Sheet worksheet (as of end of range)
         create_balance_sheet_worksheet(wb, last_year, last_month)
@@ -1657,9 +1678,9 @@ def get_detailed_pl():
             else:
                 return jsonify({'error': f'Department {department} not found'}), 404
         
-        # Return all departments
+        # Return all departments (tenant-aware order)
         all_dept_data = {}
-        dept_order = ['new_equipment', 'used_equipment', 'parts', 'service', 'rental', 'transportation', 'administrative']
+        dept_order = get_dept_order(schema)
         
         for dept_key in dept_order:
             dept_data = get_department_detail(schema, dept_key, year, month)
