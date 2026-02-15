@@ -21,78 +21,9 @@ pl_report_bp = Blueprint('pl_report', __name__)
 _sql_service = None
 def get_sql_service():
     return get_tenant_db()
-# GL Account Mappings by Department (Source: Softbase P&L)
-GL_ACCOUNTS = {
-    'new_equipment': {
-        'dept_code': 10,
-        'dept_name': 'New Equipment',
-        'revenue': ['410001', '412001', '413001', '414001', '421001', '426001', '431001', '434001'],
-        'cogs': ['510001', '513001', '514001', '521001', '525001', '526001', '531001', '534001', '534013', '538000']
-    },
-    'used_equipment': {
-        'dept_code': 20,
-        'dept_name': 'Used Equipment',
-        'revenue': ['410002', '412002', '413002', '414002', '421002', '426002', '431002', '434002', '436001'],
-        'cogs': ['510002', '512002', '513002', '514002', '521002', '525002', '526002', '531002', '534002', '536001']
-    },
-    'parts': {
-        'dept_code': 30,
-        'dept_name': 'Parts',
-        'revenue': ['410003', '410012', '410014', '410015', '421003', '424000', '429001', '430000', '433000', '434003', '436002', '439000'],
-        'cogs': ['510003', '510012', '510013', '510014', '510015', '521003', '522001', '524000', '529002', '530000', '533000', '534003', '536002', '542000', '543000', '544000']
-    },
-    'service': {
-        'dept_code': 40,
-        'dept_name': 'Service',
-        'revenue': ['410004', '410005', '410007', '410016', '421004', '421005', '421006', '421007', '422100', '423000', '425000', '428000', '429002', '432000', '435000', '435001', '435002', '435003', '435004'],
-        'cogs': ['510004', '510005', '510007', '512001', '521004', '521005', '521006', '521007', '522000', '522100', '523000', '527000', '528000', '529001', '532000', '534011', '534015', '535001', '535002', '535003', '535004', '535005']
-    },
-    'rental': {
-        'dept_code': 60,
-        'dept_name': 'Rental',
-        'revenue': ['410008', '411001', '419000', '420000', '421000', '434012'],
-        'cogs': ['510008', '511001', '519000', '520000', '521008', '534014', '537001', '539000', '541000', '545000']
-    },
-    'transportation': {
-        'dept_code': 80,
-        'dept_name': 'Transportation',
-        'revenue': ['410010', '421010', '434010', '434013'],
-        'cogs': ['510010', '521010', '534010', '534012']
-    },
-    'administrative': {
-        'dept_code': 90,
-        'dept_name': 'Administrative',
-        'revenue': ['410011', '421011', '427000', '434011'],
-        'cogs': ['510011', '521011', '525000', '540000']
-    }
-}
-
-# Other Income/Contra-Revenue Accounts (7xxxxx series)
-# These appear in Softbase under "Sales" category but are other income/adjustments
-# Note: 706000 (ADMINISTRATIVE FUND EXPENSE) is NOT included - it's an expense account
-OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000']
-
-# Expense Account Mappings (all in Administrative department)
-# Including all 6xxxxx accounts (some may have $0 in CSV but non-zero in GLDetail)
-EXPENSE_ACCOUNTS = {
-    'depreciation': ['600900'],
-    'salaries_wages': ['602000', '602001', '602300', '602301', '602302', '602600', '602610'],
-    'payroll_benefits': ['601100', '602700', '602701'],
-    'rent_facilities': ['600200', '600201', '600300', '602100'],
-    'utilities': ['604000'],
-    'insurance': ['601700'],
-    'marketing': ['600000', '603300'],
-    'professional_fees': ['603000'],
-    'office_admin': ['600500', '601300', '602400', '602900', '603500', '603600'],
-    'vehicle_equipment': ['604100'],
-    'interest_finance': ['601800', '602500'],
-    'other_expenses': [
-        '600100', '600400', '600600', '600700', '600800', '600901', '600902', '601000', '601200', 
-        '601400', '601500', '601600', '601900', '602200', '602601', '602800', 
-        '603100', '603101', '603102', '603103', '603200', '603400', '603501', 
-        '603700', '603800', '603900', '604200', '650000', '706000', '999999'
-    ]
-}
+# GL Account Mappings are loaded dynamically per tenant via gl_accounts_loader
+# All functions use tenant_gl_accounts = get_gl_accounts(schema) for tenant-specific accounts
+# See get_department_data(), get_other_income(), get_expenses(), etc.
 
 def get_department_data(start_date, end_date, dept_key, schema, include_detail=False):
     """
@@ -103,7 +34,7 @@ def get_department_data(start_date, end_date, dept_key, schema, include_detail=F
     Args:
         start_date: Start date for the report
         end_date: End date for the report
-        dept_key: Department key from GL_ACCOUNTS
+        dept_key: Department key from tenant GL config (e.g., 'parts', 'service', 'rental')
         schema: Database schema for the tenant
         include_detail: If True, include account-level detail
     

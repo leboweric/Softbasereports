@@ -15,55 +15,8 @@ logger = logging.getLogger(__name__)
 
 dashboard_optimized_bp = Blueprint('dashboard_optimized', __name__)
 
-# GL Account Mappings by Department (Source: Softbase P&L)
-GL_ACCOUNTS = {
-    'new_equipment': {
-        'dept_code': 10,
-        'dept_name': 'New Equipment',
-        'revenue': ['410001', '412001', '413001', '414001', '421001', '426001', '431001', '434001'],
-        'cogs': ['510001', '513001', '514001', '521001', '525001', '526001', '531001', '534001', '534013', '538000']
-    },
-    'used_equipment': {
-        'dept_code': 20,
-        'dept_name': 'Used Equipment',
-        'revenue': ['410002', '412002', '413002', '414002', '421002', '426002', '431002', '434002', '436001'],
-        'cogs': ['510002', '512002', '513002', '514002', '521002', '525002', '526002', '531002', '534002', '536001']
-    },
-    'parts': {
-        'dept_code': 30,
-        'dept_name': 'Parts',
-        'revenue': ['410003', '410012', '410014', '410015', '421003', '424000', '429001', '430000', '433000', '434003', '436002', '439000'],
-        'cogs': ['510003', '510012', '510013', '510014', '510015', '521003', '522001', '524000', '529002', '530000', '533000', '534003', '536002', '542000', '543000', '544000']
-    },
-    'service': {
-        'dept_code': 40,
-        'dept_name': 'Service',
-        'revenue': ['410004', '410005', '410007', '410016', '421004', '421005', '421006', '421007', '423000', '425000', '428000', '429002', '432000', '435000', '435001', '435002', '435003', '435004'],
-        'cogs': ['510004', '510005', '510007', '512001', '521004', '521005', '521006', '521007', '522000', '523000', '528000', '529001', '534015', '535001', '535002', '535003', '535004', '535005']
-    },
-    'rental': {
-        'dept_code': 60,
-        'dept_name': 'Rental',
-        'revenue': ['410008', '411001', '419000', '420000', '421000', '434012'],
-        'cogs': ['510008', '511001', '519000', '520000', '521008', '534014', '537001', '539000', '545000']
-    },
-    'transportation': {
-        'dept_code': 80,
-        'dept_name': 'Transportation',
-        'revenue': ['410010', '421010', '434010', '434013'],
-        'cogs': ['510010', '521010', '534010', '534012']
-    },
-    'administrative': {
-        'dept_code': 90,
-        'dept_name': 'Administrative',
-        'revenue': ['410011', '421011', '422100', '427000', '434011'],
-        'cogs': ['510011', '521011', '522100', '525000', '527000', '532000', '534011', '540000', '541000']
-    }
-}
-
-# Other Income/Contra-Revenue Accounts (7xxxxx series)
-# Note: 706000 (ADMINISTRATIVE FUND EXPENSE) is NOT included - it's an expense account
-OTHER_INCOME_ACCOUNTS = ['701000', '702000', '703000', '704000', '705000']
+# GL Account Mappings are loaded dynamically per tenant via gl_accounts_loader
+# See DashboardQueries.__init__() where self.gl_accounts = get_gl_accounts(schema)
 
 class DashboardQueries:
     """Encapsulate all dashboard queries for parallel execution"""

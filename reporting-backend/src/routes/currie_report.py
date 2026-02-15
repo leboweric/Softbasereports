@@ -13,7 +13,7 @@ import calendar
 
 from flask_jwt_extended import get_jwt_identity
 from src.models.user import User
-from src.config.gl_accounts_loader import get_gl_accounts
+from src.config.gl_accounts_loader import get_gl_accounts, get_currie_mappings
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +61,11 @@ def _fetch_sales_cogs_gp_data(start_date, end_date, user_identity):
         end = datetime.strptime(end_date, '%Y-%m-%d')
         months_diff = (end.year - start.year) * 12 + end.month - start.month + 1
         
-        # Get organization name for the current user
+        # Get organization name and tenant schema for the current user
         user = User.query.get(user_identity)
         org_name = user.organization.name if user and user.organization else 'Unknown'
+        schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
         
         # Get all revenue and COGS data
         data = {
@@ -102,14 +104,14 @@ def _fetch_sales_cogs_gp_data(start_date, end_date, user_identity):
         data['pre_tax_income'] = total_operating_profit + data['fi_income']
         
         # Add department-allocated expenses for Expenses & Metrics tab
-        dept_allocations = {
+        dept_allocations = currie.get('dept_allocations', {
             'new': 0.47517,
             'used': 0.03209,
             'rental': 0.20694,
             'parts': 0.13121,
             'service': 0.14953,
             'trucking': 0.00507
-        }
+        })
         
         personnel_total = expenses.get('personnel', {}).get('total', 0)
         operating_total = expenses.get('operating', {}).get('total', 0)
@@ -203,8 +205,34 @@ def _fetch_sales_cogs_gp_data(start_date, end_date, user_identity):
 def get_new_equipment_sales(start_date, end_date):
     """Get new equipment sales broken down by category using GLDetail table"""
     try:
-        # Query for equipment sales and costs from GLDetail using approved GL accounts
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        ne = currie.get('new_equipment', {})
+        ue = currie.get('used_equipment', {})
+
+        # Build account-to-category mapping from currie config
+        revenue_map = {}  # account -> (category, 'sales')
+        cost_map = {}     # account -> (category, 'cogs')
+        
+        for cat_key in ['new_lift_truck_primary', 'new_lift_truck_other', 'new_allied',
+                        'batteries', 'other_new_equipment', 'operator_training', 'ecommerce', 'systems']:
+            cat_config = ne.get(cat_key, {})
+            for acct in cat_config.get('revenue', []):
+                revenue_map[acct] = cat_key
+            for acct in cat_config.get('cogs', []):
+                cost_map[acct] = cat_key
+        
+        # Used equipment accounts
+        for acct in ue.get('revenue', []):
+            revenue_map[acct] = 'used_equipment'
+        for acct in ue.get('cogs', []):
+            cost_map[acct] = 'used_equipment'
+
+        # Collect all accounts for the query
+        all_accounts = list(set(list(revenue_map.keys()) + list(cost_map.keys())))
+        if not all_accounts:
+            return {}
+        accounts_list = "', '".join(all_accounts)
 
         query = f"""
         SELECT 
@@ -214,16 +242,7 @@ def get_new_equipment_sales(start_date, end_date):
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
-          AND AccountNo IN (
-            -- New Equipment Revenue
-            '413001', '426001', '412001', '414001',
-            -- New Equipment Cost
-            '513001', '526001', '512001', '514001',
-            -- Used Equipment Revenue
-            '412002', '413002', '414002', '426002', '431002', '410002',
-            -- Used Equipment Cost
-            '512002', '513002', '514002', '526002', '531002', '510002'
-          )
+          AND AccountNo IN ('{accounts_list}')
         GROUP BY AccountNo
         """
         
@@ -242,40 +261,17 @@ def get_new_equipment_sales(start_date, end_date):
             'batteries': {'sales': 0, 'cogs': 0}
         }
         
-        # Map GL accounts to categories
+        # Map GL accounts to categories dynamically
         for row in results:
-            account = row['AccountNo']
+            account = str(row['AccountNo'])
             amount = float(row['total_amount'] or 0)
             
-            # New Lift Truck - Primary Brand (LINDE)
-            if account == '413001':
-                categories['new_lift_truck_primary']['sales'] += -amount  # Revenue is credit (negative)
-            elif account == '513001':
-                categories['new_lift_truck_primary']['cogs'] += amount  # COGS is debit (positive)
-            
-            # New Lift Truck - Other Brands (KOMATSU)
-            elif account == '426001':
-                categories['new_lift_truck_other']['sales'] += -amount
-            elif account == '526001':
-                categories['new_lift_truck_other']['cogs'] += amount
-            
-            # New Allied Equipment
-            elif account == '412001':
-                categories['new_allied']['sales'] += -amount
-            elif account == '512001':
-                categories['new_allied']['cogs'] += amount
-            
-            # Batteries
-            elif account == '414001':
-                categories['batteries']['sales'] += -amount
-            elif account == '514001':
-                categories['batteries']['cogs'] += amount
-            
-            # Used Equipment (aggregate all used accounts)
-            elif account in ('412002', '413002', '414002', '426002', '431002', '410002'):
-                categories['used_equipment']['sales'] += -amount  # Revenue is credit (negative)
-            elif account in ('512002', '513002', '514002', '526002', '531002', '510002'):
-                categories['used_equipment']['cogs'] += amount  # COGS is debit (positive)
+            if account in revenue_map:
+                cat_key = revenue_map[account]
+                categories[cat_key]['sales'] += -amount  # Revenue is credit (negative)
+            elif account in cost_map:
+                cat_key = cost_map[account]
+                categories[cat_key]['cogs'] += amount  # COGS is debit (positive)
         
         # Calculate gross profit for each category
         for category in categories.values():
@@ -291,8 +287,16 @@ def get_new_equipment_sales(start_date, end_date):
 def get_rental_revenue(start_date, end_date):
     """Get rental revenue as a single consolidated category using GLDetail"""
     try:
-        # Query rental revenue and costs from GLDetail using approved GL accounts
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        rental_cfg = currie.get('rental', {})
+        
+        revenue_accounts = rental_cfg.get('revenue', [])
+        cost_accounts = rental_cfg.get('cogs', [])
+        all_accounts = revenue_accounts + cost_accounts
+        if not all_accounts:
+            return {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+        accounts_list = "', '".join(all_accounts)
 
         query = f"""
         SELECT 
@@ -302,30 +306,16 @@ def get_rental_revenue(start_date, end_date):
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
-          AND AccountNo IN (
-            -- Rental Revenue
-            '411001', '419000', '420000', '421000', '434012', '410008',
-            -- Rental Cost
-            '510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000'
-          )
+          AND AccountNo IN ('{accounts_list}')
         GROUP BY AccountNo
         """
         
         results = get_sql_service().execute_query(query, [start_date, end_date])
         
-        rental_data = {
-            'sales': 0,
-            'cogs': 0,
-            'gross_profit': 0
-        }
-        
-        # Revenue accounts
-        revenue_accounts = ['411001', '419000', '420000', '421000', '434012', '410008']
-        # Cost accounts
-        cost_accounts = ['510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000']
+        rental_data = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
         
         for row in results:
-            account = row['AccountNo']
+            account = str(row['AccountNo'])
             amount = float(row['total_amount'] or 0)
             
             if account in revenue_accounts:
@@ -345,47 +335,45 @@ def get_rental_revenue(start_date, end_date):
 def get_service_revenue(start_date, end_date):
     """Get service revenue broken down by customer, internal, warranty, sublet using GLDetail"""
     try:
-        # Query service revenue from GLDetail table with exact GL accounts
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        svc = currie.get('service', {})
+
+        # Build category mappings from config
+        categories_config = {
+            'customer_labor': svc.get('customer_labor', {}),
+            'internal_labor': svc.get('internal_labor', {}),
+            'warranty_labor': svc.get('warranty_labor', {}),
+            'sublet': svc.get('sublet', {}),
+            'other': svc.get('other', {})
+        }
+
+        # Build revenue and cost maps
+        revenue_map = {}  # account -> category_key
+        cost_map = {}     # account -> category_key
+        all_accounts = []
+        for cat_key, cat_cfg in categories_config.items():
+            for acct in cat_cfg.get('revenue', []):
+                revenue_map[acct] = cat_key
+                all_accounts.append(acct)
+            for acct in cat_cfg.get('cogs', []):
+                cost_map[acct] = cat_key
+                all_accounts.append(acct)
+
+        if not all_accounts:
+            return {}
+        accounts_list = "', '".join(list(set(all_accounts)))
 
         query = f"""
         SELECT 
-            -- Customer Labor: Field (410004) + Shop (410005) + Full Maint (410007)
-            -SUM(CASE WHEN AccountNo IN ('410004', '410005', '410007') THEN Amount ELSE 0 END) as customer_sales,
-            SUM(CASE WHEN AccountNo IN ('510004', '510005', '510007') THEN Amount ELSE 0 END) as customer_cogs,
-            
-            -- Internal Labor (Field GM, Shop GM)
-            -SUM(CASE WHEN AccountNo IN ('423000', '425000') THEN Amount ELSE 0 END) as internal_sales,
-            SUM(CASE WHEN AccountNo = '523000' THEN Amount ELSE 0 END) as internal_cogs,
-            
-            -- Warranty Labor
-            -SUM(CASE WHEN AccountNo IN ('435000', '435001', '435002', '435003', '435004') THEN Amount ELSE 0 END) as warranty_sales,
-            SUM(CASE WHEN AccountNo IN ('535001', '535002', '535003', '535004', '535005') THEN Amount ELSE 0 END) as warranty_cogs,
-            
-            -- Sublet Sales
-            -SUM(CASE WHEN AccountNo = '432000' THEN Amount ELSE 0 END) as sublet_sales,
-            SUM(CASE WHEN AccountNo = '532000' THEN Amount ELSE 0 END) as sublet_cogs,
-            
-            -- Other Service Sales (PM Contracts, etc)
-            -SUM(CASE WHEN AccountNo IN ('428000', '429002') THEN Amount ELSE 0 END) as other_sales,
-            SUM(CASE WHEN AccountNo IN ('528000', '529001') THEN Amount ELSE 0 END) as other_cogs
+            AccountNo,
+            SUM(Amount) as total_amount
         FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
-          AND AccountNo IN (
-              -- Customer Labor
-              '410004', '410005', '410007', '510004', '510005', '510007',
-              -- Internal Labor
-              '423000', '425000', '523000',
-              -- Warranty Labor
-              '435000', '435001', '435002', '435003', '435004',
-              '535001', '535002', '535003', '535004', '535005',
-              -- Sublet
-              '432000', '532000',
-              -- Other Service
-              '428000', '429002', '528000', '529001'
-          )
+          AND AccountNo IN ('{accounts_list}')
+        GROUP BY AccountNo
         """
         
         results = get_sql_service().execute_query(query, [start_date, end_date])
@@ -398,19 +386,16 @@ def get_service_revenue(start_date, end_date):
             'other': {'sales': 0, 'cogs': 0}
         }
         
-        # Map query results to service_data
-        if results and len(results) > 0:
-            row = results[0]
-            service_data['customer_labor']['sales'] = float(row['customer_sales'] or 0)
-            service_data['customer_labor']['cogs'] = float(row['customer_cogs'] or 0)
-            service_data['internal_labor']['sales'] = float(row['internal_sales'] or 0)
-            service_data['internal_labor']['cogs'] = float(row['internal_cogs'] or 0)
-            service_data['warranty_labor']['sales'] = float(row['warranty_sales'] or 0)
-            service_data['warranty_labor']['cogs'] = float(row['warranty_cogs'] or 0)
-            service_data['sublet']['sales'] = float(row['sublet_sales'] or 0)
-            service_data['sublet']['cogs'] = float(row['sublet_cogs'] or 0)
-            service_data['other']['sales'] = float(row['other_sales'] or 0)
-            service_data['other']['cogs'] = float(row['other_cogs'] or 0)
+        for row in results:
+            account = str(row['AccountNo'])
+            amount = float(row['total_amount'] or 0)
+            
+            if account in revenue_map:
+                cat_key = revenue_map[account]
+                service_data[cat_key]['sales'] += -amount  # Revenue is credit (negative)
+            elif account in cost_map:
+                cat_key = cost_map[account]
+                service_data[cat_key]['cogs'] += amount  # COGS is debit (positive)
         
         # Calculate gross profit
         for category in service_data.values():
@@ -426,16 +411,36 @@ def get_service_revenue(start_date, end_date):
 def get_parts_revenue(start_date, end_date):
     """Get parts revenue broken down by counter, RO, internal, warranty using GLDetail"""
     try:
-        # Query parts sales and costs from GLDetail using tenant-specific GL accounts
         schema = get_tenant_schema()
-        tenant_gl_accounts = get_gl_accounts(schema)
-        parts_config = tenant_gl_accounts.get('parts', {})
-        parts_revenue_accounts = parts_config.get('revenue', [])
-        parts_cogs_accounts = parts_config.get('cogs', [])
-        
-        # Combine all parts accounts for the query
-        all_parts_accounts = parts_revenue_accounts + parts_cogs_accounts
-        accounts_list = "', '".join(all_parts_accounts)
+        currie = get_currie_mappings(schema)
+        parts_cfg = currie.get('parts', {})
+
+        # Build category mappings from config
+        categories_config = {
+            'counter_primary': parts_cfg.get('counter_primary', {}),
+            'counter_other': parts_cfg.get('counter_other', {}),
+            'ro_primary': parts_cfg.get('ro_primary', {}),
+            'ro_other': parts_cfg.get('ro_other', {}),
+            'internal': parts_cfg.get('internal', {}),
+            'warranty': parts_cfg.get('warranty', {}),
+            'ecommerce': parts_cfg.get('ecommerce', {})
+        }
+
+        # Build revenue and cost maps
+        revenue_map = {}
+        cost_map = {}
+        all_accounts = []
+        for cat_key, cat_cfg in categories_config.items():
+            for acct in cat_cfg.get('revenue', []):
+                revenue_map[acct] = cat_key
+                all_accounts.append(acct)
+            for acct in cat_cfg.get('cogs', []):
+                cost_map[acct] = cat_key
+                all_accounts.append(acct)
+
+        if not all_accounts:
+            return {}
+        accounts_list = "', '".join(list(set(all_accounts)))
 
         query = f"""
         SELECT 
@@ -461,20 +466,16 @@ def get_parts_revenue(start_date, end_date):
             'ecommerce': {'sales': 0, 'cogs': 0}
         }
         
-        # Map GL accounts to categories dynamically based on tenant
-        # For simplicity, aggregate all parts revenue into counter_primary and all COGS into counter_primary
-        # More granular breakdown would require tenant-specific account mapping
         for row in results:
             account = str(row['AccountNo'])
             amount = float(row['total_amount'] or 0)
             
-            # Check if this is a revenue account or COGS account
-            if account in parts_revenue_accounts:
-                parts_data['counter_primary']['sales'] += -amount  # Revenue is credit (negative)
-            elif account in parts_cogs_accounts:
-                parts_data['counter_primary']['cogs'] += amount  # COGS is debit (positive)
-        
-        # Counter Other, RO Other, Internal, Warranty, and E-commerce remain at $0 for non-Bennett tenants
+            if account in revenue_map:
+                cat_key = revenue_map[account]
+                parts_data[cat_key]['sales'] += -amount  # Revenue is credit (negative)
+            elif account in cost_map:
+                cat_key = cost_map[account]
+                parts_data[cat_key]['cogs'] += amount  # COGS is debit (positive)
         
         # Calculate gross profit
         for category in parts_data.values():
@@ -490,65 +491,43 @@ def get_parts_revenue(start_date, end_date):
 def get_trucking_revenue(start_date, end_date):
     """Get trucking/delivery revenue using GLDetail with all trucking GL accounts"""
     try:
-        # Query trucking revenue from GLDetail table with exact GL accounts
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        trucking_cfg = currie.get('trucking', {})
+        
+        revenue_accounts = trucking_cfg.get('revenue', [])
+        cost_accounts = trucking_cfg.get('cogs', [])
+        all_accounts = revenue_accounts + cost_accounts
+        if not all_accounts:
+            return {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+        accounts_list = "', '".join(all_accounts)
 
         query = f"""
         SELECT 
-            -- All Trucking Revenue Accounts
-            -SUM(CASE WHEN AccountNo IN (
-                '410010',  -- Sales - Trucking
-                '421010',  -- SALES - FREIGHT - Trucking
-                '434001',  -- SALES - TRUCKING/DELIVERY - New Equip
-                '434002',  -- SALES - TRUCKING/DELIVERY - Used Equip
-                '434003',  -- SALES - TRUCKING/DELIVERY - Parts
-                '434010',  -- SALES - TRUCKING/DELIVERY - Trucking
-                '434011',  -- SALES - TRUCKING/DELIVERY - G&A
-                '434012',  -- SALES - TRUCKING/DELIVERY - RENTAL
-                '434013'   -- SALES - TRUCKING/DELIVERY - SERVICE
-            ) THEN Amount ELSE 0 END) as sales,
-            
-            -- All Trucking Cost Accounts
-            SUM(CASE WHEN AccountNo IN (
-                '510010',  -- COS - Trucking
-                '521010',  -- COS - FREIGHT - Trucking
-                '534001',  -- COS - TRUCKING/DELIVERY - New Equip
-                '534002',  -- COS - TRUCKING/DELIVERY - Used Equip
-                '534003',  -- COS - TRUCKING/DELIVERY - Parts
-                '534010',  -- COS - TRUCKING/DELIVERY - Trucking
-                '534011',  -- COS - TRUCKING/DELIVERY - G&A
-                '534012',  -- COS - TRUCKING/DELIVERY - Customer
-                '534013',  -- COS - TRUCKING/DELIVERY - New Equipment Demo
-                '534014',  -- COS - TRUCKING/DELIVERY - Rental
-                '534015'   -- COS - TRUCKING/DELIVERY - Service
-            ) THEN Amount ELSE 0 END) as cogs
+            AccountNo,
+            SUM(Amount) as total_amount
         FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
-          AND AccountNo IN (
-              -- Revenue accounts
-              '410010', '421010', '434001', '434002', '434003', 
-              '434010', '434011', '434012', '434013',
-              -- Cost accounts
-              '510010', '521010', '534001', '534002', '534003', 
-              '534010', '534011', '534012', '534013', '534014', '534015'
-          )
+          AND AccountNo IN ('{accounts_list}')
+        GROUP BY AccountNo
         """
         
         results = get_sql_service().execute_query(query, [start_date, end_date])
         
-        trucking_data = {
-            'sales': 0,
-            'cogs': 0,
-            'gross_profit': 0
-        }
+        trucking_data = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
         
-        if results and len(results) > 0:
-            row = results[0]
-            trucking_data['sales'] = float(row['sales'] or 0)
-            trucking_data['cogs'] = float(row['cogs'] or 0)
-            trucking_data['gross_profit'] = trucking_data['sales'] - trucking_data['cogs']
+        for row in results:
+            account = str(row['AccountNo'])
+            amount = float(row['total_amount'] or 0)
+            
+            if account in revenue_accounts:
+                trucking_data['sales'] += -amount  # Revenue is credit (negative)
+            elif account in cost_accounts:
+                trucking_data['cogs'] += amount  # COGS is debit (positive)
+        
+        trucking_data['gross_profit'] = trucking_data['sales'] - trucking_data['cogs']
         
         return trucking_data
         
@@ -880,16 +859,23 @@ def get_service_calls_per_day(start_date, end_date, num_days):
     """Calculate average service calls per day"""
     try:
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        dept_codes = currie.get('service_dept_codes', [4, 5, 6, 7, 8])
+        # Convert to SaleDept format (multiply by 10 for WO table format, or use as strings)
+        # SaleDept codes are tenant-specific (loaded from currie mappings)
+        dept_placeholders = ','.join(['%s'] * len(dept_codes))
 
         query = f"""
         SELECT COUNT(*) as total_service_calls
         FROM {schema}.WO
         WHERE OpenDate >= %s 
           AND OpenDate <= %s
-          AND SaleDept IN ('40', '45', '47')  -- Field Service (40), Shop Service (45), PM (47)
+          AND SaleDept IN ({dept_placeholders})
         """
         
-        results = get_sql_service().execute_query(query, [start_date, end_date])
+        # Convert dept codes to strings for SaleDept column format
+        dept_code_strs = [str(code) for code in dept_codes]
+        results = get_sql_service().execute_query(query, [start_date, end_date] + dept_code_strs)
         
         total_calls = int(results[0]['total_service_calls']) if results and results[0]['total_service_calls'] else 0
         calls_per_day = total_calls / num_days if num_days > 0 else 0
@@ -1054,18 +1040,23 @@ def get_rental_fleet_metrics(start_date, end_date):
     """Get rental fleet metrics: fleet value, depreciation, financial utilization"""
     try:
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        rental_fleet_bs = currie.get('rental_fleet_bs', {})
+        gross_acct = rental_fleet_bs.get('gross_equipment', '183000')
+        deprec_acct = rental_fleet_bs.get('accumulated_depreciation', '193000')
         
         # 1. Rental Fleet Value from GL accounts
-        # Account 183000 = Gross Rental Equipment, 193000 = Accumulated Depreciation
+        gross_like = gross_acct[:3] + '%'  # e.g. '183%'
+        deprec_like = deprec_acct[:3] + '%'  # e.g. '193%'
         fleet_query = f"""
         SELECT 
-            SUM(CASE WHEN AccountNo LIKE '183%' THEN CurrentBalance ELSE 0 END) as gross_fleet_value,
-            SUM(CASE WHEN AccountNo LIKE '193%' THEN ABS(CurrentBalance) ELSE 0 END) as accumulated_depreciation
+            SUM(CASE WHEN AccountNo LIKE %s THEN CurrentBalance ELSE 0 END) as gross_fleet_value,
+            SUM(CASE WHEN AccountNo LIKE %s THEN ABS(CurrentBalance) ELSE 0 END) as accumulated_depreciation
         FROM {schema}.GL
-        WHERE AccountNo LIKE '183%' OR AccountNo LIKE '193%'
+        WHERE AccountNo LIKE %s OR AccountNo LIKE %s
         """
         
-        fleet_result = get_sql_service().execute_query(fleet_query, [])
+        fleet_result = get_sql_service().execute_query(fleet_query, [gross_like, deprec_like, gross_like, deprec_like])
         gross_value = float(fleet_result[0]['gross_fleet_value'] or 0) if fleet_result else 0
         accum_deprec = float(fleet_result[0]['accumulated_depreciation'] or 0) if fleet_result else 0
         net_value = gross_value - accum_deprec
@@ -1075,15 +1066,21 @@ def get_rental_fleet_metrics(start_date, end_date):
         end = datetime.strptime(end_date, '%Y-%m-%d')
         days_in_period = (end - start).days + 1
         
+        rental_accounts = currie.get('rental', {}).get('revenue', [])
+        if rental_accounts:
+            rental_placeholders = ','.join(['%s'] * len(rental_accounts))
+        else:
+            rental_placeholders = "'NONE'"
+            rental_accounts = []
         rental_rev_query = f"""
         SELECT ABS(SUM(Amount)) as rental_revenue
         FROM {schema}.GLDetail
-        WHERE AccountNo IN ('400000','401000','402000','403000','404000','405000')
+        WHERE AccountNo IN ({rental_placeholders})
           AND PostDate >= %s AND PostDate <= %s
           AND Posted = 1
         """
         
-        rental_rev_result = get_sql_service().execute_query(rental_rev_query, [start_date, end_date])
+        rental_rev_result = get_sql_service().execute_query(rental_rev_query, rental_accounts + [start_date, end_date])
         period_revenue = float(rental_rev_result[0]['rental_revenue'] or 0) if rental_rev_result else 0
         
         # Annualize the revenue
@@ -1093,15 +1090,18 @@ def get_rental_fleet_metrics(start_date, end_date):
         financial_utilization = (annualized_revenue / gross_value * 100) if gross_value > 0 else 0
         
         # Depreciation for the period
+        # Depreciation account - derive LIKE pattern from the accumulated depreciation account prefix
+        # Convention: accumulated depreciation prefix (e.g. 193) -> expense prefix (e.g. 593)
+        deprec_expense_like = '5' + deprec_acct[1:3] + '%'
         deprec_query = f"""
         SELECT ABS(SUM(Amount)) as depreciation_expense
         FROM {schema}.GLDetail
-        WHERE AccountNo LIKE '593%'
+        WHERE AccountNo LIKE %s
           AND PostDate >= %s AND PostDate <= %s
           AND Posted = 1
         """
         
-        deprec_result = get_sql_service().execute_query(deprec_query, [start_date, end_date])
+        deprec_result = get_sql_service().execute_query(deprec_query, [deprec_expense_like, start_date, end_date])
         period_depreciation = float(deprec_result[0]['depreciation_expense'] or 0) if deprec_result else 0
         annualized_depreciation = (period_depreciation / days_in_period * 365) if days_in_period > 0 else 0
         
@@ -1203,6 +1203,9 @@ def export_currie_excel():
         months_diff = (end.year - start.year) * 12 + (end.month - start.month) + 1
         num_days = (end - start).days + 1
         
+        # Get tenant schema for currie mappings
+        schema = get_tenant_schema()
+        
         # Get all the data
         new_equipment = get_new_equipment_sales(start_date, end_date)
         rental = get_rental_revenue(start_date, end_date)
@@ -1236,8 +1239,13 @@ def export_currie_excel():
         # Get the Sales, COGS, GP sheet
         ws = wb['Sales, COGS, GP']
         
-        # Update dealership info
-        ws['B3'] = 'Bennett Material Handling'  # Dealership name
+        # Update dealership info - get organization name dynamically
+        from flask_jwt_extended import get_jwt_identity
+        from src.models.user import User
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id) if user_id else None
+        org_name = user.organization.name if user and user.organization else 'Dealership'
+        ws['B3'] = org_name  # Dealership name
         ws['B5'] = datetime.now().strftime('%m/%d/%Y')  # Date
         ws['B7'] = months_diff  # Number of months
         
@@ -1321,15 +1329,11 @@ def export_currie_excel():
         # Write Expenses to "Expenses, Miscellaneous" sheet
         expenses_ws = wb['Expenses, Miscellaneous']
         
-        # Department allocation percentages (from Currie model)
-        dept_allocations = {
-            'new': 0.47517,
-            'used': 0.03209,
-            'rental': 0.20694,
-            'parts': 0.13121,
-            'service': 0.14953,
-            'trucking': 0.00507
-        }
+        # Department allocation percentages (from tenant-specific Currie mappings)
+        currie = get_currie_mappings(schema)
+        dept_allocations = currie.get('dept_allocations', {
+            'new': 0, 'used': 0, 'rental': 0, 'parts': 0, 'service': 0, 'trucking': 0
+        })
         
         # Calculate department expenses for each category
         personnel_total = expenses.get('personnel', {}).get('total', 0)
@@ -1709,6 +1713,88 @@ def get_gl_expenses(start_date, end_date):
         logger.error(f"Error in get_gl_expenses: {e}")
         raise
 
+def _build_expense_category_query(schema, table, amount_col, category_config, where_clause, params):
+    """
+    Build a dynamic expense query from currie mappings.
+    category_config: {'accounts': [...], 'detail': {'key': [accts], ...}}
+    Returns: (result_dict, total)
+    """
+    all_accounts = category_config.get('accounts', [])
+    detail = category_config.get('detail', {})
+    
+    if not all_accounts:
+        result = {k: 0 for k in detail.keys()}
+        result['total'] = 0
+        return result
+    
+    # Build CASE WHEN fragments for each detail key
+    case_fragments = []
+    for key, accts in detail.items():
+        if not accts:
+            case_fragments.append(f"0 as {key}")
+        elif len(accts) == 1:
+            case_fragments.append(f"SUM(CASE WHEN AccountNo = '{accts[0]}' THEN {amount_col} ELSE 0 END) as {key}")
+        else:
+            quoted = ','.join([f"'{a}'" for a in accts])
+            case_fragments.append(f"SUM(CASE WHEN AccountNo IN ({quoted}) THEN {amount_col} ELSE 0 END) as {key}")
+    
+    # Add total
+    all_quoted = ','.join([f"'{a}'" for a in all_accounts])
+    case_fragments.insert(0, f"SUM({amount_col}) as category_total")
+    
+    select_clause = ',\n            '.join(case_fragments)
+    
+    query = f"""
+    SELECT 
+        {select_clause}
+    FROM {schema}.{table}
+    WHERE {where_clause}
+      AND AccountNo IN ({all_quoted})
+    """
+    
+    query_result = get_sql_service().execute_query(query, params)
+    row = query_result[0] if query_result else {}
+    
+    result = {}
+    for key in detail.keys():
+        result[key] = float(row.get(key) or 0)
+    result['total'] = float(row.get('category_total') or 0)
+    
+    return result
+
+
+def _build_expenses_response(schema, table, amount_col, where_clause, params):
+    """
+    Build the full expenses response using currie mappings.
+    Shared by both gl_mtd and gldetail expense functions.
+    """
+    currie = get_currie_mappings(schema)
+    expense_config = currie.get('expenses', {})
+    
+    personnel = _build_expense_category_query(
+        schema, table, amount_col,
+        expense_config.get('personnel', {'accounts': [], 'detail': {}}),
+        where_clause, params
+    )
+    occupancy = _build_expense_category_query(
+        schema, table, amount_col,
+        expense_config.get('occupancy', {'accounts': [], 'detail': {}}),
+        where_clause, params
+    )
+    operating = _build_expense_category_query(
+        schema, table, amount_col,
+        expense_config.get('operating', {'accounts': [], 'detail': {}}),
+        where_clause, params
+    )
+    
+    return {
+        'personnel': personnel,
+        'occupancy': occupancy,
+        'operating': operating,
+        'grand_total': personnel['total'] + occupancy['total'] + operating['total']
+    }
+
+
 def get_gl_expenses_from_gl_mtd(year, month):
     """
     Get operating expenses from GL.MTD (monthly summary table)
@@ -1716,101 +1802,11 @@ def get_gl_expenses_from_gl_mtd(year, month):
     """
     try:
         schema = get_tenant_schema()
-        # Personnel Costs
-        personnel_query = f"""
-        SELECT 
-            SUM(CASE WHEN AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400') THEN MTD ELSE 0 END) as personnel_total,
-            SUM(CASE WHEN AccountNo = '602600' THEN MTD ELSE 0 END) as payroll,
-            SUM(CASE WHEN AccountNo = '601100' THEN MTD ELSE 0 END) as payroll_taxes,
-            SUM(CASE WHEN AccountNo IN ('601500', '602700', '602701') THEN MTD ELSE 0 END) as benefits,
-            SUM(CASE WHEN AccountNo = '600400' THEN MTD ELSE 0 END) as commissions
-        FROM {schema}.GL
-        WHERE Year = %s
-          AND Month = %s
-          AND AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400')
-        """
-        
-        # Occupancy Costs
-        occupancy_query = f"""
-        SELECT 
-            SUM(MTD) as occupancy_total,
-            SUM(CASE WHEN AccountNo IN ('600200', '600201') THEN MTD ELSE 0 END) as rent,
-            SUM(CASE WHEN AccountNo = '604000' THEN MTD ELSE 0 END) as utilities,
-            SUM(CASE WHEN AccountNo = '601700' THEN MTD ELSE 0 END) as insurance,
-            SUM(CASE WHEN AccountNo = '600300' THEN MTD ELSE 0 END) as building_maintenance,
-            SUM(CASE WHEN AccountNo = '600900' THEN MTD ELSE 0 END) as depreciation
-        FROM {schema}.GL
-        WHERE Year = %s
-          AND Month = %s
-          AND AccountNo IN ('600200', '600201', '600300', '604000', '601700', '600900')
-        """
-        
-        # Operating Expenses
-        operating_query = f"""
-        SELECT 
-            SUM(MTD) as operating_total,
-            SUM(CASE WHEN AccountNo = '600000' THEN MTD ELSE 0 END) as advertising,
-            SUM(CASE WHEN AccountNo IN ('600500', '601300') THEN MTD ELSE 0 END) as computer_it,
-            SUM(CASE WHEN AccountNo IN ('603500', '603501', '602400') THEN MTD ELSE 0 END) as supplies,
-            SUM(CASE WHEN AccountNo = '603600' THEN MTD ELSE 0 END) as telephone,
-            SUM(CASE WHEN AccountNo = '603700' THEN MTD ELSE 0 END) as training,
-            SUM(CASE WHEN AccountNo = '603800' THEN MTD ELSE 0 END) as travel,
-            SUM(CASE WHEN AccountNo = '604100' THEN MTD ELSE 0 END) as vehicle_expense,
-            SUM(CASE WHEN AccountNo = '603000' THEN MTD ELSE 0 END) as professional_services,
-            SUM(CASE WHEN AccountNo IN ('601000', '601200', '602900', '603300', '603900', '602100', '602200') THEN MTD ELSE 0 END) as other
-        FROM {schema}.GL
-        WHERE Year = %s
-          AND Month = %s
-          AND AccountNo IN (
-            '600000', '600500', '601000', '601200', '601300', '602100', '602200', 
-            '602400', '602900', '603000', '603300', '603500', '603501', '603600', 
-            '603700', '603800', '603900', '604100'
-          )
-        """
-        
-        personnel_result = get_sql_service().execute_query(personnel_query, [year, month])
-        occupancy_result = get_sql_service().execute_query(occupancy_query, [year, month])
-        operating_result = get_sql_service().execute_query(operating_query, [year, month])
-        
-        personnel = personnel_result[0] if personnel_result else {}
-        occupancy = occupancy_result[0] if occupancy_result else {}
-        operating = operating_result[0] if operating_result else {}
-        
-        return {
-            'personnel': {
-                'total': float(personnel.get('personnel_total') or 0),
-                'payroll': float(personnel.get('payroll') or 0),
-                'payroll_taxes': float(personnel.get('payroll_taxes') or 0),
-                'benefits': float(personnel.get('benefits') or 0),
-                'commissions': float(personnel.get('commissions') or 0)
-            },
-            'occupancy': {
-                'total': float(occupancy.get('occupancy_total') or 0),
-                'rent': float(occupancy.get('rent') or 0),
-                'utilities': float(occupancy.get('utilities') or 0),
-                'insurance': float(occupancy.get('insurance') or 0),
-                'building_maintenance': float(occupancy.get('building_maintenance') or 0),
-                'depreciation': float(occupancy.get('depreciation') or 0)
-            },
-            'operating': {
-                'total': float(operating.get('operating_total') or 0),
-                'advertising': float(operating.get('advertising') or 0),
-                'computer_it': float(operating.get('computer_it') or 0),
-                'supplies': float(operating.get('supplies') or 0),
-                'telephone': float(operating.get('telephone') or 0),
-                'training': float(operating.get('training') or 0),
-                'travel': float(operating.get('travel') or 0),
-                'vehicle_expense': float(operating.get('vehicle_expense') or 0),
-                'professional_services': float(operating.get('professional_services') or 0),
-                'other': float(operating.get('other') or 0)
-            },
-            'grand_total': (
-                float(personnel.get('personnel_total') or 0) +
-                float(occupancy.get('occupancy_total') or 0) +
-                float(operating.get('operating_total') or 0)
-            )
-        }
-        
+        return _build_expenses_response(
+            schema, 'GL', 'MTD',
+            'Year = %s AND Month = %s',
+            [year, month]
+        )
     except Exception as e:
         logger.error(f"Error fetching GL expenses from GL.MTD: {str(e)}")
         import traceback
@@ -1829,105 +1825,11 @@ def get_gl_expenses_from_gldetail(start_date, end_date):
     """
     try:
         schema = get_tenant_schema()
-        
-        # Personnel Costs
-        personnel_query = f"""
-        SELECT 
-            SUM(CASE WHEN AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400') THEN Amount ELSE 0 END) as personnel_total,
-            SUM(CASE WHEN AccountNo = '602600' THEN Amount ELSE 0 END) as payroll,
-            SUM(CASE WHEN AccountNo = '601100' THEN Amount ELSE 0 END) as payroll_taxes,
-            SUM(CASE WHEN AccountNo IN ('601500', '602700', '602701') THEN Amount ELSE 0 END) as benefits,
-            SUM(CASE WHEN AccountNo = '600400' THEN Amount ELSE 0 END) as commissions
-        FROM {schema}.GLDetail
-        WHERE Posted = 1
-          AND EffectiveDate >= %s
-          AND EffectiveDate <= %s
-          AND AccountNo IN ('602600', '601100', '601500', '602700', '602701', '600400')
-        """
-        
-        # Occupancy Costs
-        occupancy_query = f"""
-        SELECT 
-            SUM(Amount) as occupancy_total,
-            SUM(CASE WHEN AccountNo IN ('600200', '600201') THEN Amount ELSE 0 END) as rent,
-            SUM(CASE WHEN AccountNo = '604000' THEN Amount ELSE 0 END) as utilities,
-            SUM(CASE WHEN AccountNo = '601700' THEN Amount ELSE 0 END) as insurance,
-            SUM(CASE WHEN AccountNo = '600300' THEN Amount ELSE 0 END) as building_maintenance,
-            SUM(CASE WHEN AccountNo = '600900' THEN Amount ELSE 0 END) as depreciation
-        FROM {schema}.GLDetail
-        WHERE Posted = 1
-          AND EffectiveDate >= %s
-          AND EffectiveDate <= %s
-          AND AccountNo IN ('600200', '600201', '600300', '604000', '601700', '600900')
-        """
-        
-        # Operating Expenses
-        operating_query = f"""
-        SELECT 
-            SUM(Amount) as operating_total,
-            SUM(CASE WHEN AccountNo = '600000' THEN Amount ELSE 0 END) as advertising,
-            SUM(CASE WHEN AccountNo IN ('600500', '601300') THEN Amount ELSE 0 END) as computer_it,
-            SUM(CASE WHEN AccountNo IN ('603500', '603501', '602400') THEN Amount ELSE 0 END) as supplies,
-            SUM(CASE WHEN AccountNo = '603600' THEN Amount ELSE 0 END) as telephone,
-            SUM(CASE WHEN AccountNo = '603700' THEN Amount ELSE 0 END) as training,
-            SUM(CASE WHEN AccountNo = '603800' THEN Amount ELSE 0 END) as travel,
-            SUM(CASE WHEN AccountNo = '604100' THEN Amount ELSE 0 END) as vehicle_expense,
-            SUM(CASE WHEN AccountNo = '603000' THEN Amount ELSE 0 END) as professional_services,
-            SUM(CASE WHEN AccountNo IN ('601000', '601200', '602900', '603300', '603900', '602100', '602200') THEN Amount ELSE 0 END) as other
-        FROM {schema}.GLDetail
-        WHERE Posted = 1
-          AND EffectiveDate >= %s
-          AND EffectiveDate <= %s
-          AND AccountNo IN (
-            '600000', '600500', '601000', '601200', '601300', '602100', '602200', 
-            '602400', '602900', '603000', '603300', '603500', '603501', '603600', 
-            '603700', '603800', '603900', '604100'
-          )
-        """
-        
-        personnel_result = get_sql_service().execute_query(personnel_query, [start_date, end_date])
-        occupancy_result = get_sql_service().execute_query(occupancy_query, [start_date, end_date])
-        operating_result = get_sql_service().execute_query(operating_query, [start_date, end_date])
-        
-        personnel = personnel_result[0] if personnel_result else {}
-        occupancy = occupancy_result[0] if occupancy_result else {}
-        operating = operating_result[0] if operating_result else {}
-        
-        return {
-            'personnel': {
-                'total': float(personnel.get('personnel_total') or 0),
-                'payroll': float(personnel.get('payroll') or 0),
-                'payroll_taxes': float(personnel.get('payroll_taxes') or 0),
-                'benefits': float(personnel.get('benefits') or 0),
-                'commissions': float(personnel.get('commissions') or 0)
-            },
-            'occupancy': {
-                'total': float(occupancy.get('occupancy_total') or 0),
-                'rent': float(occupancy.get('rent') or 0),
-                'utilities': float(occupancy.get('utilities') or 0),
-                'insurance': float(occupancy.get('insurance') or 0),
-                'building_maintenance': float(occupancy.get('building_maintenance') or 0),
-                'depreciation': float(occupancy.get('depreciation') or 0)
-            },
-            'operating': {
-                'total': float(operating.get('operating_total') or 0),
-                'advertising': float(operating.get('advertising') or 0),
-                'computer_it': float(operating.get('computer_it') or 0),
-                'supplies': float(operating.get('supplies') or 0),
-                'telephone': float(operating.get('telephone') or 0),
-                'training': float(operating.get('training') or 0),
-                'travel': float(operating.get('travel') or 0),
-                'vehicle_expense': float(operating.get('vehicle_expense') or 0),
-                'professional_services': float(operating.get('professional_services') or 0),
-                'other': float(operating.get('other') or 0)
-            },
-            'grand_total': (
-                float(personnel.get('personnel_total') or 0) +
-                float(occupancy.get('occupancy_total') or 0) +
-                float(operating.get('operating_total') or 0)
-            )
-        }
-        
+        return _build_expenses_response(
+            schema, 'GLDetail', 'Amount',
+            'Posted = 1 AND EffectiveDate >= %s AND EffectiveDate <= %s',
+            [start_date, end_date]
+        )
     except Exception as e:
         logger.error(f"Error fetching GL expenses: {str(e)}")
         import traceback
@@ -1966,27 +1868,37 @@ def get_other_income_and_interest(start_date, end_date):
     """
     Get Other Income (Expenses), Interest (Expense), and F&I Income
     These appear in the bottom summary section of the Currie report
-    
-    Matches Excel template formulas:
-    - Other Income (Expenses) = -SUM(601400, 602500, 603400, 604200, 999999)
-    - Interest (Expense) = -601800
-    - F & I Income = 440000
+    Account mappings are loaded from tenant-specific currie mappings.
     """
     try:
         schema = get_tenant_schema()
+        currie = get_currie_mappings(schema)
+        oi_config = currie.get('other_income_interest', {})
+        
+        other_exp_accts = oi_config.get('other_expenses', [])
+        interest_accts = oi_config.get('interest_expense', [])
+        fi_accts = oi_config.get('fi_income', [])
+        
+        all_accounts = other_exp_accts + interest_accts + fi_accts
+        if not all_accounts:
+            return {'other_income': 0, 'interest_expense': 0, 'fi_income': 0}
+        
+        # Build dynamic CASE WHEN
+        other_quoted = ','.join([f"'{a}'" for a in other_exp_accts]) if other_exp_accts else "'NONE'"
+        interest_quoted = ','.join([f"'{a}'" for a in interest_accts]) if interest_accts else "'NONE'"
+        fi_quoted = ','.join([f"'{a}'" for a in fi_accts]) if fi_accts else "'NONE'"
+        all_quoted = ','.join([f"'{a}'" for a in all_accounts])
 
         query = f"""
         SELECT 
-            SUM(CASE WHEN AccountNo IN ('601400', '602500', '603400', '604200', '999999') THEN Amount ELSE 0 END) as other_expenses,
-            SUM(CASE WHEN AccountNo = '601800' THEN Amount ELSE 0 END) as interest_expense,
-            SUM(CASE WHEN AccountNo = '440000' THEN Amount ELSE 0 END) as fi_income
+            SUM(CASE WHEN AccountNo IN ({other_quoted}) THEN Amount ELSE 0 END) as other_expenses,
+            SUM(CASE WHEN AccountNo IN ({interest_quoted}) THEN Amount ELSE 0 END) as interest_expense,
+            SUM(CASE WHEN AccountNo IN ({fi_quoted}) THEN Amount ELSE 0 END) as fi_income
         FROM {schema}.GLDetail
         WHERE EffectiveDate >= %s 
           AND EffectiveDate <= %s
           AND Posted = 1
-          AND (
-            AccountNo IN ('601400', '602500', '603400', '604200', '999999', '601800', '440000')
-          )
+          AND AccountNo IN ({all_quoted})
         """
         
         result = get_sql_service().execute_query(query, [start_date, end_date])

@@ -215,17 +215,249 @@ EXPENSE_ACCOUNTS_IPS = {
     ]
 }
 
+# ============================================================
+# CURRIE FINANCIAL MODEL MAPPINGS
+# Maps Currie report categories to tenant-specific GL accounts
+# ============================================================
+
+CURRIE_MAPPINGS_BENNETT = {
+    # --- NEW EQUIPMENT SALES ---
+    'new_equipment': {
+        'new_lift_truck_primary': {
+            'revenue': ['413001'],
+            'cogs': ['513001']
+        },
+        'new_lift_truck_other': {
+            'revenue': ['426001'],
+            'cogs': ['526001']
+        },
+        'new_allied': {
+            'revenue': ['412001'],
+            'cogs': ['512001']
+        },
+        'batteries': {
+            'revenue': ['414001'],
+            'cogs': ['514001']
+        },
+        'other_new_equipment': {
+            'revenue': [],
+            'cogs': []
+        },
+        'operator_training': {
+            'revenue': [],
+            'cogs': []
+        },
+        'ecommerce': {
+            'revenue': [],
+            'cogs': []
+        },
+        'systems': {
+            'revenue': [],
+            'cogs': []
+        },
+    },
+    'used_equipment': {
+        'revenue': ['412002', '413002', '414002', '426002', '431002', '410002'],
+        'cogs': ['512002', '513002', '514002', '526002', '531002', '510002']
+    },
+
+    # --- RENTAL ---
+    'rental': {
+        'revenue': ['411001', '419000', '420000', '421000', '434012', '410008'],
+        'cogs': ['510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000']
+    },
+
+    # --- SERVICE ---
+    'service': {
+        'customer_labor': {
+            'revenue': ['410004', '410005', '410007'],
+            'cogs': ['510004', '510005', '510007']
+        },
+        'internal_labor': {
+            'revenue': ['423000', '425000'],
+            'cogs': ['523000']
+        },
+        'warranty_labor': {
+            'revenue': ['435000', '435001', '435002', '435003', '435004'],
+            'cogs': ['535001', '535002', '535003', '535004', '535005']
+        },
+        'sublet': {
+            'revenue': ['432000'],
+            'cogs': ['532000']
+        },
+        'other': {
+            'revenue': ['428000', '429002'],
+            'cogs': ['528000', '529001']
+        }
+    },
+
+    # --- PARTS ---
+    # Parts uses the main GL_ACCOUNTS loader (already tenant-aware)
+    # These are the Currie sub-category mappings for Bennett
+    'parts': {
+        'counter_primary': {
+            'revenue': ['410003', '424000', '429001', '430000', '433000', '434003', '436002', '439000'],
+            'cogs': ['510003', '522001', '524000', '529002', '530000', '533000', '534003', '536002', '542000']
+        },
+        'counter_other': {
+            'revenue': [],
+            'cogs': []
+        },
+        'ro_primary': {
+            'revenue': ['410012'],
+            'cogs': ['510012', '510013']
+        },
+        'ro_other': {
+            'revenue': [],
+            'cogs': []
+        },
+        'internal': {
+            'revenue': ['410015'],
+            'cogs': ['510015']
+        },
+        'warranty': {
+            'revenue': ['410014'],
+            'cogs': ['510014']
+        },
+        'ecommerce_parts': {
+            'revenue': [],
+            'cogs': []
+        },
+        'other_parts': {
+            'revenue': [],
+            'cogs': ['543000', '544000']
+        }
+    },
+
+    # --- TRUCKING ---
+    'trucking': {
+        'revenue': ['410010', '421010', '434001', '434002', '434003', '434010', '434011', '434012', '434013'],
+        'cogs': ['510010', '521010', '534001', '534002', '534003', '534010', '534011', '534012', '534013', '534014', '534015']
+    },
+
+    # --- EXPENSES ---
+    'expenses': {
+        'personnel': {
+            'accounts': ['602600', '601100', '601500', '602700', '602701', '600400'],
+            'detail': {
+                'payroll': ['602600'],
+                'payroll_taxes': ['601100'],
+                'benefits': ['601500', '602700', '602701'],
+                'commissions': ['600400']
+            }
+        },
+        'occupancy': {
+            'accounts': ['600200', '600201', '600300', '604000', '601700', '600900'],
+            'detail': {
+                'rent': ['600200', '600201'],
+                'utilities': ['604000'],
+                'insurance': ['601700'],
+                'building_maintenance': ['600300'],
+                'depreciation': ['600900']
+            }
+        },
+        'operating': {
+            'accounts': ['600000', '600500', '601000', '601200', '601300', '602100', '602200',
+                         '602400', '602900', '603000', '603300', '603500', '603501', '603600',
+                         '603700', '603800', '603900', '604100'],
+            'detail': {
+                'advertising': ['600000'],
+                'computer_it': ['600500', '601300'],
+                'supplies': ['603500', '603501', '602400'],
+                'telephone': ['603600'],
+                'training': ['603700'],
+                'travel': ['603800'],
+                'vehicle_expense': ['604100'],
+                'professional_services': ['603000'],
+                'other': ['601000', '601200', '602900', '603300', '603900', '602100', '602200']
+            }
+        }
+    },
+
+    # --- OTHER INCOME & INTEREST ---
+    'other_income_interest': {
+        'other_expenses': ['601400', '602500', '603400', '604200', '999999'],
+        'interest_expense': ['601800'],
+        'fi_income': ['440000']
+    },
+
+    # --- RENTAL FLEET BALANCE SHEET ACCOUNTS ---
+    'rental_fleet_bs': {
+        'gross_equipment': '183000',
+        'accumulated_depreciation': '193000'
+    },
+
+    # --- SERVICE DEPARTMENT CODES (for WO queries) ---
+    'service_dept_codes': [4, 5, 6, 7, 8],
+
+    # --- DEPARTMENT EXPENSE ALLOCATIONS (Currie model) ---
+    'dept_allocations': {
+        'new': 0.47517,
+        'used': 0.03209,
+        'rental': 0.20694,
+        'parts': 0.13121,
+        'service': 0.14953,
+        'trucking': 0.00507
+    }
+}
+
+# IPS Currie Mappings - STUB (to be populated when IPS onboards to Currie reporting)
+CURRIE_MAPPINGS_IPS = {
+    'new_equipment': {
+        'new_lift_truck_primary': {'revenue': [], 'cogs': []},
+        'new_lift_truck_other': {'revenue': [], 'cogs': []},
+        'new_allied': {'revenue': [], 'cogs': []},
+        'batteries': {'revenue': [], 'cogs': []},
+        'other_new_equipment': {'revenue': [], 'cogs': []},
+        'operator_training': {'revenue': [], 'cogs': []},
+        'ecommerce': {'revenue': [], 'cogs': []},
+        'systems': {'revenue': [], 'cogs': []},
+    },
+    'used_equipment': {'revenue': [], 'cogs': []},
+    'rental': {'revenue': [], 'cogs': []},
+    'service': {
+        'customer_labor': {'revenue': [], 'cogs': []},
+        'internal_labor': {'revenue': [], 'cogs': []},
+        'warranty_labor': {'revenue': [], 'cogs': []},
+        'sublet': {'revenue': [], 'cogs': []},
+        'other': {'revenue': [], 'cogs': []}
+    },
+    'parts': {
+        'counter_primary': {'revenue': [], 'cogs': []},
+        'counter_other': {'revenue': [], 'cogs': []},
+        'ro_primary': {'revenue': [], 'cogs': []},
+        'ro_other': {'revenue': [], 'cogs': []},
+        'internal': {'revenue': [], 'cogs': []},
+        'warranty': {'revenue': [], 'cogs': []},
+        'ecommerce_parts': {'revenue': [], 'cogs': []},
+        'other_parts': {'revenue': [], 'cogs': []}
+    },
+    'trucking': {'revenue': [], 'cogs': []},
+    'expenses': {
+        'personnel': {'accounts': [], 'detail': {'payroll': [], 'payroll_taxes': [], 'benefits': [], 'commissions': []}},
+        'occupancy': {'accounts': [], 'detail': {'rent': [], 'utilities': [], 'insurance': [], 'building_maintenance': [], 'depreciation': []}},
+        'operating': {'accounts': [], 'detail': {'advertising': [], 'computer_it': [], 'supplies': [], 'telephone': [], 'training': [], 'travel': [], 'vehicle_expense': [], 'professional_services': [], 'other': []}}
+    },
+    'other_income_interest': {'other_expenses': [], 'interest_expense': [], 'fi_income': []},
+    'rental_fleet_bs': {'gross_equipment': '', 'accumulated_depreciation': ''},
+    'service_dept_codes': [],
+    'dept_allocations': {'new': 0, 'used': 0, 'rental': 0, 'parts': 0, 'service': 0, 'trucking': 0}
+}
+
+
 # Mapping of schema to GL configuration
 TENANT_GL_CONFIGS = {
     'ben002': {
         'gl_accounts': GL_ACCOUNTS_BENNETT,
         'other_income': OTHER_INCOME_ACCOUNTS_BENNETT,
         'expense_accounts': EXPENSE_ACCOUNTS_BENNETT,
+        'currie_mappings': CURRIE_MAPPINGS_BENNETT,
     },
     'ind004': {
         'gl_accounts': GL_ACCOUNTS_IPS,
         'other_income': OTHER_INCOME_ACCOUNTS_IPS,
         'expense_accounts': EXPENSE_ACCOUNTS_IPS,
+        'currie_mappings': CURRIE_MAPPINGS_IPS,
     },
 }
 
@@ -317,3 +549,22 @@ def get_expense_accounts(schema: str) -> dict:
         logging.getLogger(__name__).warning(f"No GL config for schema '{schema}' - falling back to ben002. Add this tenant to TENANT_GL_CONFIGS!")
         config = TENANT_GL_CONFIGS['ben002']
     return config['expense_accounts']
+
+
+def get_currie_mappings(schema: str) -> dict:
+    """
+    Get the Currie Financial Model account mappings for a specific tenant schema.
+    These mappings define how tenant-specific GL accounts map to Currie report categories.
+    
+    Args:
+        schema: The tenant's database schema (e.g., 'ben002', 'ind004')
+    
+    Returns:
+        Dictionary of Currie category mappings with tenant-specific GL accounts
+    """
+    config = TENANT_GL_CONFIGS.get(schema)
+    if config is None:
+        import logging
+        logging.getLogger(__name__).warning(f"No Currie config for schema '{schema}' - falling back to ben002. Add this tenant to TENANT_GL_CONFIGS!")
+        config = TENANT_GL_CONFIGS['ben002']
+    return config['currie_mappings']
