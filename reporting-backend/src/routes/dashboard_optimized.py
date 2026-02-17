@@ -684,18 +684,33 @@ class DashboardQueries:
                 return {'value': 0, 'count': 0}
     
     def get_monthly_equipment_sales(self):
-        """Get monthly Linde new truck sales with trailing 13 months using GLDetail (GL account 413001) and unit counts"""
+        """Get monthly new equipment sales with trailing 13 months using tenant-specific GL accounts and unit counts"""
         try:
-            # 1. Get Revenue/Cost from GLDetail
-            # Use GLDetail for Linde new truck sales only (GL account 413001 revenue, 513001 cost)
+            from src.config.gl_accounts_loader import get_gl_accounts
+            
+            gl_accounts = get_gl_accounts(self.schema)
+            new_equip = gl_accounts.get('new_equipment', {})
+            revenue_accounts = new_equip.get('revenue', [])
+            cogs_accounts = new_equip.get('cogs', [])
+            
+            if not revenue_accounts:
+                logger.warning(f"No new_equipment revenue accounts configured for {self.schema}")
+                return []
+            
+            all_accounts = revenue_accounts + cogs_accounts
+            accounts_str = ", ".join(f"'{a}'" for a in all_accounts)
+            revenue_str = ", ".join(f"'{a}'" for a in revenue_accounts)
+            cogs_str = ", ".join(f"'{a}'" for a in cogs_accounts) if cogs_accounts else "'NONE'"
+            
+            # 1. Get Revenue/Cost from GLDetail using tenant-specific accounts
             gl_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
-                ABS(SUM(CASE WHEN AccountNo = '413001' THEN Amount ELSE 0 END)) as equipment_revenue,
-                ABS(SUM(CASE WHEN AccountNo = '513001' THEN Amount ELSE 0 END)) as equipment_cost
+                ABS(SUM(CASE WHEN AccountNo IN ({revenue_str}) THEN Amount ELSE 0 END)) as equipment_revenue,
+                ABS(SUM(CASE WHEN AccountNo IN ({cogs_str}) THEN Amount ELSE 0 END)) as equipment_cost
             FROM {self.schema}.GLDetail
-            WHERE AccountNo IN ('413001', '513001')  -- Linde new truck sales only
+            WHERE AccountNo IN ({accounts_str})
                 AND EffectiveDate >= DATEADD(month, -13, GETDATE())
                 AND Posted = 1
             GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -704,8 +719,7 @@ class DashboardQueries:
             
             gl_results = self.db.execute_query(gl_query)
             
-            # 2. Get Unit Counts from InvoiceReg
-            # Count invoices with SaleCode LINDEN only (per user request)
+            # 2. Get Unit Counts from InvoiceReg (SaleCode LINDEN)
             unit_query = f"""
             SELECT 
                 YEAR(InvoiceDate) as year,

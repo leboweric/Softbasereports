@@ -508,22 +508,40 @@ class CEODashboardETL(BaseETL):
     
     def _extract_monthly_equipment_sales(self) -> list:
         """
-        Extract monthly Linde new equipment sales.
-        Uses GLDetail accounts 413001 (revenue) and 513001 (cost) for accurate financials,
-        and InvoiceReg SaleCode='LINDEN' for unit counts.
-        Falls back to counting distinct GL references on 413001 if no LINDEN invoices found.
+        Extract monthly new equipment sales using tenant-specific GL accounts.
+        Loads revenue and COGS accounts from the tenant's GL config (new_equipment department),
+        and gets unit counts from InvoiceReg SaleCode='LINDEN'.
+        Falls back to counting distinct GL references on the primary revenue account
+        if no LINDEN invoices found.
         """
-        schema = self.schema
+        from src.config.gl_accounts_loader import get_gl_accounts
         
-        # 1. Get Revenue/Cost from GLDetail (matches live query approach)
+        schema = self.schema
+        gl_accounts = get_gl_accounts(schema)
+        
+        # Get new equipment revenue and COGS accounts from tenant config
+        new_equip = gl_accounts.get('new_equipment', {})
+        revenue_accounts = new_equip.get('revenue', [])
+        cogs_accounts = new_equip.get('cogs', [])
+        
+        if not revenue_accounts:
+            logger.warning(f"  [{schema}] No new_equipment revenue accounts configured, skipping equipment sales")
+            return []
+        
+        all_accounts = revenue_accounts + cogs_accounts
+        accounts_str = ", ".join(f"'{a}'" for a in all_accounts)
+        revenue_str = ", ".join(f"'{a}'" for a in revenue_accounts)
+        cogs_str = ", ".join(f"'{a}'" for a in cogs_accounts) if cogs_accounts else "'NONE'"
+        
+        # 1. Get Revenue/Cost from GLDetail using tenant-specific accounts
         gl_query = f"""
         SELECT 
             YEAR(EffectiveDate) as year,
             MONTH(EffectiveDate) as month,
-            ABS(SUM(CASE WHEN AccountNo = '413001' THEN Amount ELSE 0 END)) as equipment_revenue,
-            ABS(SUM(CASE WHEN AccountNo = '513001' THEN Amount ELSE 0 END)) as equipment_cost
+            ABS(SUM(CASE WHEN AccountNo IN ({revenue_str}) THEN Amount ELSE 0 END)) as equipment_revenue,
+            ABS(SUM(CASE WHEN AccountNo IN ({cogs_str}) THEN Amount ELSE 0 END)) as equipment_cost
         FROM {schema}.GLDetail
-        WHERE AccountNo IN ('413001', '513001')
+        WHERE AccountNo IN ({accounts_str})
             AND EffectiveDate >= DATEADD(month, -25, GETDATE())
             AND Posted = 1
         GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
@@ -552,16 +570,18 @@ class CEODashboardETL(BaseETL):
             for row in unit_results:
                 units_by_month[(row['year'], row['month'])] = int(row['unit_count'])
         
-        # 3. If no LINDEN invoices found at all, fall back to counting distinct GL references
+        # 3. If no LINDEN invoices found, fall back to counting distinct GL references
+        #    on the primary revenue account (first in the list)
         if not units_by_month:
-            logger.info(f"  [{schema}] No LINDEN SaleCode invoices found, falling back to GL reference count for unit counts")
+            primary_revenue = revenue_accounts[0]
+            logger.info(f"  [{schema}] No LINDEN SaleCode invoices found, falling back to GL reference count on {primary_revenue}")
             gl_unit_query = f"""
             SELECT 
                 YEAR(EffectiveDate) as year,
                 MONTH(EffectiveDate) as month,
                 COUNT(DISTINCT Reference) as unit_count
             FROM {schema}.GLDetail
-            WHERE AccountNo = '413001'
+            WHERE AccountNo = '{primary_revenue}'
                 AND EffectiveDate >= DATEADD(month, -25, GETDATE())
                 AND Posted = 1
                 AND Reference IS NOT NULL AND Reference != ''
