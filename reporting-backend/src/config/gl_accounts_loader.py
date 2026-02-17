@@ -264,7 +264,12 @@ CURRIE_MAPPINGS_BENNETT = {
     # --- RENTAL ---
     'rental': {
         'revenue': ['411001', '419000', '420000', '421000', '434012', '410008'],
-        'cogs': ['510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014', '545000']
+        'cogs': ['510008', '511001', '519000', '520000', '521008', '537001', '539000', '534014']
+    },
+    # --- RTR (Rental Truck Repair) --- No revenue, COGS only. Rolls up into Total Rental Dept.
+    'rtr': {
+        'revenue': [],
+        'cogs': ['545000']
     },
 
     # --- SERVICE ---
@@ -312,7 +317,7 @@ CURRIE_MAPPINGS_BENNETT = {
             'cogs': []
         },
         'internal': {
-            'revenue': ['424000'],
+            'revenue': ['424000', '429001'],
             'cogs': ['524000']
         },
         'warranty': {
@@ -329,10 +334,10 @@ CURRIE_MAPPINGS_BENNETT = {
         }
     },
 
-    # --- TRUCKING ---
+    # --- TRUCKING --- (BMH does not have a separate trucking department; accounts are mapped under other departments)
     'trucking': {
-        'revenue': ['410010', '421010', '434001', '434002', '434003', '434010', '434011', '434012', '434013'],
-        'cogs': ['510010', '521010', '534001', '534002', '534003', '534010', '534011', '534012', '534013', '534014', '534015']
+        'revenue': [],
+        'cogs': []
     },
 
     # --- EXPENSES ---
@@ -376,9 +381,9 @@ CURRIE_MAPPINGS_BENNETT = {
 
     # --- OTHER INCOME & INTEREST ---
     'other_income_interest': {
-        'other_expenses': ['601400', '602500', '603400', '604200', '999999'],
+        'other_expenses': ['601400', '602500', '603400', '604200', '999999', '650000', '701000', '703000', '705000', '706000'],
         'interest_expense': ['601800'],
-        'fi_income': ['440000']
+        'fi_income': ['440000', '702000', '704000']
     },
 
     # --- RENTAL FLEET BALANCE SHEET ACCOUNTS ---
@@ -445,7 +450,7 @@ CURRIE_MAPPINGS_BENNETT = {
         'rental': 0.20694,
         'parts': 0.13121,
         'service': 0.14953,
-        'trucking': 0.00507
+        'trucking': 0.0
     }
 }
 
@@ -554,6 +559,11 @@ CURRIE_MAPPINGS_IPS = {
         'cogs': ['5152901', '5152902',  # Internal Delivery Charge-Rental
                  '5371901', '5371902',  # Depreciation - Rental
                  '5990901', '5990902']  # P/L Rental
+    },
+    # --- RTR (Rental Truck Repair) --- IPS does not have a separate RTR category
+    'rtr': {
+        'revenue': [],
+        'cogs': []
     },
 
     # --- SERVICE ---

@@ -79,11 +79,15 @@ def _fetch_sales_cogs_gp_data(start_date, end_date, user_identity):
                 'end_date': end_date
             },
             'new_equipment': get_new_equipment_sales(start_date, end_date),
-            'rental': get_rental_revenue(start_date, end_date),
+            'rental_data': get_rental_revenue(start_date, end_date),
             'service': get_service_revenue(start_date, end_date),
             'parts': get_parts_revenue(start_date, end_date),
             'trucking': get_trucking_revenue(start_date, end_date)
         }
+        # Flatten rental_data for backward compatibility: data['rental'] = combined rental+rtr
+        rental_result = data.pop('rental_data')
+        data['rental'] = rental_result.get('rental', {'sales': 0, 'cogs': 0, 'gross_profit': 0})
+        data['rtr'] = rental_result.get('rtr', {'sales': 0, 'cogs': 0, 'gross_profit': 0})
         
         # Calculate totals
         data['totals'] = calculate_totals(data, months_diff)
@@ -285,17 +289,26 @@ def get_new_equipment_sales(start_date, end_date):
 
 
 def get_rental_revenue(start_date, end_date):
-    """Get rental revenue as a single consolidated category using GLDetail"""
+    """Get rental revenue and RTR (Rental Truck Repair) as separate categories using GLDetail.
+    Returns a dict with 'rental' and 'rtr' keys, each containing sales/cogs/gross_profit.
+    For tenants without RTR config, rtr will be zeros."""
     try:
         schema = get_tenant_schema()
         currie = get_currie_mappings(schema)
         rental_cfg = currie.get('rental', {})
+        rtr_cfg = currie.get('rtr', {})
         
-        revenue_accounts = rental_cfg.get('revenue', [])
-        cost_accounts = rental_cfg.get('cogs', [])
-        all_accounts = revenue_accounts + cost_accounts
+        rental_rev = rental_cfg.get('revenue', [])
+        rental_cos = rental_cfg.get('cogs', [])
+        rtr_rev = rtr_cfg.get('revenue', [])
+        rtr_cos = rtr_cfg.get('cogs', [])
+        
+        all_accounts = rental_rev + rental_cos + rtr_rev + rtr_cos
         if not all_accounts:
-            return {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+            return {
+                'rental': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
+                'rtr': {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+            }
         accounts_list = "', '".join(all_accounts)
 
         query = f"""
@@ -313,23 +326,35 @@ def get_rental_revenue(start_date, end_date):
         results = get_sql_service().execute_query(query, [start_date, end_date])
         
         rental_data = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+        rtr_data = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
         
         for row in results:
             account = str(row['AccountNo'])
             amount = float(row['total_amount'] or 0)
             
-            if account in revenue_accounts:
-                rental_data['sales'] += -amount  # Revenue is credit (negative)
-            elif account in cost_accounts:
-                rental_data['cogs'] += amount  # COGS is debit (positive)
+            if account in rental_rev:
+                rental_data['sales'] += -amount
+            elif account in rental_cos:
+                rental_data['cogs'] += amount
+            elif account in rtr_rev:
+                rtr_data['sales'] += -amount
+            elif account in rtr_cos:
+                rtr_data['cogs'] += amount
         
         rental_data['gross_profit'] = rental_data['sales'] - rental_data['cogs']
+        rtr_data['gross_profit'] = rtr_data['sales'] - rtr_data['cogs']
         
-        return rental_data
+        return {
+            'rental': rental_data,
+            'rtr': rtr_data
+        }
         
     except Exception as e:
         logger.error(f"Error fetching rental revenue: {str(e)}")
-        return {}
+        return {
+            'rental': {'sales': 0, 'cogs': 0, 'gross_profit': 0},
+            'rtr': {'sales': 0, 'cogs': 0, 'gross_profit': 0}
+        }
 
 
 def get_service_revenue(start_date, end_date):
@@ -561,10 +586,13 @@ def calculate_totals(data, num_months):
     
     total_rental = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
     if 'rental' in data:
-        # Rental is now a single object, not a dict of categories
         total_rental['sales'] = data['rental'].get('sales', 0)
         total_rental['cogs'] = data['rental'].get('cogs', 0)
-        total_rental['gross_profit'] = total_rental['sales'] - total_rental['cogs']
+    # Include RTR in total rental department
+    if 'rtr' in data:
+        total_rental['sales'] += data['rtr'].get('sales', 0)
+        total_rental['cogs'] += data['rtr'].get('cogs', 0)
+    total_rental['gross_profit'] = total_rental['sales'] - total_rental['cogs']
     
     total_service = {'sales': 0, 'cogs': 0, 'gross_profit': 0}
     if 'service' in data:
@@ -677,8 +705,10 @@ def _fetch_currie_metrics_data(start_date, end_date):
     # 6. Absorption Rate
     # Get revenue and expense data to calculate absorption rate
     num_months = (end - start).days / 30.44  # Average days per month
+    rental_result = get_rental_revenue(start_date, end_date)
     data = {
-        'rental': get_rental_revenue(start_date, end_date),
+        'rental': rental_result.get('rental', {'sales': 0, 'cogs': 0, 'gross_profit': 0}),
+        'rtr': rental_result.get('rtr', {'sales': 0, 'cogs': 0, 'gross_profit': 0}),
         'service': get_service_revenue(start_date, end_date),
         'parts': get_parts_revenue(start_date, end_date)
     }
@@ -739,8 +769,9 @@ def _fetch_currie_metrics_data(start_date, end_date):
     svc_gp = sum(data.get('service', {}).get(k, {}).get('gross_profit', 0) for k in ['customer_labor', 'internal_labor', 'warranty_labor', 'sublet', 'other'])
     parts_sales = sum(data.get('parts', {}).get(k, {}).get('sales', 0) for k in data.get('parts', {}).keys())
     parts_gp_val = sum(data.get('parts', {}).get(k, {}).get('gross_profit', 0) for k in data.get('parts', {}).keys())
-    rental_sales = data.get('rental', {}).get('sales', 0)
-    rental_gp_val = data.get('rental', {}).get('gross_profit', 0)
+    # Combine rental + RTR for department benchmarks
+    rental_sales = data.get('rental', {}).get('sales', 0) + data.get('rtr', {}).get('sales', 0)
+    rental_gp_val = data.get('rental', {}).get('gross_profit', 0) + data.get('rtr', {}).get('gross_profit', 0)
     
     metrics['dept_gp_benchmarks'] = {
         'service': {
@@ -1208,7 +1239,9 @@ def export_currie_excel():
         
         # Get all the data
         new_equipment = get_new_equipment_sales(start_date, end_date)
-        rental = get_rental_revenue(start_date, end_date)
+        rental_result = get_rental_revenue(start_date, end_date)
+        rental = rental_result.get('rental', {'sales': 0, 'cogs': 0, 'gross_profit': 0})
+        rtr = rental_result.get('rtr', {'sales': 0, 'cogs': 0, 'gross_profit': 0})
         service = get_service_revenue(start_date, end_date)
         parts = get_parts_revenue(start_date, end_date)
         trucking = get_trucking_revenue(start_date, end_date)
@@ -1224,6 +1257,7 @@ def export_currie_excel():
         data = {
             'new_equipment': new_equipment,
             'rental': rental,
+            'rtr': rtr,
             'service': service,
             'parts': parts,
             'trucking': trucking
@@ -1270,10 +1304,16 @@ def export_currie_excel():
         write_row(18, new_equipment.get('systems', {}))
         write_row(19, new_equipment.get('batteries', {}))
         
-        # Write Rental (rows 21-23) - we only have consolidated rental
-        write_row(21, rental)  # rental is already the data dict with sales/cogs/gp
-        write_row(22, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Long term
-        write_row(23, {'sales': 0, 'cogs': 0, 'gross_profit': 0})  # Re-rent
+        # Write Rental (row 21), RTR (row 22), Total Rental Dept (row 23)
+        write_row(21, rental)
+        write_row(22, rtr)  # RTR (Rental Truck Repair) - COGS only, no revenue
+        # Total Rental Dept = Rental + RTR
+        total_rental_dept = {
+            'sales': rental.get('sales', 0) + rtr.get('sales', 0),
+            'cogs': rental.get('cogs', 0) + rtr.get('cogs', 0),
+            'gross_profit': rental.get('gross_profit', 0) + rtr.get('gross_profit', 0)
+        }
+        write_row(23, total_rental_dept)
         
         # Write Service (rows 24-28)
         write_row(24, service.get('customer_labor', {}))
