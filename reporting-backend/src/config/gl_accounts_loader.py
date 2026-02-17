@@ -224,12 +224,12 @@ CURRIE_MAPPINGS_BENNETT = {
     # --- NEW EQUIPMENT SALES ---
     'new_equipment': {
         'new_lift_truck_primary': {
-            'revenue': ['413001'],
-            'cogs': ['513001']
+            'revenue': ['413001', '426001'],
+            'cogs': ['513001', '526001']
         },
         'new_lift_truck_other': {
-            'revenue': ['426001'],
-            'cogs': ['526001']
+            'revenue': [],
+            'cogs': []
         },
         'new_allied': {
             'revenue': ['412001'],
@@ -241,7 +241,7 @@ CURRIE_MAPPINGS_BENNETT = {
         },
         'other_new_equipment': {
             'revenue': [],
-            'cogs': []
+            'cogs': ['510001', '525001', '521001', '538000']
         },
         'operator_training': {
             'revenue': [],
@@ -275,7 +275,7 @@ CURRIE_MAPPINGS_BENNETT = {
         },
         'internal_labor': {
             'revenue': ['423000', '425000'],
-            'cogs': ['523000']
+            'cogs': ['523000', '525000']
         },
         'warranty_labor': {
             'revenue': ['435000', '435001', '435002', '435003', '435004'],
@@ -296,24 +296,24 @@ CURRIE_MAPPINGS_BENNETT = {
     # These are the Currie sub-category mappings for Bennett
     'parts': {
         'counter_primary': {
-            'revenue': ['410003', '424000', '429001', '430000', '433000', '434003', '436002', '439000'],
-            'cogs': ['510003', '522001', '524000', '529002', '530000', '533000', '534003', '536002', '542000']
+            'revenue': ['410003', '434003'],
+            'cogs': ['510003', '534003']
         },
         'counter_other': {
             'revenue': [],
             'cogs': []
         },
         'ro_primary': {
-            'revenue': ['410012'],
-            'cogs': ['510012', '510013']
+            'revenue': ['410012', '410015', '430000', '433000', '436002', '439000'],
+            'cogs': ['510012', '510013', '522001', '529002', '530000', '533000', '536002', '542000', '543000', '544000']
         },
         'ro_other': {
             'revenue': [],
             'cogs': []
         },
         'internal': {
-            'revenue': ['410015'],
-            'cogs': ['510015']
+            'revenue': ['424000'],
+            'cogs': ['524000']
         },
         'warranty': {
             'revenue': ['410014'],
@@ -325,7 +325,7 @@ CURRIE_MAPPINGS_BENNETT = {
         },
         'other_parts': {
             'revenue': [],
-            'cogs': ['543000', '544000']
+            'cogs': []
         }
     },
 
@@ -338,9 +338,9 @@ CURRIE_MAPPINGS_BENNETT = {
     # --- EXPENSES ---
     'expenses': {
         'personnel': {
-            'accounts': ['602600', '601100', '601500', '602700', '602701', '600400'],
+            'accounts': ['602600', '602620', '601100', '601500', '602700', '602701', '600400'],
             'detail': {
-                'payroll': ['602600'],
+                'payroll': ['602600', '602620'],
                 'payroll_taxes': ['601100'],
                 'benefits': ['601500', '602700', '602701'],
                 'commissions': ['600400']
