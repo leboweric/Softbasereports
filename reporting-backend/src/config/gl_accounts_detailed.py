@@ -15,8 +15,8 @@ DEPARTMENT_CONFIG = {
             ('414001', 'SALES - BATTERY/CHARGERS - New Equip'),
             ('421001', 'SALES - FREIGHT - New Equip'),
             ('426001', 'SALES - KOMATSU - New Equip'),
+            ('434001', 'SALES - TRUCKING/DELIVERY - New Equip'),
             # Removed: ('431001', 'SALES - SKID LOADERS - New Equip') - no longer used
-            # Removed: ('434001', 'SALES - TRUCKING/DELIVERY - New Equip') - no longer used
         ],
         'cos_accounts': [
             ('510001', 'COS - New Equip'),
@@ -25,8 +25,8 @@ DEPARTMENT_CONFIG = {
             ('521001', 'COS - FREIGHT - New Equip'),
             ('525001', 'COS - INTERNAL NEW EQUIP'),
             ('526001', 'COS - KOMATSU - New Equip'),
+            ('534001', 'COS - TRUCKING/DELIVERY - New Equip'),
             # Removed: ('531001', 'COS - SKID LOADERS - New Equip') - no longer used
-            # Removed: ('534001', 'COS - TRUCKING/DELIVERY - New Equip') - no longer used
             ('534013', 'COS - TRUCKING/DELIVERY - New Equipment Demo'),
             ('538000', 'COS - EQ. ADJUSTMENT'),
         ]
@@ -37,25 +37,25 @@ DEPARTMENT_CONFIG = {
         'tab_name': 'P&L Used Equip',
         'sales_accounts': [
             ('410002', 'SALES - Used Equipment'),
+            ('414002', 'SALES - BATTERY/CHARGERS - Used Equip'),
             # Removed: ('412002', 'SALES - ALLIED - Used Equip') - no longer used
             # Removed: ('413002', 'SALES - LINDE - Used Equip') - no longer used
-            # Removed: ('414002', 'SALES - BATTERY/CHARGERS - Used Equip') - no longer used
             ('421002', 'SALES - FREIGHT - Used Equip'),
+            ('434002', 'SALES - TRUCKING/DELIVERY - Used Equip'),
             # Removed: ('426002', 'SALES - KOMATSU - Used Equip') - no longer used
             # Removed: ('431002', 'SALES - SKID LOADERS - Used Equip') - no longer used
-            # Removed: ('434002', 'SALES - TRUCKING/DELIVERY - Used Equip') - no longer used
             # Removed: ('436001', 'SALES - MISC - Used Equip') - no longer used
         ],
         'cos_accounts': [
             ('510002', 'COS - Used Equip'),
+            ('514002', 'COS - BATTERIES/CHARGERS - Used Equip'),
             # Removed: ('512002', 'COS - ALLIED - Used Equip') - no longer used
             # Removed: ('513002', 'COS - LINDE - Used Equip') - no longer used
-            # Removed: ('514002', 'COS - BATTERY/CHARGERS - Used Equip') - no longer used
             ('521002', 'COS - FREIGHT - Used Equip'),
             ('525002', 'COS - INTERNAL - Used Equip'),
+            ('534002', 'COS - TRUCKING/DELIVERY - Used Equip'),
             # Removed: ('526002', 'COS - KOMATSU - Used Equip') - no longer used
             # Removed: ('531002', 'COS - SKID LOADERS - Used Equip') - no longer used
-            # Removed: ('534002', 'COS - TRUCKING/DELIVERY - Used Equip') - no longer used
             # Removed: ('536001', 'COS - MISC - Used Equip') - no longer used
         ]
     },
@@ -166,7 +166,7 @@ DEPARTMENT_CONFIG = {
             ('521008', 'COS - FREIGHT - Rental'),
             ('534014', 'COS - TRUCKING/DELIVERY - Rental'),
             ('537001', 'COS - DEPRECIATION - Rental'),
-            # Removed: ('539000', 'COS - RENTAL INTEREST') - no longer used
+            ('539000', 'COS - RENTAL INTEREST'),
             ('545000', 'COS - OUTSIDE(RTR) Rental'),
             ('541000', 'COS RENTAL INTERNAL MAINTENANCE'),
         ]
