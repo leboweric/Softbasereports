@@ -513,15 +513,18 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
     ws[f'E{current_row}'].font = header_font
     current_row += 2
     
-    # === GROSS PROFIT (In House department only) ===
-    inhouse_gp_mtd = inhouse_sales_mtd - inhouse_cos_mtd
-    inhouse_gp_ytd = inhouse_sales_ytd - inhouse_cos_ytd
+    # === GROSS PROFIT (Company-wide, from all departments) ===
+    # Use company-wide GP passed in dept_data, NOT just In House dept GP
+    # In House dept has $0 revenue and only COGS, so its own GP is always negative.
+    # The correct GP for this sheet is the sum of ALL department GPs.
+    company_gp_mtd = dept_data.get('total_gross_profit_mtd', 0)
+    company_gp_ytd = dept_data.get('total_gross_profit_ytd', 0)
     ws[f'A{current_row}'] = 'Gross Profit'
     ws[f'A{current_row}'].font = header_font
-    ws[f'C{current_row}'] = inhouse_gp_mtd
+    ws[f'C{current_row}'] = company_gp_mtd
     ws[f'C{current_row}'].number_format = money_format
     ws[f'C{current_row}'].font = header_font
-    ws[f'E{current_row}'] = inhouse_gp_ytd
+    ws[f'E{current_row}'] = company_gp_ytd
     ws[f'E{current_row}'].number_format = money_format
     ws[f'E{current_row}'].font = header_font
     current_row += 2
@@ -585,9 +588,9 @@ def create_inhouse_worksheet(wb, dept_data, expense_data, other_data, year, mont
     ws[f'E{current_row}'].font = header_font
     current_row += 2
     
-    # Operating Profit (In House Gross Profit minus Overhead Expenses)
-    operating_profit_mtd = inhouse_gp_mtd - expense_data.get('total_overhead_mtd', 0)
-    operating_profit_ytd = inhouse_gp_ytd - expense_data.get('total_overhead_ytd', 0)
+    # Operating Profit (Company-wide Gross Profit minus Overhead Expenses)
+    operating_profit_mtd = company_gp_mtd - expense_data.get('total_overhead_mtd', 0)
+    operating_profit_ytd = company_gp_ytd - expense_data.get('total_overhead_ytd', 0)
     
     ws[f'A{current_row}'] = 'Operating Profit'
     ws[f'A{current_row}'].font = header_font
