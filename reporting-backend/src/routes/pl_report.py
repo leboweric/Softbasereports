@@ -28,7 +28,8 @@ def get_sql_service():
 def get_department_data(start_date, end_date, dept_key, schema, include_detail=False):
     """
     Get P&L data for a specific department
-    Uses GL.MTD for full calendar months (exact Softbase match)
+    Uses GL.YTD for FY-aligned multi-month ranges (authoritative Softbase value)
+    Uses GL.MTD for single full calendar months (exact Softbase match)
     Uses GLDetail for custom date ranges (flexibility)
     
     Args:
@@ -46,11 +47,28 @@ def get_department_data(start_date, end_date, dept_key, schema, include_detail=F
         is_full_month, year, month = is_full_calendar_month(start_date, end_date)
         
         if is_full_month:
-            # Use GL.MTD for exact Softbase match
+            # Single full calendar month — use GL.MTD for exact Softbase match
             return get_department_data_from_gl_mtd(year, month, dept_key, schema, include_detail)
-        else:
-            # Use GLDetail for custom date ranges
-            return get_department_data_from_gldetail(start_date, end_date, dept_key, schema, include_detail)
+        
+        # Check if this is a multi-month FY-aligned range — use GL.YTD
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+        is_start_first = start_dt.day == 1
+        last_day_of_end_month = calendar.monthrange(end_dt.year, end_dt.month)[1]
+        is_end_last = end_dt.day == last_day_of_end_month
+        
+        if is_start_first and is_end_last:
+            from flask import g
+            fy_start_month = 11  # Default
+            if hasattr(g, 'current_organization') and g.current_organization:
+                fy_start_month = g.current_organization.fiscal_year_start_month or 11
+            
+            if start_dt.month == fy_start_month:
+                # FY-aligned range — use GL.YTD from the last month (authoritative)
+                return get_department_data_from_gl_ytd(end_dt.year, end_dt.month, dept_key, schema, include_detail)
+        
+        # Custom date range — use GLDetail
+        return get_department_data_from_gldetail(start_date, end_date, dept_key, schema, include_detail)
     except Exception as e:
         logger.error(f"Error in get_department_data for {dept_key}: {e}")
         raise
@@ -161,6 +179,112 @@ def get_department_data_from_gl_mtd(year, month, dept_key, schema, include_detai
         
     except Exception as e:
         logger.error(f"Error fetching P&L from GL.MTD for {dept_key}: {str(e)}")
+        raise
+
+def get_department_data_from_gl_ytd(year, month, dept_key, schema, include_detail=False):
+    """
+    Get department P&L data from GL.YTD (fiscal year-to-date column)
+    Uses the authoritative YTD value from Softbase for FY-aligned ranges.
+    """
+    try:
+        tenant_gl_accounts = get_gl_accounts(schema)
+        dept_config = tenant_gl_accounts[dept_key]
+        revenue_accounts = dept_config['revenue']
+        cogs_accounts = dept_config['cogs']
+        
+        # Build account lists for SQL IN clause
+        all_accounts = revenue_accounts + cogs_accounts
+        account_list = "', '".join(all_accounts)
+        
+        if include_detail:
+            # Get account-level detail from GL.YTD
+            query = f"""
+            SELECT 
+                AccountNo,
+                YTD as raw_ytd
+            FROM {schema}.GL
+            WHERE Year = %s
+              AND Month = %s
+              AND AccountNo IN ('{account_list}')
+            """
+            
+            results = get_sql_service().execute_query(query, [year, month])
+            
+            revenue = 0
+            cogs = 0
+            revenue_detail = []
+            cogs_detail = []
+            
+            for row in results:
+                account_no = row['AccountNo']
+                raw_ytd = float(row['raw_ytd'] or 0)
+                
+                if account_no in revenue_accounts:
+                    amount = -raw_ytd
+                    revenue += amount
+                    revenue_detail.append({'account': account_no, 'amount': amount})
+                elif account_no in cogs_accounts:
+                    amount = raw_ytd
+                    cogs += amount
+                    cogs_detail.append({'account': account_no, 'amount': amount})
+            
+            gross_profit = revenue - cogs
+            gross_margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+            
+            return {
+                'dept_code': dept_config['dept_code'],
+                'dept_name': dept_config['dept_name'],
+                'revenue': revenue,
+                'cogs': cogs,
+                'gross_profit': gross_profit,
+                'gross_margin': gross_margin,
+                'revenue_detail': revenue_detail,
+                'cogs_detail': cogs_detail
+            }
+        else:
+            # Get summary only from GL.YTD
+            revenue_list = "', '".join(revenue_accounts)
+            cogs_list = "', '".join(cogs_accounts)
+            
+            query = f"""
+            SELECT 
+                -SUM(CASE WHEN AccountNo IN ('{revenue_list}') THEN YTD ELSE 0 END) as revenue,
+                SUM(CASE WHEN AccountNo IN ('{cogs_list}') THEN YTD ELSE 0 END) as cogs
+            FROM {schema}.GL
+            WHERE Year = %s
+              AND Month = %s
+              AND AccountNo IN ('{account_list}')
+            """
+            
+            results = get_sql_service().execute_query(query, [year, month])
+            
+            if results and len(results) > 0:
+                row = results[0]
+                revenue = float(row['revenue'] or 0)
+                cogs = float(row['cogs'] or 0)
+                gross_profit = revenue - cogs
+                gross_margin = (gross_profit / revenue * 100) if revenue > 0 else 0
+                
+                return {
+                    'dept_code': dept_config['dept_code'],
+                    'dept_name': dept_config['dept_name'],
+                    'revenue': revenue,
+                    'cogs': cogs,
+                    'gross_profit': gross_profit,
+                    'gross_margin': gross_margin
+                }
+        
+        return {
+            'dept_code': dept_config['dept_code'],
+            'dept_name': dept_config['dept_name'],
+            'revenue': 0,
+            'cogs': 0,
+            'gross_profit': 0,
+            'gross_margin': 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching P&L from GL.YTD for {dept_key}: {str(e)}")
         raise
 
 def get_department_data_from_gldetail(start_date, end_date, dept_key, schema, include_detail=False):
@@ -371,6 +495,54 @@ CONTRA_REVENUE_ACCOUNTS = ['703000']
 # 706000 = Administrative Fund Expense, 999999 = Error Account
 NON_STANDARD_EXPENSE_ACCOUNTS = ['706000', '999999']
 
+def get_dynamic_consolidated_pl_from_gl_ytd(year, month, schema):
+    """
+    Get consolidated P&L using GL.YTD from a specific month.
+    Uses the authoritative YTD column which matches Softbase exactly.
+    Should be used when the date range starts at the fiscal year start.
+    
+    Returns:
+        Dictionary with revenue, cogs, expenses totals
+    """
+    try:
+        contra_rev_list = "', '".join(CONTRA_REVENUE_ACCOUNTS)
+        non_std_exp_list = "', '".join(NON_STANDARD_EXPENSE_ACCOUNTS)
+        query = f"""
+        SELECT 
+            -SUM(CASE WHEN AccountNo LIKE '4%' THEN YTD ELSE 0 END)
+            - SUM(CASE WHEN AccountNo IN ('{contra_rev_list}') THEN YTD ELSE 0 END) as revenue,
+            SUM(CASE WHEN AccountNo LIKE '5%' THEN YTD ELSE 0 END) as cogs,
+            SUM(CASE WHEN AccountNo LIKE '6%' THEN YTD ELSE 0 END)
+            + SUM(CASE WHEN AccountNo IN ('{non_std_exp_list}') THEN YTD ELSE 0 END) as expenses
+        FROM {schema}.GL
+        WHERE Year = %s AND Month = %s
+          AND (AccountNo LIKE '4%' OR AccountNo LIKE '5%' OR AccountNo LIKE '6%' OR AccountNo LIKE '7%' OR AccountNo LIKE '9%')
+        """
+        
+        results = get_sql_service().execute_query(query, [year, month])
+        
+        if results and results[0]:
+            revenue = float(results[0].get('revenue') or 0)
+            cogs = float(results[0].get('cogs') or 0)
+            expenses = float(results[0].get('expenses') or 0)
+        else:
+            revenue = 0.0
+            cogs = 0.0
+            expenses = 0.0
+        
+        logger.info(f"Dynamic GL.YTD P&L for {schema} {year}-{month:02d}: Rev=${revenue:,.2f}, COGS=${cogs:,.2f}, Exp=${expenses:,.2f}")
+        
+        return {
+            'revenue': revenue,
+            'cogs': cogs,
+            'expenses': expenses
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in dynamic consolidated P&L from GL.YTD: {e}")
+        raise
+
+
 def get_dynamic_consolidated_pl_from_gl_mtd(year, month, schema):
     """
     Get consolidated P&L using dynamic LIKE queries on GL.MTD.
@@ -499,7 +671,20 @@ def get_dynamic_consolidated_pl(start_date, end_date, schema):
     is_end_last = end_dt.day == last_day_of_end_month
     
     if is_start_first and is_end_last:
-        # Sum GL.MTD for each month in the range
+        # Check if range starts at fiscal year start — if so, use GL.YTD from last month
+        # This is the authoritative Softbase value and avoids MTD summing drift
+        from flask import g
+        fy_start_month = 11  # Default
+        if hasattr(g, 'current_organization') and g.current_organization:
+            fy_start_month = g.current_organization.fiscal_year_start_month or 11
+        
+        if start_dt.month == fy_start_month:
+            # Range starts at fiscal year start — use YTD from the last month
+            ytd_data = get_dynamic_consolidated_pl_from_gl_ytd(end_dt.year, end_dt.month, schema)
+            logger.info(f"Using GL.YTD for {schema} {start_date} to {end_date} (FY-aligned): Rev=${ytd_data['revenue']:,.2f}, COGS=${ytd_data['cogs']:,.2f}, Exp=${ytd_data['expenses']:,.2f}")
+            return ytd_data
+        
+        # Non-FY-aligned range: sum GL.MTD for each month
         total_revenue = 0.0
         total_cogs = 0.0
         total_expenses = 0.0
@@ -544,13 +729,78 @@ def get_expense_data(start_date, end_date, schema):
         is_full_month, year, month = is_full_calendar_month(start_date, end_date)
         
         if is_full_month:
-            # Use GL.MTD for exact Softbase match
+            # Single full calendar month — use GL.MTD for exact Softbase match
             return get_expense_data_from_gl_mtd(year, month, schema)
-        else:
-            # Use GLDetail for custom date ranges
-            return get_expense_data_from_gldetail(start_date, end_date, schema)
+        
+        # Check if this is a multi-month FY-aligned range — use GL.YTD
+        start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+        end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+        is_start_first = start_dt.day == 1
+        last_day_of_end_month = calendar.monthrange(end_dt.year, end_dt.month)[1]
+        is_end_last = end_dt.day == last_day_of_end_month
+        
+        if is_start_first and is_end_last:
+            from flask import g
+            fy_start_month = 11  # Default
+            if hasattr(g, 'current_organization') and g.current_organization:
+                fy_start_month = g.current_organization.fiscal_year_start_month or 11
+            
+            if start_dt.month == fy_start_month:
+                # FY-aligned range — use GL.YTD from the last month (authoritative)
+                return get_expense_data_from_gl_ytd(end_dt.year, end_dt.month, schema)
+        
+        # Custom date range — use GLDetail
+        return get_expense_data_from_gldetail(start_date, end_date, schema)
     except Exception as e:
         logger.error(f"Error in get_expense_data: {e}")
+        raise
+
+def get_expense_data_from_gl_ytd(year, month, schema):
+    """
+    Get expense data from GL.YTD (fiscal year-to-date column)
+    Uses the authoritative YTD value from Softbase for FY-aligned ranges.
+    """
+    try:
+        tenant_expense_accounts = get_expense_accounts(schema)
+        all_expense_accounts = []
+        for category_accounts in tenant_expense_accounts.values():
+            all_expense_accounts.extend(category_accounts)
+        
+        expense_list = "', '".join(all_expense_accounts)
+        
+        query = f"""
+        SELECT 
+            AccountNo,
+            YTD as total
+        FROM {schema}.GL
+        WHERE Year = %s
+          AND Month = %s
+          AND AccountNo IN ('{expense_list}')
+        """
+        
+        results = get_sql_service().execute_query(query, [year, month])
+        
+        expense_data = {}
+        total_expenses = 0
+        
+        for category, accounts in tenant_expense_accounts.items():
+            category_total = 0
+            for row in results:
+                account_no = str(row['AccountNo']).strip()
+                if account_no in accounts:
+                    amount = float(row['total'] or 0)
+                    category_total += amount
+            
+            expense_data[category] = category_total
+            total_expenses += category_total
+        
+        logger.info(f"Expense data from GL.YTD for {year}-{month:02d}: Total=${total_expenses:,.2f}")
+        
+        expense_data['total_expenses'] = total_expenses
+        return expense_data
+        
+    except Exception as e:
+        logger.error(f"Error getting expense data from GL.YTD: {e}")
         raise
 
 def get_expense_data_from_gl_mtd(year, month, schema):
