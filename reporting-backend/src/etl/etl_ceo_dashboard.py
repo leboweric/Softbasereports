@@ -508,35 +508,89 @@ class CEODashboardETL(BaseETL):
     
     def _extract_monthly_equipment_sales(self) -> list:
         """
-        Extract monthly equipment sales.
-        Uses InvoiceReg EquipmentTaxable/EquipmentNonTax fields for a generic approach.
+        Extract monthly Linde new equipment sales.
+        Uses GLDetail accounts 413001 (revenue) and 513001 (cost) for accurate financials,
+        and InvoiceReg SaleCode='LINDEN' for unit counts.
+        Falls back to counting distinct GL references on 413001 if no LINDEN invoices found.
         """
         schema = self.schema
         
-        query = f"""
+        # 1. Get Revenue/Cost from GLDetail (matches live query approach)
+        gl_query = f"""
+        SELECT 
+            YEAR(EffectiveDate) as year,
+            MONTH(EffectiveDate) as month,
+            ABS(SUM(CASE WHEN AccountNo = '413001' THEN Amount ELSE 0 END)) as equipment_revenue,
+            ABS(SUM(CASE WHEN AccountNo = '513001' THEN Amount ELSE 0 END)) as equipment_cost
+        FROM {schema}.GLDetail
+        WHERE AccountNo IN ('413001', '513001')
+            AND EffectiveDate >= DATEADD(month, -25, GETDATE())
+            AND Posted = 1
+        GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+        ORDER BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+        """
+        
+        gl_results = self.azure_sql.execute_query(gl_query)
+        
+        # 2. Get Unit Counts from InvoiceReg (SaleCode LINDEN)
+        unit_query = f"""
         SELECT 
             YEAR(InvoiceDate) as year,
             MONTH(InvoiceDate) as month,
-            SUM(COALESCE(EquipmentTaxable, 0) + COALESCE(EquipmentNonTax, 0)) as equipment_revenue
+            COUNT(*) as unit_count
         FROM {schema}.InvoiceReg
-        WHERE InvoiceDate >= DATEADD(month, -25, GETDATE())
+        WHERE SaleCode = 'LINDEN'
+            AND InvoiceDate >= DATEADD(month, -25, GETDATE())
         GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
-        ORDER BY YEAR(InvoiceDate), MONTH(InvoiceDate)
         """
         
-        results = self.azure_sql.execute_query(query)
+        unit_results = self.azure_sql.execute_query(unit_query)
+        
+        # Build unit count lookup
+        units_by_month = {}
+        if unit_results:
+            for row in unit_results:
+                units_by_month[(row['year'], row['month'])] = int(row['unit_count'])
+        
+        # 3. If no LINDEN invoices found at all, fall back to counting distinct GL references
+        if not units_by_month:
+            logger.info(f"  [{schema}] No LINDEN SaleCode invoices found, falling back to GL reference count for unit counts")
+            gl_unit_query = f"""
+            SELECT 
+                YEAR(EffectiveDate) as year,
+                MONTH(EffectiveDate) as month,
+                COUNT(DISTINCT Reference) as unit_count
+            FROM {schema}.GLDetail
+            WHERE AccountNo = '413001'
+                AND EffectiveDate >= DATEADD(month, -25, GETDATE())
+                AND Posted = 1
+                AND Reference IS NOT NULL AND Reference != ''
+            GROUP BY YEAR(EffectiveDate), MONTH(EffectiveDate)
+            """
+            gl_unit_results = self.azure_sql.execute_query(gl_unit_query)
+            if gl_unit_results:
+                for row in gl_unit_results:
+                    units_by_month[(row['year'], row['month'])] = int(row['unit_count'])
+        
+        # Build monthly data
         monthly_data = []
         
-        if results:
-            for row in results:
+        if gl_results:
+            for row in gl_results:
                 revenue = float(row['equipment_revenue'] or 0)
+                cost = float(row['equipment_cost'] or 0)
+                margin = None
+                if revenue > 0:
+                    margin = round(((revenue - cost) / revenue) * 100, 1)
                 
+                key = (row['year'], row['month'])
                 monthly_data.append({
                     'year': row['year'],
                     'month': row['month'],
                     'amount': revenue,
-                    'cost': 0,  # Will be refined with CoA mapping
-                    'margin': None,
+                    'cost': cost,
+                    'margin': margin,
+                    'unit_count': units_by_month.get(key, 0),
                 })
         
         return monthly_data

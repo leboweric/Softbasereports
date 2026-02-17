@@ -2143,8 +2143,9 @@ def _get_dashboard_from_mart(start_time, org_id=None):
             if key in data_by_key:
                 entry = data_by_key[key].copy()
                 entry['month'] = month_str
+                entry['month_number'] = month
             else:
-                entry = {'month': month_str, 'year': year, 'amount': 0}
+                entry = {'month': month_str, 'year': year, 'month_number': month, 'amount': 0}
             
             # Add prior year comparison data
             prior_row = data_by_key.get(prior_key)
@@ -2577,9 +2578,10 @@ def get_dashboard_summary_fast():
                 if key in data_by_key:
                     entry = data_by_key[key].copy()
                     entry['month'] = month_str
+                    entry['month_number'] = month
                     formatted.append(entry)
                 else:
-                    formatted.append({'month': month_str, 'year': year, 'amount': 0})
+                    formatted.append({'month': month_str, 'year': year, 'month_number': month, 'amount': 0})
             
             return formatted
         
