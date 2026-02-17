@@ -143,6 +143,7 @@ def get_sales_overview():
         won_value_ytd = 0
         won_value_mtd = 0
         won_count = 0
+        won_count_ytd = 0
         lost_count = 0
         deals_by_stage = {}
         deals_by_pipeline = {}
@@ -174,6 +175,7 @@ def get_sales_overview():
                         # YTD
                         if close_date.year == current_year:
                             won_value_ytd += amount
+                            won_count_ytd += 1
                             # MTD
                             if close_date.month == current_month:
                                 won_value_mtd += amount
@@ -220,7 +222,7 @@ def get_sales_overview():
         
         # Calculate win rate and avg deal size
         win_rate = (won_count / (won_count + lost_count) * 100) if (won_count + lost_count) > 0 else 0
-        avg_deal_size = won_value_ytd / won_count if won_count > 0 else 0
+        avg_deal_size = won_value_ytd / won_count_ytd if won_count_ytd > 0 else 0
         avg_sales_cycle = sum(sales_cycle_days) / len(sales_cycle_days) if sales_cycle_days else 0
         
         # Sort monthly data
@@ -237,6 +239,7 @@ def get_sales_overview():
                 "won_value_ytd": round(won_value_ytd, 2),
                 "won_value_mtd": round(won_value_mtd, 2),
                 "won_count": won_count,
+                "won_count_ytd": won_count_ytd,
                 "lost_count": lost_count,
                 "win_rate": round(win_rate, 1),
                 "avg_deal_size": round(avg_deal_size, 2),

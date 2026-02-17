@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { apiUrl } from '@/lib/api'
@@ -38,7 +39,8 @@ import {
   ChevronDown,
   CheckCircle,
   XCircle,
-  Filter
+  Filter,
+  Info
 } from 'lucide-react'
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16']
@@ -133,7 +135,7 @@ const VitalSalesDashboard = ({ user, onBack }) => {
   }
 
   // Metric Card Component
-  const MetricCard = ({ title, value, subtitle, icon: Icon, trend, trendValue, color = 'blue', onClick }) => (
+  const MetricCard = ({ title, value, subtitle, icon: Icon, trend, trendValue, color = 'blue', onClick, tooltip }) => (
     <Card 
       className={`${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
       onClick={onClick}
@@ -141,7 +143,21 @@ const VitalSalesDashboard = ({ user, onBack }) => {
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-500">{title}</p>
+            <div className="flex items-center gap-1">
+              <p className="text-sm font-medium text-gray-500">{title}</p>
+              {tooltip && (
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs text-left">
+                      <p>{tooltip}</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
+              )}
+            </div>
             <p className="text-2xl font-bold mt-1">{value}</p>
             <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
           </div>
@@ -246,13 +262,15 @@ const VitalSalesDashboard = ({ user, onBack }) => {
           subtitle="Open opportunities"
           icon={Target}
           color="blue"
+          tooltip="Total dollar value of all currently open (non-closed) deals across all HubSpot pipelines. Represents potential revenue in the sales funnel."
         />
         <MetricCard
           title="Won Revenue (YTD)"
           value={formatCurrency(summary.won_value_ytd)}
-          subtitle={`${summary.won_count || 0} deals closed`}
+          subtitle={`${summary.won_count_ytd || 0} deals closed YTD`}
           icon={DollarSign}
           color="green"
+          tooltip="Total revenue from deals marked as 'Won' with a close date in the current calendar year. Only includes deals with a close date in the current year."
         />
         <MetricCard
           title="Win Rate"
@@ -260,13 +278,15 @@ const VitalSalesDashboard = ({ user, onBack }) => {
           subtitle={`${summary.won_count || 0}W / ${summary.lost_count || 0}L`}
           icon={Award}
           color="purple"
+          tooltip="Percentage of closed deals that were won. Calculated as: Won Deals ÷ (Won + Lost) × 100. Uses all-time deal history for a stable, long-term measure."
         />
         <MetricCard
           title="Avg Deal Size"
           value={formatCurrency(summary.avg_deal_size)}
-          subtitle="Won deals average"
+          subtitle="Won deals average (YTD)"
           icon={BarChart3}
           color="amber"
+          tooltip="Average dollar value of deals won this year. Calculated as: YTD Won Revenue ÷ Number of YTD Won Deals. Reflects current-year deal sizing trends."
         />
         <MetricCard
           title="Avg Sales Cycle"
@@ -274,6 +294,7 @@ const VitalSalesDashboard = ({ user, onBack }) => {
           subtitle="Create to close"
           icon={Clock}
           color="cyan"
+          tooltip="Average number of days from deal creation to close for all won deals. Calculated as the mean of (Close Date − Create Date) across all historically won deals."
         />
       </div>
 
