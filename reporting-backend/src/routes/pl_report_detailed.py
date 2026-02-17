@@ -698,8 +698,8 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     month_name = calendar.month_name[month]
     ws['A2'] = f"For the Period Ended {month_name} {year}"
     
-    # Row 4: MTD Summary header
-    ws['B4'] = 'MTD Summary'
+    # Row 4: YTD Summary header
+    ws['B4'] = 'YTD Summary'
     ws['B4'].font = header_font
     
     # Build dynamic headers from all_dept_data (tenant-aware)
@@ -716,7 +716,7 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
         ws.cell(row=4, column=col, value=code).font = header_font
         ws.cell(row=5, column=col, value=header).font = header_font
     
-    # Data rows for MTD
+    # Data rows for YTD
     row_labels = ['Income', 'Cost of Goods Sold', 'Gross Profit', 'Gross Margin', 
                   'Overhead Expenses', 'Operating Profit', 'Operating Margin',
                   'Other Income & Expense', 'Net Profit', 'Net Margin']
@@ -731,82 +731,82 @@ def create_consolidated_worksheet(wb, all_dept_data, expense_data, other_data, y
     
     # Income = sum of department sales (4xx accounts only)
     # Other Income & Expense (7xx accounts) shown as separate line and factored into Net Profit
-    total_other_mtd = other_data.get('total_mtd', 0)
-    total_income_mtd = sum(all_dept_data[k]['total_sales_mtd'] for k in dept_keys if k in all_dept_data)
-    total_cogs_mtd = sum(all_dept_data[k]['total_cos_mtd'] for k in dept_keys if k in all_dept_data)
-    total_gross_profit_mtd = total_income_mtd - total_cogs_mtd
-    total_overhead_mtd = expense_data.get('total_overhead_mtd', 0)
-    total_operating_profit_mtd = total_gross_profit_mtd - total_overhead_mtd
+    total_other_ytd = other_data.get('total_ytd', 0)
+    total_income_ytd = sum(all_dept_data[k]['total_sales_ytd'] for k in dept_keys if k in all_dept_data)
+    total_cogs_ytd = sum(all_dept_data[k]['total_cos_ytd'] for k in dept_keys if k in all_dept_data)
+    total_gross_profit_ytd = total_income_ytd - total_cogs_ytd
+    total_overhead_ytd = expense_data.get('total_overhead_ytd', 0)
+    total_operating_profit_ytd = total_gross_profit_ytd - total_overhead_ytd
     # Net Profit = Operating Profit - Other Income & Expense (7xx contra-revenue like A/R Discounts)
-    total_net_profit_mtd = total_operating_profit_mtd - total_other_mtd
+    total_net_profit_ytd = total_operating_profit_ytd - total_other_ytd
     
     # Income row
     ws.cell(row=current_row, column=2, value='Income')
     for col, key in enumerate(dept_keys, 3):
         if key in all_dept_data:
-            ws.cell(row=current_row, column=col, value=all_dept_data[key]['total_sales_mtd']).number_format = money_format
-    ws.cell(row=current_row, column=total_col, value=total_income_mtd).number_format = money_format
+            ws.cell(row=current_row, column=col, value=all_dept_data[key]['total_sales_ytd']).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_income_ytd).number_format = money_format
     current_row += 1
     
     # COGS row
     ws.cell(row=current_row, column=2, value='Cost of Goods Sold')
     for col, key in enumerate(dept_keys, 3):
         if key in all_dept_data:
-            ws.cell(row=current_row, column=col, value=all_dept_data[key]['total_cos_mtd']).number_format = money_format
-    ws.cell(row=current_row, column=total_col, value=total_cogs_mtd).number_format = money_format
+            ws.cell(row=current_row, column=col, value=all_dept_data[key]['total_cos_ytd']).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_cogs_ytd).number_format = money_format
     current_row += 1
     
     # Gross Profit row
     ws.cell(row=current_row, column=2, value='Gross Profit')
     for col, key in enumerate(dept_keys, 3):
         if key in all_dept_data:
-            ws.cell(row=current_row, column=col, value=all_dept_data[key]['gross_profit_mtd']).number_format = money_format
-    ws.cell(row=current_row, column=total_col, value=total_gross_profit_mtd).number_format = money_format
+            ws.cell(row=current_row, column=col, value=all_dept_data[key]['gross_profit_ytd']).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_gross_profit_ytd).number_format = money_format
     current_row += 1
     
     # Gross Margin row
     ws.cell(row=current_row, column=2, value='Gross Margin').font = header_font
     for col, key in enumerate(dept_keys, 3):
-        if key in all_dept_data and all_dept_data[key]['total_sales_mtd'] != 0:
-            margin = all_dept_data[key]['gross_profit_mtd'] / all_dept_data[key]['total_sales_mtd']
+        if key in all_dept_data and all_dept_data[key]['total_sales_ytd'] != 0:
+            margin = all_dept_data[key]['gross_profit_ytd'] / all_dept_data[key]['total_sales_ytd']
             ws.cell(row=current_row, column=col, value=margin).number_format = percent_format
-    if total_income_mtd != 0:
-        ws.cell(row=current_row, column=total_col, value=total_gross_profit_mtd / total_income_mtd).number_format = percent_format
+    if total_income_ytd != 0:
+        ws.cell(row=current_row, column=total_col, value=total_gross_profit_ytd / total_income_ytd).number_format = percent_format
     current_row += 1
     
     # Overhead row
     ws.cell(row=current_row, column=2, value='Overhead Expenses')
-    ws.cell(row=current_row, column=overhead_col, value=total_overhead_mtd).number_format = money_format
-    ws.cell(row=current_row, column=total_col, value=total_overhead_mtd).number_format = money_format
+    ws.cell(row=current_row, column=overhead_col, value=total_overhead_ytd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_overhead_ytd).number_format = money_format
     current_row += 1
     
     # Operating Profit row
     ws.cell(row=current_row, column=2, value='Operating Profit')
-    ws.cell(row=current_row, column=total_col, value=total_operating_profit_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_operating_profit_ytd).number_format = money_format
     current_row += 1
     
     # Operating Margin row
     ws.cell(row=current_row, column=2, value='Operating Margin').font = header_font
-    if total_income_mtd != 0:
-        ws.cell(row=current_row, column=total_col, value=total_operating_profit_mtd / total_income_mtd).number_format = percent_format
+    if total_income_ytd != 0:
+        ws.cell(row=current_row, column=total_col, value=total_operating_profit_ytd / total_income_ytd).number_format = percent_format
     current_row += 1
     
     # Other Income & Expense row
     ws.cell(row=current_row, column=2, value='Other Income & Expense')
-    ws.cell(row=current_row, column=overhead_col, value=total_other_mtd).number_format = money_format
-    ws.cell(row=current_row, column=total_col, value=total_other_mtd).number_format = money_format
+    ws.cell(row=current_row, column=overhead_col, value=total_other_ytd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_other_ytd).number_format = money_format
     current_row += 1
     
     # Net Profit row
     ws.cell(row=current_row, column=2, value='Net Profit').font = header_font
-    ws.cell(row=current_row, column=total_col, value=total_net_profit_mtd).number_format = money_format
+    ws.cell(row=current_row, column=total_col, value=total_net_profit_ytd).number_format = money_format
     ws.cell(row=current_row, column=total_col).font = header_font
     current_row += 1
     
     # Net Margin row
     ws.cell(row=current_row, column=2, value='Net Margin').font = header_font
-    if total_income_mtd != 0:
-        ws.cell(row=current_row, column=total_col, value=total_net_profit_mtd / total_income_mtd).number_format = percent_format
+    if total_income_ytd != 0:
+        ws.cell(row=current_row, column=total_col, value=total_net_profit_ytd / total_income_ytd).number_format = percent_format
     
     # Set column widths
     ws.column_dimensions['A'].width = 5
