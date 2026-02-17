@@ -2215,6 +2215,7 @@ def _get_dashboard_from_mart(start_time, org_id=None):
         'awaiting_invoice_over_five': 0,
         'awaiting_invoice_over_seven': 0,
         'monthly_invoice_delays': monthly_invoice_delays,
+        'fiscal_year_start_month': g.current_organization.fiscal_year_start_month if hasattr(g, 'current_organization') and g.current_organization else 11,
         'period': datetime.now().strftime('%B %Y'),
         'last_updated': metrics['snapshot_timestamp'].isoformat(),
         'query_time': round(time.time() - start_time, 3),
@@ -2430,6 +2431,7 @@ def get_dashboard_summary_optimized():
             'awaiting_invoice_over_seven': awaiting_invoice_data['over_seven_days'],
             # Monthly invoice delay trends
             'monthly_invoice_delays': results.get('monthly_invoice_delays', []),
+            'fiscal_year_start_month': g.current_organization.fiscal_year_start_month if hasattr(g, 'current_organization') and g.current_organization else 11,
             'period': datetime.now().strftime('%B %Y'),
             'last_updated': datetime.now().isoformat(),
             'query_time': round(time.time() - start_time, 2),
@@ -2630,6 +2632,7 @@ def get_dashboard_summary_fast():
             'awaiting_invoice_over_five': 0,
             'awaiting_invoice_over_seven': 0,
             'monthly_invoice_delays': monthly_invoice_delays,
+            'fiscal_year_start_month': g.current_organization.fiscal_year_start_month if hasattr(g, 'current_organization') and g.current_organization else 11,
             'period': datetime.now().strftime('%B %Y'),
             'last_updated': metrics['snapshot_timestamp'].isoformat(),
             'data_age_minutes': round(age_hours * 60, 1),
