@@ -1653,13 +1653,16 @@ def export_currie_excel():
         equity = balance_sheet_data['equity']
         
         # Capital Stock (E27)
-        bs_ws['E27'] = sum_accounts(equity['capital_stock'])
+        capital_stock_total = sum_accounts(equity['capital_stock'])
+        bs_ws['E27'] = capital_stock_total
         
-        # Retained Earnings (E28)
-        bs_ws['E28'] = sum_accounts(equity['retained_earnings']) + sum_accounts(equity['distributions'])
+        # Retained Earnings (E28) - includes distributions
+        retained_earnings_total = sum_accounts(equity['retained_earnings']) + sum_accounts(equity['distributions'])
+        bs_ws['E28'] = retained_earnings_total
         
-        # Current Year Net Income (E29)
-        bs_ws['E29'] = equity.get('net_income', 0)
+        # Total Net Worth (E29) = Capital Stock + Retained Earnings + Current Year Net Income
+        net_income = equity.get('net_income', 0)
+        bs_ws['E29'] = capital_stock_total + retained_earnings_total + net_income
         
         # Save to BytesIO for download
         output = io.BytesIO()
