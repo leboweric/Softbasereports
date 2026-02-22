@@ -1611,12 +1611,13 @@ def export_currie_excel():
             else:
                 other_current_liabilities += balance
         
-        bs_ws['E7'] = ap_primary  # A/P Primary Brand
-        bs_ws['E8'] = ap_other  # A/P Other
-        bs_ws['E9'] = notes_payable_current  # Notes Payable - due within 1 year
-        bs_ws['E10'] = short_term_rental_finance  # Short Term Rental Finance
-        bs_ws['E11'] = used_equipment_financing  # Used Equipment Financing
-        bs_ws['E12'] = other_current_liabilities  # Other Current Liabilities
+        # Negate liability values for standard BS presentation (credit balances shown as positive)
+        bs_ws['E7'] = -ap_primary  # A/P Primary Brand
+        bs_ws['E8'] = -ap_other  # A/P Other
+        bs_ws['E9'] = -notes_payable_current  # Notes Payable - due within 1 year
+        bs_ws['E10'] = -short_term_rental_finance  # Short Term Rental Finance
+        bs_ws['E11'] = -used_equipment_financing  # Used Equipment Financing
+        bs_ws['E12'] = -other_current_liabilities  # Other Current Liabilities
         
         # Long-term Liabilities breakdown - use tenant-specific patterns
         long_term_notes = 0
@@ -1641,28 +1642,34 @@ def export_currie_excel():
         # Other Liabilities
         other_liab_remaining = sum_accounts(liabilities['other_liabilities'])
         
-        bs_ws['E15'] = long_term_notes  # Long Term Notes Payable
-        bs_ws['E16'] = loans_from_stockholders  # Loans from Stockholders
-        bs_ws['E17'] = lt_rental_fleet_financing  # LT Rental Fleet Financing
-        bs_ws['E18'] = other_long_term_debt  # Other Long Term Debt
+        bs_ws['E15'] = -long_term_notes  # Long Term Notes Payable
+        bs_ws['E16'] = -loans_from_stockholders  # Loans from Stockholders
+        bs_ws['E17'] = -lt_rental_fleet_financing  # LT Rental Fleet Financing
+        bs_ws['E18'] = -other_long_term_debt  # Other Long Term Debt
         
         # Other Liabilities (E23)
-        bs_ws['E23'] = other_liab_remaining
+        bs_ws['E23'] = -other_liab_remaining
         
         # EQUITY
         equity = balance_sheet_data['equity']
         
+        # Negate equity values for standard BS presentation (credit balances shown as positive)
         # Capital Stock (E27)
-        capital_stock_total = sum_accounts(equity['capital_stock'])
+        capital_stock_total = -sum_accounts(equity['capital_stock'])
         bs_ws['E27'] = capital_stock_total
         
         # Retained Earnings (E28) - includes distributions
-        retained_earnings_total = sum_accounts(equity['retained_earnings']) + sum_accounts(equity['distributions'])
+        retained_earnings_total = -(sum_accounts(equity['retained_earnings']) + sum_accounts(equity['distributions']))
         bs_ws['E28'] = retained_earnings_total
         
         # Total Net Worth (E29) = Capital Stock + Retained Earnings + Current Year Net Income
-        net_income = equity.get('net_income', 0)
+        net_income = -equity.get('net_income', 0)  # Negate: GL net income sign is opposite
         bs_ws['E29'] = capital_stock_total + retained_earnings_total + net_income
+        
+        # Balance check formula (E31): Both sides now positive, use tolerance for rounding
+        from openpyxl.styles import Font
+        bs_ws['E31'] = '=IF(ABS(E30-B30)<1,"Balanced","Not Balanced")'
+        bs_ws['E31'].font = Font(bold=True, color='00008000')  # Green for balanced
         
         # Save to BytesIO for download
         output = io.BytesIO()
