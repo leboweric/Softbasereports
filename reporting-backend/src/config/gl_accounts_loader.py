@@ -88,8 +88,7 @@ EXPENSE_ACCOUNTS_IPS = {
     'salaries_wages': [
         '6840701',  # Salaries - Management (Service)
         '6850501',  # Salaries - Office (Parts)
-        '6880201',  # Wages - Allied/IF
-        '6880501',  # Wages - Parts
+        # Note: 6880201 (Depr AMI) and 6880501 (Depr Install) moved to long_term_rental COGS
         '6880801',  # Wages - Admin
         '6880901',  # Wages - Rental
         '6910201',  # Commission/Bonus - Allied
@@ -130,7 +129,7 @@ EXPENSE_ACCOUNTS_IPS = {
     ],
     'utilities': [
         '6430101',  # Utilities/Janitorial - General
-        '6430201',  # Utilities/Janitorial - Allied
+        # Note: 6430201 (AMI Install Freight) moved to long_term_rental COGS
         '6430401',  # Utilities/Janitorial - Used Equipment
         '6430501', '6430502', '6430503', '6430504',  # Utilities/Janitorial - New Equipment
         '6430601',  # Utilities/Janitorial - Parts
@@ -477,12 +476,8 @@ CURRIE_MAPPINGS_IPS = {
         'new_allied': {
             'revenue': ['4112001', '4112002', '4112203', '4112204',  # Commission-Allied
                         '4140501', '4140502', '4140503', '4140504',  # Allied Lines
-                        # Lease dept (70) - IPSCO/Alside lease billing
-                        '4114501',  # IPSCO Lease Billing
-                        '4114502', '4114503',  # New Alside Sale
-                        # AMI/Alside dept (75) - allied-related
-                        '4112201',  # AMI Freight Income
-                        '4114201'],  # AMI Lease Sales
+                        # Lease dept (70) - Alside sale only (installment accounts moved to long_term_rental)
+                        '4114502', '4114503'],  # New Alside Sale
             'cogs': ['5140501', '5140502', '5140503', '5140504',  # Allied Line
                      '5152201',  # Internal Delivery Charge-IF
                      '5192201',  # Internal Rental to Alside
@@ -551,7 +546,7 @@ CURRIE_MAPPINGS_IPS = {
                  '5950401']  # AMI Used Equipment-Prep
     },
 
-    # --- RENTAL ---
+    # --- RENTAL (Short Term) ---
     'rental': {
         'revenue': ['4191901', '4191902',  # Rental Income - Customer
                     '4192901', '4192902',  # Rental Income - Internal
@@ -560,7 +555,17 @@ CURRIE_MAPPINGS_IPS = {
                  '5371901', '5371902',  # Depreciation - Rental
                  '5990901', '5990902']  # P/L Rental
     },
-    # --- RTR (Rental Truck Repair) --- IPS does not have a separate RTR category
+    # --- LONG TERM RENTAL (Installment) --- per Amie Baringer 2/24/2026
+    'long_term_rental': {
+        'revenue': ['4114501',  # Canton Installment
+                    '4114201',  # AMI Installment
+                    '4112201'],  # AMI Installment Freight
+        'cogs': ['6880501',  # Depr Install (Canton)
+                 '6880201',  # Depr AMI
+                 '6430201']  # AMI Install Freight
+    },
+    # --- RTR (Re-Rent) --- IPS does not have a separate RTR/Re-Rent category;
+    # re-rent is included with regular short term rental.
     'rtr': {
         'revenue': [],
         'cogs': []
@@ -726,7 +731,7 @@ CURRIE_MAPPINGS_IPS = {
             'accounts': [
                 # Salaries & Wages
                 '6840701', '6850501',
-                '6880201', '6880501', '6880801', '6880901',
+                '6880801', '6880901',  # 6880201/6880501 moved to long_term_rental COGS
                 # Commissions/Bonuses
                 '6910201', '6910501', '6910503', '6910601',
                 '6911801', '6911802',
@@ -747,7 +752,7 @@ CURRIE_MAPPINGS_IPS = {
             'detail': {
                 'payroll': [
                     '6840701', '6850501',
-                    '6880201', '6880501', '6880801', '6880901',
+                    '6880801', '6880901',  # 6880201/6880501 moved to long_term_rental COGS
                 ],
                 'payroll_taxes': [
                     '6530201',
@@ -777,8 +782,8 @@ CURRIE_MAPPINGS_IPS = {
                 '6733601', '6733701', '6733801', '6733901',
                 # Property Tax
                 '6555201', '6555501', '6555503',
-                # Utilities/Janitorial
-                '6430101', '6430201', '6430401',
+                # Utilities/Janitorial (6430201 moved to long_term_rental COGS)
+                '6430101', '6430401',
                 '6430501', '6430502', '6430503', '6430504',
                 '6430601', '6430701', '6430801', '6430901',
                 # Insurance
@@ -799,7 +804,7 @@ CURRIE_MAPPINGS_IPS = {
                     '6555201', '6555501', '6555503',
                 ],
                 'utilities': [
-                    '6430101', '6430201', '6430401',
+                    '6430101', '6430401',  # 6430201 moved to long_term_rental COGS
                     '6430501', '6430502', '6430503', '6430504',
                     '6430601', '6430701', '6430801', '6430901',
                 ],

@@ -1573,10 +1573,18 @@ const Currie = ({ user, organization }) => {
                 </tr>
 
                 <DataRow
-                  label="Rental Revenue"
+                  label="Short Term Rental"
                   data={data.rental}
                   onEdit={(field, value) => handleCellEdit('rental', null, field, value)}
                 />
+
+                <DataRow
+                  label="Long Term Rental"
+                  data={data.long_term_rental}
+                  onEdit={(field, value) => handleCellEdit('long_term_rental', null, field, value)}
+                />
+
+                <SubtotalRow label="TOTAL RENTAL DEPT." data={data.totals?.total_rental} />
 
                 {/* SERVICE SECTION */}
                 <tr className="bg-gray-100 font-semibold">
@@ -1743,7 +1751,7 @@ const Currie = ({ user, organization }) => {
                       <th className="px-4 py-3 text-right font-semibold">Total Sales Dept</th>
                       <th className="px-4 py-3 text-right font-semibold">Parts Dept</th>
                       <th className="px-4 py-3 text-right font-semibold">Service Dept</th>
-                      <th className="px-4 py-3 text-right font-semibold">Short Term Rental</th>
+                      <th className="px-4 py-3 text-right font-semibold">Rental Dept</th>
                       <th className="px-4 py-3 text-right font-semibold">Long Term Rental</th>
                       <th className="px-4 py-3 text-right font-semibold">Trucking</th>
                       <th className="px-4 py-3 text-right font-semibold">G&A Dept</th>
@@ -1828,7 +1836,7 @@ const Currie = ({ user, organization }) => {
                     <th className="px-4 py-3 text-center font-semibold">Total Sales Dept</th>
                     <th className="px-4 py-3 text-center font-semibold">Parts Dept</th>
                     <th className="px-4 py-3 text-center font-semibold">Service Dept</th>
-                    <th className="px-4 py-3 text-center font-semibold">Short Term Rental</th>
+                    <th className="px-4 py-3 text-center font-semibold">Rental Dept</th>
                     <th className="px-4 py-3 text-center font-semibold">Long Term Rental</th>
                     <th className="px-4 py-3 text-center font-semibold">Trucking</th>
                     <th className="px-4 py-3 text-center font-semibold">G&A Dept</th>
