@@ -70,6 +70,8 @@ import {
 import { apiUrl } from '@/lib/api'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
+import { MethodologyPanel } from '@/components/ui/methodology-panel'
+import { SALES_DASHBOARD_METHODOLOGY } from '@/config/ipsPageMethodology'
 import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
@@ -928,6 +930,7 @@ const Dashboard = ({ user }) => {
             <Download className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Export Report</span>
           </Button>
+          <MethodologyPanel {...SALES_DASHBOARD_METHODOLOGY} />
         </div>
       </div>
 

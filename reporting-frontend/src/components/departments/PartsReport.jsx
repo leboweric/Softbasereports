@@ -48,6 +48,8 @@ import RevenueChart from './RevenueChart'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
+import { MethodologyPanel } from '@/components/ui/methodology-panel'
+import { PARTS_METHODOLOGY } from '@/config/ipsPageMethodology'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -592,9 +594,12 @@ const PartsReport = ({ user, onNavigate }) => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Parts Department</h1>
-        <p className="text-muted-foreground">Monitor parts sales and inventory performance</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Parts Department</h1>
+          <p className="text-muted-foreground">Monitor parts sales and inventory performance</p>
+        </div>
+        <MethodologyPanel {...PARTS_METHODOLOGY} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

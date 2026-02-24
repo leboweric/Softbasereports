@@ -3,6 +3,8 @@ import { FileSpreadsheet, Download, Calendar, RefreshCw, ChevronDown, ChevronRig
 import axios from 'axios';
 import { apiUrl } from '../lib/api';
 import { MetricTooltip } from '@/components/ui/metric-tooltip';
+import { MethodologyPanel } from '@/components/ui/methodology-panel';
+import { FINANCE_METHODOLOGY } from '@/config/ipsPageMethodology';
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions';
 
 const PLReport = ({ user, organization }) => {
@@ -338,12 +340,15 @@ const PLReport = ({ user, organization }) => {
                   {startDate ? new Date(startDate + 'T00:00:00').toLocaleDateString() : ''} - {endDate ? new Date(endDate + 'T00:00:00').toLocaleDateString() : ''}
                 </p>
               </div>
-              <button
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium"
-              >
-                <Download className="h-4 w-4" />
-                Export
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50 text-sm font-medium"
+                >
+                  <Download className="h-4 w-4" />
+                  Export
+                </button>
+                <MethodologyPanel {...FINANCE_METHODOLOGY} />
+              </div>
             </div>
           </div>
 

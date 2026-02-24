@@ -55,6 +55,8 @@ import RentalServiceReport from './RentalServiceReport'
 import RentalAvailability from './RentalAvailability'
 import DepreciationRolloff from './DepreciationRolloff'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { MethodologyPanel } from '@/components/ui/methodology-panel'
+import { RENTAL_METHODOLOGY } from '@/config/ipsPageMethodology'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 
 // Utility function to calculate linear regression trendline
@@ -542,9 +544,12 @@ const RentalReport = ({ user }) => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
-        <p className="text-muted-foreground">Fleet management and rental analytics</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Rental Department</h1>
+          <p className="text-muted-foreground">Fleet management and rental analytics</p>
+        </div>
+        <MethodologyPanel {...RENTAL_METHODOLOGY} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

@@ -52,6 +52,8 @@ import MaintenanceContractProfitability from '../MaintenanceContractProfitabilit
 import CustomerProfitability from '../CustomerProfitability'
 import UnitsRepairCost from '../UnitsRepairCost'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { MethodologyPanel } from '@/components/ui/methodology-panel'
+import { SERVICE_METHODOLOGY } from '@/config/ipsPageMethodology'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 
 // Utility function to calculate linear regression trendline
@@ -568,9 +570,12 @@ const ServiceReport = ({ user, onNavigate }) => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Service Department</h1>
-        <p className="text-muted-foreground">Monitor service operations</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Service Department</h1>
+          <p className="text-muted-foreground">Monitor service operations</p>
+        </div>
+        <MethodologyPanel {...SERVICE_METHODOLOGY} />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

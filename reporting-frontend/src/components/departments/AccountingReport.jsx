@@ -22,6 +22,8 @@ import {
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { MethodologyPanel } from '@/components/ui/methodology-panel'
+import { ACCOUNTING_METHODOLOGY } from '@/config/ipsPageMethodology'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 import ARAgingReport from '@/components/ARAgingReport'
 import APAgingReport from '@/components/APAgingReport'
@@ -438,9 +440,12 @@ const AccountingReport = ({ user, organization }) => {
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Accounting Department</h1>
-        <p className="text-muted-foreground">Financial overview and accounting metrics</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Accounting Department</h1>
+          <p className="text-muted-foreground">Financial overview and accounting metrics</p>
+        </div>
+        <MethodologyPanel {...ACCOUNTING_METHODOLOGY} />
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
