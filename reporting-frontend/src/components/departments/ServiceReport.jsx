@@ -51,6 +51,7 @@ import RevenueChart from './RevenueChart'
 import MaintenanceContractProfitability from '../MaintenanceContractProfitability'
 import CustomerProfitability from '../CustomerProfitability'
 import UnitsRepairCost from '../UnitsRepairCost'
+import CostPerHour from '../CostPerHour'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
 import { SERVICE_METHODOLOGY } from '@/config/ipsPageMethodology'
@@ -609,6 +610,7 @@ const ServiceReport = ({ user, onNavigate }) => {
           <TabsTrigger value="maintenance-contracts">Maintenance Contract Profitability</TabsTrigger>
           <TabsTrigger value="customer-profitability">Customer Profitability</TabsTrigger>
           <TabsTrigger value="units-repair-cost">Units by Repair Cost</TabsTrigger>
+          <TabsTrigger value="cost-per-hour">Cost per Hour</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -1805,6 +1807,10 @@ const ServiceReport = ({ user, onNavigate }) => {
 
         <TabsContent value="units-repair-cost" className="space-y-6">
           <UnitsRepairCost />
+        </TabsContent>
+
+        <TabsContent value="cost-per-hour" className="space-y-6">
+          <CostPerHour />
         </TabsContent>
       </Tabs>
 

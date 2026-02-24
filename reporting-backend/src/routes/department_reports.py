@@ -10711,3 +10711,319 @@ def register_department_routes(reports_bp):
         except Exception as e:
             logger.error(f"Error getting units by repair cost: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
+
+    # ==========================================
+    # Cost per Operating Hour by Forklift Series
+    # ==========================================
+    @reports_bp.route('/departments/service/cost-per-hour', methods=['GET'])
+    @require_permission('service')
+    def get_cost_per_hour():
+        """
+        Cost per Operating Hour by Forklift Series.
+        
+        Calculates actual maintenance cost per operating hour for each forklift series (ModelGroup),
+        enabling accurate quoting of maintenance contracts.
+        
+        Supports two views:
+        - Series Summary (all customers): group by ModelGroup
+        - By Customer: group by Customer then ModelGroup
+        
+        Uses HourMeter readings from WOs/Invoices to determine hours used in the period,
+        and InvoiceReg for actual billed costs (labor + parts + misc).
+        """
+        try:
+            from datetime import datetime
+            db = get_db()
+            schema = get_tenant_schema()
+            
+            # Get parameters
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            customer_no = request.args.get('customer_no', 'ALL')
+            view = request.args.get('view', 'series')  # 'series' or 'customer'
+            
+            if not start_date or not end_date:
+                return jsonify({'error': 'Start date and end date are required'}), 400
+            
+            # Excluded ModelGroups (non-forklift equipment)
+            excluded_groups = """
+                'Battery', 'Charger', 'WORK CHARGER', 'Work Charger',
+                'Scissor Lift', 'Lunchroom Cabinets - 2005', 'Ecotec Access Charger',
+                '100G-Rotator', '12-D85-13', '48V'
+            """
+            
+            # Main query: Get cost and hours per unit within the date range
+            # Uses InvoiceReg for costs and HourMeter readings
+            cost_per_hour_query = f"""
+            WITH UnitActivity AS (
+                SELECT 
+                    i.SerialNo,
+                    e.UnitNo,
+                    e.Make,
+                    COALESCE(e.ModelGroup, 
+                        CASE 
+                            WHEN CHARINDEX('-', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX('-', e.Model) - 1)
+                            WHEN CHARINDEX(' ', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX(' ', e.Model) - 1)
+                            WHEN LEN(e.Model) > 4 THEN LEFT(e.Model, 4)
+                            ELSE e.Model
+                        END
+                    ) as Series,
+                    e.Model,
+                    e.ModelYear,
+                    e.Capacity,
+                    e.Power,
+                    i.BillTo as CustomerNo,
+                    c.Name as CustomerName,
+                    e.TargetCostPerHour,
+                    e.GuaranteedMaintenance as OnPMContract,
+                    -- Cost components
+                    SUM(COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0)) as PartsCost,
+                    SUM(COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0)) as LaborCost,
+                    SUM(COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as MiscCost,
+                    SUM(COALESCE(i.PartsTaxable, 0) + COALESCE(i.PartsNonTax, 0) + 
+                        COALESCE(i.LaborTaxable, 0) + COALESCE(i.LaborNonTax, 0) + 
+                        COALESCE(i.MiscTaxable, 0) + COALESCE(i.MiscNonTax, 0)) as TotalCost,
+                    COUNT(DISTINCT i.InvoiceNo) as InvoiceCount,
+                    -- Hour meter readings in the period
+                    MIN(CASE WHEN i.HourMeter > 0 THEN i.HourMeter END) as MinMeter,
+                    MAX(CASE WHEN i.HourMeter > 0 THEN i.HourMeter END) as MaxMeter,
+                    COUNT(CASE WHEN i.HourMeter > 0 THEN 1 END) as MeterReadings
+                FROM {schema}.InvoiceReg i
+                LEFT JOIN {schema}.Equipment e ON i.SerialNo = e.SerialNo
+                LEFT JOIN {schema}.Customer c ON i.BillTo = c.Number
+                WHERE i.InvoiceDate >= %s
+                  AND i.InvoiceDate <= %s
+                  AND i.DeletionTime IS NULL
+                  AND i.SerialNo IS NOT NULL
+                  AND i.SerialNo != ''
+                  AND CAST(i.InvoiceNo AS VARCHAR(20)) NOT LIKE '130%%'
+                  AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
+                       OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
+                       OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
+                GROUP BY i.SerialNo, e.UnitNo, e.Make, 
+                    COALESCE(e.ModelGroup, 
+                        CASE 
+                            WHEN CHARINDEX('-', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX('-', e.Model) - 1)
+                            WHEN CHARINDEX(' ', e.Model) > 0 THEN LEFT(e.Model, CHARINDEX(' ', e.Model) - 1)
+                            WHEN LEN(e.Model) > 4 THEN LEFT(e.Model, 4)
+                            ELSE e.Model
+                        END
+                    ),
+                    e.Model, e.ModelYear, e.Capacity, e.Power,
+                    i.BillTo, c.Name, e.TargetCostPerHour, e.GuaranteedMaintenance
+            )
+            SELECT *,
+                CASE 
+                    WHEN MeterReadings >= 2 AND MaxMeter > MinMeter 
+                    THEN MaxMeter - MinMeter 
+                    ELSE NULL 
+                END as HoursUsed,
+                CASE 
+                    WHEN MeterReadings >= 2 AND MaxMeter > MinMeter AND (MaxMeter - MinMeter) > 0
+                    THEN TotalCost / (MaxMeter - MinMeter)
+                    ELSE NULL 
+                END as CostPerHour
+            FROM UnitActivity
+            WHERE Series IS NOT NULL AND Series != ''
+              AND Series NOT IN ({excluded_groups})
+            ORDER BY TotalCost DESC
+            """
+            
+            params = [start_date, end_date]
+            
+            results = db.execute_query(cost_per_hour_query, params)
+            
+            if not results:
+                return jsonify({
+                    'series_summary': [],
+                    'customer_breakdown': [],
+                    'unit_details': [],
+                    'summary': {
+                        'total_units': 0,
+                        'total_cost': 0,
+                        'total_hours': 0,
+                        'overall_cost_per_hour': 0,
+                        'units_with_meter': 0,
+                        'units_without_meter': 0
+                    },
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+            
+            # Process unit-level data
+            unit_details = []
+            for row in results:
+                unit_details.append({
+                    'serial_no': row.get('SerialNo', ''),
+                    'unit_no': row.get('UnitNo', ''),
+                    'make': row.get('Make', ''),
+                    'series': row.get('Series', ''),
+                    'model': row.get('Model', ''),
+                    'model_year': row.get('ModelYear', ''),
+                    'capacity': float(row.get('Capacity', 0) or 0),
+                    'power': row.get('Power', ''),
+                    'customer_no': row.get('CustomerNo', ''),
+                    'customer_name': row.get('CustomerName', ''),
+                    'target_cost_per_hour': float(row.get('TargetCostPerHour', 0) or 0),
+                    'on_pm_contract': bool(row.get('OnPMContract', False)),
+                    'parts_cost': round(float(row.get('PartsCost', 0) or 0), 2),
+                    'labor_cost': round(float(row.get('LaborCost', 0) or 0), 2),
+                    'misc_cost': round(float(row.get('MiscCost', 0) or 0), 2),
+                    'total_cost': round(float(row.get('TotalCost', 0) or 0), 2),
+                    'invoice_count': int(row.get('InvoiceCount', 0) or 0),
+                    'min_meter': float(row.get('MinMeter', 0) or 0),
+                    'max_meter': float(row.get('MaxMeter', 0) or 0),
+                    'meter_readings': int(row.get('MeterReadings', 0) or 0),
+                    'hours_used': round(float(row.get('HoursUsed', 0) or 0), 1),
+                    'cost_per_hour': round(float(row.get('CostPerHour', 0) or 0), 2) if row.get('CostPerHour') else None
+                })
+            
+            # Build series summary
+            series_map = {}
+            for unit in unit_details:
+                key = (unit['make'], unit['series'])
+                if key not in series_map:
+                    series_map[key] = {
+                        'make': unit['make'],
+                        'series': unit['series'],
+                        'unit_count': 0,
+                        'total_cost': 0,
+                        'total_hours': 0,
+                        'parts_cost': 0,
+                        'labor_cost': 0,
+                        'misc_cost': 0,
+                        'invoice_count': 0,
+                        'units_with_hours': 0,
+                        'units_without_hours': 0,
+                        'target_cost_per_hour': 0,
+                        'target_count': 0,
+                        'pm_contract_count': 0,
+                        'customers': set()
+                    }
+                s = series_map[key]
+                s['unit_count'] += 1
+                s['total_cost'] += unit['total_cost']
+                s['parts_cost'] += unit['parts_cost']
+                s['labor_cost'] += unit['labor_cost']
+                s['misc_cost'] += unit['misc_cost']
+                s['invoice_count'] += unit['invoice_count']
+                if unit['hours_used'] and unit['hours_used'] > 0:
+                    s['total_hours'] += unit['hours_used']
+                    s['units_with_hours'] += 1
+                else:
+                    s['units_without_hours'] += 1
+                if unit['target_cost_per_hour'] and unit['target_cost_per_hour'] > 0:
+                    s['target_cost_per_hour'] += unit['target_cost_per_hour']
+                    s['target_count'] += 1
+                if unit['on_pm_contract']:
+                    s['pm_contract_count'] += 1
+                s['customers'].add(unit['customer_no'])
+            
+            series_summary = []
+            for key, s in sorted(series_map.items(), key=lambda x: x[1]['total_cost'], reverse=True):
+                cost_per_hour = round(s['total_cost'] / s['total_hours'], 2) if s['total_hours'] > 0 else None
+                avg_target = round(s['target_cost_per_hour'] / s['target_count'], 2) if s['target_count'] > 0 else None
+                series_summary.append({
+                    'make': s['make'],
+                    'series': s['series'],
+                    'unit_count': s['unit_count'],
+                    'customer_count': len(s['customers']),
+                    'total_cost': round(s['total_cost'], 2),
+                    'parts_cost': round(s['parts_cost'], 2),
+                    'labor_cost': round(s['labor_cost'], 2),
+                    'misc_cost': round(s['misc_cost'], 2),
+                    'total_hours': round(s['total_hours'], 1),
+                    'cost_per_hour': cost_per_hour,
+                    'avg_cost_per_unit': round(s['total_cost'] / s['unit_count'], 2) if s['unit_count'] > 0 else 0,
+                    'invoice_count': s['invoice_count'],
+                    'units_with_hours': s['units_with_hours'],
+                    'units_without_hours': s['units_without_hours'],
+                    'avg_target_cost_per_hour': avg_target,
+                    'pm_contract_count': s['pm_contract_count']
+                })
+            
+            # Build customer breakdown
+            customer_series_map = {}
+            for unit in unit_details:
+                cust_key = (unit['customer_no'], unit['customer_name'])
+                if cust_key not in customer_series_map:
+                    customer_series_map[cust_key] = {
+                        'customer_no': unit['customer_no'],
+                        'customer_name': unit['customer_name'],
+                        'series': {}
+                    }
+                series_key = (unit['make'], unit['series'])
+                cs = customer_series_map[cust_key]['series']
+                if series_key not in cs:
+                    cs[series_key] = {
+                        'make': unit['make'],
+                        'series': unit['series'],
+                        'unit_count': 0,
+                        'total_cost': 0,
+                        'total_hours': 0,
+                        'invoice_count': 0,
+                        'units_with_hours': 0
+                    }
+                entry = cs[series_key]
+                entry['unit_count'] += 1
+                entry['total_cost'] += unit['total_cost']
+                entry['invoice_count'] += unit['invoice_count']
+                if unit['hours_used'] and unit['hours_used'] > 0:
+                    entry['total_hours'] += unit['hours_used']
+                    entry['units_with_hours'] += 1
+            
+            customer_breakdown = []
+            for cust_key, cust_data in sorted(customer_series_map.items(), 
+                    key=lambda x: sum(s['total_cost'] for s in x[1]['series'].values()), reverse=True):
+                cust_total_cost = sum(s['total_cost'] for s in cust_data['series'].values())
+                cust_total_hours = sum(s['total_hours'] for s in cust_data['series'].values())
+                cust_series = []
+                for sk, sv in sorted(cust_data['series'].items(), key=lambda x: x[1]['total_cost'], reverse=True):
+                    cph = round(sv['total_cost'] / sv['total_hours'], 2) if sv['total_hours'] > 0 else None
+                    cust_series.append({
+                        'make': sv['make'],
+                        'series': sv['series'],
+                        'unit_count': sv['unit_count'],
+                        'total_cost': round(sv['total_cost'], 2),
+                        'total_hours': round(sv['total_hours'], 1),
+                        'cost_per_hour': cph,
+                        'invoice_count': sv['invoice_count'],
+                        'units_with_hours': sv['units_with_hours']
+                    })
+                customer_breakdown.append({
+                    'customer_no': cust_data['customer_no'],
+                    'customer_name': cust_data['customer_name'],
+                    'total_cost': round(cust_total_cost, 2),
+                    'total_hours': round(cust_total_hours, 1),
+                    'cost_per_hour': round(cust_total_cost / cust_total_hours, 2) if cust_total_hours > 0 else None,
+                    'unit_count': sum(s['unit_count'] for s in cust_data['series'].values()),
+                    'series': cust_series
+                })
+            
+            # Overall summary
+            total_cost = sum(u['total_cost'] for u in unit_details)
+            total_hours = sum(u['hours_used'] for u in unit_details if u['hours_used'])
+            units_with_meter = sum(1 for u in unit_details if u['hours_used'] and u['hours_used'] > 0)
+            units_without_meter = sum(1 for u in unit_details if not u['hours_used'] or u['hours_used'] <= 0)
+            
+            return jsonify({
+                'series_summary': series_summary,
+                'customer_breakdown': customer_breakdown,
+                'unit_details': unit_details,
+                'summary': {
+                    'total_units': len(unit_details),
+                    'total_cost': round(total_cost, 2),
+                    'total_hours': round(total_hours, 1),
+                    'overall_cost_per_hour': round(total_cost / total_hours, 2) if total_hours > 0 else None,
+                    'units_with_meter': units_with_meter,
+                    'units_without_meter': units_without_meter,
+                    'series_count': len(series_summary),
+                    'customer_count': len(customer_breakdown)
+                },
+                'start_date': start_date,
+                'end_date': end_date
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting cost per hour report: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
