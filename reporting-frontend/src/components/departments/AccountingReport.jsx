@@ -188,12 +188,27 @@ const AccountingReport = ({ user, organization }) => {
       
       if (response.ok) {
         const data = await response.json()
-        setArData(data)
-        // Debug: log what buckets we're getting
+        
+        // Fix: Recalculate over_90_percentage using consistent methodology
+        // The backend's over_90_amount comes from InvoiceBalances CTE (gross outstanding invoices)
+        // but total_ar is net AR (after payments/credits) - apples to oranges.
+        // Use the aging bucket totals as the denominator for a consistent calculation.
         if (data.debug_buckets) {
+          const bucketTotal = Object.entries(data.debug_buckets)
+            .filter(([key]) => key !== 'No Due Date')
+            .reduce((sum, [, val]) => sum + val, 0)
+          const over90 = (data.debug_buckets['90-120'] || 0) + (data.debug_buckets['120+'] || 0)
+          if (bucketTotal > 0) {
+            data.over_90_percentage = Math.round((over90 / bucketTotal) * 1000) / 10
+            data.over_90_amount = over90
+          }
           console.log('AR Debug - Buckets:', data.debug_buckets)
-          console.log('AR Debug - Over 90 calculation:', data.over_90_amount)
+          console.log('AR Debug - Gross AR Total:', bucketTotal)
+          console.log('AR Debug - Over 90 amount:', over90)
+          console.log('AR Debug - Over 90 %:', data.over_90_percentage)
         }
+        
+        setArData(data)
       } else {
         console.error('AR report error:', response.status, response.statusText)
         const errorText = await response.text()
