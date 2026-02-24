@@ -8,7 +8,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
-import { UserPlus, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { UserPlus, Edit, Trash2, CheckCircle, XCircle, KeyRound } from 'lucide-react';
 import { apiUrl } from '../../lib/api';
 
 export function UserManagement({ user }) {
@@ -19,6 +19,9 @@ export function UserManagement({ user }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showResetDialog, setShowResetDialog] = useState(false);
   
   useEffect(() => {
     loadUsers();
@@ -98,6 +101,38 @@ export function UserManagement({ user }) {
     setLoading(false);
   }
   
+  async function handleResetPassword() {
+    if (!resetPasswordUser || !newPassword) return;
+    setLoading(true);
+    setError('');
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(apiUrl(`/api/users/${resetPasswordUser.id}/reset-password`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ password: newPassword })
+      });
+      
+      if (response.ok) {
+        setSuccess(`Password reset successfully for ${resetPasswordUser.first_name} ${resetPasswordUser.last_name}`);
+        setShowResetDialog(false);
+        setResetPasswordUser(null);
+        setNewPassword('');
+        setTimeout(() => setSuccess(''), 5000);
+      } else {
+        const data = await response.json();
+        setError(data.message || data.error || 'Failed to reset password');
+      }
+    } catch (err) {
+      setError('Error resetting password');
+    }
+    setLoading(false);
+  }
+
   async function handleDeleteUser(userId) {
     if (!confirm('Are you sure you want to deactivate this user?')) return;
     
@@ -206,6 +241,19 @@ export function UserManagement({ user }) {
                       <Button 
                         variant="outline" 
                         size="sm"
+                        title="Reset Password"
+                        onClick={() => { 
+                          setResetPasswordUser(u);
+                          setNewPassword('');
+                          setShowResetDialog(true);
+                          setError('');
+                        }}
+                      >
+                        <KeyRound className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
                         onClick={() => { 
                           setEditingUser(u); 
                           setShowDialog(true); 
@@ -231,6 +279,40 @@ export function UserManagement({ user }) {
         </CardContent>
       </Card>
       
+      {showResetDialog && resetPasswordUser && (
+        <Dialog open onOpenChange={() => { setShowResetDialog(false); setResetPasswordUser(null); setNewPassword(''); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Reset Password</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Reset password for <strong>{resetPasswordUser.first_name} {resetPasswordUser.last_name}</strong> ({resetPasswordUser.email})
+              </p>
+              <div>
+                <Label htmlFor="new_password">New Password *</Label>
+                <Input
+                  id="new_password"
+                  type="text"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  autoFocus
+                />
+              </div>
+              <div className="flex justify-end space-x-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => { setShowResetDialog(false); setResetPasswordUser(null); setNewPassword(''); }} disabled={loading}>
+                  Cancel
+                </Button>
+                <Button onClick={handleResetPassword} disabled={loading || !newPassword}>
+                  {loading ? 'Resetting...' : 'Reset Password'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
       {showDialog && (
         <UserDialog
           user={editingUser}
