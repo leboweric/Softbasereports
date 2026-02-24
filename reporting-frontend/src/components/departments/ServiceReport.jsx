@@ -257,7 +257,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       startDate.setFullYear(startDate.getFullYear() - 1)
       const formatDate = (d) => d.toISOString().split('T')[0]
       
-      const response = await fetch(apiUrl(`/api/reports/currie/metrics?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}&refresh=true`), {
+      const response = await fetch(apiUrl(`/api/currie/metrics?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}&refresh=true`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -265,7 +265,25 @@ const ServiceReport = ({ user, onNavigate }) => {
       
       if (response.ok) {
         const data = await response.json()
-        setServiceKpis(data)
+        // The currie metrics endpoint wraps data under 'metrics' key
+        const metrics = data.metrics || data
+        // Map backend field names to what the overview cards expect
+        const mapped = {
+          ...metrics,
+          labor_metrics: {
+            ...metrics.labor_metrics,
+            effective_rate: metrics.labor_metrics?.average_labor_rate ? Math.round(metrics.labor_metrics.average_labor_rate * 100) / 100 : null,
+            total_hours_billed: metrics.labor_metrics?.total_billed_hours || 0,
+          },
+          service_productivity: {
+            ...metrics.service_productivity,
+            active_technicians: metrics.technician_count?.active_technicians || 0,
+            wos_with_labor: metrics.labor_metrics?.work_orders_with_labor || 0,
+            service_calls_per_day: metrics.service_calls_per_day?.calls_per_day || 0,
+            total_service_calls: metrics.service_calls_per_day?.total_service_calls || 0,
+          },
+        }
+        setServiceKpis(mapped)
       }
     } catch (error) {
       console.error('Error fetching service KPIs:', error)

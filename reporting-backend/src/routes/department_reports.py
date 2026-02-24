@@ -1975,11 +1975,89 @@ def register_department_routes(reports_bp):
                         'filledOrders': row.get('FilledOrders', 0)
                     })
             
+            # ---- Additional KPI queries for Overview cards ----
+            # 1. Overall fill rate (ALL parts, not just Linde)
+            overall_fill_rate_query = f"""
+            WITH AllPartsOrders AS (
+                SELECT 
+                    wp.PartNo,
+                    wp.BOQty as BackorderQty,
+                    COALESCE(p.OnHand, 0) as CurrentStock,
+                    CASE 
+                        WHEN wp.BOQty > 0 THEN 'Backordered'
+                        WHEN p.OnHand IS NULL OR p.OnHand = 0 THEN 'Out of Stock'
+                        WHEN p.OnHand < wp.Qty THEN 'Partial Stock'
+                        ELSE 'In Stock'
+                    END as StockStatus
+                FROM {schema}.WOParts wp
+                INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
+                LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
+                WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
+            )
+            SELECT 
+                COUNT(*) as TotalOrders,
+                SUM(CASE WHEN StockStatus = 'In Stock' THEN 1 ELSE 0 END) as FilledOrders
+            FROM AllPartsOrders
+            """
+            overall_result = db.execute_query(overall_fill_rate_query)
+            overall_total = int(overall_result[0].get('TotalOrders', 0)) if overall_result else 0
+            overall_filled = int(overall_result[0].get('FilledOrders', 0)) if overall_result else 0
+            overall_fill_rate = round((overall_filled / overall_total * 100), 1) if overall_total > 0 else 0
+
+            # 2. Inventory Turnover (annualized)
+            inventory_value_query = f"""
+            SELECT SUM(OnHand * Cost) as TotalInventoryValue
+            FROM {schema}.Parts
+            WHERE OnHand > 0 AND Cost > 0
+            """
+            inv_result = db.execute_query(inventory_value_query)
+            inventory_value = float(inv_result[0].get('TotalInventoryValue', 0) or 0) if inv_result else 0
+
+            turnover_query = f"""
+            SELECT SUM(wp.Qty * p.Cost) as TotalCOGS
+            FROM {schema}.WOParts wp
+            INNER JOIN {schema}.WO w ON wp.WONo = w.WONo
+            LEFT JOIN {schema}.Parts p ON wp.PartNo = p.PartNo
+            WHERE w.OpenDate >= DATEADD(day, -{days_back}, GETDATE())
+            """
+            turn_result = db.execute_query(turnover_query)
+            cogs = float(turn_result[0].get('TotalCOGS', 0) or 0) if turn_result else 0
+            inventory_turnover = round((cogs / inventory_value * (365 / days_back)), 2) if (inventory_value > 0 and days_back > 0) else 0
+
+            # 3. Obsolete Inventory (parts with no movement in 365+ days)
+            obsolete_query = f"""
+            WITH PartMovement AS (
+                SELECT 
+                    p.PartNo,
+                    MAX(p.OnHand) as CurrentStock,
+                    MAX(p.Cost) as Cost,
+                    MAX(w.OpenDate) as LastMovementDate
+                FROM {schema}.Parts p
+                LEFT JOIN {schema}.WOParts wp ON p.PartNo = wp.PartNo
+                LEFT JOIN {schema}.WO w ON wp.WONo = w.WONo
+                WHERE p.OnHand > 0
+                GROUP BY p.PartNo
+            )
+            SELECT 
+                COUNT(CASE WHEN DATEDIFF(day, LastMovementDate, GETDATE()) > 365 OR LastMovementDate IS NULL THEN 1 END) as ObsoleteCount,
+                ISNULL(SUM(CASE WHEN DATEDIFF(day, LastMovementDate, GETDATE()) > 365 OR LastMovementDate IS NULL THEN CurrentStock * Cost ELSE 0 END), 0) as ObsoleteValue
+            FROM PartMovement
+            """
+            obs_result = db.execute_query(obsolete_query)
+            obsolete_count = int(obs_result[0].get('ObsoleteCount', 0) or 0) if obs_result else 0
+            obsolete_value = round(float(obs_result[0].get('ObsoleteValue', 0) or 0), 2) if obs_result else 0
+
             return jsonify({
                 'summary': fill_rate_data,
                 'problemParts': problem_parts,
                 'fillRateTrend': fill_rate_trend,
-                'period': f'Last {days_back} days'
+                'period': f'Last {days_back} days',
+                # Top-level KPI fields for Overview cards
+                'overall_fill_rate': overall_fill_rate,
+                'inventory_turnover': inventory_turnover,
+                'inventory_value': inventory_value,
+                'obsolete_parts_count': obsolete_count,
+                'obsolete_parts_value': obsolete_value
             })
             
         except Exception as e:
