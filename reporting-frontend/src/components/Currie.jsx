@@ -1580,7 +1580,7 @@ const Currie = ({ user, organization }) => {
 
                 <DataRow
                   label="Long Term Rental"
-                  data={data.long_term_rental}
+                  data={data.long_term_rental || {sales: 0, cogs: 0, gross_profit: 0}}
                   onEdit={(field, value) => handleCellEdit('long_term_rental', null, field, value)}
                 />
 
