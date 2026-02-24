@@ -642,6 +642,7 @@ def get_sales_gp_report():
         
         logger.info(f"Sales GP Report for {schema}: {year}-{month:02d}")
         
+        # Query 1: Get all revenue accounts (4xxxx) with direct COS match (swap 4→5)
         query = f"""
             SELECT 
                 c.Branch,
@@ -669,9 +670,32 @@ def get_sales_gp_report():
             ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
         """
         
-        results = db.execute_query(query)
+        # Query 2: Get all COS accounts (5xxxx) that DON'T have a matching revenue account
+        # This catches rental COS and other departments where account numbers don't mirror
+        unmatched_cos_query = f"""
+            SELECT 
+                c.Branch,
+                c.Department as Dept,
+                c.AccountNo as Account,
+                c.Description as AccountDescription,
+                g.MTD as COS
+            FROM {schema}.GL g
+            JOIN {schema}.ChartOfAccounts c ON g.AccountNo = c.AccountNo
+            WHERE g.AccountNo LIKE '5%'
+            AND g.Month = {month} AND g.Year = {year}
+            AND g.AccountField = 'Actual'
+            AND g.MTD != 0
+            AND NOT EXISTS (
+                SELECT 1 FROM {schema}.ChartOfAccounts rev_c
+                WHERE rev_c.AccountNo = '4' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
+            )
+            ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
+        """
         
-        if not results:
+        results = db.execute_query(query)
+        unmatched_cos_results = db.execute_query(unmatched_cos_query)
+        
+        if not results and not unmatched_cos_results:
             return jsonify({
                 'month': month,
                 'year': year,
@@ -684,6 +708,9 @@ def get_sales_gp_report():
         grand_sales = 0
         grand_cos = 0
         grand_gp = 0
+        
+        if not results:
+            results = []
         
         for row in results:
             branch_no = str(row['Branch'] or '0').strip()
@@ -735,6 +762,53 @@ def get_sales_gp_report():
             grand_sales += sales
             grand_cos += cos
             grand_gp += gp
+        
+        # Process unmatched COS accounts (e.g., rental COS that don't mirror revenue account numbers)
+        if unmatched_cos_results:
+            for row in unmatched_cos_results:
+                branch_no = str(row['Branch'] or '0').strip()
+                dept_no = str(row['Dept'] or '0').strip()
+                cos = float(row['COS'] or 0)
+                
+                if branch_no not in branches:
+                    branches[branch_no] = {
+                        'branch': branch_no,
+                        'departments': OrderedDict(),
+                        'total_sales': 0,
+                        'total_cos': 0,
+                        'total_gp': 0
+                    }
+                
+                branch = branches[branch_no]
+                
+                if dept_no not in branch['departments']:
+                    branch['departments'][dept_no] = {
+                        'dept': dept_no,
+                        'line_items': [],
+                        'total_sales': 0,
+                        'total_cos': 0,
+                        'total_gp': 0
+                    }
+                
+                dept = branch['departments'][dept_no]
+                
+                dept['line_items'].append({
+                    'account': '',
+                    'gp_account': row['Account'],
+                    'description': row['AccountDescription'],
+                    'sales': 0,
+                    'cos': round(cos, 2),
+                    'gp': round(-cos, 2)
+                })
+                
+                dept['total_cos'] += cos
+                dept['total_gp'] -= cos
+                
+                branch['total_cos'] += cos
+                branch['total_gp'] -= cos
+                
+                grand_cos += cos
+                grand_gp -= cos
         
         branches_list = []
         for b in branches.values():

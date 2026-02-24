@@ -164,7 +164,7 @@ export default function SalesGPReport({ user }) {
       rows.push([`Branch: ${branch.branch} - ${branch.branch_name}`])
       branch.departments.forEach(dept => {
         dept.line_items.forEach(item => {
-          const gpPct = item.sales !== 0 && item.gp !== 0 ? ((item.gp / data.grand_total.sales) * 100).toFixed(2) + '%' : '0.00%'
+          const gpPct = item.sales !== 0 && item.gp !== 0 ? ((item.gp / item.sales) * 100).toFixed(2) + '%' : '0.00%'
           rows.push([
             branch.branch,
             dept.dept,
@@ -301,7 +301,7 @@ export default function SalesGPReport({ user }) {
                 <TableHead className="text-right w-[130px]">Sales</TableHead>
                 <TableHead className="text-right w-[130px]">COS</TableHead>
                 <TableHead className="text-right w-[130px]">GP</TableHead>
-                <TableHead className="text-right w-[70px]">%</TableHead>
+                <TableHead className="text-right w-[70px]">GP%</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -350,7 +350,7 @@ export default function SalesGPReport({ user }) {
                           <TableCell className="text-right py-1.5 font-semibold text-sm">{formatCurrency(dept.total_cos)}</TableCell>
                           <TableCell className="text-right py-1.5 font-semibold text-sm">{formatCurrency(dept.total_gp)}</TableCell>
                           <TableCell className="text-right py-1.5 font-semibold text-sm">
-                            {dept.total_sales !== 0 ? formatPct((dept.total_gp / data.grand_total.sales) * 100) : '0.00%'}
+                            {dept.total_sales !== 0 ? formatPct((dept.total_gp / dept.total_sales) * 100) : '0.00%'}
                           </TableCell>
                         </TableRow>
 
@@ -367,7 +367,7 @@ export default function SalesGPReport({ user }) {
                               {item.gp ? formatCurrency(item.gp) : ''}
                             </TableCell>
                             <TableCell className="py-1 text-right text-xs text-muted-foreground">
-                              {item.gp && data.grand_total.sales !== 0 ? formatPct((item.gp / data.grand_total.sales) * 100) : '0.00%'}
+                              {item.gp && item.sales !== 0 ? formatPct((item.gp / item.sales) * 100) : '0.00%'}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -384,7 +384,7 @@ export default function SalesGPReport({ user }) {
                     <TableCell className="text-right py-2 font-bold text-sm">{formatCurrency(branch.total_cos)}</TableCell>
                     <TableCell className="text-right py-2 font-bold text-sm">{formatCurrency(branch.total_gp)}</TableCell>
                     <TableCell className="text-right py-2 font-bold text-sm">
-                      {branch.total_sales !== 0 ? formatPct((branch.total_gp / data.grand_total.sales) * 100) : '0.00%'}
+                      {branch.total_sales !== 0 ? formatPct((branch.total_gp / branch.total_sales) * 100) : '0.00%'}
                     </TableCell>
                   </TableRow>
                 </>

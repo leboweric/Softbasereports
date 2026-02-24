@@ -249,7 +249,7 @@ const PartsEmployeePerformance = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${(summary.totalSales / summary.totalEmployees).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              ${(summary.totalEmployees > 0 ? (summary.totalSales / summary.totalEmployees) : 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </div>
             <p className="text-xs text-muted-foreground">Average sales</p>
           </CardContent>
@@ -492,7 +492,7 @@ const PartsEmployeePerformance = () => {
               </div>
               <div>
                 <span className="font-medium">Average Daily Sales:</span> ${
-                  (summary.totalSales / employees.reduce((sum, emp) => sum + emp.daysWorked, 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  (employees.reduce((sum, emp) => sum + emp.daysWorked, 0) > 0 ? (summary.totalSales / employees.reduce((sum, emp) => sum + emp.daysWorked, 0)) : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                 } per employee/day
               </div>
               <div>

@@ -660,7 +660,7 @@ const PartsReport = ({ user, onNavigate }) => {
                   <span className="text-xs font-medium text-muted-foreground">Reorder Alerts</span>
                 </div>
                 <div className="text-2xl font-bold">
-                  {reorderAlertData ? (reorderAlertData.critical_count + reorderAlertData.warning_count) : '—'}
+                  {reorderAlertData ? ((reorderAlertData.critical_count || 0) + (reorderAlertData.warning_count || 0)) : '—'}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {reorderAlertData?.critical_count || 0} critical
