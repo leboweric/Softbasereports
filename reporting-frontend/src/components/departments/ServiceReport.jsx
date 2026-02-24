@@ -51,6 +51,8 @@ import RevenueChart from './RevenueChart'
 import MaintenanceContractProfitability from '../MaintenanceContractProfitability'
 import CustomerProfitability from '../CustomerProfitability'
 import UnitsRepairCost from '../UnitsRepairCost'
+import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -595,6 +597,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign className="h-4 w-4 text-blue-500" />
                   <span className="text-xs font-medium text-muted-foreground">Effective Labor Rate</span>
+                  <MetricTooltip {...IPS_METRICS.service_effective_labor_rate} />
                 </div>
                 <div className="text-2xl font-bold">
                   {serviceKpis?.labor_metrics?.effective_rate ? `$${serviceKpis.labor_metrics.effective_rate}/hr` : '—'}
@@ -659,6 +662,7 @@ const ServiceReport = ({ user, onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <Activity className="h-4 w-4 text-purple-500" />
                   <span className="text-xs font-medium text-muted-foreground">Service Calls / Day</span>
+                  <MetricTooltip label="Service Calls / Day" formula="Total service calls in period ÷ Number of working days" accounts={[]} />
                 </div>
                 <div className="text-2xl font-bold">
                   {serviceKpis?.service_productivity?.service_calls_per_day?.toFixed(1) || '—'}

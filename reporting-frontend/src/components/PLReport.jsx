@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { FileSpreadsheet, Download, Calendar, RefreshCw, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { apiUrl } from '../lib/api';
+import { MetricTooltip } from '@/components/ui/metric-tooltip';
+import { IPS_METRICS } from '@/config/ipsMetricDefinitions';
 
 const PLReport = ({ user, organization }) => {
   const [loading, setLoading] = useState(false);
@@ -350,19 +352,28 @@ const PLReport = ({ user, organization }) => {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Consolidated Summary</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <p className="text-sm text-gray-600">Total Revenue</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-gray-600">Total Revenue</p>
+                  <MetricTooltip {...IPS_METRICS.pl_total_revenue} />
+                </div>
                 <p className="text-2xl font-bold text-gray-900">
                   {formatCurrency(data.consolidated.revenue)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total COGS</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-gray-600">Total COGS</p>
+                  <MetricTooltip {...IPS_METRICS.pl_total_cogs} />
+                </div>
                 <p className="text-2xl font-bold text-gray-900">
                   {formatCurrency(data.consolidated.cogs)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Gross Profit</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-gray-600">Gross Profit</p>
+                  <MetricTooltip {...IPS_METRICS.pl_gross_profit} />
+                </div>
                 <p className="text-2xl font-bold text-green-600">
                   {formatCurrency(data.consolidated.gross_profit)}
                 </p>
@@ -371,7 +382,10 @@ const PLReport = ({ user, organization }) => {
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Net Income</p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm text-gray-600">Net Income</p>
+                  <MetricTooltip {...IPS_METRICS.pl_net_income} />
+                </div>
                 <p className={`text-2xl font-bold ${data.consolidated.net_income >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                   {formatCurrency(data.consolidated.net_income)}
                 </p>

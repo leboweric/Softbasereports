@@ -21,6 +21,8 @@ import {
   Cell
 } from 'recharts'
 import { apiUrl } from '@/lib/api'
+import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 import ARAgingReport from '@/components/ARAgingReport'
 import APAgingReport from '@/components/APAgingReport'
 import SalesCommissionReport from '@/components/SalesCommissionReport'
@@ -457,7 +459,7 @@ const AccountingReport = ({ user, organization }) => {
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Total Accounts Receivable</CardTitle>
+                <CardTitle className="text-sm font-medium flex items-center gap-1">Total Accounts Receivable <MetricTooltip label="Total Accounts Receivable" formula="Sum of all outstanding customer invoices from Accounts Receivable aging report" accounts={[]} /></CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
@@ -472,7 +474,7 @@ const AccountingReport = ({ user, organization }) => {
             {arData && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">AR Over 90 Days</CardTitle>
+                  <CardTitle className="text-sm font-medium flex items-center gap-1">AR Over 90 Days <MetricTooltip label="AR Over 90 Days" formula="(AR balance > 90 days past due ÷ Total AR) × 100. Green if < 10%, red if ≥ 10%." accounts={[]} /></CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className={`text-2xl font-bold ${arData.over_90_percentage < 10 ? 'text-green-600' : 'text-red-600'}`}>
@@ -486,7 +488,7 @@ const AccountingReport = ({ user, organization }) => {
             {apTotal && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Total Accounts Payable</CardTitle>
+                  <CardTitle className="text-sm font-medium flex items-center gap-1">Total Accounts Payable <MetricTooltip label="Total Accounts Payable" formula="Sum of all outstanding vendor invoices from Accounts Payable aging report" accounts={[]} /></CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{apTotal.formatted}</div>

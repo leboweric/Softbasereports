@@ -54,6 +54,8 @@ import { apiUrl } from '@/lib/api'
 import RentalServiceReport from './RentalServiceReport'
 import RentalAvailability from './RentalAvailability'
 import DepreciationRolloff from './DepreciationRolloff'
+import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -562,6 +564,7 @@ const RentalReport = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <Gauge className="h-4 w-4 text-purple-500" />
                   <span className="text-xs font-medium text-muted-foreground">Fleet Utilization</span>
+                  <MetricTooltip {...IPS_METRICS.rental_utilization} />
                 </div>
                 <div className="text-2xl font-bold">
                   {totalFleet > 0 ? `${((unitsOnRent / totalFleet) * 100).toFixed(1)}%` : '—'}
@@ -578,6 +581,7 @@ const RentalReport = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <Activity className="h-4 w-4 text-green-500" />
                   <span className="text-xs font-medium text-muted-foreground">Units on Rent</span>
+                  <MetricTooltip label="Units on Rent" formula="Count of rental fleet units with active rental contracts (from equipment master)" accounts={[]} />
                 </div>
                 <div className="text-2xl font-bold text-green-600">{unitsOnRent}</div>
                 <p className="text-xs text-muted-foreground mt-1">Currently deployed</p>
@@ -628,6 +632,7 @@ const RentalReport = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign className="h-4 w-4 text-emerald-500" />
                   <span className="text-xs font-medium text-muted-foreground">Avg Revenue / Mo</span>
+                  <MetricTooltip {...IPS_METRICS.rental_avg_rate} />
                 </div>
                 <div className="text-2xl font-bold">
                   {monthlyRevenueData && monthlyRevenueData.length > 0 ? 

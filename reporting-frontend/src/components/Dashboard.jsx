@@ -68,6 +68,8 @@ import {
   Info
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
@@ -949,16 +951,7 @@ const Dashboard = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <DollarSign className="h-4 w-4 text-green-500" />
                   <span className="text-xs font-medium text-muted-foreground">MTD Sales</span>
-                  <TooltipProvider>
-                    <UITooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs text-left">
-                        <p>Total posted revenue for the current calendar month across all departments (New Equipment, Used Equipment, Parts, Service, Rental). Sourced from General Ledger detail entries.</p>
-                      </TooltipContent>
-                    </UITooltip>
-                  </TooltipProvider>
+                  <MetricTooltip {...IPS_METRICS.dashboard_mtd_sales} />
                 </div>
                 <div className="text-2xl font-bold">
                   {formatCurrency(dashboardData?.total_sales || 0)}
@@ -986,16 +979,7 @@ const Dashboard = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp className="h-4 w-4 text-blue-500" />
                   <span className="text-xs font-medium text-muted-foreground">FY26 YTD Sales</span>
-                  <TooltipProvider>
-                    <UITooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs text-left">
-                        <p>Total posted revenue from the fiscal year start (Nov 1) through today across all departments. Sourced from GL detail. Compared to the same period in the prior fiscal year when data is available.</p>
-                      </TooltipContent>
-                    </UITooltip>
-                  </TooltipProvider>
+                  <MetricTooltip {...IPS_METRICS.dashboard_ytd_sales} />
                 </div>
                 <div className="text-2xl font-bold">
                   {formatCurrency(dashboardData?.ytd_sales || 0)}
@@ -1019,16 +1003,7 @@ const Dashboard = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <Gauge className="h-4 w-4 text-purple-500" />
                   <span className="text-xs font-medium text-muted-foreground">Blended GP%</span>
-                  <TooltipProvider>
-                    <UITooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs text-left">
-                        <p>Fiscal year-to-date gross profit margin across all departments. Calculated as (Revenue − COGS) ÷ Revenue × 100. Green if ≥ 25%, red if below. Sourced from GL detail.</p>
-                      </TooltipContent>
-                    </UITooltip>
-                  </TooltipProvider>
+                  <MetricTooltip {...IPS_METRICS.dashboard_blended_gp} />
                 </div>
                 <div className={`text-2xl font-bold ${dashboardData?.ytd_margin >= 25 ? 'text-green-600' : dashboardData?.ytd_margin > 0 ? 'text-red-600' : ''}`}>
                   {dashboardData?.ytd_margin > 0 ? `${dashboardData.ytd_margin}%` : '—'}
@@ -1052,16 +1027,7 @@ const Dashboard = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <Package className="h-4 w-4 text-cyan-500" />
                   <span className="text-xs font-medium text-muted-foreground">Equip. Units (FY)</span>
-                  <TooltipProvider>
-                    <UITooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs text-left">
-                        <p>Number of Linde new truck units invoiced in the current fiscal year (Nov–Oct). Counted from invoices with SaleCode "LINDEN" in the Invoice Register. Does not include used equipment or non-Linde brands.</p>
-                      </TooltipContent>
-                    </UITooltip>
-                  </TooltipProvider>
+                  <MetricTooltip label="Equipment Units (FY)" formula="Count of Linde new truck units invoiced in the current fiscal year (Nov–Oct). Counted from invoices with SaleCode 'LINDEN' in the Invoice Register." accounts={[]} />
                 </div>
                 <div className="text-2xl font-bold">
                   {(() => {
@@ -1084,16 +1050,7 @@ const Dashboard = ({ user }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <Users className="h-4 w-4 text-amber-500" />
                   <span className="text-xs font-medium text-muted-foreground">Active Customers</span>
-                  <TooltipProvider>
-                    <UITooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs text-left">
-                        <p>Count of distinct customers invoiced in the last 30 days. The +/− change compares to the prior 30-day window (31–60 days ago). Excludes internal accounts (Wells Fargo, Maintenance contracts, Rental Fleet).</p>
-                      </TooltipContent>
-                    </UITooltip>
-                  </TooltipProvider>
+                  <MetricTooltip label="Active Customers" formula="Count of distinct customers invoiced in the last 30 days. The +/− change compares to the prior 30-day window (31–60 days ago). Excludes internal accounts." accounts={[]} />
                 </div>
                 <div className="text-2xl font-bold">
                   {dashboardData?.active_customers || '—'}

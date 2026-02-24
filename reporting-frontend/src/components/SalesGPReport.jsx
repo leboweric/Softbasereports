@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { apiUrl } from '@/lib/api'
 import { ChevronDown, ChevronRight, Download, Building2 } from 'lucide-react'
+import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 
 const MONTHS = [
   { value: 1, label: 'January' },
@@ -257,25 +259,37 @@ export default function SalesGPReport({ user }) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground font-medium">Total Sales</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground font-medium">Total Sales</p>
+              <MetricTooltip {...IPS_METRICS.eds_total_revenue} />
+            </div>
             <p className="text-2xl font-bold text-blue-600">{formatCurrency(data?.grand_total?.sales)}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-red-500">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground font-medium">Total Cost of Sales</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground font-medium">Total Cost of Sales</p>
+              <MetricTooltip {...IPS_METRICS.eds_total_cogs} />
+            </div>
             <p className="text-2xl font-bold text-red-600">{formatCurrency(data?.grand_total?.cos)}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-green-500">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground font-medium">Total Gross Profit</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground font-medium">Total Gross Profit</p>
+              <MetricTooltip {...IPS_METRICS.eds_gross_profit} />
+            </div>
             <p className="text-2xl font-bold text-green-600">{formatCurrency(data?.grand_total?.gp)}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-purple-500">
           <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground font-medium">GP Margin</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground font-medium">GP Margin</p>
+              <MetricTooltip {...IPS_METRICS.eds_gp_pct} />
+            </div>
             <p className="text-2xl font-bold text-purple-600">{formatPct(data?.grand_total?.gp_pct)}</p>
             <p className="text-xs text-muted-foreground">{data?.branches?.length || 0} branches</p>
           </CardContent>

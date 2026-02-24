@@ -46,6 +46,8 @@ import PartsInventoryByLocation from './PartsInventoryByLocation'
 import PartsInventoryTurns from './PartsInventoryTurns'
 import RevenueChart from './RevenueChart'
 import { usePermissions, getAccessibleTabs } from '../../contexts/PermissionsContext'
+import { MetricTooltip } from '@/components/ui/metric-tooltip'
+import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -614,6 +616,7 @@ const PartsReport = ({ user, onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <CircleCheck className="h-4 w-4 text-green-500" />
                   <span className="text-xs font-medium text-muted-foreground">Fill Rate</span>
+                  <MetricTooltip {...IPS_METRICS.parts_fill_rate} />
                 </div>
                 <div className={`text-2xl font-bold ${fillRateData?.overall_fill_rate >= 90 ? 'text-green-600' : 'text-red-600'}`}>
                   {fillRateData?.overall_fill_rate ? `${fillRateData.overall_fill_rate}%` : '—'}
@@ -628,6 +631,7 @@ const PartsReport = ({ user, onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <RotateCcw className="h-4 w-4 text-blue-500" />
                   <span className="text-xs font-medium text-muted-foreground">Inventory Turns</span>
+                  <MetricTooltip {...IPS_METRICS.parts_inventory_turns} />
                 </div>
                 <div className="text-2xl font-bold">
                   {fillRateData?.inventory_turnover ? `${fillRateData.inventory_turnover}x` : '—'}
@@ -658,6 +662,7 @@ const PartsReport = ({ user, onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <AlertTriangle className="h-4 w-4 text-red-500" />
                   <span className="text-xs font-medium text-muted-foreground">Reorder Alerts</span>
+                  <MetricTooltip {...IPS_METRICS.parts_reorder_alerts} />
                 </div>
                 <div className="text-2xl font-bold">
                   {reorderAlertData ? ((reorderAlertData.critical_count || 0) + (reorderAlertData.warning_count || 0)) : '—'}
@@ -674,6 +679,7 @@ const PartsReport = ({ user, onNavigate }) => {
                 <div className="flex items-center gap-2 mb-1">
                   <Archive className="h-4 w-4 text-purple-500" />
                   <span className="text-xs font-medium text-muted-foreground">Obsolete Value</span>
+                  <MetricTooltip {...IPS_METRICS.parts_obsolete_value} />
                 </div>
                 <div className="text-2xl font-bold">
                   {fillRateData?.obsolete_parts_value ? formatCurrency(fillRateData.obsolete_parts_value) : '—'}
