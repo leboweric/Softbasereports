@@ -670,10 +670,11 @@ def get_sales_gp_report():
             ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
         """
         
-        # Query 2: Get all COS accounts (5xxxx) where the mirrored revenue account (4xxxx)
-        # either doesn't exist in ChartOfAccounts OR has no GL activity for this period.
-        # This catches rental COS and other departments where account numbers don't mirror.
-        unmatched_cos_query = f"""
+        # Query 2: Get ALL COS accounts (5xxxx) for the period.
+        # We'll use this to compute accurate department-level COS totals,
+        # since the 4→5 swap in Query 1 misses COS accounts that don't mirror
+        # revenue account numbers (e.g., Rental COS 5152901 vs Revenue 4191901).
+        all_cos_query = f"""
             SELECT 
                 c.Branch,
                 c.Department as Dept,
@@ -686,20 +687,13 @@ def get_sales_gp_report():
             AND g.Month = {month} AND g.Year = {year}
             AND g.AccountField = 'Actual'
             AND g.MTD != 0
-            AND NOT EXISTS (
-                SELECT 1 FROM {schema}.GL rev_gl
-                WHERE rev_gl.AccountNo = '4' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
-                AND rev_gl.Month = {month} AND rev_gl.Year = {year}
-                AND rev_gl.AccountField = 'Actual'
-                AND rev_gl.MTD != 0
-            )
             ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
         """
         
         results = db.execute_query(query)
-        unmatched_cos_results = db.execute_query(unmatched_cos_query)
+        all_cos_results = db.execute_query(all_cos_query)
         
-        if not results and not unmatched_cos_results:
+        if not results and not all_cos_results:
             return jsonify({
                 'month': month,
                 'year': year,
@@ -767,52 +761,77 @@ def get_sales_gp_report():
             grand_cos += cos
             grand_gp += gp
         
-        # Process unmatched COS accounts (e.g., rental COS that don't mirror revenue account numbers)
-        if unmatched_cos_results:
-            for row in unmatched_cos_results:
+        # Now recalculate department-level COS and GP using ALL COS accounts.
+        # The per-line-item COS from Query 1 (4→5 swap) may miss COS accounts
+        # that don't mirror revenue numbering (e.g., Rental).
+        # We build a complete COS total per branch/dept from all_cos_results,
+        # then overwrite the department totals.
+        
+        # First, build the true COS totals from all_cos_results
+        from collections import defaultdict
+        true_cos_by_dept = defaultdict(float)  # key: (branch, dept)
+        cos_line_items_by_dept = defaultdict(list)  # for adding missing COS line items
+        matched_cos_accounts = set()  # track which COS accounts Query 1 already matched
+        
+        # Collect COS accounts that were already matched by Query 1
+        for b_key, branch_data in branches.items():
+            for d_key, dept_data in branch_data['departments'].items():
+                for li in dept_data['line_items']:
+                    if li.get('gp_account'):
+                        matched_cos_accounts.add((b_key, li['gp_account']))
+        
+        if all_cos_results:
+            for row in all_cos_results:
                 branch_no = str(row['Branch'] or '0').strip()
                 dept_no = str(row['Dept'] or '0').strip()
                 cos = float(row['COS'] or 0)
+                account = row['Account']
                 
-                if branch_no not in branches:
-                    branches[branch_no] = {
-                        'branch': branch_no,
-                        'departments': OrderedDict(),
-                        'total_sales': 0,
-                        'total_cos': 0,
-                        'total_gp': 0
-                    }
+                true_cos_by_dept[(branch_no, dept_no)] += cos
                 
-                branch = branches[branch_no]
+                # Track COS accounts not already matched by Query 1
+                if (branch_no, account) not in matched_cos_accounts:
+                    cos_line_items_by_dept[(branch_no, dept_no)].append({
+                        'account': '',
+                        'gp_account': account,
+                        'description': row['AccountDescription'],
+                        'sales': 0,
+                        'cos': round(cos, 2),
+                        'gp': 0  # will be recalculated at dept level
+                    })
+        
+        # Reset grand totals - we'll recalculate from true values
+        grand_sales = 0
+        grand_cos = 0
+        grand_gp = 0
+        
+        for b_key, branch_data in branches.items():
+            branch_data['total_sales'] = 0
+            branch_data['total_cos'] = 0
+            branch_data['total_gp'] = 0
+            
+            for d_key, dept_data in branch_data['departments'].items():
+                # Add any unmatched COS line items to this department
+                if (b_key, d_key) in cos_line_items_by_dept:
+                    dept_data['line_items'].extend(cos_line_items_by_dept[(b_key, d_key)])
                 
-                if dept_no not in branch['departments']:
-                    branch['departments'][dept_no] = {
-                        'dept': dept_no,
-                        'line_items': [],
-                        'total_sales': 0,
-                        'total_cos': 0,
-                        'total_gp': 0
-                    }
+                # Department sales stays as-is from Query 1 (revenue is correct)
+                dept_sales = dept_data['total_sales']
                 
-                dept = branch['departments'][dept_no]
+                # Use the TRUE COS total from all_cos_results
+                dept_cos = true_cos_by_dept.get((b_key, d_key), 0)
+                dept_gp = dept_sales - dept_cos
                 
-                dept['line_items'].append({
-                    'account': '',
-                    'gp_account': row['Account'],
-                    'description': row['AccountDescription'],
-                    'sales': 0,
-                    'cos': round(cos, 2),
-                    'gp': round(-cos, 2)
-                })
+                dept_data['total_cos'] = dept_cos
+                dept_data['total_gp'] = dept_gp
                 
-                dept['total_cos'] += cos
-                dept['total_gp'] -= cos
-                
-                branch['total_cos'] += cos
-                branch['total_gp'] -= cos
-                
-                grand_cos += cos
-                grand_gp -= cos
+                branch_data['total_sales'] += dept_sales
+                branch_data['total_cos'] += dept_cos
+                branch_data['total_gp'] += dept_gp
+            
+            grand_sales += branch_data['total_sales']
+            grand_cos += branch_data['total_cos']
+            grand_gp += branch_data['total_gp']
         
         branches_list = []
         for b in branches.values():
