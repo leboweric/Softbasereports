@@ -257,7 +257,7 @@ const ServiceReport = ({ user, onNavigate }) => {
       startDate.setFullYear(startDate.getFullYear() - 1)
       const formatDate = (d) => d.toISOString().split('T')[0]
       
-      const response = await fetch(apiUrl(`/api/currie/metrics?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}&refresh=true`), {
+      const response = await fetch(apiUrl(`/api/currie/metrics?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

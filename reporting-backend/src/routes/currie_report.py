@@ -1076,18 +1076,20 @@ def get_rental_fleet_metrics(start_date, end_date):
         gross_acct = rental_fleet_bs.get('gross_equipment', '183000')
         deprec_acct = rental_fleet_bs.get('accumulated_depreciation', '193000')
         
-        # 1. Rental Fleet Value from GL accounts
+        # 1. Rental Fleet Value from GL accounts (use YTD from latest period)
         gross_like = gross_acct[:3] + '%'  # e.g. '183%'
         deprec_like = deprec_acct[:3] + '%'  # e.g. '193%'
         fleet_query = f"""
         SELECT 
-            SUM(CASE WHEN AccountNo LIKE %s THEN CurrentBalance ELSE 0 END) as gross_fleet_value,
-            SUM(CASE WHEN AccountNo LIKE %s THEN ABS(CurrentBalance) ELSE 0 END) as accumulated_depreciation
+            SUM(CASE WHEN AccountNo LIKE %s THEN YTD ELSE 0 END) as gross_fleet_value,
+            SUM(CASE WHEN AccountNo LIKE %s THEN ABS(YTD) ELSE 0 END) as accumulated_depreciation
         FROM {schema}.GL
-        WHERE AccountNo LIKE %s OR AccountNo LIKE %s
+        WHERE (AccountNo LIKE %s OR AccountNo LIKE %s)
+          AND Year = (SELECT MAX(Year) FROM {schema}.GL WHERE AccountNo LIKE %s)
+          AND Month = (SELECT MAX(Month) FROM {schema}.GL WHERE AccountNo LIKE %s AND Year = (SELECT MAX(Year) FROM {schema}.GL WHERE AccountNo LIKE %s))
         """
         
-        fleet_result = get_sql_service().execute_query(fleet_query, [gross_like, deprec_like, gross_like, deprec_like])
+        fleet_result = get_sql_service().execute_query(fleet_query, [gross_like, deprec_like, gross_like, deprec_like, gross_like, deprec_like, gross_like])
         gross_value = float(fleet_result[0]['gross_fleet_value'] or 0) if fleet_result else 0
         accum_deprec = float(fleet_result[0]['accumulated_depreciation'] or 0) if fleet_result else 0
         net_value = gross_value - accum_deprec

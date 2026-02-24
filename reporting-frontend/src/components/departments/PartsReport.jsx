@@ -235,17 +235,44 @@ const PartsReport = ({ user, onNavigate }) => {
   const fetchFillRateData = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(apiUrl('/api/reports/departments/parts/fill-rate'), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      })
       
-      if (response.ok) {
-        const data = await response.json()
+      // Fetch both fill-rate and currie metrics in parallel
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setFullYear(startDate.getFullYear() - 1)
+      const formatDate = (d) => d.toISOString().split('T')[0]
+      
+      const [fillRateResponse, currieResponse] = await Promise.all([
+        fetch(apiUrl('/api/reports/departments/parts/fill-rate'), {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }),
+        fetch(apiUrl(`/api/currie/metrics?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}`), {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).catch(() => null),
+      ])
+      
+      if (fillRateResponse.ok) {
+        const data = await fillRateResponse.json()
+        
+        // If the backend already returns the KPI fields, use them directly.
+        // Otherwise, supplement from currie metrics as fallback.
+        if (!data.overall_fill_rate && currieResponse?.ok) {
+          try {
+            const currieData = await currieResponse.json()
+            const pi = currieData.metrics?.parts_inventory || currieData.parts_inventory || {}
+            data.overall_fill_rate = pi.fill_rate || null
+            data.inventory_turnover = pi.inventory_turnover || null
+            data.inventory_value = pi.inventory_value || null
+            data.obsolete_parts_count = pi.aging?.obsolete_count || 0
+            data.obsolete_parts_value = pi.aging?.obsolete_value || 0
+          } catch (e) {
+            console.warn('Could not parse currie metrics for parts KPIs:', e)
+          }
+        }
+        
         setFillRateData(data)
       } else {
-        console.error('Failed to fetch fill rate data:', response.status)
+        console.error('Failed to fetch fill rate data:', fillRateResponse.status)
         setFillRateData(null)
       }
     } catch (error) {
