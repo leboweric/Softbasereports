@@ -670,8 +670,9 @@ def get_sales_gp_report():
             ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
         """
         
-        # Query 2: Get all COS accounts (5xxxx) that DON'T have a matching revenue account
-        # This catches rental COS and other departments where account numbers don't mirror
+        # Query 2: Get all COS accounts (5xxxx) where the mirrored revenue account (4xxxx)
+        # either doesn't exist in ChartOfAccounts OR has no GL activity for this period.
+        # This catches rental COS and other departments where account numbers don't mirror.
         unmatched_cos_query = f"""
             SELECT 
                 c.Branch,
@@ -686,8 +687,11 @@ def get_sales_gp_report():
             AND g.AccountField = 'Actual'
             AND g.MTD != 0
             AND NOT EXISTS (
-                SELECT 1 FROM {schema}.ChartOfAccounts rev_c
-                WHERE rev_c.AccountNo = '4' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
+                SELECT 1 FROM {schema}.GL rev_gl
+                WHERE rev_gl.AccountNo = '4' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
+                AND rev_gl.Month = {month} AND rev_gl.Year = {year}
+                AND rev_gl.AccountField = 'Actual'
+                AND rev_gl.MTD != 0
             )
             ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
         """
