@@ -4560,6 +4560,14 @@ def register_department_routes(reports_bp):
                     'count': row['RecordCount'] if row else 0
                 })
             
+            # Calculate the gross AR total from the same InvoiceBalances CTE
+            # so numerator and denominator use the same methodology
+            gross_ar_total = sum(float(r['TotalAmount']) for r in ar_results if r['AgingBucket'] != 'No Due Date')
+            
+            # Recalculate over_90_percentage using consistent denominator
+            # over_90_amount comes from InvoiceBalances CTE, so denominator must too
+            over_90_percentage = (over_90_amount / gross_ar_total * 100) if gross_ar_total > 0 else 0
+            
             # Add debug info to see what's in ar_results
             debug_buckets = {}
             for row in ar_results:
@@ -4569,6 +4577,7 @@ def register_department_routes(reports_bp):
                 'total_ar': float(total_ar),
                 'over_90_amount': float(over_90_amount),
                 'over_90_percentage': round(over_90_percentage, 1),
+                'gross_ar_total': float(gross_ar_total),
                 'aging_summary': aging_summary,
                 'debug_buckets': debug_buckets,  # Temporary debug info
                 'specific_customers': [
