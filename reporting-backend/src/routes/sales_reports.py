@@ -106,6 +106,50 @@ def get_sales_breakdown():
                 'end_date': end_date
             })
 
+        # Tenant-specific account groupings
+        # Each entry: { 'accounts': [list of account numbers to combine],
+        #               'label': 'Display name for the combined row' }
+        ACCOUNT_GROUPINGS = {
+            'ben002': [
+                {
+                    'accounts': ['410001', '413001', '426001'],
+                    'label': 'New Equipment',
+                },
+            ],
+        }
+
+        # Apply account groupings if configured for this tenant
+        groupings = ACCOUNT_GROUPINGS.get(schema, [])
+        if groupings:
+            for group in groupings:
+                group_accounts = set(group['accounts'])
+                combined_revenue = 0.0
+                member_details = []  # track individual accounts for tooltip
+                remaining = []
+                for r in results:
+                    acct = r.get('AccountNo', '').strip()
+                    if acct in group_accounts:
+                        rev = float(r.get('Revenue', 0) or 0)
+                        combined_revenue += rev
+                        member_details.append({
+                            'account_no': acct,
+                            'description': r.get('AccountDescription', 'Unknown'),
+                            'revenue': round(rev, 2),
+                        })
+                    else:
+                        remaining.append(r)
+                if member_details:
+                    # Insert the combined row as a synthetic result
+                    combined_row = {
+                        'AccountNo': ', '.join(group['accounts']),
+                        'AccountDescription': group['label'],
+                        'Revenue': combined_revenue,
+                        '_is_grouped': True,
+                        '_grouped_accounts': member_details,
+                    }
+                    remaining.append(combined_row)
+                results = remaining
+
         # Calculate total revenue
         total_revenue = sum(float(r.get('Revenue', 0) or 0) for r in results)
 
@@ -113,12 +157,20 @@ def get_sales_breakdown():
         accounts = []
         for r in results:
             revenue = float(r.get('Revenue', 0) or 0)
-            accounts.append({
+            entry = {
                 'account_no': r.get('AccountNo', ''),
                 'description': r.get('AccountDescription', 'Unknown'),
                 'revenue': round(revenue, 2),
                 'pct_of_total': round(revenue * 100.0 / total_revenue, 2) if total_revenue > 0 else 0
-            })
+            }
+            # Include grouping metadata if this is a combined row
+            if r.get('_is_grouped'):
+                entry['is_grouped'] = True
+                entry['grouped_accounts'] = r['_grouped_accounts']
+            accounts.append(entry)
+
+        # Sort by revenue descending
+        accounts.sort(key=lambda a: a['revenue'], reverse=True)
 
         return jsonify({
             'accounts': accounts,

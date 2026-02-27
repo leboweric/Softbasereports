@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
-import { Calendar as CalendarIcon, DollarSign, Hash, TrendingUp, Download, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign, Hash, TrendingUp, Download, Search, ArrowUpDown, ArrowUp, ArrowDown, Layers } from 'lucide-react';
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -412,9 +413,42 @@ const SalesBreakdown = () => {
                     </TableRow>
                   ) : (
                     filteredAndSorted.map((account, idx) => (
-                      <TableRow key={account.account_no} className={idx % 2 === 0 ? '' : 'bg-gray-50/50'}>
-                        <TableCell className="font-mono text-sm">{account.account_no}</TableCell>
-                        <TableCell className="text-sm">{account.description}</TableCell>
+                      <TableRow key={account.account_no} className={`${idx % 2 === 0 ? '' : 'bg-gray-50/50'} ${account.is_grouped ? 'bg-blue-50/50' : ''}`}>
+                        <TableCell className="font-mono text-sm">
+                          <div className="flex items-center gap-1">
+                            {account.account_no}
+                            {account.is_grouped && (
+                              <TooltipProvider>
+                                <UITooltip delayDuration={0}>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center">
+                                      <Layers className="h-3.5 w-3.5 text-blue-500 cursor-help" />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-xs">
+                                    <p className="font-semibold text-xs mb-1">Combined GL Accounts:</p>
+                                    {account.grouped_accounts?.map((ga) => (
+                                      <div key={ga.account_no} className="text-xs flex justify-between gap-4">
+                                        <span>{ga.account_no} — {ga.description}</span>
+                                        <span className="font-mono">{formatCurrencyDetailed(ga.revenue)}</span>
+                                      </div>
+                                    ))}
+                                  </TooltipContent>
+                                </UITooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex items-center gap-1.5">
+                            {account.description}
+                            {account.is_grouped && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">
+                                {account.grouped_accounts?.length} combined
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className={`text-right font-medium text-sm ${account.revenue < 0 ? 'text-red-600' : ''}`}>
                           {formatCurrencyDetailed(account.revenue)}
                         </TableCell>
