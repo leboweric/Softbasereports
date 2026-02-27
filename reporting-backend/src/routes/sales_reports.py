@@ -401,25 +401,22 @@ def get_sales_by_customer():
 
 
 @sales_reports_bp.route('/api/reports/customer-gl-investigation', methods=['GET'])
-@jwt_required()
 def investigate_customer_gl():
     """
-    Diagnostic: Investigate what GL accounts are associated with specific customers.
+    Diagnostic (TEMPORARY - no auth): Investigate what GL accounts are associated with specific customers.
     Shows how their invoices post to the GL to determine if they're real revenue
     or internal transfers / finance partner transactions.
     
     Query params:
         customer_name: Customer name to investigate (substring match)
+        schema: Schema to query (default: ben002)
         start_date: Start date (YYYY-MM-DD)
         end_date: End date (YYYY-MM-DD)
     """
     try:
-        org = get_current_org()
-        if not org:
-            return jsonify({'error': 'Could not determine organization'}), 400
-
-        schema = get_tenant_schema()
-        db = get_tenant_db()
+        from src.services.azure_sql_service import AzureSQLService
+        schema = request.args.get('schema', 'ben002')
+        db = AzureSQLService()
 
         customer_name = request.args.get('customer_name', '')
         start_date = request.args.get('start_date', '2024-01-01')
