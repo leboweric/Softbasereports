@@ -562,7 +562,24 @@ const AccountingReport = ({ user, organization }) => {
                   if (data.length === 0) return data
 
                   // Calculate linear regression for trendline
-                  const monthsWithData = data.filter(item => item.gross_margin_dollars > 0)
+                  const allMonthsWithData = data.filter(item => item.gross_margin_dollars > 0)
+                  
+                  // Filter to fiscal year months if configured
+                  const fyStartMonth = organization?.fiscal_year_start_month
+                  let monthsWithData = allMonthsWithData
+                  if (fyStartMonth) {
+                    const now = new Date()
+                    const currentMonth = now.getMonth() + 1
+                    const fyStartYear = currentMonth >= fyStartMonth ? now.getFullYear() : now.getFullYear() - 1
+                    const fyFiltered = allMonthsWithData.filter(item => {
+                      if (item.month_num && item.year) {
+                        return item.year > fyStartYear || (item.year === fyStartYear && item.month_num >= fyStartMonth)
+                      }
+                      return true
+                    })
+                    if (fyFiltered.length >= 2) monthsWithData = fyFiltered
+                  }
+                  
                   let trendSlope = 0
                   let trendIntercept = 0
 
@@ -584,11 +601,16 @@ const AccountingReport = ({ user, organization }) => {
                     trendIntercept = meanY - trendSlope * meanX
                   }
 
-                  // Add trendline to each data point
-                  return data.map((item, index) => ({
-                    ...item,
-                    trendline: item.gross_margin_dollars > 0 ? trendSlope * index + trendIntercept : null
-                  }))
+                  // Add trendline only for months in the trend period
+                  const trendMonthSet = new Set(monthsWithData.map(m => m.month))
+                  return data.map((item) => {
+                    const isInTrend = trendMonthSet.has(item.month)
+                    const trendIndex = monthsWithData.findIndex(m => m.month === item.month)
+                    return {
+                      ...item,
+                      trendline: isInTrend && trendIndex >= 0 ? trendSlope * trendIndex + trendIntercept : null
+                    }
+                  })
                 })()} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
@@ -703,25 +725,41 @@ const AccountingReport = ({ user, organization }) => {
                 if (data.length === 0) return data
 
                 // Calculate average for all months (already filtered)
-                const monthsWithData = data.filter(item => item.expenses > 0)
-                const avgExpenses = monthsWithData.length > 0
-                  ? monthsWithData.reduce((sum, item) => sum + item.expenses, 0) / monthsWithData.length
+                const allMonthsWithData = data.filter(item => item.expenses > 0)
+                const avgExpenses = allMonthsWithData.length > 0
+                  ? allMonthsWithData.reduce((sum, item) => sum + item.expenses, 0) / allMonthsWithData.length
                   : 0
+
+                // Filter to fiscal year months if configured
+                const fyStartMonth = organization?.fiscal_year_start_month
+                let trendMonths = allMonthsWithData
+                if (fyStartMonth) {
+                  const now = new Date()
+                  const currentMonth = now.getMonth() + 1
+                  const fyStartYear = currentMonth >= fyStartMonth ? now.getFullYear() : now.getFullYear() - 1
+                  const fyFiltered = allMonthsWithData.filter(item => {
+                    if (item.month_num && item.year) {
+                      return item.year > fyStartYear || (item.year === fyStartYear && item.month_num >= fyStartMonth)
+                    }
+                    return true
+                  })
+                  if (fyFiltered.length >= 2) trendMonths = fyFiltered
+                }
 
                 // Calculate linear regression for trendline
                 let trendSlope = 0
                 let trendIntercept = 0
 
-                if (monthsWithData.length >= 2) {
-                  const n = monthsWithData.length
-                  const sumX = monthsWithData.reduce((sum, item, i) => sum + i, 0)
-                  const sumY = monthsWithData.reduce((sum, item) => sum + item.expenses, 0)
+                if (trendMonths.length >= 2) {
+                  const n = trendMonths.length
+                  const sumX = trendMonths.reduce((sum, item, i) => sum + i, 0)
+                  const sumY = trendMonths.reduce((sum, item) => sum + item.expenses, 0)
                   const meanX = sumX / n
                   const meanY = sumY / n
 
                   let numerator = 0
                   let denominator = 0
-                  monthsWithData.forEach((item, i) => {
+                  trendMonths.forEach((item, i) => {
                     numerator += (i - meanX) * (item.expenses - meanY)
                     denominator += (i - meanX) * (i - meanX)
                   })
@@ -730,12 +768,17 @@ const AccountingReport = ({ user, organization }) => {
                   trendIntercept = meanY - trendSlope * meanX
                 }
 
-                // Add average and trendline to each data point
-                return data.map((item, index) => ({
-                  ...item,
-                  avgExpenses: avgExpenses,
-                  trendline: item.expenses > 0 ? trendSlope * index + trendIntercept : null
-                }))
+                // Add average and trendline to each data point (trend only for fiscal year months)
+                const trendMonthSet = new Set(trendMonths.map(m => m.month))
+                return data.map((item) => {
+                  const isInTrend = trendMonthSet.has(item.month)
+                  const trendIndex = trendMonths.findIndex(m => m.month === item.month)
+                  return {
+                    ...item,
+                    avgExpenses: avgExpenses,
+                    trendline: isInTrend && trendIndex >= 0 ? trendSlope * trendIndex + trendIntercept : null
+                  }
+                })
               })()} margin={{ top: 20, right: 70, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
