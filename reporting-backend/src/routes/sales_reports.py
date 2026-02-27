@@ -587,3 +587,170 @@ def investigate_customer_gl():
     except Exception as e:
         logger.error(f"Customer GL investigation error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@sales_reports_bp.route('/rental-cost-investigation', methods=['GET'])
+def get_rental_cost_investigation():
+    """Investigate rental cost allocation via ControlNo - NO AUTH for diagnostic use"""
+    try:
+        from src.services.azure_sql_service import AzureSQLService
+        schema = request.args.get('schema', 'ben002')
+        db = AzureSQLService()
+
+        customer_name = request.args.get('customer_name', 'POLARIS')
+        start_date = request.args.get('start_date', '2025-03-01')
+        end_date = request.args.get('end_date', '2026-03-01')
+
+        # Query 1: How many rental invoices have ControlNo populated vs empty?
+        control_coverage_query = f"""
+        SELECT 
+            COUNT(*) as total_invoices,
+            COUNT(CASE WHEN ControlNo IS NOT NULL AND ControlNo != '' THEN 1 END) as with_control_no,
+            COUNT(CASE WHEN ControlNo IS NULL OR ControlNo = '' THEN 1 END) as without_control_no,
+            SUM(GrandTotal) as total_revenue,
+            SUM(CASE WHEN ControlNo IS NOT NULL AND ControlNo != '' THEN GrandTotal ELSE 0 END) as revenue_with_control,
+            SUM(CASE WHEN ControlNo IS NULL OR ControlNo = '' THEN GrandTotal ELSE 0 END) as revenue_without_control,
+            COUNT(DISTINCT CASE WHEN ControlNo IS NOT NULL AND ControlNo != '' THEN ControlNo END) as unique_control_nos
+        FROM [{schema}].InvoiceReg
+        WHERE BillToName LIKE '%{customer_name}%'
+        AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
+        """
+
+        coverage = db.execute_query(control_coverage_query)
+
+        # Query 2: Top control numbers for this customer with revenue
+        top_controls_query = f"""
+        SELECT TOP 20
+            ir.ControlNo,
+            COUNT(*) as invoice_count,
+            SUM(ir.GrandTotal) as total_revenue,
+            MIN(ir.InvoiceDate) as first_invoice,
+            MAX(ir.InvoiceDate) as last_invoice,
+            e.Make,
+            e.Model,
+            e.SerialNo,
+            e.Cost as equipment_cost
+        FROM [{schema}].InvoiceReg ir
+        LEFT JOIN [{schema}].Equipment e ON ir.ControlNo = e.ControlNo
+        WHERE ir.BillToName LIKE '%{customer_name}%'
+        AND ir.InvoiceDate >= '{start_date}' AND ir.InvoiceDate < '{end_date}'
+        AND ir.ControlNo IS NOT NULL AND ir.ControlNo != ''
+        GROUP BY ir.ControlNo, e.Make, e.Model, e.SerialNo, e.Cost
+        ORDER BY SUM(ir.GrandTotal) DESC
+        """
+
+        top_controls = db.execute_query(top_controls_query)
+
+        # Query 3: For those control numbers, check if depreciation (537001) exists in GLDetail
+        depreciation_query = f"""
+        SELECT 
+            gld.ControlNo,
+            gld.AccountNo,
+            COALESCE(coa.Description, 'Unknown') as AccountDescription,
+            COUNT(*) as posting_count,
+            SUM(gld.Amount) as total_amount
+        FROM [{schema}].GLDetail gld
+        LEFT JOIN [{schema}].ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
+        WHERE gld.ControlNo IN (
+            SELECT DISTINCT ControlNo 
+            FROM [{schema}].InvoiceReg
+            WHERE BillToName LIKE '%{customer_name}%'
+            AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
+            AND ControlNo IS NOT NULL AND ControlNo != ''
+        )
+        AND gld.AccountNo IN ('537001', '539000', '541000', '510008', '511001', '519000', '521008', '534014', '545000')
+        AND gld.EffectiveDate >= '{start_date}' AND gld.EffectiveDate < '{end_date}'
+        AND gld.Posted = 1
+        GROUP BY gld.ControlNo, gld.AccountNo, coa.Description
+        ORDER BY gld.ControlNo, ABS(SUM(gld.Amount)) DESC
+        """
+
+        depreciation_data = []
+        dep_error = None
+        try:
+            depreciation_data = db.execute_query(depreciation_query)
+        except Exception as e:
+            dep_error = f"Depreciation query failed: {str(e)}"
+
+        # Query 4: Total rental fleet depreciation (537001) across ALL control numbers for the period
+        fleet_depreciation_query = f"""
+        SELECT 
+            gld.AccountNo,
+            COALESCE(coa.Description, 'Unknown') as AccountDescription,
+            COUNT(DISTINCT gld.ControlNo) as unique_units,
+            COUNT(*) as posting_count,
+            SUM(gld.Amount) as total_amount
+        FROM [{schema}].GLDetail gld
+        LEFT JOIN [{schema}].ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
+        WHERE gld.AccountNo IN ('537001', '539000', '541000', '510008', '545000', '600901')
+        AND gld.EffectiveDate >= '{start_date}' AND gld.EffectiveDate < '{end_date}'
+        AND gld.Posted = 1
+        GROUP BY gld.AccountNo, coa.Description
+        ORDER BY ABS(SUM(gld.Amount)) DESC
+        """
+
+        fleet_dep = []
+        fleet_dep_error = None
+        try:
+            fleet_dep = db.execute_query(fleet_depreciation_query)
+        except Exception as e:
+            fleet_dep_error = f"Fleet depreciation query failed: {str(e)}"
+
+        # Format response
+        c = coverage[0] if coverage else {}
+        result = {
+            'customer_search': customer_name,
+            'schema': schema,
+            'date_range': {'start': start_date, 'end': end_date},
+            'control_number_coverage': {
+                'total_invoices': int(c.get('total_invoices', 0) or 0),
+                'with_control_no': int(c.get('with_control_no', 0) or 0),
+                'without_control_no': int(c.get('without_control_no', 0) or 0),
+                'coverage_pct': round(int(c.get('with_control_no', 0) or 0) * 100.0 / max(int(c.get('total_invoices', 0) or 0), 1), 1),
+                'total_revenue': round(float(c.get('total_revenue', 0) or 0), 2),
+                'revenue_with_control': round(float(c.get('revenue_with_control', 0) or 0), 2),
+                'revenue_without_control': round(float(c.get('revenue_without_control', 0) or 0), 2),
+                'revenue_coverage_pct': round(float(c.get('revenue_with_control', 0) or 0) * 100.0 / max(float(c.get('total_revenue', 0) or 0), 1), 1),
+                'unique_control_nos': int(c.get('unique_control_nos', 0) or 0),
+            },
+            'top_control_numbers': [
+                {
+                    'control_no': r.get('ControlNo', ''),
+                    'invoice_count': int(r.get('invoice_count', 0) or 0),
+                    'total_revenue': round(float(r.get('total_revenue', 0) or 0), 2),
+                    'first_invoice': str(r.get('first_invoice', '')),
+                    'last_invoice': str(r.get('last_invoice', '')),
+                    'make': r.get('Make', ''),
+                    'model': r.get('Model', ''),
+                    'serial_no': r.get('SerialNo', ''),
+                    'equipment_cost': round(float(r.get('equipment_cost', 0) or 0), 2),
+                }
+                for r in (top_controls or [])
+            ],
+            'depreciation_by_control_no': [
+                {
+                    'control_no': r.get('ControlNo', ''),
+                    'account_no': r.get('AccountNo', ''),
+                    'account_description': r.get('AccountDescription', ''),
+                    'posting_count': int(r.get('posting_count', 0) or 0),
+                    'total_amount': round(float(r.get('total_amount', 0) or 0), 2),
+                }
+                for r in (depreciation_data or [])
+            ] if depreciation_data else dep_error or 'No depreciation data found',
+            'total_fleet_costs': [
+                {
+                    'account_no': r.get('AccountNo', ''),
+                    'account_description': r.get('AccountDescription', ''),
+                    'unique_units': int(r.get('unique_units', 0) or 0),
+                    'posting_count': int(r.get('posting_count', 0) or 0),
+                    'total_amount': round(float(r.get('total_amount', 0) or 0), 2),
+                }
+                for r in (fleet_dep or [])
+            ] if fleet_dep else fleet_dep_error or 'No fleet depreciation data found',
+        }
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Rental cost investigation error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
