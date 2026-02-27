@@ -12,7 +12,9 @@ import {
   ArrowDown,
   BarChart3,
   Percent,
+  Layers,
 } from 'lucide-react';
+import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -541,9 +543,38 @@ const SalesByCustomer = () => {
                     </TableRow>
                   ) : (
                     filteredAndSorted.map((customer, idx) => (
-                      <TableRow key={customer.name} className={idx % 2 === 0 ? '' : 'bg-gray-50/50'}>
+                      <TableRow key={customer.name} className={`${idx % 2 === 0 ? '' : 'bg-gray-50/50'} ${customer.is_grouped ? 'bg-blue-50/50' : ''}`}>
                         <TableCell className="text-sm text-gray-500 font-mono">{idx + 1}</TableCell>
-                        <TableCell className="text-sm font-medium">{customer.name}</TableCell>
+                        <TableCell className="text-sm font-medium">
+                          <div className="flex items-center gap-1.5">
+                            {customer.name}
+                            {customer.is_grouped && (
+                              <>
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700">
+                                  {customer.grouped_customers?.length} combined
+                                </span>
+                                <TooltipProvider>
+                                  <UITooltip delayDuration={0}>
+                                    <TooltipTrigger asChild>
+                                      <span className="inline-flex items-center">
+                                        <Layers className="h-3.5 w-3.5 text-blue-500 cursor-help" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="max-w-sm">
+                                      <p className="font-semibold text-xs mb-1">Combined Accounts:</p>
+                                      {customer.grouped_customers?.map((gc) => (
+                                        <div key={gc.name} className="text-xs flex justify-between gap-4">
+                                          <span className="truncate max-w-[180px]">{gc.name}</span>
+                                          <span className="font-mono whitespace-nowrap">{formatCurrencyDetailed(gc.total_revenue)} ({gc.invoice_count} inv)</span>
+                                        </div>
+                                      ))}
+                                    </TooltipContent>
+                                  </UITooltip>
+                                </TooltipProvider>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right text-sm font-medium">
                           {formatCurrencyDetailed(customer.total_revenue)}
                         </TableCell>

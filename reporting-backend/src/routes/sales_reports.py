@@ -246,18 +246,90 @@ def get_sales_by_customer():
                 'end_date': end_date
             })
 
+        # Tenant-specific customer configurations
+        # exclude_patterns: customers matching these substrings (case-insensitive) are removed
+        # group_patterns: customers matching a substring are combined into one row
+        CUSTOMER_CONFIG = {
+            'ben002': {
+                'exclude_patterns': [],
+                'group_patterns': [
+                    {
+                        'match': 'polaris',   # case-insensitive substring match
+                        'label': 'Polaris',    # combined row display name
+                    },
+                ],
+            },
+        }
+
+        config = CUSTOMER_CONFIG.get(schema, {})
+
+        # Step 1: Exclude unwanted customers
+        exclude_patterns = config.get('exclude_patterns', [])
+        if exclude_patterns:
+            results = [
+                r for r in results
+                if not any(
+                    pat in (r.get('BillToName', '') or '').lower()
+                    for pat in exclude_patterns
+                )
+            ]
+
+        # Step 2: Group customers by pattern
+        group_patterns = config.get('group_patterns', [])
+        for group in group_patterns:
+            match_str = group['match'].lower()
+            label = group['label']
+            combined_revenue = 0.0
+            combined_cost = 0.0
+            combined_gp = 0.0
+            combined_invoices = 0
+            member_details = []
+            remaining = []
+            for r in results:
+                name = (r.get('BillToName', '') or '').strip()
+                if match_str in name.lower():
+                    rev = float(r.get('total_revenue', 0) or 0)
+                    cost = float(r.get('total_cost', 0) or 0)
+                    gp = float(r.get('gross_profit', 0) or 0)
+                    inv = int(r.get('invoice_count', 0) or 0)
+                    combined_revenue += rev
+                    combined_cost += cost
+                    combined_gp += gp
+                    combined_invoices += inv
+                    member_details.append({
+                        'name': name,
+                        'total_revenue': round(rev, 2),
+                        'invoice_count': inv,
+                    })
+                else:
+                    remaining.append(r)
+            if member_details:
+                combined_row = {
+                    'BillToName': label,
+                    'invoice_count': combined_invoices,
+                    'total_revenue': combined_revenue,
+                    'total_cost': combined_cost,
+                    'gross_profit': combined_gp,
+                    '_is_grouped': True,
+                    '_grouped_customers': member_details,
+                }
+                remaining.append(combined_row)
+            results = remaining
+
         # Calculate totals
         total_revenue = sum(float(r.get('total_revenue', 0) or 0) for r in results)
         total_cost = sum(float(r.get('total_cost', 0) or 0) for r in results)
         total_gross_profit = sum(float(r.get('gross_profit', 0) or 0) for r in results)
 
-        # Build response with percentages and rank
+        # Sort by revenue descending and build response
+        results.sort(key=lambda r: float(r.get('total_revenue', 0) or 0), reverse=True)
+
         customers = []
         for i, r in enumerate(results):
             revenue = float(r.get('total_revenue', 0) or 0)
             cost = float(r.get('total_cost', 0) or 0)
             gp = float(r.get('gross_profit', 0) or 0)
-            customers.append({
+            entry = {
                 'rank': i + 1,
                 'name': r.get('BillToName', 'Unknown'),
                 'invoice_count': int(r.get('invoice_count', 0) or 0),
@@ -267,7 +339,11 @@ def get_sales_by_customer():
                 'gross_margin_pct': round(gp * 100.0 / revenue, 1) if revenue > 0 else 0,
                 'pct_of_total_revenue': round(revenue * 100.0 / total_revenue, 2) if total_revenue > 0 else 0,
                 'pct_of_total_gp': round(gp * 100.0 / total_gross_profit, 2) if total_gross_profit > 0 else 0
-            })
+            }
+            if r.get('_is_grouped'):
+                entry['is_grouped'] = True
+                entry['grouped_customers'] = r['_grouped_customers']
+            customers.append(entry)
 
         return jsonify({
             'customers': customers,
