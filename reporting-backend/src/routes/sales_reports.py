@@ -398,3 +398,169 @@ def get_sales_by_customer():
     except Exception as e:
         logger.error(f"Sales by customer error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+
+@sales_reports_bp.route('/api/reports/customer-gl-investigation', methods=['GET'])
+@jwt_required()
+def investigate_customer_gl():
+    """
+    Diagnostic: Investigate what GL accounts are associated with specific customers.
+    Shows how their invoices post to the GL to determine if they're real revenue
+    or internal transfers / finance partner transactions.
+    
+    Query params:
+        customer_name: Customer name to investigate (substring match)
+        start_date: Start date (YYYY-MM-DD)
+        end_date: End date (YYYY-MM-DD)
+    """
+    try:
+        org = get_current_org()
+        if not org:
+            return jsonify({'error': 'Could not determine organization'}), 400
+
+        schema = get_tenant_schema()
+        db = get_tenant_db()
+
+        customer_name = request.args.get('customer_name', '')
+        start_date = request.args.get('start_date', '2024-01-01')
+        end_date = request.args.get('end_date', '2026-12-31')
+
+        if not customer_name:
+            return jsonify({'error': 'customer_name parameter is required'}), 400
+
+        # Query 1: Get all invoices for this customer with their details
+        invoice_query = f"""
+        SELECT TOP 50
+            InvoiceNo,
+            InvoiceDate,
+            BillToName,
+            BillTo,
+            GrandTotal,
+            COALESCE(PartsCost, 0) as PartsCost,
+            COALESCE(LaborCost, 0) as LaborCost,
+            COALESCE(MiscCost, 0) as MiscCost,
+            COALESCE(RentalCost, 0) as RentalCost,
+            COALESCE(EquipmentCost, 0) as EquipmentCost,
+            COALESCE(PartsTotal, 0) as PartsTotal,
+            COALESCE(LaborTotal, 0) as LaborTotal,
+            COALESCE(MiscTotal, 0) as MiscTotal,
+            COALESCE(RentalTotal, 0) as RentalTotal,
+            COALESCE(EquipmentTotal, 0) as EquipmentTotal
+        FROM [{schema}].InvoiceReg
+        WHERE BillToName LIKE '%{customer_name}%'
+        AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
+        ORDER BY GrandTotal DESC
+        """
+
+        invoices = db.execute_query(invoice_query)
+
+        # Query 2: Get summary stats
+        summary_query = f"""
+        SELECT 
+            COUNT(*) as invoice_count,
+            SUM(GrandTotal) as total_grand,
+            MIN(GrandTotal) as min_grand,
+            MAX(GrandTotal) as max_grand,
+            AVG(GrandTotal) as avg_grand,
+            SUM(CASE WHEN GrandTotal < 0 THEN 1 ELSE 0 END) as negative_count,
+            SUM(CASE WHEN GrandTotal < 0 THEN GrandTotal ELSE 0 END) as negative_total
+        FROM [{schema}].InvoiceReg
+        WHERE BillToName LIKE '%{customer_name}%'
+        AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
+        """
+
+        summary = db.execute_query(summary_query)
+
+        # Query 3: Check if there's an InvoiceSales table that links invoices to GL accounts
+        gl_link_query = f"""
+        SELECT TOP 50
+            isales.InvoiceNo,
+            isales.AccountNo,
+            COALESCE(coa.Description, 'Unknown') as AccountDescription,
+            isales.Amount
+        FROM [{schema}].InvoiceSales isales
+        LEFT JOIN [{schema}].ChartOfAccounts coa ON isales.AccountNo = coa.AccountNo
+        WHERE isales.InvoiceNo IN (
+            SELECT TOP 20 InvoiceNo 
+            FROM [{schema}].InvoiceReg 
+            WHERE BillToName LIKE '%{customer_name}%'
+            AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
+            ORDER BY GrandTotal DESC
+        )
+        ORDER BY isales.InvoiceNo, isales.AccountNo
+        """
+
+        gl_details = []
+        try:
+            gl_details = db.execute_query(gl_link_query)
+        except Exception as e:
+            logger.warning(f"InvoiceSales query failed (table may not exist): {e}")
+
+        # Query 4: Get distinct BillToName variations matching the pattern
+        names_query = f"""
+        SELECT DISTINCT BillToName, COUNT(*) as cnt, SUM(GrandTotal) as total
+        FROM [{schema}].InvoiceReg
+        WHERE BillToName LIKE '%{customer_name}%'
+        AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
+        GROUP BY BillToName
+        ORDER BY SUM(GrandTotal) DESC
+        """
+
+        name_variations = db.execute_query(names_query)
+
+        # Format response
+        result = {
+            'customer_search': customer_name,
+            'schema': schema,
+            'date_range': {'start': start_date, 'end': end_date},
+            'name_variations': [
+                {
+                    'name': r.get('BillToName', ''),
+                    'invoice_count': int(r.get('cnt', 0) or 0),
+                    'total_revenue': round(float(r.get('total', 0) or 0), 2)
+                }
+                for r in (name_variations or [])
+            ],
+            'summary': {
+                'invoice_count': int(summary[0].get('invoice_count', 0) or 0) if summary else 0,
+                'total_grand': round(float(summary[0].get('total_grand', 0) or 0), 2) if summary else 0,
+                'min_grand': round(float(summary[0].get('min_grand', 0) or 0), 2) if summary else 0,
+                'max_grand': round(float(summary[0].get('max_grand', 0) or 0), 2) if summary else 0,
+                'avg_grand': round(float(summary[0].get('avg_grand', 0) or 0), 2) if summary else 0,
+                'negative_count': int(summary[0].get('negative_count', 0) or 0) if summary else 0,
+                'negative_total': round(float(summary[0].get('negative_total', 0) or 0), 2) if summary else 0,
+            },
+            'sample_invoices': [
+                {
+                    'invoice_no': r.get('InvoiceNo', ''),
+                    'date': str(r.get('InvoiceDate', '')),
+                    'bill_to_name': r.get('BillToName', ''),
+                    'bill_to': r.get('BillTo', ''),
+                    'grand_total': round(float(r.get('GrandTotal', 0) or 0), 2),
+                    'parts_total': round(float(r.get('PartsTotal', 0) or 0), 2),
+                    'labor_total': round(float(r.get('LaborTotal', 0) or 0), 2),
+                    'misc_total': round(float(r.get('MiscTotal', 0) or 0), 2),
+                    'rental_total': round(float(r.get('RentalTotal', 0) or 0), 2),
+                    'equipment_total': round(float(r.get('EquipmentTotal', 0) or 0), 2),
+                    'parts_cost': round(float(r.get('PartsCost', 0) or 0), 2),
+                    'labor_cost': round(float(r.get('LaborCost', 0) or 0), 2),
+                    'equipment_cost': round(float(r.get('EquipmentCost', 0) or 0), 2),
+                }
+                for r in (invoices or [])
+            ],
+            'gl_account_details': [
+                {
+                    'invoice_no': r.get('InvoiceNo', ''),
+                    'account_no': r.get('AccountNo', ''),
+                    'account_description': r.get('AccountDescription', ''),
+                    'amount': round(float(r.get('Amount', 0) or 0), 2),
+                }
+                for r in (gl_details or [])
+            ] if gl_details else 'InvoiceSales table not available or no matching records',
+        }
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Customer GL investigation error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
