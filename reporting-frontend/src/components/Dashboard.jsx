@@ -77,7 +77,7 @@ import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
 
 // Utility function to calculate linear regression trendline
-const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
+const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true, fiscalYearStartMonth = null) => {
   if (!data || data.length === 0) return []
 
   // Ensure all data has a numeric value for the yKey, otherwise default to 0
@@ -86,19 +86,52 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
     [yKey]: parseFloat(item[yKey]) || 0
   }))
 
-  // Find the index of the first month with actual data
-  const firstDataIndex = cleanedData.findIndex(item => item[yKey] > 0)
+  // Determine the start index for the trend line
+  let trendStartIndex
+  if (fiscalYearStartMonth) {
+    // Find the index of the fiscal year start month
+    // Data items have month_number (1-12) and year fields
+    const now = new Date()
+    const currentMonth = now.getMonth() + 1
+    const fyStartYear = currentMonth >= fiscalYearStartMonth ? now.getFullYear() : now.getFullYear() - 1
+    
+    trendStartIndex = cleanedData.findIndex(item => {
+      if (item.month_number && item.year) {
+        return item.year > fyStartYear || (item.year === fyStartYear && item.month_number >= fiscalYearStartMonth)
+      }
+      // Fallback: parse month string like "Nov '25"
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const monthStr = item[xKey]
+      if (!monthStr) return false
+      const monthAbbr = monthStr.split(' ')[0].replace("'", '')
+      const parsedMonth = monthNames.indexOf(monthAbbr) + 1
+      const yearMatch = monthStr.match(/'(\d{2})/)
+      const parsedYear = yearMatch ? 2000 + parseInt(yearMatch[1]) : null
+      if (parsedMonth && parsedYear) {
+        return parsedYear > fyStartYear || (parsedYear === fyStartYear && parsedMonth >= fiscalYearStartMonth)
+      }
+      return false
+    })
+    
+    // If fiscal year start not found in data, fall back to first month with data
+    if (trendStartIndex === -1) {
+      trendStartIndex = cleanedData.findIndex(item => item[yKey] > 0)
+    }
+  } else {
+    // Default: start from the first month with actual data
+    trendStartIndex = cleanedData.findIndex(item => item[yKey] > 0)
+  }
 
-  if (firstDataIndex === -1) {
+  if (trendStartIndex === -1) {
     return cleanedData.map(item => ({ ...item, trendValue: null }))
   }
 
-  // Get data from the first month with actual revenue
-  const dataFromFirstMonth = cleanedData.slice(firstDataIndex)
+  // Get data from the trend start point
+  const dataFromStart = cleanedData.slice(trendStartIndex)
 
-  let trendData = dataFromFirstMonth
-  if (excludeCurrentMonth && dataFromFirstMonth.length > 1) {
-    trendData = dataFromFirstMonth.slice(0, -1)
+  let trendData = dataFromStart
+  if (excludeCurrentMonth && dataFromStart.length > 1) {
+    trendData = dataFromStart.slice(0, -1)
   }
 
   if (trendData.length < 2) {
@@ -120,10 +153,10 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
   const intercept = (sumY - slope * sumX) / n
 
   return cleanedData.map((item, index) => {
-    if (index < firstDataIndex) {
+    if (index < trendStartIndex) {
       return { ...item, trendValue: null }
     }
-    const adjustedIndex = index - firstDataIndex
+    const adjustedIndex = index - trendStartIndex
     return {
       ...item,
       trendValue: slope * adjustedIndex + intercept
@@ -1242,7 +1275,7 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlySales, 'month', 'amount', false)} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlySales, 'month', 'amount', false, dashboardData?.fiscal_year_start_month)} margin={{ top: 40, right: 60, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1367,7 +1400,7 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlySalesNoEquipment, 'month', 'amount', false)} margin={{ top: 20, right: 50, left: 10, bottom: 5 }}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlySalesNoEquipment, 'month', 'amount', false, dashboardData?.fiscal_year_start_month)} margin={{ top: 20, right: 50, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -1539,7 +1572,7 @@ const Dashboard = ({ user }) => {
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlyEquipmentSales, 'month', 'amount', false)} margin={{ top: 20, right: 50, left: 10, bottom: 5 }}>
+                  <ComposedChart data={calculateLinearTrend(sortedMonthlyEquipmentSales, 'month', 'amount', false, dashboardData?.fiscal_year_start_month)} margin={{ top: 20, right: 50, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis yAxisId="left" tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
