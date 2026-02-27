@@ -225,13 +225,19 @@ def get_sales_by_customer():
         except ValueError:
             return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
 
+        # Main query: split revenue into rental vs non-rental using SaleDept
+        # Rental = SaleDept 60, everything else = non-rental
         query = f"""
         SELECT 
             BillToName,
             COUNT(*) as invoice_count,
             SUM(GrandTotal) as total_revenue,
-            SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + COALESCE(RentalCost, 0) + COALESCE(EquipmentCost, 0)) as total_cost,
-            SUM(GrandTotal) - SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + COALESCE(RentalCost, 0) + COALESCE(EquipmentCost, 0)) as gross_profit
+            SUM(COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + COALESCE(RentalCost, 0) + COALESCE(EquipmentCost, 0)) as direct_cost,
+            SUM(CASE WHEN SaleDept = 60 THEN GrandTotal ELSE 0 END) as rental_revenue,
+            SUM(CASE WHEN SaleDept != 60 OR SaleDept IS NULL THEN GrandTotal ELSE 0 END) as non_rental_revenue,
+            SUM(CASE WHEN SaleDept != 60 OR SaleDept IS NULL THEN 
+                COALESCE(PartsCost, 0) + COALESCE(LaborCost, 0) + COALESCE(MiscCost, 0) + COALESCE(RentalCost, 0) + COALESCE(EquipmentCost, 0)
+            ELSE 0 END) as non_rental_cost
         FROM [{schema}].InvoiceReg
         WHERE InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
         AND BillToName IS NOT NULL AND BillToName != ''
@@ -240,6 +246,29 @@ def get_sales_by_customer():
         """
 
         results = db.execute_query(query)
+
+        # Query fleet-wide rental costs from GLDetail for proportional allocation
+        # These are the COS accounts for the rental department that don't flow through InvoiceReg
+        RENTAL_COS_ACCOUNTS = ('537001', '539000', '541000', '510008', '511001', '519000', '521008', '534014', '545000')
+        fleet_cost_query = f"""
+        SELECT 
+            SUM(Amount) as total_fleet_cost
+        FROM [{schema}].GLDetail
+        WHERE AccountNo IN {RENTAL_COS_ACCOUNTS}
+        AND EffectiveDate >= '{start_date}' AND EffectiveDate < '{end_date}'
+        AND Posted = 1
+        """
+
+        fleet_cost_result = None
+        total_fleet_rental_cost = 0
+        try:
+            fleet_cost_result = db.execute_query(fleet_cost_query)
+            if fleet_cost_result:
+                total_fleet_rental_cost = abs(float(fleet_cost_result[0].get('total_fleet_cost', 0) or 0))
+                logger.info(f"Sales by customer - total fleet rental cost from GLDetail: ${total_fleet_rental_cost:,.2f}")
+        except Exception as e:
+            logger.warning(f"Could not query fleet rental costs from GLDetail: {str(e)}")
+            total_fleet_rental_cost = 0
 
         if not results:
             return jsonify({
@@ -314,8 +343,10 @@ def get_sales_by_customer():
             match_str = group['match'].lower()
             label = group['label']
             combined_revenue = 0.0
-            combined_cost = 0.0
-            combined_gp = 0.0
+            combined_direct_cost = 0.0
+            combined_rental_rev = 0.0
+            combined_non_rental_rev = 0.0
+            combined_non_rental_cost = 0.0
             combined_invoices = 0
             member_details = []
             remaining = []
@@ -323,12 +354,16 @@ def get_sales_by_customer():
                 name = (get_val(r, 'BillToName', '') or '').strip()
                 if match_str in name.lower():
                     rev = float(get_val(r, 'total_revenue', 0) or 0)
-                    cost = float(get_val(r, 'total_cost', 0) or 0)
-                    gp = float(get_val(r, 'gross_profit', 0) or 0)
+                    dc = float(get_val(r, 'direct_cost', 0) or 0)
+                    rr = float(get_val(r, 'rental_revenue', 0) or 0)
+                    nrr = float(get_val(r, 'non_rental_revenue', 0) or 0)
+                    nrc = float(get_val(r, 'non_rental_cost', 0) or 0)
                     inv = int(get_val(r, 'invoice_count', 0) or 0)
                     combined_revenue += rev
-                    combined_cost += cost
-                    combined_gp += gp
+                    combined_direct_cost += dc
+                    combined_rental_rev += rr
+                    combined_non_rental_rev += nrr
+                    combined_non_rental_cost += nrc
                     combined_invoices += inv
                     member_details.append({
                         'name': name,
@@ -345,8 +380,10 @@ def get_sales_by_customer():
                     'billtoname': label,
                     'invoice_count': combined_invoices,
                     'total_revenue': combined_revenue,
-                    'total_cost': combined_cost,
-                    'gross_profit': combined_gp,
+                    'direct_cost': combined_direct_cost,
+                    'rental_revenue': combined_rental_rev,
+                    'non_rental_revenue': combined_non_rental_rev,
+                    'non_rental_cost': combined_non_rental_cost,
                     '_is_grouped': True,
                     '_grouped_customers': member_details,
                 }
@@ -355,34 +392,70 @@ def get_sales_by_customer():
                 logger.warning(f"No customers matched pattern '{match_str}' for grouping")
             results = remaining
 
-        # Calculate totals
-        total_revenue = sum(float(get_val(r, 'total_revenue', 0) or 0) for r in results)
-        total_cost = sum(float(get_val(r, 'total_cost', 0) or 0) for r in results)
-        total_gross_profit = sum(float(get_val(r, 'gross_profit', 0) or 0) for r in results)
+        # Step 3: Calculate blended margins
+        # - Non-rental: use direct costs from InvoiceReg (accurate per-customer)
+        # - Rental: allocate fleet-wide rental costs proportionally by rental revenue share
+        total_rental_revenue_all_customers = sum(
+            float(get_val(r, 'rental_revenue', 0) or 0) for r in results
+        )
+        logger.info(f"Sales by customer - total rental revenue across all customers: ${total_rental_revenue_all_customers:,.2f}, fleet cost to allocate: ${total_fleet_rental_cost:,.2f}")
 
-        # Sort by revenue descending and build response
+        # Sort by revenue descending
         results.sort(key=lambda r: float(get_val(r, 'total_revenue', 0) or 0), reverse=True)
 
         customers = []
+        running_total_revenue = 0
+        running_total_cost = 0
+        running_total_gp = 0
+
         for i, r in enumerate(results):
             revenue = float(get_val(r, 'total_revenue', 0) or 0)
-            cost = float(get_val(r, 'total_cost', 0) or 0)
-            gp = float(get_val(r, 'gross_profit', 0) or 0)
+            rental_rev = float(get_val(r, 'rental_revenue', 0) or 0)
+            non_rental_rev = float(get_val(r, 'non_rental_revenue', 0) or 0)
+            non_rental_cost = float(get_val(r, 'non_rental_cost', 0) or 0)
+
+            # Allocate fleet rental costs proportionally
+            if total_rental_revenue_all_customers > 0 and rental_rev > 0:
+                rental_share = rental_rev / total_rental_revenue_all_customers
+                allocated_rental_cost = total_fleet_rental_cost * rental_share
+            else:
+                rental_share = 0
+                allocated_rental_cost = 0
+
+            # Blended cost = direct non-rental cost + proportionally allocated rental cost
+            blended_cost = non_rental_cost + allocated_rental_cost
+            blended_gp = revenue - blended_cost
+
+            running_total_revenue += revenue
+            running_total_cost += blended_cost
+            running_total_gp += blended_gp
+
             entry = {
                 'rank': i + 1,
                 'name': get_val(r, 'BillToName', 'Unknown'),
                 'invoice_count': int(get_val(r, 'invoice_count', 0) or 0),
                 'total_revenue': round(revenue, 2),
-                'total_cost': round(cost, 2),
-                'gross_profit': round(gp, 2),
-                'gross_margin_pct': round(gp * 100.0 / revenue, 1) if revenue > 0 else 0,
-                'pct_of_total_revenue': round(revenue * 100.0 / total_revenue, 2) if total_revenue > 0 else 0,
-                'pct_of_total_gp': round(gp * 100.0 / total_gross_profit, 2) if total_gross_profit > 0 else 0
+                'total_cost': round(blended_cost, 2),
+                'gross_profit': round(blended_gp, 2),
+                'gross_margin_pct': round(blended_gp * 100.0 / revenue, 1) if revenue > 0 else 0,
+                'rental_revenue': round(rental_rev, 2),
+                'non_rental_revenue': round(non_rental_rev, 2),
+                'rental_cost_allocated': round(allocated_rental_cost, 2),
+                'non_rental_cost': round(non_rental_cost, 2),
             }
             if r.get('_is_grouped'):
                 entry['is_grouped'] = True
                 entry['grouped_customers'] = r['_grouped_customers']
             customers.append(entry)
+
+        # Now calculate pct_of_total fields with final totals
+        total_revenue = running_total_revenue
+        total_cost = running_total_cost
+        total_gross_profit = running_total_gp
+
+        for c in customers:
+            c['pct_of_total_revenue'] = round(c['total_revenue'] * 100.0 / total_revenue, 2) if total_revenue > 0 else 0
+            c['pct_of_total_gp'] = round(c['gross_profit'] * 100.0 / total_gross_profit, 2) if total_gross_profit > 0 else 0
 
         return jsonify({
             'customers': customers,
@@ -392,7 +465,12 @@ def get_sales_by_customer():
             'overall_margin_pct': round(total_gross_profit * 100.0 / total_revenue, 1) if total_revenue > 0 else 0,
             'customer_count': len(customers),
             'start_date': start_date,
-            'end_date': end_date
+            'end_date': end_date,
+            'rental_cost_allocation': {
+                'total_fleet_rental_cost': round(total_fleet_rental_cost, 2),
+                'total_rental_revenue': round(total_rental_revenue_all_customers, 2),
+                'method': 'Proportional allocation of fleet-wide rental COS (537001, 539000, 541000, etc.) from GLDetail based on customer share of total rental revenue (SaleDept=60)'
+            }
         })
 
     except Exception as e:

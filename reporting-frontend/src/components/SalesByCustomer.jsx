@@ -13,6 +13,7 @@ import {
   BarChart3,
   Percent,
   Layers,
+  Info,
 } from 'lucide-react';
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -388,6 +389,17 @@ const SalesByCustomer = () => {
             </Card>
           </div>
 
+          {/* Rental Cost Allocation Note */}
+          {data.rental_cost_allocation && data.rental_cost_allocation.total_fleet_rental_cost > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+              <div className="text-xs text-blue-800">
+                <span className="font-semibold">Blended Margin Methodology:</span>{' '}
+                Gross profit includes proportionally allocated rental fleet costs ({formatCurrency(data.rental_cost_allocation.total_fleet_rental_cost)} in depreciation, interest, and maintenance) distributed across customers based on their share of {formatCurrency(data.rental_cost_allocation.total_rental_revenue)} in total rental revenue. Non-rental margins use direct invoice costs.
+              </div>
+            </div>
+          )}
+
           {/* Charts Row */}
           <div className="grid gap-4 md:grid-cols-2">
             {/* Top 10 Bar Chart */}
@@ -511,8 +523,19 @@ const SalesByCustomer = () => {
                       className="text-right cursor-pointer select-none hover:bg-gray-50"
                       onClick={() => handleSort('gross_margin_pct')}
                     >
-                      <div className="flex items-center justify-end">
-                        Margin % <SortIcon field="gross_margin_pct" />
+                      <div className="flex items-center justify-end gap-1">
+                        Margin %
+                        <TooltipProvider>
+                          <UITooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3 w-3 text-gray-400 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <p className="text-xs">Blended margin: non-rental uses direct invoice costs; rental revenue has fleet-wide costs (depreciation, interest, maintenance) allocated proportionally.</p>
+                            </TooltipContent>
+                          </UITooltip>
+                        </TooltipProvider>
+                        <SortIcon field="gross_margin_pct" />
                       </div>
                     </TableHead>
                     <TableHead
