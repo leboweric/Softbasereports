@@ -478,10 +478,30 @@ def investigate_customer_gl():
         """
 
         gl_details = []
+        gl_error = None
+        # First check if InvoiceSales table exists
         try:
-            gl_details = db.execute_query(gl_link_query)
+            table_check = db.execute_query(f"""
+            SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'InvoiceSales'
+            """)
+            if table_check:
+                # Table exists, try the actual query
+                try:
+                    # First check what columns InvoiceSales has
+                    cols_check = db.execute_query(f"""
+                    SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'InvoiceSales'
+                    ORDER BY ORDINAL_POSITION
+                    """)
+                    gl_error = f"InvoiceSales columns: {[(r.get('COLUMN_NAME',''), r.get('DATA_TYPE','')) for r in (cols_check or [])]}"
+                    gl_details = db.execute_query(gl_link_query)
+                except Exception as e:
+                    gl_error = f"InvoiceSales exists but query failed: {str(e)}. Columns: {gl_error}"
+            else:
+                gl_error = 'InvoiceSales table does NOT exist in this schema'
         except Exception as e:
-            logger.warning(f"InvoiceSales query failed (table may not exist): {e}")
+            gl_error = f"Table check failed: {str(e)}"
 
         # Query 4: Get distinct BillToName variations matching the pattern
         names_query = f"""
@@ -535,7 +555,7 @@ def investigate_customer_gl():
                     'amount': round(float(r.get('Amount', 0) or 0), 2),
                 }
                 for r in (gl_details or [])
-            ] if gl_details else 'InvoiceSales table not available or no matching records',
+            ] if gl_details else gl_error or 'No GL details found',
         }
 
         return jsonify(result)
