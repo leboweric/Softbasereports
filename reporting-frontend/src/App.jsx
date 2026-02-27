@@ -44,6 +44,7 @@ import VitalFinancialDashboard from './components/vital/VitalFinancialDashboard'
 import VitalProviderNetworkDashboard from './components/vital/VitalProviderNetworkDashboard'
 import VitalOperationsDashboard from './components/vital/VitalOperationsDashboard';
 import CustomerChurnAnalysis from './components/CustomerChurnAnalysis';
+import CustomersPage from './components/CustomersPage';
 import GLAccountMapping from './components/admin/GLAccountMapping';
 import SupportTicketsPage from './components/SupportTicketsPage';
 import EdsDashboard from './components/EdsDashboard';
@@ -288,7 +289,7 @@ function App() {
       case 'vital-operations':
         return <VitalOperationsDashboard onBack={() => setCurrentPage('vital-executive-dashboard')} />
       case 'customer-churn':
-        return <CustomerChurnAnalysis user={user} organization={organization} />
+        return <CustomersPage user={user} organization={organization} />
       case 'gl-mapping':
         return <GLAccountMapping user={user} organization={organization} />
       case 'support-tickets':

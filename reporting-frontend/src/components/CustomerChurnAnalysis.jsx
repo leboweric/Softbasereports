@@ -157,17 +157,7 @@ const CustomerChurnAnalysis = () => {
   const atRiskCustomers = atRiskData?.at_risk_customers || [];
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-          <TrendingDown className="w-7 h-7 mr-2 text-red-500" />
-          Customer Churn Analysis
-        </h1>
-        <p className="text-gray-600 mt-1">
-          Understand why customers are leaving and identify at-risk accounts
-        </p>
-      </div>
+    <div className="space-y-4">
 
       {/* Period Selector */}
       <div className="mb-6 flex items-center gap-4">

@@ -75,6 +75,7 @@ import { SALES_DASHBOARD_METHODOLOGY } from '@/config/ipsPageMethodology'
 import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
+import SalesBreakdown from './SalesBreakdown'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true, fiscalYearStartMonth = null) => {
@@ -969,8 +970,9 @@ const Dashboard = ({ user }) => {
 
       {/* Tabbed Interface */}
       <Tabs defaultValue="sales" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex flex-wrap md:grid md:w-full md:max-w-3xl md:grid-cols-5 gap-1">
+        <TabsList className="flex flex-wrap md:grid md:w-full md:max-w-4xl md:grid-cols-6 gap-1">
           <TabsTrigger value="sales">Sales</TabsTrigger>
+          <TabsTrigger value="sales-breakdown">Sales Breakdown</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="workorders">Work Orders</TabsTrigger>
           <TabsTrigger value="forecast">AI Sales Forecast</TabsTrigger>
@@ -1654,6 +1656,11 @@ const Dashboard = ({ user }) => {
             </Card>
           </div>
 
+        </TabsContent>
+
+        {/* Sales Breakdown Tab */}
+        <TabsContent value="sales-breakdown" className="space-y-4">
+          <SalesBreakdown />
         </TabsContent>
 
         {/* Customers Tab */}
