@@ -589,7 +589,7 @@ def investigate_customer_gl():
         return jsonify({'error': str(e)}), 500
 
 
-@sales_reports_bp.route('/rental-cost-investigation', methods=['GET'])
+@sales_reports_bp.route('/api/reports/rental-cost-investigation', methods=['GET'])
 def get_rental_cost_investigation():
     """Investigate rental cost allocation via ControlNo - NO AUTH for diagnostic use"""
     try:
