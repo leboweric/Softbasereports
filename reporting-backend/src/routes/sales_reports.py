@@ -432,9 +432,7 @@ def investigate_customer_gl():
             InvoiceDate,
             BillToName,
             BillTo,
-            GrandTotal,
-            COALESCE(TotalCost, 0) as TotalCost,
-            COALESCE(GrandTotal, 0) - COALESCE(TotalCost, 0) as GrossProfit
+            GrandTotal
         FROM [{schema}].InvoiceReg
         WHERE BillToName LIKE '%{customer_name}%'
         AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
@@ -526,8 +524,6 @@ def investigate_customer_gl():
                     'bill_to_name': r.get('BillToName', ''),
                     'bill_to': r.get('BillTo', ''),
                     'grand_total': round(float(r.get('GrandTotal', 0) or 0), 2),
-                    'total_cost': round(float(r.get('TotalCost', 0) or 0), 2),
-                    'gross_profit': round(float(r.get('GrossProfit', 0) or 0), 2),
                 }
                 for r in (invoices or [])
             ],
