@@ -458,50 +458,60 @@ def investigate_customer_gl():
 
         summary = db.execute_query(summary_query)
 
-        # Query 3: Check if there's an InvoiceSales table that links invoices to GL accounts
+        # Query 3: Use GLDetail table to find GL account postings for this customer's invoices
+        # GLDetail has: AccountNo, Amount, EffectiveDate, InvoiceNo, Posted, Branch, Dept
         gl_link_query = f"""
-        SELECT TOP 50
-            isales.InvoiceNo,
-            isales.AccountNo,
+        SELECT TOP 100
+            gld.InvoiceNo,
+            gld.AccountNo,
             COALESCE(coa.Description, 'Unknown') as AccountDescription,
-            isales.Amount
-        FROM [{schema}].InvoiceSales isales
-        LEFT JOIN [{schema}].ChartOfAccounts coa ON isales.AccountNo = coa.AccountNo
-        WHERE isales.InvoiceNo IN (
+            gld.Amount,
+            gld.EffectiveDate,
+            gld.Branch,
+            gld.Dept
+        FROM [{schema}].GLDetail gld
+        LEFT JOIN [{schema}].ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
+        WHERE gld.InvoiceNo IN (
             SELECT TOP 20 InvoiceNo 
             FROM [{schema}].InvoiceReg 
             WHERE BillToName LIKE '%{customer_name}%'
             AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
             ORDER BY GrandTotal DESC
         )
-        ORDER BY isales.InvoiceNo, isales.AccountNo
+        AND gld.Posted = 1
+        ORDER BY gld.InvoiceNo, gld.AccountNo
+        """
+
+        # Query 3b: Summarize GL accounts for ALL matching invoices (not just top 20)
+        gl_summary_query = f"""
+        SELECT 
+            gld.AccountNo,
+            COALESCE(coa.Description, 'Unknown') as AccountDescription,
+            COUNT(*) as posting_count,
+            SUM(gld.Amount) as total_amount,
+            MIN(gld.Amount) as min_amount,
+            MAX(gld.Amount) as max_amount
+        FROM [{schema}].GLDetail gld
+        LEFT JOIN [{schema}].ChartOfAccounts coa ON gld.AccountNo = coa.AccountNo
+        WHERE gld.InvoiceNo IN (
+            SELECT InvoiceNo 
+            FROM [{schema}].InvoiceReg 
+            WHERE BillToName LIKE '%{customer_name}%'
+            AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
+        )
+        AND gld.Posted = 1
+        GROUP BY gld.AccountNo, coa.Description
+        ORDER BY ABS(SUM(gld.Amount)) DESC
         """
 
         gl_details = []
+        gl_summary = []
         gl_error = None
-        # First check if InvoiceSales table exists
         try:
-            table_check = db.execute_query(f"""
-            SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'InvoiceSales'
-            """)
-            if table_check:
-                # Table exists, try the actual query
-                try:
-                    # First check what columns InvoiceSales has
-                    cols_check = db.execute_query(f"""
-                    SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
-                    WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = 'InvoiceSales'
-                    ORDER BY ORDINAL_POSITION
-                    """)
-                    gl_error = f"InvoiceSales columns: {[(r.get('COLUMN_NAME',''), r.get('DATA_TYPE','')) for r in (cols_check or [])]}"
-                    gl_details = db.execute_query(gl_link_query)
-                except Exception as e:
-                    gl_error = f"InvoiceSales exists but query failed: {str(e)}. Columns: {gl_error}"
-            else:
-                gl_error = 'InvoiceSales table does NOT exist in this schema'
+            gl_details = db.execute_query(gl_link_query)
+            gl_summary = db.execute_query(gl_summary_query)
         except Exception as e:
-            gl_error = f"Table check failed: {str(e)}"
+            gl_error = f"GLDetail query failed: {str(e)}"
 
         # Query 4: Get distinct BillToName variations matching the pattern
         names_query = f"""
@@ -547,12 +557,26 @@ def investigate_customer_gl():
                 }
                 for r in (invoices or [])
             ],
+            'gl_account_summary': [
+                {
+                    'account_no': r.get('AccountNo', ''),
+                    'account_description': r.get('AccountDescription', ''),
+                    'posting_count': int(r.get('posting_count', 0) or 0),
+                    'total_amount': round(float(r.get('total_amount', 0) or 0), 2),
+                    'min_amount': round(float(r.get('min_amount', 0) or 0), 2),
+                    'max_amount': round(float(r.get('max_amount', 0) or 0), 2),
+                }
+                for r in (gl_summary or [])
+            ] if gl_summary else gl_error or 'No GL summary found',
             'gl_account_details': [
                 {
                     'invoice_no': r.get('InvoiceNo', ''),
                     'account_no': r.get('AccountNo', ''),
                     'account_description': r.get('AccountDescription', ''),
                     'amount': round(float(r.get('Amount', 0) or 0), 2),
+                    'date': str(r.get('EffectiveDate', '')),
+                    'branch': r.get('Branch', ''),
+                    'dept': r.get('Dept', ''),
                 }
                 for r in (gl_details or [])
             ] if gl_details else gl_error or 'No GL details found',
