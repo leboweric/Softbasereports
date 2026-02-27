@@ -118,8 +118,14 @@ def get_sales_breakdown():
             ],
         }
 
-        # Apply account groupings if configured for this tenant
-        groupings = ACCOUNT_GROUPINGS.get(schema, [])
+        # Apply account groupings if configured for this tenant (case-insensitive schema match)
+        groupings = []
+        schema_lower = schema.lower().strip() if schema else ''
+        for cfg_schema, cfg_val in ACCOUNT_GROUPINGS.items():
+            if cfg_schema.lower() == schema_lower:
+                groupings = cfg_val
+                break
+        logger.info(f"Sales breakdown - schema: '{schema}', groupings found: {len(groupings)}")
         if groupings:
             for group in groupings:
                 group_accounts = set(group['accounts'])
@@ -246,6 +252,26 @@ def get_sales_by_customer():
                 'end_date': end_date
             })
 
+        # Normalize DB result keys to handle case variations from different SQL drivers
+        # pymssql may return keys matching SQL aliases exactly, but we want consistent access
+        def normalize_row(row):
+            """Create a case-insensitive lookup for a row dict"""
+            normalized = {}
+            for k, v in row.items():
+                normalized[k] = v
+                normalized[k.lower()] = v
+            return normalized
+
+        results = [normalize_row(r) for r in results]
+
+        # Log first result keys for debugging
+        if results:
+            logger.info(f"Sales by customer - schema: '{schema}', first row keys: {list(results[0].keys())[:10]}")
+
+        # Helper to get value from row with case-insensitive fallback
+        def get_val(row, key, default=None):
+            return row.get(key, row.get(key.lower(), default))
+
         # Tenant-specific customer configurations
         # exclude_patterns: customers matching these substrings (case-insensitive) are removed
         # group_patterns: customers matching a substring are combined into one row
@@ -261,7 +287,15 @@ def get_sales_by_customer():
             },
         }
 
-        config = CUSTOMER_CONFIG.get(schema, {})
+        # Look up config with case-insensitive schema matching
+        config = {}
+        schema_lower = schema.lower().strip() if schema else ''
+        for cfg_schema, cfg_val in CUSTOMER_CONFIG.items():
+            if cfg_schema.lower() == schema_lower:
+                config = cfg_val
+                break
+
+        logger.info(f"Sales by customer - schema: '{schema}', config found: {bool(config)}, group_patterns: {len(config.get('group_patterns', []))}")
 
         # Step 1: Exclude unwanted customers
         exclude_patterns = config.get('exclude_patterns', [])
@@ -269,7 +303,7 @@ def get_sales_by_customer():
             results = [
                 r for r in results
                 if not any(
-                    pat in (r.get('BillToName', '') or '').lower()
+                    pat in (get_val(r, 'BillToName', '') or '').lower()
                     for pat in exclude_patterns
                 )
             ]
@@ -286,12 +320,12 @@ def get_sales_by_customer():
             member_details = []
             remaining = []
             for r in results:
-                name = (r.get('BillToName', '') or '').strip()
+                name = (get_val(r, 'BillToName', '') or '').strip()
                 if match_str in name.lower():
-                    rev = float(r.get('total_revenue', 0) or 0)
-                    cost = float(r.get('total_cost', 0) or 0)
-                    gp = float(r.get('gross_profit', 0) or 0)
-                    inv = int(r.get('invoice_count', 0) or 0)
+                    rev = float(get_val(r, 'total_revenue', 0) or 0)
+                    cost = float(get_val(r, 'total_cost', 0) or 0)
+                    gp = float(get_val(r, 'gross_profit', 0) or 0)
+                    inv = int(get_val(r, 'invoice_count', 0) or 0)
                     combined_revenue += rev
                     combined_cost += cost
                     combined_gp += gp
@@ -301,11 +335,14 @@ def get_sales_by_customer():
                         'total_revenue': round(rev, 2),
                         'invoice_count': inv,
                     })
+                    logger.info(f"Grouped customer '{name}' into '{label}' (rev: {rev})")
                 else:
                     remaining.append(r)
             if member_details:
+                logger.info(f"Created combined '{label}' row with {len(member_details)} members, total rev: {combined_revenue}")
                 combined_row = {
                     'BillToName': label,
+                    'billtoname': label,
                     'invoice_count': combined_invoices,
                     'total_revenue': combined_revenue,
                     'total_cost': combined_cost,
@@ -314,25 +351,27 @@ def get_sales_by_customer():
                     '_grouped_customers': member_details,
                 }
                 remaining.append(combined_row)
+            else:
+                logger.warning(f"No customers matched pattern '{match_str}' for grouping")
             results = remaining
 
         # Calculate totals
-        total_revenue = sum(float(r.get('total_revenue', 0) or 0) for r in results)
-        total_cost = sum(float(r.get('total_cost', 0) or 0) for r in results)
-        total_gross_profit = sum(float(r.get('gross_profit', 0) or 0) for r in results)
+        total_revenue = sum(float(get_val(r, 'total_revenue', 0) or 0) for r in results)
+        total_cost = sum(float(get_val(r, 'total_cost', 0) or 0) for r in results)
+        total_gross_profit = sum(float(get_val(r, 'gross_profit', 0) or 0) for r in results)
 
         # Sort by revenue descending and build response
-        results.sort(key=lambda r: float(r.get('total_revenue', 0) or 0), reverse=True)
+        results.sort(key=lambda r: float(get_val(r, 'total_revenue', 0) or 0), reverse=True)
 
         customers = []
         for i, r in enumerate(results):
-            revenue = float(r.get('total_revenue', 0) or 0)
-            cost = float(r.get('total_cost', 0) or 0)
-            gp = float(r.get('gross_profit', 0) or 0)
+            revenue = float(get_val(r, 'total_revenue', 0) or 0)
+            cost = float(get_val(r, 'total_cost', 0) or 0)
+            gp = float(get_val(r, 'gross_profit', 0) or 0)
             entry = {
                 'rank': i + 1,
-                'name': r.get('BillToName', 'Unknown'),
-                'invoice_count': int(r.get('invoice_count', 0) or 0),
+                'name': get_val(r, 'BillToName', 'Unknown'),
+                'invoice_count': int(get_val(r, 'invoice_count', 0) or 0),
                 'total_revenue': round(revenue, 2),
                 'total_cost': round(cost, 2),
                 'gross_profit': round(gp, 2),
