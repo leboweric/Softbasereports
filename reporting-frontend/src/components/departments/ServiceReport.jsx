@@ -113,7 +113,7 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 }
 
 
-const ServiceReport = ({ user, onNavigate }) => {
+const ServiceReport = ({ user, organization, onNavigate }) => {
   const [serviceData, setServiceData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [benchmarkData, setBenchmarkData] = useState(null)
@@ -830,6 +830,7 @@ const ServiceReport = ({ user, onNavigate }) => {
             data={serviceData?.monthlyLaborRevenue}
             title="Service Revenue & Margin Trend"
             description="Combined service revenue (Field + Shop) over the last 12 months"
+            fiscalYearStartMonth={organization?.fiscal_year_start_month}
             tooltipInfo={
               <>
                 <p className="font-semibold mb-1">Includes:</p>
@@ -848,12 +849,14 @@ const ServiceReport = ({ user, onNavigate }) => {
               title="Field Service Revenue"
               description="On-site field service revenue"
               barColor="#3b82f6"
+              fiscalYearStartMonth={organization?.fiscal_year_start_month}
             />
             <RevenueChart
               data={serviceData?.monthlyShopRevenue}
               title="Shop Service Revenue"
               description="In-shop service revenue"
               barColor="#1e40af"
+              fiscalYearStartMonth={organization?.fiscal_year_start_month}
             />
           </div>
 

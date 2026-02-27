@@ -115,7 +115,7 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 }
 
 
-const RentalReport = ({ user }) => {
+const RentalReport = ({ user, organization }) => {
   const [rentalData, setRentalData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [totalFleet, setTotalFleet] = useState(0)
@@ -808,7 +808,34 @@ const RentalReport = ({ user }) => {
                 <ComposedChart data={(() => {
                   const data = sortedMonthlyRevenue || []
                   if (data.length === 0) return data
-                  const completeMonths = data.filter(item => item.amount > 0)
+                  const allCompleteMonths = data.filter(item => item.amount > 0)
+                  
+                  // Filter to fiscal year months if configured
+                  const fyStartMonth = organization?.fiscal_year_start_month
+                  let completeMonths = allCompleteMonths
+                  if (fyStartMonth) {
+                    const now = new Date()
+                    const currentMonth = now.getMonth() + 1
+                    const fyStartYear = currentMonth >= fyStartMonth ? now.getFullYear() : now.getFullYear() - 1
+                    const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    const fyFiltered = allCompleteMonths.filter(item => {
+                      if (item.month_number && item.year) {
+                        return item.year > fyStartYear || (item.year === fyStartYear && item.month_number >= fyStartMonth)
+                      }
+                      const monthStr = item.month
+                      if (!monthStr) return false
+                      const monthAbbr = monthStr.split(' ')[0].replace("'", '')
+                      const parsedMonth = monthOrder.indexOf(monthAbbr) + 1
+                      const yearMatch = monthStr.match(/'(\d{2})/)
+                      const parsedYear = yearMatch ? 2000 + parseInt(yearMatch[1]) : null
+                      if (parsedMonth && parsedYear) {
+                        return parsedYear > fyStartYear || (parsedYear === fyStartYear && parsedMonth >= fyStartMonth)
+                      }
+                      return true
+                    })
+                    if (fyFiltered.length >= 2) completeMonths = fyFiltered
+                  }
+                  
                   let trendSlope = 0, trendIntercept = 0
                   if (completeMonths.length >= 2) {
                     const n = completeMonths.length
@@ -823,10 +850,11 @@ const RentalReport = ({ user }) => {
                     trendSlope = denominator !== 0 ? numerator / denominator : 0
                     trendIntercept = meanY - trendSlope * meanX
                   }
+                  const trendMonthSet = new Set(completeMonths.map(m => m.month))
                   return data.map((item) => {
-                    const isComplete = completeMonths.some(cm => cm.month === item.month)
+                    const isInTrend = trendMonthSet.has(item.month)
                     const completeIndex = completeMonths.findIndex(cm => cm.month === item.month)
-                    return { ...item, trendline: isComplete && completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null }
+                    return { ...item, trendline: isInTrend && completeIndex >= 0 ? trendSlope * completeIndex + trendIntercept : null }
                   })
                 })()} margin={{ top: 40, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />

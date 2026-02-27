@@ -107,7 +107,7 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 }
 
 
-const PartsReport = ({ user, onNavigate }) => {
+const PartsReport = ({ user, organization, onNavigate }) => {
   const { navigation } = usePermissions()
   
   // Get accessible tabs from user's navigation config
@@ -856,6 +856,7 @@ const PartsReport = ({ user, onNavigate }) => {
             data={partsData?.monthlyPartsRevenue}
             title="Parts Revenue & Margin Trend"
             description="Combined parts revenue (Counter + Repair Order) over the last 12 months"
+            fiscalYearStartMonth={organization?.fiscal_year_start_month}
             tooltipInfo={
               <>
                 <p className="font-semibold mb-1">Includes:</p>
@@ -874,12 +875,14 @@ const PartsReport = ({ user, onNavigate }) => {
               title="Counter Sales"
               description="Walk-in and over-the-counter parts sales"
               barColor="#10b981"
+              fiscalYearStartMonth={organization?.fiscal_year_start_month}
             />
             <RevenueChart
               data={partsData?.monthlyRepairOrderRevenue}
               title="Repair Order Parts"
               description="Parts sold through service repair orders"
               barColor="#059669"
+              fiscalYearStartMonth={organization?.fiscal_year_start_month}
             />
           </div>
 

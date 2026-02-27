@@ -48,7 +48,8 @@ export default function RevenueChart({
   description, 
   tooltipInfo,
   barColor = "#10b981",
-  chartId
+  chartId,
+  fiscalYearStartMonth
 }) {
   const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
 
@@ -83,20 +84,52 @@ export default function RevenueChart({
   const avgMargin = monthsWithRevenue.length > 0 ? 
     monthsWithRevenue.reduce((sum, item) => sum + (item.margin || 0), 0) / monthsWithRevenue.length : 0
 
-  // Calculate trendline from filtered data
+  // Calculate trendline from filtered data, starting from fiscal year if provided
   const dataWithTrend = useMemo(() => {
     if (monthsWithRevenue.length < 2) return filteredData
 
-    // Calculate linear regression
-    const n = monthsWithRevenue.length
-    const sumX = monthsWithRevenue.reduce((sum, _, i) => sum + i, 0)
-    const sumY = monthsWithRevenue.reduce((sum, item) => sum + item.amount, 0)
+    // Determine which months to include in the trend calculation
+    let trendMonths = monthsWithRevenue
+    
+    if (fiscalYearStartMonth) {
+      const now = new Date()
+      const currentMonth = now.getMonth() + 1
+      const fyStartYear = currentMonth >= fiscalYearStartMonth ? now.getFullYear() : now.getFullYear() - 1
+      
+      // Filter to only months from fiscal year start onwards
+      trendMonths = monthsWithRevenue.filter(item => {
+        if (item.month_number && item.year) {
+          return item.year > fyStartYear || (item.year === fyStartYear && item.month_number >= fiscalYearStartMonth)
+        }
+        // Fallback: parse month string like "Nov '25"
+        const monthStr = item.month
+        if (!monthStr) return false
+        const monthAbbr = monthStr.split(' ')[0].replace("'", '')
+        const parsedMonth = monthOrder.indexOf(monthAbbr) + 1
+        const yearMatch = monthStr.match(/'(\d{2})/)
+        const parsedYear = yearMatch ? 2000 + parseInt(yearMatch[1]) : null
+        if (parsedMonth && parsedYear) {
+          return parsedYear > fyStartYear || (parsedYear === fyStartYear && parsedMonth >= fiscalYearStartMonth)
+        }
+        return true
+      })
+      
+      // Fall back to all months if fiscal year filter yields too few points
+      if (trendMonths.length < 2) {
+        trendMonths = monthsWithRevenue
+      }
+    }
+
+    // Calculate linear regression on the trend months
+    const n = trendMonths.length
+    const sumX = trendMonths.reduce((sum, _, i) => sum + i, 0)
+    const sumY = trendMonths.reduce((sum, item) => sum + item.amount, 0)
     const meanX = sumX / n
     const meanY = sumY / n
     
     let numerator = 0
     let denominator = 0
-    monthsWithRevenue.forEach((item, i) => {
+    trendMonths.forEach((item, i) => {
       numerator += (i - meanX) * (item.amount - meanY)
       denominator += (i - meanX) * (i - meanX)
     })
@@ -104,18 +137,24 @@ export default function RevenueChart({
     const slope = denominator !== 0 ? numerator / denominator : 0
     const intercept = meanY - slope * meanX
 
-    // Add trendline to data
+    // Build a set of trend month keys for quick lookup
+    const trendMonthSet = new Set(trendMonths.map(m => m.month))
+
+    // Add trendline to data - only for months in the trend period
     return filteredData.map((item) => {
-      const isComplete = monthsWithRevenue.some(hm => hm.month === item.month)
-      const completeIndex = monthsWithRevenue.findIndex(hm => hm.month === item.month)
-      const trendValue = isComplete && completeIndex >= 0 ? slope * completeIndex + intercept : null
+      const isInTrendPeriod = trendMonthSet.has(item.month)
+      if (!isInTrendPeriod) {
+        return { ...item, trendline: null }
+      }
+      const trendIndex = trendMonths.findIndex(hm => hm.month === item.month)
+      const trendValue = trendIndex >= 0 ? slope * trendIndex + intercept : null
       
       return {
         ...item,
         trendline: trendValue
       }
     })
-  }, [filteredData, monthsWithRevenue])
+  }, [filteredData, monthsWithRevenue, fiscalYearStartMonth])
 
   const switchId = chartId ? `include-current-month-${chartId}` : `include-current-month-${title?.replace(/\s+/g, '-').toLowerCase()}`
 
