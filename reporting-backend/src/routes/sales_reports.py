@@ -433,16 +433,8 @@ def investigate_customer_gl():
             BillToName,
             BillTo,
             GrandTotal,
-            COALESCE(PartsCost, 0) as PartsCost,
-            COALESCE(LaborCost, 0) as LaborCost,
-            COALESCE(MiscCost, 0) as MiscCost,
-            COALESCE(RentalCost, 0) as RentalCost,
-            COALESCE(EquipmentCost, 0) as EquipmentCost,
-            COALESCE(PartsTotal, 0) as PartsTotal,
-            COALESCE(LaborTotal, 0) as LaborTotal,
-            COALESCE(MiscTotal, 0) as MiscTotal,
-            COALESCE(RentalTotal, 0) as RentalTotal,
-            COALESCE(EquipmentTotal, 0) as EquipmentTotal
+            COALESCE(TotalCost, 0) as TotalCost,
+            COALESCE(GrandTotal, 0) - COALESCE(TotalCost, 0) as GrossProfit
         FROM [{schema}].InvoiceReg
         WHERE BillToName LIKE '%{customer_name}%'
         AND InvoiceDate >= '{start_date}' AND InvoiceDate < '{end_date}'
@@ -534,14 +526,8 @@ def investigate_customer_gl():
                     'bill_to_name': r.get('BillToName', ''),
                     'bill_to': r.get('BillTo', ''),
                     'grand_total': round(float(r.get('GrandTotal', 0) or 0), 2),
-                    'parts_total': round(float(r.get('PartsTotal', 0) or 0), 2),
-                    'labor_total': round(float(r.get('LaborTotal', 0) or 0), 2),
-                    'misc_total': round(float(r.get('MiscTotal', 0) or 0), 2),
-                    'rental_total': round(float(r.get('RentalTotal', 0) or 0), 2),
-                    'equipment_total': round(float(r.get('EquipmentTotal', 0) or 0), 2),
-                    'parts_cost': round(float(r.get('PartsCost', 0) or 0), 2),
-                    'labor_cost': round(float(r.get('LaborCost', 0) or 0), 2),
-                    'equipment_cost': round(float(r.get('EquipmentCost', 0) or 0), 2),
+                    'total_cost': round(float(r.get('TotalCost', 0) or 0), 2),
+                    'gross_profit': round(float(r.get('GrossProfit', 0) or 0), 2),
                 }
                 for r in (invoices or [])
             ],
