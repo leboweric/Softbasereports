@@ -1377,8 +1377,8 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
 
-          {/* Row 4: Supporting Charts - 3 across */}
-          <div className="grid gap-4 md:grid-cols-3">
+          {/* Row 4: Supporting Charts - 2 across */}
+          <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
