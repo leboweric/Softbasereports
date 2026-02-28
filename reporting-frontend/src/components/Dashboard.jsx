@@ -1489,67 +1489,6 @@ const Dashboard = ({ user }) => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-base">Monthly Quotes</CardTitle>
-                    <CardDescription>Quote activity through February {new Date().getFullYear() + 1}</CardDescription>
-                  </div>
-                  {dashboardData?.monthly_quotes?.length > 1 && (() => {
-                    const completeMonths = dashboardData.monthly_quotes.slice(0, -1)
-                    const average = completeMonths.reduce((sum, item) => sum + item.amount, 0) / completeMonths.length
-                    return (
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">Avg</p>
-                        <p className="text-sm font-semibold">{formatCurrency(average)}</p>
-                      </div>
-                    )
-                  })()}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <ComposedChart data={calculateLinearTrend(sortedMonthlyQuotes, 'month', 'amount', false)} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-                    <Tooltip content={({ active, payload, label }) => {
-                      if (active && payload && payload.length && dashboardData?.monthly_quotes) {
-                        const data = dashboardData.monthly_quotes
-                        const currentIndex = data.findIndex(item => item.month === label)
-                        const currentValue = payload[0].value
-                        const previousValue = currentIndex > 0 ? data[currentIndex - 1].amount : null
-
-                        return (
-                          <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
-                            <p className="font-semibold mb-1">{label}</p>
-                            <p className="text-yellow-600">
-                              {formatCurrency(currentValue)}
-                              {formatPercentage(calculatePercentageChange(currentValue, previousValue))}
-                            </p>
-                          </div>
-                        )
-                      }
-                      return null
-                    }} />
-                    <Bar dataKey="amount" fill="#f59e0b" shape={<CustomBarQuotes />} />
-                    <Line type="monotone" dataKey="trendValue" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" name="Quotes Trend" dot={false} />
-                    {sortedMonthlyQuotes.length > 0 && (() => {
-                      const average = sortedMonthlyQuotes.reduce((sum, item) => sum + item.amount, 0) / sortedMonthlyQuotes.length
-                      return (
-                        <ReferenceLine
-                          y={average}
-                          stroke="#666"
-                          strokeDasharray="3 3"
-                          label={{ value: "Average", position: "insideTopRight" }}
-                        />
-                      )
-                    })()}
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
 
             <Card>
               <CardHeader>
