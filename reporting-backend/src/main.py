@@ -81,6 +81,7 @@ from src.routes.service_shop_work_orders import service_shop_bp
 from src.routes.pm_report import pm_report_bp
 from src.routes.database_query import database_query_bp
 from src.routes.tenant_admin import tenant_admin_bp
+from src.routes.report_visibility import report_visibility_bp
 from src.routes.scheduled_tasks import scheduled_tasks_bp
 from src.routes.customer_details import customer_details_bp
 from src.routes.pm_technician_performance import pm_technician_performance_bp
@@ -390,6 +391,7 @@ app.register_blueprint(service_shop_bp)
 app.register_blueprint(pm_report_bp)
 app.register_blueprint(database_query_bp)
 app.register_blueprint(tenant_admin_bp, url_prefix='/api/admin')
+app.register_blueprint(report_visibility_bp, url_prefix='/api/admin')
 app.register_blueprint(scheduled_tasks_bp)
 app.register_blueprint(customer_details_bp)
 app.register_blueprint(pm_technician_performance_bp)

@@ -207,6 +207,14 @@ NAVIGATION_CONFIG = {
         'path': 'dashboard',
         'required_resource': 'dashboard',
         'order': 1,
+        'tabs': {
+            'sales': {'label': 'Sales', 'resource': 'dashboard'},
+            'sales-breakdown': {'label': 'Sales Breakdown', 'resource': 'dashboard'},
+            'customers': {'label': 'Customers', 'resource': 'dashboard'},
+            'workorders': {'label': 'Work Orders', 'resource': 'dashboard'},
+            'forecast': {'label': 'AI Sales Forecast', 'resource': 'dashboard'},
+            'accuracy': {'label': 'AI Forecast Accuracy', 'resource': 'dashboard'},
+        }
     },
     'parts': {
         'label': 'Parts',
@@ -264,6 +272,10 @@ NAVIGATION_CONFIG = {
         'path': 'customer-churn',
         'required_resource': 'customer_churn',
         'order': 5.5,
+        'tabs': {
+            'sales-by-customer': {'label': 'Sales by Customer', 'resource': 'customer_churn'},
+            'customer-churn': {'label': 'Customer Churn', 'resource': 'customer_churn'},
+        }
     },
     'knowledge-base': {
         'label': 'Knowledge Base',
@@ -439,6 +451,13 @@ NAVIGATION_CONFIG = {
         'path': 'tenant-admin',
         'required_resource': 'tenant_admin',
         'order': 101,
+    },
+    'report-visibility': {
+        'label': 'Report Visibility',
+        'icon': 'Eye',
+        'path': 'report-visibility',
+        'required_resource': 'tenant_admin',
+        'order': 102,
     },
     'support-tickets': {
         'label': 'Support Tickets',

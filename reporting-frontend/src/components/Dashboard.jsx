@@ -68,6 +68,7 @@ import {
   Info
 } from 'lucide-react'
 import { apiUrl } from '@/lib/api'
+import { getAccessibleTabs } from '@/contexts/PermissionsContext'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
@@ -184,7 +185,20 @@ const Dashboard = ({ user }) => {
   // Invoice delay analysis
   const [invoiceDelayData, setInvoiceDelayData] = useState(null)
   const [invoiceDelayLoading, setInvoiceDelayLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('sales')
+  // Tab visibility based on admin settings
+  const dashboardTabs = getAccessibleTabs(user, 'dashboard')
+  const showAllTabs = Object.keys(dashboardTabs).length === 0
+  const allTabDefs = [
+    { value: 'sales', label: 'Sales' },
+    { value: 'sales-breakdown', label: 'Sales Breakdown' },
+    { value: 'customers', label: 'Customers' },
+    { value: 'workorders', label: 'Work Orders' },
+    { value: 'forecast', label: 'AI Sales Forecast' },
+    { value: 'accuracy', label: 'AI Forecast Accuracy' },
+  ]
+  const visibleTabs = allTabDefs.filter(t => showAllTabs || dashboardTabs[t.value])
+  const defaultTab = visibleTabs.length > 0 ? visibleTabs[0].value : 'sales'
+  const [activeTab, setActiveTab] = useState(defaultTab)
   // Customer search and filter
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [customerRiskFilter, setCustomerRiskFilter] = useState('all') // 'all', 'at-risk', 'healthy'
@@ -969,14 +983,11 @@ const Dashboard = ({ user }) => {
       </div>
 
       {/* Tabbed Interface */}
-      <Tabs defaultValue="sales" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex flex-wrap md:grid md:w-full md:max-w-4xl md:grid-cols-6 gap-1">
-          <TabsTrigger value="sales">Sales</TabsTrigger>
-          <TabsTrigger value="sales-breakdown">Sales Breakdown</TabsTrigger>
-          <TabsTrigger value="customers">Customers</TabsTrigger>
-          <TabsTrigger value="workorders">Work Orders</TabsTrigger>
-          <TabsTrigger value="forecast">AI Sales Forecast</TabsTrigger>
-          <TabsTrigger value="accuracy">AI Forecast Accuracy</TabsTrigger>
+      <Tabs defaultValue={defaultTab} value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="flex flex-wrap md:grid md:w-full md:max-w-4xl gap-1" style={{ gridTemplateColumns: `repeat(${Math.min(visibleTabs.length, 6)}, minmax(0, 1fr))` }}>
+          {visibleTabs.map(t => (
+            <TabsTrigger key={t.value} value={t.value}>{t.label}</TabsTrigger>
+          ))}
         </TabsList>
 
         {/* Sales Tab */}

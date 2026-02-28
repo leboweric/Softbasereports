@@ -60,6 +60,31 @@ class PermissionService:
         return list(actions)
     
     @staticmethod
+    def _get_visibility_settings(org_id):
+        """Get report visibility settings from PostgreSQL for an organization."""
+        try:
+            from src.models.user import db
+            from sqlalchemy import text
+            result = db.session.execute(
+                text("SELECT page_id, tab_id, is_visible FROM report_visibility WHERE organization_id = :org_id"),
+                {'org_id': org_id}
+            )
+            settings = {}
+            for row in result:
+                page_id, tab_id, is_visible = row[0], row[1], row[2]
+                if page_id not in settings:
+                    settings[page_id] = {'visible': True, 'tabs': {}}
+                if tab_id is None:
+                    settings[page_id]['visible'] = is_visible
+                else:
+                    settings[page_id]['tabs'][tab_id] = is_visible
+            return settings
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error loading visibility settings for org {org_id}: {e}")
+            return {}
+
+    @staticmethod
     def get_user_navigation(user):
         """Get navigation items user can access"""
         # Fallback for users without RBAC roles (legacy support)
@@ -74,6 +99,9 @@ class PermissionService:
         
         user_resources = set(PermissionService.get_user_resources(user))
         accessible_nav = {}
+        
+        # Load visibility settings for this org
+        visibility = PermissionService._get_visibility_settings(user.organization_id) if user.organization_id else {}
         
         # Explicitly exclude removed navigation items
         excluded_nav_items = {'ai-query'}
@@ -105,11 +133,20 @@ class PermissionService:
                 if not user.organization.database_schema or user.organization.database_schema != 'ind004':
                     continue
             
+            # Check page-level visibility from admin settings
+            if nav_id in visibility and not visibility[nav_id].get('visible', True):
+                continue
+            
             # Filter tabs if they exist
             if 'tabs' in nav_config:
                 accessible_tabs = {}
                 for tab_id, tab_config in nav_config['tabs'].items():
                     if tab_config['resource'] in user_resources:
+                        # Check tab-level visibility from admin settings
+                        if nav_id in visibility:
+                            tab_vis = visibility[nav_id].get('tabs', {})
+                            if tab_id in tab_vis and not tab_vis[tab_id]:
+                                continue
                         accessible_tabs[tab_id] = tab_config
                 
                 # Only include nav item if user has access to at least one tab
