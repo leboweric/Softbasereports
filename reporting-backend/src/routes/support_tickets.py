@@ -1,9 +1,10 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, make_response
 from src.models.user import db
-from src.models.support_ticket import SupportTicket, SupportTicketAttachment
+from src.models.support_ticket import SupportTicket, SupportTicketAttachment, SupportTicketComment
 from datetime import datetime
 import os
 import json
+import io
 
 support_tickets_bp = Blueprint('support_tickets', __name__)
 
@@ -19,21 +20,35 @@ def generate_ticket_number():
     return f'{prefix}{str(count + 1).zfill(4)}'
 
 
-def send_ticket_notifications(ticket, attachment_count=0):
-    """Send email notifications via SendGrid"""
+def get_sendgrid_client():
+    """Get SendGrid client if configured"""
     try:
         import sendgrid
-        from sendgrid.helpers.mail import Mail, Email, To, Content, HtmlContent
     except ImportError:
-        print('SendGrid not installed, skipping email notifications')
-        return
+        print('SendGrid not installed, skipping email')
+        return None, None, None
 
     api_key = os.environ.get('SENDGRID_API_KEY')
     if not api_key:
-        print('SENDGRID_API_KEY not configured, skipping email notifications')
+        print('SENDGRID_API_KEY not configured, skipping email')
+        return None, None, None
+
+    from_email = os.environ.get('SENDGRID_FROM_EMAIL', 'noreply@aiop.one')
+    sg = sendgrid.SendGridAPIClient(api_key=api_key)
+    return sg, from_email, api_key
+
+
+def send_ticket_notifications(ticket, attachment_count=0):
+    """Send email notifications via SendGrid"""
+    sg, from_email, api_key = get_sendgrid_client()
+    if not sg:
         return
 
-    from_email = os.environ.get('SENDGRID_FROM_EMAIL', 'noreply@molinops.com')
+    try:
+        from sendgrid.helpers.mail import Mail
+    except ImportError:
+        return
+
     admin_email = 'eric@profitbuildernetwork.com'
 
     type_label = {
@@ -92,7 +107,6 @@ def send_ticket_notifications(ticket, attachment_count=0):
     """
 
     try:
-        sg = sendgrid.SendGridAPIClient(api_key=api_key)
         message = Mail(
             from_email=from_email,
             to_emails=admin_email,
@@ -147,6 +161,205 @@ def send_ticket_notifications(ticket, attachment_count=0):
             print(f'Confirmation email sent to user: {ticket.submitted_by_email}')
         except Exception as e:
             print(f'Error sending user confirmation: {e}')
+
+
+def send_resolution_email(ticket, fix_summary, testing_instructions):
+    """Send resolution email to ticket submitter with action buttons"""
+    sg, from_email, api_key = get_sendgrid_client()
+    if not sg:
+        return
+
+    try:
+        from sendgrid.helpers.mail import Mail
+    except ImportError:
+        return
+
+    if not ticket.submitted_by_email:
+        print(f'No email address for ticket {ticket.ticket_number}, skipping resolution email')
+        return
+
+    app_url = os.environ.get('APP_URL', 'https://app.aiop.one')
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Ticket Resolved</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      
+      <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">Your Ticket Has Been Resolved!</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0; font-size: 16px;">
+          Ticket #{ticket.ticket_number}
+        </p>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+        
+        <p style="font-size: 16px; margin-bottom: 20px;">Hi {ticket.submitted_by_name or 'there'},</p>
+        
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          Great news! We've resolved your support ticket. Here are the details:
+        </p>
+        
+        <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #059669;">
+          <p style="margin: 0 0 10px 0; font-weight: 600; color: #059669;">Your Ticket:</p>
+          <p style="margin: 0 0 5px 0;"><strong>Subject:</strong> {ticket.subject}</p>
+          <p style="margin: 0;"><strong>Ticket Number:</strong> {ticket.ticket_number}</p>
+        </div>
+        
+        <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #2563eb;">
+          <p style="margin: 0 0 10px 0; font-weight: 600; color: #2563eb;">
+            What Was Fixed:
+          </p>
+          <p style="margin: 0; white-space: pre-wrap;">{fix_summary}</p>
+        </div>
+        
+        {f'''<div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #7c3aed;">
+          <p style="margin: 0 0 10px 0; font-weight: 600; color: #7c3aed;">
+            How to Test:
+          </p>
+          <p style="margin: 0; white-space: pre-wrap;">{testing_instructions}</p>
+        </div>''' if testing_instructions else ''}
+        
+        <p style="font-size: 16px; margin: 20px 0;">
+          Please test the fix and let us know if everything is working correctly.
+        </p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="{app_url}/hub?ticket_close={ticket.ticket_number}" 
+             style="display: inline-block; background: #059669; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(5, 150, 105, 0.3); margin: 5px;">
+            Mark as Closed
+          </a>
+          <a href="{app_url}/hub?ticket_followup={ticket.ticket_number}" 
+             style="display: inline-block; background: #d97706; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(217, 119, 6, 0.3); margin: 5px;">
+            Add Follow-up Comment
+          </a>
+        </div>
+        
+        <p style="font-size: 14px; color: #666; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+          <strong>Need help?</strong> Reply to this email or visit the support portal.
+        </p>
+        
+        <p style="font-size: 14px; color: #666; margin-top: 10px;">
+          Resolved by: <strong>AI First Operations Support Team</strong><br>
+          Ticket Number: <strong>{ticket.ticket_number}</strong>
+        </p>
+        
+      </div>
+      
+    </body>
+    </html>
+    """
+
+    try:
+        message = Mail(
+            from_email=from_email,
+            to_emails=ticket.submitted_by_email,
+            subject=f'[{ticket.ticket_number}] Resolved - {ticket.subject}',
+            html_content=html_content
+        )
+        # CC admin
+        from sendgrid.helpers.mail import Cc
+        message.add_cc(Cc('eric@profitbuildernetwork.com'))
+        message.reply_to = 'eric@profitbuildernetwork.com'
+        sg.send(message)
+        print(f'Resolution email sent for ticket {ticket.ticket_number}')
+    except Exception as e:
+        print(f'Error sending resolution email for ticket {ticket.ticket_number}: {e}')
+
+
+def send_comment_notification_email(ticket, comment_message):
+    """Send email to ticket submitter when a comment is added requesting more information"""
+    sg, from_email, api_key = get_sendgrid_client()
+    if not sg:
+        return
+
+    try:
+        from sendgrid.helpers.mail import Mail
+    except ImportError:
+        return
+
+    if not ticket.submitted_by_email:
+        print(f'No email address for ticket {ticket.ticket_number}, skipping comment notification email')
+        return
+
+    app_url = os.environ.get('APP_URL', 'https://app.aiop.one')
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Support Ticket Update</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">Support Ticket Update</h1>
+      </div>
+      
+      <div style="background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px;">
+        
+        <p style="font-size: 16px; margin-bottom: 20px;">Hi {ticket.submitted_by_name or 'there'},</p>
+        
+        <p style="font-size: 16px; margin-bottom: 20px;">
+          We've reviewed your support ticket and need some additional information to help resolve your issue.
+        </p>
+        
+        <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+          <p style="margin: 0 0 10px 0; font-weight: 600; color: #667eea;">Your Ticket:</p>
+          <p style="margin: 0 0 5px 0;"><strong>Subject:</strong> {ticket.subject}</p>
+          <p style="margin: 0;"><strong>Ticket Number:</strong> {ticket.ticket_number}</p>
+        </div>
+        
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+          <p style="margin: 0 0 10px 0; font-weight: 600; color: #856404;">
+            Additional Information Needed
+          </p>
+          <p style="margin: 0; white-space: pre-wrap; color: #856404;">{comment_message}</p>
+        </div>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="{app_url}/hub?ticket_followup={ticket.ticket_number}" 
+             style="display: inline-block; background: #667eea; color: white; padding: 15px 40px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(102, 126, 234, 0.3);">
+            Respond to This Ticket
+          </a>
+        </div>
+        
+        <p style="font-size: 14px; color: #666; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+          <strong>Need help?</strong> Reply to this email or visit the support portal.
+        </p>
+        
+        <p style="font-size: 14px; color: #666; margin-top: 10px;">
+          AI First Operations Support Team<br>
+          Ticket Number: <strong>{ticket.ticket_number}</strong>
+        </p>
+        
+      </div>
+      
+    </body>
+    </html>
+    """
+
+    try:
+        message = Mail(
+            from_email=from_email,
+            to_emails=ticket.submitted_by_email,
+            subject=f'[{ticket.ticket_number}] Additional Information Needed - {ticket.subject}',
+            html_content=html_content
+        )
+        from sendgrid.helpers.mail import Cc
+        message.add_cc(Cc('eric@profitbuildernetwork.com'))
+        message.reply_to = 'eric@profitbuildernetwork.com'
+        sg.send(message)
+        print(f'Comment notification email sent for ticket {ticket.ticket_number}')
+    except Exception as e:
+        print(f'Error sending comment notification email for ticket {ticket.ticket_number}: {e}')
 
 
 # ==================== PUBLIC ROUTES ====================
@@ -207,7 +420,7 @@ def submit_ticket():
                     ticket_id=ticket.id,
                     filename=f.filename,
                     mimetype=f.content_type or 'application/octet-stream',
-                    size=0,  # Will update after reading
+                    size=0,
                     data=f.read()
                 )
                 attachment.size = len(attachment.data)
@@ -315,20 +528,33 @@ def get_ticket_stats():
 
 @support_tickets_bp.route('/api/support-tickets/<int:ticket_id>', methods=['GET'])
 def get_ticket(ticket_id):
-    """Get a single ticket by ID"""
+    """Get a single ticket by ID with comments"""
     try:
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
-        return jsonify(ticket.to_dict())
+        return jsonify(ticket.to_dict(include_comments=True))
     except Exception as e:
         print(f'Error fetching ticket: {e}')
         return jsonify({'error': 'Failed to fetch ticket'}), 500
 
 
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/with-comments', methods=['GET'])
+def get_ticket_with_comments(ticket_id):
+    """Get a single ticket by ID with all comments included"""
+    try:
+        ticket = SupportTicket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+        return jsonify(ticket.to_dict(include_comments=True))
+    except Exception as e:
+        print(f'Error fetching ticket with comments: {e}')
+        return jsonify({'error': 'Failed to fetch ticket'}), 500
+
+
 @support_tickets_bp.route('/api/support-tickets/<int:ticket_id>', methods=['PUT'])
 def update_ticket(ticket_id):
-    """Update ticket status, priority, or resolution notes"""
+    """Update ticket status, priority, type, or resolution notes"""
     try:
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
@@ -348,6 +574,11 @@ def update_ticket(ticket_id):
                 return jsonify({'error': 'Invalid priority'}), 400
             ticket.priority = data['priority']
 
+        if 'type' in data:
+            if data['type'] not in ('bug', 'enhancement', 'question'):
+                return jsonify({'error': 'Invalid type'}), 400
+            ticket.type = data['type']
+
         if 'resolution_notes' in data:
             ticket.resolution_notes = data['resolution_notes']
 
@@ -357,9 +588,220 @@ def update_ticket(ticket_id):
         ticket.updated_at = datetime.utcnow()
         db.session.commit()
 
-        return jsonify(ticket.to_dict())
+        return jsonify(ticket.to_dict(include_comments=True))
 
     except Exception as e:
         db.session.rollback()
         print(f'Error updating ticket: {e}')
         return jsonify({'error': 'Failed to update ticket'}), 500
+
+
+# ==================== COMMENTS ====================
+
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/comments', methods=['GET'])
+def get_comments(ticket_id):
+    """Get all comments for a ticket"""
+    try:
+        ticket = SupportTicket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        comments = SupportTicketComment.query.filter_by(
+            ticket_id=ticket_id
+        ).order_by(SupportTicketComment.created_at.asc()).all()
+
+        return jsonify({
+            'comments': [c.to_dict() for c in comments]
+        })
+
+    except Exception as e:
+        print(f'Error fetching comments: {e}')
+        return jsonify({'error': 'Failed to fetch comments'}), 500
+
+
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/comments', methods=['POST'])
+def add_comment(ticket_id):
+    """Add a comment to a ticket"""
+    try:
+        ticket = SupportTicket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        data = request.get_json() or {}
+        message_text = data.get('message')
+        if not message_text:
+            return jsonify({'error': 'Message is required'}), 400
+
+        comment_type = data.get('comment_type', 'user_comment')
+        if comment_type not in ('user_comment', 'system_resolution', 'system_note', 'initial_submission'):
+            return jsonify({'error': 'Invalid comment_type'}), 400
+
+        comment = SupportTicketComment(
+            ticket_id=ticket_id,
+            comment_type=comment_type,
+            message=message_text,
+            created_by_name=data.get('created_by_name'),
+            created_by_email=data.get('created_by_email'),
+            created_by_user_id=data.get('created_by_user_id'),
+            is_internal=data.get('is_internal', False)
+        )
+        db.session.add(comment)
+
+        # Update ticket metadata
+        ticket.last_comment_at = datetime.utcnow()
+        ticket.last_comment_by = data.get('created_by_name') or 'Unknown'
+        ticket.updated_at = datetime.utcnow()
+
+        # Auto-reopen if user adds a comment to a resolved/closed ticket
+        if comment_type == 'user_comment' and ticket.status in ('resolved', 'closed'):
+            ticket.status = 'open'
+            ticket.reopened_count = (ticket.reopened_count or 0) + 1
+            ticket.resolved_at = None
+
+        db.session.commit()
+
+        # Send comment notification email if admin/system is requesting more info
+        if comment_type == 'system_note' and not data.get('is_internal', False):
+            try:
+                send_comment_notification_email(ticket, message_text)
+            except Exception as e:
+                print(f'Comment notification email error (non-blocking): {e}')
+
+        return jsonify(comment.to_dict()), 201
+
+    except Exception as e:
+        db.session.rollback()
+        print(f'Error adding comment: {e}')
+        return jsonify({'error': 'Failed to add comment'}), 500
+
+
+# ==================== ATTACHMENTS ====================
+
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/attachments', methods=['GET'])
+def get_attachments(ticket_id):
+    """Get attachment metadata for a ticket"""
+    try:
+        ticket = SupportTicket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        attachments = SupportTicketAttachment.query.filter_by(
+            ticket_id=ticket_id
+        ).all()
+
+        return jsonify({
+            'attachments': [a.to_dict() for a in attachments]
+        })
+
+    except Exception as e:
+        print(f'Error fetching attachments: {e}')
+        return jsonify({'error': 'Failed to fetch attachments'}), 500
+
+
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/attachments/<int:attachment_id>/download', methods=['GET'])
+def download_attachment(ticket_id, attachment_id):
+    """Download an attachment file"""
+    try:
+        attachment = SupportTicketAttachment.query.filter_by(
+            id=attachment_id,
+            ticket_id=ticket_id
+        ).first()
+
+        if not attachment:
+            return jsonify({'error': 'Attachment not found'}), 404
+
+        response = make_response(attachment.data)
+        response.headers['Content-Type'] = attachment.mimetype
+        response.headers['Content-Disposition'] = f'inline; filename="{attachment.filename}"'
+        response.headers['Content-Length'] = attachment.size
+        return response
+
+    except Exception as e:
+        print(f'Error downloading attachment: {e}')
+        return jsonify({'error': 'Failed to download attachment'}), 500
+
+
+# ==================== RESOLVE & CLOSE ====================
+
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/resolve', methods=['POST'])
+def resolve_ticket(ticket_id):
+    """Resolve a ticket with fix summary and testing instructions, and send resolution email"""
+    try:
+        ticket = SupportTicket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        data = request.get_json() or {}
+        fix_summary = data.get('fix_summary', '') or data.get('resolution_notes', '')
+        testing_instructions = data.get('testing_instructions', '')
+        resolved_by = data.get('resolved_by', 'Support Team')
+
+        if not fix_summary:
+            return jsonify({'error': 'fix_summary or resolution_notes is required'}), 400
+
+        # Add resolution comment
+        resolution_message = f"**Fix Summary:**\n{fix_summary}"
+        if testing_instructions:
+            resolution_message += f"\n\n**How to Test:**\n{testing_instructions}"
+
+        comment = SupportTicketComment(
+            ticket_id=ticket_id,
+            comment_type='system_resolution',
+            message=resolution_message,
+            created_by_name=resolved_by,
+            is_internal=False
+        )
+        db.session.add(comment)
+
+        # Update ticket
+        ticket.status = 'resolved'
+        ticket.resolved_at = datetime.utcnow()
+        ticket.resolved_by = resolved_by
+        ticket.resolution_notes = fix_summary
+        ticket.last_comment_at = datetime.utcnow()
+        ticket.last_comment_by = resolved_by
+        ticket.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        # Send resolution email
+        try:
+            send_resolution_email(ticket, fix_summary, testing_instructions)
+        except Exception as e:
+            print(f'Resolution email error (non-blocking): {e}')
+
+        return jsonify({
+            'success': True,
+            'ticket': ticket.to_dict(include_comments=True)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f'Error resolving ticket: {e}')
+        return jsonify({'error': 'Failed to resolve ticket'}), 500
+
+
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/close', methods=['POST'])
+def close_ticket(ticket_id):
+    """Close a resolved ticket (user confirms fix worked)"""
+    try:
+        ticket = SupportTicket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+
+        ticket.status = 'closed'
+        ticket.updated_at = datetime.utcnow()
+        if not ticket.resolved_at:
+            ticket.resolved_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'ticket': ticket.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        print(f'Error closing ticket: {e}')
+        return jsonify({'error': 'Failed to close ticket'}), 500

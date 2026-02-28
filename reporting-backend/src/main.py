@@ -519,6 +519,49 @@ with app.app_context():
     except Exception as e:
         print(f"Note: role organization_id column migration: {e}")
     
+    # Add new columns to support_ticket table if they don't exist (for comment/conversation system)
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        
+        # Check if support_ticket table exists first
+        if 'support_ticket' in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('support_ticket')]
+            new_columns = {
+                'reopened_count': 'INTEGER DEFAULT 0',
+                'last_comment_at': 'TIMESTAMP',
+                'last_comment_by': 'VARCHAR(100)'
+            }
+            for col_name, col_type in new_columns.items():
+                if col_name not in columns:
+                    print(f"Adding {col_name} column to support_ticket table...")
+                    with db.engine.connect() as conn:
+                        conn.execute(text(f'ALTER TABLE support_ticket ADD COLUMN {col_name} {col_type}'))
+                        conn.commit()
+                    print(f"✅ {col_name} column added successfully!")
+        
+        # Create support_ticket_comment table if it doesn't exist
+        if 'support_ticket_comment' not in inspector.get_table_names():
+            print("Creating support_ticket_comment table...")
+            with db.engine.connect() as conn:
+                conn.execute(text('''
+                    CREATE TABLE support_ticket_comment (
+                        id SERIAL PRIMARY KEY,
+                        ticket_id INTEGER NOT NULL REFERENCES support_ticket(id) ON DELETE CASCADE,
+                        comment_type VARCHAR(30) NOT NULL DEFAULT 'user_comment',
+                        message TEXT NOT NULL,
+                        created_by_name VARCHAR(100),
+                        created_by_email VARCHAR(255),
+                        created_by_user_id INTEGER,
+                        is_internal BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                '''))
+                conn.commit()
+            print("✅ support_ticket_comment table created successfully!")
+    except Exception as e:
+        print(f"Note: support_ticket comment migration: {e}")
+
     # Initialize RBAC roles and permissions
     try:
         initialize_all_rbac()

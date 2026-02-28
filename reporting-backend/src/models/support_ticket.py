@@ -19,15 +19,19 @@ class SupportTicket(db.Model):
     organization_id = db.Column(db.Integer, nullable=True)
     resolved_by = db.Column(db.String(100), nullable=True)
     resolution_notes = db.Column(db.Text, nullable=True)
+    reopened_count = db.Column(db.Integer, default=0)
+    last_comment_at = db.Column(db.DateTime, nullable=True)
+    last_comment_by = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=True)
     resolved_at = db.Column(db.DateTime, nullable=True)
 
-    # Relationship to attachments
+    # Relationships
     attachments = db.relationship('SupportTicketAttachment', backref='ticket', lazy=True, cascade='all, delete-orphan')
+    comments = db.relationship('SupportTicketComment', backref='ticket', lazy=True, cascade='all, delete-orphan', order_by='SupportTicketComment.created_at.asc()')
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include_comments=False):
+        result = {
             'id': self.id,
             'ticket_number': self.ticket_number,
             'type': self.type,
@@ -42,11 +46,17 @@ class SupportTicket(db.Model):
             'organization_id': self.organization_id,
             'resolved_by': self.resolved_by,
             'resolution_notes': self.resolution_notes,
+            'reopened_count': self.reopened_count or 0,
+            'last_comment_at': self.last_comment_at.isoformat() if self.last_comment_at else None,
+            'last_comment_by': self.last_comment_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'resolved_at': self.resolved_at.isoformat() if self.resolved_at else None,
             'attachments': [a.to_dict() for a in self.attachments] if self.attachments else []
         }
+        if include_comments:
+            result['comments'] = [c.to_dict() for c in self.comments] if self.comments else []
+        return result
 
 
 class SupportTicketAttachment(db.Model):
@@ -63,8 +73,37 @@ class SupportTicketAttachment(db.Model):
     def to_dict(self):
         return {
             'id': self.id,
+            'ticket_id': self.ticket_id,
             'filename': self.filename,
             'mimetype': self.mimetype,
             'size': self.size,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class SupportTicketComment(db.Model):
+    __tablename__ = 'support_ticket_comment'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('support_ticket.id', ondelete='CASCADE'), nullable=False)
+    comment_type = db.Column(db.String(30), nullable=False, default='user_comment')
+    # comment_type values: 'user_comment', 'system_resolution', 'system_note', 'initial_submission'
+    message = db.Column(db.Text, nullable=False)
+    created_by_name = db.Column(db.String(100), nullable=True)
+    created_by_email = db.Column(db.String(255), nullable=True)
+    created_by_user_id = db.Column(db.Integer, nullable=True)
+    is_internal = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'ticket_id': self.ticket_id,
+            'comment_type': self.comment_type,
+            'message': self.message,
+            'created_by_name': self.created_by_name,
+            'created_by_email': self.created_by_email,
+            'created_by_user_id': self.created_by_user_id,
+            'is_internal': self.is_internal,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
