@@ -1,6 +1,7 @@
-from flask import Blueprint, request, jsonify, Response, make_response
+from flask import Blueprint, request, jsonify, Response, make_response, g
 from src.models.user import db
 from src.models.support_ticket import SupportTicket, SupportTicketAttachment, SupportTicketComment
+from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from datetime import datetime
 import os
 import json
@@ -9,6 +10,32 @@ import io
 support_tickets_bp = Blueprint('support_tickets', __name__)
 
 # ==================== HELPERS ====================
+
+
+def get_current_user_org_id():
+    """Get the current authenticated user's organization_id from g context or JWT.
+    Returns None if not authenticated (public endpoints).
+    Returns organization_id for org-scoped filtering.
+    Super Admins (org_id exists but they have Super Admin role) still see only their org tickets
+    unless we add a special bypass later.
+    """
+    # First try g.current_user set by before_request middleware
+    if hasattr(g, 'current_user') and g.current_user:
+        return g.current_user.organization_id
+    
+    # Fallback: try JWT
+    try:
+        verify_jwt_in_request(optional=True)
+        user_id = get_jwt_identity()
+        if user_id:
+            from src.models.user import User
+            user = User.query.get(int(user_id))
+            if user:
+                return user.organization_id
+    except Exception:
+        pass
+    
+    return None
 
 def generate_ticket_number():
     """Generate a unique ticket number in format TKT-YYYY-NNNN"""
@@ -452,7 +479,7 @@ def submit_ticket():
 
 @support_tickets_bp.route('/api/support-tickets', methods=['GET'])
 def get_all_tickets():
-    """Get all tickets with optional filters"""
+    """Get all tickets with optional filters - scoped by organization"""
     try:
         status = request.args.get('status')
         ticket_type = request.args.get('type')
@@ -460,6 +487,11 @@ def get_all_tickets():
         offset = request.args.get('offset', 0, type=int)
 
         query = SupportTicket.query
+
+        # Organization scoping - only show tickets from the user's organization
+        org_id = get_current_user_org_id()
+        if org_id:
+            query = query.filter(SupportTicket.organization_id == org_id)
 
         if status:
             query = query.filter(SupportTicket.status == status)
@@ -499,18 +531,27 @@ def get_all_tickets():
 
 @support_tickets_bp.route('/api/support-tickets/stats', methods=['GET'])
 def get_ticket_stats():
-    """Get ticket statistics"""
+    """Get ticket statistics - scoped by organization"""
     try:
-        total = SupportTicket.query.count()
-        open_count = SupportTicket.query.filter_by(status='open').count()
-        in_progress = SupportTicket.query.filter_by(status='in_progress').count()
-        resolved = SupportTicket.query.filter_by(status='resolved').count()
-        closed = SupportTicket.query.filter_by(status='closed').count()
+        # Organization scoping
+        org_id = get_current_user_org_id()
+        base_query = SupportTicket.query
+        if org_id:
+            base_query = base_query.filter(SupportTicket.organization_id == org_id)
 
-        by_type = db.session.query(
+        total = base_query.count()
+        open_count = base_query.filter(SupportTicket.status == 'open').count()
+        in_progress = base_query.filter(SupportTicket.status == 'in_progress').count()
+        resolved = base_query.filter(SupportTicket.status == 'resolved').count()
+        closed = base_query.filter(SupportTicket.status == 'closed').count()
+
+        type_query = db.session.query(
             SupportTicket.type,
             db.func.count(SupportTicket.id)
-        ).group_by(SupportTicket.type).all()
+        )
+        if org_id:
+            type_query = type_query.filter(SupportTicket.organization_id == org_id)
+        by_type = type_query.group_by(SupportTicket.type).all()
 
         return jsonify({
             'total': total,
