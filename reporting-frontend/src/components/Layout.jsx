@@ -7,6 +7,9 @@ import HelpWidget from './HelpWidget'
 const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions = [], accessibleDepartments = [] }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   
+  // Check if user is admin (has wildcard permission or manage_users)
+  const isAdmin = permissions.includes('*') || permissions.includes('manage_users')
+  
   // Layout rendering
   
   const navigation = user?.navigation || {}
@@ -117,6 +120,19 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               </div>
             </div>
 
+            {isAdmin && (
+              <button
+                onClick={() => handleNavigation('support-tickets')}
+                className={`mt-2 flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
+                  currentPage === 'support-tickets'
+                    ? 'bg-blue-100 text-blue-900'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Icons.Ticket className="mr-2 h-4 w-4" />
+                Support Tickets
+              </button>
+            )}
             <Button
               onClick={onLogout}
               variant="ghost"
@@ -130,7 +146,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         </div>
       </div>
 
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar */
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
           <div className="border-b">
@@ -192,6 +208,19 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
               </div>
             </div>
 
+            {isAdmin && (
+              <button
+                onClick={() => handleNavigation('support-tickets')}
+                className={`mt-2 flex w-full items-center rounded-md px-2 py-2 text-sm font-medium ${
+                  currentPage === 'support-tickets'
+                    ? 'bg-blue-100 text-blue-900'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Icons.Ticket className="mr-2 h-4 w-4" />
+                Support Tickets
+              </button>
+            )}
             <Button
               onClick={onLogout}
               variant="ghost"
@@ -205,7 +234,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Main content */
       <div className="lg:pl-64">
         {/* Mobile header */}
         <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm lg:hidden">
