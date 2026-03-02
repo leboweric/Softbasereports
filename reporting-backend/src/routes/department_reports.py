@@ -10716,7 +10716,7 @@ def register_department_routes(reports_bp):
     # Cost per Operating Hour by Forklift Series
     # ==========================================
     @reports_bp.route('/departments/service/cost-per-hour', methods=['GET'])
-    @require_permission('service')
+    @require_permission('view_service')
     def get_cost_per_hour():
         """
         Cost per Operating Hour by Forklift Series.
