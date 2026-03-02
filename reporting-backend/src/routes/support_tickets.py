@@ -536,6 +536,9 @@ def get_all_tickets():
 def get_ticket_stats():
     """Get ticket statistics - scoped by organization"""
     try:
+        # Force fresh data from database
+        db.session.expire_all()
+        db.session.close()
         # Organization scoping
         org_id = get_current_user_org_id()
         base_query = SupportTicket.query
@@ -574,6 +577,9 @@ def get_ticket_stats():
 def get_ticket(ticket_id):
     """Get a single ticket by ID with comments"""
     try:
+        # Force fresh data from database
+        db.session.expire_all()
+        db.session.close()
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
@@ -593,6 +599,9 @@ def get_ticket(ticket_id):
 def get_ticket_with_comments(ticket_id):
     """Get a single ticket by ID with all comments included"""
     try:
+        # Force fresh data from database
+        db.session.expire_all()
+        db.session.close()
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
@@ -664,6 +673,9 @@ def update_ticket(ticket_id):
 def get_comments(ticket_id):
     """Get all comments for a ticket"""
     try:
+        # Force fresh data from database
+        db.session.expire_all()
+        db.session.close()
         # Verify ticket exists
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
@@ -792,6 +804,9 @@ def delete_ticket(ticket_id):
 def get_attachments(ticket_id):
     """Get attachment metadata for a ticket"""
     try:
+        # Force fresh data from database
+        db.session.expire_all()
+        db.session.close()
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
