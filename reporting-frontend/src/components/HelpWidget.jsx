@@ -479,7 +479,7 @@ export default function HelpWidget({ user, className = '' }) {
           onClick={() => setIsOpen(true)}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className="relative h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-all duration-200 bg-gradient-to-r from-gray-800 to-gray-900 hover:from-gray-900 hover:to-black text-white hover:scale-110 border-2 border-white flex items-center justify-center"
+          className="relative h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-all duration-200 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white hover:scale-110 border-2 border-white flex items-center justify-center"
           title="Get Help"
         >
           <MessageCircle className="h-7 w-7" />
