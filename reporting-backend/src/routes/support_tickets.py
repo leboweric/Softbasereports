@@ -481,6 +481,9 @@ def submit_ticket():
 def get_all_tickets():
     """Get all tickets with optional filters - scoped by organization"""
     try:
+        # Force fresh data from database
+        db.session.expire_all()
+        db.session.close()
         status = request.args.get('status')
         ticket_type = request.args.get('type')
         limit = request.args.get('limit', 50, type=int)
