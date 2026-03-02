@@ -77,6 +77,7 @@ import WorkOrderTypes from './WorkOrderTypes'
 import ForecastAccuracy from './ForecastAccuracy'
 import CustomerDetailModal from './CustomerDetailModal'
 import SalesBreakdown from './SalesBreakdown'
+import InvoicedSalesReport from './InvoicedSalesReport'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true, fiscalYearStartMonth = null) => {
@@ -190,6 +191,7 @@ const Dashboard = ({ user }) => {
   const showAllTabs = Object.keys(dashboardTabs).length === 0
   const allTabDefs = [
     { value: 'sales', label: 'Sales' },
+    { value: 'invoiced-sales', label: 'Invoiced Sales' },
     { value: 'sales-breakdown', label: 'Sales Breakdown' },
     { value: 'customers', label: 'Customers' },
     { value: 'workorders', label: 'Work Orders' },
@@ -1606,6 +1608,11 @@ const Dashboard = ({ user }) => {
             </Card>
           </div>
 
+        </TabsContent>
+
+        {/* Invoiced Sales Tab */}
+        <TabsContent value="invoiced-sales" className="space-y-4">
+          <InvoicedSalesReport />
         </TabsContent>
 
         {/* Sales Breakdown Tab */}

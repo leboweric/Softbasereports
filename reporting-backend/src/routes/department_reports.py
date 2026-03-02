@@ -11027,3 +11027,354 @@ def register_department_routes(reports_bp):
         except Exception as e:
             logger.error(f"Error getting cost per hour report: {str(e)}", exc_info=True)
             return jsonify({'error': str(e)}), 500
+
+
+    # ============================================================
+    # Invoiced Sales Summary - New, Used, Allied by Location
+    # ============================================================
+    @reports_bp.route('/departments/sales/invoiced-summary', methods=['GET'])
+    @require_permission('view_commissions')
+    def get_invoiced_sales_summary():
+        """
+        Get invoiced sales summary broken down by category (New, Used, Allied)
+        and by branch/location for a given month.
+        
+        Query params:
+            month: Month number (1-12)
+            year: Year (YYYY)
+        """
+        try:
+            db = get_db()
+            schema = get_tenant_schema()
+            
+            # Get month/year parameters
+            month = request.args.get('month', type=int)
+            year = request.args.get('year', type=int)
+            
+            if not month or not year:
+                # Default to previous month
+                today = datetime.today()
+                prev_month = today.replace(day=1) - timedelta(days=1)
+                month = prev_month.month
+                year = prev_month.year
+            
+            # Calculate date range
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            # Main summary query - grouped by branch
+            summary_query = f"""
+            SELECT 
+                COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0') as Branch,
+                
+                -- New Equipment (SaleCode based)
+                COUNT(CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN 1 END) as NewCount,
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) 
+                         + COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
+                    ELSE 0 END) as NewSales,
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN COALESCE(ir.EquipmentCost, 0) + COALESCE(ir.MiscCost, 0)
+                    ELSE 0 END) as NewCost,
+                
+                -- Used Equipment
+                COUNT(CASE 
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    THEN 1 END) as UsedCount,
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    ELSE 0 END) as UsedSales,
+                SUM(CASE 
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    THEN COALESCE(ir.EquipmentCost, 0)
+                    ELSE 0 END) as UsedCost,
+                
+                -- Allied Equipment
+                COUNT(CASE 
+                    WHEN ir.SaleCode = 'ALLIED'
+                    THEN 1 END) as AlliedCount,
+                SUM(CASE
+                    WHEN ir.SaleCode = 'ALLIED'
+                    THEN COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
+                    ELSE 0 END) as AlliedSales,
+                SUM(CASE
+                    WHEN ir.SaleCode = 'ALLIED'
+                    THEN COALESCE(ir.MiscCost, 0)
+                    ELSE 0 END) as AlliedCost,
+                
+                -- Total invoice count (all three categories)
+                COUNT(CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM',
+                                         'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                         'ALLIED')
+                    THEN 1 END) as TotalCount
+                    
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
+            WHERE ir.InvoiceDate >= %s
+                AND ir.InvoiceDate <= %s
+                AND ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM',
+                                    'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
+                                    'ALLIED')
+            GROUP BY COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0')
+            ORDER BY COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0')
+            """
+            
+            results = db.execute_query(summary_query, [start_date, end_date])
+            
+            # Get branch names
+            try:
+                branch_query = f"SELECT Number, Name FROM {schema}.Branch ORDER BY Number"
+                branch_results = db.execute_query(branch_query)
+                branch_names = {str(r['Number']).strip(): r['Name'] for r in branch_results}
+            except:
+                branch_names = {}
+            
+            # Build response
+            branches = []
+            grand_new_sales = 0
+            grand_new_cost = 0
+            grand_new_count = 0
+            grand_used_sales = 0
+            grand_used_cost = 0
+            grand_used_count = 0
+            grand_allied_sales = 0
+            grand_allied_cost = 0
+            grand_allied_count = 0
+            grand_total_count = 0
+            
+            for row in results:
+                branch_no = str(row.get('Branch', '0')).strip()
+                new_sales = float(row.get('NewSales', 0) or 0)
+                new_cost = float(row.get('NewCost', 0) or 0)
+                new_count = int(row.get('NewCount', 0) or 0)
+                used_sales = float(row.get('UsedSales', 0) or 0)
+                used_cost = float(row.get('UsedCost', 0) or 0)
+                used_count = int(row.get('UsedCount', 0) or 0)
+                allied_sales = float(row.get('AlliedSales', 0) or 0)
+                allied_cost = float(row.get('AlliedCost', 0) or 0)
+                allied_count = int(row.get('AlliedCount', 0) or 0)
+                total_count = int(row.get('TotalCount', 0) or 0)
+                
+                total_sales = new_sales + used_sales + allied_sales
+                total_cost = new_cost + used_cost + allied_cost
+                total_gp = total_sales - total_cost
+                gp_pct = (total_gp / total_sales * 100) if total_sales != 0 else 0
+                
+                branches.append({
+                    'branch': branch_no,
+                    'branch_name': branch_names.get(branch_no, f'Branch {branch_no}'),
+                    'new_sales': round(new_sales, 2),
+                    'new_cost': round(new_cost, 2),
+                    'new_gp': round(new_sales - new_cost, 2),
+                    'new_count': new_count,
+                    'used_sales': round(used_sales, 2),
+                    'used_cost': round(used_cost, 2),
+                    'used_gp': round(used_sales - used_cost, 2),
+                    'used_count': used_count,
+                    'allied_sales': round(allied_sales, 2),
+                    'allied_cost': round(allied_cost, 2),
+                    'allied_gp': round(allied_sales - allied_cost, 2),
+                    'allied_count': allied_count,
+                    'total_sales': round(total_sales, 2),
+                    'total_cost': round(total_cost, 2),
+                    'total_gp': round(total_gp, 2),
+                    'gp_pct': round(gp_pct, 2),
+                    'total_count': total_count
+                })
+                
+                grand_new_sales += new_sales
+                grand_new_cost += new_cost
+                grand_new_count += new_count
+                grand_used_sales += used_sales
+                grand_used_cost += used_cost
+                grand_used_count += used_count
+                grand_allied_sales += allied_sales
+                grand_allied_cost += allied_cost
+                grand_allied_count += allied_count
+                grand_total_count += total_count
+            
+            grand_total_sales = grand_new_sales + grand_used_sales + grand_allied_sales
+            grand_total_cost = grand_new_cost + grand_used_cost + grand_allied_cost
+            grand_total_gp = grand_total_sales - grand_total_cost
+            grand_gp_pct = (grand_total_gp / grand_total_sales * 100) if grand_total_sales != 0 else 0
+            
+            return jsonify({
+                'month': month,
+                'year': year,
+                'branches': branches,
+                'grand_total': {
+                    'new_sales': round(grand_new_sales, 2),
+                    'new_cost': round(grand_new_cost, 2),
+                    'new_gp': round(grand_new_sales - grand_new_cost, 2),
+                    'new_count': grand_new_count,
+                    'used_sales': round(grand_used_sales, 2),
+                    'used_cost': round(grand_used_cost, 2),
+                    'used_gp': round(grand_used_sales - grand_used_cost, 2),
+                    'used_count': grand_used_count,
+                    'allied_sales': round(grand_allied_sales, 2),
+                    'allied_cost': round(grand_allied_cost, 2),
+                    'allied_gp': round(grand_allied_sales - grand_allied_cost, 2),
+                    'allied_count': grand_allied_count,
+                    'total_sales': round(grand_total_sales, 2),
+                    'total_cost': round(grand_total_cost, 2),
+                    'total_gp': round(grand_total_gp, 2),
+                    'gp_pct': round(grand_gp_pct, 2),
+                    'total_count': grand_total_count
+                },
+                'branch_names': branch_names
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting invoiced sales summary: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+
+    # ============================================================
+    # Invoiced Sales Detail - Individual invoices for drill-down
+    # ============================================================
+    @reports_bp.route('/departments/sales/invoiced-details', methods=['GET'])
+    @require_permission('view_commissions')
+    def get_invoiced_sales_details():
+        """
+        Get individual invoice details for a specific branch and category.
+        
+        Query params:
+            month: Month number (1-12)
+            year: Year (YYYY)
+            branch: Branch number (optional, all if not specified)
+            category: 'new', 'used', 'allied', or 'all' (default: 'all')
+        """
+        try:
+            db = get_db()
+            schema = get_tenant_schema()
+            
+            month = request.args.get('month', type=int)
+            year = request.args.get('year', type=int)
+            branch = request.args.get('branch', '')
+            category = request.args.get('category', 'all')
+            
+            if not month or not year:
+                today = datetime.today()
+                prev_month = today.replace(day=1) - timedelta(days=1)
+                month = prev_month.month
+                year = prev_month.year
+            
+            start_date = datetime(year, month, 1)
+            if month == 12:
+                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            else:
+                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            # Build SaleCode filter based on category
+            if category == 'new':
+                sale_codes = "('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')"
+            elif category == 'used':
+                sale_codes = "('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')"
+            elif category == 'allied':
+                sale_codes = "('ALLIED')"
+            else:
+                sale_codes = "('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'ALLIED')"
+            
+            # Build branch filter
+            branch_filter = ""
+            if branch and branch != 'all':
+                branch_filter = f"AND COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0') = '{branch}'"
+            
+            detail_query = f"""
+            SELECT 
+                ir.InvoiceNo,
+                ir.InvoiceDate,
+                ir.BillTo,
+                ir.BillToName,
+                ir.SaleCode,
+                ir.SaleDept,
+                COALESCE(wo.Salesman, 'Unassigned') as Salesman,
+                COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0') as Branch,
+                ir.Comments,
+                -- Calculate sale amount based on category
+                CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) 
+                         + COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
+                    WHEN ir.SaleCode = 'ALLIED'
+                    THEN COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
+                    ELSE 0
+                END as SaleAmount,
+                -- Calculate cost based on category
+                CASE 
+                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    THEN COALESCE(ir.EquipmentCost, 0) + COALESCE(ir.MiscCost, 0)
+                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    THEN COALESCE(ir.EquipmentCost, 0)
+                    WHEN ir.SaleCode = 'ALLIED'
+                    THEN COALESCE(ir.MiscCost, 0)
+                    ELSE 0
+                END as Cost,
+                ir.GrandTotal
+            FROM {schema}.InvoiceReg ir
+            LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
+            WHERE ir.InvoiceDate >= %s
+                AND ir.InvoiceDate <= %s
+                AND ir.SaleCode IN {sale_codes}
+                {branch_filter}
+            ORDER BY ir.InvoiceDate DESC, ir.InvoiceNo DESC
+            """
+            
+            results = db.execute_query(detail_query, [start_date, end_date])
+            
+            # Categorize each invoice
+            invoices = []
+            for row in results:
+                sale_code = row.get('SaleCode', '')
+                if sale_code in ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM'):
+                    cat = 'New'
+                elif sale_code in ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL'):
+                    cat = 'Used'
+                elif sale_code == 'ALLIED':
+                    cat = 'Allied'
+                else:
+                    cat = 'Other'
+                
+                sale_amount = float(row.get('SaleAmount', 0) or 0)
+                cost = float(row.get('Cost', 0) or 0)
+                gp = sale_amount - cost
+                gp_pct = (gp / sale_amount * 100) if sale_amount != 0 else 0
+                
+                invoices.append({
+                    'invoice_no': row.get('InvoiceNo', ''),
+                    'invoice_date': row.get('InvoiceDate').strftime('%Y-%m-%d') if row.get('InvoiceDate') else '',
+                    'customer': row.get('BillToName', '') or row.get('BillTo', ''),
+                    'customer_no': row.get('BillTo', ''),
+                    'sale_code': sale_code,
+                    'category': cat,
+                    'salesman': row.get('Salesman', 'Unassigned'),
+                    'branch': str(row.get('Branch', '0')).strip(),
+                    'sale_amount': round(sale_amount, 2),
+                    'cost': round(cost, 2),
+                    'gp': round(gp, 2),
+                    'gp_pct': round(gp_pct, 2),
+                    'comments': row.get('Comments', '')
+                })
+            
+            return jsonify({
+                'month': month,
+                'year': year,
+                'branch': branch,
+                'category': category,
+                'invoices': invoices,
+                'count': len(invoices)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting invoiced sales details: {str(e)}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
