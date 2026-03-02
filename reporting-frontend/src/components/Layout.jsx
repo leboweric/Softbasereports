@@ -146,7 +146,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         </div>
       </div>
 
-      {/* Desktop sidebar */
+      {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
           <div className="border-b">
