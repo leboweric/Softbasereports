@@ -746,6 +746,43 @@ def add_comment(ticket_id):
         return jsonify({'error': 'Failed to add comment'}), 500
 
 
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/comments/<int:comment_id>', methods=['DELETE'])
+def delete_comment(ticket_id, comment_id):
+    """Delete a specific comment from a ticket"""
+    try:
+        comment = SupportTicketComment.query.filter_by(id=comment_id, ticket_id=ticket_id).first()
+        if not comment:
+            return jsonify({'error': 'Comment not found'}), 404
+        db.session.delete(comment)
+        db.session.commit()
+        return jsonify({'success': True, 'deleted_id': comment_id})
+    except Exception as e:
+        db.session.rollback()
+        print(f'Error deleting comment: {e}')
+        return jsonify({'error': 'Failed to delete comment'}), 500
+
+
+@support_tickets_bp.route('/api/support-tickets/<int:ticket_id>', methods=['DELETE'])
+def delete_ticket(ticket_id):
+    """Delete a ticket and all its comments and attachments"""
+    try:
+        ticket = SupportTicket.query.get(ticket_id)
+        if not ticket:
+            return jsonify({'error': 'Ticket not found'}), 404
+        # Delete related comments
+        SupportTicketComment.query.filter_by(ticket_id=ticket_id).delete()
+        # Delete related attachments
+        SupportTicketAttachment.query.filter_by(ticket_id=ticket_id).delete()
+        # Delete the ticket
+        db.session.delete(ticket)
+        db.session.commit()
+        return jsonify({'success': True, 'deleted_ticket_id': ticket_id})
+    except Exception as e:
+        db.session.rollback()
+        print(f'Error deleting ticket: {e}')
+        return jsonify({'error': 'Failed to delete ticket'}), 500
+
+
 # ==================== ATTACHMENTS ====================
 
 @support_tickets_bp.route('/api/support-tickets/<int:ticket_id>/attachments', methods=['GET'])
