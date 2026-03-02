@@ -36,7 +36,17 @@ const REPORT_REGISTRY = {
     icon: '🔧',
     tabs: {
       'overview': { label: 'Overview' },
-      'work-orders': { label: 'Work Orders' },
+      'pms': { label: "PM's" },
+      'pm-route-planner': { label: 'PM Route Planner' },
+      'pm-contest': { label: 'PM Contest' },
+      'shop-work-orders': { label: 'Cash Burn' },
+      'work-orders': { label: 'Cash Stalled' },
+      'all-work-orders': { label: 'All Work Orders' },
+      'invoice-billing': { label: 'Customer Billing' },
+      'maintenance-contracts': { label: 'Maintenance Contract Profitability' },
+      'customer-profitability': { label: 'Customer Profitability' },
+      'units-repair-cost': { label: 'Units by Repair Cost' },
+      'cost-per-hour': { label: 'Cost per Hour' },
     }
   },
   'rental': {
@@ -45,6 +55,8 @@ const REPORT_REGISTRY = {
     tabs: {
       'overview': { label: 'Overview' },
       'availability': { label: 'Availability' },
+      'depreciation': { label: 'Depreciation' },
+      'service-report': { label: 'Service Report' },
     }
   },
   'accounting': {
@@ -52,11 +64,12 @@ const REPORT_REGISTRY = {
     icon: '💰',
     tabs: {
       'overview': { label: 'Overview' },
-      'ar': { label: 'Accounts Receivable' },
-      'ap': { label: 'Accounts Payable' },
+      'ar-aging': { label: 'AR Aging' },
+      'ap-aging': { label: 'AP Aging' },
       'commissions': { label: 'Sales Commissions' },
       'control': { label: 'Control Numbers' },
       'inventory': { label: 'Inventory' },
+      'parts-commissions': { label: 'Parts Commissions' },
     }
   },
   'customer-churn': {
@@ -75,12 +88,20 @@ const REPORT_REGISTRY = {
   'knowledge-base': {
     label: 'Knowledge Base',
     icon: '📚',
-    tabs: {}
+    tabs: {
+      'articles': { label: 'Articles' },
+      'work-orders': { label: 'Work Orders' },
+    }
   },
   'qbr': {
     label: 'QBR',
     icon: '📈',
-    tabs: {}
+    tabs: {
+      'overview': { label: 'Fleet Overview' },
+      'health': { label: 'Fleet Health' },
+      'service': { label: 'Service Performance' },
+      'costs': { label: 'Costs & Value' },
+    }
   },
   'my-commissions': {
     label: 'My Commissions',

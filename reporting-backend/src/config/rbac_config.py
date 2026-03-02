@@ -239,7 +239,17 @@ NAVIGATION_CONFIG = {
         'order': 3,
         'tabs': {
             'overview': {'label': 'Overview', 'resource': 'service_overview'},
-            'work-orders': {'label': 'Work Orders', 'resource': 'service_work_orders'},
+            'pms': {'label': "PM's", 'resource': 'service_overview'},
+            'pm-route-planner': {'label': 'PM Route Planner', 'resource': 'service_overview'},
+            'pm-contest': {'label': 'PM Contest', 'resource': 'service_overview'},
+            'shop-work-orders': {'label': 'Cash Burn', 'resource': 'service_work_orders'},
+            'work-orders': {'label': 'Cash Stalled', 'resource': 'service_work_orders'},
+            'all-work-orders': {'label': 'All Work Orders', 'resource': 'service_work_orders'},
+            'invoice-billing': {'label': 'Customer Billing', 'resource': 'service_work_orders'},
+            'maintenance-contracts': {'label': 'Maintenance Contract Profitability', 'resource': 'service_overview'},
+            'customer-profitability': {'label': 'Customer Profitability', 'resource': 'service_overview'},
+            'units-repair-cost': {'label': 'Units by Repair Cost', 'resource': 'service_overview'},
+            'cost-per-hour': {'label': 'Cost per Hour', 'resource': 'service_overview'},
         }
     },
     'rental': {
@@ -250,6 +260,8 @@ NAVIGATION_CONFIG = {
         'tabs': {
             'overview': {'label': 'Overview', 'resource': 'rental_overview'},
             'availability': {'label': 'Availability', 'resource': 'rental_availability'},
+            'depreciation': {'label': 'Depreciation', 'resource': 'rental_overview'},
+            'service-report': {'label': 'Service Report', 'resource': 'rental_overview'},
         }
     },
     'accounting': {
@@ -259,11 +271,12 @@ NAVIGATION_CONFIG = {
         'order': 1.6,
         'tabs': {
             'overview': {'label': 'Overview', 'resource': 'accounting_overview'},
-            'ar': {'label': 'Accounts Receivable', 'resource': 'accounting_ar'},
-            'ap': {'label': 'Accounts Payable', 'resource': 'accounting_ap'},
+            'ar-aging': {'label': 'AR Aging', 'resource': 'accounting_ar'},
+            'ap-aging': {'label': 'AP Aging', 'resource': 'accounting_ap'},
             'commissions': {'label': 'Sales Commissions', 'resource': 'accounting_commissions'},
             'control': {'label': 'Control Numbers', 'resource': 'accounting_control'},
             'inventory': {'label': 'Inventory', 'resource': 'accounting_inventory'},
+            'parts-commissions': {'label': 'Parts Commissions', 'resource': 'accounting_commissions'},
         }
     },
     'customer-churn': {
@@ -283,6 +296,10 @@ NAVIGATION_CONFIG = {
         'path': 'knowledge-base',
         'required_resource': 'knowledge_base',
         'order': 6,
+        'tabs': {
+            'articles': {'label': 'Articles', 'resource': 'knowledge_base'},
+            'work-orders': {'label': 'Work Orders', 'resource': 'knowledge_base'},
+        }
     },
     'financial': {
         'label': 'Finance',
@@ -332,6 +349,12 @@ NAVIGATION_CONFIG = {
         'path': 'qbr',
         'required_resource': 'qbr',
         'order': 10,
+        'tabs': {
+            'overview': {'label': 'Fleet Overview', 'resource': 'qbr'},
+            'health': {'label': 'Fleet Health', 'resource': 'qbr'},
+            'service': {'label': 'Service Performance', 'resource': 'qbr'},
+            'costs': {'label': 'Costs & Value', 'resource': 'qbr'},
+        }
     },
     'my-commissions': {
         'label': 'My Commissions',
