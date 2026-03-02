@@ -56,6 +56,7 @@ import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
 import { SERVICE_METHODOLOGY } from '@/config/ipsPageMethodology'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
+import { getAccessibleTabs } from '../../contexts/PermissionsContext'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -114,13 +115,30 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 
 
 const ServiceReport = ({ user, organization, onNavigate }) => {
+  // Build accessible tabs from visibility settings
+  const accessibleTabs = getAccessibleTabs(user, 'service')
+  const tabOrder = ['overview', 'pms', 'pm-route-planner', 'pm-contest', 'shop-work-orders', 'work-orders', 'all-work-orders', 'invoice-billing', 'maintenance-contracts', 'customer-profitability', 'units-repair-cost', 'cost-per-hour']
+  const tabLabels = {
+    'overview': 'Overview', 'pms': "PM's", 'pm-route-planner': 'PM Route Planner',
+    'pm-contest': 'PM Contest', 'shop-work-orders': 'Cash Burn', 'work-orders': 'Cash Stalled',
+    'all-work-orders': 'All Work Orders', 'invoice-billing': 'Customer Billing',
+    'maintenance-contracts': 'Maintenance Contract Profitability', 'customer-profitability': 'Customer Profitability',
+    'units-repair-cost': 'Units by Repair Cost', 'cost-per-hour': 'Cost per Hour'
+  }
+  const tabs = tabOrder
+    .filter(id => accessibleTabs[id])
+    .map(id => ({
+      value: id,
+      label: accessibleTabs[id]?.label || tabLabels[id] || id,
+    }))
+
   const [serviceData, setServiceData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [benchmarkData, setBenchmarkData] = useState(null)
   const [awaitingInvoiceData, setAwaitingInvoiceData] = useState(null)
   const [awaitingInvoiceDetails, setAwaitingInvoiceDetails] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'overview')
   const [woLookup, setWoLookup] = useState('')
   const [woDetail, setWoDetail] = useState(null)
   const [loadingWoDetail, setLoadingWoDetail] = useState(false)
@@ -599,20 +617,14 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="pms">PM's</TabsTrigger>
-          <TabsTrigger value="pm-route-planner">PM Route Planner</TabsTrigger>
-          <TabsTrigger value="pm-contest">PM Contest</TabsTrigger>
-          <TabsTrigger value="shop-work-orders">Cash Burn</TabsTrigger>
-          <TabsTrigger value="work-orders">Cash Stalled</TabsTrigger>
-          <TabsTrigger value="all-work-orders">All Work Orders</TabsTrigger>
-          <TabsTrigger value="invoice-billing">Customer Billing</TabsTrigger>
-          <TabsTrigger value="maintenance-contracts">Maintenance Contract Profitability</TabsTrigger>
-          <TabsTrigger value="customer-profitability">Customer Profitability</TabsTrigger>
-          <TabsTrigger value="units-repair-cost">Units by Repair Cost</TabsTrigger>
-          <TabsTrigger value="cost-per-hour">Cost per Hour</TabsTrigger>
+          {tabs.map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
+        {tabs.some(tab => tab.value === 'overview') && (
         <TabsContent value="overview" className="space-y-6">
           {/* Row 1: Glanceable KPI Cards */}
           <div className="grid gap-4 md:grid-cols-5">
@@ -1047,7 +1059,9 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
         </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'shop-work-orders') && (
         <TabsContent value="shop-work-orders" className="space-y-6">
           {/* Cash Burn Work Orders with Cost Overrun Alerts */}
           {shopWorkOrdersLoading ? (
@@ -1237,7 +1251,9 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
             </Card>
           )}
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'work-orders') && (
         <TabsContent value="work-orders" className="space-y-6">
           {/* Service, Shop & PM Work Orders Awaiting Invoice Card */}
           {awaitingInvoiceData && awaitingInvoiceData.count > 0 && (
@@ -1612,7 +1628,9 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'all-work-orders') && (
         <TabsContent value="all-work-orders" className="space-y-6">
           {/* Card 1: All Work Order Types */}
           <WorkOrderTypes />
@@ -1783,38 +1801,55 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
             </div>
           ) : null}
         </TabsContent>
+        )}
         
+        {tabs.some(tab => tab.value === 'pms') && (
         <TabsContent value="pms" className="space-y-6">
           <PMReport user={user} />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'pm-route-planner') && (
         <TabsContent value="pm-route-planner" className="space-y-6">
           <PMRoutePlanner user={user} />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'pm-contest') && (
         <TabsContent value="pm-contest" className="space-y-6">
           <PMTechnicianContest />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'invoice-billing') && (
         <TabsContent value="invoice-billing" className="space-y-6">
           <ServiceInvoiceBilling />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'maintenance-contracts') && (
         <TabsContent value="maintenance-contracts" className="space-y-6">
           <MaintenanceContractProfitability />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'customer-profitability') && (
         <TabsContent value="customer-profitability" className="space-y-6">
           <CustomerProfitability />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'units-repair-cost') && (
         <TabsContent value="units-repair-cost" className="space-y-6">
           <UnitsRepairCost />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'cost-per-hour') && (
         <TabsContent value="cost-per-hour" className="space-y-6">
           <CostPerHour />
         </TabsContent>
+        )}
       </Tabs>
 
       {/* Notes Modal */}

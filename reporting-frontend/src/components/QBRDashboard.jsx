@@ -39,8 +39,16 @@ import {
   Cell,
   Legend
 } from 'recharts';
+import { getAccessibleTabs } from '../contexts/PermissionsContext';
 
-const QBRDashboard = () => {
+const QBRDashboard = ({ user }) => {
+  // Build accessible tabs from visibility settings
+  const accessibleTabs = getAccessibleTabs(user, 'qbr');
+  const qbrTabOrder = ['overview', 'health', 'service', 'costs', 'recommendations'];
+  const qbrTabLabels = { 'overview': 'Fleet Overview', 'health': 'Fleet Health', 'service': 'Service Performance', 'costs': 'Costs & Value', 'recommendations': 'Recommendations' };
+  const qbrTabs = qbrTabOrder
+    .filter(id => accessibleTabs[id])
+    .map(id => ({ value: id, label: accessibleTabs[id]?.label || qbrTabLabels[id] || id }));
   // Customer and Quarter selection
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -368,16 +376,15 @@ const QBRDashboard = () => {
 
       {/* QBR Content */}
       {qbrData && !loading && (
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs defaultValue={qbrTabs[0]?.value || 'overview'} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="overview">Fleet Overview</TabsTrigger>
-            <TabsTrigger value="health">Fleet Health</TabsTrigger>
-            <TabsTrigger value="service">Service Performance</TabsTrigger>
-            <TabsTrigger value="costs">Costs & Value</TabsTrigger>
-            <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
+            {qbrTabs.map(tab => (
+              <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+            ))}
           </TabsList>
 
           {/* Fleet Overview Tab */}
+          {qbrTabs.some(tab => tab.value === 'overview') && (
           <TabsContent value="overview" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
@@ -451,8 +458,10 @@ const QBRDashboard = () => {
               </Card>
             )}
           </TabsContent>
+          )}
 
           {/* Fleet Health Tab */}
+          {qbrTabs.some(tab => tab.value === 'health') && (
           <TabsContent value="health" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card className="border-green-200">
@@ -579,8 +588,10 @@ const QBRDashboard = () => {
               </Card>
             )}
           </TabsContent>
+          )}
 
           {/* Service Performance Tab */}
+          {qbrTabs.some(tab => tab.value === 'service') && (
           <TabsContent value="service" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Card>
@@ -660,8 +671,10 @@ const QBRDashboard = () => {
               </Card>
             )}
           </TabsContent>
+          )}
 
           {/* Costs & Value Tab */}
+          {qbrTabs.some(tab => tab.value === 'costs') && (
           <TabsContent value="costs" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Service Costs */}
@@ -760,8 +773,10 @@ const QBRDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
           {/* Recommendations Tab */}
+          {qbrTabs.some(tab => tab.value === 'recommendations') && (
           <TabsContent value="recommendations" className="space-y-4">
             <Card>
               <CardHeader>
@@ -810,6 +825,7 @@ const QBRDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
+          )}
         </Tabs>
       )}
 

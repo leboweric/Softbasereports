@@ -31,9 +31,17 @@ import SalesCommissionReport from '@/components/SalesCommissionReport'
 import ControlNumberReport from '@/components/ControlNumberReport'
 import InventoryReport from '@/components/InventoryReport'
 import PartsCommissionsReport from '@/components/PartsCommissionsReport'
+import { getAccessibleTabs } from '../../contexts/PermissionsContext'
 
 
 const AccountingReport = ({ user, organization }) => {
+  // Build accessible tabs from visibility settings
+  const accessibleTabs = getAccessibleTabs(user, 'accounting')
+  const tabOrder = ['overview', 'ar-aging', 'ap-aging', 'commissions', 'control', 'inventory', 'parts-commissions']
+  const tabLabels = { 'overview': 'Overview', 'ar-aging': 'AR Aging', 'ap-aging': 'AP Aging', 'commissions': 'Sales Commissions', 'control': 'Control Numbers', 'inventory': 'Inventory', 'parts-commissions': 'Parts Commissions' }
+  const acctTabs = tabOrder
+    .filter(id => accessibleTabs[id])
+    .map(id => ({ value: id, label: accessibleTabs[id]?.label || tabLabels[id] || id }))
   const [monthlyExpenses, setMonthlyExpenses] = useState([])
   const [rawMonthlyExpenses, setRawMonthlyExpenses] = useState([])
   const [includeCurrentMonthGNA, setIncludeCurrentMonthGNA] = useState(false)
@@ -463,17 +471,14 @@ const AccountingReport = ({ user, organization }) => {
         <MethodologyPanel {...ACCOUNTING_METHODOLOGY} />
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs defaultValue={acctTabs[0]?.value || 'overview'} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="ar-aging">AR Aging</TabsTrigger>
-          <TabsTrigger value="ap-aging">AP Aging</TabsTrigger>
-          <TabsTrigger value="commissions">Sales Commissions</TabsTrigger>
-          <TabsTrigger value="control">Control Numbers</TabsTrigger>
-          <TabsTrigger value="inventory">Inventory</TabsTrigger>
-          <TabsTrigger value="parts-commissions">Parts Commissions</TabsTrigger>
+          {acctTabs.map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+          ))}
         </TabsList>
 
+        {acctTabs.some(tab => tab.value === 'overview') && (
         <TabsContent value="overview" className="space-y-6">
           {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-4">
@@ -1140,29 +1145,43 @@ const AccountingReport = ({ user, organization }) => {
         </Card>
       )}
         </TabsContent>
+        )}
 
+        {acctTabs.some(tab => tab.value === 'ar-aging') && (
         <TabsContent value="ar-aging" className="space-y-6">
           <ARAgingReport user={user} />
         </TabsContent>
+        )}
 
+        {acctTabs.some(tab => tab.value === 'ap-aging') && (
         <TabsContent value="ap-aging" className="space-y-6">
           <APAgingReport user={user} />
         </TabsContent>
+        )}
 
+        {acctTabs.some(tab => tab.value === 'commissions') && (
         <TabsContent value="commissions" className="space-y-6">
           <SalesCommissionReport user={user} />
         </TabsContent>
+        )}
 
+        {acctTabs.some(tab => tab.value === 'control') && (
         <TabsContent value="control" className="space-y-6">
           <ControlNumberReport />
         </TabsContent>
+        )}
+
+        {acctTabs.some(tab => tab.value === 'inventory') && (
         <TabsContent value="inventory" className="space-y-6">
           <InventoryReport user={user} />
         </TabsContent>
+        )}
 
+        {acctTabs.some(tab => tab.value === 'parts-commissions') && (
         <TabsContent value="parts-commissions" className="space-y-6">
           <PartsCommissionsReport user={user} />
         </TabsContent>
+        )}
 
 
       </Tabs>

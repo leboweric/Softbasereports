@@ -91,6 +91,8 @@ const REPORT_REGISTRY = {
     tabs: {
       'articles': { label: 'Articles' },
       'work-orders': { label: 'Work Orders' },
+      'assistant': { label: 'Service Assistant' },
+      'analytics': { label: 'Analytics' },
     }
   },
   'qbr': {
@@ -101,6 +103,7 @@ const REPORT_REGISTRY = {
       'health': { label: 'Fleet Health' },
       'service': { label: 'Service Performance' },
       'costs': { label: 'Costs & Value' },
+      'recommendations': { label: 'Recommendations' },
     }
   },
   'my-commissions': {

@@ -6,8 +6,16 @@ import { Search, Filter, Plus, Edit, Trash2, Eye, Book, Wrench, AlertCircle, Che
 import FileUploadDropzone from './FileUploadDropzone';
 import SearchableSelect from './SearchableSelect';
 import ServiceAssistantAnalytics from './ServiceAssistantAnalytics';
+import { getAccessibleTabs } from '../contexts/PermissionsContext';
 
-const KnowledgeBase = () => {
+const KnowledgeBase = ({ user }) => {
+  // Build accessible tabs from visibility settings
+  const accessibleTabs = getAccessibleTabs(user, 'knowledge-base');
+  const kbTabOrder = ['articles', 'work-orders', 'assistant', 'analytics'];
+  const kbTabLabels = { 'articles': 'Knowledge Articles', 'work-orders': 'Work Order History', 'assistant': 'Service Assistant', 'analytics': 'Analytics' };
+  const kbTabs = kbTabOrder
+    .filter(id => accessibleTabs[id])
+    .map(id => ({ value: id, label: accessibleTabs[id]?.label || kbTabLabels[id] || id }));
   const [articles, setArticles] = useState([]);
   const [filteredArticles, setFilteredArticles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -420,22 +428,14 @@ const KnowledgeBase = () => {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="articles" className="w-full">
-        <TabsList className="grid w-full max-w-4xl grid-cols-4">
-          <TabsTrigger value="articles">
-            Knowledge Articles
-          </TabsTrigger>
-          <TabsTrigger value="work-orders">
-            Work Order History
-          </TabsTrigger>
-          <TabsTrigger value="assistant">
-            Service Assistant
-          </TabsTrigger>
-          <TabsTrigger value="analytics">
-            Analytics
-          </TabsTrigger>
+      <Tabs defaultValue={kbTabs[0]?.value || 'articles'} className="w-full">
+        <TabsList className={`grid w-full max-w-4xl grid-cols-${kbTabs.length}`}>
+          {kbTabs.map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+          ))}
         </TabsList>
 
+        {kbTabs.some(tab => tab.value === 'articles') && (
         <TabsContent value="articles" className="space-y-6 mt-6">
           {/* Search and Filters */}
           <Card>
@@ -583,7 +583,9 @@ const KnowledgeBase = () => {
         )}
       </div>
         </TabsContent>
+        )}
 
+        {kbTabs.some(tab => tab.value === 'work-orders') && (
         <TabsContent value="work-orders" className="space-y-6 mt-6">
           {/* Work Order Search */}
           <Card>
@@ -747,7 +749,9 @@ const KnowledgeBase = () => {
             )}
           </div>
         </TabsContent>
+        )}
 
+        {kbTabs.some(tab => tab.value === 'assistant') && (
         <TabsContent value="assistant" className="space-y-6 mt-6">
           <Card>
             <CardHeader>
@@ -843,10 +847,13 @@ const KnowledgeBase = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {kbTabs.some(tab => tab.value === 'analytics') && (
         <TabsContent value="analytics" className="space-y-6 mt-6">
           <ServiceAssistantAnalytics />
         </TabsContent>
+        )}
       </Tabs>
 
       {/* View Article Modal */}

@@ -299,6 +299,8 @@ NAVIGATION_CONFIG = {
         'tabs': {
             'articles': {'label': 'Articles', 'resource': 'knowledge_base'},
             'work-orders': {'label': 'Work Orders', 'resource': 'knowledge_base'},
+            'assistant': {'label': 'Service Assistant', 'resource': 'knowledge_base'},
+            'analytics': {'label': 'Analytics', 'resource': 'knowledge_base'},
         }
     },
     'financial': {
@@ -354,6 +356,7 @@ NAVIGATION_CONFIG = {
             'health': {'label': 'Fleet Health', 'resource': 'qbr'},
             'service': {'label': 'Service Performance', 'resource': 'qbr'},
             'costs': {'label': 'Costs & Value', 'resource': 'qbr'},
+            'recommendations': {'label': 'Recommendations', 'resource': 'qbr'},
         }
     },
     'my-commissions': {

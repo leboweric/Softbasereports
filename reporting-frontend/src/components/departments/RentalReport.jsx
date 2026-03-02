@@ -58,6 +58,7 @@ import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { MethodologyPanel } from '@/components/ui/methodology-panel'
 import { RENTAL_METHODOLOGY } from '@/config/ipsPageMethodology'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
+import { getAccessibleTabs } from '../../contexts/PermissionsContext'
 
 // Utility function to calculate linear regression trendline
 const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
@@ -116,6 +117,14 @@ const calculateLinearTrend = (data, xKey, yKey, excludeCurrentMonth = true) => {
 
 
 const RentalReport = ({ user, organization }) => {
+  // Build accessible tabs from visibility settings
+  const accessibleTabs = getAccessibleTabs(user, 'rental')
+  const tabOrder = ['overview', 'availability', 'depreciation', 'service-report']
+  const tabLabels = { 'overview': 'Overview', 'availability': 'Availability', 'depreciation': 'Depreciation', 'service-report': 'Service Report' }
+  const tabs = tabOrder
+    .filter(id => accessibleTabs[id])
+    .map(id => ({ value: id, label: accessibleTabs[id]?.label || tabLabels[id] || id }))
+
   const [rentalData, setRentalData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [totalFleet, setTotalFleet] = useState(0)
@@ -128,7 +137,7 @@ const RentalReport = ({ user, organization }) => {
   const [unitsOnRent, setUnitsOnRent] = useState(0)
   const [unitsOnHold, setUnitsOnHold] = useState(0)
   const [benchmarkData, setBenchmarkData] = useState(null)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'overview')
   const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
   const [rawMonthlyRevenueData, setRawMonthlyRevenueData] = useState(null)
   
@@ -554,12 +563,12 @@ const RentalReport = ({ user, organization }) => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="availability">Availability</TabsTrigger>
-          <TabsTrigger value="depreciation">Depreciation</TabsTrigger>
-          <TabsTrigger value="service-report">Service Report</TabsTrigger>
+          {tabs.map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+          ))}
         </TabsList>
 
+        {tabs.some(tab => tab.value === 'overview') && (
         <TabsContent value="overview" className="space-y-6">
           {/* Row 1: Glanceable KPI Cards */}
           <div className="grid gap-4 md:grid-cols-5">
@@ -1005,18 +1014,25 @@ const RentalReport = ({ user, organization }) => {
             </Card>
           </div>
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'service-report') && (
         <TabsContent value="service-report">
           <RentalServiceReport />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'availability') && (
         <TabsContent value="availability" className="space-y-6">
           <RentalAvailability />
         </TabsContent>
+        )}
 
+        {tabs.some(tab => tab.value === 'depreciation') && (
         <TabsContent value="depreciation" className="space-y-6">
           <DepreciationRolloff />
         </TabsContent>
+        )}
       </Tabs>
     </div>
   )
