@@ -483,7 +483,6 @@ def get_all_tickets():
     try:
         # Force fresh data from database
         db.session.expire_all()
-        db.session.close()
         status = request.args.get('status')
         ticket_type = request.args.get('type')
         limit = request.args.get('limit', 50, type=int)
@@ -537,7 +536,6 @@ def get_my_tickets():
     """Get tickets submitted by the current user (by email or user ID)"""
     try:
         db.session.expire_all()
-        db.session.close()
         
         email = request.args.get('email')
         user_id = request.args.get('user_id')
@@ -579,7 +577,6 @@ def get_ticket_stats():
     try:
         # Force fresh data from database
         db.session.expire_all()
-        db.session.close()
         # Organization scoping
         org_id = get_current_user_org_id()
         base_query = SupportTicket.query
@@ -620,7 +617,6 @@ def get_ticket(ticket_id):
     try:
         # Force fresh data from database
         db.session.expire_all()
-        db.session.close()
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
@@ -642,7 +638,6 @@ def get_ticket_with_comments(ticket_id):
     try:
         # Force fresh data from database
         db.session.expire_all()
-        db.session.close()
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
@@ -716,7 +711,6 @@ def get_comments(ticket_id):
     try:
         # Force fresh data from database
         db.session.expire_all()
-        db.session.close()
         # Verify ticket exists
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
@@ -847,7 +841,6 @@ def get_attachments(ticket_id):
     try:
         # Force fresh data from database
         db.session.expire_all()
-        db.session.close()
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
