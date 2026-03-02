@@ -253,8 +253,6 @@ function App() {
         return <MyCommissions user={user} organization={organization} />
       case 'rep-comp-admin':
         return <RepCompAdmin user={user} organization={organization} />
-      case 'schema-explorer':
-        return <SchemaExplorer user={user} organization={organization} />
       case 'vital-case-data':
         return <VitalCaseData user={user} organization={organization} />
       case 'vital-financial':

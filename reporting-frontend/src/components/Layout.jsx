@@ -234,7 +234,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
         </div>
       </div>
 
-      {/* Main content */
+      {/* Main content */}
       <div className="lg:pl-64">
         {/* Mobile header */}
         <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm lg:hidden">
