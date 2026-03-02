@@ -643,13 +643,15 @@ def update_ticket(ticket_id):
 def get_comments(ticket_id):
     """Get all comments for a ticket"""
     try:
+        # Expire all cached objects to ensure fresh data
+        db.session.expire_all()
+        
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
 
-        comments = SupportTicketComment.query.filter_by(
-            ticket_id=ticket_id
-        ).order_by(SupportTicketComment.created_at.asc()).all()
+        # Use relationship for consistent loading
+        comments = sorted(ticket.comments, key=lambda c: c.created_at)
 
         return jsonify({
             'comments': [c.to_dict() for c in comments]
