@@ -217,16 +217,22 @@ export default function SupportTicketsPage({ user }) {
         throw new Error(errData.error || 'Failed to submit reply')
       }
 
-      setReplyMessage('')
-
-      // Reload comments
-      const commentsRes = await fetch(apiUrl(`/api/support-tickets/${selectedTicket.id}/comments`), {
-        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
-      })
-      if (commentsRes.ok) {
-        const commentsData = await commentsRes.json()
-        setTicketComments(Array.isArray(commentsData) ? commentsData : (commentsData.comments || []))
+      // The POST response now includes all comments in the 'comments' field
+      const postData = await res.json()
+      if (postData.comments && Array.isArray(postData.comments)) {
+        setTicketComments(postData.comments)
+      } else {
+        // Fallback: reload comments via GET
+        const commentsRes = await fetch(apiUrl(`/api/support-tickets/${selectedTicket.id}/comments`), {
+          headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+        })
+        if (commentsRes.ok) {
+          const commentsData = await commentsRes.json()
+          setTicketComments(Array.isArray(commentsData) ? commentsData : (commentsData.comments || []))
+        }
       }
+
+      setReplyMessage('')
     } catch (err) {
       alert(err.message || 'Failed to submit reply')
     } finally {

@@ -574,7 +574,13 @@ def get_ticket(ticket_id):
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
-        return jsonify(ticket.to_dict(include_comments=True))
+        result = ticket.to_dict(include_comments=False)
+        # Use direct query for fresh comments (avoids SQLAlchemy relationship caching)
+        comments = SupportTicketComment.query.filter_by(
+            ticket_id=ticket_id
+        ).order_by(SupportTicketComment.created_at.asc()).all()
+        result['comments'] = [c.to_dict() for c in comments]
+        return jsonify(result)
     except Exception as e:
         print(f'Error fetching ticket: {e}')
         return jsonify({'error': 'Failed to fetch ticket'}), 500
@@ -587,7 +593,13 @@ def get_ticket_with_comments(ticket_id):
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
-        return jsonify(ticket.to_dict(include_comments=True))
+        result = ticket.to_dict(include_comments=False)
+        # Use direct query for fresh comments (avoids SQLAlchemy relationship caching)
+        comments = SupportTicketComment.query.filter_by(
+            ticket_id=ticket_id
+        ).order_by(SupportTicketComment.created_at.asc()).all()
+        result['comments'] = [c.to_dict() for c in comments]
+        return jsonify(result)
     except Exception as e:
         print(f'Error fetching ticket with comments: {e}')
         return jsonify({'error': 'Failed to fetch ticket'}), 500
@@ -629,7 +641,13 @@ def update_ticket(ticket_id):
         ticket.updated_at = datetime.utcnow()
         db.session.commit()
 
-        return jsonify(ticket.to_dict(include_comments=True))
+        result = ticket.to_dict(include_comments=False)
+        # Use direct query for fresh comments
+        comments = SupportTicketComment.query.filter_by(
+            ticket_id=ticket_id
+        ).order_by(SupportTicketComment.created_at.asc()).all()
+        result['comments'] = [c.to_dict() for c in comments]
+        return jsonify(result)
 
     except Exception as e:
         db.session.rollback()
@@ -643,15 +661,16 @@ def update_ticket(ticket_id):
 def get_comments(ticket_id):
     """Get all comments for a ticket"""
     try:
-        # Expire all cached objects to ensure fresh data
-        db.session.expire_all()
-        
+        # Verify ticket exists
         ticket = SupportTicket.query.get(ticket_id)
         if not ticket:
             return jsonify({'error': 'Ticket not found'}), 404
 
-        # Use relationship for consistent loading
-        comments = sorted(ticket.comments, key=lambda c: c.created_at)
+        # Use direct query (NOT relationship) to always get fresh data from DB
+        # This avoids SQLAlchemy identity map / relationship caching issues
+        comments = SupportTicketComment.query.filter_by(
+            ticket_id=ticket_id
+        ).order_by(SupportTicketComment.created_at.asc()).all()
 
         return jsonify({
             'comments': [c.to_dict() for c in comments]
@@ -710,7 +729,16 @@ def add_comment(ticket_id):
             except Exception as e:
                 print(f'Comment notification email error (non-blocking): {e}')
 
-        return jsonify(comment.to_dict()), 201
+        # After commit, fetch ALL comments fresh using direct query
+        # This ensures the response includes the newly added comment
+        all_comments = SupportTicketComment.query.filter_by(
+            ticket_id=ticket_id
+        ).order_by(SupportTicketComment.created_at.asc()).all()
+
+        return jsonify({
+            'comment': comment.to_dict(),
+            'comments': [c.to_dict() for c in all_comments]
+        }), 201
 
     except Exception as e:
         db.session.rollback()
@@ -813,9 +841,16 @@ def resolve_ticket(ticket_id):
         except Exception as e:
             print(f'Resolution email error (non-blocking): {e}')
 
+        result = ticket.to_dict(include_comments=False)
+        # Use direct query for fresh comments
+        all_comments = SupportTicketComment.query.filter_by(
+            ticket_id=ticket_id
+        ).order_by(SupportTicketComment.created_at.asc()).all()
+        result['comments'] = [c.to_dict() for c in all_comments]
+
         return jsonify({
             'success': True,
-            'ticket': ticket.to_dict(include_comments=True)
+            'ticket': result
         })
 
     except Exception as e:
