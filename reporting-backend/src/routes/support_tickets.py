@@ -766,15 +766,15 @@ def delete_comment(ticket_id, comment_id):
 def delete_ticket(ticket_id):
     """Delete a ticket and all its comments and attachments"""
     try:
-        ticket = SupportTicket.query.get(ticket_id)
-        if not ticket:
+        from sqlalchemy import text
+        # Use raw SQL to ensure deletes bypass ORM caching
+        result = db.session.execute(text('SELECT id FROM support_ticket WHERE id = :tid'), {'tid': ticket_id})
+        row = result.fetchone()
+        if not row:
             return jsonify({'error': 'Ticket not found'}), 404
-        # Delete related comments
-        SupportTicketComment.query.filter_by(ticket_id=ticket_id).delete()
-        # Delete related attachments
-        SupportTicketAttachment.query.filter_by(ticket_id=ticket_id).delete()
-        # Delete the ticket
-        db.session.delete(ticket)
+        db.session.execute(text('DELETE FROM support_ticket_comment WHERE ticket_id = :tid'), {'tid': ticket_id})
+        db.session.execute(text('DELETE FROM support_ticket_attachment WHERE ticket_id = :tid'), {'tid': ticket_id})
+        db.session.execute(text('DELETE FROM support_ticket WHERE id = :tid'), {'tid': ticket_id})
         db.session.commit()
         return jsonify({'success': True, 'deleted_ticket_id': ticket_id})
     except Exception as e:
