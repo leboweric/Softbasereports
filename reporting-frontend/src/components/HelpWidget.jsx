@@ -3,7 +3,7 @@ import { apiUrl } from '../lib/api'
 import {
   HelpCircle, X, Send, Bug, Lightbulb, HelpCircle as QuestionIcon,
   Loader2, CheckCircle, AlertCircle, Upload, Image, FileText, Trash2,
-  MessageSquare, Paperclip
+  MessageSquare, Paperclip, ChevronLeft, Clock, Ticket
 } from 'lucide-react'
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
@@ -22,10 +22,14 @@ export default function HelpWidget({ user, className = '' }) {
   const [isHovered, setIsHovered] = useState(false)
   const fileInputRef = useRef(null)
 
-  // Mode: 'new' or 'followup'
+  // Mode: 'new', 'my-tickets', or 'followup'
   const [mode, setMode] = useState('new')
   const [followupTicket, setFollowupTicket] = useState(null)
   const [isLoadingTicket, setIsLoadingTicket] = useState(false)
+
+  // My Tickets state
+  const [myTickets, setMyTickets] = useState([])
+  const [isLoadingMyTickets, setIsLoadingMyTickets] = useState(false)
 
   // Form state
   const [type, setType] = useState('bug')
@@ -57,27 +61,56 @@ export default function HelpWidget({ user, className = '' }) {
     }
   }, [])
 
-  const loadTicketForFollowup = async (ticketNumber) => {
+  const loadMyTickets = async () => {
+    if (!user?.email && !user?.id) return
+    setIsLoadingMyTickets(true)
+    setError(null)
+
+    try {
+      const params = new URLSearchParams()
+      if (user.email) params.append('email', user.email)
+      if (user.id) params.append('user_id', user.id)
+
+      const res = await fetch(apiUrl(`/api/support-tickets/my-tickets?${params.toString()}`), {
+        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+      })
+      if (!res.ok) throw new Error('Failed to load tickets')
+      const data = await res.json()
+      setMyTickets(data.tickets || [])
+    } catch (err) {
+      console.error('Error loading my tickets:', err)
+      setError('Failed to load your tickets. Please try again.')
+    } finally {
+      setIsLoadingMyTickets(false)
+    }
+  }
+
+  const loadTicketForFollowup = async (ticketNumberOrId) => {
     setIsLoadingTicket(true)
     setError(null)
 
     try {
-      // Find ticket by ticket_number
-      const ticketsRes = await fetch(apiUrl('/api/support-tickets'), {
-        headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
-      })
-      if (!ticketsRes.ok) throw new Error('Failed to load tickets')
-      const ticketsData = await ticketsRes.json()
-      const ticket = ticketsData.tickets?.find(t => t.ticket_number === ticketNumber)
+      let ticketId = ticketNumberOrId
 
-      if (!ticket) {
-        setError(`Ticket ${ticketNumber} not found`)
-        setMode('new')
-        return
+      // If it's a ticket number (string like TKT-xxxx), find the ID first
+      if (typeof ticketNumberOrId === 'string' && ticketNumberOrId.startsWith('TKT')) {
+        const ticketsRes = await fetch(apiUrl('/api/support-tickets'), {
+          headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+        })
+        if (!ticketsRes.ok) throw new Error('Failed to load tickets')
+        const ticketsData = await ticketsRes.json()
+        const ticket = ticketsData.tickets?.find(t => t.ticket_number === ticketNumberOrId)
+
+        if (!ticket) {
+          setError(`Ticket ${ticketNumberOrId} not found`)
+          setMode('new')
+          return
+        }
+        ticketId = ticket.id
       }
 
       // Load ticket with comments
-      const detailRes = await fetch(apiUrl(`/api/support-tickets/${ticket.id}/with-comments`), {
+      const detailRes = await fetch(apiUrl(`/api/support-tickets/${ticketId}/with-comments`), {
         headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
       })
       if (!detailRes.ok) throw new Error('Failed to load ticket details')
@@ -85,7 +118,7 @@ export default function HelpWidget({ user, className = '' }) {
 
       // Load attachments
       try {
-        const attRes = await fetch(apiUrl(`/api/support-tickets/${ticket.id}/attachments`), {
+        const attRes = await fetch(apiUrl(`/api/support-tickets/${ticketId}/attachments`), {
           headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
         })
         if (attRes.ok) {
@@ -100,10 +133,12 @@ export default function HelpWidget({ user, className = '' }) {
       setFollowupTicket(detailData)
       setMode('followup')
 
-      // Clear URL parameter
+      // Clear URL parameter if present
       const url = new URL(window.location.href)
-      url.searchParams.delete('ticket_followup')
-      window.history.replaceState({}, '', url.toString())
+      if (url.searchParams.has('ticket_followup')) {
+        url.searchParams.delete('ticket_followup')
+        window.history.replaceState({}, '', url.toString())
+      }
     } catch (err) {
       console.error('Error loading ticket:', err)
       setError('Failed to load ticket. Please try again.')
@@ -115,7 +150,6 @@ export default function HelpWidget({ user, className = '' }) {
 
   const closeTicketByNumber = async (ticketNumber) => {
     try {
-      // Find ticket by ticket_number
       const ticketsRes = await fetch(apiUrl('/api/support-tickets'), {
         headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
       })
@@ -128,7 +162,6 @@ export default function HelpWidget({ user, className = '' }) {
         return
       }
 
-      // Call close endpoint
       const closeRes = await fetch(apiUrl(`/api/support-tickets/${ticket.id}/close`), {
         method: 'POST',
         headers: {
@@ -140,7 +173,6 @@ export default function HelpWidget({ user, className = '' }) {
 
       alert(`Ticket ${ticketNumber} has been marked as closed. Thank you for confirming the fix worked!`)
 
-      // Clear URL parameter
       const url = new URL(window.location.href)
       url.searchParams.delete('ticket_close')
       window.history.replaceState({}, '', url.toString())
@@ -269,19 +301,32 @@ export default function HelpWidget({ user, className = '' }) {
           throw new Error(errData.error || 'Failed to add comment')
         }
 
+        // Get updated comments from response
+        const commentData = await commentRes.json()
+
+        // Update the followup ticket with new comments
+        if (commentData.comments) {
+          setFollowupTicket(prev => ({ ...prev, comments: commentData.comments }))
+        } else {
+          // Reload the ticket to get fresh comments
+          const detailRes = await fetch(apiUrl(`/api/support-tickets/${followupTicket.id}/with-comments`), {
+            headers: { ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+          })
+          if (detailRes.ok) {
+            const detailData = await detailRes.json()
+            setFollowupTicket(prev => ({ ...prev, comments: detailData.comments || [] }))
+          }
+        }
+
+        setMessage('')
         setSuccess({
           ticketNumber: followupTicket.ticket_number,
-          message: 'Your comment has been added successfully!'
+          message: 'Your comment has been added!'
         })
 
-        // Reset form after 3 seconds
+        // Clear success after 3 seconds but stay on the ticket
         setTimeout(() => {
-          setMessage('')
-          setFiles([])
           setSuccess(null)
-          setMode('new')
-          setFollowupTicket(null)
-          setIsOpen(false)
         }, 3000)
       } else {
         // Create new ticket with FormData for file uploads
@@ -354,6 +399,26 @@ export default function HelpWidget({ user, className = '' }) {
     }
   }
 
+  const handleOpenMyTickets = () => {
+    setMode('my-tickets')
+    setError(null)
+    setSuccess(null)
+    loadMyTickets()
+  }
+
+  const handleOpenTicketDetail = (ticket) => {
+    loadTicketForFollowup(ticket.id)
+  }
+
+  const handleBackFromFollowup = () => {
+    setFollowupTicket(null)
+    setError(null)
+    setSuccess(null)
+    setMessage('')
+    setMode('my-tickets')
+    loadMyTickets()
+  }
+
   const typeOptions = [
     {
       value: 'bug',
@@ -397,6 +462,38 @@ export default function HelpWidget({ user, className = '' }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
+  const getStatusBadge = (status) => {
+    const styles = {
+      open: 'bg-amber-100 text-amber-700',
+      in_progress: 'bg-blue-100 text-blue-700',
+      resolved: 'bg-green-100 text-green-700',
+      closed: 'bg-gray-100 text-gray-700'
+    }
+    return (
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles[status] || styles.open}`}>
+        {status?.replace('_', ' ')}
+      </span>
+    )
+  }
+
+  const getTypeBadge = (ticketType) => {
+    const styles = {
+      bug: 'bg-red-100 text-red-700',
+      enhancement: 'bg-purple-100 text-purple-700',
+      question: 'bg-blue-100 text-blue-700'
+    }
+    const labels = {
+      bug: 'Bug',
+      enhancement: 'Enhancement',
+      question: 'Question'
+    }
+    return (
+      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles[ticketType] || 'bg-gray-100 text-gray-700'}`}>
+        {labels[ticketType] || ticketType}
+      </span>
+    )
+  }
+
   return (
     <>
       {/* Floating Help Button */}
@@ -438,9 +535,22 @@ export default function HelpWidget({ user, className = '' }) {
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b bg-gray-900 text-white rounded-t-xl">
-              <h2 className="text-lg font-semibold">
-                {mode === 'followup' ? `Follow-up: ${followupTicket?.ticket_number}` : 'How can we help?'}
-              </h2>
+              <div className="flex items-center gap-3">
+                {mode === 'followup' && (
+                  <button
+                    onClick={handleBackFromFollowup}
+                    className="p-1 hover:bg-gray-700 rounded transition-colors"
+                    title="Back to My Tickets"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                )}
+                <h2 className="text-lg font-semibold">
+                  {mode === 'followup' ? `${followupTicket?.ticket_number || 'Loading...'}` :
+                   mode === 'my-tickets' ? 'My Tickets' :
+                   'How can we help?'}
+                </h2>
+              </div>
               <button
                 onClick={handleClose}
                 className="p-1 hover:bg-gray-700 rounded transition-colors"
@@ -450,14 +560,113 @@ export default function HelpWidget({ user, className = '' }) {
               </button>
             </div>
 
+            {/* Tab Bar (only for new and my-tickets modes) */}
+            {(mode === 'new' || mode === 'my-tickets') && (
+              <div className="flex border-b bg-gray-50">
+                <button
+                  onClick={() => { setMode('new'); setError(null); setSuccess(null) }}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+                    mode === 'new'
+                      ? 'border-gray-900 text-gray-900 bg-white'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Send className="h-4 w-4" />
+                  New Ticket
+                </button>
+                <button
+                  onClick={handleOpenMyTickets}
+                  className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+                    mode === 'my-tickets'
+                      ? 'border-gray-900 text-gray-900 bg-white'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <Ticket className="h-4 w-4" />
+                  My Tickets
+                </button>
+              </div>
+            )}
+
             {/* Content - Scrollable */}
             <div className="flex-1 overflow-y-auto">
-              {isLoadingTicket ? (
+              {/* ==================== MY TICKETS VIEW ==================== */}
+              {mode === 'my-tickets' && (
+                <div className="p-4">
+                  {error && (
+                    <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 mb-4">
+                      <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm">{error}</span>
+                    </div>
+                  )}
+
+                  {isLoadingMyTickets ? (
+                    <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
+                      <span className="ml-3 text-gray-600">Loading your tickets...</span>
+                    </div>
+                  ) : myTickets.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Ticket className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                      <p className="text-gray-500 font-medium">No tickets yet</p>
+                      <p className="text-sm text-gray-400 mt-1">Submit a new ticket to get started</p>
+                      <button
+                        onClick={() => setMode('new')}
+                        className="mt-4 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-black transition-colors text-sm"
+                      >
+                        Submit New Ticket
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {myTickets.map((ticket) => (
+                        <button
+                          key={ticket.id}
+                          onClick={() => handleOpenTicketDetail(ticket)}
+                          className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors group"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-mono text-gray-400">{ticket.ticket_number}</span>
+                                {getStatusBadge(ticket.status)}
+                                {getTypeBadge(ticket.type)}
+                              </div>
+                              <p className="text-sm font-medium text-gray-900 truncate group-hover:text-gray-700">
+                                {ticket.subject}
+                              </p>
+                              <div className="flex items-center gap-3 mt-1.5">
+                                <span className="text-xs text-gray-400 flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {formatDate(ticket.created_at)}
+                                </span>
+                                {ticket.comment_count > 0 && (
+                                  <span className="text-xs text-gray-400 flex items-center gap-1">
+                                    <MessageSquare className="h-3 w-3" />
+                                    {ticket.comment_count} comment{ticket.comment_count !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <ChevronLeft className="h-4 w-4 text-gray-300 rotate-180 flex-shrink-0 mt-1 group-hover:text-gray-500" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ==================== LOADING TICKET VIEW ==================== */}
+              {isLoadingTicket && (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-600" />
                   <span className="ml-3 text-gray-600">Loading ticket...</span>
                 </div>
-              ) : (
+              )}
+
+              {/* ==================== FOLLOWUP / NEW TICKET VIEW ==================== */}
+              {!isLoadingTicket && mode !== 'my-tickets' && (
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
                   {/* Error Alert */}
                   {error && (
@@ -502,14 +711,7 @@ export default function HelpWidget({ user, className = '' }) {
                                   <p className="text-xs text-gray-500">{formatDate(followupTicket.created_at)}</p>
                                 </div>
                               </div>
-                              <span className={`text-xs px-2 py-1 rounded-full ${
-                                followupTicket.status === 'open' ? 'bg-amber-100 text-amber-700' :
-                                followupTicket.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                                followupTicket.status === 'resolved' ? 'bg-green-100 text-green-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
-                                {followupTicket.status?.replace('_', ' ')}
-                              </span>
+                              {getStatusBadge(followupTicket.status)}
                             </div>
                             <p className="text-sm font-medium text-gray-900 mb-1">{followupTicket.subject}</p>
                             <p className="text-sm text-gray-600 whitespace-pre-wrap">{followupTicket.message}</p>
@@ -589,10 +791,8 @@ export default function HelpWidget({ user, className = '' }) {
                                           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                                         }
                                       })
-                                      alert(`Ticket ${followupTicket.ticket_number} has been marked as closed. Thank you for confirming the fix worked!`)
-                                      setIsOpen(false)
-                                      setMode('new')
-                                      setFollowupTicket(null)
+                                      alert(`Ticket ${followupTicket.ticket_number} has been marked as closed. Thank you!`)
+                                      handleBackFromFollowup()
                                     } catch (err) {
                                       console.error('Error closing ticket:', err)
                                       alert('Failed to close ticket. Please try again.')
@@ -677,7 +877,7 @@ export default function HelpWidget({ user, className = '' }) {
                         </>
                       )}
 
-                      {/* Message (both modes) */}
+                      {/* Message (both new and followup modes) */}
                       <div className="space-y-1">
                         <label htmlFor="ticket-message" className="block text-sm font-medium text-gray-700">
                           {mode === 'followup' ? 'Add a comment' :
@@ -809,11 +1009,11 @@ export default function HelpWidget({ user, className = '' }) {
                       <div className="flex justify-end gap-3 pt-2">
                         <button
                           type="button"
-                          onClick={handleClose}
+                          onClick={mode === 'followup' ? handleBackFromFollowup : handleClose}
                           className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                           disabled={isSubmitting}
                         >
-                          Cancel
+                          {mode === 'followup' ? 'Back' : 'Cancel'}
                         </button>
                         <button
                           type="submit"
@@ -834,6 +1034,19 @@ export default function HelpWidget({ user, className = '' }) {
                         </button>
                       </div>
                     </>
+                  )}
+
+                  {/* Success in followup mode - show it inline */}
+                  {success && mode === 'followup' && (
+                    <div className="flex justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={handleBackFromFollowup}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                      >
+                        Back to My Tickets
+                      </button>
+                    </div>
                   )}
                 </form>
               )}

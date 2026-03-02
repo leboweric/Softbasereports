@@ -532,6 +532,47 @@ def get_all_tickets():
         return jsonify({'error': 'Failed to fetch tickets'}), 500
 
 
+@support_tickets_bp.route('/api/support-tickets/my-tickets', methods=['GET'])
+def get_my_tickets():
+    """Get tickets submitted by the current user (by email or user ID)"""
+    try:
+        db.session.expire_all()
+        db.session.close()
+        
+        email = request.args.get('email')
+        user_id = request.args.get('user_id')
+        
+        if not email and not user_id:
+            return jsonify({'error': 'email or user_id parameter required'}), 400
+        
+        from sqlalchemy import or_
+        filters = []
+        if email:
+            filters.append(SupportTicket.submitted_by_email == email)
+        if user_id:
+            filters.append(SupportTicket.submitted_by == int(user_id))
+        
+        tickets = SupportTicket.query.filter(
+            or_(*filters)
+        ).order_by(
+            SupportTicket.created_at.desc()
+        ).all()
+        
+        # Include comments count for each ticket using direct query
+        result = []
+        for t in tickets:
+            ticket_dict = t.to_dict()
+            comment_count = SupportTicketComment.query.filter_by(ticket_id=t.id).count()
+            ticket_dict['comment_count'] = comment_count
+            result.append(ticket_dict)
+        
+        return jsonify({'tickets': result})
+    
+    except Exception as e:
+        print(f'Error fetching my tickets: {e}')
+        return jsonify({'error': 'Failed to fetch your tickets'}), 500
+
+
 @support_tickets_bp.route('/api/support-tickets/stats', methods=['GET'])
 def get_ticket_stats():
     """Get ticket statistics - scoped by organization"""
