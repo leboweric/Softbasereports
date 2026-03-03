@@ -9728,7 +9728,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(PartsTaxable, 0) + COALESCE(PartsNonTax, 0)) as parts_revenue,
                 SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue
-            FROM [{schema}].InvoiceReg
+            FROM InvoiceReg
             WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
@@ -9741,7 +9741,7 @@ def register_department_routes(reports_bp):
             # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
             maintenance_customers_query = f"""
             SELECT DISTINCT ShipTo as customer_number
-            FROM [{schema}].InvoiceReg
+            FROM InvoiceReg
             WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND ShipTo IS NOT NULL
@@ -9765,26 +9765,26 @@ def register_department_routes(reports_bp):
                         w.ShipTo,
                         YEAR(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as year,
                         MONTH(COALESCE(w.ClosedDate, w.CompletedDate, w.OpenDate)) as month
-                    FROM [{schema}].WO w
+                    FROM WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, PM work orders
                     {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [{schema}].WOLabor
+                    FROM WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [{schema}].WOParts
+                    FROM WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [{schema}].WOMisc
+                    FROM WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9812,26 +9812,26 @@ def register_department_routes(reports_bp):
                     SELECT
                         w.WONo,
                         w.ShipTo
-                    FROM [{schema}].WO w
+                    FROM WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [{schema}].WOLabor
+                    FROM WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [{schema}].WOParts
+                    FROM WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [{schema}].WOMisc
+                    FROM WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9844,7 +9844,7 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
                     SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
                 FROM ServiceWOs sw
-                LEFT JOIN [{schema}].Customer c ON sw.ShipTo = c.Number
+                LEFT JOIN Customer c ON sw.ShipTo = c.Number
                 LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
                 LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
                 LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
@@ -9858,26 +9858,26 @@ def register_department_routes(reports_bp):
                 total_service_costs_query = f"""
                 WITH ServiceWOs AS (
                     SELECT w.WONo, w.ShipTo
-                    FROM [{schema}].WO w
+                    FROM WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [{schema}].WOLabor
+                    FROM WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [{schema}].WOParts
+                    FROM WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [{schema}].WOMisc
+                    FROM WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9906,7 +9906,7 @@ def register_department_routes(reports_bp):
                         w.Make,
                         w.Model,
                         w.Type as wo_type
-                    FROM [{schema}].WO w
+                    FROM WO w
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
@@ -9915,19 +9915,19 @@ def register_department_routes(reports_bp):
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
-                    FROM [{schema}].WOLabor
+                    FROM WOLabor
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 PartsCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as parts_cost
-                    FROM [{schema}].WOParts
+                    FROM WOParts
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 ),
                 MiscCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as misc_cost
-                    FROM [{schema}].WOMisc
+                    FROM WOMisc
                     WHERE WONo IN (SELECT WONo FROM ServiceWOs)
                     GROUP BY WONo
                 )
@@ -9946,7 +9946,7 @@ def register_department_routes(reports_bp):
                     SUM(COALESCE(m.misc_cost, 0)) as misc_cost,
                     SUM(COALESCE(l.labor_cost, 0) + COALESCE(p.parts_cost, 0) + COALESCE(m.misc_cost, 0)) as total_cost
                 FROM ServiceWOs sw
-                LEFT JOIN [{schema}].Customer c ON sw.ShipTo = c.Number
+                LEFT JOIN Customer c ON sw.ShipTo = c.Number
                 LEFT JOIN LaborCosts l ON sw.WONo = l.WONo
                 LEFT JOIN PartsCosts p ON sw.WONo = p.WONo
                 LEFT JOIN MiscCosts m ON sw.WONo = m.WONo
@@ -9976,9 +9976,9 @@ def register_department_routes(reports_bp):
                 MIN(i.InvoiceDate) as first_invoice,
                 MAX(i.InvoiceDate) as last_invoice,
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue
-            FROM [{schema}].InvoiceReg i
-            LEFT JOIN [{schema}].Customer c ON i.ShipTo = c.Number
-            LEFT JOIN [{schema}].Customer bc ON i.BillTo = bc.Number
+            FROM InvoiceReg i
+            LEFT JOIN Customer c ON i.ShipTo = c.Number
+            LEFT JOIN Customer bc ON i.BillTo = bc.Number
             WHERE i.SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND i.ShipTo IS NOT NULL
@@ -9997,7 +9997,7 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue,
                 MIN(InvoiceDate) as earliest_invoice,
                 MAX(InvoiceDate) as latest_invoice
-            FROM [{schema}].InvoiceReg
+            FROM InvoiceReg
             WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
                 {date_filter}
                 AND ShipTo IS NOT NULL
@@ -10292,9 +10292,9 @@ def register_department_routes(reports_bp):
                 MIN(i.InvoiceDate) as first_invoice,
                 MAX(i.InvoiceDate) as last_invoice,
                 SUM(COALESCE(i.GrandTotal, 0)) as total_revenue
-            FROM [{schema}].InvoiceReg i
-            LEFT JOIN [{schema}].Customer c ON i.ShipTo = c.Number
-            LEFT JOIN [{schema}].Customer bc ON i.BillTo = bc.Number
+            FROM InvoiceReg i
+            LEFT JOIN Customer c ON i.ShipTo = c.Number
+            LEFT JOIN Customer bc ON i.BillTo = bc.Number
             WHERE 1=1
                 {date_filter}
                 {dept_invoice_filter}
@@ -10312,8 +10312,8 @@ def register_department_routes(reports_bp):
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wol.Cost, 0)) as total_labor_cost
-            FROM [{schema}].WO wo
-            INNER JOIN [{schema}].WOLabor wol ON wo.WONo = wol.WONo
+            FROM WO wo
+            INNER JOIN WOLabor wol ON wo.WONo = wol.WONo
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
@@ -10329,8 +10329,8 @@ def register_department_routes(reports_bp):
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wop.Cost, 0)) as total_parts_cost
-            FROM [{schema}].WO wo
-            INNER JOIN [{schema}].WOParts wop ON wo.WONo = wop.WONo
+            FROM WO wo
+            INNER JOIN WOParts wop ON wo.WONo = wop.WONo
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
@@ -10346,8 +10346,8 @@ def register_department_routes(reports_bp):
             SELECT
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wom.Cost, 0)) as total_misc_cost
-            FROM [{schema}].WO wo
-            INNER JOIN [{schema}].WOMisc wom ON wo.WONo = wom.WONo
+            FROM WO wo
+            INNER JOIN WOMisc wom ON wo.WONo = wom.WONo
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
