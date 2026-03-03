@@ -373,15 +373,17 @@ export default function HelpWidget({ user, className = '' }) {
           if (f.preview) URL.revokeObjectURL(f.preview)
         })
 
-        // Reset form after 3 seconds
+        // Reset form and switch to My Tickets view after 2 seconds
+        // so user can immediately see their new ticket
+        setType('bug')
+        setSubject('')
+        setMessage('')
+        setFiles([])
         setTimeout(() => {
-          setType('bug')
-          setSubject('')
-          setMessage('')
-          setFiles([])
           setSuccess(null)
-          setIsOpen(false)
-        }, 3000)
+          setMode('my-tickets')
+          loadMyTickets()
+        }, 2000)
       }
     } catch (err) {
       setError(err.message || 'Failed to submit. Please try again.')

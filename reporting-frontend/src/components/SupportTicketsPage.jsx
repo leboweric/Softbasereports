@@ -40,6 +40,14 @@ export default function SupportTicketsPage({ user }) {
     loadData()
   }, [statusFilter, typeFilter])
 
+  // Auto-refresh tickets every 15 seconds to catch newly submitted tickets
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadData()
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [statusFilter, typeFilter])
+
   useEffect(() => {
     if (conversationEndRef.current) {
       conversationEndRef.current.scrollIntoView({ behavior: 'smooth' })

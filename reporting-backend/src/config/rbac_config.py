@@ -288,6 +288,7 @@ NAVIGATION_CONFIG = {
         'tabs': {
             'sales-by-customer': {'label': 'Sales by Customer', 'resource': 'customer_churn'},
             'customer-churn': {'label': 'Customer Churn', 'resource': 'customer_churn'},
+            'customer-profitability': {'label': 'Customer Profitability', 'resource': 'customer_churn'},
         }
     },
     'knowledge-base': {

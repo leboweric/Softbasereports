@@ -263,17 +263,19 @@ def get_shop_work_orders():
         warning_count = red_count + yellow_count
         
         # Calculate hours at risk and unbillable labor value
+        # Use each WO's actual labor rate instead of a hardcoded rate
         critical_and_red = [wo for wo in work_orders if wo['alert_level'] in ['CRITICAL', 'RED']]
         
         hours_at_risk = 0
+        unbillable_labor_value = 0
         for wo in critical_and_red:
             if wo['quoted_hours'] > 0:
                 hours_over = wo['actual_hours'] - wo['quoted_hours']
                 if hours_over > 0:
                     hours_at_risk += hours_over
-        
-        LABOR_RATE = 189
-        unbillable_labor_value = hours_at_risk * LABOR_RATE
+                    # Use this WO's actual labor rate for the dollar calculation
+                    wo_rate = wo.get('labor_rate', 189.0)
+                    unbillable_labor_value += hours_over * wo_rate
         
         # DEBUG: Log final results summary
         logger.info(f"=== DEBUG: Final Results Summary ===")

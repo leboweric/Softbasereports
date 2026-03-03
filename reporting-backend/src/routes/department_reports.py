@@ -465,7 +465,11 @@ def register_department_routes(reports_bp):
                 COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as total_value
             FROM {schema}.WO w
             LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
-            LEFT JOIN {schema}.Equipment e ON w.UnitNo = e.UnitNo
+            LEFT JOIN (
+                SELECT UnitNo, Make, Model,
+                       ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY UnitNo) as rn
+                FROM {schema}.Equipment
+            ) e ON w.UnitNo = e.UnitNo AND e.rn = 1
             LEFT JOIN (
                 SELECT WONo, SUM(Sell * Qty) as parts_sell 
                 FROM {schema}.WOParts 
@@ -608,7 +612,11 @@ def register_department_routes(reports_bp):
                 COALESCE(p.parts_sell, 0) + COALESCE(m.misc_sell, 0) as total_value
             FROM {schema}.WO w
             LEFT JOIN {schema}.Customer c ON w.BillTo = c.Number
-            LEFT JOIN {schema}.Equipment e ON w.UnitNo = e.UnitNo
+            LEFT JOIN (
+                SELECT UnitNo, Make, Model,
+                       ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY UnitNo) as rn
+                FROM {schema}.Equipment
+            ) e ON w.UnitNo = e.UnitNo AND e.rn = 1
             LEFT JOIN (
                 SELECT WONo, SUM(Sell) as labor_sell 
                 FROM {schema}.WOLabor 
@@ -10246,6 +10254,7 @@ def register_department_routes(reports_bp):
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
             min_revenue = request.args.get('min_revenue', 0)
+            department = request.args.get('department', 'all')  # 'all', 'service', 'parts', etc.
             
             # Build date filter based on parameters
             if start_date and end_date:
@@ -10257,7 +10266,18 @@ def register_department_routes(reports_bp):
                 date_filter = "AND i.InvoiceDate >= DATEADD(month, -12, GETDATE())"
                 wo_date_filter = "AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) >= DATEADD(month, -12, GETDATE())"
 
-            # Get revenue by customer (all sale codes)
+            # Build department filter for revenue (InvoiceReg) and costs (WO)
+            # Service WO types: S (Service), SH (Shop), PM (Preventive Maintenance)
+            dept_invoice_filter = ""
+            dept_wo_filter = ""
+            if department == 'service':
+                dept_invoice_filter = "AND i.SaleCode IN ('SVE', 'SVC', 'SH', 'PM')"
+                dept_wo_filter = "AND wo.Type IN ('S', 'SH', 'PM')"
+            elif department == 'parts':
+                dept_invoice_filter = "AND i.SaleCode IN ('PRT', 'C1', 'C2')"
+                dept_wo_filter = "AND wo.Type = 'P'"
+
+            # Get revenue by customer
             customer_revenue_query = f"""
             SELECT
                 i.ShipTo as customer_number,
@@ -10277,12 +10297,13 @@ def register_department_routes(reports_bp):
             LEFT JOIN [{schema}].Customer bc ON i.BillTo = bc.Number
             WHERE 1=1
                 {date_filter}
+                {dept_invoice_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
             GROUP BY i.ShipTo
             HAVING SUM(COALESCE(i.GrandTotal, 0)) >= {min_revenue}
             ORDER BY total_revenue DESC
-            """.format(date_filter=date_filter, min_revenue=min_revenue)
+            """.format(date_filter=date_filter, dept_invoice_filter=dept_invoice_filter, min_revenue=min_revenue)
 
             customer_revenue_results = db.execute_query(customer_revenue_query)
 
@@ -10295,10 +10316,11 @@ def register_department_routes(reports_bp):
             INNER JOIN [{schema}].WOLabor wol ON wo.WONo = wol.WONo
             WHERE 1=1
                 {wo_date_filter}
+                {dept_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
             GROUP BY wo.ShipTo
-            """.format(wo_date_filter=wo_date_filter)
+            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter)
 
             labor_costs_results = db.execute_query(labor_costs_query)
 
@@ -10311,10 +10333,11 @@ def register_department_routes(reports_bp):
             INNER JOIN [{schema}].WOParts wop ON wo.WONo = wop.WONo
             WHERE 1=1
                 {wo_date_filter}
+                {dept_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
             GROUP BY wo.ShipTo
-            """.format(wo_date_filter=wo_date_filter)
+            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter)
 
             parts_costs_results = db.execute_query(parts_costs_query)
 
@@ -10327,10 +10350,11 @@ def register_department_routes(reports_bp):
             INNER JOIN [{schema}].WOMisc wom ON wo.WONo = wom.WONo
             WHERE 1=1
                 {wo_date_filter}
+                {dept_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
             GROUP BY wo.ShipTo
-            """.format(wo_date_filter=wo_date_filter)
+            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter)
 
             misc_costs_results = db.execute_query(misc_costs_query)
 

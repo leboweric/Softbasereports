@@ -51,7 +51,17 @@ REPORT_REGISTRY = {
         'icon': 'Wrench',
         'tabs': {
             'overview': {'label': 'Overview'},
-            'work-orders': {'label': 'Work Orders'},
+            'pms': {'label': "PM's"},
+            'pm-route-planner': {'label': 'PM Route Planner'},
+            'pm-contest': {'label': 'PM Contest'},
+            'shop-work-orders': {'label': 'Cash Burn'},
+            'work-orders': {'label': 'Cash Stalled'},
+            'all-work-orders': {'label': 'All Work Orders'},
+            'invoice-billing': {'label': 'Customer Billing'},
+            'maintenance-contracts': {'label': 'Maintenance Contract Profitability'},
+            'customer-profitability': {'label': 'Customer Profitability'},
+            'units-repair-cost': {'label': 'Units by Repair Cost'},
+            'cost-per-hour': {'label': 'Cost per Hour'},
         }
     },
     'rental': {
@@ -60,6 +70,8 @@ REPORT_REGISTRY = {
         'tabs': {
             'overview': {'label': 'Overview'},
             'availability': {'label': 'Availability'},
+            'depreciation': {'label': 'Depreciation'},
+            'service-report': {'label': 'Service Report'},
         }
     },
     'accounting': {
@@ -67,11 +79,12 @@ REPORT_REGISTRY = {
         'icon': 'DollarSign',
         'tabs': {
             'overview': {'label': 'Overview'},
-            'ar': {'label': 'Accounts Receivable'},
-            'ap': {'label': 'Accounts Payable'},
+            'ar-aging': {'label': 'AR Aging'},
+            'ap-aging': {'label': 'AP Aging'},
             'commissions': {'label': 'Sales Commissions'},
             'control': {'label': 'Control Numbers'},
             'inventory': {'label': 'Inventory'},
+            'parts-commissions': {'label': 'Parts Commissions'},
         }
     },
     'customer-churn': {
@@ -80,6 +93,7 @@ REPORT_REGISTRY = {
         'tabs': {
             'sales-by-customer': {'label': 'Sales by Customer'},
             'customer-churn': {'label': 'Customer Churn'},
+            'customer-profitability': {'label': 'Customer Profitability'},
         }
     },
     'financial': {
@@ -90,12 +104,23 @@ REPORT_REGISTRY = {
     'knowledge-base': {
         'label': 'Knowledge Base',
         'icon': 'Book',
-        'tabs': {}
+        'tabs': {
+            'articles': {'label': 'Articles'},
+            'work-orders': {'label': 'Work Orders'},
+            'assistant': {'label': 'Service Assistant'},
+            'analytics': {'label': 'Analytics'},
+        }
     },
     'qbr': {
         'label': 'QBR',
         'icon': 'FileBarChart',
-        'tabs': {}
+        'tabs': {
+            'overview': {'label': 'Fleet Overview'},
+            'health': {'label': 'Fleet Health'},
+            'service': {'label': 'Service Performance'},
+            'costs': {'label': 'Costs & Value'},
+            'recommendations': {'label': 'Recommendations'},
+        }
     },
     'my-commissions': {
         'label': 'My Commissions',

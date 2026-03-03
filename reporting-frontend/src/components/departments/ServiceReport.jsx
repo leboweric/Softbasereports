@@ -1077,6 +1077,16 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Cash Burn WOs</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger><Info className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="font-semibold mb-1">Cash Burn Work Orders</p>
+                          <p className="text-xs">Open Shop (SH) work orders where actual labor hours exceed quoted hours. Excludes internal expense accounts and quote WOs (9xxxxx).</p>
+                          <p className="text-xs mt-1"><strong>Source:</strong> WO table (Type='SH', ClosedDate IS NULL)</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{shopWorkOrders.summary.total_work_orders}</div>
@@ -1085,6 +1095,17 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Critical Alerts</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger><Info className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="font-semibold mb-1">Critical Alert Threshold</p>
+                          <p className="text-xs">WOs where Actual Hours ≥ 100% of Quoted Hours (completely over budget).</p>
+                          <p className="text-xs mt-1"><strong>Actual Hours:</strong> SUM of WOLabor.Hours</p>
+                          <p className="text-xs"><strong>Quoted Hours:</strong> WOQuote.Amount (Type='L') ÷ (LaborRate.Rate × (1 - Discount%))</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-red-600">{shopWorkOrders.summary.critical_count}</div>
@@ -1103,6 +1124,17 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Hours at Risk</CardTitle>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger><Info className="h-3.5 w-3.5 text-muted-foreground" /></TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="font-semibold mb-1">Hours at Risk & Unbillable Labor</p>
+                          <p className="text-xs"><strong>Hours at Risk:</strong> SUM of (Actual Hours - Quoted Hours) for all CRITICAL and RED alert WOs where actual exceeds quoted.</p>
+                          <p className="text-xs mt-1"><strong>Unbillable Labor Value:</strong> For each over-budget WO, the excess hours are multiplied by that WO's actual labor rate from the LaborRate table (joined via WO.LaborRate = LaborRate.Code).</p>
+                          <p className="text-xs mt-1"><strong>Sources:</strong> WOLabor.Hours, WOQuote.Amount, LaborRate.Rate</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold text-red-600">{shopWorkOrders.summary.hours_at_risk || 0}</div>
@@ -1118,7 +1150,7 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                             maximumFractionDigits: 2
                           })}
                         </div>
-                        <div className="text-xs text-gray-500">@ $189/hour labor rate</div>
+                        <div className="text-xs text-gray-500">at actual WO labor rates</div>
                       </div>
                     )}
                   </CardContent>
@@ -1835,7 +1867,7 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
 
         {tabs.some(tab => tab.value === 'customer-profitability') && (
         <TabsContent value="customer-profitability" className="space-y-6">
-          <CustomerProfitability />
+          <CustomerProfitability department="service" />
         </TabsContent>
         )}
 

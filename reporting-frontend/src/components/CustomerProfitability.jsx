@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/table'
 import { apiUrl } from '@/lib/api'
 
-const CustomerProfitability = () => {
+const CustomerProfitability = ({ department = 'all' }) => {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -55,7 +55,9 @@ const CustomerProfitability = () => {
       }
       // If 'trailing', no params needed (default 12 months)
       
-      const response = await fetch(apiUrl(`/api/reports/departments/customer-profitability${queryParams}`), {
+      // Add department filter if specified (e.g., 'service' for Service page)
+      const deptParam = department !== 'all' ? `${queryParams ? '&' : '?'}department=${department}` : ''
+      const response = await fetch(apiUrl(`/api/reports/departments/customer-profitability${queryParams}${deptParam}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

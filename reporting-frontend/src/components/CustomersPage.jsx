@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Users, TrendingDown, DollarSign } from 'lucide-react';
+import { Users, TrendingDown, DollarSign, Target } from 'lucide-react';
 import { getAccessibleTabs } from '@/contexts/PermissionsContext';
 import SalesByCustomer from './SalesByCustomer';
 import CustomerChurnAnalysis from './CustomerChurnAnalysis';
+import CustomerProfitability from './CustomerProfitability';
 
 const CustomersPage = ({ user, organization }) => {
   // Tab visibility based on admin settings
@@ -12,6 +13,7 @@ const CustomersPage = ({ user, organization }) => {
   const allTabDefs = [
     { value: 'sales-by-customer', label: 'Sales by Customer', icon: DollarSign, activeColor: 'blue' },
     { value: 'customer-churn', label: 'Customer Churn', icon: TrendingDown, activeColor: 'red' },
+    { value: 'customer-profitability', label: 'Customer Profitability', icon: Target, activeColor: 'green' },
   ];
 
   const visibleTabs = allTabDefs.filter(t => showAllTabs || customerTabs[t.value]);
@@ -27,7 +29,7 @@ const CustomersPage = ({ user, organization }) => {
           Customers
         </h1>
         <p className="text-gray-600 mt-1">
-          Customer revenue analysis and churn monitoring
+          Customer revenue analysis, churn monitoring, and profitability
         </p>
       </div>
 
@@ -67,6 +69,9 @@ const CustomersPage = ({ user, organization }) => {
       )}
       {activeView === 'customer-churn' && (showAllTabs || customerTabs['customer-churn']) && (
         <CustomerChurnAnalysis user={user} organization={organization} />
+      )}
+      {activeView === 'customer-profitability' && (showAllTabs || customerTabs['customer-profitability']) && (
+        <CustomerProfitability department="all" />
       )}
     </div>
   );
