@@ -16,26 +16,32 @@ def get_current_user_org_id():
     """Get the current authenticated user's organization_id from g context or JWT.
     Returns None if not authenticated (public endpoints).
     Returns organization_id for org-scoped filtering.
-    Super Admins (org_id exists but they have Super Admin role) still see only their org tickets
-    unless we add a special bypass later.
+    Super Admins with roles in multiple orgs return None (see ALL tickets).
     """
+    user = None
     # First try g.current_user set by before_request middleware
     if hasattr(g, 'current_user') and g.current_user:
-        return g.current_user.organization_id
+        user = g.current_user
+    else:
+        # Fallback: try JWT
+        try:
+            verify_jwt_in_request(optional=True)
+            user_id = get_jwt_identity()
+            if user_id:
+                from src.models.user import User
+                user = User.query.get(int(user_id))
+        except Exception:
+            pass
     
-    # Fallback: try JWT
-    try:
-        verify_jwt_in_request(optional=True)
-        user_id = get_jwt_identity()
-        if user_id:
-            from src.models.user import User
-            user = User.query.get(int(user_id))
-            if user:
-                return user.organization_id
-    except Exception:
-        pass
+    if not user:
+        return None
     
-    return None
+    # Check if user has Super Admin role in multiple orgs — if so, they should see ALL tickets
+    super_admin_roles = [r for r in user.roles if r.name == 'Super Admin']
+    if len(super_admin_roles) > 1:
+        return None  # None means no org filter — see all tickets
+    
+    return user.organization_id
 
 def generate_ticket_number():
     """Generate a unique ticket number in format TKT-YYYY-NNNN"""
