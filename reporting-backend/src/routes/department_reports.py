@@ -11061,7 +11061,7 @@ def register_department_routes(reports_bp):
 
     # ============================================================
     @reports_bp.route('/departments/sales/invoiced-summary', methods=['GET'])
-    @require_permission('view_commissions')
+    @require_permission('view_dashboard')
     def get_invoiced_sales_summary():
         """
         Get invoiced sales summary broken down by category (New, Used, Allied)
@@ -11284,7 +11284,7 @@ def register_department_routes(reports_bp):
     # Invoiced Sales Detail - Individual invoices for drill-down
     # ============================================================
     @reports_bp.route('/departments/sales/invoiced-details', methods=['GET'])
-    @require_permission('view_commissions')
+    @require_permission('view_dashboard')
     def get_invoiced_sales_details():
         """
         Get individual invoice details for a specific branch and category.
