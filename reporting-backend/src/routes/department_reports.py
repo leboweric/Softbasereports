@@ -9736,6 +9736,9 @@ def register_department_routes(reports_bp):
             """.format(date_filter=date_filter)
 
             revenue_results = db.execute_query(revenue_query)
+            
+            # Debug: log the query and results count
+            logger.info(f"[MAINT_PROFIT_DEBUG] schema={schema}, revenue_query_results={len(revenue_results)}, query_snippet=FROM {schema}.InvoiceReg WHERE SaleCode IN FMBILL...")
 
             # Get list of ShipTo locations that have maintenance contract invoices
             # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
@@ -10222,6 +10225,11 @@ def register_department_routes(reports_bp):
                     'true_profit': 'Contract Revenue - Actual Service Costs',
                     'wo_types_included': 'S (Service), SH (Shop), PM (Preventive Maintenance)',
                     'sale_codes': 'FMBILL (billing), FMROAD (road service), PM-FM (preventive maintenance), FMSHOP (shop work)'
+                },
+                'debug': {
+                    'schema': schema,
+                    'revenue_query_results_count': len(revenue_results),
+                    'revenue_query_sample': revenue_query[:200]
                 }
             })
 
