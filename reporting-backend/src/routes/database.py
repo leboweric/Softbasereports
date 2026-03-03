@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.softbase_service import SoftbaseService
-from ..models.user import User
+from ..models.user import User, Organization
 import logging
 import os
 
@@ -102,7 +102,20 @@ def execute_query():
         if not query:
             return jsonify({'error': 'Query is required'}), 400
         
-        service = SoftbaseService(user.organization)
+        # Support org_id override for multi-org Super Admins
+        org_id_override = data.get('org_id') or request.args.get('org_id', type=int)
+        target_org = user.organization
+        if org_id_override:
+            org_id_override = int(org_id_override)
+            if org_id_override != user.organization_id:
+                super_admin_roles = [r for r in user.roles if r.name == 'Super Admin']
+                if len(super_admin_roles) > 1:
+                    override_org = Organization.query.get(org_id_override)
+                    if override_org:
+                        target_org = override_org
+                        logger.info(f"Database query: org override to {override_org.name} (id={org_id_override})")
+        
+        service = SoftbaseService(target_org)
         result = service.execute_custom_query(query)
         
         return jsonify(result), 200 if result['success'] else 400
