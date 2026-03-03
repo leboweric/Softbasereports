@@ -208,6 +208,7 @@ NAVIGATION_CONFIG = {
         'order': 1,
         'tabs': {
             'sales': {'label': 'Sales', 'resource': 'dashboard'},
+            'invoiced-sales': {'label': 'Invoiced Sales', 'resource': 'dashboard'},
             'sales-breakdown': {'label': 'Sales Breakdown', 'resource': 'dashboard'},
             'customers': {'label': 'Customers', 'resource': 'dashboard'},
             'workorders': {'label': 'Work Orders', 'resource': 'dashboard'},
