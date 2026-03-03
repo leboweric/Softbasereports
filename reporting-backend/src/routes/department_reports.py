@@ -11150,35 +11150,60 @@ def register_department_routes(reports_bp):
     def get_invoiced_sales_summary():
         """
         Get invoiced sales summary broken down by category (New, Used, Allied)
-        and by branch/location for a given month.
+        and by branch/location for a given month or custom date range.
         
         Categories are determined dynamically from the tenant's Dept table
         by matching Title keywords, so no SaleCodes are hardcoded.
         
         Query params:
-            month: Month number (1-12)
-            year: Year (YYYY)
+            month: Month number (1-12) - used if start_date/end_date not provided
+            year: Year (YYYY) - used if start_date/end_date not provided
+            start_date: Start date (YYYY-MM-DD) - optional, overrides month/year
+            end_date: End date (YYYY-MM-DD) - optional, overrides month/year
         """
         try:
             db = get_db()
             schema = get_tenant_schema()
             
-            # Get month/year parameters
-            month = request.args.get('month', type=int)
-            year = request.args.get('year', type=int)
+            # Support both date range and month/year parameters
+            start_date_str = request.args.get('start_date')
+            end_date_str = request.args.get('end_date')
             
-            if not month or not year:
-                today = datetime.today()
-                prev_month = today.replace(day=1) - timedelta(days=1)
-                month = prev_month.month
-                year = prev_month.year
-            
-            # Calculate date range
-            start_date = datetime(year, month, 1)
-            if month == 12:
-                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            if start_date_str and end_date_str:
+                # Use explicit date range
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+                month = start_date.month
+                year = start_date.year
             else:
-                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+                # Fall back to month/year
+                month = request.args.get('month', type=int)
+                year = request.args.get('year', type=int)
+                
+                if not month or not year:
+                    today = datetime.today()
+                    prev_month = today.replace(day=1) - timedelta(days=1)
+                    month = prev_month.month
+                    year = prev_month.year
+                
+                # Calculate date range from month/year
+                start_date = datetime(year, month, 1)
+                if month == 12:
+                    end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+                else:
+                    end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+            
+            # Get excluded branches from organization settings
+            excluded_branches = []
+            try:
+                user_id = get_jwt_identity()
+                user = User.query.get(int(user_id))
+                if user and user.organization and user.organization.settings:
+                    import json as _json
+                    org_settings = _json.loads(user.organization.settings)
+                    excluded_branches = org_settings.get('excluded_branches', [])
+            except Exception as e:
+                logger.warning(f'Could not load excluded_branches from org settings: {e}')
             
             # Dynamically resolve which SaleDept numbers are New / Used / Allied
             dept_map = _resolve_equipment_dept_numbers(db, schema)
@@ -11281,6 +11306,10 @@ def register_department_routes(reports_bp):
             
             for row in results:
                 branch_no = str(row.get('Branch', '0')).strip()
+                
+                # Skip excluded branches (configured in org settings)
+                if branch_no in excluded_branches:
+                    continue
                 new_sales = float(row.get('NewSales', 0) or 0)
                 new_cost = float(row.get('NewCost', 0) or 0)
                 new_count = int(row.get('NewCount', 0) or 0)
@@ -11335,9 +11364,15 @@ def register_department_routes(reports_bp):
             grand_total_gp = grand_total_sales - grand_total_cost
             grand_gp_pct = (grand_total_gp / grand_total_sales * 100) if grand_total_sales != 0 else 0
             
+            # Filter excluded branches from branch_names too
+            if excluded_branches:
+                branch_names = {k: v for k, v in branch_names.items() if k not in excluded_branches}
+            
             return jsonify({
                 'month': month,
                 'year': year,
+                'start_date': start_date.strftime('%Y-%m-%d'),
+                'end_date': end_date.strftime('%Y-%m-%d'),
                 'branches': branches,
                 'grand_total': {
                     'new_sales': round(grand_new_sales, 2),
@@ -11385,22 +11420,33 @@ def register_department_routes(reports_bp):
             db = get_db()
             schema = get_tenant_schema()
             
-            month = request.args.get('month', type=int)
-            year = request.args.get('year', type=int)
             branch = request.args.get('branch', '')
             category = request.args.get('category', 'all')
             
-            if not month or not year:
-                today = datetime.today()
-                prev_month = today.replace(day=1) - timedelta(days=1)
-                month = prev_month.month
-                year = prev_month.year
+            # Support both date range and month/year parameters
+            start_date_str = request.args.get('start_date')
+            end_date_str = request.args.get('end_date')
             
-            start_date = datetime(year, month, 1)
-            if month == 12:
-                end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+            if start_date_str and end_date_str:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+                month = start_date.month
+                year = start_date.year
             else:
-                end_date = datetime(year, month + 1, 1) - timedelta(days=1)
+                month = request.args.get('month', type=int)
+                year = request.args.get('year', type=int)
+                
+                if not month or not year:
+                    today = datetime.today()
+                    prev_month = today.replace(day=1) - timedelta(days=1)
+                    month = prev_month.month
+                    year = prev_month.year
+                
+                start_date = datetime(year, month, 1)
+                if month == 12:
+                    end_date = datetime(year + 1, 1, 1) - timedelta(days=1)
+                else:
+                    end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
             # Dynamically resolve which SaleDept numbers are New / Used / Allied
             dept_map = _resolve_equipment_dept_numbers(db, schema)

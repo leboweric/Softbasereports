@@ -3,8 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import { apiUrl } from '@/lib/api'
-import { ChevronDown, ChevronRight, Download, Building2, DollarSign, Hash, TrendingUp, Package } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Building2, DollarSign, Hash, TrendingUp, Package, Calendar as CalendarIcon } from 'lucide-react'
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
 const MONTHS = [
   { value: 1, label: 'January' },
@@ -40,33 +43,49 @@ const InvoicedSalesReport = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [expandedBranches, setExpandedBranches] = useState(new Set())
-  const [branchDetails, setBranchDetails] = useState({}) // { branchNo: { invoices: [], loading: bool } }
+  const [branchDetails, setBranchDetails] = useState({})
 
-  // Default to previous month
+  // Date range state - default to previous month
   const now = new Date()
-  const defaultMonth = now.getMonth() === 0 ? 12 : now.getMonth()
-  const defaultYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
-  const [month, setMonth] = useState(defaultMonth)
-  const [year, setYear] = useState(defaultYear)
+  const prevMonth = subMonths(now, 1)
+  const [startDate, setStartDate] = useState(startOfMonth(prevMonth))
+  const [endDate, setEndDate] = useState(endOfMonth(prevMonth))
+  const [startPickerOpen, setStartPickerOpen] = useState(false)
+  const [endPickerOpen, setEndPickerOpen] = useState(false)
+
+  // Quick select mode: 'month' or 'custom'
+  const [dateMode, setDateMode] = useState('month')
+  const [month, setMonth] = useState(prevMonth.getMonth() + 1)
+  const [year, setYear] = useState(prevMonth.getFullYear())
 
   const years = useMemo(() => {
     const y = new Date().getFullYear()
     return [y, y - 1, y - 2]
   }, [])
 
+  // When month/year changes in month mode, update date range
+  useEffect(() => {
+    if (dateMode === 'month') {
+      const d = new Date(year, month - 1, 1)
+      setStartDate(startOfMonth(d))
+      setEndDate(endOfMonth(d))
+    }
+  }, [month, year, dateMode])
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const token = localStorage.getItem('token')
+      const startStr = format(startDate, 'yyyy-MM-dd')
+      const endStr = format(endDate, 'yyyy-MM-dd')
       const res = await fetch(
-        apiUrl(`/api/reports/departments/sales/invoiced-summary?month=${month}&year=${year}`),
+        apiUrl(`/api/reports/departments/sales/invoiced-summary?start_date=${startStr}&end_date=${endStr}`),
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const result = await res.json()
       setData(result)
-      // Reset expanded branches and details on new data
       setExpandedBranches(new Set())
       setBranchDetails({})
     } catch (err) {
@@ -74,7 +93,7 @@ const InvoicedSalesReport = () => {
     } finally {
       setLoading(false)
     }
-  }, [month, year])
+  }, [startDate, endDate])
 
   useEffect(() => {
     fetchData()
@@ -88,8 +107,10 @@ const InvoicedSalesReport = () => {
     try {
       const token = localStorage.getItem('token')
       const branchParam = branchNo === 'all' ? '' : `&branch=${branchNo}`
+      const startStr = format(startDate, 'yyyy-MM-dd')
+      const endStr = format(endDate, 'yyyy-MM-dd')
       const res = await fetch(
-        apiUrl(`/api/reports/departments/sales/invoiced-details?month=${month}&year=${year}${branchParam}&category=all`),
+        apiUrl(`/api/reports/departments/sales/invoiced-details?start_date=${startStr}&end_date=${endStr}${branchParam}&category=all`),
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -104,7 +125,7 @@ const InvoicedSalesReport = () => {
         [branchNo]: { invoices: [], loading: false, error: err.message }
       }))
     }
-  }, [month, year])
+  }, [startDate, endDate])
 
   const toggleBranch = (branchNo) => {
     setExpandedBranches(prev => {
@@ -113,7 +134,6 @@ const InvoicedSalesReport = () => {
         next.delete(branchNo)
       } else {
         next.add(branchNo)
-        // Fetch details if not already loaded
         if (!branchDetails[branchNo]) {
           fetchBranchDetails(branchNo)
         }
@@ -124,9 +144,9 @@ const InvoicedSalesReport = () => {
 
   const exportCSV = () => {
     if (!data?.branches) return
-    const monthLabel = MONTHS.find(m => m.value === data.month)?.label || data.month
+    const dateLabel = `${format(startDate, 'MMM d, yyyy')} - ${format(endDate, 'MMM d, yyyy')}`
     const rows = [
-      ['Invoiced Sales Summary', `${monthLabel} ${data.year}`],
+      ['Invoiced Sales Summary', dateLabel],
       [],
       ['Branch', 'Branch Name', 'New Sales', 'New GP', 'New #', 'Used Sales', 'Used GP', 'Used #', 'Allied Sales', 'Allied GP', 'Allied #', 'Total Sales', 'Total GP', 'GP%', 'Total #']
     ]
@@ -161,7 +181,6 @@ const InvoicedSalesReport = () => {
       gt.total_sales.toFixed(2), gt.total_gp.toFixed(2), gt.gp_pct.toFixed(2) + '%', gt.total_count
     ])
 
-    // Add detail rows if any branches are expanded
     Object.entries(branchDetails).forEach(([branchNo, detail]) => {
       if (detail.invoices?.length > 0) {
         const branchName = data.branches.find(b => b.branch === branchNo)?.branch_name || branchNo
@@ -189,7 +208,7 @@ const InvoicedSalesReport = () => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `invoiced_sales_${data.year}_${String(data.month).padStart(2, '0')}.csv`
+    a.download = `invoiced_sales_${format(startDate, 'yyyy-MM-dd')}_to_${format(endDate, 'yyyy-MM-dd')}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -217,7 +236,9 @@ const InvoicedSalesReport = () => {
   if (!data) return null
 
   const gt = data.grand_total
-  const monthLabel = MONTHS.find(m => m.value === data.month)?.label || data.month
+  const dateLabel = dateMode === 'month'
+    ? `${MONTHS.find(m => m.value === month)?.label || month} ${year}`
+    : `${format(startDate, 'MMM d, yyyy')} – ${format(endDate, 'MMM d, yyyy')}`
 
   return (
     <div className="space-y-4">
@@ -226,30 +247,101 @@ const InvoicedSalesReport = () => {
         <div>
           <h3 className="text-lg font-semibold">Invoiced Sales — New, Used & Allied</h3>
           <p className="text-sm text-muted-foreground">
-            Equipment sales invoiced for {monthLabel} {data.year}
+            Equipment sales invoiced for {dateLabel}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Select value={String(month)} onValueChange={v => setMonth(Number(v))}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTHS.map(m => (
-                <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={String(year)} onValueChange={v => setYear(Number(v))}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map(y => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Mode toggle */}
+          <div className="flex rounded-md border overflow-hidden">
+            <button
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${dateMode === 'month' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+              onClick={() => setDateMode('month')}
+            >
+              Month
+            </button>
+            <button
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${dateMode === 'custom' ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-muted'}`}
+              onClick={() => setDateMode('custom')}
+            >
+              Custom Range
+            </button>
+          </div>
+
+          {dateMode === 'month' ? (
+            <>
+              <Select value={String(month)} onValueChange={v => setMonth(Number(v))}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map(m => (
+                    <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={String(year)} onValueChange={v => setYear(Number(v))}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map(y => (
+                    <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          ) : (
+            <>
+              <Popover open={startPickerOpen} onOpenChange={setStartPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[160px] justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(startDate, 'MMM d, yyyy')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        setStartDate(date)
+                        if (date > endDate) setEndDate(date)
+                        setStartPickerOpen(false)
+                      }
+                    }}
+                    disabled={(date) => date > new Date()}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-sm text-muted-foreground">to</span>
+              <Popover open={endPickerOpen} onOpenChange={setEndPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[160px] justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(endDate, 'MMM d, yyyy')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        setEndDate(date)
+                        if (date < startDate) setStartDate(date)
+                        setEndPickerOpen(false)
+                      }
+                    }}
+                    disabled={(date) => date > new Date()}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
+
           <Button variant="outline" size="sm" onClick={exportCSV}>
             <Download className="h-4 w-4 mr-1" />
             Export
