@@ -8421,6 +8421,20 @@ def register_department_routes(reports_bp):
             
             logger.info(f"Service invoice billing: resolved service depts {service_dept_numbers} for schema {schema}")
             
+            # ── Read excluded bill-to customers from org settings ──────
+            excluded_bill_to = []
+            try:
+                user_id = get_jwt_identity()
+                user = User.query.get(int(user_id))
+                if user and user.organization and user.organization.settings:
+                    import json as _json
+                    org_settings = _json.loads(user.organization.settings)
+                    excluded_bill_to = org_settings.get('excluded_bill_to_customers', [])
+                    if excluded_bill_to:
+                        logger.info(f"Service invoice billing: excluding bill-to customers {excluded_bill_to}")
+            except Exception as e:
+                logger.warning(f'Could not load excluded_bill_to_customers from org settings: {e}')
+            
             if not service_dept_numbers:
                 # Fallback: if no service depts found, return empty result
                 # rather than returning ALL invoices (which was the old bug)
@@ -8496,6 +8510,12 @@ def register_department_routes(reports_bp):
                 query += " AND (i.BillTo = %s OR i.BillToName = %s)"
                 params.append(customer_no)
                 params.append(customer_no)
+            
+            # Exclude specific bill-to customers from org settings
+            if excluded_bill_to:
+                excl_placeholders = ', '.join(['%s'] * len(excluded_bill_to))
+                query += f" AND i.BillTo NOT IN ({excl_placeholders})"
+                params.extend(excluded_bill_to)
                 
             query += " ORDER BY i.InvoiceDate, i.InvoiceNo"
             
