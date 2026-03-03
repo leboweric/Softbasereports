@@ -11032,12 +11032,43 @@ def register_department_routes(reports_bp):
     # ============================================================
     # Invoiced Sales Summary - New, Used, Allied by Location
     # ============================================================
+    #  Helper: resolve Dept numbers for New / Used / Allied
+    # ============================================================
+    def _resolve_equipment_dept_numbers(db, schema):
+        """
+        Query the tenant's Dept table and classify departments into
+        New Equipment, Used Equipment, and Allied by matching the Title.
+        Returns a dict: {'new': [list of dept ints], 'used': [...], 'allied': [...]}
+        Works for any Softbase / Evolution tenant without hardcoding.
+        """
+        dept_query = f"SELECT Dept, Title FROM {schema}.Dept ORDER BY Dept"
+        dept_rows = db.execute_query(dept_query)
+
+        mapping = {'new': [], 'used': [], 'allied': []}
+        for row in dept_rows:
+            dept_no = row.get('Dept')
+            title = (row.get('Title') or '').strip().lower()
+            if dept_no is None or not title:
+                continue
+            dept_int = int(dept_no)
+            if 'allied' in title:
+                mapping['allied'].append(dept_int)
+            elif 'new' in title and ('equip' in title or 'batter' in title or 'charger' in title):
+                mapping['new'].append(dept_int)
+            elif 'used' in title and 'equip' in title:
+                mapping['used'].append(dept_int)
+        return mapping
+
+    # ============================================================
     @reports_bp.route('/departments/sales/invoiced-summary', methods=['GET'])
     @require_permission('view_commissions')
     def get_invoiced_sales_summary():
         """
         Get invoiced sales summary broken down by category (New, Used, Allied)
         and by branch/location for a given month.
+        
+        Categories are determined dynamically from the tenant's Dept table
+        by matching Title keywords, so no SaleCodes are hardcoded.
         
         Query params:
             month: Month number (1-12)
@@ -11052,7 +11083,6 @@ def register_department_routes(reports_bp):
             year = request.args.get('year', type=int)
             
             if not month or not year:
-                # Default to previous month
                 today = datetime.today()
                 prev_month = today.replace(day=1) - timedelta(days=1)
                 month = prev_month.month
@@ -11065,65 +11095,78 @@ def register_department_routes(reports_bp):
             else:
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
-            # Main summary query - grouped by branch
+            # Dynamically resolve which SaleDept numbers are New / Used / Allied
+            dept_map = _resolve_equipment_dept_numbers(db, schema)
+            new_depts = dept_map['new']
+            used_depts = dept_map['used']
+            allied_depts = dept_map['allied']
+            all_depts = new_depts + used_depts + allied_depts
+            
+            logger.info(f"[InvoicedSales] schema={schema} new_depts={new_depts} used_depts={used_depts} allied_depts={allied_depts}")
+            
+            if not all_depts:
+                # No equipment departments found – return empty result
+                return jsonify({
+                    'month': month, 'year': year, 'branches': [],
+                    'grand_total': {
+                        'new_sales': 0, 'new_cost': 0, 'new_gp': 0, 'new_count': 0,
+                        'used_sales': 0, 'used_cost': 0, 'used_gp': 0, 'used_count': 0,
+                        'allied_sales': 0, 'allied_cost': 0, 'allied_gp': 0, 'allied_count': 0,
+                        'total_sales': 0, 'total_cost': 0, 'total_gp': 0, 'gp_pct': 0, 'total_count': 0
+                    },
+                    'branch_names': {}
+                })
+            
+            # Build comma-separated dept lists for SQL IN clauses
+            def _sql_in(lst):
+                return '(' + ','.join(str(d) for d in lst) + ')'
+            
+            new_in = _sql_in(new_depts) if new_depts else '(-1)'
+            used_in = _sql_in(used_depts) if used_depts else '(-1)'
+            allied_in = _sql_in(allied_depts) if allied_depts else '(-1)'
+            all_in = _sql_in(all_depts)
+            
+            # Main summary query – grouped by branch, categorised by SaleDept
             summary_query = f"""
             SELECT 
                 COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0') as Branch,
                 
-                -- New Equipment (SaleCode based)
-                COUNT(CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
-                    THEN 1 END) as NewCount,
-                SUM(CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
-                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) 
+                -- New Equipment
+                COUNT(CASE WHEN ir.SaleDept IN {new_in} THEN 1 END) as NewCount,
+                SUM(CASE WHEN ir.SaleDept IN {new_in}
+                    THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                          + COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
                     ELSE 0 END) as NewSales,
-                SUM(CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                SUM(CASE WHEN ir.SaleDept IN {new_in}
                     THEN COALESCE(ir.EquipmentCost, 0) + COALESCE(ir.MiscCost, 0)
                     ELSE 0 END) as NewCost,
                 
                 -- Used Equipment
-                COUNT(CASE 
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
-                    THEN 1 END) as UsedCount,
-                SUM(CASE 
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                COUNT(CASE WHEN ir.SaleDept IN {used_in} THEN 1 END) as UsedCount,
+                SUM(CASE WHEN ir.SaleDept IN {used_in}
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
                     ELSE 0 END) as UsedSales,
-                SUM(CASE 
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                SUM(CASE WHEN ir.SaleDept IN {used_in}
                     THEN COALESCE(ir.EquipmentCost, 0)
                     ELSE 0 END) as UsedCost,
                 
                 -- Allied Equipment
-                COUNT(CASE 
-                    WHEN ir.SaleCode = 'ALLIED'
-                    THEN 1 END) as AlliedCount,
-                SUM(CASE
-                    WHEN ir.SaleCode = 'ALLIED'
+                COUNT(CASE WHEN ir.SaleDept IN {allied_in} THEN 1 END) as AlliedCount,
+                SUM(CASE WHEN ir.SaleDept IN {allied_in}
                     THEN COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
                     ELSE 0 END) as AlliedSales,
-                SUM(CASE
-                    WHEN ir.SaleCode = 'ALLIED'
+                SUM(CASE WHEN ir.SaleDept IN {allied_in}
                     THEN COALESCE(ir.MiscCost, 0)
                     ELSE 0 END) as AlliedCost,
                 
                 -- Total invoice count (all three categories)
-                COUNT(CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM',
-                                         'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                                         'ALLIED')
-                    THEN 1 END) as TotalCount
+                COUNT(*) as TotalCount
                     
             FROM {schema}.InvoiceReg ir
             LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM',
-                                    'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL',
-                                    'ALLIED')
+                AND ir.SaleDept IN {all_in}
             GROUP BY COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0')
             ORDER BY COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0')
             """
@@ -11245,6 +11288,7 @@ def register_department_routes(reports_bp):
     def get_invoiced_sales_details():
         """
         Get individual invoice details for a specific branch and category.
+        Categories are determined dynamically from the tenant's Dept table.
         
         Query params:
             month: Month number (1-12)
@@ -11273,15 +11317,35 @@ def register_department_routes(reports_bp):
             else:
                 end_date = datetime(year, month + 1, 1) - timedelta(days=1)
             
-            # Build SaleCode filter based on category
+            # Dynamically resolve which SaleDept numbers are New / Used / Allied
+            dept_map = _resolve_equipment_dept_numbers(db, schema)
+            new_depts = dept_map['new']
+            used_depts = dept_map['used']
+            allied_depts = dept_map['allied']
+            
+            def _sql_in(lst):
+                return '(' + ','.join(str(d) for d in lst) + ')'
+            
+            # Build SaleDept filter based on category
             if category == 'new':
-                sale_codes = "('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')"
+                filter_depts = new_depts
             elif category == 'used':
-                sale_codes = "('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')"
+                filter_depts = used_depts
             elif category == 'allied':
-                sale_codes = "('ALLIED')"
+                filter_depts = allied_depts
             else:
-                sale_codes = "('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM', 'USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL', 'ALLIED')"
+                filter_depts = new_depts + used_depts + allied_depts
+            
+            if not filter_depts:
+                return jsonify({
+                    'month': month, 'year': year, 'branch': branch,
+                    'category': category, 'invoices': [], 'count': 0
+                })
+            
+            dept_in = _sql_in(filter_depts)
+            new_in = _sql_in(new_depts) if new_depts else '(-1)'
+            used_in = _sql_in(used_depts) if used_depts else '(-1)'
+            allied_in = _sql_in(allied_depts) if allied_depts else '(-1)'
             
             # Build branch filter
             branch_filter = ""
@@ -11299,24 +11363,24 @@ def register_department_routes(reports_bp):
                 COALESCE(wo.Salesman, 'Unassigned') as Salesman,
                 COALESCE(CAST(wo.SaleBranch AS VARCHAR), '0') as Branch,
                 ir.Comments,
-                -- Calculate sale amount based on category
+                -- Calculate sale amount based on category (by SaleDept)
                 CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    WHEN ir.SaleDept IN {new_in}
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0) 
                          + COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    WHEN ir.SaleDept IN {used_in}
                     THEN COALESCE(ir.EquipmentTaxable, 0) + COALESCE(ir.EquipmentNonTax, 0)
-                    WHEN ir.SaleCode = 'ALLIED'
+                    WHEN ir.SaleDept IN {allied_in}
                     THEN COALESCE(ir.MiscTaxable, 0) + COALESCE(ir.MiscNonTax, 0)
                     ELSE 0
                 END as SaleAmount,
-                -- Calculate cost based on category
+                -- Calculate cost based on category (by SaleDept)
                 CASE 
-                    WHEN ir.SaleCode IN ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM')
+                    WHEN ir.SaleDept IN {new_in}
                     THEN COALESCE(ir.EquipmentCost, 0) + COALESCE(ir.MiscCost, 0)
-                    WHEN ir.SaleCode IN ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL')
+                    WHEN ir.SaleDept IN {used_in}
                     THEN COALESCE(ir.EquipmentCost, 0)
-                    WHEN ir.SaleCode = 'ALLIED'
+                    WHEN ir.SaleDept IN {allied_in}
                     THEN COALESCE(ir.MiscCost, 0)
                     ELSE 0
                 END as Cost,
@@ -11325,22 +11389,27 @@ def register_department_routes(reports_bp):
             LEFT JOIN {schema}.WO wo ON ir.InvoiceNo = wo.WONo
             WHERE ir.InvoiceDate >= %s
                 AND ir.InvoiceDate <= %s
-                AND ir.SaleCode IN {sale_codes}
+                AND ir.SaleDept IN {dept_in}
                 {branch_filter}
             ORDER BY ir.InvoiceDate DESC, ir.InvoiceNo DESC
             """
             
             results = db.execute_query(detail_query, [start_date, end_date])
             
-            # Categorize each invoice
+            # Build sets for fast lookup when categorising rows
+            new_set = set(new_depts)
+            used_set = set(used_depts)
+            allied_set = set(allied_depts)
+            
+            # Categorize each invoice by SaleDept
             invoices = []
             for row in results:
-                sale_code = row.get('SaleCode', '')
-                if sale_code in ('LINDE', 'LINDEN', 'NEWEQ', 'NEWEQP-R', 'KOM'):
+                sale_dept = int(row.get('SaleDept', 0) or 0)
+                if sale_dept in new_set:
                     cat = 'New'
-                elif sale_code in ('USEDEQ', 'RNTSALE', 'USED K', 'USED L', 'USED SL'):
+                elif sale_dept in used_set:
                     cat = 'Used'
-                elif sale_code == 'ALLIED':
+                elif sale_dept in allied_set:
                     cat = 'Allied'
                 else:
                     cat = 'Other'
@@ -11355,7 +11424,7 @@ def register_department_routes(reports_bp):
                     'invoice_date': row.get('InvoiceDate').strftime('%Y-%m-%d') if row.get('InvoiceDate') else '',
                     'customer': row.get('BillToName', '') or row.get('BillTo', ''),
                     'customer_no': row.get('BillTo', ''),
-                    'sale_code': sale_code,
+                    'sale_code': row.get('SaleCode', ''),
                     'category': cat,
                     'salesman': row.get('Salesman', 'Unassigned'),
                     'branch': str(row.get('Branch', '0')).strip(),
