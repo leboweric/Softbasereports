@@ -630,7 +630,117 @@ Connection String: postgresql://postgres:ZINQrdsRJEQeYMsLEPazJJbyztwWSMiY@nozomi
 - Bennett (`ben002`): `evo1-sql-replica.database.windows.net` / database `evo` / user `ben002user`
 - IPS (`ind004`): `evo1-sql-replica.database.windows.net` / database `evo` / user `ind004user`
 - The backend handles Azure SQL connections automatically via `get_db()` — you should NOT need to connect directly
-- If you need to run ad-hoc queries, use the Schema Explorer page at `https://aiop.one` (Super Admin only)
+- **⚠️ NEVER attempt direct Azure SQL connections from the Manus sandbox** — the firewall will block them. See the "Database Queries via Railway API" section below for the correct approach.
+- For ad-hoc queries, use the Railway API endpoints (`/api/database/execute-query`) or the Schema Explorer page at `https://aiop.one` (Super Admin only)
+
+### ⚠️ Database Queries via Railway API (CRITICAL — No Direct Azure SQL Access)
+
+> **🚨 The Azure SQL firewall ONLY allows connections from Railway's IP addresses. You CANNOT connect to Azure SQL directly from the Manus sandbox. ALL database queries MUST go through the Railway-hosted backend API endpoints.**
+
+#### Why This Matters
+- Azure SQL Server (`evo1-sql-replica.database.windows.net`) has IP-based firewall rules
+- Only Railway's outbound IPs are whitelisted
+- Any attempt to connect directly from the Manus sandbox (e.g., via `pyodbc`, `sqlcmd`, or any ODBC driver) will be **blocked by the firewall**
+- The backend already handles Azure SQL connections via `get_tenant_db()` — use the API endpoints instead
+
+#### Available Database Query API Endpoints
+
+All endpoints require JWT authentication and are hosted at `https://softbasereports-production.up.railway.app`.
+
+| Endpoint | Method | Purpose | Auth | Notes |
+|----------|--------|---------|------|-------|
+| `/api/database/execute-query` | POST | Execute arbitrary SELECT queries | JWT | Most flexible — use this for ad-hoc investigation |
+| `/api/database/query` | POST | Execute SELECT queries (via SoftbaseService) | JWT | Alternative query endpoint |
+| `/api/database/explore` | GET | List tables by category with sample data | JWT + Admin | Good for initial schema discovery |
+| `/api/database/full-schema` | GET | Complete schema with columns, PKs, FKs, relationships | JWT + Admin | Use for understanding table relationships |
+| `/api/database/schema-summary` | GET | Simplified table listing by category | JWT | Lightweight overview |
+
+#### Authentication Flow
+
+```bash
+# Step 1: Get JWT token
+TOKEN=$(curl -s -X POST https://softbasereports-production.up.railway.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "aiop-support-bot", "password": "A10P$upp0rtB0t!2026"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+```
+
+#### Example: Execute a Custom Query
+
+```bash
+# Query the Dept table for Bennett (bot defaults to Bennett org)
+curl -s -X POST https://softbasereports-production.up.railway.app/api/database/execute-query \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT TOP 10 Dept, Title FROM ben002.Dept"}'
+
+# Response format:
+# {
+#   "success": true,
+#   "columns": ["Dept", "Title"],
+#   "results": [{"Dept": "10", "Title": "New Equipment"}, ...],
+#   "row_count": 10
+# }
+```
+
+#### Example: Explore Database Schema
+
+```bash
+# Get categorized table listing with sample data
+curl -s -H "Authorization: Bearer $TOKEN" \
+  https://softbasereports-production.up.railway.app/api/database/explore
+
+# Get full schema with columns, primary keys, foreign keys
+curl -s -H "Authorization: Bearer $TOKEN" \
+  https://softbasereports-production.up.railway.app/api/database/full-schema
+```
+
+#### Example: Investigate a Data Integrity Ticket
+
+```bash
+# Step 1: Authenticate
+TOKEN=$(curl -s -X POST https://softbasereports-production.up.railway.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "aiop-support-bot", "password": "A10P$upp0rtB0t!2026"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+# Step 2: Check what data the report is pulling
+curl -s -X POST https://softbasereports-production.up.railway.app/api/database/execute-query \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT TOP 20 * FROM ben002.InvoiceReg WHERE InvoiceDate >= '\''2025-01-01'\''"}'  
+
+# Step 3: Cross-reference with the Dept table for dynamic lookups
+curl -s -X POST https://softbasereports-production.up.railway.app/api/database/execute-query \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT Dept, Title FROM ben002.Dept ORDER BY Dept"}'
+
+# Step 4: Verify SaleCode mappings
+curl -s -X POST https://softbasereports-production.up.railway.app/api/database/execute-query \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT DISTINCT SaleCode, SaleDept FROM ben002.InvoiceReg ORDER BY SaleDept"}'
+```
+
+#### When to Use Which Endpoint
+
+| Scenario | Recommended Endpoint |
+|----------|---------------------|
+| Investigating a data integrity bug | `POST /api/database/execute-query` with targeted SELECT |
+| Understanding table structure before writing a fix | `GET /api/database/full-schema` |
+| Quick check of what tables exist | `GET /api/database/schema-summary` |
+| Verifying a query fix produces correct results | `POST /api/database/execute-query` |
+| Checking sample data from key tables | `GET /api/database/explore` |
+
+#### Important Constraints
+
+- **SELECT only** — both query endpoints reject non-SELECT statements
+- **Org-scoped** — queries run against the currently authenticated user's organization. The bot defaults to Bennett (`ben002`). To query IPS data, you would need to switch org context (or use the browser-based Schema Explorer at `https://aiop.one`).
+- **All values returned as strings** — the `/api/database/execute-query` endpoint converts all values to strings for JSON safety. Parse numbers/dates as needed.
+- **Schema prefix required** — when using `execute-query`, include the schema prefix in table names (e.g., `ben002.InvoiceReg`, `ind004.Dept`)
+
+---
 
 ### Backend Architecture Quick Reference
 - **Flask blueprints** for route organization
@@ -727,4 +837,4 @@ Body: {
 ---
 
 **Last Updated**: March 2, 2026
-**Version**: 1.0 (Initial AIOP Implementation)
+**Version**: 1.1 (Added Railway API database query documentation)
