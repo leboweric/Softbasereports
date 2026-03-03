@@ -128,6 +128,7 @@ from src.routes.gl_mapping import gl_mapping_bp
 from src.routes.support_tickets import support_tickets_bp
 from src.routes.evo_export import evo_export_bp
 from src.routes.sales_reports import sales_reports_bp
+from src.routes.error_logs import error_logs_bp, register_error_handlers, attach_logging_handler
 from src.etl.scheduler import register_etl_routes, init_etl_scheduler
 from src.services.postgres_service import get_postgres_db
 from src.services.forecast_scheduler import init_forecast_scheduler
@@ -437,6 +438,7 @@ app.register_blueprint(gl_mapping_bp, url_prefix='/api/gl-mapping')
 app.register_blueprint(support_tickets_bp)
 app.register_blueprint(evo_export_bp)
 app.register_blueprint(sales_reports_bp)
+app.register_blueprint(error_logs_bp)
 
 # Register ETL management routes
 register_etl_routes(app)
@@ -459,6 +461,10 @@ else:
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
+
+# Register global error handlers to capture errors into the in-memory log
+register_error_handlers(app)
+attach_logging_handler()
 
 with app.app_context():
     db.create_all()

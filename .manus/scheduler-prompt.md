@@ -169,7 +169,7 @@ You are the AIOP Smart Support Ticket Processor. Your job is to automatically pr
 1. **Fetch open bug tickets** from the API: `GET https://softbasereports-production.up.railway.app/api/support-tickets?status=open&type=bug`
 2. **Check current time**: If hour === 18 (6 PM), also **fetch open enhancement tickets**: `GET https://softbasereports-production.up.railway.app/api/support-tickets?status=open&type=enhancement`
 3. **If no open tickets at all**: **Skip repo clone entirely**, generate a short completion report, and exit. This saves tokens by avoiding unnecessary git operations.
-4. **📚 Read DATABASE_SCHEMA.md on startup**: After cloning the repo (step 4 in the workflow), **immediately read `DATABASE_SCHEMA.md`** in the repo root. This file contains the complete Azure SQL and PostgreSQL schema documentation including:
+4. **📚 Read DATABASE_SCHEMA.md on startup**: After cloning the repo (step 5 in the workflow), **immediately read `DATABASE_SCHEMA.md`** in the repo root. This file contains the complete Azure SQL and PostgreSQL schema documentation including:
    - All table structures, columns, types, and relationships
    - Critical gotchas (e.g., `Customer` field is boolean, `RentalStatus` is unreliable, quotes vs work orders)
    - Correct join patterns and query templates
@@ -177,14 +177,19 @@ You are the AIOP Smart Support Ticket Processor. Your job is to automatically pr
    - Depreciation view details
    - PostgreSQL custom tables (support tickets, knowledge base, report visibility, etc.)
    - **This knowledge is essential for investigating data integrity issues and writing correct queries.**
-5. **Process each bug** following the comprehensive workflow below
-6. **If 6 PM**: Process each enhancement following the comprehensive workflow below
+5. **🔍 Check application health**: Before processing tickets, check for recent runtime errors:
+   ```
+   GET /api/admin/logs/health
+   ```
+   If `status` is `degraded` or `critical`, also fetch recent errors with `GET /api/admin/logs?since_hours=4` to understand the current state of the application. Note any recurring errors — they may be related to open tickets.
+6. **Process each bug** following the comprehensive workflow below
+7. **If 6 PM**: Process each enhancement following the comprehensive workflow below
 
 ### At 6 PM Only (after ticket processing)
 
-7. **Run comprehensive sanity testing** (key pages for each tenant)
-8. **Review and update documentation** if needed (ARCHITECTURE.md, DATABASE_SCHEMA.md)
-9. **Generate completion report**
+8. **Run comprehensive sanity testing** (key pages for each tenant)
+9. **Review and update documentation** if needed (ARCHITECTURE.md, DATABASE_SCHEMA.md)
+10. **Generate completion report**
 
 ---
 
@@ -437,12 +442,13 @@ For each ticket:
     ```
 
 19. **⚠️ ALWAYS test after deployment**:
-    - Log in to `https://aiop.one` using bot credentials
-    - Navigate to the affected page
-    - **Test as the reporting org** — verify the fix works for the org that submitted the ticket
-    - **Test as another org** — switch org context (if Super Admin) to verify no regressions
-    - Verify the bug is fixed / enhancement works
-    - Quick smoke test of related functionality
+     - Log in to `https://aiop.one` using bot credentials
+     - Navigate to the affected page
+     - **Test as the reporting org** — verify the fix works for the org that submitted the ticket
+     - **Test as another org** — switch org context (if Super Admin) to verify no regressions
+     - Verify the bug is fixed / enhancement works
+     - Quick smoke test of related functionality
+     - **Check error logs after testing**: `GET /api/admin/logs?since_hours=1` — verify no new errors were introduced by the fix
 
 ### Phase 7: Resolution
 
@@ -901,6 +907,76 @@ Body: {
 }
 ```
 
+### Error Logs API (for investigating runtime errors)
+
+> **Use these endpoints to check for application errors during ticket investigation.** The error log captures unhandled exceptions, 500 errors, and Python logging.ERROR events in an in-memory ring buffer (500 entries max). Errors are lost on app restart.
+
+```
+# Get recent errors (newest first)
+GET /api/admin/logs?limit=50&since_hours=24
+GET /api/admin/logs?error_type=ValueError
+GET /api/admin/logs?endpoint=dashboard
+GET /api/admin/logs?status_code=500
+Headers: Authorization: Bearer <token>
+
+# Response:
+# {
+#   "errors": [
+#     {
+#       "id": 42,
+#       "timestamp": "2026-03-02T18:30:00Z",
+#       "error_type": "KeyError",
+#       "message": "'SaleCode'",
+#       "traceback": "Traceback (most recent call last):\n  ...",
+#       "endpoint": "dashboard_optimized.get_dashboard",
+#       "method": "GET",
+#       "url": "https://softbasereports-production.up.railway.app/api/dashboard/...",
+#       "user_id": 5,
+#       "org_id": 2,
+#       "status_code": 500
+#     }
+#   ],
+#   "count": 1
+# }
+```
+
+```
+# Get error summary (counts by type, endpoint, status code)
+GET /api/admin/logs/summary
+Headers: Authorization: Bearer <token>
+```
+
+```
+# Quick health check (error rate info)
+GET /api/admin/logs/health
+Headers: Authorization: Bearer <token>
+
+# Response:
+# {
+#   "status": "healthy",  // or "degraded" or "critical"
+#   "errors_last_hour": 2,
+#   "errors_last_24h": 15,
+#   "total_buffered": 47,
+#   "buffer_capacity": 500
+# }
+```
+
+```
+# Clear error logs (after deploying a fix, to start fresh)
+POST /api/admin/logs/clear
+Headers: Authorization: Bearer <token>
+```
+
+#### When to Use Error Logs During Ticket Investigation
+
+| Scenario | Action |
+|----------|--------|
+| User reports a page crash or blank screen | `GET /api/admin/logs?since_hours=4&endpoint=<page_endpoint>` |
+| Investigating a 500 error | `GET /api/admin/logs?status_code=500&since_hours=24` |
+| Quick health check before starting work | `GET /api/admin/logs/health` |
+| After deploying a fix, verify no new errors | `GET /api/admin/logs?since_hours=1` |
+| After deploying a fix, clear old errors | `POST /api/admin/logs/clear` |
+
 ---
 
 ## Success Criteria
@@ -921,4 +997,4 @@ Body: {
 ---
 
 **Last Updated**: March 2, 2026
-**Version**: 1.4 (Clarified knowledge base is global/cross-org; strengthened search and save steps)
+**Version**: 1.5 (Added Error Logs API endpoint for runtime error investigation)
