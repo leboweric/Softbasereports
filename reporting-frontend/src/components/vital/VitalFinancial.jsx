@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useActiveTab } from '../../hooks/useActiveTab';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { DollarSign, TrendingUp, TrendingDown, CreditCard, Receipt, PiggyBank, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const VitalFinancial = ({ user }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useActiveTab('overview');
 
   // Sample/placeholder data for demo
   const sampleMetrics = {

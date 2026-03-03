@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useActiveTab } from '../hooks/useActiveTab';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -27,7 +28,7 @@ const ReportCreator = () => {
   const [examples, setExamples] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [validation, setValidation] = useState(null);
-  const [activeTab, setActiveTab] = useState('create');
+  const [activeTab, setActiveTab] = useActiveTab('create');
 
   useEffect(() => {
     fetchExamples();

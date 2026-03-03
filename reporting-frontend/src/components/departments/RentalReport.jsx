@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useActiveTab } from '../../hooks/useActiveTab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -137,7 +138,7 @@ const RentalReport = ({ user, organization }) => {
   const [unitsOnRent, setUnitsOnRent] = useState(0)
   const [unitsOnHold, setUnitsOnHold] = useState(0)
   const [benchmarkData, setBenchmarkData] = useState(null)
-  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'overview')
+  const [activeTab, setActiveTab] = useActiveTab(tabs[0]?.value || 'overview')
   const [includeCurrentMonth, setIncludeCurrentMonth] = useState(false)
   const [rawMonthlyRevenueData, setRawMonthlyRevenueData] = useState(null)
   

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useActiveTab } from '../../hooks/useActiveTab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
@@ -142,7 +143,7 @@ const PartsReport = ({ user, organization, onNavigate }) => {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   
   // Default to first available tab (should be overview if accessible)
-  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'overview')
+  const [activeTab, setActiveTab] = useActiveTab(tabs[0]?.value || 'overview')
 
   // Sort monthly revenue data chronologically for correct trendline calculation
   const sortedMonthlyRevenue = React.useMemo(() => {

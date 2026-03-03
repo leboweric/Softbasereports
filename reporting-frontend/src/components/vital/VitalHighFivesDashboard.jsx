@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useActiveTab } from '../../hooks/useActiveTab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -46,7 +47,7 @@ const VitalHighFivesDashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [monthlyReport, setMonthlyReport] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
-  const [activeTab, setActiveTab] = useState('overview') // 'overview', 'leaderboard', 'teams', 'monthly', 'recent'
+  const [activeTab, setActiveTab] = useActiveTab('overview') // 'overview', 'leaderboard', 'teams', 'monthly', 'recent'
 
   const fetchDashboardData = async () => {
     setLoading(true)

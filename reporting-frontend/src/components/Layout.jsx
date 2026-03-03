@@ -253,7 +253,7 @@ const Layout = ({ children, user, onLogout, currentPage, onNavigate, permissions
           </div>
         </main>
       </div>
-      <HelpWidget user={user} />
+      <HelpWidget user={user} currentPage={currentPage} />
     </div>
   )
 }

@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useActiveTab } from '../hooks/useActiveTab';
 import PLReport from './PLReport';
 import BalanceSheet from './BalanceSheet';
 import CashFlowWidget from './CashFlowWidget';
 import ProfitLossWidget from './ProfitLossWidget';
 
 const Financial = ({ user, organization }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useActiveTab('overview');
 
   return (
     <div className="p-6">

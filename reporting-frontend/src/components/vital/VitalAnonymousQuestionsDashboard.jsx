@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useActiveTab } from '../../hooks/useActiveTab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -58,7 +59,7 @@ const VitalAnonymousQuestionsDashboard = ({ user }) => {
   const [dashboardData, setDashboardData] = useState(null)
   const [trendAnalysis, setTrendAnalysis] = useState(null)
   const [categories, setCategories] = useState([])
-  const [activeTab, setActiveTab] = useState('submit') // 'submit', 'overview', 'questions', 'trends'
+  const [activeTab, setActiveTab] = useActiveTab('submit') // 'submit', 'overview', 'questions', 'trends'
   
   // Form state
   const [questionText, setQuestionText] = useState('')

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useActiveTab } from '../hooks/useActiveTab';
 import { 
-  AlertTriangle, 
-  TrendingDown, 
+  AlertTriangle, TrendingDown, 
   Users, 
   DollarSign, 
   Calendar,
@@ -25,7 +25,7 @@ const CustomerChurnAnalysis = () => {
   const [atRiskData, setAtRiskData] = useState(null);
   const [aiInsights, setAiInsights] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('churned');
+  const [activeTab, setActiveTab] = useActiveTab('churned');
   const [expandedCustomer, setExpandedCustomer] = useState(null);
   const [monthsBack, setMonthsBack] = useState(3);
 

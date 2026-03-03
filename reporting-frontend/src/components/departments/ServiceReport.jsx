@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useActiveTab } from '../../hooks/useActiveTab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
@@ -138,7 +139,7 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
   const [awaitingInvoiceData, setAwaitingInvoiceData] = useState(null)
   const [awaitingInvoiceDetails, setAwaitingInvoiceDetails] = useState(null)
   const [detailsLoading, setDetailsLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState(tabs[0]?.value || 'overview')
+  const [activeTab, setActiveTab] = useActiveTab(tabs[0]?.value || 'overview')
   const [woLookup, setWoLookup] = useState('')
   const [woDetail, setWoDetail] = useState(null)
   const [loadingWoDetail, setLoadingWoDetail] = useState(false)

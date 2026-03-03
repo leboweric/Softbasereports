@@ -397,16 +397,43 @@ export default function SupportTicketsPage({ user }) {
               <div>
                 Submitted: {formatDate(selectedTicket.created_at)}
               </div>
-              {selectedTicket.page_url && (
-                <a
-                  href={selectedTicket.page_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline truncate max-w-xs"
-                >
-                  {selectedTicket.page_url}
-                </a>
-              )}
+              {selectedTicket.page_url && (() => {
+                // Parse enriched page_url to extract page and tab context
+                const url = selectedTicket.page_url
+                const hashIndex = url.indexOf('#')
+                const hashParams = hashIndex >= 0 ? new URLSearchParams(url.substring(hashIndex + 1)) : null
+                const pageName = hashParams?.get('page')
+                const tabName = hashParams?.get('tab')
+                
+                if (pageName) {
+                  return (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-500">Page:</span>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        {pageName}
+                      </span>
+                      {tabName && (
+                        <>
+                          <span className="text-gray-500">Tab:</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            {tabName}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )
+                }
+                return (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline truncate max-w-xs"
+                  >
+                    {url}
+                  </a>
+                )
+              })()}
             </div>
           </div>
         </div>

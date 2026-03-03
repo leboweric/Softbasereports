@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useActiveTab } from '../../hooks/useActiveTab';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { ClipboardList, Users, Clock, TrendingUp, AlertCircle, CheckCircle, BarChart3 } from 'lucide-react';
 
 const VitalCaseData = ({ user }) => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useActiveTab('overview');
 
   // Sample/placeholder data for demo
   const sampleMetrics = {

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useActiveTab } from '../../hooks/useActiveTab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -56,7 +57,7 @@ const VitalFinanceBilling = ({ user, organization }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [revenueType, setRevenueType] = useState('revrec') // 'cash', 'revrec', or 'dual'
   const [showAddClient, setShowAddClient] = useState(false)
-  const [activeTab, setActiveTab] = useState('spreadsheet')
+  const [activeTab, setActiveTab] = useActiveTab('spreadsheet')
   const tableContainerRef = useRef(null)
   const [wpoPivotData, setWpoPivotData] = useState(null)
   const [wpoSessionProduct, setWpoSessionProduct] = useState('all')
