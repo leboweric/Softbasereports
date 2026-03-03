@@ -8405,7 +8405,7 @@ def register_department_routes(reports_bp):
             exclude_keywords = ['rental', 'equipment', 'parts', 'sale', 'allied',
                                 'new ', 'used ']
             
-            service_dept_numbers = []
+            service_dept_numbers = set()
             for row in dept_rows:
                 dept_no = row.get('Dept')
                 title = (row.get('Title') or '').strip().lower()
@@ -8416,7 +8416,8 @@ def register_department_routes(reports_bp):
                 # Exclude if it also matches an exclusion keyword
                 is_excluded = any(kw in title for kw in exclude_keywords)
                 if is_service and not is_excluded:
-                    service_dept_numbers.append(int(dept_no))
+                    service_dept_numbers.add(int(dept_no))
+            service_dept_numbers = sorted(service_dept_numbers)
             
             logger.info(f"Service invoice billing: resolved service depts {service_dept_numbers} for schema {schema}")
             
@@ -8554,7 +8555,7 @@ def register_department_routes(reports_bp):
             exclude_keywords = ['rental', 'equipment', 'parts', 'sale', 'allied',
                                 'new ', 'used ']
             
-            service_dept_numbers = []
+            service_dept_numbers = set()
             for row in dept_rows:
                 dept_no = row.get('Dept')
                 title = (row.get('Title') or '').strip().lower()
@@ -8563,7 +8564,8 @@ def register_department_routes(reports_bp):
                 is_service = any(kw in title for kw in service_keywords)
                 is_excluded = any(kw in title for kw in exclude_keywords)
                 if is_service and not is_excluded:
-                    service_dept_numbers.append(int(dept_no))
+                    service_dept_numbers.add(int(dept_no))
+            service_dept_numbers = sorted(service_dept_numbers)
             
             if not service_dept_numbers:
                 return jsonify([{'value': 'ALL', 'label': 'All Customers',
