@@ -23,8 +23,9 @@ def get_pms_due():
     try:
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
-        # Use cache with 1-hour TTL
-        cache_key = 'pm_report_pms_due'
+        # Use cache with 1-hour TTL - CRITICAL: cache key MUST include tenant schema to prevent cross-tenant data leaks
+        schema = get_tenant_schema()
+        cache_key = f'pm_report_pms_due_{schema}'
         
         def fetch_pms_due_data():
             return _fetch_pms_due_data()

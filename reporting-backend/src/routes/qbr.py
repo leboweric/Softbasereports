@@ -5,7 +5,7 @@ Provides endpoints for Quarterly Business Review dashboard and PowerPoint export
 
 from flask import Blueprint, jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from src.utils.tenant_utils import get_tenant_db
+from src.utils.tenant_utils import get_tenant_db, get_tenant_schema
 from src.services.postgres_service import get_postgres_db
 from src.services.qbr_service import QBRService
 from src.services.cache_service import cache_service
@@ -37,8 +37,9 @@ def get_qbr_customers():
     try:
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
-        # Use cache with 1-hour TTL
-        cache_key = 'qbr_customers'
+        # Use cache with 1-hour TTL - CRITICAL: include tenant schema to prevent cross-tenant data leaks
+        schema = get_tenant_schema()
+        cache_key = f'qbr_customers_{schema}'
         
         def fetch_customers():
             qbr_service = get_qbr_service()
@@ -69,8 +70,9 @@ def get_qbr_data(customer_name):
         quarter_param = request.args.get('quarter', 'Q4-2025')
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
-        # Use cache with 1-hour TTL
-        cache_key = f'qbr_data:{customer_name}:{quarter_param}'
+        # Use cache with 1-hour TTL - CRITICAL: include tenant schema to prevent cross-tenant data leaks
+        schema = get_tenant_schema()
+        cache_key = f'qbr_data:{schema}:{customer_name}:{quarter_param}'
         
         def fetch_qbr_data():
             return _fetch_qbr_data(customer_name, quarter_param)

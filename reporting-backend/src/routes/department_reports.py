@@ -3028,8 +3028,9 @@ def register_department_routes(reports_bp):
         # Check for force refresh parameter
         force_refresh = request.args.get('refresh', 'false').lower() == 'true'
         
-        # Use cache with 1-hour TTL (3600 seconds)
-        cache_key = 'rental_service_report'
+        # Use cache with 1-hour TTL (3600 seconds) - CRITICAL: include tenant schema to prevent cross-tenant data leaks
+        schema = get_tenant_schema()
+        cache_key = f'rental_service_report_{schema}'
         
         def fetch_rental_service_data():
             return _fetch_rental_service_report_data()
