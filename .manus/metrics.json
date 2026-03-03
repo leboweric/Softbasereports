@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "system_start_date": "2026-03-02",
+  "current_week": {
+    "week_start": "2026-03-02",
+    "week_end": "2026-03-08",
+    "tickets_processed": 0,
+    "bugs_fixed": 0,
+    "enhancements_implemented": 0,
+    "data_integrity_resolved": 0,
+    "report_changes_implemented": 0,
+    "new_reports_created": 0,
+    "tickets_reopened": 0,
+    "reopen_reasons": {
+      "reopen_fix_failed": 0,
+      "reopen_scope_creep": 0,
+      "reopen_deploy_failed": 0,
+      "reopen_tenant_specific": 0
+    },
+    "avg_resolution_time_hours": 0,
+    "first_time_fix_rate": 0,
+    "adjusted_fix_rate": 0,
+    "org_breakdown": {},
+    "component_bug_counts": {},
+    "tickets": []
+  },
+  "historical_weeks": [],
+  "all_time": {
+    "total_tickets_processed": 5,
+    "total_bugs_fixed": 5,
+    "total_enhancements_implemented": 0,
+    "total_data_integrity_resolved": 0,
+    "total_reopened": 0,
+    "avg_first_time_fix_rate": 100,
+    "note": "5 manual fixes seeded from pre-automation period (2026-03-02)"
+  }
+}

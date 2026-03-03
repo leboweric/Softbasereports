@@ -1,0 +1,86 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-03-02",
+  "fixes": [
+    {
+      "ticket_id": "MANUAL-001",
+      "type": "bug",
+      "component": "Invoiced Sales Report",
+      "organization": "all",
+      "issue_summary": "Invoiced Sales tab not appearing in Report Visibility admin page",
+      "root_cause": "The frontend ReportVisibility.jsx has its own hardcoded REPORT_REGISTRY separate from the backend. The 'invoiced-sales' tab was added to the backend REPORT_REGISTRY in report_visibility.py but was never added to the frontend's copy. The frontend renders visibility toggles from its local registry, not the backend's.",
+      "solution": "Added 'invoiced-sales': { label: 'Invoiced Sales' } to the frontend REPORT_REGISTRY in reporting-frontend/src/components/admin/ReportVisibility.jsx, positioned between 'sales' and 'sales-breakdown'.",
+      "files_modified": [
+        "reporting-frontend/src/components/admin/ReportVisibility.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — the Report Visibility admin page is universal",
+      "testing_passed": true,
+      "date_fixed": "2026-03-02",
+      "lessons_learned": "CRITICAL: There are THREE registries that must stay in sync when adding new tabs: (1) Backend NAVIGATION_CONFIG in rbac_config.py, (2) Backend REPORT_REGISTRY in report_visibility.py, (3) Frontend REPORT_REGISTRY in ReportVisibility.jsx. Missing any one of these causes the tab to be invisible in different contexts."
+    },
+    {
+      "ticket_id": "MANUAL-002",
+      "type": "bug",
+      "component": "NAVIGATION_CONFIG / rbac_config.py",
+      "organization": "all",
+      "issue_summary": "Invoiced Sales tab not appearing on the Sales Dashboard page even though Report Visibility toggle was enabled",
+      "root_cause": "The 'invoiced-sales' tab was missing from the NAVIGATION_CONFIG in rbac_config.py. The frontend Dashboard.jsx filters visible tabs using dashboardTabs from getAccessibleTabs(user, 'dashboard'), which reads from user.navigation.dashboard.tabs. Since the backend NAVIGATION_CONFIG didn't include 'invoiced-sales', it was never sent in the navigation response.",
+      "solution": "Added 'invoiced-sales': {'label': 'Invoiced Sales', 'resource': 'dashboard'} to the NAVIGATION_CONFIG dashboard tabs section in rbac_config.py.",
+      "files_modified": [
+        "reporting-backend/src/config/rbac_config.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — NAVIGATION_CONFIG is universal",
+      "testing_passed": true,
+      "date_fixed": "2026-03-02",
+      "lessons_learned": "The NAVIGATION_CONFIG controls which tabs appear in the user's navigation response. If a tab is in REPORT_REGISTRY but not NAVIGATION_CONFIG, it will appear in Report Visibility admin but not on the actual dashboard page."
+    },
+    {
+      "ticket_id": "MANUAL-003",
+      "type": "bug",
+      "component": "Sales Manager Role / RBAC",
+      "organization": "all",
+      "issue_summary": "Sales Manager role (Mike Cooper) seeing Accounting, Customers, QBR, My Commissions, Rep Comp Admin in sidebar instead of just Sales",
+      "root_cause": "The Sales Manager role in ROLE_PERMISSIONS had too many resources: ['dashboard', 'accounting_commissions', 'my_commissions', 'manage_rep_comp', 'minitrac', 'qbr', 'customer_churn']. Each resource grants access to a sidebar page.",
+      "solution": "Restricted Sales Manager resources to only ['dashboard'] so they only see the Sales page in the sidebar.",
+      "files_modified": [
+        "reporting-backend/src/config/rbac_config.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — RBAC roles are universal",
+      "testing_passed": true,
+      "date_fixed": "2026-03-02",
+      "lessons_learned": "ROLE_PERMISSIONS resources directly control sidebar navigation. Each resource maps to a NAVIGATION_CONFIG entry. To restrict a role to specific pages, only include the corresponding resources."
+    },
+    {
+      "ticket_id": "MANUAL-004",
+      "type": "bug",
+      "component": "Invoiced Sales Endpoints / department_reports.py",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Invoiced Sales showing $0.00 for IPS (Industrial Parts and Service) while Bennett showed correct data",
+      "root_cause": "The invoiced-summary and invoiced-details endpoints had hardcoded SaleCode values ('LINDE', 'NEWEQ', 'USEDEQ', 'ALLIED', etc.) that were specific to Bennett's Softbase configuration. IPS uses completely different SaleCode values ('C1', 'I4', 'V1', 'IR', etc.). Additionally, the same Dept numbers mean different things across tenants: Dept 20 = 'Used Equipment' at Bennett but 'Allied' at IPS.",
+      "solution": "Rewrote both endpoints to dynamically query the Dept table first, then categorize departments by Title keywords: 'new' + 'equip' = New Equipment, 'used' + 'equip' = Used Equipment, 'allied' = Allied Equipment. This works for any tenant regardless of their SaleCode or Dept number configuration.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Fix is universal — works for all current and future tenants automatically",
+      "testing_passed": true,
+      "date_fixed": "2026-03-02",
+      "lessons_learned": "CRITICAL MULTI-TENANT RULE: NEVER hardcode SaleCodes or Dept numbers. Always use the Dept table for dynamic lookup by Title keywords. Different tenants use completely different codes and numbering systems. The Dept table's Title field is the only reliable way to categorize across tenants."
+    },
+    {
+      "ticket_id": "MANUAL-005",
+      "type": "bug",
+      "component": "Invoiced Sales Endpoints / department_reports.py",
+      "organization": "all",
+      "issue_summary": "Sales Manager getting 403 Forbidden on Invoiced Sales tab",
+      "root_cause": "The invoiced-summary and invoiced-details endpoints used @require_permission('view_commissions') decorator. The Sales Manager role only has the 'dashboard' resource which grants 'view_dashboard' permission, not 'view_commissions'. Since Invoiced Sales is a dashboard tab (not an accounting feature), it should use 'view_dashboard'.",
+      "solution": "Changed both endpoints from @require_permission('view_commissions') to @require_permission('view_dashboard').",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — permission decorators are universal",
+      "testing_passed": true,
+      "date_fixed": "2026-03-02",
+      "lessons_learned": "When adding new endpoints for a specific page/tab, the permission decorator must match the page's resource, not where the data conceptually belongs. Dashboard tabs use 'view_dashboard', not 'view_commissions' even if they show financial data."
+    }
+  ]
+}
