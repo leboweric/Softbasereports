@@ -126,7 +126,15 @@ class User(db.Model):
         return any(r.name == role_name for r in self._valid_roles())
     
     def has_permission(self, permission_name):
-        """Check if user has a specific permission through any of their roles"""
+        """Check if user has a specific permission through any of their roles.
+        
+        Checks both the DB role_permissions table AND the ROLE_PERMISSIONS config
+        in rbac_config.py. This ensures that roles whose permissions are defined
+        in the config (used for navigation) also pass API endpoint permission checks.
+        
+        Permission names follow the pattern 'view_<resource>' (e.g., 'view_dashboard').
+        The ROLE_PERMISSIONS config maps role names to resources and actions.
+        """
         valid_roles = self._valid_roles()
         # Super Admin has all permissions
         if any(r.name == 'Super Admin' for r in valid_roles):
@@ -136,10 +144,30 @@ class User(db.Model):
         if permission_name.startswith('view_') and any(r.name == 'Leadership' for r in valid_roles):
             return True  # Leadership can view everything
         
-        # Check specific permissions
+        # Check DB-based permissions (role_permissions table)
         for role in valid_roles:
             if role.has_permission(permission_name):
                 return True
+        
+        # Fallback: Check config-based permissions (ROLE_PERMISSIONS in rbac_config.py)
+        # This aligns API endpoint checks with the navigation system which uses the same config.
+        # Permission names follow the pattern '<action>_<resource>' (e.g., 'view_dashboard').
+        try:
+            from src.config.rbac_config import ROLE_PERMISSIONS
+            # Parse the permission name into action and resource
+            # e.g., 'view_dashboard' -> action='view', resource='dashboard'
+            parts = permission_name.split('_', 1)
+            if len(parts) == 2:
+                action, resource = parts[0], parts[1]
+                for role in valid_roles:
+                    role_config = ROLE_PERMISSIONS.get(role.name, {})
+                    role_resources = role_config.get('resources', [])
+                    role_actions = role_config.get('actions', [])
+                    if resource in role_resources and action in role_actions:
+                        return True
+        except ImportError:
+            pass
+        
         return False
     
     def has_any_permission(self, *permission_names):
