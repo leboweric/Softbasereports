@@ -8372,7 +8372,15 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/service/invoice-billing', methods=['GET'])
     @jwt_required()
     def get_service_invoice_billing():
-        """Get invoice billing report for Service department"""
+        """Get invoice billing report for Service department.
+        
+        Dynamically resolves service department numbers from the tenant's Dept
+        table and filters InvoiceReg by SaleDept so that only service invoices
+        (field service, shop service, PM, etc.) are returned.  This replaces
+        the previous approach that excluded only parts invoices (130%) and
+        included everything else — which incorrectly mixed in sales, rentals,
+        and parts invoices.
+        """
         try:
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
@@ -8380,9 +8388,58 @@ def register_department_routes(reports_bp):
             
             if not start_date or not end_date:
                 return jsonify({'error': 'Start date and end date are required'}), 400
-                
-            # Query - removed unreliable work order matching since there's no direct link
+            
+            db = get_db()
             schema = get_tenant_schema()
+            
+            # ── Dynamically resolve service department numbers ──────────
+            # Query the tenant's Dept table and identify service-related
+            # departments by matching Title keywords.  This is multi-tenant
+            # safe — never hardcode dept numbers.
+            dept_query = f"SELECT Dept, Title FROM {schema}.Dept ORDER BY Dept"
+            dept_rows = db.execute_query(dept_query)
+            
+            service_keywords = ['service', 'field', 'shop', 'pm', 'preventive',
+                                'maintenance', 'repair', 'warranty']
+            # Exclude keywords that would match non-service depts
+            exclude_keywords = ['rental', 'equipment', 'parts', 'sale', 'allied',
+                                'new ', 'used ']
+            
+            service_dept_numbers = []
+            for row in dept_rows:
+                dept_no = row.get('Dept')
+                title = (row.get('Title') or '').strip().lower()
+                if dept_no is None or not title:
+                    continue
+                # Check if the title matches any service keyword
+                is_service = any(kw in title for kw in service_keywords)
+                # Exclude if it also matches an exclusion keyword
+                is_excluded = any(kw in title for kw in exclude_keywords)
+                if is_service and not is_excluded:
+                    service_dept_numbers.append(int(dept_no))
+            
+            logger.info(f"Service invoice billing: resolved service depts {service_dept_numbers} for schema {schema}")
+            
+            if not service_dept_numbers:
+                # Fallback: if no service depts found, return empty result
+                # rather than returning ALL invoices (which was the old bug)
+                logger.warning(f"No service departments found for schema {schema}")
+                return jsonify({
+                    'invoices': [],
+                    'totals': {
+                        'parts_taxable': 0, 'parts_non_tax': 0,
+                        'labor_taxable': 0, 'labor_non_tax': 0,
+                        'misc_taxable': 0, 'freight': 0,
+                        'total_tax': 0, 'grand_total': 0,
+                        'invoice_count': 0
+                    },
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'service_departments': []
+                })
+            
+            # Build SaleDept filter using parameterized placeholders
+            dept_placeholders = ', '.join(['%s'] * len(service_dept_numbers))
 
             query = f"""
             SELECT 
@@ -8397,7 +8454,7 @@ def register_department_routes(reports_bp):
                 
                 -- Equipment info from Equipment table via SerialNo
                 COALESCE(e.UnitNo, '') as UnitNo,
-                CAST(i.InvoiceNo AS VARCHAR(20)) as AssociatedWONo,  -- Use InvoiceNo as WO#
+                CAST(i.InvoiceNo AS VARCHAR(20)) as AssociatedWONo,
                 COALESCE(e.Make, '') as Make,
                 COALESCE(e.Model, '') as Model,
                 COALESCE(i.SerialNo, e.SerialNo, '') as SerialNo,
@@ -8410,9 +8467,12 @@ def register_department_routes(reports_bp):
                 i.LaborTaxable,
                 i.LaborNonTax,
                 i.MiscTaxable,
-                COALESCE(i.MiscNonTax, 0) as Freight,  -- Using MiscNonTax as Freight proxy
+                COALESCE(i.MiscNonTax, 0) as Freight,
                 i.TotalTax,
                 i.GrandTotal,
+                
+                -- Department info
+                i.SaleDept,
                 
                 -- Comments
                 i.Comments
@@ -8423,27 +8483,21 @@ def register_department_routes(reports_bp):
             WHERE i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
               AND i.DeletionTime IS NULL
-              -- Exclude parts invoices (those starting with 130)
-              AND CAST(i.InvoiceNo AS VARCHAR(20)) NOT LIKE '130%'
-              -- Include all invoices with service-related revenue
-              AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
-                   OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
-                   OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
+              AND i.SaleDept IN ({dept_placeholders})
               AND i.GrandTotal > 0
             """
             
+            # Build params: start_date, end_date, then service dept numbers
+            params = [start_date, end_date] + service_dept_numbers
+            
             # Add customer filter if specified
-            params = [start_date, end_date]
             if customer_no and customer_no != 'ALL':
-                # Check both BillTo and BillToName fields for the customer
                 query += " AND (i.BillTo = %s OR i.BillToName = %s)"
                 params.append(customer_no)
                 params.append(customer_no)
                 
             query += " ORDER BY i.InvoiceDate, i.InvoiceNo"
             
-            db = get_db()
-            schema = get_tenant_schema()
             invoices = db.execute_query(query, params)
                 
             # Calculate totals
@@ -8463,7 +8517,8 @@ def register_department_routes(reports_bp):
                 'invoices': invoices,
                 'totals': totals,
                 'start_date': start_date,
-                'end_date': end_date
+                'end_date': end_date,
+                'service_departments': service_dept_numbers
             }
                 
             return jsonify(result)
@@ -8474,7 +8529,12 @@ def register_department_routes(reports_bp):
     @reports_bp.route('/departments/service/customers', methods=['GET'])
     @jwt_required()
     def get_service_customers():
-        """Get list of customers with service invoices in date range"""
+        """Get list of customers with service invoices in date range.
+        
+        Uses the same dynamic SaleDept filtering as the invoice billing
+        endpoint to ensure the customer dropdown only shows customers
+        who have actual service invoices.
+        """
         try:
             start_date = request.args.get('start_date')
             end_date = request.args.get('end_date')
@@ -8482,8 +8542,34 @@ def register_department_routes(reports_bp):
             if not start_date or not end_date:
                 return jsonify({'error': 'Start date and end date are required'}), 400
             
-            # Get customers with service invoices in the specified date range
+            db = get_db()
             schema = get_tenant_schema()
+            
+            # Dynamically resolve service department numbers (same logic as invoice-billing)
+            dept_query = f"SELECT Dept, Title FROM {schema}.Dept ORDER BY Dept"
+            dept_rows = db.execute_query(dept_query)
+            
+            service_keywords = ['service', 'field', 'shop', 'pm', 'preventive',
+                                'maintenance', 'repair', 'warranty']
+            exclude_keywords = ['rental', 'equipment', 'parts', 'sale', 'allied',
+                                'new ', 'used ']
+            
+            service_dept_numbers = []
+            for row in dept_rows:
+                dept_no = row.get('Dept')
+                title = (row.get('Title') or '').strip().lower()
+                if dept_no is None or not title:
+                    continue
+                is_service = any(kw in title for kw in service_keywords)
+                is_excluded = any(kw in title for kw in exclude_keywords)
+                if is_service and not is_excluded:
+                    service_dept_numbers.append(int(dept_no))
+            
+            if not service_dept_numbers:
+                return jsonify([{'value': 'ALL', 'label': 'All Customers',
+                                 'invoiceCount': 0, 'totalRevenue': 0}])
+            
+            dept_placeholders = ', '.join(['%s'] * len(service_dept_numbers))
 
             query = f"""
             SELECT 
@@ -8496,19 +8582,15 @@ def register_department_routes(reports_bp):
             WHERE i.DeletionTime IS NULL
               AND i.InvoiceDate >= %s
               AND i.InvoiceDate <= %s
-              -- Include all invoices with service-related revenue
-              AND (i.LaborTaxable > 0 OR i.LaborNonTax > 0 
-                   OR i.MiscTaxable > 0 OR i.MiscNonTax > 0
-                   OR i.PartsTaxable > 0 OR i.PartsNonTax > 0)
+              AND i.SaleDept IN ({dept_placeholders})
               AND i.GrandTotal > 0
             GROUP BY c.Number, c.Name
             HAVING COUNT(DISTINCT i.InvoiceNo) > 0
             ORDER BY c.Name
             """
             
-            db = get_db()
-            schema = get_tenant_schema()
-            customers = db.execute_query(query, [start_date, end_date])
+            params = [start_date, end_date] + service_dept_numbers
+            customers = db.execute_query(query, params)
             
             # Format the response
             customer_list = [
