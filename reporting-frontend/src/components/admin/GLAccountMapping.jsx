@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useActiveTab } from '../../hooks/useActiveTab';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +63,7 @@ export const GLAccountMapping = ({ user, organization }) => {
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useActiveTab('accounts');
+  const [activeTab, setActiveTab] = useState('accounts');
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');

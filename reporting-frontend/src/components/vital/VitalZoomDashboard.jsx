@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useActiveTab } from '../../hooks/useActiveTab'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -45,7 +44,7 @@ const VitalZoomDashboard = ({ user }) => {
   const [error, setError] = useState(null)
   const [dashboardData, setDashboardData] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
-  const [activeTab, setActiveTab] = useActiveTab('calls') // 'calls', 'meetings', 'queues'
+  const [activeTab, setActiveTab] = useState('calls') // 'calls', 'meetings', 'queues'
 
   const fetchDashboardData = async () => {
     setLoading(true)

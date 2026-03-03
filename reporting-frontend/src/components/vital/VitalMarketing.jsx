@@ -1,11 +1,10 @@
-import { useState } from 'react';
-import { useActiveTab } from '../../hooks/useActiveTab';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { TrendingUp, Users, Mail, MousePointer, Target, Calendar, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const VitalMarketing = ({ user }) => {
-  const [activeTab, setActiveTab] = useActiveTab('overview');
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Sample/placeholder data for demo
   const sampleMetrics = {

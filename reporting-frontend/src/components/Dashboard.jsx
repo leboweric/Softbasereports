@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useActiveTab } from '../hooks/useActiveTab'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import VitalExecutiveDashboard from './vital/VitalExecutiveDashboard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tooltip as UITooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
@@ -201,7 +200,7 @@ const Dashboard = ({ user }) => {
   ]
   const visibleTabs = allTabDefs.filter(t => showAllTabs || dashboardTabs[t.value])
   const defaultTab = visibleTabs.length > 0 ? visibleTabs[0].value : 'sales'
-  const [activeTab, setActiveTab] = useActiveTab(defaultTab)
+  const [activeTab, setActiveTab] = useState(defaultTab)
   // Customer search and filter
   const [customerSearchTerm, setCustomerSearchTerm] = useState('')
   const [customerRiskFilter, setCustomerRiskFilter] = useState('all') // 'all', 'at-risk', 'healthy'

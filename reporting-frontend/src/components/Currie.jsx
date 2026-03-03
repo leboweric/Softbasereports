@@ -1,5 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useActiveTab } from '../hooks/useActiveTab';
+import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, Download, Calendar, RefreshCw, Target, TrendingUp, TrendingDown, Wrench, Package, Truck, DollarSign, Users, Activity, BarChart3, Gauge, HelpCircle } from 'lucide-react';
 import axios from 'axios';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -396,7 +395,7 @@ const Currie = ({ user, organization }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useActiveTab('kpis'); // 'kpis', 'sales', 'expenses', 'balance'
+  const [activeTab, setActiveTab] = useState('kpis'); // 'kpis', 'sales', 'expenses', 'balance'
   const [absorptionRateData, setAbsorptionRateData] = useState([]);
   const [rawAbsorptionRateData, setRawAbsorptionRateData] = useState([]);
   const [includeCurrentMonthAbsorption, setIncludeCurrentMonthAbsorption] = useState(false);

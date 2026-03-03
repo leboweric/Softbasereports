@@ -17,27 +17,10 @@ const ALLOWED_DOC_TYPES = [
   'text/plain'
 ]
 
-export default function HelpWidget({ user, currentPage = '', className = '' }) {
+export default function HelpWidget({ user, className = '' }) {
   const [isOpen, setIsOpen] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const fileInputRef = useRef(null)
-  const [activeTab, setActiveTab] = useState('')
-
-  // Listen for active tab changes from report components
-  useEffect(() => {
-    const handleTabChange = (event) => {
-      if (event.detail) {
-        setActiveTab(event.detail)
-      }
-    }
-    window.addEventListener('activeTabChange', handleTabChange)
-    return () => window.removeEventListener('activeTabChange', handleTabChange)
-  }, [])
-
-  // Reset activeTab when page changes
-  useEffect(() => {
-    setActiveTab('')
-  }, [currentPage])
 
   // Mode: 'new', 'my-tickets', or 'followup'
   const [mode, setMode] = useState('new')
@@ -351,14 +334,7 @@ export default function HelpWidget({ user, currentPage = '', className = '' }) {
         formData.append('type', type)
         formData.append('subject', subject)
         formData.append('message', message)
-        // Build enriched page_url with current page and active tab context
-        const contextParts = []
-        if (currentPage) contextParts.push(`page=${currentPage}`)
-        if (activeTab) contextParts.push(`tab=${activeTab}`)
-        const enrichedUrl = contextParts.length > 0
-          ? `${window.location.href.split('#')[0]}#${contextParts.join('&')}`
-          : window.location.href
-        formData.append('page_url', enrichedUrl)
+        formData.append('page_url', window.location.href)
 
         if (user) {
           formData.append('user', JSON.stringify({
