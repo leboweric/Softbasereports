@@ -79,10 +79,9 @@ ROLE_PERMISSIONS = {
     },
     'Sales Manager': {
         'resources': [
-            'dashboard', 'accounting_commissions', 'my_commissions',
-            'manage_rep_comp', 'minitrac', 'qbr', 'customer_churn'
+            'dashboard'
         ],
-        'actions': ['view', 'create', 'edit', 'export'],
+        'actions': ['view', 'export'],
     },
     'Leadership': {
         'resources': [
