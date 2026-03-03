@@ -105,22 +105,49 @@
       "type": "bug",
       "component": "Service Invoice Billing / department_reports.py",
       "organization": "IPS (ind004)",
-      "issue_summary": "Service Invoice Billing Report showing invoices from all departments (sales, rentals, parts) instead of only service invoices",
-      "root_cause": "The endpoint had no SaleDept filter. It only excluded parts invoices (130%) and included everything else with any revenue amount > 0. This caused sales, rental, and parts invoices to appear in the service report. The service customers dropdown had the same issue.",
-      "solution": "Added dynamic service department resolution: query the tenant's Dept table, match Title keywords (service, field, shop, pm, preventive, maintenance, repair, warranty) while excluding non-service keywords (rental, equipment, parts, sale, allied, new, used). Filter InvoiceReg by SaleDept IN (resolved service dept numbers). Applied to both invoice-billing and customers endpoints. Uses set() to deduplicate dept numbers from multi-branch Dept tables.",
+      "issue_summary": "Service Invoice Billing Report showing invoices from all departments (sales, rentals, parts) instead of only service invoices. Reopened: user also requested exclusion of intercompany bill-to customers IPS140, IPS145, IPC140, IPC145.",
+      "root_cause": "Original: No SaleDept filter — only excluded parts invoices (130%) and included everything else. Reopen: Intercompany billing customers (IPS140, IPS145, IPC140, IPC145) were appearing in the report.",
+      "solution": "Original fix: Added dynamic service department resolution via Dept table keyword matching. Reopen fix: Added excluded_bill_to_customers filter from organization settings JSON. IPS org configured with excluded_bill_to_customers: ['IPS140', 'IPS145', 'IPC140', 'IPC145']. The filter adds AND i.BillTo NOT IN (...) to the SQL query when org settings contain the list.",
       "files_modified": [
-        "reporting-backend/src/routes/department_reports.py",
-        "reporting-backend/src/utils/tenant_utils.py",
-        "reporting-backend/src/routes/support_tickets.py"
+        "reporting-backend/src/routes/department_reports.py"
       ],
-      "multi_tenant_impact": "Fix is universal — dynamically resolves service depts per tenant. IPS gets [40,45,47], Bennett gets [40,45,47,50,75]. No hardcoded dept numbers.",
-      "additional_fixes": [
-        "Added ?org_id= query parameter override in tenant_utils.py for multi-org Super Admins to test any tenant's data",
-        "Fixed support_tickets.py to allow multi-org Super Admins to see tickets from all organizations"
-      ],
+      "multi_tenant_impact": "Fix is configurable per-org via settings JSON. No impact on orgs without excluded_bill_to_customers configured.",
       "testing_passed": true,
       "date_fixed": "2026-03-03",
-      "lessons_learned": "MULTI-TENANT RULE: When filtering by department, ALWAYS use dynamic Dept table lookup by Title keywords. The Dept table may have multiple rows per dept number (one per branch) — use set() to deduplicate. For service departments, match keywords: service, field, shop, pm, preventive, maintenance, repair, warranty. Exclude: rental, equipment, parts, sale, allied, new, used. Also: the support bot needs cross-org access — tenant_utils.py now supports ?org_id= override for multi-org Super Admins."
+      "lessons_learned": "Use organization settings JSON for per-org filtering configurations (excluded_branches, excluded_bill_to_customers). This pattern allows admin-configurable exclusions without code changes. Always use parameterized SQL (NOT IN with %s placeholders) to prevent injection."
+    },
+    {
+      "ticket_id": "TKT-2026-0008",
+      "type": "bug",
+      "component": "RBAC / User Permission Resolution",
+      "organization": "all",
+      "issue_summary": "Sales Manager (Mike Cooper at IPS) getting HTTP 403 Forbidden when accessing Invoiced Sales report",
+      "root_cause": "Dual permission system mismatch: The navigation system uses ROLE_PERMISSIONS config from rbac_config.py (which correctly grants Sales Manager access to 'dashboard' resource), but the API endpoint's @require_permission decorator checks the database role_permissions table via user.has_permission(). Many roles (including Sales Manager at IPS, role ID 32) had ZERO entries in the role_permissions table, causing all permission checks to fail even though navigation showed the tabs.",
+      "solution": "Updated User.has_permission() and User.has_any_permission() in user.py to also check the ROLE_PERMISSIONS config from rbac_config.py as a fallback when database permissions are empty. The method now: (1) checks DB role_permissions first, (2) if not found, looks up the user's role name in ROLE_PERMISSIONS config, (3) resolves resources to permissions via RESOURCE_PERMISSIONS mapping. This aligns the permission check with the navigation system.",
+      "files_modified": [
+        "reporting-backend/src/models/user.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — fixes permission resolution for any role with empty DB permissions. Especially important for newly created org roles that don't get DB permissions populated.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "CRITICAL RBAC INSIGHT: There are TWO permission systems that must agree: (1) ROLE_PERMISSIONS config in rbac_config.py (used for navigation/sidebar), (2) role_permissions DB table (used by @require_permission decorator). When roles are created for new orgs, the DB permissions may not get populated. The fix is to have has_permission() fall back to the config-based system. Always verify both systems when debugging 403 errors."
+    },
+    {
+      "ticket_id": "TKT-2026-0009",
+      "type": "feature",
+      "component": "Invoiced Sales Report / Frontend + Backend",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Two requests: (1) Add date range picker to Invoiced Sales report, (2) Remove CH Steel Solutions and Dynamic Storage Solutions branches from IPS report",
+      "root_cause": "Feature request — the report only supported month-level selection. IPS also has branches (CH Steel, Dynamic Storage) that should not appear in their Invoiced Sales report.",
+      "solution": "(1) Added Month/Custom Range toggle to frontend InvoicedSalesReport.jsx. Month mode uses month+year dropdowns. Custom Range mode shows two calendar date pickers (start/end). Backend invoiced-summary and invoiced-details endpoints now accept optional start_date/end_date query params. (2) Added excluded_branches filter from org settings JSON. IPS org configured with excluded_branches: ['3', '4']. Backend skips excluded branches when building the report.",
+      "files_modified": [
+        "reporting-frontend/src/components/InvoicedSalesReport.jsx",
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Date range feature available to all orgs. Branch exclusion is per-org via settings JSON.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "When adding date range support to existing month-based reports: (1) Make start_date/end_date optional — if not provided, fall back to current month behavior. (2) Use the existing Calendar/Popover pattern from other components (e.g., APAgingReport). (3) Per-org branch exclusion should use the organization settings JSON pattern (excluded_branches array) rather than hardcoding."
     }
   ]
 }

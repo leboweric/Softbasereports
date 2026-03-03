@@ -4,11 +4,11 @@
   "current_week": {
     "week_start": "2026-03-02",
     "week_end": "2026-03-08",
-    "tickets_processed": 1,
-    "bugs_fixed": 1,
-    "enhancements_implemented": 0,
+    "tickets_processed": 4,
+    "bugs_fixed": 3,
+    "enhancements_implemented": 1,
     "data_integrity_resolved": 0,
-    "report_changes_implemented": 0,
+    "report_changes_implemented": 1,
     "new_reports_created": 0,
     "tickets_reopened": 0,
     "reopen_reasons": {
@@ -17,14 +17,17 @@
       "reopen_deploy_failed": 0,
       "reopen_tenant_specific": 0
     },
-    "avg_resolution_time_hours": 1.5,
+    "avg_resolution_time_hours": 1.2,
     "first_time_fix_rate": 100,
     "adjusted_fix_rate": 100,
     "org_breakdown": {
-      "IPS": 1
+      "IPS": 4
     },
     "component_bug_counts": {
-      "department_reports.py (service invoice billing)": 1
+      "department_reports.py (service invoice billing)": 2,
+      "user.py (RBAC permission resolution)": 1,
+      "department_reports.py (invoiced sales)": 1,
+      "InvoicedSalesReport.jsx (date picker + branch exclusion)": 1
     },
     "tickets": [
       {
@@ -35,18 +38,49 @@
         "status": "resolved",
         "resolution_time_hours": 1.5,
         "first_time_fix": true,
+        "reopened": true,
+        "reopen_reason": "User requested additional bill-to customer exclusions"
+      },
+      {
+        "ticket_id": "TKT-2026-0008",
+        "type": "bug",
+        "organization": "IPS",
+        "subject": "Error loading report: HTTP 403",
+        "status": "resolved",
+        "resolution_time_hours": 1.0,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-2026-0009",
+        "type": "feature",
+        "organization": "IPS",
+        "subject": "Invoiced Sales Report - Date Picker + Branch Exclusion",
+        "status": "resolved",
+        "resolution_time_hours": 1.5,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-2026-0006-reopen",
+        "type": "bug",
+        "organization": "IPS",
+        "subject": "Service Invoice Billing - Exclude intercompany bill-to customers",
+        "status": "resolved",
+        "resolution_time_hours": 0.75,
+        "first_time_fix": true,
         "reopened": false
       }
     ]
   },
   "historical_weeks": [],
   "all_time": {
-    "total_tickets_processed": 6,
-    "total_bugs_fixed": 6,
-    "total_enhancements_implemented": 0,
+    "total_tickets_processed": 9,
+    "total_bugs_fixed": 8,
+    "total_enhancements_implemented": 1,
     "total_data_integrity_resolved": 0,
-    "total_reopened": 0,
+    "total_reopened": 1,
     "avg_first_time_fix_rate": 100,
-    "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 1 automated fix (TKT-2026-0006)"
+    "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 4 automated fixes this run (TKT-2026-0006 reopen, TKT-2026-0008, TKT-2026-0009)"
   }
 }
