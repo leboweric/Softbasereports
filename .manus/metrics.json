@@ -4,8 +4,8 @@
   "current_week": {
     "week_start": "2026-03-02",
     "week_end": "2026-03-08",
-    "tickets_processed": 0,
-    "bugs_fixed": 0,
+    "tickets_processed": 1,
+    "bugs_fixed": 1,
     "enhancements_implemented": 0,
     "data_integrity_resolved": 0,
     "report_changes_implemented": 0,
@@ -17,21 +17,36 @@
       "reopen_deploy_failed": 0,
       "reopen_tenant_specific": 0
     },
-    "avg_resolution_time_hours": 0,
-    "first_time_fix_rate": 0,
-    "adjusted_fix_rate": 0,
-    "org_breakdown": {},
-    "component_bug_counts": {},
-    "tickets": []
+    "avg_resolution_time_hours": 1.5,
+    "first_time_fix_rate": 100,
+    "adjusted_fix_rate": 100,
+    "org_breakdown": {
+      "IPS": 1
+    },
+    "component_bug_counts": {
+      "department_reports.py (service invoice billing)": 1
+    },
+    "tickets": [
+      {
+        "ticket_id": "TKT-2026-0006",
+        "type": "bug",
+        "organization": "IPS",
+        "subject": "Service Invoice Billing Report",
+        "status": "resolved",
+        "resolution_time_hours": 1.5,
+        "first_time_fix": true,
+        "reopened": false
+      }
+    ]
   },
   "historical_weeks": [],
   "all_time": {
-    "total_tickets_processed": 5,
-    "total_bugs_fixed": 5,
+    "total_tickets_processed": 6,
+    "total_bugs_fixed": 6,
     "total_enhancements_implemented": 0,
     "total_data_integrity_resolved": 0,
     "total_reopened": 0,
     "avg_first_time_fix_rate": 100,
-    "note": "5 manual fixes seeded from pre-automation period (2026-03-02)"
+    "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 1 automated fix (TKT-2026-0006)"
   }
 }

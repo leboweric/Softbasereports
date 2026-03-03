@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-03-02",
+  "last_updated": "2026-03-03",
   "fixes": [
     {
       "ticket_id": "MANUAL-001",
@@ -99,6 +99,28 @@
       "testing_passed": true,
       "date_fixed": "2026-03-03",
       "lessons_learned": "CRITICAL MULTI-TENANT RULE: Every cache key for Azure SQL data MUST include the tenant schema (e.g., f'report_name_{schema}'). Use get_tenant_schema() to get the schema string. PostgreSQL/Vital routes are single-tenant and exempt. When adding ANY new cached endpoint that queries Azure SQL, ALWAYS include schema in the cache key. When auditing existing code, grep for 'cache_key' and verify every Azure SQL route includes tenant scoping."
+    },
+    {
+      "ticket_id": "TKT-2026-0006",
+      "type": "bug",
+      "component": "Service Invoice Billing / department_reports.py",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Service Invoice Billing Report showing invoices from all departments (sales, rentals, parts) instead of only service invoices",
+      "root_cause": "The endpoint had no SaleDept filter. It only excluded parts invoices (130%) and included everything else with any revenue amount > 0. This caused sales, rental, and parts invoices to appear in the service report. The service customers dropdown had the same issue.",
+      "solution": "Added dynamic service department resolution: query the tenant's Dept table, match Title keywords (service, field, shop, pm, preventive, maintenance, repair, warranty) while excluding non-service keywords (rental, equipment, parts, sale, allied, new, used). Filter InvoiceReg by SaleDept IN (resolved service dept numbers). Applied to both invoice-billing and customers endpoints. Uses set() to deduplicate dept numbers from multi-branch Dept tables.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-backend/src/utils/tenant_utils.py",
+        "reporting-backend/src/routes/support_tickets.py"
+      ],
+      "multi_tenant_impact": "Fix is universal — dynamically resolves service depts per tenant. IPS gets [40,45,47], Bennett gets [40,45,47,50,75]. No hardcoded dept numbers.",
+      "additional_fixes": [
+        "Added ?org_id= query parameter override in tenant_utils.py for multi-org Super Admins to test any tenant's data",
+        "Fixed support_tickets.py to allow multi-org Super Admins to see tickets from all organizations"
+      ],
+      "testing_passed": true,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "MULTI-TENANT RULE: When filtering by department, ALWAYS use dynamic Dept table lookup by Title keywords. The Dept table may have multiple rows per dept number (one per branch) — use set() to deduplicate. For service departments, match keywords: service, field, shop, pm, preventive, maintenance, repair, warranty. Exclude: rental, equipment, parts, sale, allied, new, used. Also: the support bot needs cross-org access — tenant_utils.py now supports ?org_id= override for multi-org Super Admins."
     }
   ]
 }
