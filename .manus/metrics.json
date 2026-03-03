@@ -4,11 +4,12 @@
   "current_week": {
     "week_start": "2026-03-02",
     "week_end": "2026-03-08",
-    "tickets_processed": 4,
-    "bugs_fixed": 3,
-    "enhancements_implemented": 1,
+    "tickets_processed": 12,
+    "bugs_fixed": 8,
+    "enhancements_implemented": 3,
+    "questions_answered": 2,
     "data_integrity_resolved": 0,
-    "report_changes_implemented": 1,
+    "report_changes_implemented": 3,
     "new_reports_created": 0,
     "tickets_reopened": 0,
     "reopen_reasons": {
@@ -17,17 +18,24 @@
       "reopen_deploy_failed": 0,
       "reopen_tenant_specific": 0
     },
-    "avg_resolution_time_hours": 1.2,
+    "avg_resolution_time_hours": 1.1,
     "first_time_fix_rate": 100,
     "adjusted_fix_rate": 100,
     "org_breakdown": {
-      "IPS": 4
+      "IPS": 4,
+      "Bennett": 5,
+      "All": 3
     },
     "component_bug_counts": {
       "department_reports.py (service invoice billing)": 2,
       "user.py (RBAC permission resolution)": 1,
       "department_reports.py (invoiced sales)": 1,
-      "InvoicedSalesReport.jsx (date picker + branch exclusion)": 1
+      "InvoicedSalesReport.jsx (date picker + branch exclusion)": 1,
+      "report_visibility.py (REPORT_REGISTRY sync)": 1,
+      "service_shop_work_orders.py (hardcoded labor rate)": 1,
+      "department_reports.py (Equipment JOIN dedup)": 1,
+      "HelpWidget.jsx (post-creation UX)": 1,
+      "SupportTicketsPage.jsx (auto-refresh)": 1
     },
     "tickets": [
       {
@@ -70,17 +78,98 @@
         "resolution_time_hours": 0.75,
         "first_time_fix": true,
         "reopened": false
+      },
+      {
+        "ticket_id": "TKT-21",
+        "type": "bug",
+        "organization": "Bennett",
+        "subject": "Cash Burn - Hardcoded labor rate + missing tooltips",
+        "status": "resolved",
+        "resolution_time_hours": 1.0,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-22",
+        "type": "bug",
+        "organization": "All",
+        "subject": "Help Modal - Tickets not visible after creation",
+        "status": "resolved",
+        "resolution_time_hours": 0.5,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-23",
+        "type": "question",
+        "organization": "Bennett",
+        "subject": "Where do Quoted Hours come from?",
+        "status": "resolved",
+        "resolution_time_hours": 0.25,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-25",
+        "type": "bug",
+        "organization": "Bennett",
+        "subject": "Cash Stalled - Duplicate work orders",
+        "status": "resolved",
+        "resolution_time_hours": 1.0,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-26",
+        "type": "bug",
+        "organization": "All",
+        "subject": "Report Visibility not persisting for many tabs",
+        "status": "resolved",
+        "resolution_time_hours": 1.5,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-27",
+        "type": "bug",
+        "organization": "All",
+        "subject": "Support Tickets page requires manual refresh",
+        "status": "resolved",
+        "resolution_time_hours": 0.25,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-28",
+        "type": "feature",
+        "organization": "All",
+        "subject": "Customer Profitability - Service-only filter + Customers page tab",
+        "status": "resolved",
+        "resolution_time_hours": 1.5,
+        "first_time_fix": true,
+        "reopened": false
+      },
+      {
+        "ticket_id": "TKT-29",
+        "type": "question",
+        "organization": "Bennett",
+        "subject": "Where does Series field come from in Cost per Hour?",
+        "status": "resolved",
+        "resolution_time_hours": 0.25,
+        "first_time_fix": true,
+        "reopened": false
       }
     ]
   },
   "historical_weeks": [],
   "all_time": {
-    "total_tickets_processed": 9,
-    "total_bugs_fixed": 8,
-    "total_enhancements_implemented": 1,
+    "total_tickets_processed": 17,
+    "total_bugs_fixed": 13,
+    "total_enhancements_implemented": 3,
+    "total_questions_answered": 2,
     "total_data_integrity_resolved": 0,
     "total_reopened": 1,
     "avg_first_time_fix_rate": 100,
-    "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 4 automated fixes this run (TKT-2026-0006 reopen, TKT-2026-0008, TKT-2026-0009)"
+    "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 4 automated fixes first run, 8 automated fixes second run (2026-03-03 3PM CST)"
   }
 }

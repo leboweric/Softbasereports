@@ -148,6 +148,136 @@
       "testing_passed": true,
       "date_fixed": "2026-03-03",
       "lessons_learned": "When adding date range support to existing month-based reports: (1) Make start_date/end_date optional — if not provided, fall back to current month behavior. (2) Use the existing Calendar/Popover pattern from other components (e.g., APAgingReport). (3) Per-org branch exclusion should use the organization settings JSON pattern (excluded_branches array) rather than hardcoding."
+    },
+    {
+      "ticket_id": "TKT-21",
+      "type": "bug",
+      "component": "Cash Burn / service_shop_work_orders.py + ServiceReport.jsx",
+      "organization": "all",
+      "issue_summary": "Cash Burn report using hardcoded $189/hr labor rate instead of actual WO labor rates. Also requested helper tooltips explaining where numbers come from.",
+      "root_cause": "The backend service_shop_work_orders.py had LABOR_RATE = 189 hardcoded and used it for all unbillable labor value calculations. Different work orders have different labor rates assigned via WO.LaborRate -> LaborRate.Rate.",
+      "solution": "(1) Replaced hardcoded LABOR_RATE with per-WO actual rate from LaborRate table (LEFT JOIN LaborRate lr ON wo.LaborRate = lr.Code). Each WO's excess hours are now multiplied by its own rate. Summary unbillable_labor_value is the sum of all individual WO unbillable values. (2) Added Info icon tooltips to all 4 Cash Burn summary cards (Total Cash Burn WOs, Critical Alerts, Warnings, Hours at Risk) explaining data sources, formulas, and SQL tables used.",
+      "files_modified": [
+        "reporting-backend/src/routes/service_shop_work_orders.py",
+        "reporting-frontend/src/components/departments/ServiceReport.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — labor rates are now per-WO for all tenants",
+      "testing_passed": false,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "Never hardcode labor rates. Different WO types and customers may have different rate codes. Always join to the LaborRate table via WO.LaborRate = LaborRate.Code to get the actual rate."
+    },
+    {
+      "ticket_id": "TKT-22",
+      "type": "bug",
+      "component": "HelpWidget.jsx / Support Ticket Creation UX",
+      "organization": "all",
+      "issue_summary": "After creating a support ticket via the Help Modal, the user cannot see their newly created ticket. The modal closes after showing success message.",
+      "root_cause": "After successful ticket creation, the HelpWidget showed a success message for 3 seconds and then closed the entire modal (setIsOpen(false)). The user never got to see their ticket in the 'My Tickets' list because the modal was dismissed.",
+      "solution": "Changed the post-creation flow: after the 2-second success message, instead of closing the modal, the widget now automatically switches to the 'My Tickets' view (setActiveView('my-tickets')) and refreshes the ticket list (fetchMyTickets()). This way the user immediately sees their new ticket.",
+      "files_modified": [
+        "reporting-frontend/src/components/HelpWidget.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — HelpWidget is universal",
+      "testing_passed": false,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "After creating an entity, always show the user the result rather than dismissing the UI. Switch to the list view and refresh data so the user can confirm their action was successful."
+    },
+    {
+      "ticket_id": "TKT-23",
+      "type": "question",
+      "component": "Cash Burn / service_shop_work_orders.py",
+      "organization": "Bennett (ben002)",
+      "issue_summary": "Where do the Quoted Hours come from in the Cash Burn report?",
+      "root_cause": "Information request — not a bug.",
+      "solution": "Answered via ticket comment: Quoted Hours = WOQuote.Amount (Type='L') / (LaborRate.Rate × (1 - LaborDiscount/100)). The WOQuote table stores dollar amounts, converted to hours using the WO's labor rate. Fallback is $189/hr if no rate found.",
+      "files_modified": [],
+      "multi_tenant_impact": "N/A — information only",
+      "testing_passed": true,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "Quoted Hours derivation: WOQuote.Amount(Type=L) / effective_rate. The WOQuote table stores labor quotes as dollar amounts, not hours. The conversion to hours depends on the WO's assigned labor rate."
+    },
+    {
+      "ticket_id": "TKT-25",
+      "type": "bug",
+      "component": "Cash Stalled / department_reports.py",
+      "organization": "Bennett (ben002)",
+      "issue_summary": "Work orders appearing multiple times in the Cash Stalled (Awaiting Invoice) report",
+      "root_cause": "The Equipment table can have multiple entries for the same UnitNo (e.g., Unit 386 had both a Lamarche charger and a Linde forklift). The LEFT JOIN Equipment e ON w.UnitNo = e.UnitNo created duplicate rows — one for each Equipment record matching the UnitNo.",
+      "solution": "Replaced the direct Equipment JOIN with a deduplicated subquery using ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY UnitNo) as rn, then filtered to rn = 1. Applied this fix to both the Service awaiting invoice query and the Parts awaiting invoice query.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — Equipment table structure is universal",
+      "testing_passed": false,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "CRITICAL: The Equipment table can have multiple rows per UnitNo (e.g., a forklift and its charger). Any query that JOINs Equipment on UnitNo MUST use ROW_NUMBER() deduplication or a subquery to avoid row multiplication. Always check for 1:N relationships when joining dimension tables."
+    },
+    {
+      "ticket_id": "TKT-26",
+      "type": "bug",
+      "component": "Report Visibility / report_visibility.py + rbac_config.py",
+      "organization": "all",
+      "issue_summary": "Report Visibility settings not persisting for Service > All Work Orders tab (and many other tabs across sections)",
+      "root_cause": "The backend REPORT_REGISTRY in report_visibility.py was severely out of sync with the NAVIGATION_CONFIG in rbac_config.py and the frontend. Service section had only 2 tabs registered (overview, work-orders) but the actual navigation had 12 tabs. When the frontend sent a toggle for 'all-work-orders', the backend silently ignored it because it wasn't in the registry. Same issue existed for Rental (had 0 of 4 tabs), Accounting (had 0 of 7 tabs), Knowledge Base (had 0 of 4 tabs), QBR (had 0 of 5 tabs), and Customers (had 0 of 3 tabs).",
+      "solution": "Synced the backend REPORT_REGISTRY with NAVIGATION_CONFIG for all affected sections: Service (12 tabs), Rental (4 tabs), Accounting (7 tabs), Knowledge Base (4 tabs), QBR (5 tabs), Customers (3 tabs including new customer-profitability).",
+      "files_modified": [
+        "reporting-backend/src/routes/report_visibility.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — REPORT_REGISTRY is universal",
+      "testing_passed": false,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "CRITICAL: When adding new tabs to NAVIGATION_CONFIG, ALWAYS also add them to the REPORT_REGISTRY in report_visibility.py. The REPORT_REGISTRY controls which tabs can be toggled in Report Visibility admin. If a tab is missing from the registry, visibility changes for that tab are silently dropped. Periodic sync audits between NAVIGATION_CONFIG and REPORT_REGISTRY should be performed."
+    },
+    {
+      "ticket_id": "TKT-27",
+      "type": "bug",
+      "component": "SupportTicketsPage.jsx / Admin Ticket View",
+      "organization": "all",
+      "issue_summary": "Admin Support Tickets page requires manual refresh to see newly submitted tickets",
+      "root_cause": "The SupportTicketsPage only fetched tickets on initial mount (useEffect with empty dependency array). No auto-refresh mechanism existed.",
+      "solution": "Added a 15-second auto-refresh interval using setInterval in the useEffect hook. The interval calls loadData() every 15 seconds and is properly cleaned up on component unmount.",
+      "files_modified": [
+        "reporting-frontend/src/components/SupportTicketsPage.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — SupportTicketsPage is universal",
+      "testing_passed": false,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "Admin-facing pages that display user-submitted content should have auto-refresh intervals. 15 seconds is a good balance between responsiveness and API load. Always clean up intervals in useEffect return function."
+    },
+    {
+      "ticket_id": "TKT-28",
+      "type": "feature",
+      "component": "Customer Profitability / department_reports.py + CustomerProfitability.jsx + CustomersPage.jsx",
+      "organization": "all",
+      "issue_summary": "Enhancement: Move Customer Profitability to Customers page (all sales codes) and make Service page version show only service sales codes",
+      "root_cause": "Feature request — Customer Profitability on the Service page was showing all sales codes, but the Service Manager only needs to see service-related profitability.",
+      "solution": "(1) Added 'department' query parameter to the customer-profitability backend endpoint. When department='service', filters InvoiceReg by SaleCode IN ('SVE', 'SVC', 'SH', 'PM') and WO by Type IN ('S', 'SH', 'PM'). When department='parts', filters by parts codes. Default 'all' shows everything. (2) Updated CustomerProfitability.jsx to accept a 'department' prop. (3) Service page now passes department='service'. (4) Added Customer Profitability tab to CustomersPage.jsx with department='all'. (5) Updated NAVIGATION_CONFIG and REPORT_REGISTRY with the new customer-profitability tab under customer-churn section.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-backend/src/config/rbac_config.py",
+        "reporting-backend/src/routes/report_visibility.py",
+        "reporting-frontend/src/components/CustomerProfitability.jsx",
+        "reporting-frontend/src/components/CustomersPage.jsx",
+        "reporting-frontend/src/components/departments/ServiceReport.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — new tab and filter available universally",
+      "testing_passed": false,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "When a report needs to appear in multiple contexts with different filters, add a filter parameter to the backend and a prop to the frontend component. Don't duplicate the component — reuse it with different props. Always update all three registries (NAVIGATION_CONFIG, REPORT_REGISTRY backend, REPORT_REGISTRY frontend) when adding new tabs."
+    },
+    {
+      "ticket_id": "TKT-29",
+      "type": "question",
+      "component": "Cost per Hour / department_reports.py",
+      "organization": "Bennett (ben002)",
+      "issue_summary": "Where does the Series field come from in the Cost per Hour report?",
+      "root_cause": "Information request — not a bug.",
+      "solution": "Answered via ticket comment: Series comes from Equipment table. Primary source: Equipment.ModelGroup. Fallback derivation from Equipment.Model: (1) Before first hyphen, (2) Before first space, (3) First 4 chars if >4, (4) Full Model value. Equipment joined via InvoiceReg.SerialNo = Equipment.SerialNo.",
+      "files_modified": [],
+      "multi_tenant_impact": "N/A — information only",
+      "testing_passed": true,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "Series field derivation: Equipment.ModelGroup (primary) -> Equipment.Model parsing (fallback). The Model parsing logic extracts a prefix using hyphens, spaces, or character count as delimiters."
     }
   ]
 }
