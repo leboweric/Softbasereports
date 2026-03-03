@@ -613,6 +613,25 @@ When adding a new tab to any page, ALL THREE must be updated:
 - `@require_permission('view_commissions')` — for Accounting/Commission endpoints
 - `@require_role('Super Admin')` — for admin-only endpoints
 
+### Database Connection Strings
+
+**Railway PostgreSQL (App Database — users, tickets, roles, visibility):**
+```
+Host: nozomi.proxy.rlwy.net
+Port: 45435
+Database: railway
+User: postgres
+Password: ZINQrdsRJEQeYMsLEPazJJbyztwWSMiY
+Connection String: postgresql://postgres:ZINQrdsRJEQeYMsLEPazJJbyztwWSMiY@nozomi.proxy.rlwy.net:45435/railway
+```
+
+**Azure SQL (Tenant ERP Data — accessed via `get_db()` in the backend):**
+- Credentials are stored per-org in the `organization` table (encrypted)
+- Bennett (`ben002`): `evo1-sql-replica.database.windows.net` / database `evo` / user `ben002user`
+- IPS (`ind004`): `evo1-sql-replica.database.windows.net` / database `evo` / user `ind004user`
+- The backend handles Azure SQL connections automatically via `get_db()` — you should NOT need to connect directly
+- If you need to run ad-hoc queries, use the Schema Explorer page at `https://aiop.one` (Super Admin only)
+
 ### Backend Architecture Quick Reference
 - **Flask blueprints** for route organization
 - **`get_db()`** returns `AzureSQLService` connected to the org's Azure SQL
