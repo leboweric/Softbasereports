@@ -45,12 +45,25 @@ def get_current_user_org_id():
 
 def generate_ticket_number():
     """Generate a unique ticket number in format TKT-YYYY-NNNN"""
+    from sqlalchemy import func, cast, Integer
     year = datetime.utcnow().year
     prefix = f'TKT-{year}-'
-    count = SupportTicket.query.filter(
+    
+    # Find the highest existing ticket number for this year
+    # Extract the numeric suffix and find the max
+    latest = db.session.query(
+        func.max(
+            cast(
+                func.replace(SupportTicket.ticket_number, prefix, ''),
+                Integer
+            )
+        )
+    ).filter(
         SupportTicket.ticket_number.like(f'{prefix}%')
-    ).count()
-    return f'{prefix}{str(count + 1).zfill(4)}'
+    ).scalar()
+    
+    next_num = (latest or 0) + 1
+    return f'{prefix}{str(next_num).zfill(4)}'
 
 
 def get_sendgrid_client():
