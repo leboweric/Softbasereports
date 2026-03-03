@@ -10232,6 +10232,37 @@ def register_department_routes(reports_bp):
                 'error': str(e)
             }), 500
 
+    @reports_bp.route('/departments/debug-invoice-check', methods=['GET'])
+    @jwt_required()
+    def debug_invoice_check():
+        """Temporary debug endpoint to check InvoiceReg data"""
+        try:
+            db = get_db()
+            schema = get_tenant_schema()
+            check_query = f"""
+            SELECT TOP 5 SaleCode, COUNT(*) as cnt, SUM(COALESCE(GrandTotal, 0)) as total
+            FROM {schema}.InvoiceReg
+            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
+            GROUP BY SaleCode
+            """
+            results = db.execute_query(check_query)
+            total_query = f"SELECT COUNT(*) as total FROM {schema}.InvoiceReg"
+            total = db.execute_query(total_query)
+            tables_query = f"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' ORDER BY TABLE_NAME"
+            tables = db.execute_query(tables_query)
+            return jsonify({
+                'schema': schema,
+                'fmbill_data': results,
+                'total_invoices': total,
+                'tables': [t.get('TABLE_NAME', t) for t in tables][:20],
+                'success': True
+            })
+        except Exception as e:
+            return jsonify({
+                'error': str(e),
+                'success': False
+            }), 500
+
     @reports_bp.route('/departments/customer-profitability', methods=['GET'])
     @jwt_required()
     def get_customer_profitability():
