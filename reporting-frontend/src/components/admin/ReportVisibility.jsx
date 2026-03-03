@@ -10,6 +10,7 @@ const REPORT_REGISTRY = {
     icon: '📊',
     tabs: {
       'sales': { label: 'Sales' },
+      'invoiced-sales': { label: 'Invoiced Sales' },
       'sales-breakdown': { label: 'Sales Breakdown' },
       'customers': { label: 'Customers' },
       'workorders': { label: 'Work Orders' },
