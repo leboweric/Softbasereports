@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from ..services.softbase_service import SoftbaseService
 from ..models.user import User, Organization
+from ..utils.tenant_utils import get_tenant_db
 import logging
 import os
 
@@ -102,21 +103,24 @@ def execute_query():
         if not query:
             return jsonify({'error': 'Query is required'}), 400
         
-        # Support org_id override for multi-org Super Admins
-        org_id_override = data.get('org_id') or request.args.get('org_id', type=int)
-        target_org = user.organization
-        if org_id_override:
-            org_id_override = int(org_id_override)
-            if org_id_override != user.organization_id:
-                super_admin_roles = [r for r in user.roles if r.name == 'Super Admin']
-                if len(super_admin_roles) > 1:
-                    override_org = Organization.query.get(org_id_override)
-                    if override_org:
-                        target_org = override_org
-                        logger.info(f"Database query: org override to {override_org.name} (id={org_id_override})")
+        # Support org_id override via get_tenant_db() which handles multi-tenant credentials
+        # If org_id is in JSON body, also set it as a query param for get_tenant_db()
+        org_id_from_body = data.get('org_id')
+        if org_id_from_body and not request.args.get('org_id'):
+            # Monkey-patch request.args to include org_id from body
+            from werkzeug.datastructures import ImmutableMultiDict
+            args = request.args.to_dict()
+            args['org_id'] = str(org_id_from_body)
+            request.args = ImmutableMultiDict(args)
         
-        service = SoftbaseService(target_org)
-        result = service.execute_custom_query(query)
+        db = get_tenant_db()
+        results = db.execute_query(query)
+        
+        result = {
+            'success': True,
+            'data': results,
+            'total_count': len(results)
+        }
         
         return jsonify(result), 200 if result['success'] else 400
         
