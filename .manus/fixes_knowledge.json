@@ -81,6 +81,24 @@
       "testing_passed": true,
       "date_fixed": "2026-03-02",
       "lessons_learned": "When adding new endpoints for a specific page/tab, the permission decorator must match the page's resource, not where the data conceptually belongs. Dashboard tabs use 'view_dashboard', not 'view_commissions' even if they show financial data."
+    },
+    {
+      "ticket_id": "MANUAL-006",
+      "type": "bug",
+      "component": "Cache Service / Multi-Tenant Data Isolation",
+      "organization": "all",
+      "issue_summary": "Cross-tenant data pollution: Bennett users seeing IPS (Ohio) data on PM Route Planner, QBR, and Rental Service Report pages",
+      "root_cause": "Cache keys for Azure SQL queries were flat strings without tenant identifiers (e.g., 'pm_report_pms_due', 'qbr_customers', 'rental_service_report'). When one org loaded a page first, the result was cached globally. When another org loaded the same page, the cache returned the first org's data instead of querying the correct tenant's database. The cache_service.cache_query() function stores results in a dict keyed by cache_key — if the key is the same for both orgs, they share data.",
+      "solution": "Added get_tenant_schema() to every Azure SQL cache key so each org gets its own cache entry. Example: 'pm_report_pms_due' became f'pm_report_pms_due_{schema}' where schema is 'ben002' or 'ind004'. Fixed in pm_report.py, department_reports.py (rental_service_report), and qbr.py (qbr_customers, qbr_data).",
+      "files_modified": [
+        "reporting-backend/src/routes/pm_report.py",
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-backend/src/routes/qbr.py"
+      ],
+      "multi_tenant_impact": "CRITICAL — This was an active cross-tenant data leak. Any cached Azure SQL endpoint without tenant-scoped keys will serve Org A's data to Org B.",
+      "testing_passed": true,
+      "date_fixed": "2026-03-03",
+      "lessons_learned": "CRITICAL MULTI-TENANT RULE: Every cache key for Azure SQL data MUST include the tenant schema (e.g., f'report_name_{schema}'). Use get_tenant_schema() to get the schema string. PostgreSQL/Vital routes are single-tenant and exempt. When adding ANY new cached endpoint that queries Azure SQL, ALWAYS include schema in the cache key. When auditing existing code, grep for 'cache_key' and verify every Azure SQL route includes tenant scoping."
     }
   ]
 }

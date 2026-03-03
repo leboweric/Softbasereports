@@ -84,6 +84,24 @@ document.querySelector('[data-active="true"]')?.textContent
 4. **NEVER hardcode schema names** — always use `get_tenant_schema()` which returns the org's schema.
 5. **ALWAYS test fixes against ALL tenants** — a fix for one org must not break another.
 6. **ALWAYS use dynamic lookups** — query lookup tables (`Dept`, `Branch`, `SaleCode`, `Customer`) instead of hardcoding values.
+7. **ALWAYS include tenant schema in cache keys** — every `cache_key` for Azure SQL data MUST include `get_tenant_schema()`. A flat cache key like `'pm_report'` will serve Org A's data to Org B. Use `f'pm_report_{schema}'` instead. PostgreSQL/Vital routes are single-tenant and exempt.
+
+### Cache Key Tenant Scoping (Mandatory for ALL Cached Azure SQL Endpoints)
+
+```python
+# WRONG — flat cache key causes cross-tenant data pollution
+cache_key = 'pm_report_pms_due'
+cache_key = 'rental_service_report'
+cache_key = f'qbr_data:{customer}:{quarter}'
+
+# RIGHT — tenant-scoped cache key isolates each org's data
+schema = get_tenant_schema()
+cache_key = f'pm_report_pms_due_{schema}'
+cache_key = f'rental_service_report_{schema}'
+cache_key = f'qbr_data:{schema}:{customer}:{quarter}'
+```
+
+**When to audit:** After adding or modifying ANY cached endpoint that queries Azure SQL, grep for `cache_key` and verify it includes `schema` or another tenant identifier.
 
 ### Dynamic Lookup Pattern (Mandatory for ALL New Queries)
 
@@ -1002,4 +1020,4 @@ Headers: Authorization: Bearer <token>
 ---
 
 **Last Updated**: March 2, 2026
-**Version**: 1.6 (Added per-ticket error log check during investigation workflow)
+**Version**: 1.7 (Added Golden Rule #7: cache key tenant scoping for Azure SQL endpoints)
