@@ -27,6 +27,7 @@ RESOURCES = {
     'minitrac': 'Minitrac equipment database',
     'knowledge_base': 'Technical troubleshooting knowledge base',
     'currie': 'Currie Financial Model quarterly reporting',
+    'currie_service': 'Currie Service Department KPI metrics and benchmarks',
     'financial': 'Financial reports including P&L and Currie',
     'database_explorer': 'Database query and exploration tool',
     'schema_explorer': 'Schema explorer for investigating database structure',
@@ -72,7 +73,7 @@ ROLE_PERMISSIONS = {
             'rental_availability', 'rental_overview',
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
-            'minitrac', 'currie', 'financial',
+            'minitrac', 'currie', 'currie_service', 'financial',
             'customer_churn', 'eds_dashboard'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
@@ -92,7 +93,7 @@ ROLE_PERMISSIONS = {
             'accounting_overview',
             'customer_churn',
             'financial',
-            'currie',
+            'currie', 'currie_service',
             'minitrac',
             'qbr',
         ],
@@ -115,7 +116,7 @@ ROLE_PERMISSIONS = {
     },
     'Service Manager': {
         'resources': [
-            'service_work_orders', 'service_overview', 'knowledge_base'
+            'service_work_orders', 'service_overview', 'knowledge_base', 'currie_service'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
     },
@@ -130,7 +131,7 @@ ROLE_PERMISSIONS = {
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
             'financial',
-            'currie',
+            'currie', 'currie_service',
             'minitrac'
         ],
         'actions': ['view', 'export'],
@@ -140,7 +141,7 @@ ROLE_PERMISSIONS = {
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory',
             'financial',
-            'currie',
+            'currie', 'currie_service',
             'minitrac'
         ],
         'actions': ['view', 'create', 'edit', 'export'],
@@ -184,7 +185,7 @@ ROLE_PERMISSIONS = {
     },
     'Finance Manager': {
         'resources': [
-            'financial', 'currie',
+            'financial', 'currie', 'currie_service',
             'accounting_overview', 'accounting_ar', 'accounting_ap',
             'accounting_commissions', 'accounting_control', 'accounting_inventory'
         ],
@@ -471,6 +472,13 @@ NAVIGATION_CONFIG = {
             'expenses': {'label': 'Expenses', 'resource': 'currie'},
             'balance': {'label': 'Balance Sheet', 'resource': 'currie'},
         }
+    },
+    'currie-service': {
+        'label': 'Currie (Service)',
+        'icon': 'Wrench',
+        'path': 'currie-service',
+        'required_resource': 'currie_service',
+        'order': 7.6,
     },
     'tenant-admin': {
         'label': 'Tenant Management',

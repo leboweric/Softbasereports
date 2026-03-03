@@ -4,10 +4,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
 import { apiUrl } from '@/lib/api'
-import { ChevronDown, ChevronRight, Download, Building2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, Building2, CalendarIcon } from 'lucide-react'
 import { MetricTooltip } from '@/components/ui/metric-tooltip'
 import { IPS_METRICS } from '@/config/ipsMetricDefinitions'
+import { cn } from '@/lib/utils'
 
 const MONTHS = [
   { value: 1, label: 'January' },
@@ -59,6 +62,7 @@ export default function SalesGPReport({ user }) {
   const [error, setError] = useState(null)
   const [expandedBranches, setExpandedBranches] = useState(new Set())
   const [expandedDepts, setExpandedDepts] = useState(new Set())
+  const [calendarOpen, setCalendarOpen] = useState(false)
 
   // Default to previous month
   const now = new Date()
@@ -68,10 +72,23 @@ export default function SalesGPReport({ user }) {
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth)
   const [selectedYear, setSelectedYear] = useState(defaultYear)
 
+  // Derive a Date object for the calendar from selectedMonth/selectedYear
+  const selectedDate = useMemo(() => {
+    return new Date(selectedYear, selectedMonth - 1, 15) // mid-month to avoid timezone issues
+  }, [selectedMonth, selectedYear])
+
   const yearOptions = useMemo(() => {
     const currentYear = new Date().getFullYear()
     return [currentYear, currentYear - 1, currentYear - 2]
   }, [])
+
+  const handleCalendarSelect = (date) => {
+    if (date) {
+      setSelectedMonth(date.getMonth() + 1)
+      setSelectedYear(date.getFullYear())
+      setCalendarOpen(false)
+    }
+  }
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -229,6 +246,36 @@ export default function SalesGPReport({ user }) {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Calendar Date Picker */}
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-[200px] justify-start text-left font-normal",
+                  !selectedDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleCalendarSelect}
+                defaultMonth={selectedDate}
+                disabled={(date) => date > new Date()}
+                initialFocus
+              />
+              <div className="border-t px-3 py-2 text-xs text-muted-foreground text-center">
+                Pick any date to load that month&apos;s report
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Quick Month Selector */}
           <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
             <SelectTrigger className="w-[130px]">
               <SelectValue />
