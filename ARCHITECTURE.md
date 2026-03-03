@@ -1094,3 +1094,207 @@ LEFT JOIN (
 8. ✅ **IMPLEMENTED: Dashboard as Standard**: Establish working implementations as the template for all similar features
 9. ✅ **IMPLEMENTED: Mathematical Accuracy Validation**: Always verify trendlines and calculations show correct directional trends
 10. ✅ **IMPLEMENTED: Incremental Testing**: Test each phase of complex implementations to identify issues early
+
+---
+
+## Multi-Tenant Critical Rules (Updated March 2026)
+
+> **The #1 cause of bugs in this codebase is hardcoding tenant-specific values.**
+
+### Tenant Overview
+
+| Tenant | Org Name | Schema | Azure SQL Server | DB User |
+|--------|----------|--------|-----------------|---------|
+| Bennett Material Handling | Bennett Material Handling | `ben002` | evo1-sql-replica.database.windows.net | ben002user |
+| Industrial Parts & Service (IPS) | Industrial Parts and Service | `ind004` | evo1-sql-replica.database.windows.net | ind004user |
+| VITAL Worklife | VITAL Worklife | N/A | vwlazuresql1.database.windows.net | (separate) |
+
+### What Differs Between Tenants
+
+| Data Element | Bennett (`ben002`) | IPS (`ind004`) | Rule |
+|-------------|-------------------|----------------|------|
+| **SaleCodes** | `LINDE`, `NEWEQ`, `USEDEQ`, `ALLIED` | `C1`, `I4`, `V1`, `IR` | Never hardcode — use `Dept` table |
+| **Dept Numbers** | 10=New, 20=Used, 70=Allied | 10=New, 20=Allied, 30=Used | Never hardcode — match by `Dept.Title` keywords |
+| **Branch Names** | `Main`, `Shop` | `Canton`, `Cleveland` | Never hardcode — use `Branch` table |
+| **Fiscal Year Start** | November (month 11) | May differ | Read `organization.fiscal_year_start_month` |
+| **SQL Permissions** | Full SELECT on all tables | May be missing some tables | Handle gracefully, log errors |
+
+### Dynamic Lookup Pattern (Mandatory)
+
+```python
+# WRONG — hardcoded SaleCodes
+WHERE SaleCode IN ('LINDE', 'NEWEQ', 'USEDEQ', 'ALLIED')
+
+# RIGHT — dynamic Dept-based categorization
+# Step 1: Query the Dept table
+dept_query = f"SELECT Dept, Title FROM {schema}.Dept"
+# Step 2: Categorize by Title keywords
+new_depts = [d['Dept'] for d in depts if 'new' in d['Title'].lower() and 'equip' in d['Title'].lower()]
+used_depts = [d['Dept'] for d in depts if 'used' in d['Title'].lower() and 'equip' in d['Title'].lower()]
+allied_depts = [d['Dept'] for d in depts if 'allied' in d['Title'].lower()]
+# Step 3: Use dynamic dept numbers in query
+WHERE SaleDept IN ({','.join(str(d) for d in new_depts)})
+```
+
+---
+
+## RBAC System Details (Updated March 2026)
+
+### Source of Truth: `rbac_config.py`
+
+The RBAC system is defined in `reporting-backend/src/config/rbac_config.py`. This file contains:
+
+1. **`ROLE_PERMISSIONS`** — Maps role names to resources and actions
+2. **`RESOURCES`** — Defines all available resources
+3. **`NAVIGATION_CONFIG`** — Maps page IDs to sidebar items with tab-level resource requirements
+
+### Key Roles and Their Resources
+
+| Role | Resources | Notes |
+|------|-----------|-------|
+| Super Admin | ALL | Full access to everything |
+| Owner | Most resources | View/create/edit/export |
+| Sales Manager | `dashboard` | Sales page only |
+| Parts Manager | `parts_inventory`, `parts_reports` | Parts pages |
+| Service Manager | `service_reports`, `service_dashboard` | Service pages |
+| Accounting User | `accounting_commissions`, `accounting_reports` | Accounting pages |
+| Sales Rep | `my_commissions` | My Commissions only |
+
+### Permission Resolution Flow
+
+1. User logs in → backend checks `user.roles` (M2M via `user_roles` table)
+2. Each role maps to resources via `ROLE_PERMISSIONS` in `rbac_config.py`
+3. `PermissionService.get_user_navigation()` builds the navigation object:
+   - Checks each `NAVIGATION_CONFIG` item's `required_resource` against user's resources
+   - Filters tabs by their individual `resource` requirements
+   - Applies org-level visibility overrides from `report_visibility` table
+4. Navigation is returned in the login response at the **top level** (not inside `user` object)
+5. Frontend `Layout.jsx` renders sidebar from `user.navigation`
+6. Frontend `Dashboard.jsx` filters tabs via `getAccessibleTabs(user, 'dashboard')`
+
+### Permission Decorators
+
+Endpoints use decorators from `utils/auth_decorators.py`:
+- `@require_permission('view_dashboard')` — checks `user.has_any_permission()` against the `Permission` model
+- `@require_role('Super Admin')` — checks role name directly
+- `@admin_required` — checks `user.is_admin` flag
+
+**Critical:** The permission name format is `{action}_{resource}`. So `view_dashboard` checks if the user has a role with the `dashboard` resource and the `view` action.
+
+### Three Registries That Must Stay In Sync
+
+1. **Backend `NAVIGATION_CONFIG`** in `rbac_config.py` — controls which tabs appear in navigation
+2. **Backend `REPORT_REGISTRY`** in `report_visibility.py` — controls the admin visibility toggles
+3. **Frontend `REPORT_REGISTRY`** in `ReportVisibility.jsx` — renders the admin visibility UI
+
+When adding a new tab, ALL THREE must be updated.
+
+---
+
+## Support Ticket System (Updated March 2026)
+
+### Existing Infrastructure (Fully Built)
+
+| Component | File | Status |
+|-----------|------|--------|
+| Frontend Widget | `HelpWidget.jsx` | ✅ Complete — floating widget on every page |
+| Admin Page | `SupportTicketsPage.jsx` | ✅ Complete — admin ticket management |
+| Backend API | `routes/support_tickets.py` (974 lines) | ✅ Complete — full CRUD |
+| Database Models | `models/support_ticket.py` | ✅ Complete — tickets, comments, attachments |
+| Email Notifications | SendGrid integration | ✅ Complete — submission, resolution, follow-up |
+
+### Ticket Schema
+
+```
+support_ticket:
+  id, ticket_number (auto: AIOP-YYYYMMDD-XXXX)
+  type: bug | enhancement | question
+  status: open | in_progress | resolved | closed
+  priority: low | medium | high | critical
+  subject, message, page_url
+  organization_id (FK → organization)
+  submitted_by (FK → user), submitted_by_name, submitted_by_email
+  reopened_count (default 0)
+  resolved_at, resolved_by, resolution_notes
+  closed_at, closed_by
+
+support_ticket_comment:
+  id, ticket_id (FK)
+  comment_type: user_comment | system_note | system_resolution | initial_submission
+  message, created_by_name, is_internal
+  
+support_ticket_attachment:
+  id, ticket_id (FK), comment_id (FK, nullable)
+  filename, mimetype, data (LargeBinary)
+```
+
+### Key API Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/api/support-tickets/submit` | Submit new ticket (with attachments) |
+| GET | `/api/support-tickets?status=open&type=bug` | List tickets (filterable by status, type, org) |
+| GET | `/api/support-tickets/<id>/with-comments` | Get ticket with full comment history |
+| POST | `/api/support-tickets/<id>/comments` | Add comment (`comment_type` field is critical) |
+| POST | `/api/support-tickets/<id>/resolve` | Resolve with fix_summary + testing_instructions |
+| POST | `/api/support-tickets/<id>/close` | Close ticket (user confirms) |
+| GET | `/api/support-tickets/my-tickets?email=X` | Get user's own tickets |
+
+### Comment Type Rules
+
+| Type | Effect | When to Use |
+|------|--------|-------------|
+| `user_comment` | **Auto-reopens** resolved tickets | Only for actual user replies |
+| `system_note` | Does NOT reopen tickets | Bot internal notes, progress updates |
+| `system_resolution` | Sets status to resolved | Resolution messages only |
+| `initial_submission` | Original ticket message | Auto-created on submission |
+
+> **CRITICAL for automated processor:** Always use `comment_type: "system_note"` for bot comments. Using `"user_comment"` will auto-reopen resolved tickets.
+
+### Email Flow
+
+1. **Ticket submitted** → Confirmation email to user + notification to eric@profitbuildernetwork.com
+2. **Resolution** → Resolution email with "Mark as Closed" and "Add Follow-up Comment" buttons
+3. **Follow-up** → User clicks email button → opens HelpWidget with follow-up form
+
+---
+
+## Automated Support Ticket Processor
+
+### Overview
+
+The automated processor runs on a schedule via Manus scheduled tasks:
+- **12 PM CT**: Process open **bug tickets** only
+- **6 PM CT**: Process open **bugs AND enhancements**
+
+### Architecture
+
+```
+.manus/
+├── scheduler-prompt.md      # Master script — the "brain" of the processor
+├── fixes_knowledge.json     # Knowledge base of past fixes (searchable)
+├── metrics.json             # Processing metrics and stats
+├── ENHANCEMENTS.md          # Enhancement backlog (optional)
+└── weekly-reports/          # Weekly summary reports
+```
+
+### Processing Flow
+
+1. Fetch open tickets via API (filtered by type based on time of day)
+2. For each ticket:
+   a. Read ticket details + attachments + comments
+   b. Check `reopened_count` and comment timestamps for context
+   c. Search knowledge base for similar past fixes
+   d. Clone/pull repo, research codebase
+   e. Implement fix, test locally
+   f. Push to GitHub (triggers auto-deploy)
+   g. Verify deployment
+   h. Resolve ticket via API with fix summary + testing instructions
+   i. Update knowledge base
+
+### Multi-Tenant Ticket Rules
+
+- Tickets are scoped by `organization_id` — one org's request must NEVER affect another org
+- When fixing a bug, verify the fix works for ALL tenants (not just the reporting org)
+- When implementing an enhancement, scope it to the requesting org unless explicitly universal
+- Always check if a report uses hardcoded values that would break for other tenants
