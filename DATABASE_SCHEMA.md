@@ -2,7 +2,7 @@
 
 **Database**: Azure SQL Server  
 **Schema**: ben002  
-**Last Updated**: 2024-11-01 - Added Multi-Tenant Architecture Schema
+**Last Updated**: 2026-03-02 - Comprehensive audit: added 25+ missing Azure SQL tables, 12+ PostgreSQL tables, undocumented columns, and Depreciation view
 
 ## CRITICAL ACCESS INFORMATION
 - **Azure SQL has IP firewall restrictions** - NO local access allowed
@@ -40,6 +40,7 @@
 | WebRentalFlag | bit | Available for web rental |
 | RentalYTD | decimal | Year-to-date rental revenue |
 | RentalITD | decimal | Inception-to-date rental revenue |
+| ControlNo | nvarchar | Control number |
 
 **Important Notes**:
 - NO Description field exists
@@ -158,6 +159,9 @@ AND (e.Customer = 0 OR e.Customer IS NULL)  -- Customer-owned filter
 | MiscCost | decimal | Cost of misc items |
 | RentalCost | decimal | Cost of rentals |
 | TotalTax | decimal | Total tax amount |
+| ControlNo | nvarchar | Control number (used for WO/Equipment cross-reference) |
+| SerialNo | nvarchar | Equipment serial number |
+| WONo | nvarchar | Work order number (sometimes same as InvoiceNo) |
 
 **Important Notes**:
 - Customer field is boolean, BillTo has actual customer number
@@ -181,9 +185,15 @@ AND (e.Customer = 0 OR e.Customer IS NULL)  -- Customer-owned filter
 | CompletedDate | datetime | Date completed |
 | ClosedDate | datetime | Date closed/invoiced |
 | Technician | nvarchar | Assigned technician |
+| ShipTo | nvarchar | Ship-to customer number (join to Customer.Number) |
 | RentalContractNo | int | Linked rental contract |
+| ControlNo | nvarchar | Control number |
 | DeletionTime | datetime | Soft delete timestamp |
 | IsDeleted | bit | Deletion flag |
+
+**Additional Columns Discovered**:
+- **ShipTo**: Ship-to customer number — different from BillTo. Used in rental reports to find the physical location of rented equipment. Join to Customer.Number.
+- **ControlNo**: Control number — used for cross-referencing with InvoiceReg.ControlNo
 
 **CRITICAL DISCOVERY (2025-10-17): Status and Location columns DO NOT EXIST!**
 - ❌ **Status column**: Does not exist despite documentation
@@ -468,10 +478,306 @@ AND EffectiveDate <= '2025-10-31'
 | Column | Type | Notes |
 |--------|------|-------|
 | RentalContractNo | int | Contract number |
+| CustomerNo | nvarchar | Customer number (join to Customer.Number) |
+| SerialNo | nvarchar | Equipment serial number |
 | StartDate | datetime | Contract start |
 | EndDate | datetime | Contract end |
 | DeliveryCharge | decimal | Delivery fee |
 | PickupCharge | decimal | Pickup fee |
+
+**Additional Notes**:
+- Join to Customer using CustomerNo = Customer.Number
+- Join to Equipment using SerialNo = Equipment.SerialNo
+
+---
+
+#### RentalContractEquipment
+**Purpose**: Links rental contracts to specific equipment items
+
+| Column | Type | Notes |
+|--------|------|-------|
+| RentalContractNo | int | Rental contract number (join to RentalContract) |
+| SerialNo | nvarchar | Equipment serial number |
+
+---
+
+### Reference / Lookup Tables
+
+#### GL (General Ledger Summary)
+**Purpose**: Monthly GL account balances (summary-level, different from GLDetail which has individual transactions)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| AccountNo | nvarchar | GL account number |
+| Year | int | Fiscal year |
+| Month | int | Fiscal month |
+| Amount | decimal | Monthly amount |
+| Balance | decimal | Account balance |
+
+**Important Notes**:
+- This is the **summary/balance** table — use for period-end balances
+- **GLDetail** has individual transactions — use for date-range queries
+- Join to ChartOfAccounts on AccountNo for account descriptions
+
+---
+
+#### ChartOfAccounts
+**Purpose**: GL account master — descriptions and categorization
+
+| Column | Type | Notes |
+|--------|------|-------|
+| AccountNo | nvarchar | GL account number (PK) |
+| Description | nvarchar | Account description/name |
+
+**Usage**: Join to GL or GLDetail on AccountNo to get human-readable account names
+
+---
+
+#### Branch
+**Purpose**: Branch/location definitions
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Number | int | Branch number (PK) |
+| Name | nvarchar | Branch name |
+
+**Important**: Branch names differ between tenants (Bennett: Main/Shop; IPS: Canton/Cleveland). Always use dynamic lookups.
+
+---
+
+#### Dept
+**Purpose**: Department definitions — **critical for multi-tenant dynamic lookups**
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Dept | int | Department number (PK) |
+| Title | nvarchar | Department title/description |
+| SaleGroup | int | Sale group reference |
+
+**CRITICAL**: Dept numbers mean different things at different tenants. Always match by `Title` keywords, never hardcode Dept numbers.
+
+---
+
+#### Salesman
+**Purpose**: Sales representative definitions
+
+| Column | Type | Notes |
+|--------|------|-------|
+| SalesGroup | int | Sales group (links to Dept.SaleGroup) |
+
+---
+
+#### Vendor
+**Purpose**: Vendor/supplier master records
+
+| Column | Type | Notes |
+|--------|------|-------|
+| VendorNo | nvarchar | Vendor number (PK, join from APDetail.VendorNo) |
+| Name | nvarchar | Vendor name |
+
+---
+
+#### Company
+**Purpose**: Company-level configuration and information
+
+**Usage**: Referenced in control number reports for company-level data.
+
+---
+
+### Additional Transaction Tables
+
+#### Sales
+**Purpose**: Sales summary data by customer
+
+| Column | Type | Notes |
+|--------|------|-------|
+| CustomerNo | nvarchar | Customer number (join to Customer.Number) |
+
+**Usage**: Join from Customer for YTD sales data (Customer table has NO YTD fields).
+
+---
+
+#### PartsSales
+**Purpose**: Parts sales transaction data
+
+| Column | Type | Notes |
+|--------|------|-------|
+| PartNo | nvarchar | Part number (join to Parts.PartNo) |
+
+---
+
+#### InvDetail (Invoice Detail)
+**Purpose**: Invoice line-item details
+
+| Column | Type | Notes |
+|--------|------|-------|
+| InvoiceNo | int | Invoice number (join to InvoiceReg.InvoiceNo) |
+| PartNo | nvarchar | Part number |
+| Quantity | decimal | Quantity sold |
+
+**Usage**: Join to InvoiceReg for invoice headers, join to Parts for part details. Used in parts inventory analysis.
+
+---
+
+#### InvoiceSales
+**Purpose**: Invoice-level sales summary data
+
+**Usage**: Referenced in dashboard and department reports as an alternative to InvoiceReg for certain sales aggregations.
+
+---
+
+#### InvoicePartsDetail
+**Purpose**: Detailed parts information on invoices
+
+**Usage**: Referenced in softbase_reports for parts-specific invoice analysis.
+
+---
+
+### Service / Warranty Tables
+
+#### ServiceClaim
+**Purpose**: Warranty/service claim records
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | bigint | Primary key |
+| RepairCodeId | int | Repair code reference |
+
+**Usage**: Used in service reports and warranty claim tracking.
+
+---
+
+#### ServiceClaimRepairCode
+**Purpose**: Links service claims to repair codes (junction table)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| ServiceClaimId | bigint | Service claim ID (join to ServiceClaim.Id) |
+| RepairCodeId | int | Repair code ID (join to RepairCode.Id) |
+
+---
+
+#### RepairCode
+**Purpose**: Repair code definitions for service claims
+
+| Column | Type | Notes |
+|--------|------|-------|
+| Id | int | Primary key |
+| Description | nvarchar | Repair code description |
+
+---
+
+### Preventive Maintenance Tables
+
+#### PM (Preventive Maintenance)
+**Purpose**: Preventive maintenance schedule records
+
+| Column | Type | Notes |
+|--------|------|-------|
+| ShipTo | nvarchar | Ship-to customer number (join to Customer.Number) |
+| SerialNo | nvarchar | Equipment serial number (join to Equipment.SerialNo) |
+
+**Usage**: Used in PM reports, joined to Customer and Equipment for full context.
+
+---
+
+#### LPM (Labor PM)
+**Purpose**: Labor records specific to preventive maintenance
+
+**Usage**: Referenced in PM diagnostics.
+
+---
+
+### Depreciation View
+
+#### Depreciation (515 rows — view, not table)
+**Purpose**: Asset depreciation schedules — contains all depreciation/book value data  
+**Type**: View (not a base table)  
+**Coverage**: Primarily rental equipment
+
+| Column | Type | Notes |
+|--------|------|-------|
+| SerialNo | nvarchar(100) | Links to Equipment.SerialNo |
+| StartingValue | decimal | Original/gross book value |
+| NetBookValue | decimal | Current net book value |
+| LastUpdatedAmount | decimal | Monthly depreciation amount |
+| Method | nvarchar(50) | Depreciation method (typically "Straight Line") |
+| TotalMonths | smallint | Total depreciation period |
+| RemainingMonths | smallint | Months remaining |
+| ResidualValue | decimal | Salvage value |
+| DepreciationGroup | nvarchar(50) | Category (e.g., "Rental") |
+| Inactive | bit (NOT NULL) | 0 = active, 1 = inactive |
+| DebitAccount | nvarchar(50) | GL account for depreciation expense |
+| CreditAccount | nvarchar(50) | GL account for accumulated depreciation |
+| LastUpdated | datetime | Last depreciation update |
+| LastUpdatedBy | nvarchar(50) | Who updated |
+
+**Important Notes**:
+- **NOT all equipment has depreciation records** — only ~515 of 21,000+ items
+- Use `WHERE d.Inactive = 0` to filter active records (NOT `IsDeleted` which doesn't exist here)
+- Accumulated Depreciation = StartingValue - NetBookValue
+- Join: `LEFT JOIN {schema}.Depreciation d ON e.SerialNo = d.SerialNo AND d.Inactive = 0`
+
+---
+
+### Equipment History / Tracking Tables
+
+#### EquipmentHistory
+**Purpose**: Historical equipment transaction records
+
+| Column | Type | Notes |
+|--------|------|-------|
+| WONo | nvarchar | Work order number |
+
+**Usage**: Join to InvoiceReg for equipment sale/transaction history.
+
+---
+
+#### EquipmentRemoved
+**Purpose**: Records of equipment removed from inventory
+
+**Usage**: Referenced in rental availability diagnostics to track removed units.
+
+---
+
+#### EQControlNoChange
+**Purpose**: Audit trail for equipment control number changes
+
+**Usage**: Referenced in control number reports for tracking control number modifications.
+
+---
+
+### User / Employee Tables (Azure SQL)
+
+#### Users
+**Purpose**: Softbase user accounts
+
+**Usage**: Referenced in employee lookup for user identification.
+
+---
+
+#### Employee
+**Purpose**: Employee master records
+
+**Usage**: Referenced in employee lookup and diagnostic routes.
+
+---
+
+#### AbpUsers
+**Purpose**: ABP Framework user records (alternative user table)
+
+**Usage**: Referenced in employee lookup as a fallback user source.
+
+---
+
+#### Accounts
+**Purpose**: Account definitions (may overlap with ChartOfAccounts)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| AccountNo | nvarchar | Account number |
+
+**Usage**: Referenced in January expense investigation. Relationship to ChartOfAccounts unclear — may be an alternative/legacy table.
 
 ---
 
@@ -521,6 +827,132 @@ AND EffectiveDate <= '2025-10-31'
 - Auto-save functionality with 1-second debounce
 - Included in work order CSV exports
 - Supplements Softbase work order data
+
+#### knowledge_base
+**Purpose**: Knowledge base articles for the support system  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+| title | varchar | Article title |
+| content | text | Article content |
+| created_at | timestamp | Creation timestamp |
+| updated_at | timestamp | Last update |
+
+#### kb_attachments
+**Purpose**: File attachments for knowledge base articles  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+| kb_id | integer | Knowledge base article ID |
+
+#### support_ticket
+**Purpose**: Support ticket records  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+| subject | varchar | Ticket subject |
+| message | text | Ticket description |
+| type | varchar | Ticket type (bug, enhancement, question) |
+| status | varchar | Ticket status (open, in_progress, resolved, closed) |
+| priority | varchar | Priority (low, medium, high, critical) |
+| page_url | varchar | URL of the affected page |
+| organization_id | integer | Organization FK |
+| created_by | integer | User FK |
+| reopened_count | integer | Number of times reopened |
+| created_at | timestamp | Creation timestamp |
+| updated_at | timestamp | Last update |
+
+#### support_ticket_comment
+**Purpose**: Comments on support tickets  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+| ticket_id | integer | FK to support_ticket.id |
+| message | text | Comment text |
+| comment_type | varchar | Type (user_comment, system_note, system_resolution) |
+| is_internal | boolean | Internal-only flag |
+| created_by_name | varchar | Author name |
+| created_at | timestamp | Creation timestamp |
+
+#### support_ticket_attachment
+**Purpose**: File attachments on support tickets  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+| ticket_id | integer | FK to support_ticket.id |
+
+#### manual_commissions
+**Purpose**: Manually entered commission adjustments  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+
+**Usage**: Used by the sales commission system for manual overrides.
+
+#### sales_rep_comp_settings
+**Purpose**: Sales representative compensation configuration  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+
+**Usage**: Stores commission rates, thresholds, and rules per sales rep.
+
+#### report_visibility
+**Purpose**: Controls which reports/tabs are visible per organization  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | serial | Primary key |
+| page_id | varchar | Page identifier |
+| tab_id | varchar | Tab identifier |
+| is_visible | boolean | Visibility flag |
+| organization_id | integer | Organization FK |
+
+**Usage**: Enables org-specific report visibility. Used to scope new reports to requesting orgs.
+
+#### service_assistant_queries
+**Purpose**: Logs of AI service assistant queries  
+**Database**: PostgreSQL on Railway
+
+**Usage**: Analytics tracking for the AI-powered service assistant feature.
+
+#### mart_customer_activity
+**Purpose**: Materialized/aggregated customer activity data for churn analysis  
+**Database**: PostgreSQL on Railway
+
+| Column | Type | Notes |
+|--------|------|-------|
+| org_id | integer | Organization ID |
+| snapshot_date | date | Data snapshot date |
+
+**Usage**: Pre-computed customer activity metrics. Query with `WHERE org_id = X AND snapshot_date = (SELECT MAX(snapshot_date) ...)`.
+
+#### tenant_departments
+**Purpose**: Tenant-specific department configuration for GL mapping  
+**Database**: PostgreSQL on Railway
+
+**Usage**: Used in GL mapping to configure department-to-GL-account relationships per tenant.
+
+#### tenant_expense_categories
+**Purpose**: Tenant-specific expense category definitions  
+**Database**: PostgreSQL on Railway
+
+**Usage**: Used in GL mapping for expense categorization per tenant.
 
 ---
 
@@ -1133,9 +1565,11 @@ WITH InvoiceBalances AS (
 3. Add columns incrementally to verify existence
 4. Document actual working column combinations
 
-## Last Known Row Counts (as of 2025-10-17)
+## Last Known Row Counts (as of 2025-10-17, refresh via API)
 
-### Azure SQL Server (Softbase Evolution)
+> **Note**: These counts were last verified on 2025-10-17. Use `POST /api/database/execute-query` with `SELECT COUNT(*) FROM {schema}.TableName` to get current counts.
+
+### Azure SQL Server (Softbase Evolution - ben002)
 - Equipment: 21,291
 - Customer: 2,227
 - InvoiceReg: 5,148
@@ -1145,10 +1579,20 @@ WITH InvoiceBalances AS (
 - ARDetail: 8,413
 - APDetail: 3,331
 - GLDetail: 64,180
+- SaleCodes: 79
+- RentalContract: 318
+- Depreciation: 515 (view)
+- WOLabor: 6,401
+- WOParts: 10,381
+- WOMisc: 7,832
 
 ### PostgreSQL (Railway - Custom Data)
 - minitrac_equipment: ~28,000
 - work_order_notes: ~500+ (growing)
+- support_ticket: growing
+- knowledge_base: growing
+- report_visibility: per-org settings
+- mart_customer_activity: snapshot-based
 
 ## Recent Major Features Implemented
 

@@ -133,14 +133,22 @@ You are the AIOP Smart Support Ticket Processor. Your job is to automatically pr
 1. **Fetch open bug tickets** from the API: `GET https://softbasereports-production.up.railway.app/api/support-tickets?status=open&type=bug`
 2. **Check current time**: If hour === 18 (6 PM), also **fetch open enhancement tickets**: `GET https://softbasereports-production.up.railway.app/api/support-tickets?status=open&type=enhancement`
 3. **If no open tickets at all**: **Skip repo clone entirely**, generate a short completion report, and exit. This saves tokens by avoiding unnecessary git operations.
-4. **Process each bug** following the comprehensive workflow below
-5. **If 6 PM**: Process each enhancement following the comprehensive workflow below
+4. **📚 Read DATABASE_SCHEMA.md on startup**: After cloning the repo (step 4 in the workflow), **immediately read `DATABASE_SCHEMA.md`** in the repo root. This file contains the complete Azure SQL and PostgreSQL schema documentation including:
+   - All table structures, columns, types, and relationships
+   - Critical gotchas (e.g., `Customer` field is boolean, `RentalStatus` is unreliable, quotes vs work orders)
+   - Correct join patterns and query templates
+   - Multi-tenant data differences
+   - Depreciation view details
+   - PostgreSQL custom tables (support tickets, knowledge base, report visibility, etc.)
+   - **This knowledge is essential for investigating data integrity issues and writing correct queries.**
+5. **Process each bug** following the comprehensive workflow below
+6. **If 6 PM**: Process each enhancement following the comprehensive workflow below
 
 ### At 6 PM Only (after ticket processing)
 
-6. **Run comprehensive sanity testing** (key pages for each tenant)
-7. **Review and update documentation** if needed (ARCHITECTURE.md)
-8. **Generate completion report**
+7. **Run comprehensive sanity testing** (key pages for each tenant)
+8. **Review and update documentation** if needed (ARCHITECTURE.md, DATABASE_SCHEMA.md)
+9. **Generate completion report**
 
 ---
 
@@ -402,7 +410,21 @@ For each ticket:
     }
     ```
 
-21. **🧠 Save this fix to knowledge base**:
+21. **📚 Update DATABASE_SCHEMA.md if new schema knowledge was discovered**:
+    - During investigation, did you discover any of the following?
+      - A table or column not documented in `DATABASE_SCHEMA.md`
+      - A column that doesn't exist despite being documented
+      - A new join pattern or relationship between tables
+      - A data quality gotcha or business rule not yet recorded
+      - Updated row counts or new data patterns
+    - If YES to any of the above:
+      - Add the new knowledge to the appropriate section of `DATABASE_SCHEMA.md`
+      - Add a dated entry to the "Common Gotchas" or "Major System Insights" section
+      - Include the discovery in your git commit message
+    - If NO: Skip this step
+    - **Why this matters**: `DATABASE_SCHEMA.md` is the bot's primary schema reference. Keeping it current prevents future bots from re-discovering the same issues and reduces investigation time.
+
+22. **🧠 Save this fix to knowledge base**:
     - Update `.manus/fixes_knowledge.json`
     - Add entry:
       ```json
@@ -422,7 +444,7 @@ For each ticket:
       }
       ```
 
-22. **📊 Update metrics**:
+23. **📊 Update metrics**:
     - Update `.manus/metrics.json`
     - Increment appropriate counters
     - Categorize reopen reasons if applicable:
@@ -475,6 +497,7 @@ After successful sanity testing, review if documentation needs updating:
 ### Files to Consider
 
 - `ARCHITECTURE.md` — System architecture, multi-tenant rules, RBAC details
+- `DATABASE_SCHEMA.md` — Complete database schema documentation (update when new tables/columns/gotchas discovered)
 - `.manus/fixes_knowledge.json` — Knowledge base (always update after fixes)
 - `.manus/metrics.json` — Metrics (always update after processing)
 
@@ -492,6 +515,21 @@ After successful sanity testing, review if documentation needs updating:
 - Simple bug fixes
 - UI/UX improvements within existing components
 - Small data query corrections
+
+### When to Update DATABASE_SCHEMA.md
+
+✅ **DO Update** if:
+- Discovered a table or column not yet documented
+- Found a column that doesn't exist despite being documented
+- Discovered a new join pattern, relationship, or business rule
+- Found a data quality issue or gotcha not yet recorded
+- Verified updated row counts during investigation
+- Discovered new views or stored procedures
+
+❌ **DON'T Update** if:
+- No new schema knowledge was gained during the ticket
+- Only made frontend/UI changes
+- The schema information is already accurately documented
 
 ---
 
@@ -837,4 +875,4 @@ Body: {
 ---
 
 **Last Updated**: March 2, 2026
-**Version**: 1.1 (Added Railway API database query documentation)
+**Version**: 1.2 (Added DATABASE_SCHEMA.md startup read step, post-fix schema update step, and documentation update guidelines)
