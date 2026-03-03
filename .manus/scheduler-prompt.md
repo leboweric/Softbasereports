@@ -24,14 +24,16 @@ This file contains the comprehensive prompt for the Manus scheduled task that pr
 | Field    | Value    |
 |----------|----------|
 | **URL**  | `https://aiop.one` |
-| **Username** | `elebow` |
-| **Password** | `abc123` |
+| **Username** | `aiop-support-bot` |
+| **Password** | `A10P$upp0rtB0t!2026` |
 
 - Enter the username and password in the login form fields and click **LOG IN**
-- These credentials have Super Admin access for testing all pages and features
+- These credentials have Super Admin access for **both Bennett and IPS** organizations
 - The browser maintains login state across operations, so you only need to log in once per session
+- The bot defaults to Bennett org on login. To test IPS, switch organizations via the org switcher in the UI.
+- **User ID**: 51
 
-> **Note**: If the password has been changed, check the PostgreSQL database for the user record. The bot user is `elebow` (Eric LeRow) with Super Admin role.
+> **Note**: If the password has been changed, check the PostgreSQL database (`nozomi.proxy.rlwy.net:45435/railway`) for the user record. The bot user is `aiop-support-bot` (AIOP Support Bot) with Super Admin roles for both orgs.
 
 ---
 
@@ -150,7 +152,7 @@ All API calls to the backend require a JWT token. Obtain one by logging in:
 # Login to get JWT token
 TOKEN=$(curl -s -X POST https://softbasereports-production.up.railway.app/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "elebow", "password": "abc123"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+  -d '{"username": "aiop-support-bot", "password": "A10P$upp0rtB0t!2026"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
 # Use token in subsequent requests
 curl -H "Authorization: Bearer $TOKEN" https://softbasereports-production.up.railway.app/api/support-tickets?status=open&type=bug
@@ -634,7 +636,7 @@ When adding a new tab to any page, ALL THREE must be updated:
 ### Authentication
 ```
 POST /api/auth/login
-Body: { "username": "elebow", "password": "abc123" }
+Body: { "username": "aiop-support-bot", "password": "A10P$upp0rtB0t!2026" }
 Response: { "token": "jwt...", "user": {...}, "navigation": {...} }
 ```
 
