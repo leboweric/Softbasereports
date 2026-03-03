@@ -336,12 +336,17 @@ For each ticket:
       - If a past fix was for a different org but the same component, check if the current issue is the same root cause (e.g., hardcoded values that work for one org but not another)
 
 12. **Analyze the issue**:
-    - Read the ticket message carefully
-    - Identify the affected component from `page_url`
-    - Search the codebase for relevant files
-    - **Check the organization** — is this a tenant-specific issue or universal?
-    - **Check for hardcoded values** — is the issue caused by hardcoded SaleCodes, Dept numbers, or Branch names?
-    - Understand the root cause
+     - Read the ticket message carefully
+     - Identify the affected component from `page_url`
+     - Search the codebase for relevant files
+     - **Check the organization** — is this a tenant-specific issue or universal?
+     - **Check for hardcoded values** — is the issue caused by hardcoded SaleCodes, Dept numbers, or Branch names?
+     - **Check error logs for the affected endpoint**:
+       ```
+       GET /api/admin/logs?endpoint=<affected_endpoint>&since_hours=48
+       ```
+       Look for tracebacks that match the reported issue. This can immediately reveal the root cause (e.g., a `KeyError` on a missing column, a `TypeError` from bad data) without needing to reproduce the bug manually. If `page_url` contains a page/tab hash (e.g., `#page=parts&tab=inventory-turns`), map it to the backend endpoint name (e.g., `parts`, `dashboard`, `service`).
+     - Understand the root cause
 
 12.5. **Handle missing critical information**:
     - If the ticket references an attachment that doesn't exist, or requirements are too vague:
@@ -997,4 +1002,4 @@ Headers: Authorization: Bearer <token>
 ---
 
 **Last Updated**: March 2, 2026
-**Version**: 1.5 (Added Error Logs API endpoint for runtime error investigation)
+**Version**: 1.6 (Added per-ticket error log check during investigation workflow)
