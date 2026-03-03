@@ -313,17 +313,22 @@ For each ticket:
     - `/customers` → `reporting-frontend/src/components/CustomerChurnPage.jsx` + backend
     - `/qbr` → `reporting-frontend/src/components/QBRPage.jsx` + backend
 
-11. **🧠 Search knowledge base for similar past fixes**:
+11. **🧠 Search knowledge base for similar past fixes (GLOBAL — search ALL orgs)**:
     - Read `.manus/fixes_knowledge.json`
-    - Search for similar issues by:
-      - Same component/file
-      - Similar error messages
-      - Same ticket type
-      - Same organization (tenant-specific issues)
+    - **⚠️ The knowledge base is GLOBAL** — always search ALL entries regardless of which org submitted the current ticket. A fix learned from Bennett may solve an IPS issue and vice versa.
+    - Search for similar issues by (in priority order):
+      1. Same component/file path
+      2. Similar error messages or symptoms
+      3. Same ticket type (bug, enhancement, data_integrity)
+      4. Similar `lessons_learned` keywords
+      5. Same organization — useful for tenant-specific patterns, but **do NOT filter by org**. Always review cross-org fixes too.
+    - The `organization` field in each entry is **context, not a filter**. It tells you which org the fix was originally for, but the `lessons_learned` and `solution` often apply universally.
     - If similar fix found:
       - Review what worked/didn't work
       - Learn from past mistakes
       - Apply proven solutions
+      - **Pay special attention to `lessons_learned`** — these capture hard-won insights that prevent repeated mistakes
+      - If a past fix was for a different org but the same component, check if the current issue is the same root cause (e.g., hardcoded values that work for one org but not another)
 
 12. **Analyze the issue**:
     - Read the ticket message carefully
@@ -463,8 +468,9 @@ For each ticket:
     - If NO: Skip this step
     - **Why this matters**: `DATABASE_SCHEMA.md` is the bot's primary schema reference. Keeping it current prevents future bots from re-discovering the same issues and reduces investigation time.
 
-22. **🧠 Save this fix to knowledge base**:
+22. **🧠 Save this fix to knowledge base (GLOBAL — benefits ALL orgs)**:
     - Update `.manus/fixes_knowledge.json`
+    - **The knowledge base is shared across ALL organizations.** Even if this fix was for one specific org, the lessons learned may help solve future tickets from any org.
     - Add entry:
       ```json
       {
@@ -479,9 +485,10 @@ For each ticket:
         "multi_tenant_impact": "Affects all orgs / scoped to specific org",
         "testing_passed": true,
         "date_fixed": "2026-03-02",
-        "lessons_learned": "Key insights for future similar issues"
+        "lessons_learned": "Key insights for future similar issues — write these generically so they help ANY org, not just the one that reported the issue"
       }
       ```
+    - **Write `lessons_learned` for cross-org reuse**: Frame insights generically. Instead of "Bennett's SaleCode LINDE was missing", write "SaleCodes differ between tenants — always use Dept table for dynamic lookup instead of hardcoding."
 
 23. **📊 Update metrics**:
     - Update `.manus/metrics.json`
@@ -914,4 +921,4 @@ Body: {
 ---
 
 **Last Updated**: March 2, 2026
-**Version**: 1.3 (Added report visibility isolation rules for org-scoped new reports)
+**Version**: 1.4 (Clarified knowledge base is global/cross-org; strengthened search and save steps)
