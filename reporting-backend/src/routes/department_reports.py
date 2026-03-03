@@ -9736,29 +9736,6 @@ def register_department_routes(reports_bp):
             """.format(date_filter=date_filter)
 
             revenue_results = db.execute_query(revenue_query)
-            
-            # Debug: log the query and results count
-            logger.info(f"[MAINT_PROFIT_DEBUG] schema={schema}, revenue_query_results={len(revenue_results)}, query_snippet=FROM {schema}.InvoiceReg WHERE SaleCode IN FMBILL...")
-            
-            # Diagnostic: get all sale codes from InvoiceReg for this tenant
-            diag_sale_codes_query = f"""
-            SELECT TOP 30 SaleCode, COUNT(*) as cnt 
-            FROM {schema}.InvoiceReg 
-            GROUP BY SaleCode 
-            ORDER BY cnt DESC
-            """
-            try:
-                diag_sale_codes = db.execute_query(diag_sale_codes_query)
-            except:
-                diag_sale_codes = []
-            
-            # Also check total row count
-            diag_total_query = f"SELECT COUNT(*) as total FROM {schema}.InvoiceReg"
-            try:
-                diag_total = db.execute_query(diag_total_query)
-            except:
-                diag_total = []
-
             # Get list of ShipTo locations that have maintenance contract invoices
             # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
             maintenance_customers_query = f"""
@@ -10245,13 +10222,6 @@ def register_department_routes(reports_bp):
                     'wo_types_included': 'S (Service), SH (Shop), PM (Preventive Maintenance)',
                     'sale_codes': 'FMBILL (billing), FMROAD (road service), PM-FM (preventive maintenance), FMSHOP (shop work)'
                 },
-                'debug': {
-                    'schema': schema,
-                    'revenue_query_results_count': len(revenue_results),
-                    'revenue_query_sample': revenue_query[:200],
-                    'all_sale_codes': diag_sale_codes,
-                    'total_invoices_in_table': diag_total[0]['total'] if diag_total else 'unknown'
-                }
             })
 
         except Exception as e:
@@ -10259,37 +10229,6 @@ def register_department_routes(reports_bp):
             return jsonify({
                 'success': False,
                 'error': str(e)
-            }), 500
-
-    @reports_bp.route('/departments/debug-invoice-check', methods=['GET'])
-    @jwt_required()
-    def debug_invoice_check():
-        """Temporary debug endpoint to check InvoiceReg data"""
-        try:
-            db = get_db()
-            schema = get_tenant_schema()
-            check_query = f"""
-            SELECT TOP 5 SaleCode, COUNT(*) as cnt, SUM(COALESCE(GrandTotal, 0)) as total
-            FROM {schema}.InvoiceReg
-            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
-            GROUP BY SaleCode
-            """
-            results = db.execute_query(check_query)
-            total_query = f"SELECT COUNT(*) as total FROM {schema}.InvoiceReg"
-            total = db.execute_query(total_query)
-            tables_query = f"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema}' ORDER BY TABLE_NAME"
-            tables = db.execute_query(tables_query)
-            return jsonify({
-                'schema': schema,
-                'fmbill_data': results,
-                'total_invoices': total,
-                'tables': [t.get('TABLE_NAME', t) for t in tables][:20],
-                'success': True
-            })
-        except Exception as e:
-            return jsonify({
-                'error': str(e),
-                'success': False
             }), 500
 
     @reports_bp.route('/departments/customer-profitability', methods=['GET'])
