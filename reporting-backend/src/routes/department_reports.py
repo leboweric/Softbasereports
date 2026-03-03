@@ -9739,6 +9739,25 @@ def register_department_routes(reports_bp):
             
             # Debug: log the query and results count
             logger.info(f"[MAINT_PROFIT_DEBUG] schema={schema}, revenue_query_results={len(revenue_results)}, query_snippet=FROM {schema}.InvoiceReg WHERE SaleCode IN FMBILL...")
+            
+            # Diagnostic: get all sale codes from InvoiceReg for this tenant
+            diag_sale_codes_query = f"""
+            SELECT TOP 30 SaleCode, COUNT(*) as cnt 
+            FROM {schema}.InvoiceReg 
+            GROUP BY SaleCode 
+            ORDER BY cnt DESC
+            """
+            try:
+                diag_sale_codes = db.execute_query(diag_sale_codes_query)
+            except:
+                diag_sale_codes = []
+            
+            # Also check total row count
+            diag_total_query = f"SELECT COUNT(*) as total FROM {schema}.InvoiceReg"
+            try:
+                diag_total = db.execute_query(diag_total_query)
+            except:
+                diag_total = []
 
             # Get list of ShipTo locations that have maintenance contract invoices
             # Match by ShipTo since work orders are billed to internal expense accounts (900xxx)
@@ -10229,7 +10248,9 @@ def register_department_routes(reports_bp):
                 'debug': {
                     'schema': schema,
                     'revenue_query_results_count': len(revenue_results),
-                    'revenue_query_sample': revenue_query[:200]
+                    'revenue_query_sample': revenue_query[:200],
+                    'all_sale_codes': diag_sale_codes,
+                    'total_invoices_in_table': diag_total[0]['total'] if diag_total else 'unknown'
                 }
             })
 
