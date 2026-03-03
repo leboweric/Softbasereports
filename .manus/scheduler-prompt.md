@@ -120,7 +120,43 @@ WHERE SaleDept IN ({','.join(str(d) for d in new_depts)})
 When implementing a fix or enhancement:
 - **Bug fix**: Must work for ALL tenants. Test with both Bennett and IPS data.
 - **Report change for specific org**: Use the `report_visibility` system to scope visibility, or use org-specific configuration. Never modify shared code to only work for one org.
-- **New report request**: Build it generically using dynamic lookups. Enable it for the requesting org via `report_visibility`.
+- **New report request**: Build it generically using dynamic lookups. Then **scope visibility correctly** — see the critical visibility isolation rules below.
+
+### ⚠️ Report Visibility Isolation (CRITICAL for New Reports/Tabs)
+
+> **🚨 The `report_visibility` system DEFAULTS TO VISIBLE for all orgs. If you add a new tab to the REPORT_REGISTRY and do nothing else, EVERY org will see it. You MUST explicitly hide it from non-requesting orgs.**
+
+When a ticket requests a new report or tab for a **specific organization** (e.g., IPS requests a new "Inventory Turns" tab):
+
+1. **Build the report generically** using dynamic lookups (`get_tenant_schema()`, `Dept` table, etc.) so it CAN work for any org
+2. **Add it to all three registries** (NAVIGATION_CONFIG, backend REPORT_REGISTRY, frontend REPORT_REGISTRY)
+3. **⚠️ IMMEDIATELY set `is_visible = false` for ALL OTHER orgs** that did NOT request the report:
+
+```bash
+# Example: IPS (org_id=2) requested a new tab. Hide it from Bennett (org_id=1) and any other orgs.
+# First, get all org IDs
+ORGS=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  https://softbasereports-production.up.railway.app/api/organizations \
+  | python3 -c "import sys,json; orgs=json.load(sys.stdin); [print(o['id']) for o in orgs]")
+
+# For each org that is NOT the requesting org, hide the new tab
+for ORG_ID in $ORGS; do
+  if [ "$ORG_ID" != "2" ]; then  # 2 = IPS (the requesting org)
+    curl -s -X PUT "https://softbasereports-production.up.railway.app/api/report-visibility/$ORG_ID" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"parts": {"tabs": {"inventory-turns": false}}}'
+  fi
+done
+```
+
+4. **Verify isolation**: After setting visibility, confirm:
+   - Log in as the requesting org → new tab IS visible ✅
+   - Switch to another org → new tab is NOT visible ✅
+
+**Why this is critical**: The `report_visibility` table only stores explicit overrides. If no row exists for an org+page+tab combination, the system defaults to `visible = true`. So adding a new tab without hiding it from other orgs means **every org sees it immediately**, even if they didn't ask for it and it may not be relevant to their business.
+
+**The only exception**: If the ticket explicitly says "add this for all organizations" or doesn't specify an org, then leave the default (visible to all) and note in the resolution that it's available to all orgs.
 
 ---
 
@@ -315,6 +351,7 @@ For each ticket:
 
 14. **For Report Changes / New Report Requests**:
     - Understand the feature request
+    - **Identify the requesting organization** from the ticket's `organization_id` field
     - Design the implementation following existing patterns
     - **For backend changes**: Follow the Flask blueprint pattern, use `get_db()` and `get_tenant_schema()` for tenant-scoped queries
     - **For frontend changes**: Follow the existing component patterns (Dashboard.jsx tabs, department report structure)
@@ -322,8 +359,10 @@ For each ticket:
       1. Backend `NAVIGATION_CONFIG` in `rbac_config.py`
       2. Backend `REPORT_REGISTRY` in `report_visibility.py`
       3. Frontend `REPORT_REGISTRY` in `ReportVisibility.jsx`
+    - **⚠️ IMMEDIATELY after adding to registries**: Follow the "Report Visibility Isolation" rules from the Multi-Tenant section — explicitly hide the new report/tab from ALL orgs that did NOT request it. **Do NOT skip this step.**
     - Implement the feature
     - Test the enhancement
+    - **Verify visibility isolation**: Log in as each org and confirm the new report is only visible to the requesting org
 
 ### Phase 5: Code Quality
 
@@ -875,4 +914,4 @@ Body: {
 ---
 
 **Last Updated**: March 2, 2026
-**Version**: 1.2 (Added DATABASE_SCHEMA.md startup read step, post-fix schema update step, and documentation update guidelines)
+**Version**: 1.3 (Added report visibility isolation rules for org-scoped new reports)
