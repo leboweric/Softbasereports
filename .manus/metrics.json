@@ -4,10 +4,10 @@
   "current_week": {
     "week_start": "2026-03-02",
     "week_end": "2026-03-08",
-    "tickets_processed": 12,
-    "bugs_fixed": 8,
+    "tickets_processed": 15,
+    "bugs_fixed": 10,
     "enhancements_implemented": 3,
-    "questions_answered": 2,
+    "questions_answered": 3,
     "data_integrity_resolved": 0,
     "report_changes_implemented": 3,
     "new_reports_created": 0,
@@ -18,13 +18,14 @@
       "reopen_deploy_failed": 0,
       "reopen_tenant_specific": 0
     },
-    "avg_resolution_time_hours": 1.1,
+    "avg_resolution_time_hours": 1.0,
     "first_time_fix_rate": 100,
     "adjusted_fix_rate": 100,
     "org_breakdown": {
       "IPS": 4,
       "Bennett": 5,
-      "All": 3
+      "All": 3,
+      "N/A (test tickets)": 3
     },
     "component_bug_counts": {
       "department_reports.py (service invoice billing)": 2,
@@ -158,19 +159,52 @@
         "resolution_time_hours": 0.25,
         "first_time_fix": true,
         "reopened": false
+      },
+      {
+        "ticket_id": "TKT-2026-0001",
+        "type": "bug",
+        "organization": "N/A",
+        "subject": "Test ticket (placeholder)",
+        "status": "resolved",
+        "resolution_time_hours": 0.1,
+        "first_time_fix": true,
+        "reopened": false,
+        "note": "Test/placeholder ticket - no actionable issue"
+      },
+      {
+        "ticket_id": "TKT-2026-0002",
+        "type": "bug",
+        "organization": "N/A",
+        "subject": "Test ticket (placeholder)",
+        "status": "resolved",
+        "resolution_time_hours": 0.1,
+        "first_time_fix": true,
+        "reopened": false,
+        "note": "Test/placeholder ticket - no actionable issue"
+      },
+      {
+        "ticket_id": "TKT-2026-0004",
+        "type": "question",
+        "organization": "N/A",
+        "subject": "Test ticket - email delivery test",
+        "status": "resolved",
+        "resolution_time_hours": 0.1,
+        "first_time_fix": true,
+        "reopened": false,
+        "note": "Email delivery test ticket - no actionable issue"
       }
     ]
   },
   "historical_weeks": [],
   "all_time": {
-    "total_tickets_processed": 17,
-    "total_bugs_fixed": 13,
+    "total_tickets_processed": 20,
+    "total_bugs_fixed": 15,
     "total_enhancements_implemented": 3,
-    "total_questions_answered": 2,
+    "total_questions_answered": 3,
     "total_data_integrity_resolved": 0,
     "total_reopened": 1,
     "avg_first_time_fix_rate": 100,
-    "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 4 automated fixes first run, 8 automated fixes second run (2026-03-03 3PM CST)"
+    "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 4 automated fixes first run, 8 automated fixes second run (2026-03-03 3PM CST), 3 test tickets closed (2026-03-04 noon CST)"
   },
   "runs": [
     {
@@ -207,10 +241,41 @@
           "fix": "Already implemented"
         }
       }
+    },
+    {
+      "run_date": "2026-03-04T18:05:00Z",
+      "run_mode": "noon_bugs_only",
+      "tickets_found": 3,
+      "tickets_processed": 3,
+      "tickets_skipped": 0,
+      "bugs_fixed": 2,
+      "enhancements_completed": 0,
+      "questions_answered": 1,
+      "code_changes": 0,
+      "commits": [],
+      "details": {
+        "TKT-2026-0001": {
+          "type": "bug",
+          "status": "resolved",
+          "fix": "Closed as test/placeholder ticket - no actionable issue"
+        },
+        "TKT-2026-0002": {
+          "type": "bug",
+          "status": "resolved",
+          "fix": "Closed as test/placeholder ticket - no actionable issue"
+        },
+        "TKT-2026-0004": {
+          "type": "question",
+          "status": "resolved",
+          "fix": "Closed as email delivery test ticket"
+        }
+      },
+      "notes": "All 3 open tickets were test/placeholder tickets with no real issues. 2 enhancement tickets (TKT-2026-0028, TKT-2026-0029) remain open for 6PM processing. App health: degraded (IPS SQL permission errors - pre-existing, not actionable by bot)."
     }
   ],
-  "total_tickets_resolved": 4,
-  "total_bugs_fixed": 2,
+  "total_tickets_resolved": 7,
+  "total_bugs_fixed": 4,
   "total_enhancements": 2,
-  "last_run": "2026-03-04T00:24:00Z"
+  "total_questions_answered": 1,
+  "last_run": "2026-03-04T18:05:00Z"
 }
