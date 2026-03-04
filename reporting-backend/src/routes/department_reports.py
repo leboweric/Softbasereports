@@ -9756,22 +9756,27 @@ def register_department_routes(reports_bp):
                 date_filter = "AND InvoiceDate >= DATEADD(month, -13, GETDATE())"
                 wo_date_filter = "AND w.OpenDate >= DATEADD(month, -13, GETDATE())"
 
-            # Dynamically discover maintenance contract SaleCodes from Dept table
-            # Look for departments related to maintenance/guaranteed maintenance/PM service
-            # IPS uses "PM Service", Bennett uses "Full Maintenance"/"Guaranteed Maintenance"
+            # Discover CUSTOMER-FACING maintenance contract SaleCodes only
+            # Uses the SaleCodes table to filter: Customer=1 ensures we exclude internal codes
+            # (e.g. I1=Internal Service, IF1=Internal Full Maint, VM1=Internal Van Maint)
+            # IPS: C1 in Dept 47 (PM Service) = Full Service Maintenance
+            # Bennett: FM codes (FMBILL, FMROAD, PM-FM, FMSHOP)
             maintenance_salecodes_query = f"""
             SELECT DISTINCT i.SaleCode
             FROM {schema}.InvoiceReg i
             JOIN {schema}.Dept d ON i.SaleDept = d.Dept
-            WHERE LOWER(d.Title) LIKE '%maintenance%'
-               OR LOWER(d.Title) LIKE '%guaranteed%'
-               OR LOWER(d.Title) LIKE '%pm service%'
-               OR LOWER(d.Title) LIKE '%pm %'
-               OR LOWER(d.Title) LIKE '%preventive%'
-               OR LOWER(d.Title) LIKE '%contract%'
-               OR i.SaleCode LIKE 'FM%'
-               OR i.SaleCode LIKE 'PM-FM%'
-               OR i.SaleCode LIKE 'PM%'
+            JOIN {schema}.SaleCodes sc ON i.SaleCode = sc.Code AND i.SaleDept = sc.Dept
+            WHERE sc.Customer = 1
+              AND (
+                LOWER(d.Title) LIKE '%maintenance%'
+                OR LOWER(d.Title) LIKE '%guaranteed%'
+                OR LOWER(d.Title) LIKE '%pm service%'
+                OR LOWER(d.Title) LIKE '%pm %'
+                OR LOWER(d.Title) LIKE '%preventive%'
+                OR LOWER(d.Title) LIKE '%contract%'
+                OR i.SaleCode LIKE 'FM%'
+                OR i.SaleCode LIKE 'PM-FM%'
+              )
             """
             try:
                 mc_codes_result = db.execute_query(maintenance_salecodes_query)
