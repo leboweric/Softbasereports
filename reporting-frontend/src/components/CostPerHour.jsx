@@ -631,12 +631,22 @@ const CostPerHour = () => {
               )}
 
               {/* Methodology note */}
-              <div className="bg-gray-50 border rounded-lg p-4 text-sm text-gray-600">
+              <div className="bg-gray-50 border rounded-lg p-4 text-sm text-gray-600 space-y-3">
                 <p className="font-medium text-gray-700 mb-1">Methodology</p>
                 <p>
-                  <strong>Cost per Hour</strong> = Total Maintenance Cost (labor + parts + misc from invoices) / Operating Hours Used in Period.
-                  Hours are calculated as MAX(HourMeter) - MIN(HourMeter) from invoice readings within the date range.
-                  Units require at least 2 meter readings with increasing values to calculate cost/hour.
+                  <strong>Cost per Hour</strong> = Total Maintenance Cost / Operating Hours Used in Period.
+                </p>
+                <div>
+                  <p className="font-medium text-gray-700">Data Sources:</p>
+                  <ul className="list-disc ml-5 mt-1 space-y-1">
+                    <li><strong>Total Cost</strong> = SUM of (PartsTaxable + PartsNonTax + LaborTaxable + LaborNonTax + MiscTaxable + MiscNonTax) from the <code className="bg-gray-200 px-1 rounded">InvoiceReg</code> table, filtered by invoice date range.</li>
+                    <li><strong>Operating Hours</strong> = MAX(HourMeter) - MIN(HourMeter) from <code className="bg-gray-200 px-1 rounded">InvoiceReg.HourMeter</code> readings within the date range. Requires at least 2 readings with increasing values.</li>
+                    <li><strong>Target Cost/Hr</strong> = <code className="bg-gray-200 px-1 rounded">Equipment.TargetCostPerHour</code> field (set per unit in the ERP).</li>
+                    <li><strong>PM Contract</strong> = <code className="bg-gray-200 px-1 rounded">Equipment.GuaranteedMaintenance</code> flag.</li>
+                    <li><strong>Series Grouping</strong> = <code className="bg-gray-200 px-1 rounded">Equipment.ModelGroup</code> (falls back to first part of Model number if ModelGroup is empty).</li>
+                  </ul>
+                </div>
+                <p>
                   Units without sufficient meter data are included in cost totals but excluded from cost/hour calculations.
                   Non-forklift equipment (batteries, chargers, scissor lifts) is excluded.
                 </p>

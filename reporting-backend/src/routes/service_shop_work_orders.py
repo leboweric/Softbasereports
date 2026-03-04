@@ -238,6 +238,9 @@ def get_shop_work_orders():
         work_orders = []
         if results:
             for row in results:
+                base_rate = float(row['LaborRate']) if row['LaborRate'] else 189.0
+                discount = float(row['LaborDiscount']) if row['LaborDiscount'] else 0
+                effective_rate = round(base_rate * (1 - discount / 100.0), 2) if discount < 100 else 0.0
                 work_orders.append({
                     'wo_number': row['WONo'],
                     'customer_no': row['CustomerNo'],
@@ -245,10 +248,11 @@ def get_shop_work_orders():
                     'unit_no': row['UnitNo'],
                     'serial_no': row['SerialNo'],
                     'open_date': row['OpenDate'].isoformat() if row['OpenDate'] else None,
-                    'labor_rate': float(row['LaborRate']) if row['LaborRate'] else 189.0,
-                    'labor_discount': float(row['LaborDiscount']) if row['LaborDiscount'] else 0,
+                    'labor_rate': base_rate,
+                    'labor_discount': discount,
+                    'effective_rate': effective_rate,
                     'quoted_amount': float(row['QuotedAmount']) if row['QuotedAmount'] else 0,
-                    'quoted_hours': int(row['QuotedHours']) if row['QuotedHours'] else 0,  # Now whole numbers
+                    'quoted_hours': int(row['QuotedHours']) if row['QuotedHours'] else 0,
                     'actual_hours': float(row['ActualHours']) if row['ActualHours'] else 0,
                     'percent_used': float(row['PercentUsed']) if row['PercentUsed'] else 0,
                     'alert_level': row['AlertLevel']
@@ -263,19 +267,34 @@ def get_shop_work_orders():
         warning_count = red_count + yellow_count
         
         # Calculate hours at risk and unbillable labor value
-        # Use each WO's actual labor rate instead of a hardcoded rate
-        critical_and_red = [wo for wo in work_orders if wo['alert_level'] in ['CRITICAL', 'RED']]
+        # Include CRITICAL, RED, and NO_QUOTE WOs with actual hours
+        # Use effective rate (after discount) for dollar calculations
+        at_risk_wos = [wo for wo in work_orders if wo['alert_level'] in ['CRITICAL', 'RED']]
+        no_quote_with_hours = [wo for wo in work_orders if wo['alert_level'] == 'NO_QUOTE' and wo['actual_hours'] > 0]
         
         hours_at_risk = 0
         unbillable_labor_value = 0
-        for wo in critical_and_red:
+        
+        # For quoted WOs that are over budget: excess hours are at risk
+        for wo in at_risk_wos:
             if wo['quoted_hours'] > 0:
                 hours_over = wo['actual_hours'] - wo['quoted_hours']
                 if hours_over > 0:
                     hours_at_risk += hours_over
-                    # Use this WO's actual labor rate for the dollar calculation
-                    wo_rate = wo.get('labor_rate', 189.0)
-                    unbillable_labor_value += hours_over * wo_rate
+                    # Use effective rate (base rate after discount) for the dollar calculation
+                    eff_rate = wo.get('effective_rate', 0)
+                    # If effective rate is 0 (100% discount), use base rate as the cost exposure
+                    rate_for_calc = eff_rate if eff_rate > 0 else wo.get('labor_rate', 189.0)
+                    unbillable_labor_value += hours_over * rate_for_calc
+        
+        # For NO_QUOTE WOs: ALL actual hours are at risk since there's no budget
+        no_quote_hours = 0
+        no_quote_value = 0
+        for wo in no_quote_with_hours:
+            no_quote_hours += wo['actual_hours']
+            eff_rate = wo.get('effective_rate', 0)
+            rate_for_calc = eff_rate if eff_rate > 0 else wo.get('labor_rate', 189.0)
+            no_quote_value += wo['actual_hours'] * rate_for_calc
         
         # DEBUG: Log final results summary
         logger.info(f"=== DEBUG: Final Results Summary ===")
@@ -296,7 +315,11 @@ def get_shop_work_orders():
                 'no_quote_count': no_quote_count,
                 'warning_count': warning_count,
                 'hours_at_risk': round(hours_at_risk, 1),
-                'unbillable_labor_value': round(unbillable_labor_value, 2)
+                'unbillable_labor_value': round(unbillable_labor_value, 2),
+                'no_quote_hours': round(no_quote_hours, 1),
+                'no_quote_value': round(no_quote_value, 2),
+                'total_hours_at_risk': round(hours_at_risk + no_quote_hours, 1),
+                'total_unbillable_value': round(unbillable_labor_value + no_quote_value, 2)
             }
         })
         

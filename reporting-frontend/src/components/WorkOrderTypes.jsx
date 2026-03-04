@@ -39,13 +39,13 @@ const WorkOrderTypes = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>All Work Order Types in Database</CardTitle>
+        <CardTitle>Open Work Orders by Type</CardTitle>
       </CardHeader>
       <CardContent>
         {types && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground mb-4">
-              Total unique types: {types.total_types}
+              {types.total_open} open work orders ({types.total_all} total in database)
             </p>
             <div className="space-y-2">
               {types.work_order_types.map((type) => (
@@ -54,7 +54,10 @@ const WorkOrderTypes = () => {
                     <span className="font-medium">{type.type}</span>
                     <span className="ml-2 text-muted-foreground">- {type.description}</span>
                   </div>
-                  <span className="text-sm">{type.count} work orders</span>
+                  <div className="text-sm">
+                    <span className="font-semibold">{type.count} open</span>
+                    <span className="text-muted-foreground ml-1">({type.total_count} total)</span>
+                  </div>
                 </div>
               ))}
             </div>

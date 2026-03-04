@@ -543,38 +543,48 @@ def register_department_routes(reports_bp):
 
             
             query = f"""
-            SELECT DISTINCT 
+            SELECT 
                 Type,
-                COUNT(*) as count
+                COUNT(*) as total_count,
+                SUM(CASE WHEN ClosedDate IS NULL THEN 1 ELSE 0 END) as open_count
             FROM {schema}.WO
             WHERE Type IS NOT NULL
+              AND DeletionTime IS NULL
             GROUP BY Type
-            ORDER BY COUNT(*) DESC
+            ORDER BY SUM(CASE WHEN ClosedDate IS NULL THEN 1 ELSE 0 END) DESC
             """
             
             results = db.execute_query(query)
+            
+            type_descriptions = {
+                'S': 'Service',
+                'R': 'Rental',
+                'P': 'Parts',
+                'PM': 'Preventive Maintenance',
+                'SH': 'Shop',
+                'E': 'Equipment',
+                'I': 'Internal',
+                'W': 'Warranty'
+            }
             
             types_list = []
             if results:
                 for row in results:
                     types_list.append({
                         'type': row['Type'],
-                        'count': int(row['count']),
-                        'description': {
-                            'S': 'Service',
-                            'R': 'Rental',
-                            'P': 'Parts',
-                            'PM': 'Preventive Maintenance',
-                            'SH': 'Shop',
-                            'E': 'Equipment',
-                            'I': 'Internal',
-                            'W': 'Warranty'
-                        }.get(row['Type'], f'Unknown ({row["Type"]})')
+                        'count': int(row['open_count']),
+                        'total_count': int(row['total_count']),
+                        'description': type_descriptions.get(row['Type'], f'Unknown ({row["Type"]})')
                     })
+            
+            total_open = sum(t['count'] for t in types_list)
+            total_all = sum(t['total_count'] for t in types_list)
             
             return jsonify({
                 'work_order_types': types_list,
-                'total_types': len(types_list)
+                'total_types': len(types_list),
+                'total_open': total_open,
+                'total_all': total_all
             })
             
         except Exception as e:
@@ -656,10 +666,17 @@ def register_department_routes(reports_bp):
             results = db.execute_query(query)
             
             work_orders = []
+            seen_wo_numbers = set()
             if results:
                 for row in results:
+                    # Deduplicate by WONo to prevent repeating work orders
+                    wo_no = row['WONo']
+                    if wo_no in seen_wo_numbers:
+                        logger.warning(f"Duplicate WO found in awaiting-invoice: {wo_no}")
+                        continue
+                    seen_wo_numbers.add(wo_no)
                     work_orders.append({
-                        'wo_number': row['WONo'],
+                        'wo_number': wo_no,
                         'type': row['Type'],
                         'completed_date': row['CompletedDate'].strftime('%Y-%m-%d') if row['CompletedDate'] else None,
                         'bill_to': row['BillTo'],
