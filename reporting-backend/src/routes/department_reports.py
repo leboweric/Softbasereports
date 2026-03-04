@@ -10301,7 +10301,7 @@ def register_department_routes(reports_bp):
                     'service_costs': 'Actual costs from Work Orders (Labor + Parts + Misc) for contract customers',
                     'true_profit': 'Contract Revenue - Actual Service Costs',
                     'wo_types_included': 'S (Service), SH (Shop), PM (Preventive Maintenance)',
-                    'sale_codes': f"Dynamically discovered: {', '.join(maintenance_sale_codes)}"
+                    'sale_codes': f"Customer-facing only: {', '.join(maintenance_sale_codes)} (v2)"
                 },
             })
 
