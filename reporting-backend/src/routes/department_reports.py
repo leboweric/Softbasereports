@@ -10354,6 +10354,13 @@ def register_department_routes(reports_bp):
                         branch_invoice_filter = f"AND i.SaleBranch NOT IN ({branch_list})"
                         branch_wo_filter = f"AND wo.SaleBranch NOT IN ({branch_list})"
                         logger.info(f"Customer Profitability: excluding branches {excluded_branches}")
+                    # Also exclude specific internal billing accounts
+                    excluded_customers = org_settings.get('excluded_bill_to_customers', [])
+                    if excluded_customers:
+                        excl_list = ','.join([f"'{c.strip()}'" for c in excluded_customers])
+                        branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list})"
+                        branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list})"
+                        logger.info(f"Customer Profitability: excluding internal customers {excluded_customers}")
             except Exception as e:
                 logger.warning(f'Could not load excluded_branches from org settings: {e}')
             
