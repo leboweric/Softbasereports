@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wrench, DollarSign, Users, Activity, BarChart3, Gauge, HelpCircle, TrendingUp, TrendingDown, RefreshCw, Target, Clock, FileText, Percent, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Wrench, DollarSign, Users, Activity, BarChart3, Gauge, HelpCircle, TrendingUp, TrendingDown, RefreshCw, Target, Clock, FileText, Percent, ArrowUpRight, ArrowDownRight, Calendar } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import axios from 'axios';
@@ -181,29 +181,29 @@ const KpiHelpButton = ({ helpKey }) => {
         <HelpCircle className="w-3.5 h-3.5" />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{help.title}</DialogTitle>
-            <DialogDescription>Understanding this metric and how to improve it</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-blue-600" />
+              {help.title}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 mt-2">
+          <div className="space-y-4">
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-1">What is this?</h4>
-              <p className="text-sm text-gray-600 leading-relaxed">{help.what}</p>
+              <h4 className="font-semibold text-sm text-gray-700 mb-1">What does this measure?</h4>
+              <p className="text-sm text-gray-600">{help.what}</p>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-1">How it&apos;s calculated</h4>
-              <div className="bg-gray-50 rounded-md px-3 py-2">
-                <code className="text-sm text-blue-700">{help.formula}</code>
-              </div>
+              <h4 className="font-semibold text-sm text-gray-700 mb-1">Formula</h4>
+              <p className="text-sm text-gray-600 font-mono bg-gray-50 px-3 py-2 rounded">{help.formula}</p>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-gray-900 mb-1">How to improve it</h4>
-              <ul className="space-y-1.5">
+              <h4 className="font-semibold text-sm text-gray-700 mb-1">How to improve</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
                 {help.actions.map((action, i) => (
-                  <li key={i} className="text-sm text-gray-600 flex gap-2">
-                    <span className="text-green-500 mt-0.5 flex-shrink-0">&#10003;</span>
-                    <span>{action}</span>
+                  <li key={i} className="flex items-start gap-2">
+                    <ArrowUpRight className="w-3.5 h-3.5 text-green-500 mt-0.5 flex-shrink-0" />
+                    {action}
                   </li>
                 ))}
               </ul>
@@ -215,25 +215,18 @@ const KpiHelpButton = ({ helpKey }) => {
   );
 };
 
-// ─── Status Indicator ──────────────────────────────────────────────────────────
-const StatusBadge = ({ value, target, higherIsBetter = true }) => {
-  if (value === null || value === undefined) return null;
-  const isGood = higherIsBetter ? value >= target : value <= target;
-  const diff = higherIsBetter ? value - target : target - value;
-  const pctDiff = target > 0 ? Math.abs(diff / target * 100).toFixed(0) : 0;
-  
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${isGood ? 'text-green-600' : 'text-red-500'}`}>
-      {isGood ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-      {pctDiff}% {isGood ? 'above' : 'below'}
-    </span>
-  );
+// ─── Status Badge ──────────────────────────────────────────────────────────────
+const StatusBadge = ({ value, target }) => {
+  const pct = target ? (value / target) * 100 : 0;
+  if (pct >= 95) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><TrendingUp className="w-3 h-3 mr-1" />On Target</span>;
+  if (pct >= 80) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><TrendingDown className="w-3 h-3 mr-1" />Near Target</span>;
+  return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><TrendingDown className="w-3 h-3 mr-1" />Below Target</span>;
 };
 
-// ─── Format Helpers ────────────────────────────────────────────────────────────
+// ─── Formatters ────────────────────────────────────────────────────────────────
 const formatCurrency = (value) => {
   if (value === null || value === undefined) return '$0';
-  if (Math.abs(value) >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+  if (Math.abs(value) >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
   if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1)}K`;
   return `$${value.toFixed(0)}`;
 };
@@ -243,32 +236,93 @@ const formatNumber = (value, decimals = 0) => {
   return value.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 };
 
+const formatDateLabel = (dateStr) => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
 // ─── Main Component ────────────────────────────────────────────────────────────
 const CurrieService = ({ user, organization }) => {
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState(null);
   const [benchmarkData, setBenchmarkData] = useState(null);
   const [error, setError] = useState(null);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [dateLabel, setDateLabel] = useState('Trailing 12 Months');
 
-  // Fetch data on mount — trailing 12 months
+  // Initialize with trailing 12 months
   useEffect(() => {
-    fetchData();
+    setTrailing12();
   }, []);
 
-  const fetchData = async () => {
+  // Debounce date changes
+  useEffect(() => {
+    if (startDate && endDate) {
+      const timer = setTimeout(() => {
+        fetchData(startDate, endDate);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [startDate, endDate]);
+
+  const setTrailing12 = () => {
+    const now = new Date();
+    const end = now.toISOString().split('T')[0];
+    const start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1).toISOString().split('T')[0];
+    setStartDate(start);
+    setEndDate(end);
+    setDateLabel('Trailing 12 Months');
+  };
+
+  const setYTD = () => {
+    const now = new Date();
+    const end = now.toISOString().split('T')[0];
+    const start = `${now.getFullYear()}-01-01`;
+    setStartDate(start);
+    setEndDate(end);
+    setDateLabel(`YTD ${now.getFullYear()}`);
+  };
+
+  const setQuarter = (quarter, year) => {
+    let start, end;
+    switch (quarter) {
+      case 1:
+        start = `${year}-01-01`; end = `${year}-03-31`; break;
+      case 2:
+        start = `${year}-04-01`; end = `${year}-06-30`; break;
+      case 3:
+        start = `${year}-07-01`; end = `${year}-09-30`; break;
+      case 4:
+        start = `${year}-10-01`; end = `${year}-12-31`; break;
+    }
+    setStartDate(start);
+    setEndDate(end);
+    setDateLabel(`Q${quarter} ${year}`);
+  };
+
+  const handleDateChange = (field, value) => {
+    if (field === 'start') setStartDate(value);
+    else setEndDate(value);
+    setDateLabel('Custom Range');
+  };
+
+  const fetchData = async (start, end) => {
+    const sd = start || startDate;
+    const ed = end || endDate;
+    if (!sd || !ed) return;
+
     setLoading(true);
     setError(null);
     try {
       const token = localStorage.getItem('token');
-      const now = new Date();
-      const t12End = now.toISOString().split('T')[0];
-      const t12Start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate() + 1).toISOString().split('T')[0];
 
-      // Fetch Currie metrics (same endpoint as the main Currie page)
+      // Fetch Currie metrics
       const metricsResponse = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/currie/metrics`,
         {
-          params: { start_date: t12Start, end_date: t12End, refresh: 'true' },
+          params: { start_date: sd, end_date: ed, refresh: 'true' },
           headers: { Authorization: `Bearer ${token}` }
         }
       );
@@ -288,6 +342,15 @@ const CurrieService = ({ user, organization }) => {
     }
   };
 
+  // Calculate number of months in the selected range for per-month metrics
+  const getMonthsInRange = () => {
+    if (!startDate || !endDate) return 12;
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
+    return Math.max(1, months);
+  };
+
   // Derived values
   const serviceGpPct = metrics?.dept_gp_benchmarks?.service?.gp_pct || 0;
   const serviceRevenue = metrics?.service_productivity?.total_service_revenue || 0;
@@ -302,6 +365,7 @@ const CurrieService = ({ user, organization }) => {
   const totalBilledHours = metrics?.labor_metrics?.total_billed_hours || 0;
   const woWithLabor = metrics?.labor_metrics?.work_orders_with_labor || 0;
   const absorptionRate = metrics?.absorption_rate?.rate || 0;
+  const monthsInRange = getMonthsInRange();
 
   // Chart data for GP% trend
   const chartData = benchmarkData?.monthly_data?.map(d => ({
@@ -321,17 +385,100 @@ const CurrieService = ({ user, organization }) => {
             Currie Service Metrics
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Key service department KPIs benchmarked against the Currie Financial Model — Trailing 12 Months
+            Key service department KPIs benchmarked against the Currie Financial Model — {dateLabel}
           </p>
         </div>
         <button
-          onClick={fetchData}
+          onClick={() => fetchData()}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </button>
+      </div>
+
+      {/* Date Range Selector */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-gray-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => handleDateChange('start', e.target.value)}
+              className="border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => handleDateChange('end', e.target.value)}
+              className="border border-gray-300 rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={setTrailing12}
+              disabled={loading}
+              className={`px-3 py-2 rounded text-sm transition-all ${dateLabel === 'Trailing 12 Months' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              T12
+            </button>
+            <button
+              onClick={setYTD}
+              disabled={loading}
+              className={`px-3 py-2 rounded text-sm transition-all ${dateLabel.startsWith('YTD') ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              YTD
+            </button>
+            <button
+              onClick={() => setQuarter(1, 2025)}
+              disabled={loading}
+              className={`px-3 py-2 rounded text-sm transition-all ${dateLabel === 'Q1 2025' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              Q1 '25
+            </button>
+            <button
+              onClick={() => setQuarter(2, 2025)}
+              disabled={loading}
+              className={`px-3 py-2 rounded text-sm transition-all ${dateLabel === 'Q2 2025' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              Q2 '25
+            </button>
+            <button
+              onClick={() => setQuarter(3, 2025)}
+              disabled={loading}
+              className={`px-3 py-2 rounded text-sm transition-all ${dateLabel === 'Q3 2025' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              Q3 '25
+            </button>
+            <button
+              onClick={() => setQuarter(4, 2025)}
+              disabled={loading}
+              className={`px-3 py-2 rounded text-sm transition-all ${dateLabel === 'Q4 2025' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              Q4 '25
+            </button>
+            <button
+              onClick={() => setQuarter(1, 2026)}
+              disabled={loading}
+              className={`px-3 py-2 rounded text-sm transition-all ${dateLabel === 'Q1 2026' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              Q1 '26
+            </button>
+          </div>
+        </div>
+        {startDate && endDate && (
+          <p className="text-xs text-gray-400 mt-2">
+            Showing data from {formatDateLabel(startDate)} to {formatDateLabel(endDate)}
+          </p>
+        )}
       </div>
 
       {error && (
@@ -382,7 +529,7 @@ const CurrieService = ({ user, organization }) => {
                     <p className="text-3xl font-bold text-gray-900">{formatCurrency(serviceRevenue)}</p>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400">Trailing 12 months</p>
+                <p className="text-xs text-gray-400">{dateLabel}</p>
               </CardContent>
             </Card>
 
@@ -399,7 +546,7 @@ const CurrieService = ({ user, organization }) => {
                     <p className="text-3xl font-bold text-gray-900">{formatCurrency(serviceGp)}</p>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400">Trailing 12 months</p>
+                <p className="text-xs text-gray-400">{dateLabel}</p>
               </CardContent>
             </Card>
           </div>
@@ -490,9 +637,9 @@ const CurrieService = ({ user, organization }) => {
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-center relative">
                   <KpiHelpButton helpKey="wo_throughput" />
                   <FileText className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-                  <p className="text-xs text-gray-500 mb-1">Work Orders (T12)</p>
+                  <p className="text-xs text-gray-500 mb-1">Work Orders ({dateLabel === 'Trailing 12 Months' ? 'T12' : dateLabel})</p>
                   <p className="text-xl font-bold text-gray-900">{formatNumber(woWithLabor)}</p>
-                  <p className="text-xs text-gray-400 mt-1">{formatNumber(woWithLabor / 12, 0)} avg/mo</p>
+                  <p className="text-xs text-gray-400 mt-1">{formatNumber(woWithLabor / monthsInRange, 0)} avg/mo</p>
                 </div>
 
                 {/* Absorption Rate */}
