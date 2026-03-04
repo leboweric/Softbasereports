@@ -197,6 +197,14 @@ You are the AIOP Smart Support Ticket Processor. Your job is to automatically pr
    - Depreciation view details
    - PostgreSQL custom tables (support tickets, knowledge base, report visibility, etc.)
    - **This knowledge is essential for investigating data integrity issues and writing correct queries.**
+4.5. **🛡️ Read ARCHITECTURE_RULES.md (MANDATORY)**: After reading DATABASE_SCHEMA.md, **immediately read `.manus/ARCHITECTURE_RULES.md`**. This file contains:
+   - The **Three-Lens Analysis** framework (Ticket / Platform / Architecture) — apply to EVERY ticket
+   - **Golden Rules** — non-negotiable coding standards derived from real production incidents
+   - **Pre-Fix Impact Analysis Checklist** — must be completed before writing any code
+   - **Known Tenant Data Differences** — reference table for multi-tenant debugging
+   - **New Org Onboarding Checklist** — use when a new tenant is added
+   - **Incident Log** — historical record of architectural violations and their consequences
+   - **⚠️ Skipping this step has historically caused the same class of bug to recur 4+ times. This is not optional.**
 5. **🔍 Check application health**: Before processing tickets, check for recent runtime errors:
    ```
    GET /api/admin/logs/health
@@ -375,6 +383,40 @@ For each ticket:
       3. If still missing: Post ONE clear `system_note` comment asking for the specific missing item, then **SKIP** the ticket
       4. Maximum 1 "waiting for info" comment per processing cycle
 
+### Phase 3.5: Three-Lens Analysis & Pre-Fix Impact Assessment
+
+> **🛡️ MANDATORY: Complete this phase BEFORE writing any code. This is the governance checkpoint that prevents single-tenant fixes from breaking the platform.**
+
+12.7. **Apply the Three-Lens Analysis** (from ARCHITECTURE_RULES.md):
+
+    **Lens 1 — Ticket**: What exactly is broken? Can I reproduce it? What does the user expect?
+
+    **Lens 2 — Platform**: Does the code path I'm about to change serve other tenants? Will my fix produce correct results for Bennett, IPS, Sandia Plastics, and a tenant that doesn't exist yet? Am I introducing any hardcoded values?
+
+    **Lens 3 — Architecture**: Does my planned fix follow the same pattern used in similar components? Am I duplicating logic? Will the next AIOP run understand this code? Does this require registry updates or new per-org config?
+
+12.8. **Complete the Pre-Fix Impact Analysis Checklist**:
+    - [ ] Which tenants does this code path serve? (All? One? Some?)
+    - [ ] Are there hardcoded values (SaleCodes, Dept numbers, branch IDs, customer numbers)?
+    - [ ] Are there schema prefix references that could be missing?
+    - [ ] Does this endpoint use caching? Is the cache key tenant-scoped?
+    - [ ] Does this change affect a shared component used by multiple pages?
+    - [ ] Does this change modify a SQL query that serves multiple endpoints?
+    - [ ] Could this change cause empty results for a tenant with different data structure?
+    - [ ] Does this follow the same pattern used in similar components?
+    - [ ] Does this require updates to any of the three registries?
+
+12.9. **Document the analysis** in a brief comment before proceeding:
+    ```
+    POST /api/support-tickets/:id/comments
+    {
+      "message": "**Pre-Fix Analysis:**\n\n**Root Cause:** [what's wrong]\n**Planned Fix:** [what we'll change]\n**Tenant Impact:** [which orgs affected]\n**Risk Assessment:** [low/medium/high — what could go wrong]",
+      "comment_type": "system_note",
+      "is_internal": true,
+      "created_by_name": "AIOP Support Bot"
+    }
+    ```
+
 ### Phase 4: Implementation
 
 13. **For Bugs / Data Integrity Issues**:
@@ -382,6 +424,7 @@ For each ticket:
     - Check if the issue is caused by hardcoded tenant-specific values
     - Write a comprehensive fix using dynamic lookups
     - Ensure the fix works for ALL tenants, not just the reporting org
+    - **Verify against ARCHITECTURE_RULES.md Golden Rules** — scan your code for violations of Rules 1-10
     - Test the fix locally if possible
 
 14. **For Report Changes / New Report Requests**:
@@ -474,6 +517,10 @@ For each ticket:
      - Verify the bug is fixed / enhancement works
      - Quick smoke test of related functionality
      - **Check error logs after testing**: `GET /api/admin/logs?since_hours=1` — verify no new errors were introduced by the fix
+     - **Run quick smoke test** (optional but recommended after high-risk changes):
+       ```bash
+       python3 .manus/smoke_test.py --quick
+       ```
 
 ### Phase 7: Resolution
 
@@ -534,9 +581,34 @@ For each ticket:
 
 ## Comprehensive Sanity Testing (6 PM Only)
 
-After processing all tickets at 6 PM, run comprehensive sanity testing:
+After processing all tickets at 6 PM, run comprehensive sanity testing using **both** the automated smoke test and manual verification.
 
-### Critical Workflows to Test
+### Step 1: Run Automated Smoke Test
+
+```bash
+cd /home/ubuntu/Softbasereports-fresh
+python3 .manus/smoke_test.py --verbose
+```
+
+The smoke test automatically:
+- Authenticates and fetches all active organizations
+- Tests core endpoints (Health, Sales Dashboard, Work Order Types, Invoiced Summary, Cost Per Hour) for EVERY org
+- Tests Azure SQL endpoints (Customer Profitability, Cash Burn, Awaiting Invoice) for orgs with custom databases
+- Runs cross-tenant data leakage detection (compares responses across orgs)
+- Checks runtime error logs for recent failures
+- Saves results to `.manus/last_smoke_test.json`
+
+**If the smoke test fails (exit code 1):**
+- Review the FAILED TESTS section in the output
+- If failures are caused by today's changes: **REVERT IMMEDIATELY** (`git revert HEAD && git push origin main`)
+- If failures are pre-existing: Note them but do not revert
+
+**Quick smoke test** (for mid-day spot checks):
+```bash
+python3 .manus/smoke_test.py --quick
+```
+
+### Step 2: Manual Verification of Critical Workflows
 
 1. **Authentication**:
    - Login works at `https://aiop.one`
@@ -555,8 +627,19 @@ After processing all tickets at 6 PM, run comprehensive sanity testing:
    - Accounting page loads
 
 4. **Multi-Tenant Verification**:
-   - If Super Admin, switch between orgs and verify data loads for each
+   - Switch between orgs and verify data loads for each
    - Verify no cross-org data leakage
+   - **Specifically verify any endpoint modified today** across at least 2 orgs
+
+### Step 3: Post-Deployment Error Check
+
+```bash
+# Check for new errors introduced by the deployment
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "https://softbasereports-production.up.railway.app/api/admin/logs?since_hours=1"
+```
+
+If new errors appear that correlate with today's changes, investigate immediately.
 
 ### If Sanity Testing Fails
 
@@ -564,6 +647,7 @@ After processing all tickets at 6 PM, run comprehensive sanity testing:
 - **Revert the changes**: `git revert HEAD && git push origin main`
 - **Add comment to ticket**: Explain that the fix caused regressions
 - **Re-research and try again**
+- **Update ARCHITECTURE_RULES.md Incident Log** with the new incident
 
 ---
 
@@ -574,9 +658,24 @@ After successful sanity testing, review if documentation needs updating:
 ### Files to Consider
 
 - `ARCHITECTURE.md` — System architecture, multi-tenant rules, RBAC details
+- `.manus/ARCHITECTURE_RULES.md` — **Platform governance rules, Golden Rules, incident log** (update when new architectural patterns or violations are discovered)
 - `DATABASE_SCHEMA.md` — Complete database schema documentation (update when new tables/columns/gotchas discovered)
 - `.manus/fixes_knowledge.json` — Knowledge base (always update after fixes)
 - `.manus/metrics.json` — Metrics (always update after processing)
+- `.manus/last_smoke_test.json` — Last smoke test results (auto-generated by smoke_test.py)
+
+### When to Update ARCHITECTURE_RULES.md
+
+✅ **DO Update** if:
+- A new Golden Rule is discovered through a production incident
+- A new tenant data difference is found (add to Known Tenant Data Differences table)
+- A new architectural pattern is established that should be followed
+- An incident occurs that should be logged in the Incident Log
+- A new org is onboarded (update the onboarding checklist results)
+
+❌ **DON'T Update** if:
+- Simple bug fixes that don't reveal new patterns
+- Changes that follow existing rules without discovering new ones
 
 ### When to Update ARCHITECTURE.md
 
@@ -1006,13 +1105,28 @@ Headers: Authorization: Bearer <token>
 
 ## Success Criteria
 
+### Governance (NEW — v1.8)
+✅ ARCHITECTURE_RULES.md read before processing any ticket
+✅ Three-Lens Analysis applied to every ticket (Ticket / Platform / Architecture)
+✅ Pre-Fix Impact Analysis Checklist completed before writing code
+✅ No Golden Rule violations in any code change
+✅ ARCHITECTURE_RULES.md Incident Log updated if new violation discovered
+
+### Ticket Processing
 ✅ All open bugs processed or skipped with reason
 ✅ All enhancements processed at 6 PM or skipped with reason
 ✅ All resolved tickets have resolution emails sent
 ✅ All skipped tickets have comments explaining why
 ✅ No hardcoded tenant-specific values introduced
 ✅ Fixes verified against multiple tenants
-✅ Comprehensive sanity testing passed (6 PM only)
+
+### Quality Assurance
+✅ Automated smoke test passed (6 PM only)
+✅ Cross-tenant leakage check passed (6 PM only)
+✅ Manual sanity testing passed (6 PM only)
+✅ No new runtime errors introduced (post-deployment error check)
+
+### Documentation & Metrics
 ✅ Documentation updated if needed (6 PM only)
 ✅ Knowledge base updated for all resolved tickets
 ✅ Metrics updated
@@ -1021,5 +1135,5 @@ Headers: Authorization: Bearer <token>
 
 ---
 
-**Last Updated**: March 2, 2026
-**Version**: 1.7 (Added Golden Rule #7: cache key tenant scoping for Azure SQL endpoints)
+**Last Updated**: March 4, 2026
+**Version**: 1.8 (Added Governance Framework: ARCHITECTURE_RULES.md, Three-Lens Analysis, Pre-Fix Impact Assessment, automated smoke test, cross-tenant leakage detection)
