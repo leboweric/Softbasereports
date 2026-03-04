@@ -1131,7 +1131,7 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                           <p className="font-semibold mb-1">Hours at Risk & Unbillable Labor</p>
                           <p className="text-xs"><strong>Over-Budget Hours:</strong> SUM of (Actual Hours - Quoted Hours) for CRITICAL and RED alert WOs where actual exceeds quoted.</p>
                           <p className="text-xs mt-1"><strong>No-Quote Hours:</strong> ALL actual hours on WOs with no quote entered in WOQuote — these have no budget at all.</p>
-                          <p className="text-xs mt-1"><strong>Unbillable Labor Value:</strong> Excess hours × effective labor rate (base rate after discount). If discount is 100%, uses base rate as cost exposure.</p>
+                          <p className="text-xs mt-1"><strong>Unbillable Labor Value:</strong> Excess hours × base labor rate. This represents the true cost exposure regardless of customer discount.</p>
                           <p className="text-xs mt-1"><strong>Sources:</strong> WOLabor.Hours, WOQuote.Amount (Type='L'), LaborRate.Rate, WO.LaborDiscount</p>
                         </TooltipContent>
                       </Tooltip>
@@ -1186,7 +1186,7 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                           <TableHead>Open Date</TableHead>
                           <TableHead className="text-right">Quoted Hours</TableHead>
                           <TableHead className="text-right">Actual Hours</TableHead>
-                          <TableHead className="text-right">Billable Rate</TableHead>
+                          <TableHead className="text-right">Labor Rate</TableHead>
                           <TableHead className="text-center">% Used</TableHead>
                           <TableHead className="text-center">Alert</TableHead>
                         </TableRow>
@@ -1273,19 +1273,25 @@ const ServiceReport = ({ user, organization, onNavigate }) => {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="cursor-help underline decoration-dotted underline-offset-2">
-                                        ${(wo.effective_rate !== undefined ? wo.effective_rate : wo.labor_rate)?.toFixed(0)}/hr
+                                        ${wo.labor_rate?.toFixed(0)}/hr
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent className="max-w-xs">
                                       <div className="text-xs space-y-1">
-                                        <p className="font-semibold border-b pb-1 mb-1">Rate Breakdown</p>
-                                        <p>Base Rate: <span className="font-mono">${wo.labor_rate?.toFixed(2)}/hr</span></p>
-                                        {wo.labor_discount > 0 && (
-                                          <p>Discount: <span className="font-mono">{wo.labor_discount}%</span></p>
-                                        )}
-                                        <p className="font-medium border-t pt-1 mt-1">
-                                          Effective Rate: <span className="font-mono">${(wo.effective_rate !== undefined ? wo.effective_rate : wo.labor_rate)?.toFixed(2)}/hr</span>
-                                        </p>
+                                         <p className="font-semibold border-b pb-1 mb-1">Rate Breakdown</p>
+                                         <p>Base Labor Rate: <span className="font-mono">${wo.labor_rate?.toFixed(2)}/hr</span></p>
+                                         {wo.labor_discount > 0 && (
+                                           <>
+                                             <p>Customer Discount: <span className="font-mono">{wo.labor_discount}%</span></p>
+                                             <p>Customer Pays: <span className="font-mono">${wo.effective_rate?.toFixed(2)}/hr</span></p>
+                                           </>
+                                         )}
+                                         <p className="font-medium border-t pt-1 mt-1">
+                                           Cost Exposure Rate: <span className="font-mono">${wo.labor_rate?.toFixed(2)}/hr</span>
+                                         </p>
+                                         {wo.labor_discount === 100 && (
+                                           <p className="text-xs text-amber-600 mt-1">⚠ 100% discount — customer not billed, but labor cost is real</p>
+                                         )}
                                       </div>
                                     </TooltipContent>
                                   </Tooltip>

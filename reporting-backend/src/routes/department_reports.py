@@ -9736,15 +9736,21 @@ def register_department_routes(reports_bp):
                 wo_date_filter = "AND w.OpenDate >= DATEADD(month, -13, GETDATE())"
 
             # Dynamically discover maintenance contract SaleCodes from Dept table
-            # Look for departments related to maintenance/guaranteed maintenance
+            # Look for departments related to maintenance/guaranteed maintenance/PM service
+            # IPS uses "PM Service", Bennett uses "Full Maintenance"/"Guaranteed Maintenance"
             maintenance_salecodes_query = f"""
             SELECT DISTINCT i.SaleCode
             FROM {schema}.InvoiceReg i
             JOIN {schema}.Dept d ON i.SaleDept = d.Dept
             WHERE LOWER(d.Title) LIKE '%maintenance%'
                OR LOWER(d.Title) LIKE '%guaranteed%'
+               OR LOWER(d.Title) LIKE '%pm service%'
+               OR LOWER(d.Title) LIKE '%pm %'
+               OR LOWER(d.Title) LIKE '%preventive%'
+               OR LOWER(d.Title) LIKE '%contract%'
                OR i.SaleCode LIKE 'FM%'
                OR i.SaleCode LIKE 'PM-FM%'
+               OR i.SaleCode LIKE 'PM%'
             """
             try:
                 mc_codes_result = db.execute_query(maintenance_salecodes_query)
@@ -9775,7 +9781,7 @@ def register_department_routes(reports_bp):
                 {date_filter}
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
-            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
+            """
 
             revenue_results = db.execute_query(revenue_query)
             # Get list of ShipTo locations that have maintenance contract invoices
@@ -9787,7 +9793,7 @@ def register_department_routes(reports_bp):
                 {date_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
-            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
+            """
             maintenance_customers = db.execute_query(maintenance_customers_query)
             customer_numbers = [row['customer_number'] for row in maintenance_customers]
 
@@ -10025,9 +10031,8 @@ def register_department_routes(reports_bp):
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
             GROUP BY i.ShipTo, c.Name, bc.Name
-            ORDER BY total_revenue DESC
-            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
-
+             ORDER BY total_revenue DESC
+            """
             customer_results = db.execute_query(customer_query)
 
             # Get overall summary
@@ -10043,7 +10048,7 @@ def register_department_routes(reports_bp):
                 {date_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
-            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
+            """
 
             summary_results = db.execute_query(summary_query)
 
@@ -10258,11 +10263,11 @@ def register_department_routes(reports_bp):
                 'by_equipment': equipment_data,
                 'summary': summary,
                 'notes': {
-                    'contract_revenue': 'Monthly billing from maintenance contract invoices (FMBILL, FMROAD, PM-FM, FMSHOP)',
+                    'contract_revenue': f"Monthly billing from maintenance contract invoices ({', '.join(maintenance_sale_codes)})",
                     'service_costs': 'Actual costs from Work Orders (Labor + Parts + Misc) for contract customers',
                     'true_profit': 'Contract Revenue - Actual Service Costs',
                     'wo_types_included': 'S (Service), SH (Shop), PM (Preventive Maintenance)',
-                    'sale_codes': 'FMBILL (billing), FMROAD (road service), PM-FM (preventive maintenance), FMSHOP (shop work)'
+                    'sale_codes': f"Dynamically discovered: {', '.join(maintenance_sale_codes)}"
                 },
             })
 
