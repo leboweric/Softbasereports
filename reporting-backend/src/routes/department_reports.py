@@ -9721,6 +9721,27 @@ def register_department_routes(reports_bp):
             month = request.args.get('month')
             year = request.args.get('year')
             
+            # Get excluded branches from organization settings
+            # This filters out branches that belong to separate companies sharing the same ERP schema
+            # e.g., IPS excludes branches 3 (CH Steel Solutions) and 4 (Dynamic Storage Solutions)
+            excluded_branches = []
+            branch_invoice_filter = ""
+            branch_wo_filter = ""
+            try:
+                user_id = get_jwt_identity()
+                user = User.query.get(int(user_id))
+                if user and user.organization and user.organization.settings:
+                    import json as _json
+                    org_settings = _json.loads(user.organization.settings)
+                    excluded_branches = org_settings.get('excluded_branches', [])
+                    if excluded_branches:
+                        branch_list = ','.join([str(b) for b in excluded_branches])
+                        branch_invoice_filter = f"AND SaleBranch NOT IN ({branch_list})"
+                        branch_wo_filter = f"AND w.SaleBranch NOT IN ({branch_list})"
+                        logger.info(f"Maintenance Contract Profitability: excluding branches {excluded_branches}")
+            except Exception as e:
+                logger.warning(f'Could not load excluded_branches from org settings: {e}')
+            
             # Build date filter based on parameters
             if month and year:
                 # Specific month/year
@@ -9779,6 +9800,7 @@ def register_department_routes(reports_bp):
             FROM {schema}.InvoiceReg
             WHERE SaleCode IN ({mc_codes_sql})
                 {date_filter}
+                {branch_invoice_filter}
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
             """
@@ -9791,6 +9813,7 @@ def register_department_routes(reports_bp):
             FROM {schema}.InvoiceReg
             WHERE SaleCode IN ({mc_codes_sql})
                 {date_filter}
+                {branch_invoice_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
             """
@@ -9816,6 +9839,7 @@ def register_department_routes(reports_bp):
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')  -- Service, Shop, PM work orders
                     {wo_date_filter}
+                    {branch_wo_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
@@ -9863,6 +9887,7 @@ def register_department_routes(reports_bp):
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
+                    {branch_wo_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
@@ -9909,6 +9934,7 @@ def register_department_routes(reports_bp):
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
+                    {branch_wo_filter}
                 ),
                 LaborCosts AS (
                     SELECT WONo, SUM(COALESCE(Cost, 0)) as labor_cost
@@ -9957,6 +9983,7 @@ def register_department_routes(reports_bp):
                     WHERE w.ShipTo IN ({quoted_customers})
                     AND w.Type IN ('S', 'SH', 'PM')
                     {wo_date_filter}
+                    {branch_wo_filter}
                     AND w.SerialNo IS NOT NULL
                     AND w.SerialNo != ''
                 ),
@@ -10028,6 +10055,7 @@ def register_department_routes(reports_bp):
             LEFT JOIN {schema}.Customer bc ON i.BillTo = bc.Number
             WHERE i.SaleCode IN ({mc_codes_sql})
                 {date_filter}
+                {branch_invoice_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
             GROUP BY i.ShipTo, c.Name, bc.Name
@@ -10046,6 +10074,7 @@ def register_department_routes(reports_bp):
             FROM {schema}.InvoiceReg
             WHERE SaleCode IN ({mc_codes_sql})
                 {date_filter}
+                {branch_invoice_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
             """
@@ -10302,6 +10331,27 @@ def register_department_routes(reports_bp):
             min_revenue = request.args.get('min_revenue', 0)
             department = request.args.get('department', 'all')  # 'all', 'service', 'parts', etc.
             
+            # Get excluded branches from organization settings
+            # This filters out branches that belong to separate companies sharing the same ERP schema
+            # e.g., IPS excludes branches 3 (CH Steel Solutions) and 4 (Dynamic Storage Solutions)
+            excluded_branches = []
+            branch_invoice_filter = ""
+            branch_wo_filter = ""
+            try:
+                user_id = get_jwt_identity()
+                user = User.query.get(int(user_id))
+                if user and user.organization and user.organization.settings:
+                    import json as _json
+                    org_settings = _json.loads(user.organization.settings)
+                    excluded_branches = org_settings.get('excluded_branches', [])
+                    if excluded_branches:
+                        branch_list = ','.join([str(b) for b in excluded_branches])
+                        branch_invoice_filter = f"AND i.SaleBranch NOT IN ({branch_list})"
+                        branch_wo_filter = f"AND wo.SaleBranch NOT IN ({branch_list})"
+                        logger.info(f"Customer Profitability: excluding branches {excluded_branches}")
+            except Exception as e:
+                logger.warning(f'Could not load excluded_branches from org settings: {e}')
+            
             # Build date filter based on parameters
             if start_date and end_date:
                 # Custom date range
@@ -10378,12 +10428,13 @@ def register_department_routes(reports_bp):
             WHERE 1=1
                 {date_filter}
                 {dept_invoice_filter}
+                {branch_invoice_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
             GROUP BY i.ShipTo
             HAVING SUM(COALESCE(i.GrandTotal, 0)) >= {min_revenue}
             ORDER BY total_revenue DESC
-            """.format(date_filter=date_filter, dept_invoice_filter=dept_invoice_filter, min_revenue=min_revenue)
+            """.format(date_filter=date_filter, dept_invoice_filter=dept_invoice_filter, branch_invoice_filter=branch_invoice_filter, min_revenue=min_revenue)
 
             customer_revenue_results = db.execute_query(customer_revenue_query)
 
@@ -10397,10 +10448,11 @@ def register_department_routes(reports_bp):
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
+                {branch_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
             GROUP BY wo.ShipTo
-            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter)
+            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter, branch_wo_filter=branch_wo_filter)
 
             labor_costs_results = db.execute_query(labor_costs_query)
 
@@ -10414,10 +10466,11 @@ def register_department_routes(reports_bp):
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
+                {branch_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
             GROUP BY wo.ShipTo
-            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter)
+            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter, branch_wo_filter=branch_wo_filter)
 
             parts_costs_results = db.execute_query(parts_costs_query)
 
@@ -10431,10 +10484,11 @@ def register_department_routes(reports_bp):
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
+                {branch_wo_filter}
                 AND wo.ShipTo IS NOT NULL
                 AND wo.ShipTo != ''
             GROUP BY wo.ShipTo
-            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter)
+            """.format(wo_date_filter=wo_date_filter, dept_wo_filter=dept_wo_filter, branch_wo_filter=branch_wo_filter)
 
             misc_costs_results = db.execute_query(misc_costs_query)
 
