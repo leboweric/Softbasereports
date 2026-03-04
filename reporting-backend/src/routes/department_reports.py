@@ -9718,7 +9718,32 @@ def register_department_routes(reports_bp):
                 date_filter = "AND InvoiceDate >= DATEADD(month, -13, GETDATE())"
                 wo_date_filter = "AND w.OpenDate >= DATEADD(month, -13, GETDATE())"
 
-            # Get FMBILL revenue by year/month (contract billing)
+            # Dynamically discover maintenance contract SaleCodes from Dept table
+            # Look for departments related to maintenance/guaranteed maintenance
+            maintenance_salecodes_query = f"""
+            SELECT DISTINCT i.SaleCode
+            FROM {schema}.InvoiceReg i
+            JOIN {schema}.Dept d ON i.SaleDept = d.Dept
+            WHERE LOWER(d.Title) LIKE '%maintenance%'
+               OR LOWER(d.Title) LIKE '%guaranteed%'
+               OR i.SaleCode LIKE 'FM%'
+               OR i.SaleCode LIKE 'PM-FM%'
+            """
+            try:
+                mc_codes_result = db.execute_query(maintenance_salecodes_query)
+                if mc_codes_result:
+                    maintenance_sale_codes = [row['SaleCode'] for row in mc_codes_result]
+                else:
+                    # Fallback to known common codes
+                    maintenance_sale_codes = ['FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP']
+            except Exception as mc_err:
+                logger.warning(f"Could not query maintenance SaleCodes dynamically: {mc_err}")
+                maintenance_sale_codes = ['FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP']
+            
+            mc_codes_sql = ','.join([f"'{c}'" for c in maintenance_sale_codes])
+            logger.info(f"Using maintenance contract SaleCodes: {maintenance_sale_codes}")
+
+            # Get maintenance contract revenue by year/month
             revenue_query = f"""
             SELECT
                 YEAR(InvoiceDate) as year,
@@ -9729,11 +9754,11 @@ def register_department_routes(reports_bp):
                 SUM(COALESCE(MiscTaxable, 0) + COALESCE(MiscNonTax, 0)) as misc_revenue,
                 SUM(COALESCE(GrandTotal, 0)) as total_revenue
             FROM {schema}.InvoiceReg
-            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
+            WHERE SaleCode IN ({mc_codes_sql})
                 {date_filter}
             GROUP BY YEAR(InvoiceDate), MONTH(InvoiceDate)
             ORDER BY YEAR(InvoiceDate) DESC, MONTH(InvoiceDate) DESC
-            """.format(date_filter=date_filter)
+            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
 
             revenue_results = db.execute_query(revenue_query)
             # Get list of ShipTo locations that have maintenance contract invoices
@@ -9741,11 +9766,11 @@ def register_department_routes(reports_bp):
             maintenance_customers_query = f"""
             SELECT DISTINCT ShipTo as customer_number
             FROM {schema}.InvoiceReg
-            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
+            WHERE SaleCode IN ({mc_codes_sql})
                 {date_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
-            """.format(date_filter=date_filter)
+            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
             maintenance_customers = db.execute_query(maintenance_customers_query)
             customer_numbers = [row['customer_number'] for row in maintenance_customers]
 
@@ -9978,13 +10003,13 @@ def register_department_routes(reports_bp):
             FROM {schema}.InvoiceReg i
             LEFT JOIN {schema}.Customer c ON i.ShipTo = c.Number
             LEFT JOIN {schema}.Customer bc ON i.BillTo = bc.Number
-            WHERE i.SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
+            WHERE i.SaleCode IN ({mc_codes_sql})
                 {date_filter}
                 AND i.ShipTo IS NOT NULL
                 AND i.ShipTo != ''
             GROUP BY i.ShipTo, c.Name, bc.Name
             ORDER BY total_revenue DESC
-            """.format(date_filter=date_filter)
+            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
 
             customer_results = db.execute_query(customer_query)
 
@@ -9997,11 +10022,11 @@ def register_department_routes(reports_bp):
                 MIN(InvoiceDate) as earliest_invoice,
                 MAX(InvoiceDate) as latest_invoice
             FROM {schema}.InvoiceReg
-            WHERE SaleCode IN ('FMBILL', 'FMROAD', 'PM-FM', 'FMSHOP')
+            WHERE SaleCode IN ({mc_codes_sql})
                 {date_filter}
                 AND ShipTo IS NOT NULL
                 AND ShipTo != ''
-            """.format(date_filter=date_filter)
+            """.format(date_filter=date_filter, mc_codes_sql=mc_codes_sql)
 
             summary_results = db.execute_query(summary_query)
 
@@ -10265,15 +10290,49 @@ def register_department_routes(reports_bp):
                 date_filter = "AND i.InvoiceDate >= DATEADD(month, -12, GETDATE())"
                 wo_date_filter = "AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) >= DATEADD(month, -12, GETDATE())"
 
-            # Build department filter for revenue (InvoiceReg) and costs (WO)
-            # Service WO types: S (Service), SH (Shop), PM (Preventive Maintenance)
+            # Build department filter dynamically from Dept table
+            # This ensures compatibility across all tenant schemas
             dept_invoice_filter = ""
             dept_wo_filter = ""
             if department == 'service':
-                dept_invoice_filter = "AND i.SaleCode IN ('SVE', 'SVC', 'SH', 'PM')"
+                # Dynamically look up service-related department IDs from the Dept table
+                service_dept_query = f"""
+                SELECT Dept FROM {schema}.Dept
+                WHERE LOWER(Title) LIKE '%service%'
+                   OR LOWER(Title) LIKE '%shop%'
+                   OR LOWER(Title) LIKE '%pm%'
+                   OR LOWER(Title) LIKE '%preventive%'
+                   OR LOWER(Title) LIKE '%warranty%'
+                   OR LOWER(Title) LIKE '%maintenance%'
+                """
+                try:
+                    service_depts = db.execute_query(service_dept_query)
+                    if service_depts:
+                        dept_ids = ','.join([str(row['Dept']) for row in service_depts])
+                        dept_invoice_filter = f"AND i.SaleDept IN ({dept_ids})"
+                    else:
+                        # Fallback: use common service SaleCode patterns
+                        dept_invoice_filter = "AND (i.SaleDept >= 40 AND i.SaleDept <= 75)"
+                except Exception as dept_err:
+                    logger.warning(f"Could not query Dept table for service depts: {dept_err}")
+                    dept_invoice_filter = "AND (i.SaleDept >= 40 AND i.SaleDept <= 75)"
                 dept_wo_filter = "AND wo.Type IN ('S', 'SH', 'PM')"
             elif department == 'parts':
-                dept_invoice_filter = "AND i.SaleCode IN ('PRT', 'C1', 'C2')"
+                # Dynamically look up parts department IDs
+                parts_dept_query = f"""
+                SELECT Dept FROM {schema}.Dept
+                WHERE LOWER(Title) LIKE '%part%'
+                """
+                try:
+                    parts_depts = db.execute_query(parts_dept_query)
+                    if parts_depts:
+                        dept_ids = ','.join([str(row['Dept']) for row in parts_depts])
+                        dept_invoice_filter = f"AND i.SaleDept IN ({dept_ids})"
+                    else:
+                        dept_invoice_filter = "AND i.SaleDept = 30"
+                except Exception as dept_err:
+                    logger.warning(f"Could not query Dept table for parts depts: {dept_err}")
+                    dept_invoice_filter = "AND i.SaleDept = 30"
                 dept_wo_filter = "AND wo.Type = 'P'"
 
             # Get revenue by customer
@@ -10312,7 +10371,7 @@ def register_department_routes(reports_bp):
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wol.Cost, 0)) as total_labor_cost
             FROM {schema}.WO wo
-            INNER JOIN WOLabor wol ON wo.WONo = wol.WONo
+            INNER JOIN {schema}.WOLabor wol ON wo.WONo = wol.WONo
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
@@ -10329,7 +10388,7 @@ def register_department_routes(reports_bp):
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wop.Cost, 0)) as total_parts_cost
             FROM {schema}.WO wo
-            INNER JOIN WOParts wop ON wo.WONo = wop.WONo
+            INNER JOIN {schema}.WOParts wop ON wo.WONo = wop.WONo
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
@@ -10346,7 +10405,7 @@ def register_department_routes(reports_bp):
                 wo.ShipTo as customer_number,
                 SUM(COALESCE(wom.Cost, 0)) as total_misc_cost
             FROM {schema}.WO wo
-            INNER JOIN WOMisc wom ON wo.WONo = wom.WONo
+            INNER JOIN {schema}.WOMisc wom ON wo.WONo = wom.WONo
             WHERE 1=1
                 {wo_date_filter}
                 {dept_wo_filter}
