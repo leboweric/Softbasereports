@@ -623,6 +623,11 @@ def get_sales_gp_report():
     Groups revenue (4xxxx) and cost of sales (5xxxx) GL accounts by Branch and Department.
     COS is matched by swapping the leading '4' with '5' in the account number.
     GP is only calculated for lines that have a matching COS account with non-zero MTD.
+    
+    Supports both single-month and date-range queries:
+    - Single month: ?month=2&year=2026
+    - Date range: ?start_month=1&start_year=2026&end_month=3&end_year=2026
+    When date range params are provided, aggregates across all months in the range using SUM(MTD).
     """
     try:
         schema = get_tenant_schema()
@@ -637,36 +642,59 @@ def get_sales_gp_report():
             default_month = now.month - 1
             default_year = now.year
         
-        month = int(request.args.get('month', default_month))
-        year = int(request.args.get('year', default_year))
+        # Check for date range parameters
+        start_month = request.args.get('start_month')
+        start_year = request.args.get('start_year')
+        end_month = request.args.get('end_month')
+        end_year = request.args.get('end_year')
         
-        logger.info(f"Sales GP Report for {schema}: {year}-{month:02d}")
+        is_range = start_month and start_year and end_month and end_year
+        
+        if is_range:
+            start_month = int(start_month)
+            start_year = int(start_year)
+            end_month = int(end_month)
+            end_year = int(end_year)
+            # Build a date filter for the range using (Year * 100 + Month) trick
+            period_filter = f"(g.Year * 100 + g.Month) >= {start_year * 100 + start_month} AND (g.Year * 100 + g.Month) <= {end_year * 100 + end_month}"
+            cos_period_filter = f"(cos_gl.Year * 100 + cos_gl.Month) >= {start_year * 100 + start_month} AND (cos_gl.Year * 100 + cos_gl.Month) <= {end_year * 100 + end_month}"
+            month = end_month  # for response
+            year = end_year
+            logger.info(f"Sales GP Report (range) for {schema}: {start_year}-{start_month:02d} to {end_year}-{end_month:02d}")
+        else:
+            month = int(request.args.get('month', default_month))
+            year = int(request.args.get('year', default_year))
+            period_filter = f"g.Month = {month} AND g.Year = {year}"
+            cos_period_filter = f"cos_gl.Month = {month} AND cos_gl.Year = {year}"
+            logger.info(f"Sales GP Report for {schema}: {year}-{month:02d}")
         
         # Query 1: Get all revenue accounts (4xxxx) with direct COS match (swap 4→5)
+        # Uses SUM(MTD) to aggregate across multiple months when in range mode
         query = f"""
             SELECT 
                 c.Branch,
                 c.Department as Dept,
                 c.AccountNo as Account,
-                CASE WHEN cos_gl.MTD IS NOT NULL AND cos_gl.MTD != 0 
+                CASE WHEN SUM(CASE WHEN cos_gl.MTD IS NOT NULL THEN cos_gl.MTD ELSE 0 END) != 0 
                      THEN '5' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
                      ELSE '' END as GPAccount,
                 c.Description as AccountDescription,
-                -g.MTD as Sales,
-                CASE WHEN cos_gl.MTD IS NOT NULL AND cos_gl.MTD != 0 
-                     THEN cos_gl.MTD ELSE 0 END as COS,
-                CASE WHEN cos_gl.MTD IS NOT NULL AND cos_gl.MTD != 0 
-                     THEN -g.MTD - cos_gl.MTD ELSE 0 END as GP
+                -SUM(g.MTD) as Sales,
+                CASE WHEN SUM(CASE WHEN cos_gl.MTD IS NOT NULL THEN cos_gl.MTD ELSE 0 END) != 0 
+                     THEN SUM(CASE WHEN cos_gl.MTD IS NOT NULL THEN cos_gl.MTD ELSE 0 END) ELSE 0 END as COS,
+                CASE WHEN SUM(CASE WHEN cos_gl.MTD IS NOT NULL THEN cos_gl.MTD ELSE 0 END) != 0 
+                     THEN -SUM(g.MTD) - SUM(CASE WHEN cos_gl.MTD IS NOT NULL THEN cos_gl.MTD ELSE 0 END) ELSE 0 END as GP
             FROM {schema}.GL g
             JOIN {schema}.ChartOfAccounts c ON g.AccountNo = c.AccountNo
             LEFT JOIN {schema}.GL cos_gl 
                 ON cos_gl.AccountNo = '5' + SUBSTRING(c.AccountNo, 2, LEN(c.AccountNo)-1)
-                AND cos_gl.Month = {month} AND cos_gl.Year = {year} 
+                AND {cos_period_filter}
                 AND cos_gl.AccountField = 'Actual'
             WHERE g.AccountNo LIKE '4%'
-            AND g.Month = {month} AND g.Year = {year}
+            AND {period_filter}
             AND g.AccountField = 'Actual'
             AND g.MTD != 0
+            GROUP BY c.Branch, c.Department, c.AccountNo, c.Description
             ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
         """
         
@@ -680,13 +708,14 @@ def get_sales_gp_report():
                 c.Department as Dept,
                 c.AccountNo as Account,
                 c.Description as AccountDescription,
-                g.MTD as COS
+                SUM(g.MTD) as COS
             FROM {schema}.GL g
             JOIN {schema}.ChartOfAccounts c ON g.AccountNo = c.AccountNo
             WHERE g.AccountNo LIKE '5%'
-            AND g.Month = {month} AND g.Year = {year}
+            AND {period_filter}
             AND g.AccountField = 'Actual'
             AND g.MTD != 0
+            GROUP BY c.Branch, c.Department, c.AccountNo, c.Description
             ORDER BY CAST(c.Branch AS INT), CAST(c.Department AS INT), c.AccountNo
         """
         
@@ -861,7 +890,7 @@ def get_sales_gp_report():
         
         gp_pct = (grand_gp / grand_sales * 100) if grand_sales != 0 else 0
         
-        return jsonify({
+        response_data = {
             'month': month,
             'year': year,
             'branches': branches_list,
@@ -872,7 +901,16 @@ def get_sales_gp_report():
                 'gp_pct': round(gp_pct, 2)
             },
             'branch_names': branch_names
-        })
+        }
+        
+        if is_range:
+            response_data['is_range'] = True
+            response_data['start_month'] = start_month
+            response_data['start_year'] = start_year
+            response_data['end_month'] = end_month
+            response_data['end_year'] = end_year
+        
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Error fetching Sales GP Report: {str(e)}")

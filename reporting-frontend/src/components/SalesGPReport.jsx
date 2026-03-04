@@ -48,12 +48,14 @@ const DEPT_NAMES = {
   '30': 'Used Equipment',
   '40': 'Road Service',
   '45': 'Shop Service',
-  '47': 'PM Service',
-  '50': 'Counter Parts',
+  '50': 'Parts',
   '60': 'Rental',
-  '70': 'IPSCO Lease',
-  '75': 'AMI',
+  '70': 'Admin',
   '80': 'Other Income',
+}
+
+function formatMonthLabel(month, year) {
+  return `${MONTHS.find(m => m.value === month)?.label || ''} ${year}`
 }
 
 export default function SalesGPReport({ user }) {
@@ -62,32 +64,56 @@ export default function SalesGPReport({ user }) {
   const [error, setError] = useState(null)
   const [expandedBranches, setExpandedBranches] = useState(new Set())
   const [expandedDepts, setExpandedDepts] = useState(new Set())
-  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [rangePickerOpen, setRangePickerOpen] = useState(false)
 
-  // Default to previous month
+  // Default to previous month (single month mode)
   const now = new Date()
   const defaultMonth = now.getMonth() === 0 ? 12 : now.getMonth()
   const defaultYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
   
-  const [selectedMonth, setSelectedMonth] = useState(defaultMonth)
-  const [selectedYear, setSelectedYear] = useState(defaultYear)
+  // Date range state
+  const [dateRange, setDateRange] = useState({
+    from: new Date(defaultYear, defaultMonth - 1, 1),
+    to: new Date(defaultYear, defaultMonth - 1, 28)
+  })
 
-  // Derive a Date object for the calendar from selectedMonth/selectedYear
-  const selectedDate = useMemo(() => {
-    return new Date(selectedYear, selectedMonth - 1, 15) // mid-month to avoid timezone issues
-  }, [selectedMonth, selectedYear])
+  // Derive month/year values from the date range
+  const startMonth = dateRange?.from ? dateRange.from.getMonth() + 1 : defaultMonth
+  const startYear = dateRange?.from ? dateRange.from.getFullYear() : defaultYear
+  const endMonth = dateRange?.to ? dateRange.to.getMonth() + 1 : startMonth
+  const endYear = dateRange?.to ? dateRange.to.getFullYear() : startYear
+
+  const isRangeMode = startMonth !== endMonth || startYear !== endYear
 
   const yearOptions = useMemo(() => {
     const currentYear = new Date().getFullYear()
     return [currentYear, currentYear - 1, currentYear - 2]
   }, [])
 
-  const handleCalendarSelect = (date) => {
-    if (date) {
-      setSelectedMonth(date.getMonth() + 1)
-      setSelectedYear(date.getFullYear())
-      setCalendarOpen(false)
+  const handleRangeSelect = (range) => {
+    if (range?.from && !range?.to) {
+      // User clicked the first date, keep popover open
+      setDateRange({ from: range.from, to: null })
+    } else if (range?.from && range?.to) {
+      // Both dates selected
+      setDateRange(range)
+      setRangePickerOpen(false)
     }
+  }
+
+  // Quick single-month selection via dropdowns
+  const handleQuickMonthChange = (month) => {
+    setDateRange({
+      from: new Date(endYear, month - 1, 1),
+      to: new Date(endYear, month - 1, 28)
+    })
+  }
+
+  const handleQuickYearChange = (year) => {
+    setDateRange({
+      from: new Date(year, startMonth - 1, 1),
+      to: new Date(year, endMonth - 1, 28)
+    })
   }
 
   const fetchData = useCallback(async () => {
@@ -95,12 +121,15 @@ export default function SalesGPReport({ user }) {
     setError(null)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(
-        apiUrl(`/api/reports/departments/accounting/sales-gp-report?month=${selectedMonth}&year=${selectedYear}`),
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      )
+      let url
+      if (isRangeMode) {
+        url = apiUrl(`/api/reports/departments/accounting/sales-gp-report?start_month=${startMonth}&start_year=${startYear}&end_month=${endMonth}&end_year=${endYear}`)
+      } else {
+        url = apiUrl(`/api/reports/departments/accounting/sales-gp-report?month=${startMonth}&year=${startYear}`)
+      }
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const result = await response.json()
       setData(result)
@@ -121,7 +150,7 @@ export default function SalesGPReport({ user }) {
     } finally {
       setLoading(false)
     }
-  }, [selectedMonth, selectedYear])
+  }, [startMonth, startYear, endMonth, endYear, isRangeMode])
 
   useEffect(() => {
     fetchData()
@@ -169,11 +198,15 @@ export default function SalesGPReport({ user }) {
     setExpandedDepts(new Set())
   }
 
+  // Build the period label
+  const periodLabel = isRangeMode
+    ? `${formatMonthLabel(startMonth, startYear)} \u2013 ${formatMonthLabel(endMonth, endYear)}`
+    : formatMonthLabel(startMonth, startYear)
+
   const exportCSV = () => {
     if (!data?.branches) return
-    const monthLabel = MONTHS.find(m => m.value === data.month)?.label || data.month
     const rows = [
-      ['Sales GP Report', `${monthLabel} ${data.year}`],
+      ['Sales GP Report', periodLabel],
       [],
       ['Branch', 'Dept', 'Account', 'GP Account', 'Description', 'Sales', 'COS', 'GP', 'GP%']
     ]
@@ -208,7 +241,7 @@ export default function SalesGPReport({ user }) {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `Sales_GP_Report_${data.year}_${String(data.month).padStart(2, '0')}.csv`
+    a.download = `Sales_GP_Report_${periodLabel.replace(/\s/g, '_')}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -233,8 +266,6 @@ export default function SalesGPReport({ user }) {
     )
   }
 
-  const monthLabel = MONTHS.find(m => m.value === data?.month)?.label || ''
-
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -242,41 +273,52 @@ export default function SalesGPReport({ user }) {
         <div>
           <h3 className="text-lg font-semibold">Sales GP Report</h3>
           <p className="text-sm text-muted-foreground">
-            Revenue, Cost of Sales, and Gross Profit by Branch and Department &mdash; {monthLabel} {data?.year}
+            Revenue, Cost of Sales, and Gross Profit by Branch and Department &mdash; {periodLabel}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Calendar Date Picker */}
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          {/* Date Range Picker */}
+          <Popover open={rangePickerOpen} onOpenChange={setRangePickerOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 className={cn(
-                  "w-[200px] justify-start text-left font-normal",
-                  !selectedDate && "text-muted-foreground"
+                  "justify-start text-left font-normal",
+                  !dateRange?.from && "text-muted-foreground"
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {MONTHS.find(m => m.value === selectedMonth)?.label} {selectedYear}
+                {dateRange?.from ? (
+                  dateRange?.to && (startMonth !== endMonth || startYear !== endYear) ? (
+                    <span>
+                      {formatMonthLabel(startMonth, startYear)} &ndash; {formatMonthLabel(endMonth, endYear)}
+                    </span>
+                  ) : (
+                    <span>{formatMonthLabel(startMonth, startYear)}</span>
+                  )
+                ) : (
+                  <span>Pick a date range</span>
+                )}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
               <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={handleCalendarSelect}
-                defaultMonth={selectedDate}
+                mode="range"
+                selected={dateRange}
+                onSelect={handleRangeSelect}
+                defaultMonth={dateRange?.from}
+                numberOfMonths={2}
                 disabled={(date) => date > new Date()}
                 initialFocus
               />
               <div className="border-t px-3 py-2 text-xs text-muted-foreground text-center">
-                Pick any date to load that month&apos;s report
+                Select start and end dates to define the reporting period
               </div>
             </PopoverContent>
           </Popover>
 
-          {/* Quick Month Selector */}
-          <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+          {/* Quick Month/Year Selectors */}
+          <Select value={String(endMonth)} onValueChange={(v) => handleQuickMonthChange(Number(v))}>
             <SelectTrigger className="w-[130px]">
               <SelectValue />
             </SelectTrigger>
@@ -286,7 +328,7 @@ export default function SalesGPReport({ user }) {
               ))}
             </SelectContent>
           </Select>
-          <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+          <Select value={String(endYear)} onValueChange={(v) => handleQuickYearChange(Number(v))}>
             <SelectTrigger className="w-[90px]">
               <SelectValue />
             </SelectTrigger>
