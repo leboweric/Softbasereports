@@ -360,6 +360,129 @@
       "component": "Currie Service Page",
       "fix": "Already implemented - documented existing 12 KPI cards with tooltips",
       "resolution": "resolved"
+    },
+    {
+      "ticket_id": "TKT-2026-0023",
+      "type": "bug",
+      "component": "Cash Burn / service_shop_work_orders.py + ServiceReport.jsx",
+      "organization": "all",
+      "issue_summary": "Cash Burn report showing wrong billable rate (base rate instead of effective rate after discount), wrong unbillable labor value, and wrong hours at risk (missing no-quote WOs)",
+      "root_cause": "Three issues: (1) Billable rate displayed was the base LaborRate.Rate, ignoring WO.LaborDiscount. (2) Unbillable labor value used base rate for dollar calculations. (3) Hours at Risk only counted WOs over quoted hours, missing WOs with NO quote at all (15 of 21 WOs).",
+      "solution": "(1) Added effective_rate calculation: LaborRate.Rate * (1 - LaborDiscount/100). Backend now returns effective_rate, labor_rate, and labor_discount per WO. (2) Unbillable labor value now uses effective_rate for calculations. (3) Hours at Risk now includes NO_QUOTE WOs — total = over-budget hours + no-quote hours. (4) Added Billable Rate column to table with tooltip showing base rate, discount %, and effective rate.",
+      "files_modified": [
+        "reporting-backend/src/routes/service_shop_work_orders.py",
+        "reporting-frontend/src/components/departments/ServiceReport.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — effective rate calculation is universal",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "CRITICAL: WOs can have a LaborDiscount field (0-100%). The effective billable rate = LaborRate.Rate × (1 - WO.LaborDiscount/100). ALWAYS use effective rate for dollar calculations, not the base rate. Also, Hours at Risk must include WOs with NO quote — these represent untracked budget exposure."
+    },
+    {
+      "ticket_id": "TKT-2026-0024",
+      "type": "question",
+      "component": "Cash Burn / Quoted Hours Source",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Confirm where Quoted Hours come from and send to John — potential process change needed",
+      "root_cause": "Information request with process implications.",
+      "solution": "Documented: Quoted Hours = WOQuote.Amount (Type='L') / Effective Labor Rate. Effective Rate = LaborRate.Rate × (1 - WO.LaborDiscount/100). Found 15 of 21 open WOs have no quote entered — process change needed for IPS team to enter labor quotes on all WOs.",
+      "files_modified": [],
+      "multi_tenant_impact": "N/A — information and process recommendation",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "Quoted Hours derivation: WOQuote.Amount(Type='L') / effective_rate. The WOQuote table stores labor quotes as DOLLAR amounts, not hours. The conversion to hours depends on the WO's assigned labor rate and discount. Many WOs may have no quote entered — this is a process gap that limits Cash Burn tracking effectiveness."
+    },
+    {
+      "ticket_id": "TKT-2026-0025",
+      "type": "bug",
+      "component": "Cash Stalled / department_reports.py",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Cash Stalled showing repeating (duplicate) Work Orders",
+      "root_cause": "Equipment table JOINs can produce duplicate WO rows when a UnitNo has multiple Equipment records. The ROW_NUMBER() deduplication on Equipment was already in place but edge cases in certain tenant databases could still cause duplicates.",
+      "solution": "Added Python-level deduplication using a seen_wo_numbers set. If a duplicate WONo is encountered, it's skipped and a warning is logged. This is a safety net on top of the SQL-level ROW_NUMBER() deduplication.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — deduplication is a safety net for all tenants",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "Defense in depth: Even with SQL-level deduplication (ROW_NUMBER), add Python-level deduplication as a safety net for any endpoint that displays work order lists. Log warnings when duplicates are detected to aid debugging. The Equipment table 1:N relationship with UnitNo is a recurring source of row multiplication."
+    },
+    {
+      "ticket_id": "TKT-2026-0026",
+      "type": "bug",
+      "component": "Work Order Types / department_reports.py + WorkOrderTypes.jsx",
+      "organization": "all",
+      "issue_summary": "All Work Orders tab showing total count (open + closed) instead of just open work orders",
+      "root_cause": "The work-order-types endpoint had no ClosedDate or DeletionTime filter. It counted ALL WOs in the database regardless of status. Bennett showed 6,355 Service WOs when only 537 were actually open.",
+      "solution": "Added ClosedDate IS NULL filter (open only) and DeletionTime IS NULL filter (not deleted). Backend now returns both open_count and total_count. Frontend shows 'X open (Y total)' for each type. Title changed to 'Open Work Orders by Type'.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-frontend/src/components/WorkOrderTypes.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — WO status filtering is universal",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "CRITICAL WO STATUS FILTERS: When showing 'current' or 'active' work orders, ALWAYS apply both: (1) ClosedDate IS NULL = open, (2) DeletionTime IS NULL = not deleted. Without these filters, counts will be massively inflated with historical/closed/deleted records. Consider returning both open and total counts so users have context."
+    },
+    {
+      "ticket_id": "TKT-2026-0027",
+      "type": "enhancement",
+      "component": "Cost per Hour / CostPerHour.jsx",
+      "organization": "all",
+      "issue_summary": "Document which database field the Cost per Hour is pulling from",
+      "root_cause": "Enhancement request — methodology section existed but didn't list specific database fields.",
+      "solution": "Expanded the Methodology section on the Cost per Hour tab with exact field names: Total Cost = SUM(InvoiceReg.PartsTaxable + PartsNonTax + LaborTaxable + LaborNonTax + MiscTaxable + MiscNonTax). Operating Hours = MAX-MIN of InvoiceReg.HourMeter. Target = Equipment.TargetCostPerHour. PM flag = Equipment.GuaranteedMaintenance. Series = Equipment.ModelGroup.",
+      "files_modified": [
+        "reporting-frontend/src/components/CostPerHour.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — methodology documentation is universal",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "Cost per Hour field sources: Costs from InvoiceReg (6 cost columns: PartsTaxable, PartsNonTax, LaborTaxable, LaborNonTax, MiscTaxable, MiscNonTax). Hours from InvoiceReg.HourMeter (MAX-MIN). Target from Equipment.TargetCostPerHour. PM flag from Equipment.GuaranteedMaintenance. Series from Equipment.ModelGroup (fallback: Model parsing)."
+    },
+    {
+      "ticket_id": "PATTERN-001",
+      "type": "pattern",
+      "component": "Multi-Tenant SaleCode Handling",
+      "organization": "all",
+      "issue_summary": "Recurring pattern: hardcoded SaleCodes break for non-Bennett tenants",
+      "root_cause": "Bennett, IPS, and other orgs all have different SaleCode values for the same department types. Hardcoded SaleCodes have caused bugs in: Invoiced Sales (MANUAL-004), Customer Profitability (TKT-2026-0022), Maintenance Contract Profitability (TKT-2026-0021), Service Invoice Billing (TKT-2026-0006).",
+      "solution": "ALWAYS use dynamic Dept table lookup: query Dept table for department titles matching keywords (e.g., 'service', 'maintenance', 'new equip'), then use the returned SaleCodes in the main query. Never hardcode SaleCode values.",
+      "files_modified": [],
+      "multi_tenant_impact": "CRITICAL — this is the #1 recurring multi-tenant bug pattern",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "GOLDEN RULE: NEVER hardcode SaleCodes or Dept numbers. The Dept table's Title field is the only reliable cross-tenant identifier. Query pattern: SELECT SaleCode FROM {schema}.Dept WHERE LOWER(Title) LIKE '%keyword%'. This has been the root cause of at least 4 separate bugs."
+    },
+    {
+      "ticket_id": "PATTERN-002",
+      "type": "pattern",
+      "component": "Schema Prefix on Sub-Tables",
+      "organization": "all",
+      "issue_summary": "Recurring pattern: missing {schema}. prefix on WO sub-tables in SQL queries",
+      "root_cause": "When writing SQL JOINs, the main WO table gets {schema}. prefix but sub-tables in subqueries (WOLabor, WOParts, WOMisc, WOQuote) are sometimes missed.",
+      "solution": "Always verify ALL table references in a query have {schema}. prefix. Sub-tables to watch: WOLabor, WOParts, WOMisc, WOQuote, LaborRate, Equipment, Customer, InvoiceReg.",
+      "files_modified": [],
+      "multi_tenant_impact": "CRITICAL — missing schema prefix causes queries to fail or return wrong data",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "CHECKLIST for new SQL queries: After writing any query, scan EVERY table reference and verify it has {schema}. prefix. Common misses: sub-tables inside LEFT JOIN subqueries (SELECT ... FROM WOLabor should be SELECT ... FROM {schema}.WOLabor)."
+    },
+    {
+      "ticket_id": "API-001",
+      "type": "pattern",
+      "component": "Support Ticket API",
+      "organization": "all",
+      "issue_summary": "Ticket resolve endpoint field names",
+      "root_cause": "Documentation gap — the resolve endpoint requires specific field names.",
+      "solution": "POST /api/support-tickets/{id}/resolve requires: fix_summary (string) and resolution_notes (string). NOT 'resolution'. Returns 400 if neither field is provided.",
+      "files_modified": [],
+      "multi_tenant_impact": "N/A — API documentation",
+      "testing_passed": true,
+      "date_fixed": "2026-03-04",
+      "lessons_learned": "Ticket resolve endpoint: POST /api/support-tickets/{id}/resolve with JSON body containing fix_summary and resolution_notes. The field name 'resolution' does NOT work — must use fix_summary or resolution_notes."
     }
-  ]
+  ],
+  "last_updated": "2026-03-04T00:55:00.000000"
 }
