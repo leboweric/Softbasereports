@@ -171,5 +171,46 @@
     "total_reopened": 1,
     "avg_first_time_fix_rate": 100,
     "note": "5 manual fixes seeded from pre-automation period (2026-03-02), 4 automated fixes first run, 8 automated fixes second run (2026-03-03 3PM CST)"
-  }
+  },
+  "runs": [
+    {
+      "run_date": "2026-03-04T00:24:00Z",
+      "run_mode": "full_evening",
+      "tickets_found": 6,
+      "tickets_processed": 4,
+      "tickets_skipped": 2,
+      "bugs_fixed": 2,
+      "enhancements_completed": 2,
+      "code_changes": 1,
+      "commits": [
+        "99f1640e"
+      ],
+      "details": {
+        "TKT-2026-0022": {
+          "type": "bug",
+          "status": "resolved",
+          "fix": "Dynamic Dept lookup for Customer Profitability"
+        },
+        "TKT-2026-0021": {
+          "type": "bug",
+          "status": "resolved",
+          "fix": "Dynamic SaleCode discovery for Maintenance Contract Profitability"
+        },
+        "TKT-2026-0020": {
+          "type": "enhancement",
+          "status": "resolved",
+          "fix": "Already implemented"
+        },
+        "TKT-2026-0019": {
+          "type": "enhancement",
+          "status": "resolved",
+          "fix": "Already implemented"
+        }
+      }
+    }
+  ],
+  "total_tickets_resolved": 4,
+  "total_bugs_fixed": 2,
+  "total_enhancements": 2,
+  "last_run": "2026-03-04T00:24:00Z"
 }

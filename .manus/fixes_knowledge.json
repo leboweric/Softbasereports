@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-03-03",
+  "last_updated": "2026-03-04T00:25:53.635625",
   "fixes": [
     {
       "ticket_id": "MANUAL-001",
@@ -13,7 +13,7 @@
       "files_modified": [
         "reporting-frontend/src/components/admin/ReportVisibility.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — the Report Visibility admin page is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 the Report Visibility admin page is universal",
       "testing_passed": true,
       "date_fixed": "2026-03-02",
       "lessons_learned": "CRITICAL: There are THREE registries that must stay in sync when adding new tabs: (1) Backend NAVIGATION_CONFIG in rbac_config.py, (2) Backend REPORT_REGISTRY in report_visibility.py, (3) Frontend REPORT_REGISTRY in ReportVisibility.jsx. Missing any one of these causes the tab to be invisible in different contexts."
@@ -29,7 +29,7 @@
       "files_modified": [
         "reporting-backend/src/config/rbac_config.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — NAVIGATION_CONFIG is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 NAVIGATION_CONFIG is universal",
       "testing_passed": true,
       "date_fixed": "2026-03-02",
       "lessons_learned": "The NAVIGATION_CONFIG controls which tabs appear in the user's navigation response. If a tab is in REPORT_REGISTRY but not NAVIGATION_CONFIG, it will appear in Report Visibility admin but not on the actual dashboard page."
@@ -45,7 +45,7 @@
       "files_modified": [
         "reporting-backend/src/config/rbac_config.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — RBAC roles are universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 RBAC roles are universal",
       "testing_passed": true,
       "date_fixed": "2026-03-02",
       "lessons_learned": "ROLE_PERMISSIONS resources directly control sidebar navigation. Each resource maps to a NAVIGATION_CONFIG entry. To restrict a role to specific pages, only include the corresponding resources."
@@ -61,7 +61,7 @@
       "files_modified": [
         "reporting-backend/src/routes/department_reports.py"
       ],
-      "multi_tenant_impact": "Fix is universal — works for all current and future tenants automatically",
+      "multi_tenant_impact": "Fix is universal \u2014 works for all current and future tenants automatically",
       "testing_passed": true,
       "date_fixed": "2026-03-02",
       "lessons_learned": "CRITICAL MULTI-TENANT RULE: NEVER hardcode SaleCodes or Dept numbers. Always use the Dept table for dynamic lookup by Title keywords. Different tenants use completely different codes and numbering systems. The Dept table's Title field is the only reliable way to categorize across tenants."
@@ -77,7 +77,7 @@
       "files_modified": [
         "reporting-backend/src/routes/department_reports.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — permission decorators are universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 permission decorators are universal",
       "testing_passed": true,
       "date_fixed": "2026-03-02",
       "lessons_learned": "When adding new endpoints for a specific page/tab, the permission decorator must match the page's resource, not where the data conceptually belongs. Dashboard tabs use 'view_dashboard', not 'view_commissions' even if they show financial data."
@@ -88,14 +88,14 @@
       "component": "Cache Service / Multi-Tenant Data Isolation",
       "organization": "all",
       "issue_summary": "Cross-tenant data pollution: Bennett users seeing IPS (Ohio) data on PM Route Planner, QBR, and Rental Service Report pages",
-      "root_cause": "Cache keys for Azure SQL queries were flat strings without tenant identifiers (e.g., 'pm_report_pms_due', 'qbr_customers', 'rental_service_report'). When one org loaded a page first, the result was cached globally. When another org loaded the same page, the cache returned the first org's data instead of querying the correct tenant's database. The cache_service.cache_query() function stores results in a dict keyed by cache_key — if the key is the same for both orgs, they share data.",
+      "root_cause": "Cache keys for Azure SQL queries were flat strings without tenant identifiers (e.g., 'pm_report_pms_due', 'qbr_customers', 'rental_service_report'). When one org loaded a page first, the result was cached globally. When another org loaded the same page, the cache returned the first org's data instead of querying the correct tenant's database. The cache_service.cache_query() function stores results in a dict keyed by cache_key \u2014 if the key is the same for both orgs, they share data.",
       "solution": "Added get_tenant_schema() to every Azure SQL cache key so each org gets its own cache entry. Example: 'pm_report_pms_due' became f'pm_report_pms_due_{schema}' where schema is 'ben002' or 'ind004'. Fixed in pm_report.py, department_reports.py (rental_service_report), and qbr.py (qbr_customers, qbr_data).",
       "files_modified": [
         "reporting-backend/src/routes/pm_report.py",
         "reporting-backend/src/routes/department_reports.py",
         "reporting-backend/src/routes/qbr.py"
       ],
-      "multi_tenant_impact": "CRITICAL — This was an active cross-tenant data leak. Any cached Azure SQL endpoint without tenant-scoped keys will serve Org A's data to Org B.",
+      "multi_tenant_impact": "CRITICAL \u2014 This was an active cross-tenant data leak. Any cached Azure SQL endpoint without tenant-scoped keys will serve Org A's data to Org B.",
       "testing_passed": true,
       "date_fixed": "2026-03-03",
       "lessons_learned": "CRITICAL MULTI-TENANT RULE: Every cache key for Azure SQL data MUST include the tenant schema (e.g., f'report_name_{schema}'). Use get_tenant_schema() to get the schema string. PostgreSQL/Vital routes are single-tenant and exempt. When adding ANY new cached endpoint that queries Azure SQL, ALWAYS include schema in the cache key. When auditing existing code, grep for 'cache_key' and verify every Azure SQL route includes tenant scoping."
@@ -106,7 +106,7 @@
       "component": "Service Invoice Billing / department_reports.py",
       "organization": "IPS (ind004)",
       "issue_summary": "Service Invoice Billing Report showing invoices from all departments (sales, rentals, parts) instead of only service invoices. Reopened: user also requested exclusion of intercompany bill-to customers IPS140, IPS145, IPC140, IPC145.",
-      "root_cause": "Original: No SaleDept filter — only excluded parts invoices (130%) and included everything else. Reopen: Intercompany billing customers (IPS140, IPS145, IPC140, IPC145) were appearing in the report.",
+      "root_cause": "Original: No SaleDept filter \u2014 only excluded parts invoices (130%) and included everything else. Reopen: Intercompany billing customers (IPS140, IPS145, IPC140, IPC145) were appearing in the report.",
       "solution": "Original fix: Added dynamic service department resolution via Dept table keyword matching. Reopen fix: Added excluded_bill_to_customers filter from organization settings JSON. IPS org configured with excluded_bill_to_customers: ['IPS140', 'IPS145', 'IPC140', 'IPC145']. The filter adds AND i.BillTo NOT IN (...) to the SQL query when org settings contain the list.",
       "files_modified": [
         "reporting-backend/src/routes/department_reports.py"
@@ -127,7 +127,7 @@
       "files_modified": [
         "reporting-backend/src/models/user.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — fixes permission resolution for any role with empty DB permissions. Especially important for newly created org roles that don't get DB permissions populated.",
+      "multi_tenant_impact": "Affects all orgs \u2014 fixes permission resolution for any role with empty DB permissions. Especially important for newly created org roles that don't get DB permissions populated.",
       "testing_passed": true,
       "date_fixed": "2026-03-03",
       "lessons_learned": "CRITICAL RBAC INSIGHT: There are TWO permission systems that must agree: (1) ROLE_PERMISSIONS config in rbac_config.py (used for navigation/sidebar), (2) role_permissions DB table (used by @require_permission decorator). When roles are created for new orgs, the DB permissions may not get populated. The fix is to have has_permission() fall back to the config-based system. Always verify both systems when debugging 403 errors."
@@ -138,7 +138,7 @@
       "component": "Invoiced Sales Report / Frontend + Backend",
       "organization": "IPS (ind004)",
       "issue_summary": "Two requests: (1) Add date range picker to Invoiced Sales report, (2) Remove CH Steel Solutions and Dynamic Storage Solutions branches from IPS report",
-      "root_cause": "Feature request — the report only supported month-level selection. IPS also has branches (CH Steel, Dynamic Storage) that should not appear in their Invoiced Sales report.",
+      "root_cause": "Feature request \u2014 the report only supported month-level selection. IPS also has branches (CH Steel, Dynamic Storage) that should not appear in their Invoiced Sales report.",
       "solution": "(1) Added Month/Custom Range toggle to frontend InvoicedSalesReport.jsx. Month mode uses month+year dropdowns. Custom Range mode shows two calendar date pickers (start/end). Backend invoiced-summary and invoiced-details endpoints now accept optional start_date/end_date query params. (2) Added excluded_branches filter from org settings JSON. IPS org configured with excluded_branches: ['3', '4']. Backend skips excluded branches when building the report.",
       "files_modified": [
         "reporting-frontend/src/components/InvoicedSalesReport.jsx",
@@ -147,7 +147,7 @@
       "multi_tenant_impact": "Date range feature available to all orgs. Branch exclusion is per-org via settings JSON.",
       "testing_passed": true,
       "date_fixed": "2026-03-03",
-      "lessons_learned": "When adding date range support to existing month-based reports: (1) Make start_date/end_date optional — if not provided, fall back to current month behavior. (2) Use the existing Calendar/Popover pattern from other components (e.g., APAgingReport). (3) Per-org branch exclusion should use the organization settings JSON pattern (excluded_branches array) rather than hardcoding."
+      "lessons_learned": "When adding date range support to existing month-based reports: (1) Make start_date/end_date optional \u2014 if not provided, fall back to current month behavior. (2) Use the existing Calendar/Popover pattern from other components (e.g., APAgingReport). (3) Per-org branch exclusion should use the organization settings JSON pattern (excluded_branches array) rather than hardcoding."
     },
     {
       "ticket_id": "TKT-21",
@@ -161,7 +161,7 @@
         "reporting-backend/src/routes/service_shop_work_orders.py",
         "reporting-frontend/src/components/departments/ServiceReport.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — labor rates are now per-WO for all tenants",
+      "multi_tenant_impact": "Affects all orgs \u2014 labor rates are now per-WO for all tenants",
       "testing_passed": false,
       "date_fixed": "2026-03-03",
       "lessons_learned": "Never hardcode labor rates. Different WO types and customers may have different rate codes. Always join to the LaborRate table via WO.LaborRate = LaborRate.Code to get the actual rate."
@@ -177,7 +177,7 @@
       "files_modified": [
         "reporting-frontend/src/components/HelpWidget.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — HelpWidget is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 HelpWidget is universal",
       "testing_passed": false,
       "date_fixed": "2026-03-03",
       "lessons_learned": "After creating an entity, always show the user the result rather than dismissing the UI. Switch to the list view and refresh data so the user can confirm their action was successful."
@@ -188,10 +188,10 @@
       "component": "Cash Burn / service_shop_work_orders.py",
       "organization": "Bennett (ben002)",
       "issue_summary": "Where do the Quoted Hours come from in the Cash Burn report?",
-      "root_cause": "Information request — not a bug.",
-      "solution": "Answered via ticket comment: Quoted Hours = WOQuote.Amount (Type='L') / (LaborRate.Rate × (1 - LaborDiscount/100)). The WOQuote table stores dollar amounts, converted to hours using the WO's labor rate. Fallback is $189/hr if no rate found.",
+      "root_cause": "Information request \u2014 not a bug.",
+      "solution": "Answered via ticket comment: Quoted Hours = WOQuote.Amount (Type='L') / (LaborRate.Rate \u00d7 (1 - LaborDiscount/100)). The WOQuote table stores dollar amounts, converted to hours using the WO's labor rate. Fallback is $189/hr if no rate found.",
       "files_modified": [],
-      "multi_tenant_impact": "N/A — information only",
+      "multi_tenant_impact": "N/A \u2014 information only",
       "testing_passed": true,
       "date_fixed": "2026-03-03",
       "lessons_learned": "Quoted Hours derivation: WOQuote.Amount(Type=L) / effective_rate. The WOQuote table stores labor quotes as dollar amounts, not hours. The conversion to hours depends on the WO's assigned labor rate."
@@ -202,12 +202,12 @@
       "component": "Cash Stalled / department_reports.py",
       "organization": "Bennett (ben002)",
       "issue_summary": "Work orders appearing multiple times in the Cash Stalled (Awaiting Invoice) report",
-      "root_cause": "The Equipment table can have multiple entries for the same UnitNo (e.g., Unit 386 had both a Lamarche charger and a Linde forklift). The LEFT JOIN Equipment e ON w.UnitNo = e.UnitNo created duplicate rows — one for each Equipment record matching the UnitNo.",
+      "root_cause": "The Equipment table can have multiple entries for the same UnitNo (e.g., Unit 386 had both a Lamarche charger and a Linde forklift). The LEFT JOIN Equipment e ON w.UnitNo = e.UnitNo created duplicate rows \u2014 one for each Equipment record matching the UnitNo.",
       "solution": "Replaced the direct Equipment JOIN with a deduplicated subquery using ROW_NUMBER() OVER (PARTITION BY UnitNo ORDER BY UnitNo) as rn, then filtered to rn = 1. Applied this fix to both the Service awaiting invoice query and the Parts awaiting invoice query.",
       "files_modified": [
         "reporting-backend/src/routes/department_reports.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — Equipment table structure is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 Equipment table structure is universal",
       "testing_passed": false,
       "date_fixed": "2026-03-03",
       "lessons_learned": "CRITICAL: The Equipment table can have multiple rows per UnitNo (e.g., a forklift and its charger). Any query that JOINs Equipment on UnitNo MUST use ROW_NUMBER() deduplication or a subquery to avoid row multiplication. Always check for 1:N relationships when joining dimension tables."
@@ -223,7 +223,7 @@
       "files_modified": [
         "reporting-backend/src/routes/report_visibility.py"
       ],
-      "multi_tenant_impact": "Affects all orgs — REPORT_REGISTRY is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 REPORT_REGISTRY is universal",
       "testing_passed": false,
       "date_fixed": "2026-03-03",
       "lessons_learned": "CRITICAL: When adding new tabs to NAVIGATION_CONFIG, ALWAYS also add them to the REPORT_REGISTRY in report_visibility.py. The REPORT_REGISTRY controls which tabs can be toggled in Report Visibility admin. If a tab is missing from the registry, visibility changes for that tab are silently dropped. Periodic sync audits between NAVIGATION_CONFIG and REPORT_REGISTRY should be performed."
@@ -239,7 +239,7 @@
       "files_modified": [
         "reporting-frontend/src/components/SupportTicketsPage.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — SupportTicketsPage is universal",
+      "multi_tenant_impact": "Affects all orgs \u2014 SupportTicketsPage is universal",
       "testing_passed": false,
       "date_fixed": "2026-03-03",
       "lessons_learned": "Admin-facing pages that display user-submitted content should have auto-refresh intervals. 15 seconds is a good balance between responsiveness and API load. Always clean up intervals in useEffect return function."
@@ -250,7 +250,7 @@
       "component": "Customer Profitability / department_reports.py + CustomerProfitability.jsx + CustomersPage.jsx",
       "organization": "all",
       "issue_summary": "Enhancement: Move Customer Profitability to Customers page (all sales codes) and make Service page version show only service sales codes",
-      "root_cause": "Feature request — Customer Profitability on the Service page was showing all sales codes, but the Service Manager only needs to see service-related profitability.",
+      "root_cause": "Feature request \u2014 Customer Profitability on the Service page was showing all sales codes, but the Service Manager only needs to see service-related profitability.",
       "solution": "(1) Added 'department' query parameter to the customer-profitability backend endpoint. When department='service', filters InvoiceReg by SaleCode IN ('SVE', 'SVC', 'SH', 'PM') and WO by Type IN ('S', 'SH', 'PM'). When department='parts', filters by parts codes. Default 'all' shows everything. (2) Updated CustomerProfitability.jsx to accept a 'department' prop. (3) Service page now passes department='service'. (4) Added Customer Profitability tab to CustomersPage.jsx with department='all'. (5) Updated NAVIGATION_CONFIG and REPORT_REGISTRY with the new customer-profitability tab under customer-churn section.",
       "files_modified": [
         "reporting-backend/src/routes/department_reports.py",
@@ -260,10 +260,10 @@
         "reporting-frontend/src/components/CustomersPage.jsx",
         "reporting-frontend/src/components/departments/ServiceReport.jsx"
       ],
-      "multi_tenant_impact": "Affects all orgs — new tab and filter available universally",
+      "multi_tenant_impact": "Affects all orgs \u2014 new tab and filter available universally",
       "testing_passed": false,
       "date_fixed": "2026-03-03",
-      "lessons_learned": "When a report needs to appear in multiple contexts with different filters, add a filter parameter to the backend and a prop to the frontend component. Don't duplicate the component — reuse it with different props. Always update all three registries (NAVIGATION_CONFIG, REPORT_REGISTRY backend, REPORT_REGISTRY frontend) when adding new tabs."
+      "lessons_learned": "When a report needs to appear in multiple contexts with different filters, add a filter parameter to the backend and a prop to the frontend component. Don't duplicate the component \u2014 reuse it with different props. Always update all three registries (NAVIGATION_CONFIG, REPORT_REGISTRY backend, REPORT_REGISTRY frontend) when adding new tabs."
     },
     {
       "ticket_id": "TKT-29",
@@ -271,13 +271,95 @@
       "component": "Cost per Hour / department_reports.py",
       "organization": "Bennett (ben002)",
       "issue_summary": "Where does the Series field come from in the Cost per Hour report?",
-      "root_cause": "Information request — not a bug.",
+      "root_cause": "Information request \u2014 not a bug.",
       "solution": "Answered via ticket comment: Series comes from Equipment table. Primary source: Equipment.ModelGroup. Fallback derivation from Equipment.Model: (1) Before first hyphen, (2) Before first space, (3) First 4 chars if >4, (4) Full Model value. Equipment joined via InvoiceReg.SerialNo = Equipment.SerialNo.",
       "files_modified": [],
-      "multi_tenant_impact": "N/A — information only",
+      "multi_tenant_impact": "N/A \u2014 information only",
       "testing_passed": true,
       "date_fixed": "2026-03-03",
       "lessons_learned": "Series field derivation: Equipment.ModelGroup (primary) -> Equipment.Model parsing (fallback). The Model parsing logic extracts a prefix using hyphens, spaces, or character count as delimiters."
+    },
+    {
+      "ticket": "TKT-2026-0022",
+      "date": "2026-03-04",
+      "type": "bug",
+      "component": "Customer Profitability (Service)",
+      "root_cause": "Hardcoded SaleCode filters ('SVE','SVC','SH','PM') in customer profitability endpoint did not match tenant-specific department codes. Also missing {schema}. prefix on WOLabor, WOParts, WOMisc JOIN tables.",
+      "fix": "Replaced hardcoded SaleCodes with dynamic Dept table lookup querying for service-related department titles. Added {schema}. prefix to all WO sub-table references.",
+      "file": "reporting-backend/src/routes/department_reports.py",
+      "commit": "99f1640e",
+      "resolution": "resolved"
+    },
+    {
+      "ticket": "TKT-2026-0021",
+      "date": "2026-03-04",
+      "type": "bug",
+      "component": "Maintenance Contract Profitability",
+      "root_cause": "Hardcoded SaleCode filters ('FMBILL','FMROAD','PM-FM','FMSHOP') were Bennett-specific and did not match other tenants' maintenance contract codes.",
+      "fix": "Replaced hardcoded SaleCodes with dynamic discovery from Dept table (maintenance/guaranteed maintenance departments) and SaleCode patterns (FM%, PM-FM%). Includes fallback to original codes.",
+      "file": "reporting-backend/src/routes/department_reports.py",
+      "commit": "99f1640e",
+      "resolution": "resolved"
+    },
+    {
+      "ticket": "TKT-2026-0020",
+      "date": "2026-03-04",
+      "type": "enhancement",
+      "component": "Ed's Dashboard (SalesGPReport)",
+      "root_cause": "User requested date picker - feature already existed with Calendar range picker, month dropdown, and year dropdown.",
+      "fix": "No code changes needed. Resolved with documentation of existing functionality.",
+      "file": "reporting-frontend/src/components/SalesGPReport.jsx",
+      "commit": "N/A",
+      "resolution": "resolved (already implemented)"
+    },
+    {
+      "ticket": "TKT-2026-0019",
+      "date": "2026-03-04",
+      "type": "enhancement",
+      "component": "Currie Service Page",
+      "root_cause": "User requested new Currie Service report page - feature already existed with 12 KPI cards, help tooltips, GP% trend chart, and benchmarks table.",
+      "fix": "No code changes needed. Resolved with documentation of existing functionality.",
+      "file": "reporting-frontend/src/components/CurrieService.jsx",
+      "commit": "N/A",
+      "resolution": "resolved (already implemented)"
+    },
+    {
+      "ticket": "TKT-2026-0022",
+      "date": "2026-03-04",
+      "type": "bug",
+      "component": "Customer Profitability (Service)",
+      "root_cause": "Hardcoded SaleCode filters did not match tenant-specific department codes. Missing schema prefix on WO sub-tables.",
+      "fix": "Dynamic Dept table lookup + schema prefix fix",
+      "file": "reporting-backend/src/routes/department_reports.py",
+      "commit": "99f1640e",
+      "resolution": "resolved"
+    },
+    {
+      "ticket": "TKT-2026-0021",
+      "date": "2026-03-04",
+      "type": "bug",
+      "component": "Maintenance Contract Profitability",
+      "root_cause": "Hardcoded Bennett-specific SaleCodes for maintenance contracts.",
+      "fix": "Dynamic SaleCode discovery from Dept table",
+      "file": "reporting-backend/src/routes/department_reports.py",
+      "commit": "99f1640e",
+      "resolution": "resolved"
+    },
+    {
+      "ticket": "TKT-2026-0020",
+      "date": "2026-03-04",
+      "type": "enhancement",
+      "component": "Eds Dashboard date picker",
+      "fix": "Already implemented - documented existing functionality",
+      "resolution": "resolved"
+    },
+    {
+      "ticket": "TKT-2026-0019",
+      "date": "2026-03-04",
+      "type": "enhancement",
+      "component": "Currie Service Page",
+      "fix": "Already implemented - documented existing 12 KPI cards with tooltips",
+      "resolution": "resolved"
     }
   ]
 }
