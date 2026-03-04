@@ -39,7 +39,9 @@ This file contains the comprehensive prompt for the Manus scheduled task that pr
 
 ## ⚠️ Browser Navigation Rules
 
-> **🚨 After logging in, use sidebar navigation and tab clicks to navigate. The app is a single-page application — avoid full page reloads which may lose auth state.**
+> **🚨 NEVER attempt to log into Railway or GitHub via the browser. Use the pre-authenticated `gh` CLI for GitHub operations and the API for all backend interactions. The Railway dashboard is off-limits — do not navigate to railway.com or attempt to authenticate there.**
+
+> **🚨 After logging in to https://aiop.one, use sidebar navigation and tab clicks to navigate. The app is a single-page application — avoid full page reloads which may lose auth state.**
 
 ### Navigation Approach
 1. **Log in** at `https://aiop.one` using the credentials above
