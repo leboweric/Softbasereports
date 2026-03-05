@@ -113,10 +113,12 @@ def setup_aloha():
         
         # Initial admin user (Eric LeBow for setup/testing)
         aloha_users = [
-            {'first_name': 'Eric', 'last_name': 'LeBow', 'email': 'eric@softbase.io', 'is_admin': True},
+            {'first_name': 'Eric', 'last_name': 'LeBow', 'email': 'elebow@aloha.com', 'is_admin': True},
+            {'first_name': 'J', 'last_name': 'Foos', 'email': 'jfoos@aloha.com', 'is_admin': True},
+            {'first_name': 'C', 'last_name': 'Shannon', 'email': 'cshannon@aloha.com', 'is_admin': True},
         ]
         
-        temp_password = 'AlohaDemo2026!'
+        temp_password = 'abc123'
         created_users = []
         skipped_users = []
         

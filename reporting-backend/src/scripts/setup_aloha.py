@@ -80,10 +80,12 @@ def setup_aloha():
         # Aloha Holdings users to create
         # Update these with actual user details when available
         aloha_users = [
-            {'first_name': 'Eric', 'last_name': 'LeBow', 'email': 'eric@softbase.io', 'is_admin': True},
+            {'first_name': 'Eric', 'last_name': 'LeBow', 'email': 'elebow@aloha.com', 'is_admin': True},
+            {'first_name': 'J', 'last_name': 'Foos', 'email': 'jfoos@aloha.com', 'is_admin': True},
+            {'first_name': 'C', 'last_name': 'Shannon', 'email': 'cshannon@aloha.com', 'is_admin': True},
         ]
         
-        temp_password = 'AlohaDemo2026!'
+        temp_password = 'abc123'
         
         for user_data in aloha_users:
             # Check if user already exists
