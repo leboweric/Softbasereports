@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-03-05T00:00:00",
+  "last_updated": "2026-03-05T09:58:12",
   "fixes": [
     {
       "ticket_id": "MANUAL-001",
@@ -595,6 +595,33 @@
       "testing_passed": true,
       "date_fixed": "2026-03-05",
       "lessons_learned": "WOParts.Cost = standard cost from item master, NOT actual purchase price. Always caveat parts cost figures with this note. If a customer shows unexpectedly high parts costs, the first step is to check the standard cost rates in Softbase for the parts used on their WOs."
+    },
+    {
+      "ticket_id": "TKT-2026-0036",
+      "date": "2026-03-05",
+      "org": "IPS (ind004)",
+      "component": "Customer Profitability / department_reports.py",
+      "title": "IPS110/IPS130 internal accounts excluded from Customer Profitability",
+      "problem": "IPS110 (New EQ Internal) and IPS130 (Used EQ Internal) were appearing in the Service Customer Profitability report as Critical customers with large losses (-$176K and -$19K). These are IPS own-fleet maintenance accounts, not real customers.",
+      "root_cause": "The excluded_bill_to_customers filter was inside an if-user.organization.settings block that only ran when org settings were explicitly configured. IPS had no settings configured, so the block was skipped entirely and no exclusion was applied.",
+      "fix": "Moved the hardcoded schema-specific exclusion logic (IPS110, IPS130, IPS140, IPS145, IPC140, IPC145) OUTSIDE the org settings if-block so it always runs regardless of org settings configuration. Also added RTRIM() wrapper on ShipTo/BillTo columns to handle CHAR(n) space-padding in Azure SQL Server.",
+      "files_changed": [
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-backend/src/main.py"
+      ],
+      "lesson": "Always place schema-specific hardcoded exclusions outside conditional org-settings blocks. Use RTRIM() when comparing against CHAR(n) fixed-width columns in Azure SQL Server."
+    },
+    {
+      "ticket_id": "PATTERN-004",
+      "date": "2026-03-05",
+      "org": "ALL",
+      "component": "Azure SQL Server queries",
+      "title": "PATTERN: Always use RTRIM() when filtering CHAR(n) columns in Azure SQL Server",
+      "problem": "Azure SQL Server CHAR(n) fixed-width columns store values space-padded to the column width. e.g., CHAR(10) column storing IPS110 actually contains IPS110    (4 trailing spaces). SQL Server NOT IN comparison does NOT strip trailing spaces, so NOT IN ('IPS110') will NOT match 'IPS110    '.",
+      "root_cause": "CHAR vs VARCHAR column type difference. CHAR is fixed-width and pads with spaces. VARCHAR is variable-width and does not pad.",
+      "fix": "Wrap CHAR columns in RTRIM() when using IN/NOT IN filters: RTRIM(i.ShipTo) NOT IN ('IPS110','IPS130'). Known CHAR columns in Softbase Evolution: InvoiceReg.ShipTo, InvoiceReg.BillTo, WO.ShipTo, WO.BillTo, Customer.Number.",
+      "files_changed": [],
+      "lesson": "When a NOT IN filter appears to be correctly built but is not working, check if the column is CHAR(n) type and add RTRIM()."
     }
   ],
   "additional_fixes": [
@@ -646,5 +673,6 @@
       "date_fixed": "2026-03-05",
       "lessons_learned": "GOLDEN RULE for Azure SQL aggregation: STRING_AGG does NOT support DISTINCT. Always wrap in a subquery: SELECT STRING_AGG(x, ', ') WITHIN GROUP (ORDER BY x) FROM (SELECT DISTINCT x FROM table WHERE ...) AS d"
     }
-  ]
+  ],
+  "total_entries": 42
 }

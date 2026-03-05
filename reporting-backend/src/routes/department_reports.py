@@ -10799,23 +10799,11 @@ def register_department_routes(reports_bp):
             fire_list = [c for c in customer_data if c['margin_percent'] < 0 and c['total_revenue'] < 10000]
             fire_list.sort(key=lambda x: x['gross_profit'])  # Sort by worst losses first
 
-            # Debug: include filter info if debug=1 param is passed
-            debug_info = {}
-            if request.args.get('debug') == '1':
-                debug_info = {
-                    'branch_invoice_filter': branch_invoice_filter,
-                    'branch_wo_filter': branch_wo_filter,
-                    'excluded_customers': excluded_customers,
-                    'schema': schema,
-                    'dept_invoice_filter': dept_invoice_filter,
-                }
-
             return jsonify({
                 'success': True,
                 'summary': summary,
                 'customers': customer_data,
                 'fire_list': fire_list,
-                'debug': debug_info,
                 'notes': {
                     'revenue': 'Invoice revenue from InvoiceReg for the selected period and department.',
                     'costs': 'WO costs from WOLabor (labor at cost rate), WOParts (parts at standard cost rate from item master), and WOMisc. IMPORTANT: WOParts.Cost is the standard cost rate set in Softbase\'s item master — it may differ from actual purchase cost if standard costs are stale or incorrectly set up. If a customer shows unexpectedly high parts costs, verify the standard cost rates in Softbase for the parts used on their WOs.',
