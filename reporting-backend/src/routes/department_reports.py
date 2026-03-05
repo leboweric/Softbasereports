@@ -10352,12 +10352,22 @@ def register_department_routes(reports_bp):
             
             # Schema-specific hardcoded internal account exclusions
             # These always apply regardless of org settings configuration
-            # Bennett (ben002): No hardcoded exclusions — internal accounts are configured
-            #   via org settings (excluded_bill_to_customers) on a per-deployment basis.
+            # Bennett (ben002): 900xxx accounts are internal cost-center accounts that
+            #   should never appear as customers in the profitability report:
+            #   900001 = NEW EQUIP PREP - EXPENSE
+            #   900004 = USED EQUIP. PREP-EXPENSE
+            #   900006 = RENTAL FLEET - EXPENSE (main fleet)
+            #   900025 = VEHICLE MAINTENANCE SVC
+            #   900036 = SVC REWORK/SVC WARRANTY
+            #   900037 = SERVICE POLICY ADJUSTMNTS
+            #   900043 = NEW EQ. INTNL RNTL/DEMO
+            #   900066 = ROSEAU RENTAL FLEET (Roseau branch fleet)
+            #   900068 = Road Service (internal road service account)
             # IPS (ind004): IPS110 (New EQ Internal) and IPS130 (Used EQ Internal) are
             #   always excluded because they are IPS's own fleet maintenance accounts.
             SCHEMA_INTERNAL_ACCOUNTS = {
                 'ind004': ['IPS110', 'IPS130'],  # IPS: New EQ Internal, Used EQ Internal
+                'ben002': ['900001', '900004', '900006', '900025', '900036', '900037', '900043', '900066', '900068'],  # Bennett: internal cost-center accounts
             }
             excluded_customers = list(SCHEMA_INTERNAL_ACCOUNTS.get(schema, []))
             
