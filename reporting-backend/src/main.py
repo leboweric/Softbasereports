@@ -581,7 +581,7 @@ with app.app_context():
     try:
         import json as _json
         from models.user import Organization
-        ips_org = Organization.query.filter_by(db_name='ind004').first()
+        ips_org = Organization.query.filter_by(database_schema='ind004').first()
         if ips_org:
             existing_settings = {}
             if ips_org.settings:
