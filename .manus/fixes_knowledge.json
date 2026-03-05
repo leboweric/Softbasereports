@@ -548,5 +548,55 @@
       "lessons_learned": "GOLDEN RULE for technician counts: Use WOLabor.MechanicName, NOT WO.Technician. WO.Technician = primary assigned tech (1 per WO). WOLabor.MechanicName = every tech who clocked time (N per WO). For per-tech metrics (revenue/tech, hours/tech), always use the WOLabor-based count as the denominator."
     }
   ],
-  "last_updated": "2026-03-05T12:00:00.000000"
+  "last_updated": "2026-03-05T14:00:00.000000",
+  "additional_fixes": [
+    {
+      "ticket_id": "TKT-2026-0031",
+      "type": "bug",
+      "component": "Currie Service — Rental Fleet Metrics",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Rental Fleet Metrics section blank on Currie Service page",
+      "root_cause": "get_rental_fleet_metrics() used PostDate as the date filter column in two GLDetail queries. PostDate does not exist in the IPS Azure SQL schema. The correct column is EffectiveDate, which is used universally across all other GLDetail queries in the codebase.",
+      "solution": "Replaced PostDate with EffectiveDate in both the rental_rev_query and deprec_query inside get_rental_fleet_metrics() in currie_report.py.",
+      "files_modified": [
+        "reporting-backend/src/routes/currie_report.py"
+      ],
+      "multi_tenant_impact": "Affects any org using Currie Service page — both ben002 and ind004 use EffectiveDate",
+      "testing_passed": false,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "GOLDEN RULE: GLDetail date column is ALWAYS EffectiveDate. Never use PostDate, TransDate, or Date. This applies to both ben002 (Currie) and ind004 (IPS) schemas."
+    },
+    {
+      "ticket_id": "TKT-2026-0032",
+      "type": "bug",
+      "component": "PostgreSQL Startup — Migration Deadlock",
+      "organization": "all",
+      "issue_summary": "Noisy ERROR logs on every Railway deploy: deadlock on ALTER TABLE forecast_history ADD COLUMN",
+      "root_cause": "All 4 Gunicorn workers boot simultaneously and all call create_tables() which runs ALTER TABLE DDL. Two workers deadlock trying to acquire AccessExclusiveLock on the same table. The migration still succeeds on one worker but leaves ERROR noise in logs.",
+      "solution": "Added pg_try_advisory_lock(987654321) at the start of create_tables(). Only the worker that acquires the lock runs DDL; others log a skip message and return True immediately. Advisory lock is automatically released when the connection closes.",
+      "files_modified": [
+        "reporting-backend/src/services/postgres_service.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs — this is a startup-time issue on Railway with 4 Gunicorn workers",
+      "testing_passed": false,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "When running DDL migrations at startup in a multi-worker environment, always use an advisory lock to serialize the migration. pg_try_advisory_lock() is non-blocking — it returns false immediately if another worker holds the lock, which is exactly what we want."
+    },
+    {
+      "ticket_id": "PATTERN-004",
+      "type": "pattern",
+      "component": "Azure SQL — STRING_AGG",
+      "organization": "all",
+      "issue_summary": "Azure SQL does not support STRING_AGG(DISTINCT ...) syntax",
+      "root_cause": "Azure SQL Server (and SQL Server in general) does not allow DISTINCT inside STRING_AGG(). Attempting STRING_AGG(DISTINCT col, ', ') raises error 102: Incorrect syntax near ','.",
+      "solution": "Use a subquery to deduplicate first, then apply STRING_AGG on the already-distinct result: SELECT STRING_AGG(col, ', ') FROM (SELECT DISTINCT col FROM ...) AS distinct_vals",
+      "files_modified": [
+        "reporting-backend/src/routes/currie_report.py"
+      ],
+      "multi_tenant_impact": "CRITICAL — affects any query using STRING_AGG(DISTINCT) on Azure SQL",
+      "testing_passed": true,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "GOLDEN RULE for Azure SQL aggregation: STRING_AGG does NOT support DISTINCT. Always wrap in a subquery: SELECT STRING_AGG(x, ', ') WITHIN GROUP (ORDER BY x) FROM (SELECT DISTINCT x FROM table WHERE ...) AS d"
+    }
+  ]
 }
