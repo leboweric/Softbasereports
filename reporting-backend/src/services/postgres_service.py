@@ -234,6 +234,15 @@ class PostgreSQLService:
                     return False
                 
                 with conn.cursor() as cursor:
+                    # Use a PostgreSQL advisory lock so only ONE Gunicorn worker runs
+                    # migrations at startup. Other workers skip if the lock is held.
+                    # Lock ID 987654321 is an arbitrary unique integer for this app.
+                    cursor.execute("SELECT pg_try_advisory_lock(987654321) AS got_lock")
+                    lock_result = cursor.fetchone()
+                    if not lock_result or not lock_result.get('got_lock'):
+                        logger.info("PostgreSQL tables already being initialized by another worker — skipping")
+                        return True
+
                     cursor.execute(create_notes_table)
                     logger.info("Work order notes table created/verified successfully")
                     

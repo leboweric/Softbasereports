@@ -1144,7 +1144,7 @@ def get_rental_fleet_metrics(start_date, end_date):
         SELECT ABS(SUM(Amount)) as rental_revenue
         FROM {schema}.GLDetail
         WHERE AccountNo IN ({rental_placeholders})
-          AND PostDate >= %s AND PostDate <= %s
+          AND EffectiveDate >= %s AND EffectiveDate <= %s
           AND Posted = 1
         """
         
@@ -1165,7 +1165,7 @@ def get_rental_fleet_metrics(start_date, end_date):
         SELECT ABS(SUM(Amount)) as depreciation_expense
         FROM {schema}.GLDetail
         WHERE AccountNo LIKE %s
-          AND PostDate >= %s AND PostDate <= %s
+          AND EffectiveDate >= %s AND EffectiveDate <= %s
           AND Posted = 1
         """
         
