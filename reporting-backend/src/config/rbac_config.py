@@ -52,6 +52,12 @@ RESOURCES = {
     'eds_dashboard': "Ed's Dashboard - Sales GP Report by Branch and Department",
     'gl_mapping': 'GL Account Mapping - manage chart of accounts for tenant',
     'tenant_admin': 'Tenant/Organization administration - manage orgs, fiscal year settings',
+    # Aloha Holdings resources (SAP multi-subsidiary holding company)
+    'aloha_dashboard': 'Aloha Holdings executive dashboard - consolidated view across subsidiaries',
+    'aloha_financials': 'Aloha Holdings consolidated financial reports from SAP',
+    'aloha_inventory': 'Aloha Holdings consolidated inventory across SAP subsidiaries',
+    'aloha_orders': 'Aloha Holdings consolidated orders across SAP subsidiaries',
+    'aloha_data_sources': 'Aloha Holdings SAP data source configuration (admin only)',
 }
 
 # Action types
@@ -196,6 +202,20 @@ ROLE_PERMISSIONS = {
             'dashboard', 'minitrac'
         ],
         'actions': ['view'],
+    },
+    # Aloha Holdings roles (SAP multi-subsidiary holding company)
+    'Aloha Admin': {
+        'resources': [
+            'aloha_dashboard', 'aloha_financials', 'aloha_inventory', 'aloha_orders',
+            'aloha_data_sources', 'user_management'
+        ],
+        'actions': ACTIONS,  # All actions
+    },
+    'Aloha User': {
+        'resources': [
+            'aloha_dashboard', 'aloha_financials', 'aloha_inventory', 'aloha_orders'
+        ],
+        'actions': ['view', 'export'],
     },
 }
 
@@ -507,5 +527,41 @@ NAVIGATION_CONFIG = {
         'path': 'eds-dashboard',
         'required_resource': 'eds_dashboard',
         'order': 0.5,
+    },
+    # Aloha Holdings navigation (SAP multi-subsidiary holding company)
+    'aloha-dashboard': {
+        'label': 'Executive Dashboard',
+        'icon': 'Globe',
+        'path': 'aloha-dashboard',
+        'required_resource': 'aloha_dashboard',
+        'order': 1,
+    },
+    'aloha-financials': {
+        'label': 'Financials',
+        'icon': 'DollarSign',
+        'path': 'aloha-financials',
+        'required_resource': 'aloha_financials',
+        'order': 2,
+    },
+    'aloha-inventory': {
+        'label': 'Inventory',
+        'icon': 'Package',
+        'path': 'aloha-inventory',
+        'required_resource': 'aloha_inventory',
+        'order': 3,
+    },
+    'aloha-orders': {
+        'label': 'Orders',
+        'icon': 'ShoppingCart',
+        'path': 'aloha-orders',
+        'required_resource': 'aloha_orders',
+        'order': 4,
+    },
+    'aloha-data-sources': {
+        'label': 'Data Sources',
+        'icon': 'Database',
+        'path': 'aloha-data-sources',
+        'required_resource': 'aloha_data_sources',
+        'order': 90,
     },
 }

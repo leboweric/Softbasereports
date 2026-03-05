@@ -122,6 +122,9 @@ from src.routes.vital_provider_network import vital_provider_network_bp
 from src.routes.vital_sentiment import vital_sentiment_bp
 from src.routes.vital_operations import vital_operations_bp
 from src.routes.vital_forecasting import vital_forecasting_bp
+from src.routes.aloha_setup import aloha_setup_bp
+from src.routes.aloha_data_sources import aloha_data_sources_bp
+from src.routes.aloha_dashboard import aloha_dashboard_bp
 from src.routes.customer_churn_analysis import customer_churn_bp
 from src.models.support_ticket import SupportTicket, SupportTicketAttachment
 from src.routes.gl_mapping import gl_mapping_bp
@@ -439,6 +442,10 @@ app.register_blueprint(support_tickets_bp)
 app.register_blueprint(evo_export_bp)
 app.register_blueprint(sales_reports_bp)
 app.register_blueprint(error_logs_bp)
+# Aloha Holdings (SAP multi-subsidiary holding company)
+app.register_blueprint(aloha_setup_bp, url_prefix='/api/setup')
+app.register_blueprint(aloha_data_sources_bp)
+app.register_blueprint(aloha_dashboard_bp)
 
 # Register ETL management routes
 register_etl_routes(app)

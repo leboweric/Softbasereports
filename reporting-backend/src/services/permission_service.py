@@ -123,6 +123,11 @@ class PermissionService:
                 if user.organization.name != 'VITAL Worklife':
                     continue
             
+            # Multi-tenancy check: Aloha-specific resources should only be visible to Aloha Holdings
+            if required_resource and required_resource.startswith('aloha_'):
+                if user.organization.name != 'Aloha Holdings':
+                    continue
+            
             # Minitrac is only available for Bennett Material Handling
             if required_resource == 'minitrac':
                 if user.organization.name != 'Bennett Material Handling':
