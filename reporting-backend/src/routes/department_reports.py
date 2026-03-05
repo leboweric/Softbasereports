@@ -10364,6 +10364,17 @@ def register_department_routes(reports_bp):
                     # Also exclude specific internal billing accounts
                     # Filter BOTH ShipTo and BillTo — internal accounts can appear in either field
                     excluded_customers = org_settings.get('excluded_bill_to_customers', [])
+                    
+                    # Schema-specific hardcoded fallbacks for known internal accounts
+                    # These are applied even if org settings are empty/not configured
+                    SCHEMA_INTERNAL_ACCOUNTS = {
+                        'ind004': ['IPS110', 'IPS130'],  # IPS: New EQ Internal, Used EQ Internal
+                    }
+                    hardcoded = SCHEMA_INTERNAL_ACCOUNTS.get(schema, [])
+                    for acct in hardcoded:
+                        if acct not in excluded_customers:
+                            excluded_customers.append(acct)
+                    
                     if excluded_customers:
                         excl_list = ','.join([f"'{c.strip()}'" for c in excluded_customers])
                         branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list}) AND i.BillTo NOT IN ({excl_list})"
@@ -10371,6 +10382,16 @@ def register_department_routes(reports_bp):
                         logger.info(f"Customer Profitability: excluding internal customers {excluded_customers}")
             except Exception as e:
                 logger.warning(f'Could not load excluded_branches from org settings: {e}')
+                # Even on exception, apply schema-specific hardcoded exclusions
+                SCHEMA_INTERNAL_ACCOUNTS = {
+                    'ind004': ['IPS110', 'IPS130'],
+                }
+                hardcoded = SCHEMA_INTERNAL_ACCOUNTS.get(schema, [])
+                if hardcoded:
+                    excl_list = ','.join([f"'{c}'" for c in hardcoded])
+                    branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list}) AND i.BillTo NOT IN ({excl_list})"
+                    branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list}) AND wo.BillTo NOT IN ({excl_list})"
+                    logger.info(f"Customer Profitability: applied hardcoded exclusions for schema {schema}: {hardcoded}")
             
             # Build date filter based on parameters
             if start_date and end_date:
