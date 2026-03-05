@@ -86,7 +86,7 @@ class ClaudeAnalyticsService:
         page = None
         while True:
             data = self.get_user_activity(date_str, limit=1000, page=page)
-            results.extend(data.get("items", []))
+            results.extend(data.get("data", data.get("items", [])))
             page = data.get("next_page")
             if not page:
                 break
@@ -155,7 +155,7 @@ class ClaudeAnalyticsService:
                 starting_date=starting_date.isoformat(),
                 ending_date=(latest_date + timedelta(days=1)).isoformat(),
             )
-            result["summaries"] = summary_data.get("items", [])
+            result["summaries"] = summary_data.get("summaries", summary_data.get("data", []))
             if result["summaries"]:
                 result["latest_summary"] = result["summaries"][-1]
         except Exception as exc:
@@ -165,7 +165,7 @@ class ClaudeAnalyticsService:
         # --- Top projects (latest day) ---
         try:
             proj_data = self.get_project_usage(latest_date.isoformat(), limit=20)
-            result["top_projects"] = proj_data.get("items", [])
+            result["top_projects"] = proj_data.get("data", proj_data.get("items", []))
         except Exception as exc:
             logger.error("get_project_usage error: %s", exc)
             result["errors"].append(f"projects: {str(exc)}")
@@ -173,7 +173,7 @@ class ClaudeAnalyticsService:
         # --- Top users by message count (latest day) ---
         try:
             user_data = self.get_user_activity(latest_date.isoformat(), limit=100)
-            users = user_data.get("items", [])
+            users = user_data.get("data", user_data.get("items", []))
             # Sort by chat message count descending
             users.sort(
                 key=lambda u: u.get("chat_metrics", {}).get("message_count", 0),
@@ -187,7 +187,7 @@ class ClaudeAnalyticsService:
         # --- Skill usage (latest day) ---
         try:
             skill_data = self.get_skill_usage(latest_date.isoformat(), limit=50)
-            result["skills"] = skill_data.get("items", [])
+            result["skills"] = skill_data.get("data", skill_data.get("items", []))
         except Exception as exc:
             logger.error("get_skill_usage error: %s", exc)
             result["errors"].append(f"skills: {str(exc)}")

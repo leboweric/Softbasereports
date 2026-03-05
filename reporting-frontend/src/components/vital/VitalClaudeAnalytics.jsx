@@ -153,7 +153,7 @@ export default function VitalClaudeAnalytics({ user, organization }) {
   const latestDate = data?.latest_date
 
   const chartData = summaries.map((s) => ({
-    date: shortDate(s.starting_date),
+    date: shortDate((s.starting_at || s.starting_date || '').substring(0, 10)),
     DAU: s.daily_active_user_count || 0,
     WAU: s.weekly_active_user_count || 0,
     MAU: s.monthly_active_user_count || 0,
