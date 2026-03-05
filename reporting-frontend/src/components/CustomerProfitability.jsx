@@ -580,6 +580,7 @@ const CustomerProfitability = ({ department = 'all' }) => {
               <TableHeader>
                 <TableRow>
                   <SortHeader field="customer_name">Customer</SortHeader>
+                  <TableHead className="w-16">Detail</TableHead>
                   <SortHeader field="total_revenue">Revenue</SortHeader>
                   <SortHeader field="total_cost">Cost</SortHeader>
                   <SortHeader field="gross_profit">Profit</SortHeader>
@@ -587,7 +588,6 @@ const CustomerProfitability = ({ department = 'all' }) => {
                   <TableHead>Health</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Recommendation</TableHead>
-                  <TableHead>Detail</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -600,6 +600,16 @@ const CustomerProfitability = ({ department = 'all' }) => {
                           #{customer.customer_number} · {customer.invoice_count} invoices
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="w-16">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDrillDown(customer)}
+                        className="text-xs"
+                      >
+                        WOs
+                      </Button>
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(customer.total_revenue)}
@@ -623,7 +633,7 @@ const CustomerProfitability = ({ department = 'all' }) => {
                       {getActionBadge(customer.action)}
                     </TableCell>
                     <TableCell className="max-w-xs">
-                      <div className="text-sm">
+                      <div className="text-sm truncate" title={customer.message}>
                         {customer.message}
                         {customer.recommended_increase_pct && (
                           <div className="text-xs text-muted-foreground mt-1">
@@ -631,16 +641,6 @@ const CustomerProfitability = ({ department = 'all' }) => {
                           </div>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDrillDown(customer)}
-                        className="text-xs"
-                      >
-                        WOs
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
