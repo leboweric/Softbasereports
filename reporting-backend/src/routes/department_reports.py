@@ -10377,10 +10377,12 @@ def register_department_routes(reports_bp):
                 logger.warning(f'Could not load excluded_branches from org settings: {e}')
             
             # Apply customer exclusion filter (always — hardcoded + org settings)
+            # Use RTRIM() to handle CHAR(n) fixed-width columns where values are space-padded
+            # e.g., 'IPS110' stored as 'IPS110    ' in a CHAR(10) column won't match without RTRIM
             if excluded_customers:
                 excl_list = ','.join([f"'{c.strip()}'" for c in excluded_customers])
-                branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list}) AND i.BillTo NOT IN ({excl_list})"
-                branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list}) AND wo.BillTo NOT IN ({excl_list})"
+                branch_invoice_filter += f" AND RTRIM(i.ShipTo) NOT IN ({excl_list}) AND RTRIM(i.BillTo) NOT IN ({excl_list})"
+                branch_wo_filter += f" AND RTRIM(wo.ShipTo) NOT IN ({excl_list}) AND RTRIM(wo.BillTo) NOT IN ({excl_list})"
                 logger.info(f"Customer Profitability: excluding internal customers {excluded_customers}")
             
             # Build date filter based on parameters
