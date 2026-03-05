@@ -575,6 +575,38 @@ with app.app_context():
     except Exception as e:
         print(f"Note: support_ticket comment migration: {e}")
 
+    # Data migration: Ensure IPS110 and IPS130 are in excluded_bill_to_customers for IPS org
+    # These are IPS's own internal equipment accounts (New EQ Internal / Used EQ Internal)
+    # and should never appear in the Customer Profitability report.
+    try:
+        import json as _json
+        from models.user import Organization
+        ips_org = Organization.query.filter_by(db_name='ind004').first()
+        if ips_org:
+            existing_settings = {}
+            if ips_org.settings:
+                try:
+                    existing_settings = _json.loads(ips_org.settings) if isinstance(ips_org.settings, str) else ips_org.settings
+                except Exception:
+                    existing_settings = {}
+            excluded = existing_settings.get('excluded_bill_to_customers', [])
+            added = []
+            for acct in ['IPS110', 'IPS130']:
+                if acct not in excluded:
+                    excluded.append(acct)
+                    added.append(acct)
+            if added:
+                existing_settings['excluded_bill_to_customers'] = excluded
+                ips_org.settings = _json.dumps(existing_settings)
+                db.session.commit()
+                print(f"✅ IPS org settings updated: added {added} to excluded_bill_to_customers")
+            else:
+                print("✅ IPS org excluded_bill_to_customers already contains IPS110 and IPS130")
+        else:
+            print("ℹ️  IPS org (ind004) not found — skipping excluded_bill_to_customers migration")
+    except Exception as e:
+        print(f"Note: IPS excluded_bill_to_customers migration: {e}")
+
     # Initialize RBAC roles and permissions
     try:
         initialize_all_rbac()
