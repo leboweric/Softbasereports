@@ -150,7 +150,7 @@ def claude_analytics_dashboard():
         return jsonify({"error": "Failed to fetch Claude analytics.", "detail": str(exc)}), 500
 
     data["cached"] = False
-    cache_service.set(cache_key, data, ttl=CACHE_TTL)
+    cache_service.set(cache_key, data, CACHE_TTL)
     return jsonify(data)
 
 
