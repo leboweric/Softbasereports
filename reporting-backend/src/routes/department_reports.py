@@ -10362,11 +10362,12 @@ def register_department_routes(reports_bp):
                         branch_wo_filter = f"AND wo.SaleBranch NOT IN ({branch_list})"
                         logger.info(f"Customer Profitability: excluding branches {excluded_branches}")
                     # Also exclude specific internal billing accounts
+                    # Filter BOTH ShipTo and BillTo — internal accounts can appear in either field
                     excluded_customers = org_settings.get('excluded_bill_to_customers', [])
                     if excluded_customers:
                         excl_list = ','.join([f"'{c.strip()}'" for c in excluded_customers])
-                        branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list})"
-                        branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list})"
+                        branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list}) AND i.BillTo NOT IN ({excl_list})"
+                        branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list}) AND wo.Customer NOT IN ({excl_list})"
                         logger.info(f"Customer Profitability: excluding internal customers {excluded_customers}")
             except Exception as e:
                 logger.warning(f'Could not load excluded_branches from org settings: {e}')
@@ -10799,6 +10800,154 @@ def register_department_routes(reports_bp):
                 'success': False,
                 'error': str(e)
             }), 500
+
+
+    @reports_bp.route('/departments/customer-profitability/wo-detail', methods=['GET'])
+    @jwt_required()
+    @require_permission('view_service')
+    def get_customer_profitability_wo_detail():
+        """
+        Get Work Order cost breakdown for a specific customer.
+        Shows individual WOs with labor, parts (line items), and misc costs.
+        Used to investigate why a customer's WOParts.Cost is high (e.g. QUA001).
+        """
+        try:
+            db = get_db()
+            schema = get_tenant_schema()
+
+            customer_number = request.args.get('customer_number')
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+            department = request.args.get('department', 'service')
+
+            if not customer_number:
+                return jsonify({'error': 'customer_number is required'}), 400
+
+            # Date filter
+            if start_date and end_date:
+                wo_date_filter = f"AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) >= '{start_date}' AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) <= '{end_date}'"
+            else:
+                wo_date_filter = "AND COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) >= DATEADD(month, -12, GETDATE())"
+
+            # WO type filter
+            wo_type_filter = "AND wo.Type IN ('S', 'SH', 'PM')" if department == 'service' else ""
+
+            # Get all WOs for this customer
+            wo_query = f"""
+            SELECT
+                wo.WONo,
+                wo.Type,
+                wo.OpenDate,
+                wo.ClosedDate,
+                wo.CompletedDate,
+                wo.UnitNo,
+                wo.SerialNo,
+                wo.Technician,
+                COALESCE(
+                    (SELECT SUM(COALESCE(wol.Cost, 0)) FROM {schema}.WOLabor wol WHERE wol.WONo = wo.WONo),
+                    0
+                ) as labor_cost,
+                COALESCE(
+                    (SELECT SUM(COALESCE(wop.Cost, 0)) FROM {schema}.WOParts wop WHERE wop.WONo = wo.WONo),
+                    0
+                ) as parts_cost,
+                COALESCE(
+                    (SELECT SUM(COALESCE(wom.Cost, 0)) FROM {schema}.WOMisc wom WHERE wom.WONo = wo.WONo),
+                    0
+                ) as misc_cost
+            FROM {schema}.WO wo
+            WHERE wo.ShipTo = '{customer_number}'
+                {wo_date_filter}
+                {wo_type_filter}
+                AND wo.DeletionTime IS NULL
+            ORDER BY COALESCE(wo.ClosedDate, wo.CompletedDate, wo.OpenDate) DESC
+            """
+
+            wo_results = db.execute_query(wo_query)
+
+            # Get parts line items for each WO (to show individual part costs)
+            wo_numbers = [row['WONo'] for row in wo_results] if wo_results else []
+            parts_detail = []
+            if wo_numbers:
+                quoted_wonos = ','.join([f"'{w}'" for w in wo_numbers])
+                parts_query = f"""
+                SELECT
+                    wp.WONo,
+                    wp.PartNo,
+                    wp.Description,
+                    wp.Qty,
+                    wp.Cost,
+                    wp.Sell,
+                    COALESCE(wp.Qty, 1) * COALESCE(wp.Cost, 0) as extended_cost,
+                    COALESCE(wp.Qty, 1) * COALESCE(wp.Sell, 0) as extended_sell
+                FROM {schema}.WOParts wp
+                WHERE wp.WONo IN ({quoted_wonos})
+                ORDER BY wp.WONo, extended_cost DESC
+                """
+                parts_detail = db.execute_query(parts_query) or []
+
+            # Group parts by WONo
+            parts_by_wo = {}
+            for p in parts_detail:
+                wono = p['WONo']
+                if wono not in parts_by_wo:
+                    parts_by_wo[wono] = []
+                parts_by_wo[wono].append({
+                    'part_no': p['PartNo'],
+                    'description': p['Description'],
+                    'qty': float(p['Qty'] or 0),
+                    'unit_cost': float(p['Cost'] or 0),
+                    'unit_sell': float(p['Sell'] or 0),
+                    'extended_cost': float(p['extended_cost'] or 0),
+                    'extended_sell': float(p['extended_sell'] or 0)
+                })
+
+            # Build response
+            wo_data = []
+            for wo in (wo_results or []):
+                wono = wo['WONo']
+                labor_cost = float(wo['labor_cost'] or 0)
+                parts_cost = float(wo['parts_cost'] or 0)
+                misc_cost = float(wo['misc_cost'] or 0)
+                total_cost = labor_cost + parts_cost + misc_cost
+                wo_date = wo.get('ClosedDate') or wo.get('CompletedDate') or wo.get('OpenDate')
+                wo_data.append({
+                    'wo_number': wono,
+                    'type': wo.get('Type'),
+                    'date': wo_date.strftime('%Y-%m-%d') if wo_date else None,
+                    'unit_no': wo.get('UnitNo'),
+                    'serial_no': wo.get('SerialNo'),
+                    'technician': wo.get('Technician'),
+                    'labor_cost': round(labor_cost, 2),
+                    'parts_cost': round(parts_cost, 2),
+                    'misc_cost': round(misc_cost, 2),
+                    'total_cost': round(total_cost, 2),
+                    'parts_lines': parts_by_wo.get(wono, [])
+                })
+
+            total_labor = sum(w['labor_cost'] for w in wo_data)
+            total_parts = sum(w['parts_cost'] for w in wo_data)
+            total_misc = sum(w['misc_cost'] for w in wo_data)
+
+            return jsonify({
+                'success': True,
+                'customer_number': customer_number,
+                'wo_count': len(wo_data),
+                'total_labor_cost': round(total_labor, 2),
+                'total_parts_cost': round(total_parts, 2),
+                'total_misc_cost': round(total_misc, 2),
+                'total_cost': round(total_labor + total_parts + total_misc, 2),
+                'work_orders': wo_data,
+                'notes': {
+                    'parts_cost_source': 'WOParts.Cost — standard cost at time part was added to WO. May differ from actual purchase cost if standard costs are stale in Softbase.',
+                    'labor_cost_source': 'WOLabor.Cost — technician cost rate × hours',
+                    'date_filter': 'Based on WO ClosedDate, CompletedDate, or OpenDate (in that order)'
+                }
+            })
+
+        except Exception as e:
+            logger.error(f"Error getting customer WO detail: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)}), 500
 
 
     @reports_bp.route('/departments/service/units-by-repair-cost', methods=['GET'])

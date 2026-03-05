@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, XCircle, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Users, Target, Flame } from 'lucide-react'
+import { CheckCircle, XCircle, TrendingUp, TrendingDown, DollarSign, AlertTriangle, Users, Target, Flame, ChevronDown, ChevronRight, X } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -25,6 +25,11 @@ const CustomerProfitability = ({ department = 'all' }) => {
   const [dateFilterType, setDateFilterType] = useState('trailing') // 'trailing', 'range'
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [drillDownCustomer, setDrillDownCustomer] = useState(null) // { customer_number, customer_name }
+  const [drillDownData, setDrillDownData] = useState(null)
+  const [drillDownLoading, setDrillDownLoading] = useState(false)
+  const [drillDownError, setDrillDownError] = useState(null)
+  const [expandedWOs, setExpandedWOs] = useState(new Set())
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -79,6 +84,51 @@ const CustomerProfitability = ({ department = 'all' }) => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchDrillDown = async (customerNumber) => {
+    setDrillDownLoading(true)
+    setDrillDownError(null)
+    setDrillDownData(null)
+    setExpandedWOs(new Set())
+    try {
+      const token = localStorage.getItem('token')
+      let params = `customer_number=${customerNumber}&department=${department}`
+      if (dateFilterType === 'range' && startDate && endDate) {
+        params += `&start_date=${startDate}&end_date=${endDate}`
+      }
+      const response = await fetch(apiUrl(`/api/reports/departments/customer-profitability/wo-detail?${params}`), {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          setDrillDownData(result)
+        } else {
+          setDrillDownError(result.error || 'Failed to load WO detail')
+        }
+      } else {
+        setDrillDownError('Failed to fetch WO detail')
+      }
+    } catch (err) {
+      setDrillDownError(err.message)
+    } finally {
+      setDrillDownLoading(false)
+    }
+  }
+
+  const openDrillDown = (customer) => {
+    setDrillDownCustomer(customer)
+    fetchDrillDown(customer.customer_number.split(' ')[0]) // Handle "QUA001 (+1 more)" format
+  }
+
+  const toggleWOExpand = (woNumber) => {
+    setExpandedWOs(prev => {
+      const next = new Set(prev)
+      if (next.has(woNumber)) next.delete(woNumber)
+      else next.add(woNumber)
+      return next
+    })
   }
 
   const handleSort = (field) => {
@@ -537,6 +587,7 @@ const CustomerProfitability = ({ department = 'all' }) => {
                   <TableHead>Health</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Recommendation</TableHead>
+                  <TableHead>Detail</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -581,6 +632,16 @@ const CustomerProfitability = ({ department = 'all' }) => {
                         )}
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDrillDown(customer)}
+                        className="text-xs"
+                      >
+                        WOs
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -588,6 +649,117 @@ const CustomerProfitability = ({ department = 'all' }) => {
           </div>
         </CardContent>
       </Card>
+
+      {/* WO Drill-Down Modal */}
+      {drillDownCustomer && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center overflow-y-auto pt-8 pb-8">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4">
+            <div className="flex items-center justify-between p-4 border-b">
+              <div>
+                <h2 className="text-lg font-bold">{drillDownCustomer.customer_name}</h2>
+                <p className="text-sm text-muted-foreground">#{drillDownCustomer.customer_number} — Work Order Cost Breakdown</p>
+              </div>
+              <button onClick={() => setDrillDownCustomer(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4">
+              {drillDownLoading && (
+                <div className="flex items-center justify-center h-32"><LoadingSpinner /></div>
+              )}
+              {drillDownError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">{drillDownError}</div>
+              )}
+              {drillDownData && (
+                <>
+                  {/* Summary */}
+                  <div className="grid grid-cols-4 gap-4 mb-4">
+                    <div className="bg-gray-50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-muted-foreground">Work Orders</div>
+                      <div className="text-xl font-bold">{drillDownData.wo_count}</div>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-muted-foreground">Labor Cost</div>
+                      <div className="text-xl font-bold text-blue-700">{formatCurrency(drillDownData.total_labor_cost)}</div>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-muted-foreground">Parts Cost</div>
+                      <div className="text-xl font-bold text-orange-700">{formatCurrency(drillDownData.total_parts_cost)}</div>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-3 text-center">
+                      <div className="text-xs text-muted-foreground">Total Cost</div>
+                      <div className="text-xl font-bold text-purple-700">{formatCurrency(drillDownData.total_cost)}</div>
+                    </div>
+                  </div>
+                  {/* WO List */}
+                  <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                    {drillDownData.work_orders.map((wo) => (
+                      <div key={wo.wo_number} className="border rounded-lg">
+                        <div
+                          className="flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50"
+                          onClick={() => toggleWOExpand(wo.wo_number)}
+                        >
+                          <div className="flex items-center gap-3">
+                            {expandedWOs.has(wo.wo_number)
+                              ? <ChevronDown className="h-4 w-4 text-gray-400" />
+                              : <ChevronRight className="h-4 w-4 text-gray-400" />}
+                            <div>
+                              <span className="font-mono font-medium text-sm">{wo.wo_number}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">{wo.type} · {wo.date}</span>
+                              {wo.unit_no && <span className="ml-2 text-xs text-muted-foreground">Unit: {wo.unit_no}</span>}
+                              {wo.technician && <span className="ml-2 text-xs text-muted-foreground">Tech: {wo.technician}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-blue-700">Labor: {formatCurrency(wo.labor_cost)}</span>
+                            <span className="text-orange-700">Parts: {formatCurrency(wo.parts_cost)}</span>
+                            <span className="font-semibold">Total: {formatCurrency(wo.total_cost)}</span>
+                          </div>
+                        </div>
+                        {expandedWOs.has(wo.wo_number) && wo.parts_lines.length > 0 && (
+                          <div className="border-t bg-gray-50 p-3">
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">Parts Used ({wo.parts_lines.length} lines)</p>
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-muted-foreground">
+                                  <th className="text-left pb-1">Part #</th>
+                                  <th className="text-left pb-1">Description</th>
+                                  <th className="text-right pb-1">Qty</th>
+                                  <th className="text-right pb-1">Unit Cost</th>
+                                  <th className="text-right pb-1">Unit Sell</th>
+                                  <th className="text-right pb-1">Ext. Cost</th>
+                                  <th className="text-right pb-1">Ext. Sell</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {wo.parts_lines.map((p, i) => (
+                                  <tr key={i} className="border-t border-gray-200">
+                                    <td className="py-1 font-mono">{p.part_no}</td>
+                                    <td className="py-1">{p.description}</td>
+                                    <td className="py-1 text-right">{p.qty}</td>
+                                    <td className="py-1 text-right">{formatCurrency(p.unit_cost)}</td>
+                                    <td className="py-1 text-right">{formatCurrency(p.unit_sell)}</td>
+                                    <td className="py-1 text-right font-medium">{formatCurrency(p.extended_cost)}</td>
+                                    <td className="py-1 text-right font-medium">{formatCurrency(p.extended_sell)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {expandedWOs.has(wo.wo_number) && wo.parts_lines.length === 0 && (
+                          <div className="border-t bg-gray-50 p-3 text-xs text-muted-foreground">No parts lines on this WO.</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">{drillDownData.notes.parts_cost_source}</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notes */}
       <Card>

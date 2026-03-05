@@ -362,6 +362,7 @@ const CurrieService = ({ user, organization }) => {
   const callsPerDay = metrics?.service_calls_per_day?.calls_per_day || 0;
   const totalCalls = metrics?.service_calls_per_day?.total_service_calls || 0;
   const activeTechs = metrics?.technician_count?.active_technicians || 0;
+  const technicianList = metrics?.technician_count?.technician_list || [];
   const totalBilledHours = metrics?.labor_metrics?.total_billed_hours || 0;
   const woWithLabor = metrics?.labor_metrics?.work_orders_with_labor || 0;
   const absorptionRate = metrics?.absorption_rate?.rate || 0;
@@ -631,6 +632,16 @@ const CurrieService = ({ user, organization }) => {
                   <p className="text-xs text-gray-500 mb-1">Active Technicians</p>
                   <p className="text-xl font-bold text-gray-900">{activeTechs}</p>
                   <p className="text-xs text-gray-400 mt-1">WOs with labor: {formatNumber(woWithLabor)}</p>
+                  {technicianList.length > 0 && (
+                    <details className="mt-2 text-left">
+                      <summary className="text-xs text-blue-600 cursor-pointer hover:underline text-center">View list</summary>
+                      <ul className="mt-1 text-xs text-gray-600 space-y-0.5 max-h-40 overflow-y-auto">
+                        {technicianList.map((name, i) => (
+                          <li key={i} className="truncate">{name}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </div>
 
                 {/* Work Order Throughput */}

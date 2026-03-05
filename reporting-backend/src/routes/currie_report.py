@@ -941,25 +941,37 @@ def get_service_calls_per_day(start_date, end_date, num_days):
 
 
 def get_technician_count(start_date, end_date):
-    """Count unique technicians who worked during the period"""
+    """Count unique technicians who worked during the period.
+    
+    Uses WOLabor.MechanicName (not WO.Technician) so that every tech who
+    clocked hours on any WO is counted — including multi-tech jobs where
+    only one name appears on the WO header.
+    """
     try:
         schema = get_tenant_schema()
 
         query = f"""
-        SELECT COUNT(DISTINCT Technician) as technician_count
-        FROM {schema}.WO
-        WHERE OpenDate >= %s 
-          AND OpenDate <= %s
-          AND Technician IS NOT NULL
-          AND Technician != ''
+        SELECT
+            COUNT(DISTINCT wl.MechanicName) as technician_count,
+            STRING_AGG(DISTINCT wl.MechanicName, ', ') as technician_names
+        FROM {schema}.WOLabor wl
+        INNER JOIN {schema}.WO wo ON wl.WONo = wo.WONo
+        WHERE wo.OpenDate >= %s
+          AND wo.OpenDate <= %s
+          AND wl.MechanicName IS NOT NULL
+          AND wl.MechanicName != ''
+          AND wo.DeletionTime IS NULL
         """
         
         results = get_sql_service().execute_query(query, [start_date, end_date])
         
         count = int(results[0]['technician_count']) if results and results[0]['technician_count'] else 0
+        names_str = results[0]['technician_names'] if results and results[0]['technician_names'] else ''
+        tech_list = sorted([n.strip() for n in names_str.split(',') if n.strip()]) if names_str else []
         
         return {
-            'active_technicians': count
+            'active_technicians': count,
+            'technician_list': tech_list
         }
         
     except Exception as e:

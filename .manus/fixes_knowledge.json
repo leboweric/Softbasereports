@@ -482,7 +482,71 @@
       "testing_passed": true,
       "date_fixed": "2026-03-04",
       "lessons_learned": "Ticket resolve endpoint: POST /api/support-tickets/{id}/resolve with JSON body containing fix_summary and resolution_notes. The field name 'resolution' does NOT work — must use fix_summary or resolution_notes."
+    },
+    {
+      "ticket_id": "TKT-2026-0028",
+      "type": "bug",
+      "component": "Currie Service Page / currie_report.py + CurrieService.jsx",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Active Technicians KPI showing 10 instead of 20 for IPS — undercounting because WO.Technician only records the assigned tech on the WO header, not all techs who clocked labor",
+      "root_cause": "get_technician_count() was querying COUNT(DISTINCT WO.Technician) — this only counts the tech assigned to the WO header. Multi-tech jobs where multiple people logged labor via WOLabor only show one name in WO.Technician. Also filtered on OpenDate only, missing WOs opened in prior periods.",
+      "solution": "Changed query to COUNT(DISTINCT WOLabor.MechanicName) with INNER JOIN to WO. Added STRING_AGG to also return the list of tech names. Added DeletionTime IS NULL filter. Frontend now shows a 'View list' expandable section under the count so John can verify all 20 techs are being counted.",
+      "files_modified": [
+        "reporting-backend/src/routes/currie_report.py",
+        "reporting-frontend/src/components/CurrieService.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — WO.Technician vs WOLabor.MechanicName distinction is universal",
+      "testing_passed": false,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "CRITICAL: WO.Technician is the ASSIGNED tech on the work order header — it is NOT a count of everyone who worked on the job. For accurate technician headcount, ALWAYS use COUNT(DISTINCT WOLabor.MechanicName). The WOLabor table records every tech who clocked time on a WO, regardless of who is listed as the primary technician on the WO header."
+    },
+    {
+      "ticket_id": "TKT-2026-0029",
+      "type": "bug",
+      "component": "Customer Profitability / department_reports.py",
+      "organization": "IPS (ind004)",
+      "issue_summary": "Customer Profitability showing non-service customers (e.g. Thomas Steel THO002) and internal billing accounts slipping through the exclusion filter",
+      "root_cause": "Two issues: (1) The excluded_bill_to_customers filter was only checking i.ShipTo NOT IN (...) but internal accounts can appear in EITHER ShipTo or BillTo. (2) The dynamic service dept lookup using LIKE '%maintenance%' may match departments beyond pure service at some tenants.",
+      "solution": "Fixed excluded_bill_to_customers filter to check BOTH i.ShipTo NOT IN (...) AND i.BillTo NOT IN (...) for invoices, and wo.ShipTo NOT IN (...) AND wo.Customer NOT IN (...) for WOs. This ensures internal billing accounts are excluded regardless of which field they appear in.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py"
+      ],
+      "multi_tenant_impact": "Affects all orgs that use excluded_bill_to_customers in org settings",
+      "testing_passed": false,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "When filtering out internal/intercompany accounts in InvoiceReg queries, ALWAYS exclude on BOTH ShipTo AND BillTo fields. Internal accounts can appear in either field depending on how the WO/invoice was created. The same applies to WO queries: filter both wo.ShipTo and wo.Customer."
+    },
+    {
+      "ticket_id": "TKT-2026-0030",
+      "type": "feature",
+      "component": "Customer Profitability / department_reports.py + CustomerProfitability.jsx",
+      "organization": "IPS (ind004)",
+      "issue_summary": "John needs to investigate why QUA001 (Quaker City Castings) shows $21,056 in costs vs $11,085 revenue — needs WO-level parts cost breakdown",
+      "root_cause": "Feature request — no drill-down existed on Customer Profitability to see individual WOs and parts lines.",
+      "solution": "Added new backend endpoint GET /api/reports/departments/customer-profitability/wo-detail?customer_number=QUA001&department=service. Returns all WOs for the customer with labor/parts/misc cost breakdown, plus individual WOParts line items (PartNo, Description, Qty, Cost, Sell, extended amounts). Frontend adds a 'WOs' button on each customer row that opens a modal with: (1) summary tiles (WO count, labor cost, parts cost, total cost), (2) expandable WO rows showing each WO's costs, (3) expandable parts lines within each WO showing individual part numbers and costs.",
+      "files_modified": [
+        "reporting-backend/src/routes/department_reports.py",
+        "reporting-frontend/src/components/CustomerProfitability.jsx"
+      ],
+      "multi_tenant_impact": "Affects all orgs — drill-down is available universally",
+      "testing_passed": false,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "WOParts.Cost is the STANDARD COST at the time the part was added to the WO — it may differ from the actual purchase cost if standard costs are stale in Softbase. When investigating high parts costs, always compare WOParts.Cost vs WOParts.Sell to see if the markup is appropriate, and check if standard costs have been updated recently. Also note: WOParts.Qty * WOParts.Cost = extended cost (not just WOParts.Cost alone)."
+    },
+    {
+      "ticket_id": "PATTERN-003",
+      "type": "pattern",
+      "component": "Technician Counting",
+      "organization": "all",
+      "issue_summary": "Recurring pattern: WO.Technician undercounts active technicians — use WOLabor.MechanicName instead",
+      "root_cause": "WO.Technician is a single field on the WO header. It only records the primary assigned technician. Multi-tech jobs, helper techs, and techs who clocked time but weren't the primary assignee are invisible in WO.Technician.",
+      "solution": "ALWAYS use COUNT(DISTINCT WOLabor.MechanicName) for technician headcount. Join WOLabor to WO for date filtering. Add DeletionTime IS NULL to WO filter.",
+      "files_modified": [],
+      "multi_tenant_impact": "CRITICAL — affects any report that counts active technicians",
+      "testing_passed": true,
+      "date_fixed": "2026-03-05",
+      "lessons_learned": "GOLDEN RULE for technician counts: Use WOLabor.MechanicName, NOT WO.Technician. WO.Technician = primary assigned tech (1 per WO). WOLabor.MechanicName = every tech who clocked time (N per WO). For per-tech metrics (revenue/tech, hours/tech), always use the WOLabor-based count as the denominator."
     }
   ],
-  "last_updated": "2026-03-04T00:55:00.000000"
+  "last_updated": "2026-03-05T12:00:00.000000"
 }
