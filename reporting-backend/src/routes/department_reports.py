@@ -10349,6 +10349,14 @@ def register_department_routes(reports_bp):
             excluded_branches = []
             branch_invoice_filter = ""
             branch_wo_filter = ""
+            
+            # Schema-specific hardcoded internal account exclusions
+            # These always apply regardless of org settings configuration
+            SCHEMA_INTERNAL_ACCOUNTS = {
+                'ind004': ['IPS110', 'IPS130'],  # IPS: New EQ Internal, Used EQ Internal
+            }
+            excluded_customers = list(SCHEMA_INTERNAL_ACCOUNTS.get(schema, []))
+            
             try:
                 user_id = get_jwt_identity()
                 user = User.query.get(int(user_id))
@@ -10361,37 +10369,19 @@ def register_department_routes(reports_bp):
                         branch_invoice_filter = f"AND i.SaleBranch NOT IN ({branch_list})"
                         branch_wo_filter = f"AND wo.SaleBranch NOT IN ({branch_list})"
                         logger.info(f"Customer Profitability: excluding branches {excluded_branches}")
-                    # Also exclude specific internal billing accounts
-                    # Filter BOTH ShipTo and BillTo — internal accounts can appear in either field
-                    excluded_customers = org_settings.get('excluded_bill_to_customers', [])
-                    
-                    # Schema-specific hardcoded fallbacks for known internal accounts
-                    # These are applied even if org settings are empty/not configured
-                    SCHEMA_INTERNAL_ACCOUNTS = {
-                        'ind004': ['IPS110', 'IPS130'],  # IPS: New EQ Internal, Used EQ Internal
-                    }
-                    hardcoded = SCHEMA_INTERNAL_ACCOUNTS.get(schema, [])
-                    for acct in hardcoded:
+                    # Merge org-settings exclusions with hardcoded ones
+                    for acct in org_settings.get('excluded_bill_to_customers', []):
                         if acct not in excluded_customers:
                             excluded_customers.append(acct)
-                    
-                    if excluded_customers:
-                        excl_list = ','.join([f"'{c.strip()}'" for c in excluded_customers])
-                        branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list}) AND i.BillTo NOT IN ({excl_list})"
-                        branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list}) AND wo.BillTo NOT IN ({excl_list})"
-                        logger.info(f"Customer Profitability: excluding internal customers {excluded_customers}")
             except Exception as e:
                 logger.warning(f'Could not load excluded_branches from org settings: {e}')
-                # Even on exception, apply schema-specific hardcoded exclusions
-                SCHEMA_INTERNAL_ACCOUNTS = {
-                    'ind004': ['IPS110', 'IPS130'],
-                }
-                hardcoded = SCHEMA_INTERNAL_ACCOUNTS.get(schema, [])
-                if hardcoded:
-                    excl_list = ','.join([f"'{c}'" for c in hardcoded])
-                    branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list}) AND i.BillTo NOT IN ({excl_list})"
-                    branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list}) AND wo.BillTo NOT IN ({excl_list})"
-                    logger.info(f"Customer Profitability: applied hardcoded exclusions for schema {schema}: {hardcoded}")
+            
+            # Apply customer exclusion filter (always — hardcoded + org settings)
+            if excluded_customers:
+                excl_list = ','.join([f"'{c.strip()}'" for c in excluded_customers])
+                branch_invoice_filter += f" AND i.ShipTo NOT IN ({excl_list}) AND i.BillTo NOT IN ({excl_list})"
+                branch_wo_filter += f" AND wo.ShipTo NOT IN ({excl_list}) AND wo.BillTo NOT IN ({excl_list})"
+                logger.info(f"Customer Profitability: excluding internal customers {excluded_customers}")
             
             # Build date filter based on parameters
             if start_date and end_date:
