@@ -75,7 +75,7 @@ const AlohaExecutiveDashboard = ({ user, onNavigate }) => {
             Aloha Holdings — Executive Dashboard
           </h1>
           <p className="text-gray-500 mt-1">
-            Consolidated view across {dashboardData?.total_subsidiaries || 3} subsidiary companies
+            Consolidated view across {dashboardData?.total_subsidiaries || 8} subsidiary companies (5 SAP + 3 NetSuite)
           </p>
         </div>
         <Button variant="outline" onClick={fetchDashboard}>
@@ -85,7 +85,7 @@ const AlohaExecutiveDashboard = ({ user, onNavigate }) => {
       </div>
 
       {/* Subsidiary Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {dashboardData?.subsidiaries?.map((sub) => (
           <Card key={sub.id} className={`border-l-4 ${sub.connected ? 'border-l-green-500' : 'border-l-yellow-500'}`}>
             <CardHeader className="pb-2">
@@ -96,7 +96,7 @@ const AlohaExecutiveDashboard = ({ user, onNavigate }) => {
                 </Badge>
               </div>
               <CardDescription className="text-xs">
-                {sub.system_type !== 'Not configured' ? `SAP ${sub.system_type.toUpperCase()}` : 'SAP — Not configured'}
+                {sub.erp_type || 'ERP'} — {sub.system_type !== 'Not configured' ? sub.system_type : 'Not configured'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -112,7 +112,7 @@ const AlohaExecutiveDashboard = ({ user, onNavigate }) => {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-gray-400">Awaiting SAP connection configuration</p>
+                <p className="text-sm text-gray-400">Awaiting {sub.erp_type || 'ERP'} connection configuration</p>
               )}
             </CardContent>
           </Card>
@@ -164,7 +164,7 @@ const AlohaExecutiveDashboard = ({ user, onNavigate }) => {
             <div className="flex items-center justify-center h-48 text-gray-400">
               <div className="text-center">
                 <BarChart3 className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p>Revenue comparison chart will appear once SAP data is synced</p>
+                <p>Revenue comparison chart will appear once ERP data is synced</p>
               </div>
             </div>
           </CardContent>
@@ -181,7 +181,7 @@ const AlohaExecutiveDashboard = ({ user, onNavigate }) => {
             <div className="flex items-center justify-center h-48 text-gray-400">
               <div className="text-center">
                 <Wallet className="h-12 w-12 mx-auto mb-2 opacity-30" />
-                <p>Financial summary will appear once SAP data is synced</p>
+                <p>Financial summary will appear once ERP data is synced</p>
               </div>
             </div>
           </CardContent>
@@ -229,21 +229,21 @@ const SetupRequiredView = ({ data, onNavigate }) => {
         <Globe className="h-16 w-16 text-teal-600 mx-auto mb-4" />
         <h1 className="text-3xl font-bold text-gray-900">Welcome to Aloha Holdings</h1>
         <p className="text-gray-500 mt-2 max-w-lg mx-auto">
-          Your executive dashboard will display consolidated data from all 3 subsidiary SAP systems.
+          Your executive dashboard will display consolidated data from all 8 subsidiary companies — 5 on SAP and 3 on NetSuite.
           Let's get started by configuring your data connections.
         </p>
       </div>
 
       {/* Subsidiary Connection Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
         {data.subsidiaries?.map((sub, idx) => (
           <Card key={sub.id} className="border-2 border-dashed border-gray-200 hover:border-teal-300 transition-colors">
             <CardHeader className="text-center pb-2">
-              <div className="mx-auto w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-2">
-                <Building2 className="h-6 w-6 text-gray-400" />
+              <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-2 ${sub.erp_type === 'SAP' ? 'bg-blue-50' : 'bg-orange-50'}`}>
+                <Building2 className={`h-6 w-6 ${sub.erp_type === 'SAP' ? 'text-blue-400' : 'text-orange-400'}`} />
               </div>
               <CardTitle className="text-base">{sub.name}</CardTitle>
-              <CardDescription>SAP ERP System</CardDescription>
+              <CardDescription>{sub.erp_type || 'ERP'} System</CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Badge variant="secondary" className="mb-3">

@@ -1,12 +1,14 @@
 """
 Script to set up Aloha Holdings as a new tenant in AIOP
-Aloha is a Hawaii-based holding company with 3 subsidiary companies,
-each running their own SAP ERP system.
+Aloha is a Hawaii-based holding company with 8 subsidiary companies:
+  SAP: Sandia, Mercury, Ultimate Solutions, Avalon, Orbot
+  NetSuite: Hawaii Care and Cleaning, Kauai Exclusive, Heavenly Vacations
 
 Run with: python -m src.scripts.setup_aloha
 """
 import os
 import sys
+import json
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -36,14 +38,52 @@ def setup_aloha():
             print(f"Aloha Holdings organization already exists (ID: {existing_org.id})")
             org = existing_org
         else:
-            # Create Aloha Holdings organization
+            # Data source templates
+            sap_template = {
+                'connected': False,
+                'erp_type': 'sap',
+                'system_type': '',
+                'connection_method': '',
+                'host': '',
+                'port': '',
+                'client': '',
+                'system_number': '',
+                'username': '',
+                'password': '',
+                'company_db': '',
+            }
+            
+            netsuite_template = {
+                'connected': False,
+                'erp_type': 'netsuite',
+                'account_id': '',
+                'consumer_key': '',
+                'consumer_secret': '',
+                'token_id': '',
+                'token_secret': '',
+                'realm': '',
+            }
+            
+            default_settings = {
+                'data_sources': {
+                    'sap_sandia': {'name': 'Sandia', **sap_template},
+                    'sap_mercury': {'name': 'Mercury', **sap_template},
+                    'sap_ultimate_solutions': {'name': 'Ultimate Solutions', **sap_template},
+                    'sap_avalon': {'name': 'Avalon', **sap_template},
+                    'sap_orbot': {'name': 'Orbot', **sap_template},
+                    'ns_hawaii_care': {'name': 'Hawaii Care and Cleaning', **netsuite_template},
+                    'ns_kauai_exclusive': {'name': 'Kauai Exclusive', **netsuite_template},
+                    'ns_heavenly_vacations': {'name': 'Heavenly Vacations', **netsuite_template},
+                }
+            }
+            
             org = Organization(
                 name='Aloha Holdings',
-                platform_type='sap',  # SAP ERP multi-source
+                platform_type='multi_erp',
                 subscription_status='active',
-                fiscal_year_start_month=1,  # January fiscal year (update if different)
+                fiscal_year_start_month=1,
                 is_active=True,
-                settings='{"data_sources": {"sap_sandia_plastics": {"name": "Sandia Plastics", "connected": false, "system_type": "", "connection_method": "", "host": "", "port": "", "client": "", "system_number": "", "username": "", "password": ""}, "sap_kauai_exclusive": {"name": "Kauai Exclusive", "connected": false, "system_type": "", "connection_method": "", "host": "", "port": "", "client": "", "system_number": "", "username": "", "password": ""}, "sap_hawaii_care": {"name": "Hawaii Care & Cleaning", "connected": false, "system_type": "", "connection_method": "", "host": "", "port": "", "client": "", "system_number": "", "username": "", "password": ""}}}'
+                settings=json.dumps(default_settings)
             )
             db.session.add(org)
             db.session.commit()
@@ -77,8 +117,7 @@ def setup_aloha():
             db.session.commit()
             print(f"Created Aloha User role (ID: {aloha_user_role.id})")
         
-        # Aloha Holdings users to create
-        # Update these with actual user details when available
+        # Aloha Holdings users
         aloha_users = [
             {'first_name': 'Eric', 'last_name': 'LeBow', 'email': 'elebow@aloha.com', 'is_admin': True},
             {'first_name': 'J', 'last_name': 'Foos', 'email': 'jfoos@aloha.com', 'is_admin': True},
@@ -88,16 +127,13 @@ def setup_aloha():
         temp_password = 'abc123'
         
         for user_data in aloha_users:
-            # Check if user already exists
             existing_user = User.query.filter_by(email=user_data['email'].lower()).first()
             if existing_user:
                 print(f"User {user_data['email']} already exists (ID: {existing_user.id})")
-                # Update org assignment if needed
                 if existing_user.organization_id != org.id:
                     print(f"  Note: User is in org {existing_user.organization_id}, not Aloha ({org.id})")
                 continue
             
-            # Create user
             user = User(
                 username=user_data['email'].lower(),
                 email=user_data['email'].lower(),
@@ -109,7 +145,6 @@ def setup_aloha():
                 role='admin' if user_data['is_admin'] else 'user'
             )
             
-            # Assign roles
             if user_data['is_admin']:
                 user.roles.append(aloha_admin_role)
             else:
@@ -122,12 +157,20 @@ def setup_aloha():
         print("\n=== Aloha Holdings Setup Complete ===")
         print(f"Organization ID: {org.id}")
         print(f"Temporary Password for all users: {temp_password}")
-        print("Users should change their password on first login.")
+        print("\nSubsidiaries (SAP):")
+        print("  - Sandia")
+        print("  - Mercury")
+        print("  - Ultimate Solutions")
+        print("  - Avalon")
+        print("  - Orbot")
+        print("\nSubsidiaries (NetSuite):")
+        print("  - Hawaii Care and Cleaning")
+        print("  - Kauai Exclusive")
+        print("  - Heavenly Vacations")
         print("\nNext steps:")
-        print("1. Update subsidiary names in org settings")
-        print("2. Configure SAP connections for each subsidiary")
-        print("3. Add actual users with their email addresses")
-        print("4. Set up ETL jobs for SAP data extraction")
+        print("1. Configure SAP connections for each SAP subsidiary")
+        print("2. Configure NetSuite connections for each NetSuite subsidiary")
+        print("3. Set up ETL jobs for data extraction")
 
 
 if __name__ == '__main__':

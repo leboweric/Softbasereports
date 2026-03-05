@@ -1,6 +1,6 @@
 """
 Aloha Holdings Executive Dashboard API
-Consolidated view across all 3 SAP subsidiary companies
+Consolidated view across all 8 subsidiary companies (5 SAP + 3 NetSuite)
 """
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -12,6 +12,18 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 aloha_dashboard_bp = Blueprint('aloha_dashboard', __name__)
+
+# All subsidiaries with their ERP type
+ALL_SUBSIDIARIES = {
+    'sap_sandia': {'name': 'Sandia', 'erp': 'SAP'},
+    'sap_mercury': {'name': 'Mercury', 'erp': 'SAP'},
+    'sap_ultimate_solutions': {'name': 'Ultimate Solutions', 'erp': 'SAP'},
+    'sap_avalon': {'name': 'Avalon', 'erp': 'SAP'},
+    'sap_orbot': {'name': 'Orbot', 'erp': 'SAP'},
+    'ns_hawaii_care': {'name': 'Hawaii Care and Cleaning', 'erp': 'NetSuite'},
+    'ns_kauai_exclusive': {'name': 'Kauai Exclusive', 'erp': 'NetSuite'},
+    'ns_heavenly_vacations': {'name': 'Heavenly Vacations', 'erp': 'NetSuite'},
+}
 
 
 def _get_org_settings(org):
@@ -41,8 +53,8 @@ def _verify_aloha_user(user_id):
 @jwt_required()
 def get_dashboard_summary():
     """
-    Get consolidated executive summary across all subsidiaries.
-    Returns placeholder data until SAP connections are configured.
+    Get consolidated executive summary across all 8 subsidiaries.
+    Returns placeholder data until ERP connections are configured.
     """
     try:
         user_id = get_jwt_identity()
@@ -56,39 +68,43 @@ def get_dashboard_summary():
         # Build subsidiary status
         subsidiaries = []
         connected_count = 0
-        for source_id in ['sap_sandia_plastics', 'sap_kauai_exclusive', 'sap_hawaii_care']:
+        for source_id, info in ALL_SUBSIDIARIES.items():
             config = data_sources.get(source_id, {})
             is_connected = config.get('connected', False)
             if is_connected:
                 connected_count += 1
             subsidiaries.append({
                 'id': source_id,
-                'name': config.get('name', source_id.replace('sap_', '').replace('_', ' ').title()),
+                'name': info['name'],
+                'erp_type': info['erp'],
                 'connected': is_connected,
-                'system_type': config.get('system_type', 'Not configured'),
+                'system_type': config.get('system_type', config.get('erp_type', 'Not configured')),
             })
         
-        # If no SAP connections configured, return setup guidance
+        # If no connections configured, return setup guidance
         if connected_count == 0:
             return jsonify({
                 'status': 'setup_required',
-                'message': 'No SAP connections configured yet. Please configure data sources first.',
+                'message': 'No ERP connections configured yet. Please configure data sources first.',
                 'subsidiaries': subsidiaries,
+                'sap_count': 5,
+                'netsuite_count': 3,
                 'setup_steps': [
                     'Go to Data Sources page',
-                    'Configure SAP connection for each subsidiary',
+                    'Configure SAP connections for Sandia, Mercury, Ultimate Solutions, Avalon, Orbot',
+                    'Configure NetSuite connections for Hawaii Care and Cleaning, Kauai Exclusive, Heavenly Vacations',
                     'Test each connection',
                     'Run initial data sync'
                 ]
             }), 200
         
-        # Placeholder consolidated metrics (will be populated by ETL once SAP is connected)
+        # Placeholder consolidated metrics (will be populated by ETL)
         return jsonify({
             'status': 'active',
-            'last_sync': None,  # Will be set by ETL
+            'last_sync': None,
             'subsidiaries': subsidiaries,
             'connected_subsidiaries': connected_count,
-            'total_subsidiaries': 3,
+            'total_subsidiaries': 8,
             'consolidated': {
                 'total_revenue': None,
                 'total_expenses': None,
@@ -101,6 +117,7 @@ def get_dashboard_summary():
             'by_subsidiary': {
                 sub['id']: {
                     'name': sub['name'],
+                    'erp_type': sub['erp_type'],
                     'revenue': None,
                     'expenses': None,
                     'net_income': None,
@@ -126,10 +143,9 @@ def get_financials():
         
         year = request.args.get('year', datetime.now().year, type=int)
         
-        # Placeholder - will be populated once SAP ETL is running
         return jsonify({
             'year': year,
-            'status': 'awaiting_sap_connection',
+            'status': 'awaiting_erp_connection',
             'monthly_data': [],
             'ytd_summary': {
                 'revenue': None,
@@ -158,7 +174,7 @@ def get_inventory():
         subsidiary = request.args.get('subsidiary', 'all')
         
         return jsonify({
-            'status': 'awaiting_sap_connection',
+            'status': 'awaiting_erp_connection',
             'subsidiary_filter': subsidiary,
             'inventory': [],
             'summary': {
@@ -187,7 +203,7 @@ def get_orders():
         days = request.args.get('days', 30, type=int)
         
         return jsonify({
-            'status': 'awaiting_sap_connection',
+            'status': 'awaiting_erp_connection',
             'subsidiary_filter': subsidiary,
             'days': days,
             'orders': [],

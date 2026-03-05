@@ -1,11 +1,17 @@
 """
 One-time setup route for Aloha Holdings tenant
 This can be called once to set up the organization and users, then removed.
-Aloha Holdings is a Hawaii-based holding company with 3 subsidiaries:
-  - Sandia Plastics
-  - Kauai Exclusive
-  - Hawaii Care & Cleaning
-Each subsidiary runs its own SAP ERP system.
+Aloha Holdings is a Hawaii-based holding company with 8 subsidiaries:
+  SAP:
+    - Sandia
+    - Mercury
+    - Ultimate Solutions
+    - Avalon
+    - Orbot
+  NetSuite:
+    - Hawaii Care and Cleaning
+    - Kauai Exclusive
+    - Heavenly Vacations
 """
 from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
@@ -29,54 +35,74 @@ def setup_aloha():
         org_created = False
         
         if not org:
-            # Default SAP data source configuration for 3 subsidiaries
+            # Data source configuration for 8 subsidiaries (5 SAP + 3 NetSuite)
+            sap_template = {
+                'connected': False,
+                'erp_type': 'sap',
+                'system_type': '',  # S/4HANA, Business One, ECC, ByDesign
+                'connection_method': '',  # odata, rfc, db_direct, api, service_layer
+                'host': '',
+                'port': '',
+                'client': '',
+                'system_number': '',
+                'username': '',
+                'password': '',
+                'company_db': '',  # For SAP Business One
+            }
+            
+            netsuite_template = {
+                'connected': False,
+                'erp_type': 'netsuite',
+                'account_id': '',
+                'consumer_key': '',
+                'consumer_secret': '',
+                'token_id': '',
+                'token_secret': '',
+                'realm': '',
+            }
+            
             default_settings = {
                 'data_sources': {
-                    'sap_sandia_plastics': {
-                        'name': 'Sandia Plastics',
-                        'connected': False,
-                        'system_type': '',  # S/4HANA, Business One, ECC, ByDesign
-                        'connection_method': '',  # odata, rfc, db_direct, api, service_layer
-                        'host': '',
-                        'port': '',
-                        'client': '',
-                        'system_number': '',
-                        'username': '',
-                        'password': '',
-                        'company_db': '',  # For SAP Business One
+                    # SAP subsidiaries
+                    'sap_sandia': {
+                        'name': 'Sandia',
+                        **sap_template
                     },
-                    'sap_kauai_exclusive': {
+                    'sap_mercury': {
+                        'name': 'Mercury',
+                        **sap_template
+                    },
+                    'sap_ultimate_solutions': {
+                        'name': 'Ultimate Solutions',
+                        **sap_template
+                    },
+                    'sap_avalon': {
+                        'name': 'Avalon',
+                        **sap_template
+                    },
+                    'sap_orbot': {
+                        'name': 'Orbot',
+                        **sap_template
+                    },
+                    # NetSuite subsidiaries
+                    'ns_hawaii_care': {
+                        'name': 'Hawaii Care and Cleaning',
+                        **netsuite_template
+                    },
+                    'ns_kauai_exclusive': {
                         'name': 'Kauai Exclusive',
-                        'connected': False,
-                        'system_type': '',
-                        'connection_method': '',
-                        'host': '',
-                        'port': '',
-                        'client': '',
-                        'system_number': '',
-                        'username': '',
-                        'password': '',
-                        'company_db': '',
+                        **netsuite_template
                     },
-                    'sap_hawaii_care': {
-                        'name': 'Hawaii Care & Cleaning',
-                        'connected': False,
-                        'system_type': '',
-                        'connection_method': '',
-                        'host': '',
-                        'port': '',
-                        'client': '',
-                        'system_number': '',
-                        'username': '',
-                        'password': '',
-                        'company_db': '',
-                    }
+                    'ns_heavenly_vacations': {
+                        'name': 'Heavenly Vacations',
+                        **netsuite_template
+                    },
                 }
             }
             
             org = Organization(
                 name='Aloha Holdings',
-                platform_type='sap',
+                platform_type='multi_erp',
                 subscription_status='active',
                 fiscal_year_start_month=1,
                 is_active=True,
@@ -111,7 +137,7 @@ def setup_aloha():
             db.session.add(aloha_user_role)
             db.session.flush()
         
-        # Initial admin user (Eric LeBow for setup/testing)
+        # Aloha Holdings users
         aloha_users = [
             {'first_name': 'Eric', 'last_name': 'LeBow', 'email': 'elebow@aloha.com', 'is_admin': True},
             {'first_name': 'J', 'last_name': 'Foos', 'email': 'jfoos@aloha.com', 'is_admin': True},
@@ -149,6 +175,9 @@ def setup_aloha():
         
         db.session.commit()
         
+        sap_companies = ['Sandia', 'Mercury', 'Ultimate Solutions', 'Avalon', 'Orbot']
+        netsuite_companies = ['Hawaii Care and Cleaning', 'Kauai Exclusive', 'Heavenly Vacations']
+        
         return jsonify({
             'success': True,
             'message': 'Aloha Holdings setup complete',
@@ -158,11 +187,10 @@ def setup_aloha():
                 'platform_type': org.platform_type,
                 'created': org_created
             },
-            'subsidiaries': [
-                'Sandia Plastics',
-                'Kauai Exclusive',
-                'Hawaii Care & Cleaning'
-            ],
+            'subsidiaries': {
+                'sap': sap_companies,
+                'netsuite': netsuite_companies
+            },
             'roles_created': [
                 'Aloha Admin' if aloha_admin_role else None,
                 'Aloha User' if aloha_user_role else None
@@ -171,11 +199,11 @@ def setup_aloha():
             'users_skipped': skipped_users,
             'temp_password': temp_password,
             'next_steps': [
-                'Configure SAP connection for Sandia Plastics',
-                'Configure SAP connection for Kauai Exclusive',
-                'Configure SAP connection for Hawaii Care & Cleaning',
-                'Add actual users via User Management',
-                'Set up ETL jobs for SAP data extraction'
+                f'Configure SAP connection for {c}' for c in sap_companies
+            ] + [
+                f'Configure NetSuite connection for {c}' for c in netsuite_companies
+            ] + [
+                'Set up ETL jobs for data extraction'
             ]
         })
         

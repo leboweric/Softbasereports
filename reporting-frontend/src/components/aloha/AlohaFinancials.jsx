@@ -50,7 +50,7 @@ const AlohaFinancials = ({ user, organization }) => {
     )
   }
 
-  const isAwaitingConnection = financialData?.status === 'awaiting_sap_connection'
+  const isAwaitingConnection = financialData?.status === 'awaiting_erp_connection' || financialData?.status === 'awaiting_sap_connection'
 
   return (
     <div className="space-y-6">
@@ -87,7 +87,7 @@ const AlohaFinancials = ({ user, organization }) => {
             <DollarSign className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-600">Financial Data Unavailable</h3>
             <p className="text-gray-400 mt-2 max-w-md mx-auto">
-              Connect your SAP ERP systems to view consolidated financial reports.
+              Connect your ERP systems (SAP and NetSuite) to view consolidated financial reports.
               Revenue, expenses, and P&L data will be automatically synced from each subsidiary.
             </p>
           </CardContent>
@@ -113,7 +113,7 @@ const AlohaFinancials = ({ user, organization }) => {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-center h-48 text-gray-400">
-                <p>Monthly financial data will populate once SAP ETL is configured</p>
+                <p>Monthly financial data will populate once ERP ETL is configured</p>
               </div>
             </CardContent>
           </Card>

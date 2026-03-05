@@ -47,7 +47,7 @@ const AlohaInventory = ({ user, organization }) => {
     )
   }
 
-  const isAwaitingConnection = inventoryData?.status === 'awaiting_sap_connection'
+  const isAwaitingConnection = inventoryData?.status === 'awaiting_erp_connection' || inventoryData?.status === 'awaiting_sap_connection'
 
   return (
     <div className="space-y-6">
@@ -69,9 +69,18 @@ const AlohaInventory = ({ user, organization }) => {
             onChange={(e) => setSubsidiaryFilter(e.target.value)}
           >
             <option value="all">All Subsidiaries</option>
-            <option value="sap_sandia_plastics">Sandia Plastics</option>
-            <option value="sap_kauai_exclusive">Kauai Exclusive</option>
-            <option value="sap_hawaii_care">Hawaii Care & Cleaning</option>
+            <optgroup label="SAP">
+              <option value="sap_sandia">Sandia</option>
+              <option value="sap_mercury">Mercury</option>
+              <option value="sap_ultimate_solutions">Ultimate Solutions</option>
+              <option value="sap_avalon">Avalon</option>
+              <option value="sap_orbot">Orbot</option>
+            </optgroup>
+            <optgroup label="NetSuite">
+              <option value="ns_hawaii_care">Hawaii Care and Cleaning</option>
+              <option value="ns_kauai_exclusive">Kauai Exclusive</option>
+              <option value="ns_heavenly_vacations">Heavenly Vacations</option>
+            </optgroup>
           </select>
           <Button variant="outline" size="sm" onClick={fetchInventory}>
             <RefreshCw className="h-4 w-4" />
@@ -85,7 +94,7 @@ const AlohaInventory = ({ user, organization }) => {
             <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-600">Inventory Data Unavailable</h3>
             <p className="text-gray-400 mt-2 max-w-md mx-auto">
-              Connect your SAP ERP systems to view consolidated inventory data.
+              Connect your ERP systems (SAP and NetSuite) to view consolidated inventory data.
               Stock levels, warehouse locations, and valuations will sync automatically.
             </p>
           </CardContent>
@@ -136,7 +145,7 @@ const AlohaInventory = ({ user, organization }) => {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-center h-48 text-gray-400">
-                <p>Inventory data will populate once SAP ETL is configured</p>
+                <p>Inventory data will populate once ERP ETL is configured</p>
               </div>
             </CardContent>
           </Card>

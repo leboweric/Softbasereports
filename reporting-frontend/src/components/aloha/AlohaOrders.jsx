@@ -48,7 +48,7 @@ const AlohaOrders = ({ user, organization }) => {
     )
   }
 
-  const isAwaitingConnection = orderData?.status === 'awaiting_sap_connection'
+  const isAwaitingConnection = orderData?.status === 'awaiting_erp_connection' || orderData?.status === 'awaiting_sap_connection'
 
   return (
     <div className="space-y-6">
@@ -70,9 +70,18 @@ const AlohaOrders = ({ user, organization }) => {
             onChange={(e) => setSubsidiaryFilter(e.target.value)}
           >
             <option value="all">All Subsidiaries</option>
-            <option value="sap_sandia_plastics">Sandia Plastics</option>
-            <option value="sap_kauai_exclusive">Kauai Exclusive</option>
-            <option value="sap_hawaii_care">Hawaii Care & Cleaning</option>
+            <optgroup label="SAP">
+              <option value="sap_sandia">Sandia</option>
+              <option value="sap_mercury">Mercury</option>
+              <option value="sap_ultimate_solutions">Ultimate Solutions</option>
+              <option value="sap_avalon">Avalon</option>
+              <option value="sap_orbot">Orbot</option>
+            </optgroup>
+            <optgroup label="NetSuite">
+              <option value="ns_hawaii_care">Hawaii Care and Cleaning</option>
+              <option value="ns_kauai_exclusive">Kauai Exclusive</option>
+              <option value="ns_heavenly_vacations">Heavenly Vacations</option>
+            </optgroup>
           </select>
           <select
             className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
@@ -95,7 +104,7 @@ const AlohaOrders = ({ user, organization }) => {
             <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-600">Order Data Unavailable</h3>
             <p className="text-gray-400 mt-2 max-w-md mx-auto">
-              Connect your SAP ERP systems to view consolidated order data.
+              Connect your ERP systems (SAP and NetSuite) to view consolidated order data.
               Sales orders, purchase orders, and delivery status will sync automatically.
             </p>
           </CardContent>
@@ -151,7 +160,7 @@ const AlohaOrders = ({ user, organization }) => {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-center h-48 text-gray-400">
-                <p>Order data will populate once SAP ETL is configured</p>
+                <p>Order data will populate once ERP ETL is configured</p>
               </div>
             </CardContent>
           </Card>
