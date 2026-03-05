@@ -2,7 +2,7 @@
 # Only essential packages with pinned versions for caching
 
 # Core Flask
-Flask==3.1.1
+Flask==3.1.3
 gunicorn==23.0.0
 
 # Auth & Security
