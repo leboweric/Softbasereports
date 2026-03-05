@@ -574,6 +574,10 @@ CURRIE_MAPPINGS_IPS = {
     # --- SERVICE ---
     'service': {
         # Customer labor = field labor + shop labor + customer PM + pickup/delivery
+        # NOTE: Parts revenue and parts COGS are intentionally EXCLUDED here.
+        # Per the Currie model, parts are tracked as a separate department (Parts).
+        # Road Parts, Shop Parts, and PM Parts accounts flow through the Parts department P&L.
+        # Including parts costs here without matching parts revenue would artificially deflate Service GP%.
         'customer_labor': {
             'revenue': ['4151701', '4151702',  # Field Labor
                         '4153701', '4153702',  # Field Labor Variance
@@ -582,22 +586,7 @@ CURRIE_MAPPINGS_IPS = {
                         '4157701', '4157702',  # Customer PM
                         '4171701', '4171702',  # Customer Pickup/Delivery
                         '4173701', '4173702',  # Freight Recovery
-                        # Road Parts (sold through service)
-                        '4133601', '4133602',  # Road Parts-Linde
-                        '4134601', '4134602',  # Road Parts-Combi
-                        '4135601', '4135602',  # Road Parts-Other
-                        '4144601',  # Road Parts-TVH
-                        # Shop Parts (sold through service)
-                        '4130601', '4130602',  # Shop Parts-Linde
-                        '4131601', '4131602',  # Shop Parts-Combi
-                        '4132601', '4132602',  # Shop Parts-Other
-                        '4141601',  # Shop Parts-TVH
-                        # PM accounts
-                        '4136601', '4136602',  # PM Parts
-                        '4137601', '4137602',  # PM
-                        '4138601', '4138602',  # PM
-                        '4147601',  # PM-TVH
-                        # Shop Supplies
+                        # Shop Supplies (service overhead, not parts inventory)
                         '4158701', '4158702'],  # Shop Supplies
             'cogs': ['5151701', '5151702',  # CGS Customer Road Labor
                      '5152701', '5152702',  # Lease Maintenance
@@ -605,22 +594,10 @@ CURRIE_MAPPINGS_IPS = {
                      '5157701', '5157702',  # CGS Customer PM Labor
                      '5175701', '5175702',  # Van Maintenance
                      '5200701', '5200702',  # Service Material
-                     # Road Parts COGS
-                     '5133601', '5133602',  # Road Parts-Linde
-                     '5134601', '5134602',  # Road Parts-Combi
-                     '5135601', '5135602',  # Road Parts-Other
-                     '5144601',  # Road Parts-TVH
-                     # Shop Parts COGS
-                     '5130601', '5130602',  # Shop Parts-Linde
-                     '5131601', '5131602',  # Shop Parts-Combi
-                     '5132601', '5132602',  # Shop Parts-Other
-                     '5141601',  # Shop Parts-TVH
-                     # PM COGS
-                     '5136601', '5136602',  # PM Parts
-                     '5137601', '5137602',  # PM
-                     '5138601', '5138602',  # PM
-                     '5147601',  # PM-TVH
                      '5156701', '5156702']  # CGS Service Training Labor
+            # Parts COGS removed (Road Parts 5133x/5134x/5135x/5144x,
+            # Shop Parts 5130x/5131x/5132x/5141x, PM 5136x/5137x/5138x/5147x)
+            # These now live in the Parts department P&L per Currie model.
         },
         # Internal labor = nonbillable time + internal labor allocations
         'internal_labor': {
